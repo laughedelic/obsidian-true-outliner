@@ -1,0 +1,14 @@
+- starter: "Lars", b. 2024
+	- feeding: 1:5:5, rye + wheat
+	- lives on the counter May–September, fridge otherwise
+- bakes
+	- 2026-07-05 — 78% hydration
+		- overproofed, flat, delicious anyway
+	- 2026-07-11 — 75% hydration, colder proof
+		- best ear in months
+		- crumb photo in the shared album
+	- next: try 20% spelt
+- rules learned the hard way
+	- the dough is done proofing before you think it is
+	- steam matters more than flour brand
+	- never bake angry

@@ -21,6 +21,27 @@ describe('corpus round-trip', () => {
   });
 });
 
+describe('test-vault round-trip (realistic notes are corpus too)', () => {
+  const vaultDir = join(__dirname, '..', 'test-vault');
+  const vaultNotes: string[] = [];
+  const collect = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) collect(join(dir, entry.name));
+      else if (entry.name.endsWith('.md')) vaultNotes.push(join(dir, entry.name));
+    }
+  };
+  collect(vaultDir);
+
+  it.each(vaultNotes.map((p) => [p.slice(vaultDir.length + 1)] as const))(
+    '%s round-trips byte-identically',
+    (rel) => {
+      const md = readFileSync(join(vaultDir, rel), 'utf8');
+      expect(encode(parse(md))).toBe(md);
+      expect(treesEqual(parse(md), parse(encode(parse(md))))).toBe(true);
+    },
+  );
+});
+
 describe('corpus structure spot checks', () => {
   it('03-mixed: attachment rule and heading scoping', () => {
     const md = readFileSync(join(corpusDir, '03-mixed.md'), 'utf8');
