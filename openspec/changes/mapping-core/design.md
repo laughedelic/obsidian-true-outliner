@@ -101,8 +101,16 @@ Plain npm, no monorepo — one package, `src/` + `tests/`.
 
 ## Open Questions
 
-- Indentation unit for newly created nesting (2 spaces vs tab vs infer-from-file): lean
-  infer-from-file with 2-space default; finalize during implementation against Obsidian's
-  own list-indent behavior.
-- Whether `moveUp/moveDown` on a heading may cross into a different parent's territory
-  (org allows sibling-swap only) — start with sibling-swap only, revisit with the CM6 layer.
+*(resolved during implementation)*
+
+- Indentation unit: **2 spaces for newly created nesting**; existing indentation
+  (including tabs) is preserved via relative shifts, so tab-indented vaults are not
+  rewritten. Infer-from-file remains a candidate refinement for the CM6 change, where
+  Obsidian's own indent settings are available.
+- Heading `moveUp/moveDown`: **sibling-swap only, equal levels required** — swapping a
+  heading with a non-heading sibling or a different-level heading has no positional
+  encoding (the moved node would be re-scoped on reparse) and is rejected with
+  `cannot-reorder-across-heading-boundary`.
+- New discovery (fed back to the decision log): **outdent out of a heading section is
+  rejected** — heading scope is positional, so a direct child of a heading has no
+  "sibling of my section" spot. The CM6 layer needs UX for this.

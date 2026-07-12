@@ -91,6 +91,32 @@ ALWAYS           minimal encoding or reject; no hidden state.
 See [05-org-mode-comparison.md](05-org-mode-comparison.md) for where this algebra aligns
 with and diverges from org-mode, the closest living reference system.
 
+### Verdicts from the mapping-core implementation (2026-07-12, `mapping-core` change)
+
+Both provisional rules **held up** under property testing (byte-identity round-trip,
+op-closure, inverse laws — thousands of generated cases). Findings to carry forward:
+
+- **Attachment rule: KEEP.** Confirmed consequence: "list item as the sibling directly
+  after a paragraph" is unrepresentable — the tree generator itself had to fold such
+  shapes into children, which is the rule working as designed. Scope refinement
+  discovered: in v1 the rule applies at *section level* (root/heading children); inside
+  a list item's children, a paragraph and a following list parse as siblings under the
+  item. Revisit whether nested paragraphs should also capture lists.
+- **Context-determined encoding: KEEP.** Delivered exactly the promised laws: paragraph
+  indent∘outdent restores the document byte-identically, and pure-list documents never
+  flatten. The donor scan considers only paragraph/list-item siblings (headings/atoms
+  are skipped) — heading nodes are never produced by re-encoding.
+- **New rejection discovered — outdent out of a heading section.** Heading scope is
+  positional in markdown: content placed "after the section" is still *in* the section,
+  so brother→uncle for a direct child of a heading has no encoding → rejected
+  (`not-expressible-under-target`). UX implication for the CM6 layer: outdent at
+  section level needs affordance messaging (or a future "split section" op).
+- **Reordering across the heading/content divide is rejected**, and heading swaps
+  require equal levels — same positional-encoding reason.
+- **Minimal-edit tradeoff**: indenting a paragraph into an existing child list keeps
+  the old separator blank line with the untouched sibling (a loose list — same tree).
+  Cosmetic; a "tidy gaps" pass could be a later opt-in.
+
 ## Q3. Node identity & metadata storage ✅ DECIDED
 
 Native `^block-id` **on demand** (only when a node is actually referenced); collapse state in

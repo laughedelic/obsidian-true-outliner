@@ -1,0 +1,25 @@
+{
+  "name": "obsidian-true-outliner",
+  "version": "0.0.1",
+  "description": "A true outliner for Obsidian — mapping core library",
+  "main": "src/index.ts",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src tests"
+  },
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-plugin-obsidianmd": "^0.4.1",
+    "fast-check": "^4.9.0",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.63.0",
+    "vitest": "^4.1.10"
+  }
+}

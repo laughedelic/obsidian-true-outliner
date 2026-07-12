@@ -1,0 +1,15 @@
+- Projects
+	- Home
+		- [ ] fix the fence
+		- [x] paint the shed
+			- bought paint 2026-06-01
+			- need brushes
+	- Work
+		- outliner plugin
+			- mapping core
+				- parser
+				- encoder
+	- 1. ordered sub
+	- 2. second
+- Archive
+	- old stuff

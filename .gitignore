@@ -6,3 +6,6 @@
 
 /.opencode/commands/
 /.opencode/skills/
+
+node_modules/
+dist/
