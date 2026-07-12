@@ -2,18 +2,18 @@
 
 ## 1. Harness scaffolding
 
-- [ ] 1.1 Add dev deps (`wdio-obsidian-service`, `@wdio/cli`,
+- [x] 1.1 Add dev deps (`wdio-obsidian-service`, `@wdio/cli`,
       `@wdio/local-runner`, `@wdio/mocha-framework`, `@wdio/globals`,
       `expect-webdriverio` as needed); add `test:e2e` script that runs
       `build:plugin` first; gitignore `.obsidian-cache/`
-- [ ] 1.2 Create `e2e/wdio.conf.mts` (vault `test-vault`, `plugins: ["."]`,
+- [x] 1.2 Create `e2e/wdio.conf.mts` (vault `test-vault`, `plugins: ["."]`,
       `browserVersion: "latest"` / `installerVersion: "earliest"`, cache dir,
       mocha framework, sane timeouts) and `e2e/tsconfig.json`; exclude `e2e/`
       from the root typecheck and confirm esbuild/vitest don't pick it up
-- [ ] 1.3 Write `e2e/helpers.ts`: read buffer, force-save + read disk
+- [x] 1.3 Write `e2e/helpers.ts`: read buffer, force-save + read disk
       bytes/mtime, read plugin `data.json`, wait-for-notice(text), set cursor
       / focus editor, platform undo chord, command-availability probe
-- [ ] 1.4 Smoke spec: Obsidian boots, plugin loaded, a vault note opens and
+- [x] 1.4 Smoke spec: Obsidian boots, plugin loaded, a vault note opens and
       buffer matches disk — proves the pipeline before real suites
 
 ## 2. Scenario suites
