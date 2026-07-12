@@ -27,7 +27,12 @@ import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
 import { encodingKindAtDestination } from './rules';
-import { childBaseCol, headingWithLevel, markerWidth, reencodeForDestination } from './reencode';
+import {
+  headingWithLevel,
+  leadingWhitespace,
+  markerWidth,
+  reencodeForDestination,
+} from './reencode';
 
 export interface OpOutput {
   readonly doc: OutlineDoc;
@@ -235,6 +240,49 @@ function renumberOrdered(nodes: readonly OutlineNode[]): readonly OutlineNode[] 
   return out;
 }
 
+/**
+ * The indentation STRING a node adopts at its destination — taken verbatim
+ * from context (so tab-indented vaults stay tab-indented):
+ * 1. an existing list-item at the landing site (sibling-to-be),
+ * 2. else the parent's own indentation plus one inferred unit (list-item
+ *    parents) or exactly the parent's indentation (paragraph parents),
+ * 3. else '' under headings/root.
+ */
+function destinationIndent(
+  doc: OutlineDoc,
+  parent: OutlineNode | 'root',
+  siblingsAtDestination: readonly OutlineNode[],
+): string {
+  const sibling = siblingsAtDestination.find((n) => n.kind === 'list-item');
+  if (sibling) return leadingWhitespace(sibling.lines[0] ?? '');
+  if (parent === 'root' || parent.kind === 'heading') return '';
+  const parentIndent = leadingWhitespace(parent.lines[0] ?? '');
+  if (parent.kind === 'paragraph') return parentIndent;
+  return parentIndent + inferIndentUnit(doc);
+}
+
+/** The document's list indent unit: tab if any indented list line uses one,
+ * else the first indented item's spaces, else two spaces. */
+function inferIndentUnit(doc: OutlineDoc): string {
+  for (const node of walkDoc(doc)) {
+    if (node.kind !== 'list-item') continue;
+    const ws = leadingWhitespace(node.lines[0] ?? '');
+    if (ws.includes('\t')) return '\t';
+    if (ws.length > 0) return ws.length >= 4 ? '    ' : ws;
+  }
+  return '  ';
+}
+
+function* walkDoc(doc: OutlineDoc): Generator<OutlineNode> {
+  function* walk(nodes: readonly OutlineNode[]): Generator<OutlineNode> {
+    for (const node of nodes) {
+      yield node;
+      yield* walk(node.children);
+    }
+  }
+  yield* walk(doc.children);
+}
+
 // ------------------------------------------------------------------ indent
 
 export function indent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
@@ -271,7 +319,11 @@ export function indent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
         followingSiblings: target.children.slice(insertIndex),
       })
     : undefined;
-  const moved = reencodeForDestination(node, newKind, childBaseCol(target));
+  const moved = reencodeForDestination(
+    node,
+    newKind,
+    destinationIndent(doc, target, target.children.slice(0, insertIndex)),
+  );
 
   let surgery = updateSiblings(doc, parentPath, (nodes) => {
     const rest = nodes.filter((_, i) => i !== index);
@@ -318,7 +370,15 @@ export function outdent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
         followingSiblings: grandSiblings.slice(parentIndex + 1),
       })
     : undefined;
-  const moved = reencodeForDestination(node, newKind, childBaseCol(grandParent ?? 'root'));
+  const moved = reencodeForDestination(
+    node,
+    newKind,
+    // Brother→uncle: the node lands at its former parent's level, so it
+    // adopts the parent's own indentation string.
+    node.kind === 'list-item' || newKind === 'list-item'
+      ? leadingWhitespace(parent.lines[0] ?? '')
+      : destinationIndent(doc, grandParent ?? 'root', []),
+  );
 
   let surgery = updateSiblings(doc, parentPath, (nodes) =>
     renumberOrdered(nodes.filter((_, i) => i !== index)),

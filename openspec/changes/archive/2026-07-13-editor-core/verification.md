@@ -6,28 +6,28 @@ Install: copy/symlink `manifest.json` + `main.js` into
 
 ## Outline mode
 
-- [ ] Toggle via command palette on a note: notice appears; file bytes and mtime
+- [x] Toggle via command palette on a note: notice appears; file bytes and mtime
       unchanged (check with `ls -l` / git diff)
-- [ ] Toggle via editor right-click menu entry
-- [ ] Restart Obsidian: mode still on for that note; note content has no trace
-- [ ] Rename the note: mode follows the new path
-- [ ] Delete the note: path pruned from `data.json`
-- [ ] Command palette on a non-outline note: the four structural commands absent
+- [x] Toggle via editor right-click menu entry
+- [x] Restart Obsidian: mode still on for that note; note content has no trace
+- [x] Rename the note: mode follows the new path
+- [x] Delete the note: path pruned from `data.json`
+- [x] Command palette on a non-outline note: the four structural commands absent
 
 ## Structural commands (bind temporary hotkeys first)
 
-- [ ] Indent paragraph under paragraph → becomes `- item`; cursor after `- `
-- [ ] Outdent it back → paragraph restored byte-identically; one undo step each way
-- [ ] Heading demote/promote: subtree `#` markers shift; body lines untouched;
+- [x] Indent paragraph under paragraph → becomes `- item`; cursor after `- `
+- [x] Outdent it back → paragraph restored byte-identically; one undo step each way
+- [x] Heading demote/promote: subtree `#` markers shift; body lines untouched;
       `[[note#Heading]]` link elsewhere still resolves
-- [ ] Skip-level outdent (`### x` under `# y`): first outdent → `## x` (no move),
+- [x] Skip-level outdent (`### x` under `# y`): first outdent → `## x` (no move),
       second → `# x` (sibling)
-- [ ] Move up/down: same-level heading sections swap wholesale; ordered list runs
+- [x] Move up/down: same-level heading sections swap wholesale; ordered list runs
       renumber
-- [ ] Each rejection cue fires with the right message, document untouched:
+- [x] Each rejection cue fires with the right message, document untouched:
       h6 indent, h1 outdent, top-level outdent, indent with nothing above,
       indent after code fence, outdent of section content, cross-kind move
-- [ ] Undo after any accepted op restores the exact prior text (single step)
+- [x] Undo after any accepted op restores the exact prior text (single step)
 - [ ] Multi-cursor / selection edge: command uses cursor head line; no crash
 
 ## Shell

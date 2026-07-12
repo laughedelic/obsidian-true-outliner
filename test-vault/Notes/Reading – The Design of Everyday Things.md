@@ -9,8 +9,8 @@ Reading notes, in progress.
 - affordances vs signifiers
   the thing you CAN do vs the thing that TELLS you what you can do
   most dashboard bugs are signifier bugs
-- "Norman doors"
-	- every push-door with a pull handle
+	- "Norman doors"
+		- every push-door with a pull handle
 	- the [[Aurora Dashboard]] timestamp column is a Norman door: it affords sorting, signifies nothing
 - feedback loops
   chapter pairs weirdly well with interval training: discomfort is information

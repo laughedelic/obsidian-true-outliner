@@ -8,6 +8,8 @@ tags: [project, work]
 
 Redesign of the alarm dashboard for industrial monitoring customers. Q3 goal: cut mean time-to-acknowledge by 30%.
 
+See also [[2026-07-10#Aurora review]].
+
 ## Current sprint
 
 The severity-first layout is the bet. Everything else serves it.
