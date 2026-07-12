@@ -1,0 +1,28 @@
+schema: spec-driven
+
+context: |
+  Obsidian plugin: a true outliner experience (Logseq/Workflowy/Roam-class).
+  Core vision: the "universal isomorphic outline view" — any markdown note maps losslessly
+  onto its inherent block tree (headings, paragraphs, lists, other blocks as nodes); a UI
+  toggle turns any note into an outline and back; structure is enforced (node-level
+  selection/ops, no way to corrupt the tree).
+  Architecture (decided): editor-centric — CodeMirror 6 extensions inside the standard
+  markdown view via registerEditorExtension, plus own panes for later layers. 100% public
+  Obsidian APIs, no private APIs, no monkey-patching; target a clean community-directory
+  scorecard (obsidianmd/eslint-plugin from day 1).
+  Metadata (decided): native ^block-ids only on demand; collapse state in plugin data;
+  markdown files stay clean and fully usable without the plugin.
+  v1 (decided): small solid core — editing grammar + node selection + enforced invariants;
+  fold persistence, zoom/breadcrumbs, structured backlinks, refs/mirrors are later layers.
+  Background research: docs/research/ (landscape, plugin gap analysis, API feasibility,
+  open questions/decision log).
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
