@@ -117,6 +117,24 @@ op-closure, inverse laws — thousands of generated cases). Findings to carry fo
   the old separator blank line with the untouched sibling (a loose list — same tree).
   Cosmetic; a "tidy gaps" pass could be a later opt-in.
 
+### Dev-vault findings (2026-07-13, first human verification round)
+
+- **Indentation unit: RESOLVED (was an open design question).** Obsidian indents lists
+  with tabs by default; synthesizing space-based indentation silently double-outdented
+  tab lists (dedent overshoot swallowed whole tabs). Fix: a reparented node **adopts the
+  destination's indentation string verbatim** — an existing sibling item's, else the
+  parent's plus one unit inferred from the document (default two spaces). Plugin-side
+  config passthrough of Obsidian's own indent settings remains a possible refinement.
+- **Cross-parent heading moves**: moveUp/Down is same-parent sibling swap in v1, so a
+  heading that is an only child rejects with no-sibling — surprising in practice.
+  A "move into adjacent section" op is expressible (the heading must land AFTER the
+  destination section's direct content, mirroring the indent op's before-first-subheading
+  rule — this also keeps the destination's paragraphs out of the moved subtree).
+  Candidate for the next structural change.
+- **Visual layer is now the testability bottleneck**: with no bullets/indent chrome,
+  outline mode is hard to verify by eye in flat documents. Decorations change moves up
+  in priority.
+
 ## Q3. Node identity & metadata storage ✅ DECIDED
 
 Native `^block-id` **on demand** (only when a node is actually referenced); collapse state in
