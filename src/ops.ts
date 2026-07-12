@@ -21,7 +21,7 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
-import { findPath, isAtom, nodeAt, updateSiblings } from './model';
+import { findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
 import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
@@ -130,6 +130,18 @@ function appendFinalGap(node: OutlineNode): OutlineNode {
     ...node,
     children: [...node.children.slice(0, -1), appendFinalGap(last)],
   };
+}
+
+function stripFinalGap(node: OutlineNode): OutlineNode {
+  const last = node.children[node.children.length - 1];
+  if (!last) return { ...node, trailingGap: [] };
+  return { ...node, children: [...node.children.slice(0, -1), stripFinalGap(last)] };
+}
+
+function setFinalGap(node: OutlineNode, gap: readonly string[]): OutlineNode {
+  const last = node.children[node.children.length - 1];
+  if (!last) return { ...node, trailingGap: [...gap] };
+  return { ...node, children: [...node.children.slice(0, -1), setFinalGap(last, gap)] };
 }
 
 function needsBlankBetween(prev: OutlineNode, next: OutlineNode): boolean {
@@ -344,7 +356,11 @@ function move(doc: OutlineDoc, nodeId: number, delta: -1 | 1): OpResult<OpOutput
   const surgery = updateSiblings(doc, parentPath, (nodes) => {
     const out = [...nodes];
     const a = Math.min(index, index + delta);
-    [out[a], out[a + 1]] = [out[a + 1]!, out[a]!];
+    // Separator gaps are positional, not node-owned: the gap that followed
+    // slot a stays at slot a (else the final-newline gap migrates mid-doc).
+    const gapA = subtreeFinalNode(out[a]!).trailingGap;
+    const gapB = subtreeFinalNode(out[a + 1]!).trailingGap;
+    [out[a], out[a + 1]] = [setFinalGap(out[a + 1]!, gapA), setFinalGap(out[a]!, gapB)];
     return renumberOrdered(out);
   });
   return finalize(doc, surgery, node.id);
@@ -354,3 +370,86 @@ export const moveUp = (doc: OutlineDoc, nodeId: number): OpResult<OpOutput> =>
   move(doc, nodeId, -1);
 export const moveDown = (doc: OutlineDoc, nodeId: number): OpResult<OpOutput> =>
   move(doc, nodeId, 1);
+
+// ------------------------------------------------------------------- split
+
+const LIST_MARKER_SPLIT_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]*)/;
+
+/**
+ * Split a paragraph/list-item node at a document position into two adjacent
+ * same-kind siblings; children stay with the original (upper) node.
+ *
+ * Markdown nuance: an empty PARAGRAPH has no encoding (a blank line is a
+ * gap), so an end-of-paragraph split yields no new node — just the blank
+ * separation with the cursor on it; the sibling materializes when text is
+ * typed. An empty list item ("-") is a real node.
+ */
+export function splitNode(
+  doc: OutlineDoc,
+  nodeId: number,
+  position: { line: number; ch: number },
+): OpResult<OpOutput> {
+  const path = findPath(doc, nodeId);
+  if (!path) return reject('node-not-found');
+  const node = nodeAt(doc, path)!;
+  if (node.kind !== 'paragraph' && node.kind !== 'list-item') return reject('cannot-split');
+
+  const startLine = startLineOf(doc, nodeId);
+  const lineIndex = position.line - startLine;
+  if (lineIndex < 0 || lineIndex >= node.lines.length) return reject('cannot-split');
+  const line = node.lines[lineIndex]!;
+  // Never split inside indentation or a list marker.
+  const ch = Math.min(Math.max(position.ch, contentColumnCh(line)), line.length);
+
+  const upperLines = [...node.lines.slice(0, lineIndex), line.slice(0, ch)];
+  const remainderFirst = line.slice(ch);
+  const lowerRest = node.lines.slice(lineIndex + 1);
+  const emptyRemainder = remainderFirst.trim() === '' && lowerRest.length === 0;
+
+  const parentPath = path.slice(0, -1);
+  const index = path[path.length - 1]!;
+
+  if (node.kind === 'paragraph' && emptyRemainder) {
+    // End-of-paragraph split: blank separation only, cursor on the blank.
+    const surgery = updateSiblings(doc, parentPath, (nodes) =>
+      nodes.map((n, i) => (i === index ? { ...n, trailingGap: ['', ...n.trailingGap] } : n)),
+    );
+    const result = finalize(doc, surgery, nodeId);
+    if (!result.ok) return result;
+    return accept({
+      ...result.value,
+      cursor: { line: startLine + node.lines.length, ch: 0 },
+    });
+  }
+
+  let lower: OutlineNode;
+  if (node.kind === 'list-item') {
+    const match = LIST_MARKER_SPLIT_RE.exec(node.lines[0] ?? '')!;
+    const markerPrefix = `${match[1]}${match[2]} `;
+    const firstLine = emptyRemainder
+      ? markerPrefix
+      : `${markerPrefix}${remainderFirst.trimStart()}`;
+    lower = makeNode({
+      kind: 'list-item',
+      ...(node.listStyle ? { listStyle: node.listStyle } : {}),
+      lines: [firstLine, ...lowerRest],
+    });
+  } else {
+    lower = makeNode({
+      kind: 'paragraph',
+      lines: [remainderFirst, ...lowerRest],
+    });
+  }
+
+  // The gap that separated the node's SUBTREE from what follows moves to the
+  // lower half — it is now what precedes the next sibling.
+  let upper: OutlineNode = { ...node, lines: upperLines };
+  const finalGap = subtreeFinalNode(upper).trailingGap;
+  upper = stripFinalGap(upper);
+  lower = { ...lower, trailingGap: [...finalGap] };
+
+  const surgery = updateSiblings(doc, parentPath, (nodes) =>
+    renumberOrdered([...nodes.slice(0, index), upper, lower, ...nodes.slice(index + 1)]),
+  );
+  return finalize(doc, surgery, lower.id);
+}

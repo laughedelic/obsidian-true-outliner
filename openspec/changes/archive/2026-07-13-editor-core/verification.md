@@ -45,3 +45,22 @@ Manual dev-vault run performed on the stacked branch `feat/outline-grammar` (PR 
 automated e2e coverage of the same scenarios added on `feat/e2e-harness` (PR open). See
 those branches/PRs for the actual checklist results and any corpus fixtures/open-questions
 updates filed from findings — not duplicated here.
+
+## Keyboard grammar (outline-grammar change)
+
+Scenarios below are covered by the automated e2e suite on `feat/e2e-harness`; see that
+branch for actual results rather than duplicating a manual checklist here.
+
+- Off-mode: Tab in a list, Enter, Shift+Enter, Alt+arrows all behave stock
+- Toggle mode with note open: very next keypress follows the new mode
+- Tab/Shift+Tab indent/outdent the node at cursor; cursor at content start
+- Alt+Up/Down move nodes/sections; ordered runs renumber
+- Enter mid-item splits into two items; children stay with the upper
+- Enter at item end: empty `- ` sibling, cursor after marker
+- Enter at paragraph end: blank line + cursor; typing creates the sibling node
+- Enter on a heading: empty line below, typed text becomes a child paragraph
+- Shift+Enter in an item: aligned continuation line, still one node (check by
+  toggling outline off/on or via a structural op treating it as one)
+- Atom interiors: Enter/Shift+Enter/Tab inside a code fence behave stock
+  (whole-fence ops only from its first line)
+- Each grammar op is one undo step; rejected ops change nothing but show the cue

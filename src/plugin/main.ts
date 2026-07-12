@@ -19,6 +19,7 @@ import { nodeAtLine } from './locate';
 import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
+import { grammarExtension } from './keymap';
 
 type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
 
@@ -75,6 +76,8 @@ export default class TrueOutlinerPlugin extends Plugin {
         );
       }),
     );
+
+    this.registerEditorExtension(grammarExtension(this));
 
     this.addSettingTab(new TrueOutlinerSettingTab(this.app, this));
 

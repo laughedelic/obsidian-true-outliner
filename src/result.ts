@@ -9,7 +9,8 @@ export type RejectionReason =
   | 'no-sibling-above'
   | 'no-sibling-below'
   | 'not-expressible-under-target'
-  | 'cannot-reorder-across-heading-boundary';
+  | 'cannot-reorder-across-heading-boundary'
+  | 'cannot-split';
 
 export interface Rejection {
   readonly reason: RejectionReason;

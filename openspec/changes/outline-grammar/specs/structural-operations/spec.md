@@ -19,7 +19,10 @@ verbatim lines, and `cursor` points at the new sibling's content start.
 
 #### Scenario: End-of-node split
 - **WHEN** a node is split at the exact end of its text
-- **THEN** the new sibling is an empty node of the same kind and the cursor rests on it
+- **THEN** for a list item the new sibling is an empty item node (`- `) with the cursor
+  after its marker; for a paragraph — whose empty form has no markdown encoding — the
+  split yields only the blank separation with the cursor on it, and the sibling node
+  materializes when text is typed
 
 #### Scenario: Atom split rejected
 - **WHEN** splitting is attempted at a position inside a code fence
