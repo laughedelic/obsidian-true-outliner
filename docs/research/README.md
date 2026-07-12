@@ -14,6 +14,7 @@ Research date: July 2026.
 | [02-obsidian-plugin-landscape.md](02-obsidian-plugin-landscape.md) | Existing Obsidian plugins in this space, how they work, and the gap analysis |
 | [03-obsidian-api-feasibility.md](03-obsidian-api-feasibility.md) | Can the experience be built on public APIs only? Architecture options, guidelines/scorecard constraints, verdict |
 | [04-open-questions.md](04-open-questions.md) | Decisions that need alignment before any planning/spec work |
+| [05-org-mode-comparison.md](05-org-mode-comparison.md) | Where our mapping algebra aligns with / diverges from org-mode, the closest living reference system |
 
 ## TL;DR
 
@@ -43,7 +44,7 @@ Research date: July 2026.
   `obsidianmd/eslint-plugin`) makes "perfect scorecard" a concrete, checkable target rather
   than an aspiration.
 
-## Decisions so far (2026-07-12 alignment)
+## Decisions so far (2026-07-12, two alignment rounds)
 
 1. **Architecture**: editor-centric — CM6 extensions in the standard markdown view + own side
    panes; 100% public API.
@@ -51,10 +52,24 @@ Research date: July 2026.
    tree (headings / paragraphs / lists / other blocks as nodes) and can be toggled into the
    outliner editing experience and back, losslessly. Not a list-only mode, not a vault takeover.
 3. **Metadata**: native `^block-id` only on demand; collapse state in plugin data; clean files.
-4. **v1**: small solid core (grammar + node selection + enforced invariants), architecture open
-   for fold persistence, zoom, structured backlinks, refs/mirrors as later layers.
+4. **v1**: small solid core (grammar + node selection + enforced invariants) implementing the
+   **universal tree model from day 1** — smaller in features, not in model; fold persistence,
+   zoom, structured backlinks, refs/mirrors as later layers.
+5. **Mapping algebra**: every structural op writes the minimal markdown encoding of the new
+   tree, or is rejected with gentle feedback when no encoding exists — never hidden state,
+   never lossy conversion. Two regimes: **headings** = org-mode promote/demote (Tab/S-Tab is
+   level ± 1, subtree shifts, tree re-derives from levels, reject only at h1/h6 bounds);
+   **everything else** = reparent (child-of-previous-sibling / brother→uncle) with encoding
+   recomputed from the new context (nearest-sibling type — so paragraphs round-trip and
+   nested-list docs never flatten). A list after a paragraph is that paragraph's children
+   (provisional); leaf blocks are atoms. Org-mode alignment/divergence:
+   [05-org-mode-comparison.md](05-org-mode-comparison.md).
+6. **Everything else**: build fresh (existing plugins as references only); interop/degradation
+   guarantees are hard invariants; mobile-safe from day 1, desktop-tested for v1.0; vim out of
+   scope v1; tasks are plain content v1; CM6-native undo v1; toggle state in plugin data.
 
-Remaining open questions: [04-open-questions.md](04-open-questions.md).
+All pre-planning questions are decided (Q10 backlinks-placement deferred as post-v1):
+[04-open-questions.md](04-open-questions.md).
 
 ## Where this project starts from
 
