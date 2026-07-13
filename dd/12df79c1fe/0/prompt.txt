@@ -1,0 +1,6 @@
+While you were researching existing plugins, have you checked this one? https://github.com/springrain1/workflowy-style-outline
+Judging by its readme, it has quite some overlap and similar ideas (e.g. the mode toggle and conversion between markdown and outline). Check the docs and the code and let's see what we can learn from it that might be relevant to our project
+
+---
+
+regarding monkey-patching reassessment. take a look at this plugin's scorecard (review). I don't know how much of that is relevant vs. basic linting, but it's quite red overall: https://community.obsidian.md/plugins/workflowy-style-outline
