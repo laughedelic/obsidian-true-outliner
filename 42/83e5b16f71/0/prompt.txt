@@ -1,0 +1,103 @@
+one concern I have about our current implementation is the markdown parser. Obsidian Flavored Markdown is a combination of CommonMark with GFM and other custom extensions: https://obsidian.md/help/obsidian-flavored-markdown
+having a custom parser could be good enough for validating an MVP, but long-term it might become a liability and an unnecessary source of complexity. 
+unfortunately, it looks like Obsidian doesn't provide an API for plugins to use its own parser. but I've seen claims like
+
+> Obsidian uses remark-parse 8 or earlier with commonmark option enabled, as core parser.
+[https://forum.obsidian.md/t/obsidian-markdown-parser/55922/5](https://forum.obsidian.md/t/obsidian-markdown-parser/55922/5?u=laughedelic)
+
+and some plugins using mdast with extensions: https://forum.obsidian.md/t/access-parsed-markdown/25398
+
+I want you to do more research on this and weigh pros and cons of using one of those solutions vs. having our own parser.
+
+---
+
+<task-notification>
+<task-id>aebb8d94ca153ea32</task-id>
+<tool-use-id>toolu_011pNAyiRwFZVdZAyPLzcLAr</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/5723b7b1-797e-4f77-8f2e-8e66a375cfef/tasks/aebb8d94ca153ea32.output</output-file>
+<status>completed</status>
+<summary>Agent "Research Obsidian markdown parser internals and mdast ecosystem" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result># Research Report: remark/mdast/micromark vs. Custom Parser for Obsidian Outliner Plugin
+
+## 1. What parser does Obsidian actually use (2026)?
+
+**No confirmed answer — Obsidian's internal parser is closed-source and undocumented, and this hasn't changed.** There is no official spec or source-visible implementation.
+
+- Obsidian dev team confirmed in 2021/2022 there's no reference spec: "There is no reference spec and is not currently on the roadmap" (WhiteNoise, Obsidian staff, Oct 2022), and "we try to use commonmark with some minor additions" (WhiteNoise, Dec 2021) — [Is there a parser/renderer reference spec?](https://forum.obsidian.md/t/is-there-a-parser-renderer-reference-spec/29504)
+- The "remark-parse 8 or earlier with commonmark option" claim is **not from 2024** — it's from a forum post dated **April 11, 2026** (user ile-24556), explicitly labeled speculation based on observed edge-case similarities to Prettier/remark-parse-8, "unconfirmed by Obsidian developers" — [Obsidian Markdown Parser](https://forum.obsidian.md/t/obsidian-markdown-parser/55922). A separate 2026-01-26 comment on the same thread calls the parser a "black box," complaining devs are "forced to add remark as a dependency" themselves rather than being given access to Obsidian's own parser.
+- For the **editor (Live Preview/CM6)**: Obsidian's editor runs on CodeMirror 6, whose stock markdown mode uses the Lezer parser (`@lezer/markdown`, via `@codemirror/lang-markdown`). However, the community project `lezer-markdown-obsidian` (last pushed 2023-12-27) states explicitly: **"This is not the parser that Obsidian itself uses, and all parsing is a best attempt to match the way Obsidian parses markdown"** — [erykwalder/lezer-markdown-obsidian](https://github.com/erykwalder/lezer-markdown-obsidian). This strongly implies Obsidian ships a **proprietary/customized tokenizer** for Live Preview rather than the stock open-source Lezer markdown grammar.
+- For **reading-mode rendering**: no verifiable public statement either way; community analyses variably guess remark-based or markdown-it-influenced behavior (e.g., one third-party doc attributes an HTML-block-parsing quirk to "the underlying CommonMark specification and the Markdown-it parser," but this is inference, not an Obsidian source statement).
+- **No public API for a parsed AST exists, confirmed as still true.** `MarkdownRenderer.render()` produces HTML only, with `renderMarkdown` marked deprecated in typings ([obsidian-api](https://github.com/obsidianmd/obsidian-api), [docs.obsidian.md/MarkdownRenderer](https://docs.obsidian.md/Reference/TypeScript+API/MarkdownRenderer)). Forum thread ["Access parsed Markdown"](https://forum.obsidian.md/t/access-parsed-markdown/25398) (2021, no Obsidian staff reply) shows the standard workaround is plugin authors running their own `mdast-util-from-markdown` pass on the raw file text. This pattern is unchanged in 2026 per the newer forum thread above.
+
+**Confidence: high** that no public AST API exists and the internal engine is undocumented; **low-to-moderate** on any specific claim about which library (if any pre-existing one) Obsidian's core is actually built on — treat all such claims, including the remark-8 one, as community speculation.
+
+## 2. OFM extensions in the remark/micromark ecosystem
+
+Mixed maturity; most are small single-maintainer community packages, several stale.
+
+| Feature | Package(s) | Status (GitHub `pushed_at`, stars) |
+|---|---|---|
+| Wikilinks `[[note]]`/`#heading`/`\|alias` | `remark-wiki-link` (landakram) | **Stale**: last push 2023-10-10, 109★, marked "Inactive" by Snyk/libraries.io |
+| Wikilinks (forks) | `@portaljs/remark-wiki-link`, `remark-wiki-link-plus` | Active forks exist but are third-party maintained forks of the above, not upstream |
+| Combined OFM (wikilinks+embeds+callouts+highlights) | `remark-obsidian-md` (per libraries.io v1.1.0) | Not independently verified for freshness — could not fetch npm page (403) |
+| Combined OFM (alt) | `johackim/remark-obsidian` | Active-ish: pushed 2026-05-10, 69★ |
+| Combined OFM (alt) | `heavycircle/remark-obsidian` | pushed 2025-07-15, 9★ (smaller) |
+| Combined OFM (alt, archived) | `alfredoperez/remark-obsidian` | **Archived**, pushed 2022-05-20, 0★ |
+| Callouts `&gt; [!note]` | `r4ai/remark-callout` (also `@r4ai/remark-callout`) | Most active found: pushed **2026-07-11**, 44★, 15 open issues |
+| Callouts (alt) | `escwxyz/remark-obsidian-callout` | **Archived**, last push 2025-09-03 |
+| Callouts (non-remark alt) | `markdown-it-obsidian-callouts`, `goldmark-obsidian-callout` (Go) | Exist for other ecosystems, confirming callouts are a recurring "everyone reimplements this" pain point |
+| Highlights `==text==` | `remark-flexible-markers` (ipikuka) | Active: pushed 2026-05-25, 22★ — general-purpose `&lt;mark&gt;` plugin, not Obsidian-specific but covers the syntax |
+| Comments `%%text%%` | Bundled inside combined `remark-obsidian*` packages only; no dedicated standalone package found |
+| Block references `^block-id` | **No dedicated remark/micromark plugin found** in searches; combined `remark-obsidian` packages may include partial support but this wasn't independently confirmed — flagged as low confidence |
+| Tags `#tag` | Not separately searched but is a simple regex-level feature; likely bundled in combined packages or trivial to hand-roll |
+| Footnotes | Covered by `remark-gfm` (footnotes are part of its scope) |
+| Math `$...$` / `$$...$$` | `remark-math` — actively maintained, v6.0.0, GitHub pushed 2025-02-20, 512★, Node 16+ compatible |
+| Embeds `![[note]]` | Bundled in combined `remark-obsidian*` packages; no standalone plugin found |
+| Tables/strikethrough/tasklists (GFM subset) | `remark-gfm` — well-maintained: v4.0.1, GitHub pushed 2025-02-10, **1,224★**, 28.5M weekly downloads, "sustainable" maintenance rating. Covers tables, strikethrough, tasklists, autolink literals, and footnotes together, which is a good match for OFM's GFM subset. |
+
+**Overall picture:** the foundational/general packages (`remark-gfm`, `remark-math`, `mdast-util-*`, `micromark` core) are solid and actively maintained by the unified/syntax-tree/micromark core teams. The **Obsidian-specific extension layer is fragmented across many small, competing, single-maintainer packages** with inconsistent feature coverage (wikilinks, callouts, comments, block-refs, embeds) — you would likely need to hand-write or heavily fork at least callouts, comments, and block-references rather than adopt a package wholesale. Flag: I could not verify `remark-obsidian-md`'s actual freshness/feature completeness directly (npm 403'd my fetch) — worth checking manually before relying on it.
+
+## 3. Round-trip / stringify fidelity
+
+**mdast-util-to-markdown (remark-stringify) is explicitly not byte-preserving and not fully structure-preserving.** This is a known, acknowledged limitation, not a niche bug:
+
+- Confirmed open issue: [`mdast-util-to-markdown` #12](https://github.com/syntax-tree/mdast-util-to-markdown/issues/12) — parsing `***emphasis*in emphasis*` and stringifying it back produces `\***emphasis*in emphasis*`, which **re-parses into a structurally different AST** (nested emphasis collapses to flat). Labeled "confirmed," still open as of my check (repo last pushed 2026-04-24, 8 open issues total), no maintainer resolution stating round-tripping is a design goal.
+- General project stance (from repo docs/README and community discussion threads like [remark-stringify formatting questions #1166](https://github.com/orgs/remarkjs/discussions/1166)): the stringifier "does its best to serialize markdown to match the syntax tree," but complete round-tripping is stated to be impossible in general since arbitrary values can be injected into the tree, and there are known issues around escaping and spacing preferences that aren't fully configurable.
+- **Practical implication**: for a tool that must preserve exact source formatting (whitespace, list marker style `-` vs `*`, blank-line patterns, indentation) across incremental edits, remark-stringify alone is not safe to trust for un-touched parts of the document.
+
+**On using position offsets to slice the original source instead of stringifying:** unist `Position`/`Point` nodes do carry 0-indexed `offset` fields alongside line/column, and `mdast-util-from-markdown` populates these reliably for CommonMark-compliant parses (I did not find any specific report of the offsets being unreliable or missing for standard nodes). This is a well-established pattern (also used by tools like Prettier's markdown printer and various codemods) — slice the raw source with node offsets for content you didn't change, and only synthesize new markdown for nodes you actually created/modified. I did not find a single dedicated package/utility explicitly branded for this "surgical slice" pattern, but the primitives (`unist-util-position`, position offsets themselves) support it. **Confidence: moderate** — this is inferred from unist's documented data model plus known practice in the ecosystem (e.g., Prettier), not from an explicit case study I found and verified.
+
+## 4. micromark as a standalone tokenizer/boundary detector
+
+**Yes, this usage pattern is supported by design and has prior art**, though I found less explicit "here's a project doing exactly that" documentation than expected.
+
+- micromark is explicitly architected as a layered system: the core tokenizer (`micromark-core-commonmark` + `micromark`) emits a flat event stream (start/end events referencing token spans with position/offset info) that is **decoupled from any specific output**. The micromark README states the parsing layer "can still be used separately to build ASTs, CSTs, or many other output formats" beyond its own HTML compiler — [micromark/micromark](https://github.com/micromark/micromark) (repo pushed 2025-05-10, 2,196★, actively maintained, 15 open issues).
+- `mdast-util-from-markdown` itself is the reference example of consuming micromark's event stream and building a different tree shape (mdast) on top — i.e., "use micromark for tokenization, build your own tree" is literally how remark itself is built, which is the strongest piece of prior art: the ecosystem's own two-layer design (micromark = tokenizer, mdast-util-from-markdown = tree builder) is exactly the "boundary detector + keep your own tree" pattern you're asking about.
+- I did not find a clearly documented third-party project that uses bare micromark (without any `mdast-util-*` tree builder) purely as a boundary/offset oracle while feeding a fully custom, non-mdast data structure. This may well exist (e.g., inside MDX tooling, Prettier's markdown plugin, or Astro's content pipeline) but I could not confirm it directly — **flag as unverified**, worth a targeted look at Prettier's `markdown` printer source or Astro's content-collections markdown handling if this pattern matters to the decision.
+
+## Sources
+- [Is there a parser/renderer reference spec? (Obsidian Forum)](https://forum.obsidian.md/t/is-there-a-parser-renderer-reference-spec/29504)
+- [Obsidian markdown does not conform to CommonMark (Obsidian Forum)](https://forum.obsidian.md/t/obsidian-markdown-does-not-conform-to-commonmark/112726)
+- [Obsidian Markdown Parser (Obsidian Forum)](https://forum.obsidian.md/t/obsidian-markdown-parser/55922)
+- [Access parsed Markdown (Obsidian Forum)](https://forum.obsidian.md/t/access-parsed-markdown/25398)
+- [obsidian-api (GitHub)](https://github.com/obsidianmd/obsidian-api) / [MarkdownRenderer docs](https://docs.obsidian.md/Reference/TypeScript+API/MarkdownRenderer)
+- [Obsidian Flavored Markdown help page](https://obsidian.md/help/obsidian-flavored-markdown)
+- [erykwalder/lezer-markdown-obsidian](https://github.com/erykwalder/lezer-markdown-obsidian)
+- [landakram/remark-wiki-link](https://github.com/landakram/remark-wiki-link)
+- [r4ai/remark-callout](https://github.com/r4ai/remark-callout)
+- [escwxyz/remark-obsidian-callout (archived)](https://github.com/escwxyz/remark-obsidian-callout)
+- [johackim/remark-obsidian](https://github.com/johackim/remark-obsidian)
+- [ipikuka/remark-flexible-markers](https://github.com/ipikuka/remark-flexible-markers)
+- [remarkjs/remark-gfm](https://github.com/remarkjs/remark-gfm)
+- [remarkjs/remark-math](https://github.com/remarkjs/remark-math)
+- [syntax-tree/mdast-util-to-markdown](https://github.com/syntax-tree/mdast-util-to-markdown) / [Issue #12](https://github.com/syntax-tree/mdast-util-to-markdown/issues/12)
+- [remark-stringify formatting questions #1166](https://github.com/orgs/remarkjs/discussions/1166)
+- [micromark/micromark](https://github.com/micromark/micromark)
+- [syntax-tree/unist](https://github.com/syntax-tree/unist)</result>
+<usage><subagent_tokens>66372</subagent_tokens><tool_uses>30</tool_uses><duration_ms>282822</duration_ms></usage>
+</task-notification>
+
+---
+
+okay. I concur. let's record this decision somewhere, so that we have the reasons for why things as they are now and can potentially revisit it later without re-doing all of the research and analysis. be brief.
