@@ -1,0 +1,1 @@
+could you create a test vault with example notes that will have enough diverse content for the manual (and potentially automated e2e) testing? something that looks like someone's daily journal with references to people and projects, not just lorem ipsum. this could be later used to create demos.
