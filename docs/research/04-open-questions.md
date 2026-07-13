@@ -179,3 +179,25 @@ step. View-state restoration (fold/zoom/focus) is a later enhancement layer.
 "True Outliner" as working name; decide the final name at directory-submission time.
 Differentiator statement: *any note is an outline — enforced structure, node selection,
 isomorphic markdown mapping — one coherent plugin*.
+
+## Q13. Parser: custom vs. remark/mdast/micromark ✅ DECIDED (2026-07-13): keep custom, revisit trigger defined
+
+Re-examined design.md D1 against 2026 research before committing to the hand-rolled parser
+long-term. **Verdict: keep it.** Findings:
+
+- Obsidian's internal parser is an undocumented black box; the "remark-parse 8" claim
+  circulating in the forums is unverified speculation, not a confirmed fact — there's nothing
+  to "align with" even if we wanted to.
+- `mdast-util-to-markdown` is documented as **not** round-trip-safe (confirmed upstream issue:
+  parse→stringify can change AST structure on re-parse). Adopting it would directly break the
+  byte-identity goal (design.md D1/D2) — the exact failure mode D1 already rejected it for.
+- The OFM-extension remark plugin ecosystem (wikilinks, callouts, embeds, block-refs) is
+  fragmented and often stale/single-maintainer; we'd hand-write most of it anyway — and we
+  don't need it, since our model keeps all OFM constructs as opaque content inside block
+  nodes (never inline-parsed).
+- **Revisit trigger**: if corpus/property testing surfaces real CommonMark-dialect bugs our
+  segmenter is structurally bad at (lazy continuation, nested list/blockquote edge cases),
+  the upgrade path is **micromark's core tokenizer only** (not mdast/remark) as a
+  boundary/offset oracle feeding our existing `OutlineNode`/encode/ops unchanged — this
+  "tokenize with micromark, keep your own tree" pattern is exactly how `mdast-util-from-markdown`
+  itself is built, so it's proven architecture, just not something to adopt preemptively.
