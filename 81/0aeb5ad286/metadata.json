@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "810aeb5ad286",
+  "strategy": "manual-commit",
+  "branch": "feat/editor-core",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "openspec/changes/editor-core/tasks.md",
+    "openspec/changes/editor-core/verification.md",
+    "openspec/specs/editor-structural-commands/spec.md",
+    "openspec/specs/outline-mode/spec.md",
+    "openspec/specs/plugin-shell/spec.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/81/0aeb5ad286/0/metadata.json",
+      "transcript": "/81/0aeb5ad286/0/full.jsonl",
+      "compact_transcript": "/81/0aeb5ad286/0/transcript.jsonl",
+      "content_hash": "/81/0aeb5ad286/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 159,
+    "cache_creation_tokens": 5510,
+    "cache_read_tokens": 495282,
+    "output_tokens": 1129,
+    "api_call_count": 7
+  }
+}
