@@ -62,4 +62,22 @@ indentation; existing indentation (including tabs) is preserved via relative shi
 npm test        # vitest: unit + fast-check property suites + corpus round-trips
 npm run build   # tsc --noEmit
 npm run lint    # eslint (obsidianmd plugin config lands with the plugin surface)
+npm run test:e2e  # end-to-end: real Obsidian against a sandboxed copy of test-vault/
 ```
+
+### End-to-end tests (`e2e/`)
+
+`npm run test:e2e` builds the plugin, then uses
+[wdio-obsidian-service](https://github.com/jesse-r-s-hines/wdio-obsidian-service)
+to download Obsidian (first run only, cached in `.obsidian-cache/`), launch it
+against a throwaway copy of `test-vault/` with the plugin installed, and run
+the specs in `e2e/specs/`. The checked-in vault is never modified.
+
+The suites automate the verification protocol in
+`openspec/changes/archive/2026-07-13-editor-core/verification.md` — see that
+file for the scenario-to-spec map. To add a spec, drop a `*.e2e.ts` file in `e2e/specs/`
+and use the helpers in `e2e/helpers.ts` (buffer/disk/data.json readers, key
+chords, notice assertions). `browser.executeObsidian(({app, obsidian}) => …)`
+runs code inside the app; `browser.reloadObsidian()` restarts it for
+persistence tests. The harness lives outside the plugin bundle, the vitest
+suite, and the root typecheck (`npm run build:e2e` typechecks it).

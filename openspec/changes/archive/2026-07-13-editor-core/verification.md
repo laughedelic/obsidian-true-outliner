@@ -1,66 +1,53 @@
-# Manual dev-vault verification protocol (task 4.1)
+# Dev-vault verification (task 4.1)
 
-Install: copy/symlink `manifest.json` + `main.js` into
-`<vault>/.obsidian/plugins/true-outliner/`, enable in Community plugins.
-(`npm run dev` for watch mode.) Record results inline: [ ] → [x] pass / [!] fail + note.
+As of the e2e-harness change, this protocol is automated: `npm run test:e2e`
+launches a real (sandboxed) Obsidian against a copy of `test-vault/` and runs
+the checks below. First run downloads Obsidian into `.obsidian-cache/`.
+Historical note: the original manual run (2026-07, recorded in git history)
+passed everything it covered before automation.
 
-## Outline mode
+## Automated coverage
 
-- [x] Toggle via command palette on a note: notice appears; file bytes and mtime
-      unchanged (check with `ls -l` / git diff)
-- [x] Toggle via editor right-click menu entry
-- [x] Restart Obsidian: mode still on for that note; note content has no trace
-- [x] Rename the note: mode follows the new path
-- [x] Delete the note: path pruned from `data.json`
-- [x] Command palette on a non-outline note: the four structural commands absent
+### Outline mode → `e2e/specs/10-outline-mode.e2e.ts`
 
-## Structural commands (bind temporary hotkeys first)
+- Toggle via command: notice; file bytes and mtime unchanged
+- Restart: mode still on; no trace in note content
+- Rename: mode follows the new path; delete: path pruned from `data.json`
+- Structural commands absent from non-outline notes
 
-- [x] Indent paragraph under paragraph → becomes `- item`; cursor after `- `
-- [x] Outdent it back → paragraph restored byte-identically; one undo step each way
-- [x] Heading demote/promote: subtree `#` markers shift; body lines untouched;
-      `[[note#Heading]]` link elsewhere still resolves
-- [x] Skip-level outdent (`### x` under `# y`): first outdent → `## x` (no move),
-      second → `# x` (sibling)
-- [x] Move up/down: same-level heading sections swap wholesale; ordered list runs
-      renumber
-- [x] Each rejection cue fires with the right message, document untouched:
-      h6 indent, h1 outdent, top-level outdent, indent with nothing above,
-      indent after code fence, outdent of section content, cross-kind move
-- [x] Undo after any accepted op restores the exact prior text (single step)
-- [ ] Multi-cursor / selection edge: command uses cursor head line; no crash
+(The right-click menu entry itself is exercised manually; the command path it
+shares is automated.)
 
-## Shell
+### Structural commands → `e2e/specs/20-structural-commands.e2e.ts`
 
-- [ ] Clean unload: disable plugin → commands and menu entry gone
-- [ ] Coexistence: enable obsidian-outliner → one-time warning on next load; not
-      repeated after restart
-- [ ] Debug cross-check setting on: run ops across the corpus-style notes; console
-      shows no `[true-outliner] parse disagreement` warnings (any hit → task 4.2)
-- [ ] Mobile smoke (optional this change): plugin loads on iOS/Android without errors
+- Indent/outdent paragraph round-trip, cursor placement, one undo step each
+- Heading demote/promote; `[[note#Heading]]` still resolves
+- Skip-level outdent (re-level in place, then move)
+- Move up/down: section swaps, ordered-run renumbering
+- All seven rejection cues fire with the right message, document untouched
+- Multi-line selection: command uses the cursor head line, no crash
 
-## Results
+### Keyboard grammar → `e2e/specs/30-keyboard-grammar.e2e.ts`
 
-Manual dev-vault run performed on the stacked branch `feat/outline-grammar` (PR open);
-automated e2e coverage of the same scenarios added on `feat/e2e-harness` (PR open). See
-those branches/PRs for the actual checklist results and any corpus fixtures/open-questions
-updates filed from findings — not duplicated here.
+- Off-mode: keys behave stock; toggle governs the very next keypress
+- Tab/Shift+Tab, Alt+arrows (with children, with renumbering)
+- Enter splits per node kind; Shift+Enter continuation stays one node
+- Atom interiors stock; whole-fence ops from the first line
+- Single-step undo; rejected ops inert with cue
 
-## Keyboard grammar (outline-grammar change)
+### Shell → `e2e/specs/40-shell.e2e.ts`
 
-Scenarios below are covered by the automated e2e suite on `feat/e2e-harness`; see that
-branch for actual results rather than duplicating a manual checklist here.
+- Clean unload: disable removes commands
+- Coexistence warning (via stub `obsidian-outliner` plugin): once, not after
+  restart
 
-- Off-mode: Tab in a list, Enter, Shift+Enter, Alt+arrows all behave stock
-- Toggle mode with note open: very next keypress follows the new mode
-- Tab/Shift+Tab indent/outdent the node at cursor; cursor at content start
-- Alt+Up/Down move nodes/sections; ordered runs renumber
-- Enter mid-item splits into two items; children stay with the upper
-- Enter at item end: empty `- ` sibling, cursor after marker
-- Enter at paragraph end: blank line + cursor; typing creates the sibling node
-- Enter on a heading: empty line below, typed text becomes a child paragraph
-- Shift+Enter in an item: aligned continuation line, still one node (check by
-  toggling outline off/on or via a structural op treating it as one)
-- Atom interiors: Enter/Shift+Enter/Tab inside a code fence behave stock
-  (whole-fence ops only from its first line)
-- Each grammar op is one undo step; rejected ops change nothing but show the cue
+## Manual residue
+
+- [ ] Mobile smoke (optional this change): plugin loads on iOS/Android
+      without errors — wdio-obsidian-service supports Android/emulation if we
+      ever want to automate this
+- [ ] Right-click editor menu entry appears and toggles (visual/UX check)
+- [ ] Debug cross-check sweep: setting on, run ops across corpus-style notes,
+      console clean of `[true-outliner] parse disagreement` (automatable
+      later by reading the console through the harness; any hit → task 4.2)
+- [ ] Notice appearance/timing feels right (pure UX judgment)

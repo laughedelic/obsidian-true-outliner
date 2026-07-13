@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-outliner",
+  "name": "Outliner (e2e stub)",
+  "version": "0.0.1",
+  "minAppVersion": "1.5.0",
+  "description": "Inert stand-in with the real obsidian-outliner plugin id, used to trigger the coexistence warning in e2e tests.",
+  "author": "true-outliner e2e",
+  "isDesktopOnly": false
+}

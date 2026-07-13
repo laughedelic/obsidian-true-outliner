@@ -14,22 +14,33 @@
     "dev": "node esbuild.config.mjs",
     "build:plugin": "node esbuild.config.mjs production",
     "vault:install": "npm run build:plugin && mkdir -p test-vault/.obsidian/plugins/true-outliner && ln -sf ../../../../manifest.json ../../../../main.js test-vault/.obsidian/plugins/true-outliner/",
-    "vault:reset": "git checkout -- test-vault"
+    "vault:reset": "git checkout -- test-vault",
+    "test:e2e": "npm run build:plugin && wdio run e2e/wdio.conf.mts",
+    "build:e2e": "tsc --noEmit -p e2e"
   },
   "license": "MIT",
   "type": "module",
   "devDependencies": {
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.38.6",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^26.1.1",
+    "@wdio/cli": "^9.29.1",
+    "@wdio/globals": "^9.29.1",
+    "@wdio/local-runner": "^9.29.1",
+    "@wdio/mocha-framework": "^9.29.1",
     "builtin-modules": "^5.3.0",
     "esbuild": "^0.28.1",
     "eslint": "^9.39.5",
     "eslint-plugin-obsidianmd": "^0.4.1",
     "fast-check": "^4.9.0",
+    "mocha": "^11.7.6",
     "obsidian": "^1.13.1",
     "typescript": "~5.9.0",
     "typescript-eslint": "^8.63.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wdio-obsidian-reporter": "^3.1.1",
+    "wdio-obsidian-service": "^3.1.1",
+    "webdriverio": "^9.29.1"
   }
 }
