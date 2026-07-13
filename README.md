@@ -74,8 +74,8 @@ against a throwaway copy of `test-vault/` with the plugin installed, and run
 the specs in `e2e/specs/`. The checked-in vault is never modified.
 
 The suites automate the verification protocol in
-`openspec/changes/editor-core/verification.md` — see that file for the
-scenario-to-spec map. To add a spec, drop a `*.e2e.ts` file in `e2e/specs/`
+`openspec/changes/archive/2026-07-13-editor-core/verification.md` — see that
+file for the scenario-to-spec map. To add a spec, drop a `*.e2e.ts` file in `e2e/specs/`
 and use the helpers in `e2e/helpers.ts` (buffer/disk/data.json readers, key
 chords, notice assertions). `browser.executeObsidian(({app, obsidian}) => …)`
 runs code inside the app; `browser.reloadObsidian()` restarts it for
