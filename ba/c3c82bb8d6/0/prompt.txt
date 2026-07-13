@@ -1,0 +1,9 @@
+/openspec-propose the next phase of the plan. review past changes and the research.
+
+---
+
+check the @docs/research/04-open-questions.md:
+
+> - **Visual layer is now the testability bottleneck**: with no bullets/indent chrome, outline mode is hard to verify by eye in flat documents. Decorations change moves up in priority.
+
+let's pivot to that

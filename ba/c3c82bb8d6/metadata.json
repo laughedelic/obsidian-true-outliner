@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "bac3c82bb8d6",
+  "strategy": "manual-commit",
+  "branch": "feat/outline-decorations",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "openspec/changes/outline-decorations/.openspec.yaml",
+    "openspec/changes/outline-decorations/design.md",
+    "openspec/changes/outline-decorations/proposal.md",
+    "openspec/changes/outline-decorations/specs/outline-decorations/spec.md",
+    "openspec/changes/outline-decorations/tasks.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ba/c3c82bb8d6/0/metadata.json",
+      "transcript": "/ba/c3c82bb8d6/0/full.jsonl",
+      "compact_transcript": "/ba/c3c82bb8d6/0/transcript.jsonl",
+      "content_hash": "/ba/c3c82bb8d6/0/content_hash.txt",
+      "prompt": "/ba/c3c82bb8d6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 13058,
+    "cache_creation_tokens": 102987,
+    "cache_read_tokens": 3836994,
+    "output_tokens": 31570,
+    "api_call_count": 38
+  }
+}
