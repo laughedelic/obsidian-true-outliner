@@ -91,6 +91,32 @@ ALWAYS           minimal encoding or reject; no hidden state.
 See [05-org-mode-comparison.md](05-org-mode-comparison.md) for where this algebra aligns
 with and diverges from org-mode, the closest living reference system.
 
+### Verdicts from the mapping-core implementation (2026-07-12, `mapping-core` change)
+
+Both provisional rules **held up** under property testing (byte-identity round-trip,
+op-closure, inverse laws — thousands of generated cases). Findings to carry forward:
+
+- **Attachment rule: KEEP.** Confirmed consequence: "list item as the sibling directly
+  after a paragraph" is unrepresentable — the tree generator itself had to fold such
+  shapes into children, which is the rule working as designed. Scope refinement
+  discovered: in v1 the rule applies at *section level* (root/heading children); inside
+  a list item's children, a paragraph and a following list parse as siblings under the
+  item. Revisit whether nested paragraphs should also capture lists.
+- **Context-determined encoding: KEEP.** Delivered exactly the promised laws: paragraph
+  indent∘outdent restores the document byte-identically, and pure-list documents never
+  flatten. The donor scan considers only paragraph/list-item siblings (headings/atoms
+  are skipped) — heading nodes are never produced by re-encoding.
+- **New rejection discovered — outdent out of a heading section.** Heading scope is
+  positional in markdown: content placed "after the section" is still *in* the section,
+  so brother→uncle for a direct child of a heading has no encoding → rejected
+  (`not-expressible-under-target`). UX implication for the CM6 layer: outdent at
+  section level needs affordance messaging (or a future "split section" op).
+- **Reordering across the heading/content divide is rejected**, and heading swaps
+  require equal levels — same positional-encoding reason.
+- **Minimal-edit tradeoff**: indenting a paragraph into an existing child list keeps
+  the old separator blank line with the untouched sibling (a loose list — same tree).
+  Cosmetic; a "tidy gaps" pass could be a later opt-in.
+
 ## Q3. Node identity & metadata storage ✅ DECIDED
 
 Native `^block-id` **on demand** (only when a node is actually referenced); collapse state in
@@ -153,3 +179,25 @@ step. View-state restoration (fold/zoom/focus) is a later enhancement layer.
 "True Outliner" as working name; decide the final name at directory-submission time.
 Differentiator statement: *any note is an outline — enforced structure, node selection,
 isomorphic markdown mapping — one coherent plugin*.
+
+## Q13. Parser: custom vs. remark/mdast/micromark ✅ DECIDED (2026-07-13): keep custom, revisit trigger defined
+
+Re-examined design.md D1 against 2026 research before committing to the hand-rolled parser
+long-term. **Verdict: keep it.** Findings:
+
+- Obsidian's internal parser is an undocumented black box; the "remark-parse 8" claim
+  circulating in the forums is unverified speculation, not a confirmed fact — there's nothing
+  to "align with" even if we wanted to.
+- `mdast-util-to-markdown` is documented as **not** round-trip-safe (confirmed upstream issue:
+  parse→stringify can change AST structure on re-parse). Adopting it would directly break the
+  byte-identity goal (design.md D1/D2) — the exact failure mode D1 already rejected it for.
+- The OFM-extension remark plugin ecosystem (wikilinks, callouts, embeds, block-refs) is
+  fragmented and often stale/single-maintainer; we'd hand-write most of it anyway — and we
+  don't need it, since our model keeps all OFM constructs as opaque content inside block
+  nodes (never inline-parsed).
+- **Revisit trigger**: if corpus/property testing surfaces real CommonMark-dialect bugs our
+  segmenter is structurally bad at (lazy continuation, nested list/blockquote edge cases),
+  the upgrade path is **micromark's core tokenizer only** (not mdast/remark) as a
+  boundary/offset oracle feeding our existing `OutlineNode`/encode/ops unchanged — this
+  "tokenize with micromark, keep your own tree" pattern is exactly how `mdast-util-from-markdown`
+  itself is built, so it's proven architecture, just not something to adopt preemptively.
