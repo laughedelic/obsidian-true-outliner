@@ -1,0 +1,9 @@
+rebase this branch and verify if we can archive the openspec change
+
+---
+
+note that manual testing has been automated on the feat/e2e-harness branch
+
+---
+
+what's the best approach w.r.t openspec: keep this change open, merge the PR, archive it on the next branch? or merge the e2e testing branch into this one, archive and squash-merge both changes into master?
