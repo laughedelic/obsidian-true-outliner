@@ -18,6 +18,22 @@ export async function openNote(notePath: string): Promise<void> {
   await obsidianPage.openFile(notePath);
 }
 
+/** Create (or overwrite) a note and open it. */
+export async function createNote(notePath: string, content: string): Promise<void> {
+  await browser.executeObsidian(
+    async ({ app }, p, c) => {
+      const existing = app.vault.getAbstractFileByPath(p);
+      if (existing) await app.vault.delete(existing);
+      const dir = p.split('/').slice(0, -1).join('/');
+      if (dir && !app.vault.getAbstractFileByPath(dir)) await app.vault.createFolder(dir);
+      await app.vault.create(p, c);
+    },
+    notePath,
+    content,
+  );
+  await openNote(notePath);
+}
+
 export function getBuffer(): Promise<string> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
@@ -46,6 +62,23 @@ export function setCursor(line: number, ch: number): Promise<void> {
     },
     line,
     ch,
+  );
+}
+
+/** Focus the editor and set a multi-line selection (anchor → head). */
+export function setSelection(
+  anchor: { line: number; ch: number },
+  head: { line: number; ch: number },
+): Promise<void> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, anchor, head) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      view.editor.focus();
+      view.editor.setSelection(anchor, head);
+    },
+    anchor,
+    head,
   );
 }
 
@@ -89,14 +122,31 @@ interface PluginData {
   coexistenceWarned: boolean;
 }
 
-/** Read the plugin's data.json from the sandboxed vault. */
-export async function readPluginData(): Promise<PluginData> {
+/** Read the plugin's data.json from the sandboxed vault (null if absent). */
+export async function readPluginData(): Promise<PluginData | null> {
   const configDir = await browser.executeObsidian(({ app }) => app.vault.configDir);
-  const raw = await fsp.readFile(
-    vaultFilePath(path.join(configDir, 'plugins', PLUGIN_ID, 'data.json')),
-    'utf-8',
-  );
-  return JSON.parse(raw) as PluginData;
+  try {
+    const raw = await fsp.readFile(
+      vaultFilePath(path.join(configDir, 'plugins', PLUGIN_ID, 'data.json')),
+      'utf-8',
+    );
+    return JSON.parse(raw) as PluginData;
+  } catch {
+    return null;
+  }
+}
+
+/** Reset plugin data to defaults and reload the plugin so it re-reads it. */
+export async function resetPluginState(): Promise<void> {
+  await browser.executeObsidian(async ({ plugins }) => {
+    await (plugins.trueOutliner as any).saveData({
+      outlinePaths: [],
+      debugCrossCheck: false,
+      coexistenceWarned: false,
+    });
+  });
+  await obsidianPage.disablePlugin(PLUGIN_ID);
+  await obsidianPage.enablePlugin(PLUGIN_ID);
 }
 
 // ---- Commands -----------------------------------------------------------

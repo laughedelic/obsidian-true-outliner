@@ -18,27 +18,27 @@
 
 ## 2. Scenario suites
 
-- [ ] 2.1 `outline-mode.e2e.ts`: toggle by command id (notice, bytes+mtime
+- [x] 2.1 `outline-mode.e2e.ts`: toggle by command id (notice, bytes+mtime
       unchanged), toggle via mode registry after restart (`reloadObsidian`),
       rename follows / delete prunes in `data.json`, structural commands
       gated off non-outline notes
-- [ ] 2.2 `structural-commands.e2e.ts`: indent/outdent paragraph round-trip
+- [x] 2.2 `structural-commands.e2e.ts`: indent/outdent paragraph round-trip
       with cursor + single-step undo, heading demote/promote with link
       resolution, skip-level outdent, moves (heading swap, ordered
       renumber), all seven rejection cues inert
-- [ ] 2.3 `keyboard-grammar.e2e.ts`: off-mode stock behavior, toggle applies
+- [x] 2.3 `keyboard-grammar.e2e.ts`: off-mode stock behavior, toggle applies
       to next keypress, Tab/Shift+Tab/Alt+arrows, Enter splits (mid-item,
       item end, paragraph end, heading), Shift+Enter continuation as one
       node, atom interiors stock, undo/rejection invariants per key
-- [ ] 2.4 `shell.e2e.ts`: clean unload removes commands; coexistence warning
+- [x] 2.4 `shell.e2e.ts`: clean unload removes commands; coexistence warning
       via stub conflicting plugin fixture, once-only across restart
 
 ## 3. Protocol rewrite & verification
 
-- [ ] 3.1 Rewrite `openspec/changes/editor-core/verification.md`: map each
+- [x] 3.1 Rewrite `openspec/changes/editor-core/verification.md`: map each
       automated item to its e2e spec; keep manual residue (mobile smoke,
       visual cues) as a short checklist
-- [ ] 3.2 Full green run of `npm run test:e2e` locally; confirm `test-vault/`
+- [x] 3.2 Full green run of `npm run test:e2e` locally; confirm `test-vault/`
       untouched (`git status`), `npm test` and `npm run build` unaffected;
       document the harness (README section: first-run download, cache, how
       to add a spec)
