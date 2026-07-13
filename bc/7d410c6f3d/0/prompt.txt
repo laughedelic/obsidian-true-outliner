@@ -1,0 +1,1 @@
+<ci-monitor-event>CI checks "unit-test", "e2e-test" failed on laughedelic/obsidian-true-outliner PR #6. Run `gh pr checks 6 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>

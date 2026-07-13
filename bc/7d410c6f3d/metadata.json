@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "bc7d410c6f3d",
+  "strategy": "manual-commit",
+  "branch": "ci/gha-setup",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".gitignore",
+    "e2e/fixtures/obsidian-outliner-stub/main.js",
+    "vitest.config.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/bc/7d410c6f3d/0/metadata.json",
+      "transcript": "/bc/7d410c6f3d/0/full.jsonl",
+      "compact_transcript": "/bc/7d410c6f3d/0/transcript.jsonl",
+      "content_hash": "/bc/7d410c6f3d/0/content_hash.txt",
+      "prompt": "/bc/7d410c6f3d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 479,
+    "cache_creation_tokens": 18647,
+    "cache_read_tokens": 1912780,
+    "output_tokens": 6084,
+    "api_call_count": 22
+  }
+}
