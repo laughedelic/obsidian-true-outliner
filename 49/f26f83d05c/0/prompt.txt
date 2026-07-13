@@ -1,0 +1,1 @@
+before we go further, give me concrete before/after example snippets of md <> outline transformations for the decisions that we just made. I want to make sure we are on the same page
