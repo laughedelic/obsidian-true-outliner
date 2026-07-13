@@ -14,6 +14,24 @@ every plugin *version* is scanned for security and code quality, and each plugin
 review continues for popular plugins. Compliance is checkable locally via the official
 [`obsidianmd/eslint-plugin`](https://github.com/obsidianmd/eslint-plugin).
 
+**What the scorecard empirically measures** (decomposed from a real red one — see the
+workflowy-style-outline case study in the plugin-landscape doc). Two independent badges:
+*Health* (activity: readme/license hygiene, commit/release cadence, issue responsiveness,
+adoption) and *Review* (automated scans of each release). The Review scans are, concretely:
+(1) capability detection surfaced as user-facing disclosures — vault read/write, network
+calls, clipboard, base64 usage; (2) dependency vulnerability scan; (3) malware/obfuscation/
+network-behavior scans gated on **build verification, which requires a committed lockfile**;
+(4) the obsidianmd + strict-TypeScript eslint rules; (5) CSS lints (`!important`, `:has`);
+(6) release hygiene (GitHub artifact attestations, release notes, manifest/release
+consistency). Monkey-patching/private-API use is *not* among the automated checks — it
+remains a manual-review and fragility concern, not a scorecard line item.
+
+**Green-scorecard checklist for this project (day 1):** eslint-plugin-obsidianmd + strict
+typescript-eslint in CI; zero `!important`/`:has` (style via Obsidian CSS variables and
+specificity); committed lockfile + GitHub artifact attestations + real release notes in the
+release workflow; no network/clipboard capability at all (vault-only footprint → near-empty
+disclosure panel); no deprecated APIs (`activeLeaf`, `execCommand`, …).
+
 Relevant hard rules from the [Developer policies](https://docs.obsidian.md/Developer+policies)
 and [Plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines):
 
@@ -97,8 +115,19 @@ asking for an official alternative got no answer from the team. Alternatives all
 essential: a custom extension (`.outline`) forfeits metadataCache/links/graph/mobile-editor
 interop; "open via command" per file is UX friction and re-breaks on every workspace restore.
 
-*Verdict*: keep as a possible far-future layer (or revisit if Obsidian ships official
-view-association APIs); not a foundation compatible with today's goals.
+*Nuance discovered later (2026-07-13, from the
+[workflowy-style-outline](https://github.com/springrain1/workflowy-style-outline) case study —
+see the plugin-landscape doc)*: the monkey-patch is only needed for **automatic** association.
+An **explicit, user-invoked toggle** — a command/menu item calling
+`leaf.setViewState({type: OUR_VIEW})` on the active leaf — is plain public API, and workspace
+persistence keeps a toggled leaf in that view across restarts. So a scorecard-clean custom view
+is *reachable*; what remains against Option B is everything else that project demonstrates:
+rebuilding the editor (per-block textareas, IME/mobile/undo/save-queue re-implementations,
+an "isolation layer" to avoid breaking native Obsidian) and, in their case, a lossy
+md↔outline conversion — the anti-example for our isomorphism requirement.
+
+*Verdict*: keep as a possible far-future layer (the explicit-toggle variant lowers the API
+barrier but not the engineering cost); not a foundation compatible with today's goals.
 
 ### Option C — Hybrid (A + owned side surfaces)
 

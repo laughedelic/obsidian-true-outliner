@@ -66,6 +66,84 @@ No fundamental additions over the parent — same flat-text limitations.
 
 Subsumed: obsidian-outliner (and pro-outliner) ship drag-and-drop natively.
 
+### [workflowy-style-outline](https://github.com/springrain1/workflowy-style-outline) (springrain1) — the Option B case study
+
+*(Added 2026-07-13 — reviewed after the architecture decisions; it independently attempts our
+"mode toggle + md↔outline conversion" idea via the custom-view route, so it doubles as a field
+test of the road we didn't take.)*
+
+**What it is.** A Workflowy-style block editor for markdown notes (v2.9.1, ~10k lines,
+squash-committed as a "fix all Obsidian review issues" clean drop; README additionally
+advertises license-gated features not present in this snapshot). Rich feature set: per-note
+toggle to an outline view, zoom + breadcrumbs, multi-selection, drag-and-drop (Alt+drag creates
+block references with auto-generated native `^block-id`s), slash/tag/link suggestion menus,
+todo states, mobile toolbar.
+
+**How it works** (verified in source):
+
+- `WorkflowyView extends FileView` — a **from-scratch block editor**: each node is a raw
+  `textarea` (edit layer) over a `contenteditable`/`MarkdownRenderer` display layer. Not CM6.
+- Explicit per-note toggle via command/file menu calling **`leaf.setViewState({type: ...})` on
+  the active leaf — public API, no monkey-patching**. (Automatic association is simply not
+  offered; a leaf left in outline view is restored by workspace persistence.)
+- `OutlineParser` does bidirectional md↔tree conversion; file I/O is manual
+  `vault.read`/`vault.modify` plus a hand-rolled "anti-race-condition save queue".
+- A five-module "isolation architecture" (view-state manager, command proxy, event delegator,
+  runtime validator with periodic health checks) exists solely to keep the parallel editor
+  from interfering with native Obsidian.
+
+**What its costs demonstrate** (each one a predicted consequence of the custom-view route):
+
+- **The conversion is lossy and normalizing — the anti-example for our isomorphism
+  requirement.** The line-regex parser: forces tab indentation and `- ` markers on rewrite
+  (ordered lists are parsed but re-serialized as bullets), globs *all* consecutive non-list
+  content (headings, paragraphs, fences, tables) into single opaque blob nodes, misparses
+  list-looking lines inside code fences, and `.trim()`s away blank-line structure. Toggling a
+  note in and out of outline view can rewrite the file.
+- **Rebuilding the editor means rebuilding the platform**: the README's proudest features —
+  save queue, IME-flicker prevention, incremental mobile DOM patcher, undo manager — are all
+  re-implementations of things CM6/Obsidian provide for free inside the markdown view.
+- **Non-list content is second-class**: rendered blobs, not first-class nodes — the exact
+  compromise our universal mapping (headings/paragraphs as real nodes) is designed to avoid.
+- Guideline frictions typical of the approach: manual `vault.modify` of the open file,
+  deprecated `workspace.activeLeaf` usage.
+
+**What's genuinely worth learning from it:**
+
+1. **Explicit toggle needs no hacks** — `setViewState` to a registered view type on user action
+   is clean public API; only *automatic* md→custom-view association requires the Kanban
+   monkey-patch. (Feasibility doc updated accordingly.)
+2. **Alt+drag → block reference with on-demand `^block-id`** is a lovely interaction that fits
+   our Q3 decision exactly.
+3. **Aggregated multi-file outline view** (their "Daily Notes Plus": several notes composed
+   into one editable outline with lazy mount/unmount) is a compelling future layer — and
+   easier for us, since our nodes stay in the real editor.
+4. Their per-block suggestion menus (slash, `#`, `[[`) confirm users expect Obsidian's
+   full input affordances *inside* outline nodes — which the editor-centric path keeps for free.
+
+**Its directory scorecard** (inspected 2026-07-13 on
+[community.obsidian.md](https://community.obsidian.md/plugins/workflowy-style-outline)) is the
+first real-world sample of what the automated review measures — Health "Excellent" (activity
+metrics) but Review **"Risks" with 1,088 flagged issues**, decomposing into:
+
+- **~86% is one CSS lint rule**: ~890 × "avoid `!important`" (their from-scratch UI ships a
+  huge stylesheet fighting Obsidian's), plus "avoid `:has`" (performance).
+- **The official eslint-plugin-obsidianmd ruleset**: deprecated `activeLeaf` (7×), default
+  hotkeys (10×), `document` instead of `activeDocument` (24×), `instanceof` instead of
+  `.instanceOf()` (6×), deprecated `execCommand`/`substr`/`setWarning`, README/manifest name
+  mismatch — plus strict-TypeScript hits (44 × `any`, unsafe assignments, unhandled promises).
+- **Supply-chain/build items**: no committed lockfile → *build verification, malware,
+  obfuscation and network scans all "not available"*; missing GitHub artifact attestations;
+  release-manifest mismatch; empty release notes.
+- **Capability disclosures** (not violations, but shown to users): network request calls,
+  clipboard access, `atob`/`btoa` base64 ("may be used to obscure strings").
+
+Notably **absent**: any check for monkey-patching or private-API access — those surface in
+manual review, not the scans. The scorecard lesson: "Review: Risks" here is mostly lint-grade
+hygiene, which means a green scorecard is cheaply *designable-in from day 1* (see the
+feasibility doc's checklist) — and conversely that a red badge on a technically-interesting
+plugin still poisons user trust on the directory page.
+
 ## Backlinks-side plugins ("bi-directional outlining")
 
 ### [influx](https://github.com/jensmtg/influx)
