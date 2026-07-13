@@ -1,0 +1,6 @@
+I've created a private github repository and I want to push all branches as stacked PRs. I already pushed main and opened a pr for the `feat/initial-research`. please, push the other 3 branches and open a PR for each targeting the previous one (stacked like the branches themselves) with some concise descriptions (base on each of the proposal.md):
+  feat/mapping-core
+  feat/editor-core
+  feat/outline-grammar
+
+note that there are a lot of untracked changes because of the gitignore state in the root branches.
