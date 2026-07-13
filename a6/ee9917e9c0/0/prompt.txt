@@ -1,0 +1,1 @@
+commit the changes first, then run /openspec-propose
