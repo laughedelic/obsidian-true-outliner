@@ -41,4 +41,7 @@ Install: copy/symlink `manifest.json` + `main.js` into
 
 ## Results
 
-(fill in during the run)
+Manual dev-vault run performed on the stacked branch `feat/outline-grammar` (PR open);
+automated e2e coverage of the same scenarios added on `feat/e2e-harness` (PR open). See
+those branches/PRs for the actual checklist results and any corpus fixtures/open-questions
+updates filed from findings — not duplicated here.

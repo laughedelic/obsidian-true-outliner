@@ -33,8 +33,10 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Manual dev-vault protocol: run through every spec scenario (toggle persistence
+- [x] 4.1 Manual dev-vault protocol: run through every spec scenario (toggle persistence
   across restart, rename migration, one-undo-step ops, cursor placement, all rejection
-  cues, clean unload) and record results in the change
-- [ ] 4.2 Feed findings back: any parser disagreement → corpus fixture in mapping-core
-  tests; any provisional-rule friction → docs/research/04-open-questions.md
+  cues, clean unload) and record results in the change — done on `feat/outline-grammar`
+  (PR open); automated coverage added on `feat/e2e-harness` (PR open)
+- [x] 4.2 Feed findings back: any parser disagreement → corpus fixture in mapping-core
+  tests; any provisional-rule friction → docs/research/04-open-questions.md — covered by
+  the same stacked branches
