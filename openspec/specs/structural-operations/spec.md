@@ -1,7 +1,10 @@
 # structural-operations Specification
 
 ## Purpose
-TBD - created by archiving change mapping-core. Update Purpose after archive.
+Defines the structural operations (indent, outdent, moveUp, moveDown) that edit the block
+tree from document-tree-mapping: their per-node-kind algebra (heading level-shift vs.
+reparent), rejection semantics for inexpressible edits, and the closure/minimal-edit
+guarantees that keep every accepted operation's output re-parseable and diff-minimal.
 ## Requirements
 ### Requirement: Operation results are total and typed
 Every structural operation (indent, outdent, moveUp, moveDown) SHALL be a pure function

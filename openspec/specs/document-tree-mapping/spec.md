@@ -1,7 +1,10 @@
 # document-tree-mapping Specification
 
 ## Purpose
-TBD - created by archiving change mapping-core. Update Purpose after archive.
+Defines the markdown ↔ block-tree mapping: how a document's headings, paragraphs, list
+items, and leaf atoms parse into a tree and encode back to markdown, with byte-identical
+round-tripping as the load-bearing guarantee every later layer (structural operations, CM6
+enforcement) depends on.
 ## Requirements
 ### Requirement: Lossless round-trip
 The library SHALL parse any markdown document into a block tree and encode any parsed tree
