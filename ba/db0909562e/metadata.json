@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "badb0909562e",
+  "strategy": "manual-commit",
+  "branch": "feat/editor-core",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "openspec/changes/editor-core/tasks.md",
+    "openspec/changes/editor-core/verification.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ba/db0909562e/0/metadata.json",
+      "transcript": "/ba/db0909562e/0/full.jsonl",
+      "compact_transcript": "/ba/db0909562e/0/transcript.jsonl",
+      "content_hash": "/ba/db0909562e/0/content_hash.txt",
+      "prompt": "/ba/db0909562e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10653,
+    "cache_creation_tokens": 30620,
+    "cache_read_tokens": 1374228,
+    "output_tokens": 5551,
+    "api_call_count": 23
+  }
+}

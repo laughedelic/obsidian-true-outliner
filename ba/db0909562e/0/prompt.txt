@@ -1,0 +1,10 @@
+rebase this branch and verify if we can archive the openspec change
+
+---
+
+manual verification has been done on the next stacked branch: `feat/outline-grammar` and automated in `feat/e2e-harness` (prs open). 
+yes, you can force-push the rebased branch.
+
+---
+
+mark them as done and archive
