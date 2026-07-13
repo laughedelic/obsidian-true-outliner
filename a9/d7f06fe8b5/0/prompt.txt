@@ -11,3 +11,11 @@ what's the best approach w.r.t openspec: keep this change open, merge the PR, ar
 ---
 
 what about a third option (basically what you suggested before): cherry-pick the fix from that branch, leave the e2e automation out for now. then archive+merge this branch, then rebase+archive+merge e2e. since we squash PRs in this repo, it would be nice to keep each openspec change as a separate pr that gets squash-merged into master.
+
+---
+
+is the test-vault inclusion planned? it seems pretty fragile. if I do any manual testing, the data there will change and will be messing with git. what's the plan here?
+
+---
+
+okay. but plugin's base data.json has already been modified by manual testing. and manifest.json could be a symlink to the root one, no?
