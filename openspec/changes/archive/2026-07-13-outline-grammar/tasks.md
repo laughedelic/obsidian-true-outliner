@@ -28,4 +28,6 @@
 - [x] 3.1 Full gate green: tsc, lint (zero errors), vitest, plugin build
 - [x] 3.2 Extend the editor-core dev-vault protocol (verification.md) with grammar
   scenarios: off-mode stock behavior, instant toggle effect, each binding, undo
-  granularity, atom no-ops — pending the human run
+  granularity, atom no-ops. Verified via the automated e2e suite on
+  `feat/e2e-harness`, which also caught and fixed an end-of-paragraph split bug
+  (cherry-picked here); see that branch for full results
