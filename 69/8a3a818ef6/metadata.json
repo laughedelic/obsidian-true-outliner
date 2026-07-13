@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "698a3a818ef6",
+  "strategy": "manual-commit",
+  "branch": "feat/outline-grammar",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "openspec/changes/outline-grammar/tasks.md",
+    "openspec/specs/outline-keyboard-grammar/spec.md",
+    "openspec/specs/outline-mode/spec.md",
+    "openspec/specs/structural-operations/spec.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/69/8a3a818ef6/0/metadata.json",
+      "transcript": "/69/8a3a818ef6/0/full.jsonl",
+      "compact_transcript": "/69/8a3a818ef6/0/transcript.jsonl",
+      "content_hash": "/69/8a3a818ef6/0/content_hash.txt",
+      "prompt": "/69/8a3a818ef6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 12399,
+    "cache_creation_tokens": 59111,
+    "cache_read_tokens": 3758219,
+    "output_tokens": 19002,
+    "api_call_count": 50
+  }
+}

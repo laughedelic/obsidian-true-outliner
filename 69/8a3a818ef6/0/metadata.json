@@ -1,0 +1,76 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "698a3a818ef6",
+  "session_id": "41cc9e94-a41a-4eea-b1e4-104f2ee69764",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-13T02:52:22.444766Z",
+  "branch": "feat/outline-grammar",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [
+    "openspec/changes/outline-grammar/tasks.md",
+    "openspec/specs/outline-keyboard-grammar/spec.md",
+    "openspec/specs/outline-mode/spec.md",
+    "openspec/specs/structural-operations/spec.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "d2326155d5f1",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 12399,
+    "cache_creation_tokens": 59111,
+    "cache_read_tokens": 3758219,
+    "output_tokens": 19002,
+    "api_call_count": 50
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01FSmVZUY4b8GoUEf6NWqdkd",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-archive-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "d2326155d5f1",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 177,
+        "end": 178,
+        "entry_ids": [
+          "ed30eead-d0b7-4510-a9ba-fb19387ac2ac"
+        ],
+        "tool_use_id": "toolu_01FSmVZUY4b8GoUEf6NWqdkd"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01FSmVZUY4b8GoUEf6NWqdkd"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-archive-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-13T02:52:22.427552Z",
+    "agent_lines": 74,
+    "agent_removed": 3,
+    "human_added": 262,
+    "human_modified": 33,
+    "human_removed": 0,
+    "total_committed": 369,
+    "total_lines_changed": 634,
+    "agent_percentage": 12.145110410094636,
+    "metric_version": 2
+  }
+}
