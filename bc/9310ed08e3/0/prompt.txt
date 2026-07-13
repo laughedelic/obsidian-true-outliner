@@ -1,0 +1,10 @@
+good overview.
+
+* #1: yes. I don't love the inconsistency of attaching lists to paragraph vs. heading, but I'm not sure what a better alternative would be. if you have more ideas, you can pitch them now, or leave it like this for now with some freedom to change mind later.
+* #2: yes.
+* #3: I think "second thought" should become a normal paragraph again. after it was indented, its parent was a paragraph, so outdenting it should bring it to the same level as its parent. that's my intuition at least. but I understand that this is complicated and we might want to change it later or make configurable. provisional rule, as you phrased it. 
+   * another concern: how does this interplay with the documents that are 100% nested lists? we don't want to change them to flat format. maybe we do need some sort of awareness of what each node was in the original document? or some other special rules for edge cases...
+* #4: yes.
+* #5: yes. correct hierarchy > styling. an alternative could be to change ### to ## first without hierarchy change, then change the hierarchy with ## to #. so the first outdent fixes the heading level, second changes it with the hierarchy change.
+* #6: I'm not sure I agree with the second case. in a normal outline, shift-tab on the second sibling would pop it out as the new sibling of its parent (brother -> uncle). but maybe this is my bias with Logseq experience. how does this work in Workflowy? is this documented anywhere?
+* #7: yes. good edge case that I haven't thought about.
