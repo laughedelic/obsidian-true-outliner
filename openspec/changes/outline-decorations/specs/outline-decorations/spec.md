@@ -1,3 +1,13 @@
+> **⚠ Paused for experiments, 2026-07-13.** These requirements are behavior-level and
+> still the target, but no implementation has satisfied them yet — three attempts failed
+> in real vault use. See
+> [docs/research/06-outline-decorations-postmortem.md](../../../../docs/research/06-outline-decorations-postmortem.md)
+> and the current experiment track,
+> [docs/research/07-decoration-experiments-plan.md](../../../../docs/research/07-decoration-experiments-plan.md).
+> Note one likely revision in flight: an experiment is testing whether dropping the
+> paragraph marker entirely (indentation + guides only) is an acceptable compromise, which
+> would change the "Paragraph nodes render a leader marker" requirement below.
+
 ## ADDED Requirements
 
 ### Requirement: Decorations are scoped to outline mode

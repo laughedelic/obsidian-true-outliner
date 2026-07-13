@@ -1,3 +1,26 @@
+> **⚠ Paused for experiments, 2026-07-13.** Sections 1–3 below describe the *final*
+> implementation once a mechanism is validated — do not start them yet. See
+> [docs/research/06-outline-decorations-postmortem.md](../../../docs/research/06-outline-decorations-postmortem.md)
+> for why the original attempt at these tasks failed. Current work is section 0.
+
+## 0. Experiments (current work)
+
+See [docs/research/07-decoration-experiments-plan.md](../../../docs/research/07-decoration-experiments-plan.md)
+for full detail, fixture corpus, and success criteria per experiment.
+
+- [ ] 0.1 Experiment 1: additive-only indentation across all kinds, no synthetic marker
+      (branch `experiment/decorations-1-additive-indent`)
+- [ ] 0.2 Experiment 2a: guide lines via pixel-measured overlay (obsidian-outliner
+      technique) — branches off 0.1 once validated
+- [ ] 0.3 Experiment 2b: guide lines via CSS stacked-gradient (single-element technique) —
+      branches off 0.1 once validated
+- [ ] 0.4 Experiment 3 (conditional on 0.1's flat-fixture review): minimal marker fallback
+- [ ] 0.5 Experiment 4 (optional, only if 0.1 shows real-content fragility): widget-spacer
+      risk-spike
+- [ ] 0.6 Fill in the comparison table in 07-decoration-experiments-plan.md; pick the
+      winning technique(s); rewrite design.md/spec.md/tasks.md sections 1–3 below with
+      validated decisions before starting them
+
 ## 1. Depth/marker computation (pure module)
 
 - [ ] 1.1 `src/plugin/decorate.ts`: given an `OutlineDoc` (from `parse()`), compute a flat

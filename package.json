@@ -13,7 +13,7 @@
     "lint": "eslint src tests",
     "dev": "node esbuild.config.mjs",
     "build:plugin": "node esbuild.config.mjs production",
-    "vault:install": "npm run build:plugin && mkdir -p test-vault/.obsidian/plugins/true-outliner && ln -sf ../../../../manifest.json ../../../../main.js test-vault/.obsidian/plugins/true-outliner/",
+    "vault:install": "npm run build:plugin && mkdir -p test-vault/.obsidian/plugins/true-outliner && ln -sf ../../../../manifest.json ../../../../main.js ../../../../styles.css test-vault/.obsidian/plugins/true-outliner/",
     "vault:reset": "git checkout -- test-vault",
     "test:e2e": "npm run build:plugin && wdio run e2e/wdio.conf.mts",
     "build:e2e": "tsc --noEmit -p e2e"

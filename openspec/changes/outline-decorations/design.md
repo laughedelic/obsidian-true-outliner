@@ -1,3 +1,18 @@
+> **⚠ Paused for experiments, 2026-07-13.** This design was implemented three times and
+> failed in real vault use — cascade/`!important` fights, em/rem unit bugs (marker size
+> scaling with heading font-size), native list hanging-indent corruption, fold-indicator
+> collisions. Full account:
+> [docs/research/06-outline-decorations-postmortem.md](../../../docs/research/06-outline-decorations-postmortem.md).
+>
+> **D1, D2, and D4 below are void** — the CSS-custom-property/line-attribute mechanism they
+> describe is exactly what broke, repeatedly. **Goals/Non-Goals and D3/D5/D6 still hold** —
+> depth-from-tree-position, paragraph-only marker scope, and mode-gating are mechanism-
+> agnostic and remain the target. Before writing a new mechanism, isolated prototyping
+> experiments are running per
+> [docs/research/07-decoration-experiments-plan.md](../../../docs/research/07-decoration-experiments-plan.md).
+> Rewrite this file with validated decisions once they conclude — do not implement against
+> D1/D2/D4 as they stand.
+
 ## Context
 
 Outline mode's editing model (structural commands + keyboard grammar) is complete and
