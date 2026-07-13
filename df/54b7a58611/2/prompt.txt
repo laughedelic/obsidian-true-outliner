@@ -1,0 +1,14 @@
+read docs/research/06-outline-decorations-postmortem.md carefully. we tried to implement @openspec/changes/outline-decorations/proposal.mdand failed. I'm not sure whether it was just a bad attempt and it should be retried with the same general approach, or whether this is a dead end and we need to get back to the drawing board. I want you to to the analysis and keep an open mind for potential alternatives, revisiting even the design choices made before. do additional code digging on this particular topic in all of the open source outliners (e.g. Logseq, outl) and alternative outline/workflowy Obsidian plugins that handle tree-shaped editing. who do they achieve their results. what can we learn from that. how does this update our assessment of the feasibility. 
+let's consider which experiments we need to try prototyping to figure out more and get more reliable plan for the next iteration.
+
+---
+
+okay. good research. first, answering your questions:
+
+* you can do whatever is necessary with the code on this branch. it's a pure WIP. if you want you can stash it and start from scracth, update the proposal/design, etc. I'm not attached to the current code's state, so you can treat it as you see fit.
+* I think this is a goo experiment to try: instead of trying to get the consistency with the node markers, skip them for the non-list blocks and just add appropriate indentation and guides, if this it visually clear enough and is convenient to work with, maybe we can settle for such compromise. 
+* see the first answer.
+
+next, I want you to flesh out the plans for the different experiments, so that we can try all of them without getting lost in the process and then compare results, learnings, etc.
+
+and finally, a question: since we already parse the markdown blocks into an AST for the structural manipulations, why not follow the approach with the structural editor representation as well? meaning, why not take those parsed blocks, put them into separate DOM nodes, or even separate "block editor" components, or whatever else, where the content of each block is structurally isolated from the rest and rendering of the whole tree can be correct by construction regardless of the content. I understand that this introduces some complexity for keeping in sync with the underlying content: we'd need to sync the edits within a block to the underlying plain markdown. or maybe it's simpler, we have separate editor-windows into concrete parts of the document, arranged in a tree (like tana-mirrors, or the approach we use in https://github.com/laughedelic/obsidian-continuous-journal? check that). I want to understand the feasibility of this general approach better.

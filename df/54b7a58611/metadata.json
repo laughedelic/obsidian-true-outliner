@@ -3,11 +3,12 @@
   "checkpoint_id": "df54b7a58611",
   "strategy": "manual-commit",
   "branch": "archive/outline-decorations-attempt-3",
-  "checkpoints_count": 6,
+  "checkpoints_count": 8,
   "files_touched": [
     ".gitignore",
     "docs/research/04-open-questions.md",
     "docs/research/06-outline-decorations-postmortem.md",
+    "docs/research/07-decoration-experiments-plan.md",
     "docs/research/README.md",
     "e2e/helpers.ts",
     "e2e/specs/50-decorations.e2e.ts",
@@ -36,13 +37,20 @@
       "compact_transcript": "/df/54b7a58611/1/transcript.jsonl",
       "content_hash": "/df/54b7a58611/1/content_hash.txt",
       "prompt": "/df/54b7a58611/1/prompt.txt"
+    },
+    {
+      "metadata": "/df/54b7a58611/2/metadata.json",
+      "transcript": "/df/54b7a58611/2/full.jsonl",
+      "compact_transcript": "/df/54b7a58611/2/transcript.jsonl",
+      "content_hash": "/df/54b7a58611/2/content_hash.txt",
+      "prompt": "/df/54b7a58611/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 19233,
-    "cache_creation_tokens": 2576858,
-    "cache_read_tokens": 99650729,
-    "output_tokens": 286068,
-    "api_call_count": 350
+    "input_tokens": 39066,
+    "cache_creation_tokens": 2872898,
+    "cache_read_tokens": 103443421,
+    "output_tokens": 383365,
+    "api_call_count": 376
   }
 }
