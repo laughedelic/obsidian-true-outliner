@@ -13,7 +13,8 @@
     "lint": "eslint src tests",
     "dev": "node esbuild.config.mjs",
     "build:plugin": "node esbuild.config.mjs production",
-    "vault:install": "npm run build:plugin && mkdir -p test-vault/.obsidian/plugins/true-outliner && cp manifest.json main.js test-vault/.obsidian/plugins/true-outliner/"
+    "vault:install": "npm run build:plugin && mkdir -p test-vault/.obsidian/plugins/true-outliner && ln -sf ../../../../manifest.json ../../../../main.js test-vault/.obsidian/plugins/true-outliner/",
+    "vault:reset": "git checkout -- test-vault"
   },
   "license": "MIT",
   "type": "module",
