@@ -1,0 +1,49 @@
+/openspec-apply-change
+
+---
+
+I'm trying it out on the test-vault and I don't see any changes. what am I doing wrong?
+
+---
+
+unfortunately, it is completely broken. indentation is off, sometimes even "negative" (i.e. worse than the default display), and the guidelines are all over the place, often showing even when the outline mode is off, across the text. see the screenshots for examples of how it looks.
+
+---
+
+I'm confused. how come you decided to change the design mid-implementation and didn't even stop to check with me?
+
+I don't think that the current approach is good enough. and the indentation is still broken:
+
+* first, cosmetic: bullets have to be more prominent. we want the real outliner experience, remember? don't be subtle about it.
+* next, it looks like the code blocks don't get indented at all.
+* headings don't get indented. which they should, according to their level relative to the parent.
+* paragraphs get indented unevenly. see the screenshot. the deeper the parent heading, the more the paragraph got indented. 
+* indentation levels are strange. sometimes it's big, sometimes it's barely visible. e.g. see the second screenshot: `Aurora` paragraph was top-level, with a child-list, then it got indented, but the list under it is almost at the same indentation. barely visible. 
+* the hierarchical structure in outline mode has to be very clear and non-ambiguous. that's the whole point. clear, consistent indentation, visible prominent node markers.
+
+back to the drawing board
+
+---
+
+here's the second screenshot, I mentioned but  forgot to attach
+
+---
+
+I want the indentation relative to the text to be consistent across different block types. node markers is something that I could see being potentially different based on the block type (e.g. checkboxes currently replace bullet-points, headings could have `#` icon, or some sort of `H1`/`H2`/etc. symbols, `§` for paragraphs, and so on), but that is a purely cosmetic thing that we can explore later. now, I think it would be good to have a consistent node marker, like a fat bullet point, similar to the familiar look of Logseq and other outliners, with consistent spacing and marker shape across paragraphs, lists, headings, code blocks, or any other nodes.
+
+take a look at how obsidian-outliner plugin implements BetterListsStyles and "Vertical Indentation Lines":
+
+* https://deepwiki.com/vslinko/obsidian-outliner/4-user-interface-components
+* https://deepwiki.com/vslinko/obsidian-outliner/4.1-visual-styling-of-lists
+* https://deepwiki.com/vslinko/obsidian-outliner/4.2-vertical-indentation-lines
+maybe this gives you some inspiration.
+
+---
+
+I probably modified that file myself while doing manual testing. it's ok to revert. 
+
+unfortunately, the result is still pretty broken: bullets get bigger depending on the heading size, indentations are all over the place, list node continuations (newline within a node) don't get the right indentation, list node markers are drawn on top of the dashes, guide lines are completely misplaced, etc. etc. this is very far from our vision of a reliable block-tree editing experience. a lot of it feels like hacky css patching which won't endure theming and will depend a lot on interplay with other plugins.
+
+I'm afraid that this implementation overall is a failed experiment. I want you to write down all the learnings from this session: what has been tried, what didn't work, how testing approach didn't really give you reliable feedback, etc. 
+
+after that I will get back to reviewing the possible alternatives and planning the next iteration.
