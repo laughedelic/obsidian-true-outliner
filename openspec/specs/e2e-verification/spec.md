@@ -1,7 +1,11 @@
 # e2e-verification Specification
 
 ## Purpose
-TBD - created by archiving change e2e-harness. Update Purpose after archive.
+Defines the automated end-to-end verification harness: a real (sandboxed) Obsidian
+instance driven against a throwaway copy of `test-vault/` to exercise behavior that only
+exists in a live app — command dispatch, keyboard grammar, on-disk byte fidelity, and
+persistence across restarts — replacing the manual dev-vault checklist it supersedes.
+
 ## Requirements
 ### Requirement: Sandboxed real-Obsidian harness
 
