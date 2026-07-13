@@ -1,0 +1,1 @@
+I noticed that our specs still have TBD placeholders. check that and fill them in
