@@ -1,0 +1,17 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [manifest.json]
+
+permissions:
+  contents: write     # create the release
+  id-token: write     # build provenance attestation
+  attestations: write # build provenance attestation
+
+jobs:
+  release:
+    uses: laughedelic/gha-obsidian/.github/workflows/release.yml@main
+    with:
+      node-version: "26"
