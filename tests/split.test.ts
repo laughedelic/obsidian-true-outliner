@@ -55,8 +55,10 @@ describe('splitNode', () => {
   it('end-of-paragraph split yields a gap and cursor, no phantom node', () => {
     const md = 'thought\n\nnext\n';
     const { text, result } = splitOk(md, 'thought', { line: 0, ch: 7 });
-    expect(text).toBe('thought\n\n\nnext\n');
-    expect(result.cursor).toEqual({ line: 1, ch: 0 });
+    // Two blanks: the cursor line is blank-separated on both sides, so
+    // typing there creates a sibling instead of rejoining a neighbor.
+    expect(text).toBe('thought\n\n\n\nnext\n');
+    expect(result.cursor).toEqual({ line: 2, ch: 0 });
     // Same node count — the sibling materializes when the user types.
     expect([...walkNodes(result.doc)].length).toBe([...walkNodes(parse(md))].length);
   });

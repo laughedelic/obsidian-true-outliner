@@ -470,15 +470,18 @@ export function splitNode(
   const index = path[path.length - 1]!;
 
   if (node.kind === 'paragraph' && emptyRemainder) {
-    // End-of-paragraph split: blank separation only, cursor on the blank.
+    // End-of-paragraph split: no empty-paragraph encoding exists, so widen
+    // the gap and put the cursor on a line that is blank-separated on BOTH
+    // sides — typing there materializes the sibling instead of rejoining a
+    // neighbor.
     const surgery = updateSiblings(doc, parentPath, (nodes) =>
-      nodes.map((n, i) => (i === index ? { ...n, trailingGap: ['', ...n.trailingGap] } : n)),
+      nodes.map((n, i) => (i === index ? { ...n, trailingGap: ['', '', ...n.trailingGap] } : n)),
     );
     const result = finalize(doc, surgery, nodeId);
     if (!result.ok) return result;
     return accept({
       ...result.value,
-      cursor: { line: startLine + node.lines.length, ch: 0 },
+      cursor: { line: startLine + node.lines.length + 1, ch: 0 },
     });
   }
 
