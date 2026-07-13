@@ -1,0 +1,1 @@
+okay. let's commit it, validate the spec (is it part of the archival process?), archive it, then create a  new branch for the next stage, and run propose there. we are currently building on stacked branches, not merging anything yet.
