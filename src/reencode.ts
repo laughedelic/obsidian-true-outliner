@@ -22,21 +22,28 @@ export function childBaseCol(parent: OutlineNode | 'root'): number {
   return indent; // paragraph: child lists sit at the paragraph's own indent
 }
 
+export function leadingWhitespace(line: string): string {
+  return /^[ \t]*/.exec(line)?.[0] ?? '';
+}
+
 function shiftLine(line: string, delta: number): string {
   if (line.trim() === '') return line;
   if (delta === 0) return line;
-  if (delta > 0) return ' '.repeat(delta) + line;
-  // Dedent: remove up to -delta columns of leading whitespace.
+  const ws = leadingWhitespace(line);
+  if (delta > 0) {
+    // Insert AFTER existing leading whitespace: spaces before a tab would
+    // vanish into the tab stop and corrupt the width arithmetic.
+    return ws + ' '.repeat(delta) + line.slice(ws.length);
+  }
+  // Dedent: remove up to -delta columns of leading whitespace; when a tab
+  // overshoots the target column, repair the difference with spaces.
   let remaining = -delta;
   let i = 0;
-  while (i < line.length && remaining > 0) {
-    const ch = line[i];
-    if (ch === ' ') remaining -= 1;
-    else if (ch === '\t') remaining -= 4;
-    else break;
+  while (i < ws.length && remaining > 0) {
+    remaining -= ws[i] === '\t' ? 4 : 1;
     i++;
   }
-  return line.slice(i);
+  return (remaining < 0 ? ' '.repeat(-remaining) : '') + line.slice(i);
 }
 
 export function shiftSubtree(node: OutlineNode, delta: number): OutlineNode {
@@ -49,31 +56,41 @@ export function shiftSubtree(node: OutlineNode, delta: number): OutlineNode {
 }
 
 /**
- * Re-encode a moved node for its destination: adjust indentation and, for
- * paragraph/list-item nodes, convert to `newKind` when the destination
- * context demands it. Children shift so their base column follows the
- * node's new content column.
+ * Re-encode a moved node for its destination: the node ADOPTS the
+ * destination's indentation string verbatim (`indentText` — tabs included,
+ * taken from a sibling or parent at the landing site), and for
+ * paragraph/list-item nodes converts to `newKind` when the context demands
+ * it. Continuations and children shift by the resulting width delta.
  */
 export function reencodeForDestination(
   node: OutlineNode,
   newKind: 'paragraph' | 'list-item' | undefined,
-  targetIndent: number,
+  indentText: string,
 ): OutlineNode {
-  const currentIndent = indentWidth(node.lines[0] ?? '');
+  const first = node.lines[0] ?? '';
+  const currentIndent = indentWidth(first);
+  const targetIndent = indentWidth(indentText);
+  const delta = targetIndent - currentIndent;
 
-  // Atoms and no-conversion cases: uniform shift.
+  // Atoms and no-conversion cases: rewrite the first line's leading
+  // whitespace exactly; shift the rest by the width delta.
   if (!newKind || newKind === node.kind) {
-    return shiftSubtree(node, targetIndent - currentIndent);
+    const shifted = shiftSubtree(node, delta);
+    return {
+      ...shifted,
+      lines: [
+        indentText + (shifted.lines[0] ?? '').slice(leadingWhitespace(shifted.lines[0] ?? '').length),
+        ...shifted.lines.slice(1),
+      ],
+    };
   }
 
   if (node.kind === 'paragraph' && newKind === 'list-item') {
-    const pad = ' '.repeat(targetIndent);
-    const contPad = ' '.repeat(targetIndent + 2);
+    const contPad = indentText + '  ';
     const lines = node.lines.map((line, i) =>
-      i === 0 ? `${pad}- ${line.trimStart()}` : `${contPad}${line.trimStart()}`,
+      i === 0 ? `${indentText}- ${line.trimStart()}` : `${contPad}${line.trimStart()}`,
     );
-    const oldChildBase = childBaseCol(node);
-    const childDelta = targetIndent + 2 - oldChildBase;
+    const childDelta = targetIndent + 2 - childBaseCol(node);
     return {
       ...node,
       kind: 'list-item',
@@ -84,12 +101,10 @@ export function reencodeForDestination(
   }
 
   if (node.kind === 'list-item' && newKind === 'paragraph') {
-    const pad = ' '.repeat(targetIndent);
     const lines = node.lines.map((line, i) =>
-      i === 0 ? `${pad}${line.replace(LIST_MARKER_RE, '')}` : `${pad}${line.trimStart()}`,
+      i === 0 ? `${indentText}${line.replace(LIST_MARKER_RE, '')}` : `${indentText}${line.trimStart()}`,
     );
-    const oldChildBase = childBaseCol(node);
-    const childDelta = targetIndent - oldChildBase;
+    const childDelta = targetIndent - childBaseCol(node);
     const result: OutlineNode = {
       ...node,
       kind: 'paragraph',
@@ -100,7 +115,7 @@ export function reencodeForDestination(
     return result;
   }
 
-  return shiftSubtree(node, targetIndent - currentIndent);
+  return shiftSubtree(node, delta);
 }
 
 const ATX_RE = /^( {0,3})(#{1,6})([ \t]*)(.*)$/;

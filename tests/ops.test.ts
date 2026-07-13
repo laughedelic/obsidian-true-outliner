@@ -111,9 +111,11 @@ describe('paragraph/list reparenting', () => {
     expect(x.children[0]!.lines[0]).toBe('- y');
   });
 
-  it('nested-list documents never flatten on outdent', () => {
-    const { text } = applyOk(outdent, '- a\n\t- b\n\t\t- c\n', '\t\t- c');
-    expect(text).toBe('- a\n\t- b\n- c\n');
+  it('nested-list outdent adopts the destination level indentation (tabs kept)', () => {
+    // c becomes b's sibling — at b's level, with b's tab indentation.
+    const { text, doc } = applyOk(outdent, '- a\n\t- b\n\t\t- c\n', '\t\t- c');
+    expect(text).toBe('- a\n\t- b\n\t- c\n');
+    expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['\t- b', '\t- c']);
   });
 
   it('indenting under a heading lands in its direct section, before sub-headings', () => {
@@ -132,6 +134,40 @@ describe('paragraph/list reparenting', () => {
     expectReject(outdent, 'Top level.\n', 'Top level.', 'at-top-level');
     expectReject(indent, '```\ncode\n```\n\nAfter code.\n', 'After code.', 'not-expressible-under-target');
     expectReject(outdent, '# H\n\nInside section.\n', 'Inside section.', 'not-expressible-under-target');
+  });
+});
+
+describe('tab-indented vaults (Obsidian default)', () => {
+  it('regression: outdent in a tab list never escapes an extra level', () => {
+    // Reported 2026-07-13: dedent overshoot dropped tab-indented items to
+    // column 0, silently double-outdenting.
+    const src = '- Projects\n\t- Home\n\t\t- fix the fence\n';
+    const { doc } = applyOk(outdent, src, '\t\t- fix the fence');
+    const projects = doc.children[0]!;
+    expect(projects.children.map((n) => n.lines[0])).toEqual([
+      '\t- Home',
+      '\t- fix the fence',
+    ]);
+    expect(doc.children.length).toBe(1); // did NOT escape to top level
+  });
+
+  it('indent adopts an existing sibling tab, not synthetic spaces', () => {
+    const { text } = applyOk(indent, '- a\n\t- b\n- c\n', '- c');
+    expect(text).toBe('- a\n\t- b\n\t- c\n');
+  });
+
+  it('indent with no siblings infers the tab unit from the document', () => {
+    const { text } = applyOk(indent, '- x\n\t- y\n\n- p\n- q\n', '- q');
+    // q becomes p's child; p has no children, but the doc uses tabs.
+    expect(text).toBe('- x\n\t- y\n\n- p\n\t- q\n');
+  });
+
+  it('multiline tab items keep continuation alignment through ops', () => {
+    const src = '- a\n\t- b\n\t\t- c has\n\t\t  two lines\n';
+    const { text, doc } = applyOk(outdent, src, '\t\t- c has');
+    expect(text).toBe('- a\n\t- b\n\t- c has\n\t  two lines\n');
+    const c = doc.children[0]!.children[1]!;
+    expect(c.lines.length).toBe(2); // still one multiline node
   });
 });
 

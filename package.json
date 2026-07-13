@@ -12,11 +12,15 @@
     "test:watch": "vitest",
     "lint": "eslint src tests",
     "dev": "node esbuild.config.mjs",
-    "build:plugin": "node esbuild.config.mjs production"
+    "build:plugin": "node esbuild.config.mjs production",
+    "vault:install": "npm run build:plugin && mkdir -p test-vault/.obsidian/plugins/true-outliner && ln -sf ../../../../manifest.json ../../../../main.js test-vault/.obsidian/plugins/true-outliner/",
+    "vault:reset": "git checkout -- test-vault"
   },
   "license": "MIT",
   "type": "module",
   "devDependencies": {
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.38.6",
     "@types/node": "^26.1.1",
     "builtin-modules": "^5.3.0",
     "esbuild": "^0.28.1",
