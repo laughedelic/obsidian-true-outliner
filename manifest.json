@@ -1,0 +1,10 @@
+{
+  "id": "true-outliner",
+  "name": "True Outliner",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Any note is an outline — enforced structure, node operations, lossless markdown mapping.",
+  "author": "Alexey Alekhin",
+  "authorUrl": "https://github.com/laughedelic",
+  "isDesktopOnly": false
+}

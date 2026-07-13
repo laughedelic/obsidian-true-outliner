@@ -32,6 +32,12 @@ import { childBaseCol, headingWithLevel, markerWidth, reencodeForDestination } f
 export interface OpOutput {
   readonly doc: OutlineDoc;
   readonly edits: readonly Edit[];
+  /**
+   * Where the operated-on node landed: its first line (0-based, in the new
+   * text) and the character offset of its content start (after indentation
+   * and any list/heading marker) — ready to become an editor cursor.
+   */
+  readonly cursor: { readonly line: number; readonly ch: number };
 }
 
 const isContent = (node: OutlineNode): boolean =>
@@ -41,12 +47,42 @@ function childrenAt(doc: OutlineDoc, path: readonly number[]): readonly OutlineN
   return path.length === 0 ? doc.children : (nodeAt(doc, path)?.children ?? []);
 }
 
-function finalize(oldDoc: OutlineDoc, surgery: OutlineDoc): OpResult<OpOutput> {
+/** Char offset where a line's content starts (after indent + marker). */
+function contentColumnCh(line: string): number {
+  const match = /^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?(?:#{1,6}[ \t]+)?/.exec(line);
+  return match ? match[0].length : 0;
+}
+
+/** Start line of a node in a doc's encoding (ids preserved from surgery). */
+function startLineOf(doc: OutlineDoc, id: number): number {
+  let line = doc.preamble.length;
+  let found = -1;
+  const walk = (node: OutlineNode): void => {
+    if (found !== -1) return;
+    if (node.id === id) {
+      found = line;
+      return;
+    }
+    line += node.lines.length + node.trailingGap.length;
+    node.children.forEach(walk);
+  };
+  doc.children.forEach(walk);
+  return found === -1 ? 0 : found;
+}
+
+function finalize(
+  oldDoc: OutlineDoc,
+  surgery: OutlineDoc,
+  subjectId: number,
+): OpResult<OpOutput> {
   const normalized = normalizeBoundaries(surgery);
   const text = encode(normalized);
+  const lines = text === '' ? [] : text.split('\n');
+  const subjectLine = startLineOf(normalized, subjectId);
   return accept({
     doc: parse(text),
-    edits: diffLines(encodeLines(oldDoc), text === '' ? [] : text.split('\n')),
+    edits: diffLines(encodeLines(oldDoc), lines),
+    cursor: { line: subjectLine, ch: contentColumnCh(lines[subjectLine] ?? '') },
   });
 }
 
@@ -77,7 +113,7 @@ function headingLevelOp(
       i === path[path.length - 1] ? shiftHeadingLevels(sibling, delta) : sibling,
     ),
   );
-  return finalize(doc, surgery);
+  return finalize(doc, surgery, node.id);
 }
 
 // ------------------------------------------------------- separation repair
@@ -232,7 +268,7 @@ export function indent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
   surgery = updateSiblings(surgery, [...parentPath, index - 1], (nodes) =>
     renumberOrdered([...nodes.slice(0, insertIndex), moved, ...nodes.slice(insertIndex)]),
   );
-  return finalize(doc, surgery);
+  return finalize(doc, surgery, moved.id);
 }
 
 // ----------------------------------------------------------------- outdent
@@ -282,7 +318,7 @@ export function outdent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
       ...nodes.slice(parentIndex + 1),
     ]),
   );
-  return finalize(doc, surgery);
+  return finalize(doc, surgery, moved.id);
 }
 
 // -------------------------------------------------------------- reordering
@@ -311,7 +347,7 @@ function move(doc: OutlineDoc, nodeId: number, delta: -1 | 1): OpResult<OpOutput
     [out[a], out[a + 1]] = [out[a + 1]!, out[a]!];
     return renumberOrdered(out);
   });
-  return finalize(doc, surgery);
+  return finalize(doc, surgery, node.id);
 }
 
 export const moveUp = (doc: OutlineDoc, nodeId: number): OpResult<OpOutput> =>

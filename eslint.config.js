@@ -1,11 +1,17 @@
 import tseslint from 'typescript-eslint';
+import obsidianmd from 'eslint-plugin-obsidianmd';
 
-// NOTE: eslint-plugin-obsidianmd is installed and will be enabled in the
-// change that introduces the actual plugin surface — its recommended config
-// requires a manifest.json, which the pure mapping-core library doesn't
-// have. Tracked in openspec/changes/mapping-core/design.md (D6).
 export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
+  ...obsidianmd.configs.recommended,
+  {
+    // Tests run in Node and never ship to mobile.
+    files: ['tests/**/*.ts'],
+    rules: {
+      'obsidianmd/no-nodejs-modules': 'off',
+      'no-undef': 'off',
+    },
+  },
   {
     languageOptions: {
       parserOptions: {
@@ -17,5 +23,5 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
-  { ignores: ['node_modules/**', 'eslint.config.js'] },
+  { ignores: ['node_modules/**', 'eslint.config.js', 'esbuild.config.mjs', 'main.js'] },
 );
