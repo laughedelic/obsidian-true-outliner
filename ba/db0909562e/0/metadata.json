@@ -21,6 +21,40 @@
     "output_tokens": 5551,
     "api_call_count": 23
   },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01Kc4Cdqfvuye3bJCMTgHtPV",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-archive-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "4f9cb8e34b70",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 94,
+        "end": 95,
+        "entry_ids": [
+          "2551b1fb-8d9d-4029-8d53-7a7bbb8dce26"
+        ],
+        "tool_use_id": "toolu_01Kc4Cdqfvuye3bJCMTgHtPV"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Kc4Cdqfvuye3bJCMTgHtPV"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-archive-change",
+        "default_collapsed": true
+      }
+    }
+  ],
   "session_metrics": {
     "turn_count": 2
   },
