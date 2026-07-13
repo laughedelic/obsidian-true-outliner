@@ -1,0 +1,85 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "8a4b28ba4e9f",
+  "session_id": "5d2fe435-402d-4ce3-b21f-babbd7282d42",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-13T16:24:26.34644Z",
+  "branch": "feat/outline-decorations",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".gitignore",
+    "docs/research/04-open-questions.md",
+    "docs/research/06-outline-decorations-postmortem.md",
+    "docs/research/07-decoration-experiments-plan.md",
+    "docs/research/README.md",
+    "e2e/fixtures/decorations.ts",
+    "openspec/changes/outline-decorations/design.md",
+    "openspec/changes/outline-decorations/specs/outline-decorations/spec.md",
+    "openspec/changes/outline-decorations/tasks.md",
+    "package.json",
+    "src/plugin/decorate.ts",
+    "tests/decorate.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "6df62fdc8b4b",
+  "checkpoint_transcript_start": 176,
+  "transcript_lines_at_start": 176,
+  "compact_transcript_start": 41,
+  "token_usage": {
+    "input_tokens": 322,
+    "cache_creation_tokens": 30212,
+    "cache_read_tokens": 4113757,
+    "output_tokens": 12452,
+    "api_call_count": 16
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01JXWEDzCvX72EfXkvy1U9Y5",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-explore"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "6df62fdc8b4b",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 114,
+        "end": 115,
+        "entry_ids": [
+          "c4c42bb7-d984-4142-ae02-e989a101a650"
+        ],
+        "tool_use_id": "toolu_01JXWEDzCvX72EfXkvy1U9Y5"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01JXWEDzCvX72EfXkvy1U9Y5"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-explore",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-13T16:24:26.288693Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 142,
+    "human_modified": 263,
+    "human_removed": 0,
+    "total_committed": 142,
+    "total_lines_changed": 405,
+    "agent_percentage": 0,
+    "metric_version": 2
+  }
+}
