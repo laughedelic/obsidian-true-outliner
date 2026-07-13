@@ -1,0 +1,51 @@
+initial research and setup for the project.
+
+we are going to create a plugin for Obsidian which turns its editor into a true outliner experience. by true outliner I mean the functionality and UX similar to 
+
+* Logseq (opensource, almost perfect, but stuck for years in a major rewrite)
+* outl (new, opensource, similar to Logseq, very promising)
+* Tana Outliner (recently split up into a separate app)
+* Workflowy
+* Roam research (well-known)
+* Orca note (mentions bi-directional outlining, [https://orca-studio.com/orcanote](https://orca-studio.com/orcanote/))
+* see the general info: https://en.wikipedia.org/wiki/Outliner
+* do your own research for more concrete details about the UI, the functionality and the mechanics of a good outliner app.
+
+---
+
+after doing the research and getting a good grasp of what the general idea is, let's look at the existing Obsidian plugins:
+
+* https://community.obsidian.md/plugins/obsidian-outliner
+   * a good improvement to the default Obsidian experience, improved the writing with nested lists a lot, 
+   * but it's still a flat text under the hood, with some cursor tricks bolted on top
+      * selecting nodes reveals that very clearly: you can't select node-per-node, only the raw text behind, together with uneven indentation, etc.
+         * a clumsy select and delete will leave a broken outline tree with messed up structure and indentation
+      * it's still possible to just add a newline and start writing normal flat markdown, next to a list/outline
+   * it doesn't "enforce" the structure in any way
+   * https://community.obsidian.md/plugins/bullet
+      * a fork of the outliner plugin
+* https://github.com/vslinko/obsidian-zoom
+   * common outline feature, to zoom into a subtree
+   * not essential for me, but a nice to have
+* https://community.obsidian.md/plugins/draggable-list-items
+   * this functionality is probably included in the outliner plugin
+* bi-directionality of outline: backlinks view can benefit a lot from relying on the structure of the quoting documents (this is really good in Logseq)
+   * https://community.obsidian.md/plugins/better-search-views (not outliner-specific, but tries to improve the structure display in the search/backilns views)
+   * https://community.obsidian.md/plugins/influx (a direct attempt, but in a stale/abandoned state)
+   * https://community.obsidian.md/plugins/coalesce (a newer attempt at better backlinks display)
+
+it's important not to mix up the Outliner concept with the "sidebar outline" in Obsidian (or any other editor) which shows a TOC/minimam structure of a document. they are related in a way, but we are focusing on the document's structure itself and the editing experience, not an extra UI on a side.
+
+---
+
+next, I want you to check my experiment with a TUI outliner editor: `tui-outliner-multiline`. it's a raw prototype and isn't a reference of the desired implementation, but there might be parts of it that are valuable. in particular, I want you to inspect the `specs/` folder (core-outliner, multiline edits), the specs and the user scenario descriptions. that project was built using spec-driven development (with SpecKit) and we are going to use SDD here as well (but with OpenSpec tooling). take into account that this is just an inspiration and some of the described scenarios/behaviors in that project are biased towards the TUI-specifics. 
+
+---
+
+I want you to conduct a broad and deep research, document thoroughly the understanding of what the goal is, the examples of good/bad, the known issues, the opportunities, etc. etc. anything that comes up as relevant.
+
+the goal is to create a true outliner experience in Obsidian in a form of a comprehensive coherent plugin with a perfect scorecard (security, guidelines, no private APIs or hacks, etc.). this is an additional point of research: is it possible to achieve the desired experience with the existing plugin APIs in Obsdian?
+
+---
+
+if anything is unclear, or questions/doubts arise during/after the research, don't make any assumptions, stop and ask me directly. there is some space for interpretation and ambiguity, different preferences, etc. so I want to make sure we have a full alignment before committing to any plan.
