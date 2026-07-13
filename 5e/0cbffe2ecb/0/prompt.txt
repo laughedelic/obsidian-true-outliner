@@ -1,0 +1,40 @@
+* Okay. I've tried loading the plugin in the test vault and I did some verification steps. I marked what I tried. Most of the claimed behaviors seem to work. 
+   * Most of these verifications are quite mechanical and I wonder if you could automate this kind of testing, with real Obsidian instance running, firing actions or keystrokes, validating content or the state of Obsidian's UI. I think most of this kind of testing can be automated. Something to consider.
+
+* My understanding is that the focus of the current implementation is on the 4 structural actions, not on the visual representation, right? I got a bit confused when toggling the outline mode didn't do anything in a flat document, but if the tree-like outline representation wasn't the goal in this iteration, then it's fine. 
+   * Overall though, it's kind of hard to test visually when there is no clear bullets+indentation hierarchy.
+
+* One concrete bug I noticed is with outdenting in lists. I think Obsidian uses tab characters for lists indentation by default, so adding double space messes with the indentation levels. Check whether this is correct. It should be an easy fix then.
+* One unexpected behavior I noticed is with moving headings around. Here's an example:
+
+
+```
+# H1
+
+## H2.1
+
+### H3
+Level 4 paragraph A
+
+## H2.2
+Level 3 paragraph B
+```
+
+
+If I'm on H3 and try to move it down, I get a rejection. On one hand, I would expect it to be moved as a child from H2.1 to H2.2 (new first child):
+
+
+```
+# H1
+## H2.1
+
+## H2.2
+
+### H3
+Level 4 paragraph A
+
+Level 3 paragraph B <-- problem
+```
+
+
+If we were talking about a normal list-like outline, moving children between parents would make sense because their subtrees are separate. But in this case, if we move H3 down, it subsumes paragraph B instead of becoming its sibling. If we move H3 back up now, it will take paragraph B with it because now, in a flat mode, paragraphs A and B are at the same level. But in a tree they would be separate. Or am I getting confused here? Because we do introduce the formal hierarchy, and H3 carries its original section content in its subtree without mixing up with H2.2's original content? Clarify this for me, please. And then also explain why currently this is a rejected operation.
