@@ -1,0 +1,4 @@
+* you've caught my confusion in #6. I thought we are talking about shift-tab. but I agree with the proposed logic for tab and with adopting org-mode approach. 
+   * I've never used org-mode myself, but I've heard about it. it could be good to learn more and potentially identify where our approach aligns and where it diverges from org-mode (worth documenting explicitly?), since it's a well-known reference and could help users to orient themselves, as well as have more consistency in our own implementation. 
+* for the #1 alternatives, let's document them somewhere as considered and rejected. I agree with the reasons.
+* good summary, agree on the intuition. go ahead
