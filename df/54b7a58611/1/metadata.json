@@ -1,0 +1,73 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "df54b7a58611",
+  "session_id": "41cc9e94-a41a-4eea-b1e4-104f2ee69764",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-13T16:21:03.638448Z",
+  "branch": "archive/outline-decorations-attempt-3",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "openspec/changes/archive/2026-07-13-editor-core/verification.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "88451bf0fa12",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 12888,
+    "cache_creation_tokens": 77179,
+    "cache_read_tokens": 6740998,
+    "output_tokens": 30245,
+    "api_call_count": 77
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01FSmVZUY4b8GoUEf6NWqdkd",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-archive-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "88451bf0fa12",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 177,
+        "end": 178,
+        "entry_ids": [
+          "ed30eead-d0b7-4510-a9ba-fb19387ac2ac"
+        ],
+        "tool_use_id": "toolu_01FSmVZUY4b8GoUEf6NWqdkd"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01FSmVZUY4b8GoUEf6NWqdkd"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-archive-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-13T16:21:03.61193Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 1434,
+    "human_modified": 54,
+    "human_removed": 0,
+    "total_committed": 1434,
+    "total_lines_changed": 1593,
+    "agent_percentage": 0,
+    "metric_version": 2
+  }
+}
