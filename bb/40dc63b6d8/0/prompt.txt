@@ -1,0 +1,1 @@
+set up GHA CI in this project. reuse workflows from gha-obsidian. but this one will require a more elaborate testing setup with separate check for linting, unit tests and e2e tests
