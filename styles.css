@@ -32,3 +32,121 @@
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
   margin-left: calc(var(--to-supp-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
 }
+
+/*
+ * Guide lines (Experiment 2b) — CSS stacked-gradient technique
+ * (@replit/codemirror-indentation-markers), see
+ * docs/research/07-decoration-experiments-plan.md. decorations.ts merges a
+ * `--to-guides` custom property (a comma-joined list of repeating-linear-
+ * gradient layers, one per active ancestor depth) into the same line that
+ * already carries `--to-depth`/`--to-supp-depth` — a single `::before`
+ * renders every layer as one background, O(1) DOM nodes regardless of
+ * depth, on every kind (block, atom, list item, AND widget-replaced atoms
+ * — table/callout/hr/html — which AtomWidgetMargins patches directly via
+ * the same class/custom-properties, since a `Decoration.line` has no
+ * effect on those at all, same as its margin-left compensation).
+ *
+ * `to-decor-atom`/`to-decor-list` lines use `margin-left`, which shifts
+ * the LINE'S OWN BOX — an early version of this code assumed that meant a
+ * guide could never render on those lines at all (a background confined
+ * to match the line's own box would indeed be stuck there). That was
+ * wrong: a pseudo-element's own box does NOT have to match its containing
+ * block's dimensions. `left` here widens the pseudo leftward by exactly
+ * `--to-own-shift` — the line's own fully-known margin-left shift — so
+ * its box starts at the SAME global column regardless of which kind of
+ * line it's on, and `background-position` inside decorations.ts's
+ * gradient layers then lands each guide at the correct absolute column.
+ * Confirmed live that nothing between a plain `.cm-line` and
+ * `.cm-scroller` clips this leftward overflow.
+ *
+ * Neither `!important` nor Obsidian's own ancestor-chain specificity
+ * workaround is needed for `position`/`background` themselves (unlike
+ * padding-left/margin-left above): those aren't contested by any of
+ * Obsidian's own rules on `.cm-line`/`.cm-embed-block` — confirmed live.
+ *
+ * Uses `::after`, not `::before`: Obsidian implements a blockquote's own
+ * colored side-bar via a NATIVE `::before` (`border-left`, `position:
+ * absolute; left: 0`, confirmed live via computed style with outline mode
+ * off) — an early version of this rule used `::before` too, which doesn't
+ * "double up" with the native one, it completely REPLACES it (an element
+ * has exactly one `::before`), silently deleting the native bar wherever
+ * a guide became active on a blockquote line. Confirmed `::after` is
+ * unused (`content: none`) by every kind this rule targets, including all
+ * four widget kinds, before switching to it.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guides,
+.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-guides {
+  position: relative;
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guides::after,
+.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-guides::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--to-own-shift, 0px));
+  right: 0;
+  bottom: 0;
+  background: var(--to-guides);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/*
+ * Widget-replaced atoms (table/callout/html/hr) DO need one more override,
+ * and it's a genuinely different mechanism from the padding/margin
+ * cascade fight above: Obsidian's own app.css sets `contain: paint
+ * !important` on `.cm-content > [contenteditable="false"]` (confirmed via
+ * live inspection of matching stylesheet rules) — likely a rendering/
+ * virtualization isolation hint for these widgets. Paint containment
+ * clips ALL descendant painting (including a pseudo-element) to the
+ * element's own box, REGARDLESS of `overflow` — a plain `.cm-line` never
+ * has this, which is why atoms/list items above needed no equivalent
+ * rule. `!important` alone isn't enough to beat it (same lesson as the
+ * padding/margin fight): a 2-class override lost on specificity until it
+ * matched Obsidian's own 3-selector chain, confirmed live via a bisection
+ * test (a probe `::before` was completely invisible at any negative
+ * `left`, even a single pixel, until specificity was matched — ruling out
+ * a z-index/stacking explanation, since the SAME probe rendered fine at a
+ * non-negative offset with no `contain` override at all).
+ *
+ * Confirmed safe to remove: paint containment is a pure rendering
+ * isolation/perf hint with no effect on visual output by itself: removing
+ * it changes nothing else about how callout/hr/html render (verified by
+ * screenshot).
+ *
+ * Table needed one more fix on top of `contain`: it also carries its own
+ * `overflow-x: auto` on this SAME outer element (for horizontal scrolling
+ * of wide tables). Forcing `overflow: visible` here too naively (tried and
+ * measured live) makes the table's own wide content spill out unclipped —
+ * and since nothing else up the ancestor chain clips it either, that width
+ * cascades all the way to `.cm-scroller`, turning the WHOLE document
+ * horizontally scrollable instead of just the table (confirmed live: the
+ * rest of the note visibly scrolled out of view together with the table).
+ * CSS overflow is all-or-nothing per box — there's no way to say "clip my
+ * own rightward overflow but let this pseudo-element bleed left."
+ *
+ * Fix: Obsidian's own table widget conveniently already wraps the actual
+ * `<table>` (plus its add-row/add-column buttons) in an inner
+ * `.table-wrapper` div, separate from the outer element this rule targets.
+ * Moving `overflow-x: auto` onto `.table-wrapper` instead decouples the two
+ * concerns onto two different boxes: the OUTER element stays
+ * `overflow: visible` (letting the guide's `::after` bleed left, as below),
+ * while `.table-wrapper` independently scrolls/clips the actual wide table
+ * content. Verified via computed style + a programmatic `scrollLeft` write
+ * that this restores real scrolling (outer no longer overflows at all;
+ * wrapper does, and responds to scrollLeft), AND confirmed by a human
+ * actually using the table's scrollbar (trackpad/click-drag) in a real
+ * running vault — no visual or usability defects found. Guides now render
+ * correctly through every kind in the corpus, tables included.
+ */
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides {
+  contain: none !important;
+  overflow: visible !important;
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-guides .table-wrapper {
+  overflow-x: auto !important;
+  max-width: 100% !important;
+}
