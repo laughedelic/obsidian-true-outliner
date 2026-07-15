@@ -174,11 +174,11 @@ file, kept consistent as any one of them edits). Shelved against this project's 
 
 | # | Technique | Fixtures passed | Real-vault pass | Code cost | Risk surface | Verdict |
 |---|---|---|---|---|---|---|
-| 1 | Additive indentation, no marker | | | | | |
+| 1 | Additive indentation, no marker | All 7 corpus fixtures, both themes, screenshotted and visually reviewed (not just DOM-asserted) — see e2e/specs/50-decorations.e2e.ts | Real `test-vault` notes (`Journal/2026-07-12.md`: tab-indented 4-level nesting, multi-line list items, a wikilink; `Notes/Edge Case Zoo.md`: headings, code/table atoms, paragraph-adjacency) render correctly, both themes | ~15 lines added to decorate.ts (2 new fields + 1 extra walk parameter), ~50-line decorations.ts adapter, ~25-line styles.css | One real cascade fight found and fixed: Obsidian's `app.css` has `.markdown-source-view.mod-cm6 .cm-content > * { margin: 0px !important; }` (3-class specificity) which beat our original 2-class `.cm-line.to-decor-*` selector even with `!important` on both sides — fixed by matching Obsidian's own ancestor structure for higher specificity, not by escalating `!important` further. No fold-indicator collision (verified both by rect assertion and screenshot). No marker-size bug possible by construction (no marker exists in this experiment). | **Keep.** All success criteria met: heading-then-list shifts the whole list as a unit with per-level spacing pixel-identical to native; wide-numbering has no overlap; multiline continuation matches first-line indent in both directions; flat fixture (as expected, tracked as Experiment 3's trigger) shows no visual signal that outline mode is on, since this experiment deliberately drops the marker. |
 | 2a | Guides — overlay-measured | | | | | |
 | 2b | Guides — CSS stacked-gradient | | | | | |
-| 3 | Minimal marker fallback (conditional) | | | | | |
-| 4 | Widget-spacer spike (optional) | | | | | |
+| 3 | Minimal marker fallback (conditional) | | | | | Triggered: the flat fixture (`FLAT_MD`) shows zero visual distinction from outline-mode-off under Experiment 1, confirmed by screenshot (`.obsidian-cache/decorations-screenshots/flat-{light,dark}.png`). Recommended next step. |
+| 4 | Widget-spacer spike (optional) | | | | | Not triggered — Experiment 1 showed no cascade fragility against the synthetic corpus or real vault notes. |
 
 ## Setup (done, 2026-07-13)
 

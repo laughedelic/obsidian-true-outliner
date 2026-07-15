@@ -194,6 +194,81 @@ export async function toggleOutlineMode(): Promise<void> {
   await runCommand('toggle-outline-mode');
 }
 
+// ---- Decorations (rendered layout) ----------------------------------------
+
+/** Set the app-wide color scheme by toggling the body theme classes. */
+export async function setTheme(dark: boolean): Promise<void> {
+  await browser.execute((dark) => {
+    document.body.classList.toggle('theme-dark', dark);
+    document.body.classList.toggle('theme-light', !dark);
+  }, dark);
+}
+
+interface Rect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** getBoundingClientRect() of the Nth (0-indexed) `.cm-line` in the active editor. */
+export function getLineRect(lineIndex: number): Promise<Rect> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+      const el = lines[lineIndex] as HTMLElement | undefined;
+      if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
+      const r = el.getBoundingClientRect();
+      return { left: r.left, top: r.top, width: r.width, height: r.height };
+    },
+    lineIndex,
+  );
+}
+
+/** Computed style property of the Nth (0-indexed) `.cm-line` in the active editor. */
+export function getLineComputedStyle(lineIndex: number, prop: string): Promise<string> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex, prop) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+      const el = lines[lineIndex] as HTMLElement | undefined;
+      if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
+      return getComputedStyle(el).getPropertyValue(prop);
+    },
+    lineIndex,
+    prop,
+  );
+}
+
+/** Bounding rects of every element matching `selector` within the Nth `.cm-line`. */
+export function getLineChildRects(lineIndex: number, selector: string): Promise<Rect[]> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex, selector) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+      const el = lines[lineIndex] as HTMLElement | undefined;
+      if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
+      return Array.from(el.querySelectorAll(selector)).map((n) => {
+        const r = n.getBoundingClientRect();
+        return { left: r.left, top: r.top, width: r.width, height: r.height };
+      });
+    },
+    lineIndex,
+    selector,
+  );
+}
+
+export async function screenshotFull(dir: string, name: string): Promise<void> {
+  await browser.saveScreenshot(path.join(dir, `${name}.png`));
+}
+
 // ---- Notices --------------------------------------------------------------
 
 export async function noticeTexts(): Promise<string[]> {

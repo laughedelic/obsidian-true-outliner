@@ -1,18 +1,19 @@
 /**
- * Pure per-line decoration facts for outline mode's visual node chrome.
- * Every node kind is decorated — headings, paragraphs, list items, and
- * atoms all get the same tree-depth indentation and a consistent, prominent
- * marker, so the tree reads as one hierarchy regardless of how a node is
- * encoded in markdown. List items already have a native marker glyph
- * (bullet/number) and native hanging-indent positioning for it; rather than
- * replacing that mechanism, decorations.ts reuses it — the SAME
- * `padding-left`/`text-indent` pair Obsidian already uses to hang bullets
- * is applied uniformly (one fixed unit, not Obsidian's own per-level
- * values) to every kind, so list bullets/checkboxes hang correctly at our
- * depth-based position without needing separate positioning logic, and
- * kinds without a native marker (paragraphs, headings, atoms) get a
- * `::before` glyph that hangs the exact same way. No CM6 imports —
- * decorations.ts is a thin adapter.
+ * Pure per-line decoration facts for outline mode's additive-only indentation
+ * (see docs/research/07-decoration-experiments-plan.md, Experiment 1).
+ *
+ * Headings, paragraphs, and atoms have no native indentation of their own —
+ * decorations.ts sets `padding-left`/`margin-left` = `depth × unit` directly,
+ * which is additive in effect because there is nothing native to add to.
+ *
+ * List items are different: Obsidian already hangs their native bullet/
+ * number via its own `text-indent`/`padding-left` pair, per raw nesting
+ * level. That pair is NEVER touched here — instead, `supplementalDepth`
+ * captures only the contribution from non-list-item ancestors (e.g. a
+ * heading a list sits under), and decorations.ts adds it as `margin-left`,
+ * a box-model property native list rendering doesn't otherwise use. A list
+ * with no non-list-item ancestors gets supplementalDepth 0 everywhere in it
+ * — byte-identical to outline-mode-off, a permanent regression invariant.
  */
 
 import type { OutlineDoc, OutlineNode } from '../model';
@@ -27,8 +28,8 @@ export interface LineDecorationFact {
   readonly isFirstLine: boolean;
   /**
    * True for list-item first lines: they already have a native marker
-   * glyph (bullet/number) that should be restyled in place, not
-   * supplemented with our own `::before` marker.
+   * glyph (bullet/number) that Experiment 1 leaves fully untouched — kept
+   * for callers that need to identify it, not consumed by decorations.ts.
    */
   readonly hasNativeMarker: boolean;
   /**
@@ -40,6 +41,23 @@ export interface LineDecorationFact {
    * uses this flag to pick the right CSS property.
    */
   readonly isAtom: boolean;
+  /**
+   * True for every line (first + continuation) of a list-item node. Native
+   * `text-indent`/`padding-left` must never be touched for these lines —
+   * decorations.ts applies `supplementalDepth` as `margin-left` instead,
+   * on top of native rendering.
+   */
+  readonly isListItem: boolean;
+  /**
+   * Meaningful only when `isListItem` is true (0 and unused otherwise): the
+   * depth, in the whole tree, of the nearest ancestor list-item that starts
+   * an unbroken list-item chain (i.e. total tree depth minus depth-within-
+   * that-chain) — equivalently, how many non-list-item ancestors sit above
+   * the nearest list root. Constant across an entire nested list, so native
+   * per-level spacing within the list is untouched; only the list's start
+   * position shifts by its non-list ancestors' contribution.
+   */
+  readonly supplementalDepth: number;
 }
 
 /**
@@ -52,21 +70,27 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
   const facts: LineDecorationFact[] = [];
   let current = doc.preamble.length;
 
-  const walk = (node: OutlineNode, depth: number): void => {
+  const walk = (node: OutlineNode, depth: number, listRootDepth: number | null): void => {
     const atom = isAtom(node);
+    const isListItem = node.kind === 'list-item';
+    // Entering a new list-item chain (this node's parent wasn't one) roots
+    // it at this node's own depth; continuing a chain inherits the root.
+    const rootDepth = isListItem ? (listRootDepth ?? depth) : null;
     for (let i = 0; i < node.lines.length; i++) {
       facts.push({
         lineNumber: current + i,
         depth,
         isFirstLine: i === 0,
-        hasNativeMarker: node.kind === 'list-item' && i === 0,
+        hasNativeMarker: isListItem && i === 0,
         isAtom: atom,
+        isListItem,
+        supplementalDepth: isListItem ? rootDepth! : 0,
       });
     }
     current += node.lines.length + node.trailingGap.length;
-    node.children.forEach((child) => walk(child, depth + 1));
+    node.children.forEach((child) => walk(child, depth + 1, rootDepth));
   };
 
-  doc.children.forEach((node) => walk(node, 0));
+  doc.children.forEach((node) => walk(node, 0, null));
   return facts;
 }

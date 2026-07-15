@@ -120,3 +120,81 @@ describe('decorate: first line / native marker flags', () => {
     expect(byLine.get(8)?.isAtom).toBe(true); // ``` (closer)
   });
 });
+
+describe('decorate: supplemental depth (additive list margin)', () => {
+  it('flags isListItem for every line of a list item, including continuations', () => {
+    const md = 'Para.\n\n- item\n  continuation\n\n## Heading\n';
+    const doc = parse(md);
+    const facts = decorate(doc);
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+
+    expect(byLine.get(0)?.isListItem).toBe(false); // "Para."
+    expect(byLine.get(2)?.isListItem).toBe(true); // "- item"
+    expect(byLine.get(3)?.isListItem).toBe(true); // continuation
+    expect(byLine.get(5)?.isListItem).toBe(false); // "## Heading"
+  });
+
+  it('is 0 for a list with no non-list-item ancestors (byte-identical invariant)', () => {
+    const md = [
+      '- level 1',
+      '  1. level 2',
+      '     - level 3',
+      '',
+    ].join('\n');
+    const doc = parse(md);
+    const facts = decorate(doc);
+    for (const f of facts) {
+      if (f.isListItem) expect(f.supplementalDepth).toBe(0);
+    }
+  });
+
+  it('is constant across an entire nested list under a heading, equal to the root’s own depth', () => {
+    const md = ['# Section', '', '- top item', '  - nested item', '    - deeply nested', ''].join(
+      '\n',
+    );
+    const doc = parse(md);
+    const facts = decorate(doc);
+    const listFacts = facts.filter((f) => f.isListItem);
+    expect(listFacts.length).toBeGreaterThan(0);
+    // "- top item" is depth 1 (under "# Section"): that's the root's own
+    // depth, so every item in the chain — regardless of how deeply nested
+    // within the list — carries the same supplementalDepth.
+    for (const f of listFacts) expect(f.supplementalDepth).toBe(1);
+  });
+
+  it('re-roots at a list item that starts a new chain under a non-list-item ancestor', () => {
+    const md = ['Parent para.', '- Child para as list item.', ''].join('\n');
+    const doc = parse(md);
+    const facts = decorate(doc);
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    const childLine = md.split('\n').indexOf('- Child para as list item.');
+    const child = byLine.get(childLine)!;
+    expect(child.isListItem).toBe(true);
+    expect(child.depth).toBe(1);
+    // Its own depth is the chain root's depth, since its parent (a
+    // paragraph) is not itself a list item.
+    expect(child.supplementalDepth).toBe(1);
+  });
+
+  it('recomputes independently for separate lists under separate heading depths', () => {
+    const md = ['# A', '', '- one', '', '## B', '', '- two', '  - two nested', ''].join('\n');
+    const doc = parse(md);
+    const facts = decorate(doc);
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    // "- one" (depth 1, under "# A") roots its own 1-item list at 1.
+    expect(byLine.get(2)?.supplementalDepth).toBe(1);
+    // "- two" (depth 2, under "## B") roots a separate list at 2; its
+    // nested child inherits that root, not "- one"'s.
+    expect(byLine.get(6)?.supplementalDepth).toBe(2);
+    expect(byLine.get(7)?.supplementalDepth).toBe(2);
+  });
+
+  it('is 0 (unused) for non-list-item nodes', () => {
+    const md = '# Heading\n\nPara.\n\n```\ncode\n```\n';
+    const doc = parse(md);
+    const facts = decorate(doc);
+    for (const f of facts) {
+      if (!f.isListItem) expect(f.supplementalDepth).toBe(0);
+    }
+  });
+});

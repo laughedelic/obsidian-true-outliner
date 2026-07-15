@@ -20,6 +20,7 @@ import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension } from './keymap';
+import { decorationsExtension } from './decorations';
 
 type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
 
@@ -78,6 +79,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     );
 
     this.registerEditorExtension(grammarExtension(this));
+    this.registerEditorExtension(decorationsExtension(this));
 
     this.addSettingTab(new TrueOutlinerSettingTab(this.app, this));
 
@@ -100,6 +102,19 @@ export default class TrueOutlinerPlugin extends Plugin {
   private async toggleMode(path: string): Promise<void> {
     const on = await this.registry.toggle(path);
     new Notice(on ? 'Outline mode on' : 'Outline mode off', 1500);
+    this.refreshDecorations(path);
+  }
+
+  /**
+   * Toggling outline mode doesn't itself dispatch a CM6 transaction, so
+   * decorationsExtension's StateField never gets a chance to recompute.
+   * Nudging the cursor to its own position is a real (public-API) dispatch
+   * that forces the recompute without changing anything visible.
+   */
+  private refreshDecorations(path: string): void {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (view?.file?.path !== path) return;
+    view.editor.setCursor(view.editor.getCursor());
   }
 
   private addStructuralCommand(id: string, name: string, op: StructuralOp): void {
