@@ -1,0 +1,2 @@
+Assuming that we keep the version 2b, what is the next experiment we should run according to the plan?  (new branch, please)
+I wonder, what if we could add block markers since we were able to, uh, draw consistent guidelines? Maybe we can also add the markers. It would be nice to have separate marker symbols for headings, paragraphs, call out tables, and so on so that they're... they don't have to be the same as the lists, but they could, umstill add some visual queue for the user.
