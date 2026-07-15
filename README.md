@@ -81,3 +81,36 @@ chords, notice assertions). `browser.executeObsidian(({app, obsidian}) => …)`
 runs code inside the app; `browser.reloadObsidian()` restarts it for
 persistence tests. The harness lives outside the plugin bundle, the vitest
 suite, and the root typecheck (`npm run build:e2e` typechecks it).
+
+### Mobile testing
+
+```sh
+npm run test:e2e:mobile   # same specs, under Obsidian's mobile UI
+```
+
+This is a feedback loop for continuously assessing mobile feasibility, not a
+hard requirement to build against — full mobile support isn't a goal at this
+stage; our standing bar remains "mobile-safe from day 1, desktop-tested for
+v1.0" ([docs/research/04-open-questions.md](docs/research/04-open-questions.md)
+Q7). The value is early discovery: if a design or architecture choice would
+make mobile support harder or impossible later, we want that insight now,
+while it's cheap to react to, rather than once mobile becomes the focus.
+
+This re-runs the full spec suite against Obsidian's own [mobile
+emulation](https://docs.obsidian.md/Plugins/Getting+started/Mobile+development#Emulate+mobile+device+on+desktop)
+(`app.emulateMobile()` at a phone-sized viewport, via
+`e2e/wdio.mobile-emulation.conf.mts`) — no physical device or manual plugin
+install needed, first run downloads Obsidian the same way `test:e2e` does.
+`00-smoke.e2e.ts`'s platform-mode check fails loudly if emulation didn't
+actually engage.
+
+Emulation is still the Electron desktop app wearing a phone-sized viewport,
+not the real Capacitor mobile app — good for the mobile *UI* (layout at
+narrow widths, `is-mobile`/`is-phone`/`is-tablet` behavior, touch-sized
+targets) but it can't surface a Capacitor-only platform gap. The one that
+matters most here — no Node/Electron APIs on mobile — is already enforced
+separately by `eslint-plugin-obsidianmd`'s `no-nodejs-modules` rule, so this
+harness gap is narrower than it first looks. `wdio-obsidian-service` can also
+drive a real Android Virtual Device via Appium for a higher-fidelity (but
+much heavier — Android Studio, an AVD, slower runs) test; not set up here.
+iOS isn't supported by the harness at all.
