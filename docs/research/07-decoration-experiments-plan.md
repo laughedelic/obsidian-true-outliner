@@ -145,6 +145,119 @@ instead. Only worth spending time on if Experiment 1's `padding-left`/`margin-le
 approach keeps showing cascade fragility against real themes despite the additive-only
 discipline.
 
+## Experiment 5 (primary): per-kind block markers — two mechanisms, head to head
+
+Proposed after 2b was confirmed kept: not a revival of Experiment 3 (which was a
+fallback for a legibility gap that turned out not to exist), but a richer visual
+system — a distinct marker symbol per kind (heading, paragraph, code, table, callout,
+quote, html, hr), now that 2b's guides give a stable, already-debugged foundation to
+build markers on top of. Gets a fresh number rather than reusing 3, since 3's own
+verdict is already recorded and settled. Build **both** below against the same corpus
+and compare, same head-to-head discipline as Experiment 2 — don't pick a favorite in
+advance.
+
+List items are excluded from markers entirely on both variants, for the same reason
+guides already exclude list-item ancestors (see Experiment 2a's non-obvious findings
+below): the native bullet/number already does this job.
+
+**Shared prerequisite, added independently on each branch** (trivial, and NOT itself
+part of either technique being compared — analogous to the shared fixture corpus, not
+to the guide-computation code 2a/2b each built separately): `LineDecorationFact`
+(`decorate.ts`) doesn't carry node kind today, only structural buckets
+(`isAtom`/`isListItem`/else) — add a `kind: NodeKind` field, populated straight from
+`node.kind` in the existing walk. No new tree walk or pure function needed at all:
+`isFirstLine` (already present) is exactly the right gate for "does this line get a
+marker" — simpler than either 2a's or 2b's own guide computation, both of which needed
+a second pass. Also: promote the one-off plain-blockquote fixture (`quote` kind,
+currently only inline in `51-guides-gradient.e2e.ts` as `decorations-guide-
+blockquote.md`, never in the shared `ALL_DECORATION_FIXTURES` corpus) into
+`e2e/fixtures/decorations.ts` proper — it's the one kind of the eight that ground rule
+#2's "screenshot everything, every time" has never actually covered.
+
+**A real constraint, not a preference, is why the two variants use genuinely different
+mechanisms rather than two flavors of the same trick**: CSS gives each line exactly two
+pseudo-elements, and both are already spoken for. Native blockquote uses `::before` for
+its colored bar (confirmed in Experiment 2b; callout likely too, given how visually
+similar its own bar is, but not yet confirmed live — don't assume). 2b's guides already
+use `::after`. Neither variant can claim a third pseudo-element that doesn't exist.
+
+### 5a — icon markers, via a new DOM-element mechanism
+
+Small, fixed-size (rem/px, **never `em`** — the exact historical marker-size bug class
+from the postmortem: `font-size` resolving against the wrong line's context) SVG icon
+per kind, built via DOM APIs directly (no data-URI encoding needed) — one distinct,
+self-drawn mark per eligible kind. Not a final design; exact icon shapes get tuned by
+eye during real-vault review, like every other visual call in this project.
+
+**Mechanism**: plain `.cm-line`s (heading/paragraph/code/quote) get a CM6
+`Decoration.widget` (`side: -1`) whose `toDOM()` returns a `position: absolute` element
+— deliberately out of flow, so it can't push text or trigger the `.cm-widgetBuffer`
+line-wrap risk Experiment 4 flagged (that risk was specifically about *in-flow* spacer
+widgets). Widget-replaced atoms (table/callout/html/hr) extend the existing
+`MarginCompensation` `ViewPlugin`, which already walks these elements post-render via
+`docViewUpdate` and patches them directly, to also inject/update a small marker child
+element — the same proven escape hatch already used for `margin-left`, now attaching a
+real node instead of just an inline style. `pointer-events: none` throughout, matching
+the guide's own `::after`.
+
+Positioning needs to be *verified live*, not reasoned from the box model:
+`padding-left` lines (heading/paragraph) need the marker inside the reserved padding
+gutter (a negative offset back toward the box's own left edge); `margin-left` lines
+(atoms) already have their box shifted, so the marker sits near the box's own edge
+instead. Confirm via `getBoundingClientRect()` against a reference point (e.g. a
+same-depth list item's own native bullet) — this project has been burned before by
+trusting box-model reasoning over live measurement (2b's own `::after`-widening
+finding).
+
+**What would kill it**: if an out-of-flow `Decoration.widget` still trips the
+`.cm-widgetBuffer` gotcha in some way that matters even without pushing text: go in
+expecting this might need real investigation, same posture Experiment 4 took toward the
+identical CM6 mechanism.
+
+**Success criteria**: every eligible kind's marker renders on the node's true first
+line only (via `isFirstLine`) — never repeated on continuation lines, never on
+trailing-gap lines. No stacking/paint-order conflict with the guide's `::after` or
+native `::before`. Unaffected by `contain: paint` on widget atoms (a prepended child
+sits inside the box, unlike the guide's deliberately-widened pseudo).
+
+### 5b — CSS-shape markers, reusing 2b's existing background-layer mechanism
+
+Small fixed-px CSS-gradient-drawn geometric marks — filled dot, hollow ring, filled
+square, diamond (`conic-gradient`), plus-sign (layered `linear-gradient`s), short
+bar/tick, wedge, cross — one shape+color combination per kind. Zero new
+pseudo-element, zero new DOM, zero new `ViewPlugin`.
+
+**Mechanism**: one more compound background-layer string per kind (self-contained
+`background-position`/`background-size`/`no-repeat`, same pattern `guideLayer()`
+already uses), exposed as a new `--to-marker` custom property — kept as an independent
+function from the guide layers in the TS code, but painted via the *same* `::after` by
+changing the CSS rule's `background` shorthand to `background: var(--to-marker,
+none), var(--to-guides, none);`. Positioned via the exact same `--to-own-shift`
+compensation already proven for guides — no new coordinate math.
+
+**Real integration wrinkle, not just an additive change**: today the `to-decor-guides`
+class — which gates `position: relative` plus the whole `::after` rule — is applied
+only when `guide.guideDepths.length > 0`. Markers need to appear even on a depth-0
+heading with zero ancestors (no guide at all today), so the gate becomes
+`guideDepths.length > 0 || hasMarker`. This touches shared, working, already-well-
+tested code (`lineDecoration()`, used by both the plain-line `StateField` and the
+widget-atom `MarginCompensation` loop) — change it carefully. `gapLineDecoration`
+(blank trailing-gap lines) must stay explicitly marker-free, since gap lines carry no
+`decorate()` fact or node kind at all.
+
+**Success criteria**: same as 5a's, achieved with zero new rendering mechanism.
+
+### Compare on
+
+Visual legibility/distinctiveness of the 8 marks at a glance — the actual question
+this head-to-head exists to answer, not a secondary concern. Code size/complexity/new-
+mechanism risk (5b reuses proven plumbing entirely; 5a introduces a new DOM/widget
+mechanism with its own unverified risk, similar in kind to Experiment 4's).
+Robustness across the full corpus, multi-line continuation, and widget atoms.
+Cascade/paint safety. Record the result in the comparison table below before picking
+one (or keeping both, if the answer turns out to be "different marks for different
+kinds").
+
 ## Track 5 (parallel infrastructure, not gated — apply to all of the above)
 
 - Commit the fixture corpus once; every experiment's verification re-screenshots all of it,
@@ -181,6 +294,8 @@ Quick-scan status; full detail in the subsections below.
 | 2b | Guides — CSS stacked-gradient | Done, full corpus coverage confirmed (blockquote, community themes, gap continuity, and table all fixed + confirmed live) | **Keep** — full parity with 2a's coverage; simpler and smaller code, zero pixel measurement |
 | 3 | Minimal marker fallback (conditional) | Not triggered | Deprioritized — see below |
 | 4 | Widget-spacer spike (optional) | Not triggered | No fragility observed that would call for it |
+| 5a | Block markers — real icons, new widget mechanism | Not started | — |
+| 5b | Block markers — CSS shapes, reused guide layer | Not started | — |
 
 ### Experiment 1 — additive indentation, no marker
 
@@ -592,6 +707,16 @@ Not triggered. Experiment 1 showed no cascade fragility against the synthetic co
 real vault notes once the three bugs above were fixed — nothing suggests the
 `padding-left`/`margin-left` approach is running out of road.
 
+### Experiment 5 — per-kind block markers (icons vs. CSS shapes)
+
+Not started. Branches created off 2b (`experiment/decorations-5a-block-markers-icons`,
+`experiment/decorations-5b-block-markers-shapes`), each to be worked in its own git
+worktree/session rather than by the assistant directly, since getting the marks reading
+well is expected to need the same kind of live, iterative, human-in-the-loop
+verification every prior experiment in this doc needed. See the Experiment 5 section
+above for the design and "Handoff prompts" below for the self-contained starting
+instructions for each.
+
 ### Open question: shrinking only our own added list margin
 
 Raised by the user, not yet decided. The deferred list-hang issue (above) is native
@@ -777,6 +902,17 @@ technical findings" section was meant to be used — read this before starting 2
   similarly) once 1 is done.
 - Experiments 3 and 4 are conditional/optional — branch only if triggered (see below).
 
+### Setup addendum (2026-07-16)
+
+- `experiment/decorations-5a-block-markers-icons` and `-5b-block-markers-shapes` branch
+  off `experiment/decorations-2b-guides-css-gradient` (2b kept as the baseline going
+  forward, per its Results verdict above), each with zero commits yet. Unlike 1/2a/2b,
+  these are meant to be worked in **separate git worktrees**, one per branch, each as
+  its own session — the marks reading well is expected to need the same live,
+  iterative, human-in-the-loop verification every prior experiment needed, which isn't
+  well served by one session flipping between two unrelated branches. See "Handoff
+  prompts" below for the self-contained starting instructions for each.
+
 ## Handoff prompts
 
 Self-contained prompts, one per experiment — paste into a fresh session (or hand to a
@@ -901,3 +1037,107 @@ what's inline plus the two linked docs.
 > wrapped text. The whole CM6 community converged on CSS `Decoration.line` instead for this
 > exact reason; this spike exists to find out definitively whether that gotcha actually
 > manifests for us; do not treat this as a preferred direction going in.
+
+### Experiment 5a — icon markers (new DOM-element mechanism)
+
+> Branch: `experiment/decorations-5a-block-markers-icons` (already created off
+> `experiment/decorations-2b-guides-css-gradient`, zero commits yet — 2b's guides/
+> indentation code is your starting point). Read `docs/research/06-outline-decorations-
+> postmortem.md` and `docs/research/07-decoration-experiments-plan.md` (Experiment 5's
+> section, both 5a and 5b — you're building 5a, but 5b is the head-to-head comparison
+> point, so understand what it's doing too) before starting. This is a head-to-head with
+> 5b (CSS-shape markers on a sibling branch, worked in a separate session) — build your
+> half fully, don't peek at or wait for 5b's result before finishing yours.
+>
+> Shared prerequisite first: `LineDecorationFact` (`src/plugin/decorate.ts`) doesn't
+> carry node kind today — add a `kind: NodeKind` field (import `NodeKind` from
+> `../model`), populated from `node.kind` in the existing `decorate()` walk. Extend
+> `tests/decorate.test.ts` with a small test confirming `kind` matches at every line,
+> `list-item` included. Also promote the one-off plain-blockquote fixture into the
+> shared corpus: `e2e/fixtures/decorations.ts` has no `quote`-kind fixture today (it's
+> only ever been tested via a one-off inline fixture in `51-guides-gradient.e2e.ts`) —
+> add one (a short `> quoted line` under a heading, matching the existing fixtures'
+> style) to `ALL_DECORATION_FIXTURES` so the full 8-kind set is actually covered by the
+> "screenshot everything" loop.
+>
+> Build: markers render on a node's first line only (`fact.isFirstLine &&
+> !fact.isListItem` — list items keep their fully native marker, untouched, same
+> exclusion guides already use). Each of the 8 eligible kinds (heading, paragraph, code,
+> table, callout, quote, html, hr) gets a small, distinct, self-drawn SVG icon — fixed
+> px/rem size, **never `em`** (the exact historical marker-size bug: `font-size`
+> resolving against the wrong line's context — see the postmortem). Build icons via DOM
+> APIs directly (create an `<svg>` element and set its children/attributes in code), not
+> data-URI strings.
+>
+> For plain `.cm-line`s (heading/paragraph/code/quote): a CM6 `Decoration.widget`
+> (`side: -1`) whose `toDOM()` returns a `position: absolute`, `pointer-events: none`
+> element — deliberately out of flow, so it can't push text or trigger the
+> `.cm-widgetBuffer` line-wrap gotcha Experiment 4 flagged (that risk is specifically
+> about *in-flow* spacer widgets; verify an out-of-flow one is actually clear of it,
+> don't just assume). For widget-replaced atoms (table/callout/html/hr): extend the
+> existing `MarginCompensation` `ViewPlugin` in `decorations.ts` (it already walks these
+> elements post-render via `docViewUpdate` and patches `margin-left` directly) to also
+> inject/update a small marker child element the same way.
+>
+> Positioning is the hard part — verify live, don't reason from the box model alone
+> (this project has been burned by that exact mistake before, see 2b's `::after`-
+> widening finding). `padding-left` lines (heading/paragraph) need the marker inside the
+> reserved padding gutter; `margin-left` lines (atoms) already have their box shifted,
+> so the marker sits near the box's own edge instead. Compare against a reference point
+> (e.g. `getBoundingClientRect()` on a same-depth list item's own native bullet) to
+> confirm the marker lines up sensibly, not just "looks plausible."
+>
+> Test against every fixture in `e2e/fixtures/decorations.ts` (including your new quote
+> fixture), both bundled themes, plus: multi-line continuation (marker on the true first
+> line only, never repeated); no stacking conflict with the guide's `::after` or native
+> `::before` (blockquote's colored bar especially); no clipping from widget atoms'
+> `contain: paint`. Write `e2e/specs/52-block-markers-icons.e2e.ts` following
+> `51-guides-gradient.e2e.ts`'s pattern (DOM/computed-style assertions, not just
+> screenshots). `npm test` (unit) and `npm run build:plugin` (real bundle — `npm run
+> build` alone only type-checks) before any real-vault check. A real dev-vault pass
+> (`npm run vault:install`) is required before calling this done — record the result in
+> the comparison table in `docs/research/07-decoration-experiments-plan.md`.
+
+### Experiment 5b — CSS-shape markers (reusing 2b's background-layer mechanism)
+
+> Branch: `experiment/decorations-5b-block-markers-shapes` (already created off
+> `experiment/decorations-2b-guides-css-gradient`, zero commits yet). Read the same two
+> docs as 5a first — this is a deliberate head-to-head alternative, not a fallback;
+> build your half fully without waiting on 5a's result (worked in a separate session on
+> a sibling branch).
+>
+> Same shared prerequisite as 5a, applied independently here (don't share code across
+> branches — see the plan's own ground rule #1): add `kind: NodeKind` to
+> `LineDecorationFact` in `decorate.ts` (+ a small `tests/decorate.test.ts` addition),
+> and promote the one-off plain-blockquote fixture into `e2e/fixtures/decorations.ts`'s
+> `ALL_DECORATION_FIXTURES` (currently only tested via a one-off inline fixture in
+> `51-guides-gradient.e2e.ts`).
+>
+> Build: one more compound CSS background-layer string per kind — small fixed-px
+> gradient-drawn marks (e.g. filled dot, hollow ring, filled square, diamond via
+> `conic-gradient`, plus-sign via layered `linear-gradient`s, short bar/tick, wedge,
+> cross; 8 distinguishable shape+color combinations, one per eligible kind), each
+> self-contained (own `background-position`/`background-size`/`no-repeat`, same pattern
+> `guideLayer()` in `decorations.ts` already uses for the guide gradient). Expose it as
+> a new `--to-marker` custom property, kept as an independent function from the guide
+> layers in the TS code, but painted via the exact same `::after` 2b's guides already
+> use by changing the CSS rule's `background` shorthand to `background:
+> var(--to-marker, none), var(--to-guides, none);`. Position via the same
+> `--to-own-shift` compensation guides already compute — no new coordinate math needed.
+>
+> The integration isn't purely additive — read `lineDecoration()` in `decorations.ts`
+> carefully before changing it. Today the `to-decor-guides` class (which gates
+> `position: relative` and the whole `::after` rule) only applies when
+> `guide.guideDepths.length > 0`. Markers must render even on a depth-0 heading with no
+> ancestors (no guide at all today), so the gate needs to become `guideDepths.length >
+> 0 || hasMarker`. This is shared, already-well-tested code used by both the plain-line
+> `StateField` and the widget-atom `MarginCompensation` loop — change it carefully, and
+> make sure `gapLineDecoration` (blank trailing-gap lines) stays explicitly marker-free
+> (gap lines carry no `decorate()` fact or node kind at all).
+>
+> Test against every fixture (including your new quote fixture), both themes, same
+> multi-line-continuation and cascade-safety focus as 5a. Write
+> `e2e/specs/52-block-markers-shapes.e2e.ts` following `51-guides-gradient.e2e.ts`'s
+> pattern. `npm test` and `npm run build:plugin` before any real-vault check
+> (`npm run vault:install`). Record the result in the comparison table, specifically
+> comparing shape legibility/distinctiveness, code size, and mechanism risk against 5a.
