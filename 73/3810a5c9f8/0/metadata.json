@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "733810a5c9f8",
+  "session_id": "52cc0fdb-68d7-4e99-a68b-460877db33de",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-15T01:42:45.576322Z",
+  "branch": "experiment/decorations-1-additive-indent",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/plugin/decorations.ts",
+    "e2e/specs/50-decorations.e2e.ts",
+    "e2e/fixtures/decorations.ts",
+    "e2e/helpers.ts",
+    "docs/research/07-decoration-experiments-plan.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "833eac2693f0",
+  "checkpoint_transcript_start": 428,
+  "transcript_lines_at_start": 428,
+  "compact_transcript_start": 141,
+  "token_usage": {
+    "input_tokens": 2734,
+    "cache_creation_tokens": 77894,
+    "cache_read_tokens": 15228191,
+    "output_tokens": 37816,
+    "api_call_count": 51
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-15T01:42:45.018366Z",
+    "agent_lines": 191,
+    "agent_removed": 19,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 191,
+    "total_lines_changed": 210,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
