@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "3ffa38106fe3",
+  "strategy": "manual-commit",
+  "branch": "experiment/decorations-1-additive-indent",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/07-decoration-experiments-plan.md",
+    "e2e/helpers.ts",
+    "e2e/specs/50-decorations.e2e.ts",
+    "src/plugin/decorate.ts",
+    "src/plugin/decorations.ts",
+    "src/plugin/main.ts",
+    "styles.css",
+    "tests/decorate.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/3f/fa38106fe3/0/metadata.json",
+      "transcript": "/3f/fa38106fe3/0/full.jsonl",
+      "compact_transcript": "/3f/fa38106fe3/0/transcript.jsonl",
+      "content_hash": "/3f/fa38106fe3/0/content_hash.txt",
+      "prompt": "/3f/fa38106fe3/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 16825,
+    "cache_creation_tokens": 309343,
+    "cache_read_tokens": 16926446,
+    "output_tokens": 78747,
+    "api_call_count": 104
+  }
+}
