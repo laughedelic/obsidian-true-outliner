@@ -292,6 +292,29 @@ export function getContentChildComputedStyle(
   );
 }
 
+/**
+ * getBoundingClientRect() of the Nth (0-indexed) element anywhere under the
+ * editor's content root — for comparing visual box positions across
+ * elements that don't share a common line-index scheme (e.g. a widget's
+ * nested visible content vs. a sibling `.cm-line`'s own box).
+ */
+export function getContentChildRect(selector: string, index: number): Promise<Rect> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, selector, index) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const matches = cm.contentDOM.querySelectorAll(selector);
+      const el = matches[index] as HTMLElement | undefined;
+      if (!el) throw new Error(`no "${selector}" at index ${index}`);
+      const r = el.getBoundingClientRect();
+      return { left: r.left, top: r.top, width: r.width, height: r.height };
+    },
+    selector,
+    index,
+  );
+}
+
 export async function screenshotFull(dir: string, name: string): Promise<void> {
   await browser.saveScreenshot(path.join(dir, `${name}.png`));
 }

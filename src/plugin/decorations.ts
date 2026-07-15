@@ -104,9 +104,18 @@ class AtomWidgetMargins implements PluginValue {
     for (const el of widgets) {
       const fact = factsByLine.get(this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1);
       if (fact?.isAtom) {
+        // Some widgets (tables, for their row/column drag-handles) carry
+        // their own native left padding that our margin doesn't know
+        // about — padding never moves a box's own edge, so it just pushes
+        // the widget's *visible content* (e.g. the <table> grid) further
+        // right than a same-depth code block or callout, whose background
+        // fills their own padding invisibly. Reading it live (not a
+        // hardcoded constant) keeps this correct across themes; clamped at
+        // 0 so a depth-0 atom never goes negative.
+        const nativePaddingLeft = parseFloat(getComputedStyle(el).paddingLeft) || 0;
         el.style.setProperty(
           'margin-left',
-          `calc(${fact.depth} * var(--to-decor-unit, 1.5rem))`,
+          `max(0px, calc(${fact.depth} * var(--to-decor-unit, 1.5rem) - ${nativePaddingLeft}px))`,
           'important',
         );
       } else {

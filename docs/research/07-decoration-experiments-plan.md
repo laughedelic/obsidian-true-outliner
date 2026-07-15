@@ -170,15 +170,170 @@ plus a genuinely unsolved new problem (N editors bound to overlapping ranges of 
 file, kept consistent as any one of them edits). Shelved against this project's decided
 100%-public-API bar (Q1); revisit only if that bar itself is ever renegotiated.
 
-## Comparison table (fill in as experiments complete)
+## Results
 
-| # | Technique | Fixtures passed | Real-vault pass | Code cost | Risk surface | Verdict |
-|---|---|---|---|---|---|---|
-| 1 | Additive indentation, no marker | All 8 corpus fixtures, both themes, screenshotted and visually reviewed (not just DOM-asserted) — see e2e/specs/50-decorations.e2e.ts | User toured every note in the real `test-vault` by hand. Two real bugs found and fixed post-hoc (see Risk surface): tables and callouts weren't indenting at all. After the fix, re-verified against `Journal/2026-07-12.md` (tab-indented nesting, multi-line items, wikilink), `Notes/Edge Case Zoo.md`, `Journal/2026-07-10.md` (callout), and `README.md` (large table) — all correct, both themes. | ~15 lines added to decorate.ts (2 new fields + 1 extra walk parameter), ~140-line decorations.ts adapter (StateField for plain lines + a ViewPlugin for widget-replaced atoms), ~25-line styles.css | Two real bugs, both found via user real-vault testing (not caught by the synthetic corpus, which only exercised a code fence and a plain blockquote): (1) cascade fight — Obsidian's `app.css` has `.markdown-source-view.mod-cm6 .cm-content > * { margin: 0px !important; }` (3-class specificity) which beat our original 2-class `.cm-line.to-decor-*` selector even with `!important` on both sides — fixed by matching Obsidian's own ancestor structure. (2) tables/callouts/raw-HTML/hr render as opaque replacement widgets (`.cm-embed-block`, `.hr`) in Live Preview, not a plain `.cm-line` — a `Decoration.line` targeting that source line has no effect at all, confirmed live (not a class-merge partial win — style and class both come back empty). Fixed with a companion `ViewPlugin` that patches these widgets' `margin-left` directly via `docViewUpdate`, using inline `!important` (always wins over any stylesheet rule) and reading the same `--to-decor-unit` CSS variable so the unit constant has one source of truth. Now a permanent fixture (`WIDGET_ATOMS_MD`) plus a targeted assertion. No fold-indicator collision. No marker-size bug possible by construction (no marker exists in this experiment). | **Keep.** All success criteria met, including after the table/callout fix. User's assessment: "much more promising" than the prior attempt, gives real hierarchy legibility switching modes. Flat fixture (depth-0 with no heading ancestor) intentionally shows no visual change — user confirmed this reads correctly once you add a heading above it, so not a legibility gap in practice. |
-| 2a | Guides — overlay-measured | | | | | Not started — user flagged as useful ("would definitely add some visual aid") but lower priority than nailing indentation first. |
-| 2b | Guides — CSS stacked-gradient | | | | | Not started — see 2a. |
-| 3 | Minimal marker fallback (conditional) | | | | | Not triggered in practice: the flat fixture's lack of visual change is expected/correct behavior once a heading is present above it (user-confirmed), not the original motivating legibility bug. Markers judged less important than initially thought now that indentation alone reads as hierarchy. |
-| 4 | Widget-spacer spike (optional) | | | | | Not triggered — Experiment 1 showed no cascade fragility against the synthetic corpus or real vault notes once the table/callout/hr/html fix landed. |
+Quick-scan status; full detail in the subsections below.
+
+| # | Technique | Status | Verdict |
+|---|---|---|---|
+| 1 | Additive indentation, no marker | Done, three real bugs found and fixed | **Keep** |
+| 2a | Guides — overlay-measured | Not started | Lower priority than nailing indentation |
+| 2b | Guides — CSS stacked-gradient | Not started | Lower priority than nailing indentation |
+| 3 | Minimal marker fallback (conditional) | Not triggered | Deprioritized — see below |
+| 4 | Widget-spacer spike (optional) | Not triggered | No fragility observed that would call for it |
+
+### Experiment 1 — additive indentation, no marker
+
+**Verdict: keep.** All 8 corpus fixtures pass, both themes, screenshotted and visually
+reviewed (not just DOM-asserted) — see
+[e2e/specs/50-decorations.e2e.ts](../../e2e/specs/50-decorations.e2e.ts). The user toured
+every note in the real `test-vault` by hand — the actual dev-vault pass the postmortem
+insisted on, not a formality — and found three real bugs the synthetic corpus missed
+entirely (below). All three are fixed, with permanent fixtures/assertions added so they
+can't silently regress. User's assessment after the fixes: "much more promising" than the
+prior attempt — indentation alone gives real hierarchy legibility switching modes on and
+off, more than initially expected going in.
+
+**Code cost**: ~15 lines added to `decorate.ts` (2 new fields + 1 extra walk parameter),
+~150-line `decorations.ts` adapter (a `StateField` for plain lines plus a `ViewPlugin` for
+widget-replaced atoms), ~25-line `styles.css`.
+
+**Bugs found and fixed** (chronological — each was caught only by a human looking at real,
+organic content, never by the synthetic corpus or DOM assertions):
+
+1. **Cascade fight, caught in the synthetic corpus.** Obsidian's own `app.css` has
+   `.markdown-source-view.mod-cm6 .cm-content > * { margin: 0px !important; }` — three
+   classes of specificity, which beat our original two-class `.cm-line.to-decor-*` selector
+   outright even with `!important` on both sides. Fixed by matching Obsidian's own
+   ancestor-chain specificity, not by escalating `!important` further (there's nowhere
+   further to escalate — the tie-break past equal `!important` is specificity, then source
+   order).
+2. **Tables and callouts not indenting at all, caught by the user in the real vault.**
+   Obsidian renders tables, callouts, raw HTML blocks, and (surprisingly) horizontal rules
+   as opaque replacement widgets in Live Preview (`.cm-embed-block`, or `.hr` for the rule,
+   which oddly still carries a `cm-line` class despite being widget-rendered). A
+   `Decoration.line` targeting that source line has **no effect at all** — not even a
+   partial class-merge win, confirmed live by dumping the DOM: both class and inline style
+   come back completely empty. Code fences and plain blockquotes are genuinely plain
+   `.cm-line`s and were unaffected, which is exactly why the synthetic corpus (which only
+   exercised those two atom kinds) never caught this. Fixed with a companion `ViewPlugin`
+   that finds these widgets directly after each render (`docViewUpdate`, not the pre-render
+   `update()` hook — DOM reads/writes need the widget to already exist) and sets
+   `margin-left` inline with `!important`, which always wins over *any* stylesheet rule
+   regardless of specificity — a clean escape hatch for exactly this class of native-widget
+   cascade fight. It reads the same `--to-decor-unit` CSS variable the class-based rules
+   use, so the unit constant stays single-sourced.
+3. **Table still visibly offset from code/callout after fix #2, caught by the user.** Once
+   tables got a margin at all, they still sat slightly further right than a same-depth code
+   block or callout. Root cause: `.cm-embed-block.cm-table-widget` carries its own native
+   left padding (for the row/column drag-handle icons) that callout's wrapper doesn't have.
+   Padding never moves an element's own box — invisible for code/callout, whose *background*
+   fills their whole padded box — but the table's actual visible content (a `<table>` nested
+   two levels inside the padded wrapper) sits in normal flow within that padding, so it
+   visually renders offset by exactly that amount. Fixed by reading the widget's own
+   `getComputedStyle(...).paddingLeft` live (not a hardcoded pixel constant, which would be
+   theme/version-fragile) and subtracting it from the applied margin, clamped at zero so a
+   depth-0 atom never goes negative.
+
+**Deferred, not fixed on this branch**: list items sit visually further right than a
+sibling paragraph/blockquote at the same tree depth. Traced to a real file
+(`Kitchen Renovation.md`) and confirmed via measurement that our own added margin is
+*identical* across all three at that depth — the extra offset is Obsidian's own native
+list-item hang (`text-indent: -Npx` / `padding-left: Npx`), which already pushes list text
+right of a sibling paragraph's text in **vanilla Obsidian, mode on or off**. It's not
+something this experiment introduced; it's just more noticeable now that everything else
+lines up precisely. Fixing it the way `obsidian-outliner`'s `BetterListsStyles` does means
+touching that native `text-indent`/`padding-left` pair directly — the single riskiest
+surface the postmortem blamed for most of the prior failed attempt's bugs. Left alone
+pending a deliberate, isolated follow-up; see
+[open question](#open-question-shrinking-only-our-own-added-list-margin) below for a
+narrower variant that stays additive-only.
+
+Also confirmed **not** a bug: the flat fixture (3 top-level paragraphs, all depth 0) shows
+no visual change from outline-mode-off. This was flagged going in as Experiment 3's
+trigger condition, but the user confirmed on real content that this reads correctly the
+moment a heading sits above the paragraphs — depth-0-with-no-ancestor genuinely has nothing
+to convey, which is correct, not a legibility gap.
+
+### Experiments 2a/2b — guide lines
+
+Not started. The user flagged guides as valuable ("would definitely add some visual aid")
+but explicitly lower priority than nailing indentation correctness first — indentation
+alone is carrying more of the hierarchy signal than expected going in, softening the
+original urgency for a second visual channel.
+
+### Experiment 3 — minimal marker fallback
+
+Not triggered in practice. Its trigger condition (flat fixture unreadable) technically
+fires, but the user's real-content read is that it's not actually a legibility gap (see
+Experiment 1's "also confirmed not a bug" above). Markers are judged less important than
+initially scoped now that indentation alone reads as hierarchy.
+
+### Experiment 4 — widget-spacer spike
+
+Not triggered. Experiment 1 showed no cascade fragility against the synthetic corpus or
+real vault notes once the three bugs above were fixed — nothing suggests the
+`padding-left`/`margin-left` approach is running out of road.
+
+### Open question: shrinking only our own added list margin
+
+Raised by the user, not yet decided. The deferred list-hang issue (above) is native
+Obsidian chrome and explicitly out of scope for direct edits in this experiment. But a
+narrower variant stays inside the additive-only discipline: **reduce only the margin *we*
+add** to list items — not native `text-indent`/`padding-left` — by the list's own native
+hang width, read live via `getComputedStyle` the same way the table fix (bug #3 above)
+reads and compensates for native padding. Worth exploring as a follow-up, with two open
+risks to resolve before trying it: (a) clamping so a shallow `supplementalDepth` never goes
+negative once the hang is subtracted (the table fix's `max(0px, ...)` pattern applies
+directly), and (b) the compensation must be based on the list **root**'s own hang, not each
+item's — nested items can have wider markers (e.g. `10.` vs `-`) with different native hang
+widths, and compensating per-item instead of per-root-chain would reintroduce exactly the
+kind of within-list misalignment the wide-numbering fixture exists to catch.
+
+## Non-obvious findings
+
+Cross-experiment learnings, carried forward the same way the postmortem's own "carried-forward
+technical findings" section was meant to be used — read this before starting 2a/2b/3/4:
+
+- **CM6 `Decoration.line` has zero effect on Obsidian's "embed-block" replacement widgets**
+  (tables, callouts, raw HTML, and horizontal rules) — not a partial win, not a class-merge;
+  confirmed live that both class and inline style come back completely empty. Any atom kind
+  Obsidian renders this way needs direct DOM patching via a `ViewPlugin`'s `docViewUpdate`
+  hook, not a CM6 decoration. Code fences and plain blockquotes are *not* in this category —
+  they render as genuinely plain `.cm-line`s and decorate normally.
+- **A single broad selector plus a fact lookup by document line number is enough** to handle
+  all four widget-replaced kinds uniformly (`.cm-embed-block, .cm-line.hr` → `posAtDOM` →
+  `decorate()` facts by line) — no need for kind-specific branches.
+- **Matching beats escalating.** When Obsidian's own CSS wins a specificity fight even
+  against `!important`, the fix is matching its ancestor-chain specificity, not adding more
+  `!important` (there's nowhere further to escalate past equal importance — the tie-break is
+  specificity, then source order).
+- **An inline style with `!important`, set via JS, always wins over any stylesheet rule**
+  regardless of that rule's own specificity — a reliable escape hatch specifically for
+  native-widget cascade fights that a CSS-only rule can't win.
+- **Padding's visibility depends on where the background lives.** Padding never moves an
+  element's own box (carried forward from the original postmortem), but whether that's
+  visually invisible or visually offsetting depends on whether the element's own background
+  fills the padded box (invisible, as for callout) or the visible content is nested one level
+  further in without its own covering background (offsetting, as for a `<table>` inside a
+  padded wrapper).
+- **Read native values live instead of hardcoding compensations.** Subtracting a
+  `getComputedStyle(...)`-read native padding from an own-added margin (clamped at zero)
+  stays correct across themes/Obsidian versions; a hardcoded pixel constant would silently
+  drift the moment a theme changes that padding.
+- **List items already sit right of sibling text in vanilla Obsidian** — the native
+  `text-indent`/`padding-left` hang pair reserves room for the bullet regardless of outline
+  mode. This experiment's additive design correctly preserved that native behavior
+  (verified: our own added margin is identical across list/paragraph/blockquote at the same
+  depth); the extra offset users notice is pre-existing Obsidian behavior becoming more
+  visible now that everything else aligns precisely, not a regression this experiment
+  introduced.
+- **The synthetic corpus, even a deliberately adversarial one, missed all three real bugs
+  above.** Every one was caught only by a human visually reviewing real, organic vault
+  content (not synthetic fixtures, not DOM-attribute assertions). This reaffirms the
+  postmortem's central lesson directly, in a new implementation: treat the real-vault pass
+  as load-bearing verification for every future experiment, not a final formality after the
+  fixtures pass.
 
 ## Setup (done, 2026-07-13)
 

@@ -189,23 +189,33 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     }
     await browser.pause(150);
 
-    const table = parseFloat(
+    const tableWrapperMargin = parseFloat(
       await h.getContentChildComputedStyle('.cm-embed-block.cm-table-widget', 0, 'margin-left'),
     );
-    const callout = parseFloat(
+    const calloutMargin = parseFloat(
       await h.getContentChildComputedStyle('.cm-embed-block.cm-callout', 0, 'margin-left'),
     );
-    const hr = parseFloat(await h.getContentChildComputedStyle('.cm-line.hr', 0, 'margin-left'));
-    const html = parseFloat(
+    const hrMargin = parseFloat(await h.getContentChildComputedStyle('.cm-line.hr', 0, 'margin-left'));
+    const htmlMargin = parseFloat(
       await h.getContentChildComputedStyle('.cm-embed-block.cm-html-embed', 0, 'margin-left'),
     );
+    for (const value of [tableWrapperMargin, calloutMargin, hrMargin, htmlMargin]) {
+      expect(value).toBeGreaterThan(0);
+    }
 
-    for (const value of [table, callout, hr, html]) expect(value).toBeGreaterThan(0);
-    // All four sit at the same depth (1, directly under "# Section") — same
-    // additive shift as the code-fence atom in MIXED_MD.
-    expect(callout).toBeCloseTo(table, 1);
-    expect(hr).toBeCloseTo(table, 1);
-    expect(html).toBeCloseTo(table, 1);
+    // The wrapper margins aren't required to match each other — a table's
+    // own native left padding (for its row/column drag-handles) is
+    // compensated out of its margin so its *visible* content still lines
+    // up with everything else's visible box, which is the real invariant.
+    const tableGridLeft = (await h.getContentChildRect('table.table-editor', 0)).left;
+    const calloutBoxLeft = (await h.getContentChildRect('.callout', 0)).left;
+    const hrLineLeft = (await h.getContentChildRect('.cm-line.hr', 0)).left;
+    const htmlContentLeft = (
+      await h.getContentChildRect('.cm-embed-block.cm-html-embed > div', 0)
+    ).left;
+    expect(calloutBoxLeft).toBeCloseTo(tableGridLeft, 0);
+    expect(hrLineLeft).toBeCloseTo(tableGridLeft, 0);
+    expect(htmlContentLeft).toBeCloseTo(tableGridLeft, 0);
   });
 
   it('fold indicator on a parent list item does not collide with decorated content', async function () {
