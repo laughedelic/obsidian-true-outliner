@@ -319,6 +319,27 @@ export async function screenshotFull(dir: string, name: string): Promise<void> {
   await browser.saveScreenshot(path.join(dir, `${name}.png`));
 }
 
+/**
+ * Bounding rects of every guide-line overlay div currently drawn (Experiment
+ * 2a) — these live in a layer outside `.cm-content` (a sibling inside
+ * `.cm-scroller`), so unlike getContentChildRect this queries `scrollDOM`,
+ * not `contentDOM`. Sorted by `top` then `left` for stable assertions.
+ */
+export function getGuideRects(): Promise<Rect[]> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const cm = (view.editor as any).cm;
+    const guides = cm.scrollDOM.querySelectorAll('.to-decor-guides-layer .to-decor-guide');
+    return Array.from(guides)
+      .map((n) => {
+        const r = (n as HTMLElement).getBoundingClientRect();
+        return { left: r.left, top: r.top, width: r.width, height: r.height };
+      })
+      .sort((a, b) => a.top - b.top || a.left - b.left);
+  });
+}
+
 // ---- Notices --------------------------------------------------------------
 
 export async function noticeTexts(): Promise<string[]> {

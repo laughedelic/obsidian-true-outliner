@@ -32,3 +32,26 @@
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
   margin-left: calc(var(--to-supp-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
 }
+
+/*
+ * Guide lines (Experiment 2a) — pixel-measured overlay divs, not a cascade
+ * rule: decorations.ts sets `left`/`top`/`width`/`height` inline per marker,
+ * this only supplies appearance. The wrapping layer is a sibling of
+ * .cm-content inside .cm-scroller (not a child of it — CM6 owns
+ * .cm-content's DOM exclusively and would fight/wipe an injected child),
+ * inserted before it in DOM order so it paints underneath the text with no
+ * z-index required.
+ */
+.to-decor-guides-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.to-decor-guide {
+  position: absolute;
+  background-color: var(--text-faint);
+  opacity: 0.6;
+  pointer-events: none;
+}

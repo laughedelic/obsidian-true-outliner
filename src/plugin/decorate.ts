@@ -94,3 +94,74 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
   doc.children.forEach((node) => walk(node, 0, null));
   return facts;
 }
+
+/**
+ * One vertical guide line: an ancestor node with children "hangs" a line
+ * from its own first line down through the full extent of its subtree
+ * (Experiment 2a, see docs/research/07-decoration-experiments-plan.md).
+ *
+ * Deliberately measurement-driven, not computed: decorations.ts positions
+ * the guide's x by reading `anchorLine`'s *actual rendered* position via
+ * `coordsAtPos` rather than recomputing depth × unit here. This sidesteps
+ * needing any special-casing for list items (native marker position, the
+ * supplementalDepth quirk) — whatever the ancestor's own line actually
+ * renders at is, by construction, where its children's guide should hang.
+ *
+ * No guide is produced for a *list-item* ancestor, deliberately: Obsidian's
+ * own native indent guides already connect one bullet precisely to the
+ * next within a list, and a block-level guide of ours alongside them either
+ * doubles up (both visible at once) or, alone, reads as unevenly spaced
+ * (a list's own internal per-level width isn't the same as our fixed unit
+ * — the same native-hang mismatch Experiment 1 deferred rather than fight).
+ * We only add a bridging guide where native has *no* representation at
+ * all: from a non-list ancestor (heading/paragraph/atom) down into a list,
+ * or between non-list kinds — never for nesting *within* one list.
+ */
+export interface GuideFact {
+  /** Tree depth of the owning (ancestor) node — informational, not consumed for positioning. */
+  readonly depth: number;
+  /** 0-indexed line: the ancestor's own first line — measure its rendered position for x. */
+  readonly anchorLine: number;
+  /** 0-indexed line: first line of the guide's vertical span (its first child's own first line). */
+  readonly fromLine: number;
+  /** 0-indexed line: last line of the guide's vertical span (its deepest last descendant's last line). */
+  readonly toLine: number;
+}
+
+/**
+ * Computes one GuideFact per node that has children AND is not itself a
+ * list item. Mirrors decorate()'s own document-order walk (own lines, then
+ * trailingGap, then children) so line numbers agree between the two; kept
+ * as a separate walk rather than folded into decorate() since guides are a
+ * per-node (not per-line) fact.
+ */
+export function computeGuides(doc: OutlineDoc): GuideFact[] {
+  const guides: GuideFact[] = [];
+  let current = doc.preamble.length;
+
+  // Returns [node's own first line, last line of node's own subtree] (both
+  // 0-indexed, inclusive) — the range a parent's guide needs from a child.
+  const walk = (node: OutlineNode, depth: number): [number, number] => {
+    const anchorLine = current;
+    current += node.lines.length;
+    const ownLastLine = current - 1;
+    current += node.trailingGap.length;
+
+    if (node.children.length === 0) return [anchorLine, ownLastLine];
+
+    let subtreeFirstLine = Number.POSITIVE_INFINITY;
+    let subtreeLastLine = Number.NEGATIVE_INFINITY;
+    for (const child of node.children) {
+      const [childFirst, childLast] = walk(child, depth + 1);
+      subtreeFirstLine = Math.min(subtreeFirstLine, childFirst);
+      subtreeLastLine = Math.max(subtreeLastLine, childLast);
+    }
+    if (node.kind !== 'list-item') {
+      guides.push({ depth, anchorLine, fromLine: subtreeFirstLine, toLine: subtreeLastLine });
+    }
+    return [anchorLine, subtreeLastLine];
+  };
+
+  doc.children.forEach((node) => walk(node, 0));
+  return guides;
+}

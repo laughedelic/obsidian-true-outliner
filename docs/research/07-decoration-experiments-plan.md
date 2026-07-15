@@ -177,8 +177,8 @@ Quick-scan status; full detail in the subsections below.
 | # | Technique | Status | Verdict |
 |---|---|---|---|
 | 1 | Additive indentation, no marker | Done, three real bugs found and fixed | **Keep** |
-| 2a | Guides — overlay-measured | Not started | Lower priority than nailing indentation |
-| 2b | Guides — CSS stacked-gradient | Not started | Lower priority than nailing indentation |
+| 2a | Guides — overlay-measured | Done, three real bugs found and fixed | **Keep** |
+| 2b | Guides — CSS stacked-gradient | Not started | Head-to-head comparison against 2a still open |
 | 3 | Minimal marker fallback (conditional) | Not triggered | Deprioritized — see below |
 | 4 | Widget-spacer spike (optional) | Not triggered | No fragility observed that would call for it |
 
@@ -255,12 +255,98 @@ trigger condition, but the user confirmed on real content that this reads correc
 moment a heading sits above the paragraphs — depth-0-with-no-ancestor genuinely has nothing
 to convey, which is correct, not a legibility gap.
 
-### Experiments 2a/2b — guide lines
+### Experiment 2a — guide lines via pixel-measured overlay
 
-Not started. The user flagged guides as valuable ("would definitely add some visual aid")
-but explicitly lower priority than nailing indentation correctness first — indentation
-alone is carrying more of the hierarchy signal than expected going in, softening the
-original urgency for a second visual channel.
+**Verdict: keep.** Branched off Experiment 1 (`experiment/decorations-2a-guides-overlay`).
+All 8 corpus fixtures plus 4 real vault notes pass, both themes, screenshotted and visually
+reviewed at pixel level (not just DOM-asserted) — see
+[e2e/specs/51-guides-overlay.e2e.ts](../../e2e/specs/51-guides-overlay.e2e.ts), 43/43 e2e
+tests green across the full suite (not just this spec). One ancestor-with-children gets one
+continuous overlay `<div>` spanning from its first child's own line to its deepest
+descendant's last line, positioned by *measuring* (`view.coordsAtPos`/`view.lineBlockAt`)
+the ancestor's own already-rendered position rather than recomputing depth × unit —
+obsidian-outliner's technique, applied to this project's universal (not list-only) tree.
+
+**Real-vault finding, fixed on this branch (not a separate follow-up)**: a *list-item*
+ancestor gets no guide of its own, deliberately. The user's own real-vault comparison
+(built-in indent guides only / both / ours only, screenshotted side by side) showed two
+problems, both traced to the same cause: (a) with Obsidian's native "Show indent guides"
+setting on, list nesting got visibly doubled lines; (b) even alone, our guides within a
+list read as unevenly spaced, because native list nesting has its own internal per-level
+width that our fixed unit doesn't match (the same native-hang mismatch Experiment 1 already
+deferred rather than fight, now visible one layer up). Native indent guides already connect
+one bullet precisely to the next *within* a list — there is no gap for a second mechanism to
+usefully fill there. Fixed by having `computeGuides` skip pushing a guide when the anchor
+node's `kind === 'list-item'`, while still including list-item subtrees in a *non-list*
+ancestor's own span (a heading or paragraph bridging into a list still gets its guide,
+reaching all the way through — only the within-list levels get none of their own). This
+turns, e.g., the `deep-nesting` fixture (four levels, all list items) into zero guides at
+all — entirely deferred to native — while `heading-then-list` keeps exactly one guide
+(the heading's, spanning the whole list) instead of three.
+
+**Deliberate deviation from the plan's literal wording**: the plan called for "a dedicated
+`StateEffect`" for the out-of-band mode-toggle refresh. Dispatching a raw CM6 effect from
+`main.ts` (application code, not a registered extension) has no path through Obsidian's
+public `Editor` API — `EditorTransaction` exposes no `effects` field, and reaching into
+`(editor as any).cm.dispatch()` is exactly the private-API surface this project's own
+research already flags to avoid outside registered extensions
+([03-obsidian-api-feasibility.md](03-obsidian-api-feasibility.md)). Used per-instance state
+comparison instead (`ViewPlugin`/`StateField` each remember the outline-mode flag they last
+saw and compare on every transaction — cheap, since it's just a boolean read, not a
+reparse): functionally identical gate (`docChanged || viewportChanged || mode-just-toggled`),
+zero private API. `main.ts`'s existing cursor-nudge dispatch (already public-API, unchanged)
+still supplies the transaction that gives the comparison a chance to run.
+
+**Code cost**: ~35 lines added to `decorate.ts` (`computeGuides`, a second tree walk),
+~140-line addition to `decorations.ts` (a hand-rolled, debounced `ViewPlugin` reusing
+`@codemirror/view`'s own exported `RectangleMarker` as a positioned-div factory, not CM6's
+higher-level `layer()` helper — see the in-code rationale for why), ~20-line `styles.css`.
+
+**Bugs found and fixed** (all three caught only by real e2e rendering/measurement — the
+*pure* `computeGuides` unit tests were correct throughout; every bug was in the CM6
+coordinate-system plumbing, exactly the kind of thing the postmortem warned unit tests
+can't see):
+
+1. **Guides rendered ~76px too high, caught by an e2e rect assertion, root-caused via live
+   DOM diagnostics.** `view.lineBlockAt(pos).top/.bottom` are relative to `view.documentTop`
+   (itself viewport-relative, moves with scroll) — not to the guide layer's own container
+   origin (`scrollDOM`'s top-left, where the container's `top: 0; left: 0` anchors it). The
+   two differ by a real, non-zero, confirmed-live constant (`.cm-content`'s own offset within
+   the scroller). Fixed by converting through `documentTop` the same way `coordsAtPos`'s
+   result already gets converted through a `getBase()`-style subtraction for the x-axis —
+   the asymmetry (only x was being converted, not y) is what let this slip through code
+   review.
+2. **A list item's guide anchored ~12px right of its own bullet, caught by an e2e rect
+   assertion against `.cm-formatting-list`.** `coordsAtPos(pos, 1)` ("after"-biased) at a
+   line's very first position returns the *far* edge of the first character — past the
+   bullet glyph, not at its start. `coordsAtPos(pos, -1)` ("before"-biased) gives the
+   character's own left edge, matching the bullet's true rendered start.
+3. **A doubly-nested list item's guide anchored a full level too far left, caught by the
+   same assertion at a deeper fixture level.** A nested list item's raw source line *starts
+   with its own indentation whitespace* (`"  - nested item"`); Obsidian visually collapses
+   that leading whitespace via its native indent mechanism rather than rendering it at
+   normal character width, so `coordsAtPos` at the raw line's first position (a space)
+   lands at the *parent* list level's column, not the marker's. Fixed by skipping past
+   `text.length - text.trimStart().length` characters before measuring — general, not
+   list-item-specific (a no-op for headings/paragraphs, which have no leading whitespace).
+
+All three were "invisible" in a full-page screenshot glance (subtle 1px, low-opacity lines)
+and only surfaced by comparing exact measured coordinates — directly reinforcing the
+postmortem's central lesson (DOM assertions test that code ran; here, pixel-level rect
+assertions were what actually caught bugs a screenshot glance and a passing unit-test suite
+both missed). A closer crop of one screenshot region did independently confirm the fix
+visually once the coordinates were right.
+
+**Multi-line continuation (the case never even attempted last time)**: confirmed via e2e
+that `lineBlockAt`'s block-level `.top`/`.bottom` correctly span a Shift+Enter-continued
+node's full rendered height "for free," for both a paragraph and a list item — no special
+handling needed once the coordinate-conversion bugs above were fixed.
+
+### Experiment 2b — guides via CSS stacked-gradient
+
+Not started. Per the plan, this is meant to run head-to-head against 2a on the same
+corpus (correctness on multi-line continuation, robustness against themes, code
+size/complexity) before either is picked — not treated as a fallback.
 
 ### Experiment 3 — minimal marker fallback
 
@@ -334,6 +420,51 @@ technical findings" section was meant to be used — read this before starting 2
   postmortem's central lesson directly, in a new implementation: treat the real-vault pass
   as load-bearing verification for every future experiment, not a final formality after the
   fixtures pass.
+- **CM6's coordinate systems are not interchangeable, and mixing them silently compiles.**
+  `coordsAtPos()` is viewport-relative (like `getBoundingClientRect`); `lineBlockAt()`'s
+  `top`/`bottom` are relative to `view.documentTop` instead — a *different* origin, even
+  though both "sound" document-relative. Converting only one axis (x, via a `getBase()`-
+  style subtraction) and not the other (y, left as the raw `lineBlockAt` value) type-checks
+  fine and looks plausible in code review; it produced a ~76px vertical offset only caught
+  by an e2e rect assertion against independently-measured `.cm-line` rects, never by the
+  pure-function unit tests (which never touch real coordinates at all). Any experiment doing
+  its own pixel measurement (2b's gradient positioning included, if it ends up needing any)
+  should audit *every* axis's reference frame explicitly, not assume symmetry.
+- **`coordsAtPos(pos, side)`'s side parameter matters at line starts, and defaults are not
+  obviously safe.** `side: 1` ("after"-biased) at a line's very first position returns the
+  far edge of the first character — for a list item, that's past the bullet glyph, not at
+  its start. `side: -1` ("before"-biased) gives the character's own left edge. Untested,
+  `side: 1` compiles and "looks right" (it did return *a* plausible-looking coordinate) —
+  only a rect comparison against the actual rendered marker (`.cm-formatting-list`) caught
+  the ~12px discrepancy.
+- **A nested list item's raw source line starts with its own indentation whitespace, and
+  Obsidian doesn't render that whitespace at literal character width.** Measuring
+  `coordsAtPos` at a line's raw `.from` (before skipping leading whitespace) lands at
+  wherever Obsidian's own indent mechanism collapses that whitespace to — which turned out
+  to be the *parent* list level's own column, not the current line's marker. Any code
+  measuring "where does this line's real content start" needs to skip
+  `text.length - text.trimStart().length` characters first; this is general (headings/
+  paragraphs have no leading whitespace, so it's a no-op there), not a list-item special case.
+- **CM6 ships a first-party `layer()`/`RectangleMarker` pair (`@codemirror/view`, used
+  internally for the selection/cursor layers) purpose-built for "measured overlay outside
+  `.cm-content`, scrolls naturally."** `RectangleMarker` alone (just the positioned-div
+  factory, not the full `layer()` wrapper) was reused here since `layer()`'s own `update()`
+  hook only supports a synchronous redraw with no way to thread in the plan's requested
+  debounce — but the full `layer()` extension is worth trying as-is for 2b or a future
+  revisit if debouncing turns out not to matter in practice; it would remove the need for
+  this experiment's manual scroll-coordinate calibration entirely.
+- **A custom guide mechanism must actively coexist with Obsidian's own native "Show indent
+  guides" setting for lists, not just avoid crashing next to it.** Real-vault side-by-side
+  comparison (native only / both / ours only) showed native list guides are already precise
+  (bullet to bullet) in a way a block-level, fixed-unit overlay can't match — running both
+  at once visibly doubles lines; ours alone (if drawn for list nesting) reads as unevenly
+  spaced. The fix wasn't CSS suppression of the native feature (obsidian-outliner's own
+  approach, per the original postmortem) but scope reduction: never draw our guide where
+  the *native* mechanism already owns the job (any list-item ancestor), only where native
+  has zero representation at all (bridging a non-list ancestor into a list, or between
+  non-list kinds). **2b will face this identical question** — a CSS-gradient guide is
+  exactly as capable of doubling against native list guides as an overlay div is; the same
+  list-item-ancestor exclusion should apply there too, not be treated as an 2a-specific fix.
 
 ## Setup (done, 2026-07-13)
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
-import { decorate } from '../src/plugin/decorate';
+import { computeGuides, decorate } from '../src/plugin/decorate';
 
 describe('decorate: indentation depth', () => {
   it('agrees across heading, list, and paragraph-adjacency encodings', () => {
@@ -196,5 +196,92 @@ describe('decorate: supplemental depth (additive list margin)', () => {
     for (const f of facts) {
       if (!f.isListItem) expect(f.supplementalDepth).toBe(0);
     }
+  });
+});
+
+describe('computeGuides: guide-line spans (Experiment 2a)', () => {
+  it('produces no guides for a flat, childless document', () => {
+    const md = 'First.\n\nSecond.\n\nThird.\n';
+    expect(computeGuides(parse(md))).toEqual([]);
+  });
+
+  it('produces no guide for a leaf node (no children)', () => {
+    // A lone list item with no nested children: it's a leaf, not an
+    // ancestor, so it hangs no guide of its own.
+    const md = '- lone item\n';
+    expect(computeGuides(parse(md))).toEqual([]);
+  });
+
+  it('no guide for a list-item ancestor, even with nested children — deferred to native indent guides', () => {
+    const md = [
+      '# Section',
+      '',
+      '- top item',
+      '  - nested item',
+      '    - deeply nested item',
+      '',
+    ].join('\n');
+    const guides = computeGuides(parse(md));
+
+    // Lines: 0 "# Section", 2 "- top item", 3 "  - nested item",
+    // 4 "    - deeply nested item". Only "# Section" (not a list item) gets
+    // a guide, bridging into the whole list; "top item" and "nested item"
+    // are list items and get none of their own — Obsidian's native indent
+    // guides already connect one bullet precisely to the next within a
+    // list, and a block-level guide of ours alongside them either doubles
+    // up or reads as unevenly spaced (confirmed in real-vault review).
+    expect(guides).toEqual([{ depth: 0, anchorLine: 0, fromLine: 2, toLine: 4 }]);
+  });
+
+  it('a guide spans from the first child to the LAST line of the deepest, last descendant', () => {
+    const md = ['# Top', '', '- one', '- two', '  - two nested', '- three', ''].join('\n');
+    const guides = computeGuides(parse(md));
+    // Lines: 0 "# Top", 2 "- one", 3 "- two", 4 "  - two nested", 5 "- three".
+    // "# Top"'s guide must reach past "- two"'s own nested child to "- three".
+    const topGuide = guides.find((g) => g.anchorLine === 0)!;
+    expect(topGuide.fromLine).toBe(2);
+    expect(topGuide.toLine).toBe(5);
+    // "- two" is itself a list item: no guide of its own.
+    expect(guides.find((g) => g.anchorLine === 3)).toBeUndefined();
+  });
+
+  it('no guide for a list-item ancestor of a multi-line (Shift+Enter continuation) child', () => {
+    const md = ['- parent', '  - child first line', '    second line of child', ''].join('\n');
+    expect(computeGuides(parse(md))).toEqual([]);
+  });
+
+  it('a non-list ancestor’s guide spans through a multi-line list-item child to its LAST line', () => {
+    const md = ['# Parent', '', '- child first line', '  second line of child', ''].join('\n');
+    const guides = computeGuides(parse(md));
+    // Lines: 0 "# Parent", 2 "- child first line", 3 "  second line of child".
+    // "# Parent" isn't a list item, so it still gets a bridging guide, and
+    // that guide's span must reach the list item's continuation line.
+    expect(guides).toEqual([{ depth: 0, anchorLine: 0, fromLine: 2, toLine: 3 }]);
+  });
+
+  it('nests independently: an ancestor’s guide covers a strict superset of its (non-list) child’s', () => {
+    // "## B" nests as a child of "# A" (one heading level deeper), sibling
+    // to "- one" — matching decorate()'s own depth test for this exact
+    // fixture (`# A` depth 0, `- one` depth 1, `## B` depth 1, `- two`
+    // depth 2, `- two nested` depth 3).
+    const md = ['# A', '', '- one', '', '## B', '', '- two', '  - two nested', ''].join('\n');
+    const guides = computeGuides(parse(md));
+    // Lines: 0 "# A", 2 "- one", 4 "## B", 6 "- two", 7 "  - two nested".
+    // "# A"'s guide spans its whole subtree: from its first child ("- one",
+    // line 2) through B's deepest descendant (line 7) — B is A's child, not
+    // a separate top-level sibling.
+    const aGuide = guides.find((g) => g.anchorLine === 0)!;
+    expect(aGuide.fromLine).toBe(2);
+    expect(aGuide.toLine).toBe(7);
+    // "## B"'s own guide is computed independently and covers only its own
+    // (strictly narrower) subtree — a real subset of A's span, not equal to
+    // it, demonstrating guides nest rather than duplicate the parent's span.
+    const bGuide = guides.find((g) => g.anchorLine === 4)!;
+    expect(bGuide.fromLine).toBe(6);
+    expect(bGuide.toLine).toBe(7);
+    // A and B are the only non-list-item ancestors; "- two" is a list item
+    // (no guide of its own, despite having a child); "- one" and
+    // "- two nested" are leaves.
+    expect(guides).toHaveLength(2);
   });
 });
