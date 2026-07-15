@@ -117,6 +117,25 @@ export const WIDGET_ATOMS_MD = [
   '',
 ].join('\n');
 
+export const WIDE_TABLE_NOTE = 'Scratch/decorations-wide-table.md';
+// A table wide enough to genuinely need its own horizontal scroll (15
+// columns of unwrappable content) — isolates the specific real-vault
+// finding from Experiment 2b: a guide painted inside the table widget's
+// own box conflicts with that box's native overflow-x:auto (whichever
+// mechanism owns the guide there must not silently break the table's own
+// scroll, e.g. by forcing `overflow: visible` on the wrong element).
+const WIDE_TABLE_COLS = Array.from({ length: 15 }, (_, i) => `column-number-${i}`);
+export const WIDE_TABLE_MD = [
+  '# Section',
+  '',
+  `| ${WIDE_TABLE_COLS.join(' | ')} |`,
+  `| ${WIDE_TABLE_COLS.map(() => '---').join(' | ')} |`,
+  `| ${WIDE_TABLE_COLS.map((_, i) => `unbreakable-value-${i}-xxxxxxxxxxxxxxxxxxxxxxx`).join(' | ')} |`,
+  '',
+  'A paragraph right after the table, to see if the table pushes into it.',
+  '',
+].join('\n');
+
 export interface DecorationFixture {
   readonly note: string;
   readonly md: string;
@@ -132,4 +151,5 @@ export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
   { note: WIDE_NUMBERING_NOTE, md: WIDE_NUMBERING_MD, label: 'wide-numbering' },
   { note: DEEP_NESTING_NOTE, md: DEEP_NESTING_MD, label: 'deep-nesting' },
   { note: WIDGET_ATOMS_NOTE, md: WIDGET_ATOMS_MD, label: 'widget-atoms' },
+  { note: WIDE_TABLE_NOTE, md: WIDE_TABLE_MD, label: 'wide-table' },
 ];

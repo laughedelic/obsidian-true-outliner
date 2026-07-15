@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
-import { decorate } from '../src/plugin/decorate';
+import { computeLineGuides, decorate } from '../src/plugin/decorate';
 
 describe('decorate: indentation depth', () => {
   it('agrees across heading, list, and paragraph-adjacency encodings', () => {
@@ -196,5 +196,170 @@ describe('decorate: supplemental depth (additive list margin)', () => {
     for (const f of facts) {
       if (!f.isListItem) expect(f.supplementalDepth).toBe(0);
     }
+  });
+});
+
+describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () => {
+  it('produces empty guideDepths for every line of a flat, childless document', () => {
+    const md = 'First.\n\nSecond.\n\nThird.\n';
+    const facts = computeLineGuides(parse(md));
+    expect(facts.every((f) => f.guideDepths.length === 0)).toBe(true);
+  });
+
+  it("a leaf node's own line has no active guide (only strict ancestors count)", () => {
+    const md = '- lone item\n';
+    const facts = computeLineGuides(parse(md));
+    const own = facts.find((f) => f.lineNumber === 0)!;
+    expect(own.guideDepths).toEqual([]);
+    expect(own.isGapLine).toBe(false);
+  });
+
+  it('flags every fact isGapLine: false except a leaf’s own trailing blank separator lines', () => {
+    const md = 'First.\n\nSecond.\n';
+    const facts = computeLineGuides(parse(md));
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    expect(byLine.get(0)?.isGapLine).toBe(false); // "First."
+    expect(byLine.get(1)?.isGapLine).toBe(true); // blank separator
+    expect(byLine.get(2)?.isGapLine).toBe(false); // "Second."
+  });
+
+  it('a non-list ancestor bridges a guide onto every descendant line, including list-item ones', () => {
+    const md = [
+      '# Section',
+      '',
+      '- top item',
+      '  - nested item',
+      '    - deeply nested item',
+      '',
+    ].join('\n');
+    const facts = computeLineGuides(parse(md));
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    // "# Section" itself (line 0) is the owner, not a descendant of itself.
+    expect(byLine.get(0)?.guideDepths).toEqual([]);
+    // Every descendant line — all three list items — carries depth 0's
+    // guide, regardless of how deeply nested within the list itself.
+    expect(byLine.get(2)?.guideDepths).toEqual([0]); // - top item
+    expect(byLine.get(3)?.guideDepths).toEqual([0]); // - nested item
+    expect(byLine.get(4)?.guideDepths).toEqual([0]); // - deeply nested item
+  });
+
+  it('a pure list nesting (no non-list ancestor) has no active guide anywhere', () => {
+    const md = [
+      '- level 1 (bullet)',
+      '  1. level 2 (ordered)',
+      '     - level 3 (bullet)',
+      '       1. level 4 (ordered)',
+      '',
+    ].join('\n');
+    const facts = computeLineGuides(parse(md));
+    expect(facts.every((f) => f.guideDepths.length === 0)).toBe(true);
+  });
+
+  it('a list item never itself owns a guide for its own children', () => {
+    const md = ['- parent', '  - child', ''].join('\n');
+    const facts = computeLineGuides(parse(md));
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    expect(byLine.get(1)?.guideDepths).toEqual([]); // "  - child"
+  });
+
+  it('a multi-line (Shift+Enter) node’s continuation line inherits the same guideDepths as its first line', () => {
+    const md = ['# Parent', '', '- child first line', '  second line of child', ''].join('\n');
+    const facts = computeLineGuides(parse(md));
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    expect(byLine.get(2)?.guideDepths).toEqual([0]); // first line
+    expect(byLine.get(3)?.guideDepths).toEqual([0]); // continuation line
+  });
+
+  it('nests: a deeper non-list ancestor’s own guide is appended to its parent’s, not replacing it', () => {
+    const md = ['# A', '', '## B', '', '### C', '', 'para', ''].join('\n');
+    const doc = parse(md);
+    const facts = computeLineGuides(doc);
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    // Lines: 0 "# A", 2 "## B", 4 "### C", 6 "para".
+    expect(byLine.get(0)?.guideDepths).toEqual([]); // A: no ancestors
+    expect(byLine.get(2)?.guideDepths).toEqual([0]); // B: under A
+    expect(byLine.get(4)?.guideDepths).toEqual([0, 1]); // C: under A, B
+    expect(byLine.get(6)?.guideDepths).toEqual([0, 1, 2]); // para: under A, B, C
+  });
+
+  it('is a strict superset of decorate()’s line coverage (every decorate() line plus gap-only lines)', () => {
+    const md = [
+      '# Top',
+      '',
+      '## Mid',
+      '',
+      '- item',
+      '  - nested item',
+      '',
+      'Parent para.',
+      '- Child para as list item.',
+      '',
+      '```js',
+      'code line',
+      '```',
+      '',
+    ].join('\n');
+    const doc = parse(md);
+    const decorateLines = new Set(decorate(doc).map((f) => f.lineNumber));
+    const guideLines = new Set(computeLineGuides(doc).map((f) => f.lineNumber));
+    for (const line of decorateLines) expect(guideLines.has(line)).toBe(true);
+    // At least one gap-only line exists (e.g. the blank line after "- item"'s
+    // "  - nested item" chain) that decorate() has no fact for at all.
+    expect(guideLines.size).toBeGreaterThan(decorateLines.size);
+  });
+
+  describe('gap-line guide continuity (blank separators between siblings)', () => {
+    it('a leaf’s trailing blank line inherits the SAME guideDepths as its own content, for guide continuity', () => {
+      // "# Section" (depth 0, owns a guide) -> "para one" (leaf, depth 1)
+      // -> blank line -> "para two" (leaf, depth 1, sibling of para one).
+      const md = ['# Section', '', 'para one', '', 'para two', ''].join('\n');
+      const facts = computeLineGuides(parse(md));
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      expect(byLine.get(2)?.guideDepths).toEqual([0]); // "para one"
+      expect(byLine.get(3)?.guideDepths).toEqual([0]); // blank line between them
+      expect(byLine.get(3)?.isGapLine).toBe(true);
+      expect(byLine.get(4)?.guideDepths).toEqual([0]); // "para two"
+    });
+
+    it('a node WITH children ALSO gets a gap fact before its own first child, using childGuideDepths', () => {
+      // "# Section" has a child ("para"), so its own trailingGap (the blank
+      // line right after "# Section") is "before my first child" — already
+      // inside "# Section"'s own subtree, so it carries the SAME guideDepths
+      // "para" itself gets ([0], from "# Section" newly owning a guide),
+      // not the empty guideDepths "# Section" itself had. An earlier version
+      // left this case uncovered on the reasoning that Experiment 2a's own
+      // overlay span doesn't cover it either — true, but an incidental
+      // artifact of 2a's span computation, not a deliberate goal; real-vault
+      // review found the guide visibly stopping short here, so this is a
+      // genuine improvement over 2a's behavior, not mere parity with it.
+      const md = ['# Section', '', 'para', ''].join('\n');
+      const facts = computeLineGuides(parse(md));
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      expect(byLine.get(1)?.guideDepths).toEqual([0]); // blank line right after "# Section"
+      expect(byLine.get(1)?.isGapLine).toBe(true);
+      expect(byLine.get(2)?.guideDepths).toEqual([0]); // "para"
+    });
+
+    it('gap lines between list items stay empty (list items own no guide, matching their content lines)', () => {
+      const md = ['# Section', '', '- one', '', '- two', ''].join('\n');
+      const facts = computeLineGuides(parse(md));
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      // Both list items bridge "# Section"'s guide (depth 0)...
+      expect(byLine.get(2)?.guideDepths).toEqual([0]); // "- one"
+      expect(byLine.get(4)?.guideDepths).toEqual([0]); // "- two"
+      // ...and so does the gap between them, for the same reason a gap
+      // between two non-list siblings does.
+      expect(byLine.get(3)?.guideDepths).toEqual([0]);
+      expect(byLine.get(3)?.isGapLine).toBe(true);
+    });
+
+    it('no gap fact at all when guideDepths would be empty anyway (top-level, no ancestor)', () => {
+      const md = 'First.\n\nSecond.\n';
+      const facts = computeLineGuides(parse(md));
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      // The fact still exists (isGapLine: true) but decorations.ts skips
+      // rendering when guideDepths is empty — verified structurally here.
+      expect(byLine.get(1)?.guideDepths).toEqual([]);
+    });
   });
 });
