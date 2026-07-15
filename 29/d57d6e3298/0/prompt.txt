@@ -1,0 +1,11 @@
+good progress. everything gets indented now. I'll give you some feedback based on my visual assessment, but it's up to you to decide whether it's worth addressing now, or shouldn't be wasted time on and can be looked into later:
+
+* tables get indented now, but slightly more that other types of blocks. 
+   * see the attached screenshot: code block, table, callout. code block and callout have a visible box and those are aligned exactly. but the table is slightly off to the right. maybe it has some sort of invisible container padding. but to the end user this looks inconsistent.
+* lists are okay now, they get more indented with the mode switch. I think they should be indented a bit less, if that's possible. 
+   * see the second screenshot for an example. list is separated from the preceding paragraph so they are supposed to be on the same level. same with the blockquote after the list. but the list looks more indented. 
+   * this is because a list is naturally indented with the space before the bullets. I don't think we need to eliminate/negate that space completely, but I suspect that it would look better, if the space was smaller, and potentially symmetric around the bullet. I think this is what the obsidian-outliner does with its BetterListsStyles (https://deepwiki.com/vslinko/obsidian-outliner/4.1-visual-styling-of-lists).
+
+---
+
+Apart from those points, I want to suggest changing the format of the experiments comparison table because long text is not legible in the narrow table cells. Maybe it's better to have it as normal sections with more details. In particular, it would be instrumental to write down the learnings of the things that weren't obvious during the experiment. you mentioned a few of those already.
