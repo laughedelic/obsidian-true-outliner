@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "b8b9a4401b93",
+  "strategy": "manual-commit",
+  "branch": "experiment/decorations-2b-guides-css-gradient",
+  "checkpoints_count": 10,
+  "files_touched": [
+    "docs/research/07-decoration-experiments-plan.md",
+    "e2e/helpers.ts",
+    "e2e/specs/51-guides-gradient.e2e.ts",
+    "src/plugin/decorate.ts",
+    "src/plugin/decorations.ts",
+    "styles.css",
+    "tests/decorate.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b8/b9a4401b93/0/metadata.json",
+      "transcript": "/b8/b9a4401b93/0/full.jsonl",
+      "compact_transcript": "/b8/b9a4401b93/0/transcript.jsonl",
+      "content_hash": "/b8/b9a4401b93/0/content_hash.txt",
+      "prompt": "/b8/b9a4401b93/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 35082,
+    "cache_creation_tokens": 1284976,
+    "cache_read_tokens": 241007802,
+    "output_tokens": 391775,
+    "api_call_count": 474
+  }
+}

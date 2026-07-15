@@ -1,0 +1,92 @@
+Prerequisite: Experiment 1 validated and committed. Branch off it: git checkout experiment/decorations-1-additive-indent && git checkout -b experiment/decorations-2b-guides-css-gradient. Read the same two docs as 2a first — this is a deliberate head-to-head alternative to 2a, not a fallback; build both, don't assume a winner in advance. 
+
+Build guide lines as a single Decoration.line per line, with one CSS custom property set to a comma-joined list of repeating-linear-gradient(...) layers (one per ancestor level), consumed by a single ::before — this is the technique @replit/codemirror-indentation-markers uses (its src/index.ts is the reference if you want the exact shape): O(1) DOM nodes per line regardless of depth, no JS pixel measurement, no overlay layer. Because this reintroduces a real CSS rule participating in the normal cascade (unlike 2a's inline-styled overlay), explicitly verify it does NOT resurrect any of the specificity/!important problems from the original postmortem — it shouldn't, since guide-drawing isn't a property any native rule already contests, but confirm rather than assume.
+
+Same fixture corpus, same both-themes requirement, same multi-line-continuation focus as 2a (get the line's own rendered full height for the gradient — should be free since it's one element per whole line, but verify). Record results in the comparison table, specifically comparing code size/complexity and robustness against 2a.
+
+---
+
+interesting. I see the guides missing on the gap lines and for most types of blocks (code, table, list, blockquote, callout). I didn't quite understand the explanation, but are you sure that this is a limitation of this approach and not an implementation gap?
+
+---
+
+I can confirm that there is progress, but it's still missing on the "widget" type of blocks (tables, callouts)
+
+---
+
+okay, there is some progress. but:
+
+* why tables are an exception? do you mean that when scrolling a wide table horizontally, the guide line with scroll out of view? this is quite strange. have we tested that case in the 2a implementation?
+* another quirk is with the blockquotes. somehow, their colored side-line is kept at the left-most position, while the text is indented correctly.  see the first screenshot.
+* and finally the gap lines between the blocks don't get any guidelines. is this a structural limitation of this approach? this does not look like a usage option.
+   * a usable modification would be to remove/collapse those gap lines in the outliner mode, so the content would look more tight and the guides would run continuously. but I don't know if that's an option and might be out of scope for the experiment.
+* finally, the dealbreaker: changing the theme broke the alignment completely. see the second screenshot of the edge-case zoo with the "Minimal" theme: lists are not indented, and some content gets *negatively* indented (table and callout). is this fixable? this doesn't happend with every theme, but it's a bad sign in any case
+
+---
+
+<task-notification>
+<task-id>bhd1mput4</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/b18d9970-f054-4229-82ed-6f128704382c/tasks/bhd1mput4.output</output-file>
+<status>completed</status>
+<summary>Background command "npx wdio run e2e/wdio.conf.mts 2&gt;&amp;1 | tail -120" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bpboxqn1r</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/b18d9970-f054-4229-82ed-6f128704382c/tasks/bpboxqn1r.output</output-file>
+<status>completed</status>
+<summary>Background command "npx wdio run e2e/wdio.conf.mts --spec e2e/specs/50-decorations.e2e.ts 2&gt;&amp;1 | tail -40" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Check whether the isolated 50-decorations.e2e.ts rerun (task bpboxqn1r) has completed and passed cleanly. If it passes, report final completion to the user summarizing all the 2b guide-lines fixes. If it fails again, investigate further.
+
+---
+
+I'm afraid you are mistaken. The last screenshot actually shows clearly that the gap lines still don't have the guides, and neither do tables. guides in the current state are still far from being continuous
+
+---
+
+this is some serious improvement! I was really doubting whether it's possible with this approach. it's a bummer that the tables still interrupt the guide lines though..
+
+---
+
+have you already reverted it? I want to try it myself on the test vault before deciding
+
+---
+
+okay. interesting. and good that I tried it myself because it's not hwo I imagined it from your descriptions. here's what happens when there is a very wide table:
+
+* in the normal mode, the table itself is in a horizontally scrollable container as wide as the rest of the note (depending on the "readable line length" option)
+* in the outline mode, the guide line apprears before the table just fine, but the table itself renders full length without its own scrollable container. it make the whole document scrollable horizontally (flowing out of the normal width)
+   * this is a usability issue, but doesn't make the tables completely broken or unusable. I can still reach the right edge of the table, it just sucks to have the rest of the content scrolled out of the view.
+   * I wonder if it's still possible to preserve that extra scrollable container for the tables. why does it break, explain please.
+
+---
+
+please pause and ask me to verify this because you might not really be able to see the scroll bar and test the behavior from just a screenshot.
+
+---
+
+again, interesting result. in my test, the scrollable container is kept in the outline mode and works fine, but! the guide line disappeared. I think you just forgot to reapply some changes because I saw it on your decoupled-overflow-after-scroll.png screenshot. please, double-check. 
+
+and write down some documentation before the context window fills up completely
+
+---
+
+<task-notification>
+<task-id>bfrucek3c</task-id>
+<tool-use-id>toolu_018s6z8wHapmnMoXnnjRwaKr</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/b18d9970-f054-4229-82ed-6f128704382c/tasks/bfrucek3c.output</output-file>
+<status>completed</status>
+<summary>Background command "npm run build:plugin 2&gt;&amp;1 | tail -20 &amp;&amp; npx wdio run e2e/wdio.conf.mts --spec e2e/specs/51-guides-gradient.e2e.ts 2&gt;&amp;1 | tail -30" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Check whether e2e task bfrucek3c completed and report the final test results summary to the user.
