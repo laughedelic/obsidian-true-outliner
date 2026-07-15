@@ -265,6 +265,33 @@ export function getLineChildRects(lineIndex: number, selector: string): Promise<
   );
 }
 
+/**
+ * Computed style property of the Nth (0-indexed) element matching
+ * `selector` under the editor's content root — for widget-replaced atoms
+ * (tables, callouts, raw HTML, horizontal rules) that don't render as a
+ * plain `.cm-line`, unlike getLineComputedStyle.
+ */
+export function getContentChildComputedStyle(
+  selector: string,
+  index: number,
+  prop: string,
+): Promise<string> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, selector, index, prop) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const matches = cm.contentDOM.querySelectorAll(selector);
+      const el = matches[index] as HTMLElement | undefined;
+      if (!el) throw new Error(`no "${selector}" at index ${index}`);
+      return getComputedStyle(el).getPropertyValue(prop);
+    },
+    selector,
+    index,
+    prop,
+  );
+}
+
 export async function screenshotFull(dir: string, name: string): Promise<void> {
   await browser.saveScreenshot(path.join(dir, `${name}.png`));
 }

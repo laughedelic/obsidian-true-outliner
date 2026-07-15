@@ -59,6 +59,8 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     const REAL_NOTES = [
       'Journal/2026-07-12.md', // tab-indented nested lists, multi-line items, a wikilink
       'Notes/Edge Case Zoo.md', // headings, atoms (code/table/callout), ordered list
+      'Journal/2026-07-10.md', // a callout (widget-replaced atom) mixed with headings/lists
+      'README.md', // a large table (widget-replaced atom)
     ];
     for (const note of REAL_NOTES) {
       await h.openNote(note);
@@ -168,6 +170,42 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     const listFirst = parseFloat(await h.getLineComputedStyle(3, 'margin-left'));
     const listCont = parseFloat(await h.getLineComputedStyle(4, 'margin-left'));
     expect(listCont).toBeCloseTo(listFirst, 1);
+  });
+
+  it('widget-replaced atoms (table, callout, hr, html) get margin-left too', async function () {
+    // These four render as `.cm-embed-block` (table/callout/html) or `.hr`
+    // (horizontal rule) — opaque replacement widgets in Live Preview, not a
+    // plain `.cm-line`. A `Decoration.line` targeting that source line has
+    // no effect at all on them (confirmed live); decorations.ts's companion
+    // ViewPlugin patches their margin-left directly instead. Regression
+    // fixture for the table/callout bug caught in real vault use after this
+    // experiment first shipped.
+    const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'widget-atoms')!;
+    await h.createNote(fixture.note, fixture.md);
+    if (!(await h.isOutlineMode(fixture.note))) {
+      await h.toggleOutlineMode();
+      await h.waitForNotice('Outline mode on');
+      await h.dismissNotices();
+    }
+    await browser.pause(150);
+
+    const table = parseFloat(
+      await h.getContentChildComputedStyle('.cm-embed-block.cm-table-widget', 0, 'margin-left'),
+    );
+    const callout = parseFloat(
+      await h.getContentChildComputedStyle('.cm-embed-block.cm-callout', 0, 'margin-left'),
+    );
+    const hr = parseFloat(await h.getContentChildComputedStyle('.cm-line.hr', 0, 'margin-left'));
+    const html = parseFloat(
+      await h.getContentChildComputedStyle('.cm-embed-block.cm-html-embed', 0, 'margin-left'),
+    );
+
+    for (const value of [table, callout, hr, html]) expect(value).toBeGreaterThan(0);
+    // All four sit at the same depth (1, directly under "# Section") — same
+    // additive shift as the code-fence atom in MIXED_MD.
+    expect(callout).toBeCloseTo(table, 1);
+    expect(hr).toBeCloseTo(table, 1);
+    expect(html).toBeCloseTo(table, 1);
   });
 
   it('fold indicator on a parent list item does not collide with decorated content', async function () {

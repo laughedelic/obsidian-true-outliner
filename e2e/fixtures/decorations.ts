@@ -93,6 +93,30 @@ export const DEEP_NESTING_MD = [
   '',
 ].join('\n');
 
+export const WIDGET_ATOMS_NOTE = 'Scratch/decorations-widget-atoms.md';
+// Obsidian renders these four atom kinds as opaque replacement widgets in
+// Live Preview (`.cm-embed-block`, or `.hr` for the rule) rather than a
+// plain `.cm-line` — a `Decoration.line` targeting that line has no effect
+// at all, confirmed live. Caught in real vault use (table, callout) after
+// Experiment 1 first shipped; code/quote render as plain lines and were
+// already covered by MIXED_MD. Fixed via decorations.ts's companion
+// ViewPlugin that patches these widgets' margin-left directly.
+export const WIDGET_ATOMS_MD = [
+  '# Section',
+  '',
+  '| a | b |',
+  '| --- | --- |',
+  '| 1 | 2 |',
+  '',
+  '> [!note] Title',
+  '> body',
+  '',
+  '---',
+  '',
+  '<div>raw html block</div>',
+  '',
+].join('\n');
+
 export interface DecorationFixture {
   readonly note: string;
   readonly md: string;
@@ -107,4 +131,5 @@ export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
   { note: MULTILINE_NOTE, md: MULTILINE_MD, label: 'multiline-continuation' },
   { note: WIDE_NUMBERING_NOTE, md: WIDE_NUMBERING_MD, label: 'wide-numbering' },
   { note: DEEP_NESTING_NOTE, md: DEEP_NESTING_MD, label: 'deep-nesting' },
+  { note: WIDGET_ATOMS_NOTE, md: WIDGET_ATOMS_MD, label: 'widget-atoms' },
 ];
