@@ -1,0 +1,22 @@
+Prerequisite: Experiment 1 validated and committed. Branch off it: git checkout experiment/decorations-1-additive-indent && git checkout -b experiment/decorations-2a-guides-overlay. Read docs/research/06-outline-decorations-postmortem.md and docs/research/07-decoration-experiments-plan.md (Experiment 2 section) first.
+
+Build a ViewPlugin that, after each debounced recompute (gate on docChanged || viewportChanged, NOT unconditionally on every ViewUpdate — the prior attempt's per-ViewUpdate recompute was more expensive than needed), reads already-rendered pixel positions via view.coordsAtPos()/view.lineBlockAt() and draws one absolutely- positioned overlay <div> per ancestor level, inline-styled (el.style.top/left/height set directly from JS, not via CSS classes) into a layer living outside .cm-content — this is obsidian-outliner's proven technique (VerticalLines.ts in its source), not something to reinvent from scratch; read that file if you want the exact reference shape. Handle the out-of-band mode-toggle refresh with a dedicated StateEffect rather than an empty view.dispatch({}) forcing a full recompute path.
+
+Test against every fixture in e2e/fixtures/decorations.ts, in both themes. The specific case to get right that was never even attempted last time: the multi-line/wrapped continuation fixture — a guide line must span the full rendered height of a multi-line node (should come free from lineBlockAt, which is block-level and covers all wrapped visual rows — verify this rather than assuming it). npm run build:plugin/vault:install before any real-vault check. Record results in the comparison table.
+
+---
+
+great. this looks pretty good in all cases except one: nested lists (no surprise).
+
+* first, it messes with the built-in indentation guides functionality. when it's enabled, lists sometimes get double guides.
+   * the built-in ones are nice because they go from one bullet marker to the next, precisely.
+   * our guides at slightly off, they are sort of applied to lists as blocks, not really doing their job of guiding the indentation within the lists.
+* second, even when the built-in guides are disabled, the new guides are off and are spaced unevenly. it seems like the deeper levels of a list are indented more that the first level is relative to its parent paragraph, so the guides make that unevenness more obvious.
+
+I know we are not messing with the whole internal list spacing rebalancing. but our current case just doesn't really work with the lists. as an option, I would consider not adding guides for the nested lists and keeping the built-in guides. unless you have a plan for fixing it.
+
+take a look at the screeenshots: 
+
+* built-in guides only
+* both
+* new guides only
