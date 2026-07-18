@@ -55,3 +55,12 @@ I'm describing this in detail because I'm not sure what the best approach to rec
 I also think that the 07 doc has grown way too long, and it contains too many experiment setup details that aren't relevant anymore. So maybe it's worth pruning it, and splitting into several documents.
 
 Let's start with a plan for all of this.
+
+---
+
+good work. one minor thing I want to flag immediately that I noticed in 08:
+> Hypothesis: *your* proposed compromise
+
+this is written as if you were talking to me. that style is okay in our conversations. but all our docs committed to the repo have to be written in a more neutral language, using pronouns like we/our. we are working as a team and anything that lands as durable documentation should reflect that spirit. this will also read better for anyone else who might stumble upon this (when it's released).
+
+so let's fix this language across all of our docs.
