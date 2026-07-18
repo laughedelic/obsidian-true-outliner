@@ -60,6 +60,15 @@ import {
 } from './decorate';
 import type { ModeSource } from './keymap';
 
+// Marker sizing shared between the guide-column math below (guides align to
+// a marker's own CENTER, not the raw depth boundary — see `GUIDE_COLUMN_
+// OFFSET`) and the block-markers section further down. Declared here, ahead
+// of both, purely so `guideLayer`'s own module-load-time `const` doesn't
+// reference a not-yet-initialized binding.
+const MARKER_SIZE = 'var(--to-decor-marker-size, 0.4rem)';
+const MARKER_HALF = `calc(${MARKER_SIZE} / 2)`;
+const MARKER_GAP = 'var(--to-decor-marker-gap, 0.35rem)';
+
 // ---- Guide lines (Experiment 2b: CSS stacked-gradient) ---------------------
 //
 // @replit/codemirror-indentation-markers' technique: one `--to-guides`
@@ -99,16 +108,36 @@ import type { ModeSource } from './keymap';
 // box by exactly `--to-own-shift` units to reach any shallower ancestor's
 // column, with no measurement beyond the JS constants this module already
 // computes.
+// A guide's own column is offset LEFT of the raw depth boundary by exactly
+// `MARKER_HALF + MARKER_GAP` — the same quantity that separates a marker's
+// own CENTER from its node's depth column (see `markerOriginX`: a marker's
+// left edge sits at `depth*unit - SIZE - GAP`, so its center sits at
+// `depth*unit - SIZE/2 - GAP` = `depth*unit - HALF - GAP`). Aligning guides
+// with the marker's CENTER, not the bare depth boundary, is what makes a
+// vertical line visually pass straight through the dot above/below it —
+// the same relationship native nested lists have between their own bullet
+// and the connecting indent guide, which this experiment is explicitly
+// trying to read as a natural extension of. Before this, guides sat at the
+// depth boundary itself — a real, visible seam to the right of the marker,
+// not a continuous line through it.
+const GUIDE_COLUMN_OFFSET = `calc(${MARKER_HALF} + ${MARKER_GAP})`;
+
+/** How much extra the pseudo's box must widen for a GUIDE at ancestor depth `depth` to reach its (marker-center-aligned) column without clipping. */
+function guideShortfall(depth: number): string {
+  const unit = 'var(--to-decor-unit, 1.5rem)';
+  return `max(0px, calc(${GUIDE_COLUMN_OFFSET} - ${depth} * ${unit}))`;
+}
+
 // `extra` (see the block-markers section below) is an additional leftward
-// widening of the pseudo's own box, needed ONLY when a depth-0-ish marker
-// on the SAME line also needs to bleed further left than `--to-own-shift`
-// alone would otherwise provide — 0px on every line without a marker
-// (the overwhelming majority), so this is a no-op there.
+// widening of the pseudo's own box, needed whenever a depth-0-ish marker OR
+// guide column on the SAME line needs to bleed further left than
+// `--to-own-shift` alone would otherwise provide — 0px on most lines, so
+// this is a no-op there.
 function guideLayer(depth: number, extra: string): string {
   const unit = 'var(--to-decor-unit, 1.5rem)';
   return (
     `repeating-linear-gradient(to right, var(--text-faint) 0 1px, transparent 1px ${unit}) ` +
-    `calc(${depth} * ${unit} + ${extra}) 0 / ${unit} 100% no-repeat`
+    `calc(${depth} * ${unit} - ${GUIDE_COLUMN_OFFSET} + ${extra}) 0 / ${unit} 100% no-repeat`
   );
 }
 
@@ -197,9 +226,8 @@ function guideBackground(guideDepths: readonly number[], extra: string): string 
 // ViewPlugin's own post-render pass overrides it — same "StateField draws a
 // reasonable default, ViewPlugin patches in the live-measured true value"
 // split already established for margin-left.
-const MARKER_SIZE = 'var(--to-decor-marker-size, 0.4rem)';
-const MARKER_HALF = `calc(${MARKER_SIZE} / 2)`;
-const MARKER_GAP = 'var(--to-decor-marker-gap, 0.35rem)';
+// (MARKER_SIZE/MARKER_HALF/MARKER_GAP declared near the top of the file —
+// guides need them too, see GUIDE_COLUMN_OFFSET.)
 const MARKER_RESERVE = `calc(${MARKER_SIZE} + ${MARKER_GAP})`;
 const MARKER_Y = 'var(--to-decor-marker-y, 50%)';
 const MARKER_COLOR = 'var(--text-faint)'; // same color as the guide lines
@@ -208,6 +236,25 @@ const MARKER_COLOR = 'var(--text-faint)'; // same color as the guide lines
 function markerShortfall(depth: number): string {
   const unit = 'var(--to-decor-unit, 1.5rem)';
   return `max(0px, calc(${MARKER_RESERVE} - ${depth} * ${unit}))`;
+}
+
+/**
+ * Combines a marker's own shortfall (if this line has one) with the
+ * shallowest active guide's own shortfall (if any) into ONE widening
+ * amount for this line's pseudo box — the two are independent reasons the
+ * box might need to reach a negative local column (the marker's own left
+ * edge; a shallow ancestor's marker-center-aligned guide column), and
+ * since they share the same box they share the same widening. Guide
+ * depths are ascending, so the shallowest (smallest) is always the worst
+ * case — a deeper ancestor's guide column is never further left.
+ */
+function combineExtra(markerExtra: string | null, guideDepths: readonly number[]): string {
+  const parts: string[] = [];
+  if (markerExtra) parts.push(markerExtra);
+  if (guideDepths.length > 0) parts.push(guideShortfall(guideDepths[0]!));
+  if (parts.length === 0) return '0px';
+  if (parts.length === 1) return parts[0]!;
+  return `max(${parts.join(', ')})`;
 }
 
 function markerOriginX(depth: number, extra: string): string {
@@ -299,24 +346,25 @@ function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decorat
   // ancestors (no guide of their own today) still need a marker, so the
   // `to-decor-guides` gate (which also drives `position: relative` and the
   // whole `::after` rule) can no longer be guarded on the guide alone.
-  const markerExtra = markerShortfall(fact.depth);
+  const markerExtra = fact.isFirstLine && !fact.isListItem ? markerShortfall(fact.depth) : null;
   // Vertical position is NOT computed here — see `MARKER_Y`'s doc comment:
   // `markerBackground()` always references `--to-decor-marker-y`, which
   // `MarginCompensation` sets live after render for every marker-bearing
   // line, plain or widget alike.
-  const marker =
-    fact.isFirstLine && !fact.isListItem ? markerBackground(fact.depth, markerExtra) : null;
+  const marker = markerExtra !== null ? markerBackground(fact.depth, markerExtra) : null;
   const hasGuide = guide.guideDepths.length > 0;
-  // Only actually widen (and fold into every layer's own position) when a
-  // marker is present on THIS line — the shortfall is a property of the
-  // marker reaching past its own line's box, not of guides in general.
-  const extra = marker ? markerExtra : '0px';
+  // Widen for whichever of the marker's own reach / the shallowest active
+  // guide's reach needs more (see `combineExtra`'s doc comment) — either
+  // can independently require it now that guides align to a marker's
+  // CENTER column, which goes negative earlier than the old depth-boundary
+  // column did.
+  const extra = combineExtra(marker ? markerExtra : null, guide.guideDepths);
 
   if (hasGuide || marker) {
     cls += ' to-decor-guides';
     if (hasGuide) styles.push(`--to-guides: ${guideBackground(guide.guideDepths, extra)}`);
     if (marker) styles.push(`--to-marker: ${marker}`);
-    if (ownShiftUnits > 0 || marker) {
+    if (ownShiftUnits > 0 || marker || hasGuide) {
       styles.push(
         `--to-own-shift: calc(${ownShiftUnits} * var(--to-decor-unit, 1.5rem) + ${extra})`,
       );
@@ -328,13 +376,17 @@ function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decorat
 
 // A blank trailingGap line carrying a guide (see computeLineGuides's doc
 // comment) has no decorate() fact at all — no depth, no kind, nothing to
-// indent — so it gets a minimal decoration with just the guide class/style,
-// not the full lineDecoration() treatment.
+// indent, and never a marker — so it gets a minimal decoration with just
+// the guide class/style, not the full lineDecoration() treatment. It CAN
+// still need `--to-own-shift`, though: a guide at a shallow (e.g. depth-0)
+// ancestor now aligns to that ancestor's marker-center column (see
+// `GUIDE_COLUMN_OFFSET`), which is negative in local coordinates the same
+// way it is on any other line with that guide active.
 function gapLineDecoration(guide: LineGuideFact): Decoration {
-  return Decoration.line({
-    class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guideBackground(guide.guideDepths, '0px')}` },
-  });
+  const extra = combineExtra(null, guide.guideDepths);
+  const styles = [`--to-guides: ${guideBackground(guide.guideDepths, extra)}`];
+  if (guide.guideDepths.length > 0) styles.push(`--to-own-shift: ${extra}`);
+  return Decoration.line({ class: 'to-decor-guides', attributes: { style: styles.join('; ') } });
 }
 
 function computeDecorations(state: EditorState, modes: ModeSource): DecorationSet {
@@ -476,9 +528,9 @@ class MarginCompensation implements PluginValue {
         // a shallow (in practice, depth-0) widget atom, e.g. a bare `---`
         // as literally the first line of a document — same reasoning as
         // lineDecoration()'s plain-line case.
-        const markerExtra = markerShortfall(fact.depth);
-        const marker = fact.isFirstLine ? markerBackground(fact.depth, markerExtra) : null;
-        const extra = marker ? markerExtra : '0px';
+        const markerExtra = fact.isFirstLine ? markerShortfall(fact.depth) : null;
+        const marker = markerExtra !== null ? markerBackground(fact.depth, markerExtra) : null;
+        const extra = combineExtra(marker ? markerExtra : null, hasGuide ? guide.guideDepths : []);
         if (hasGuide || marker) {
           el.classList.add('to-decor-guides');
           if (hasGuide) el.style.setProperty('--to-guides', guideBackground(guide.guideDepths, extra));

@@ -461,4 +461,61 @@ describe('outline decorations: experiment 5b (block markers, reused CSS-shape me
       expect(y).toBeLessThan(rect.height * 0.4);
     });
   });
+
+  describe('guide columns align with a marker\'s CENTER, not the raw depth boundary', function () {
+    // Reads more like native nested lists (a connecting line running
+    // straight through each bullet) than the original depth-boundary
+    // column, which left a visible seam to the right of the marker instead
+    // of a continuous line through it.
+
+    it('a descendant\'s guide column lands exactly on its ancestor\'s own marker center (absolute screen position)', async function () {
+      const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'heading-then-list')!;
+      await h.createNote(fixture.note, fixture.md);
+      await ensureOutlineMode(fixture.note);
+      await browser.pause(150);
+
+      // "# Section" (line 0) owns the marker; "- top item" (line 2, a list
+      // item) is a marker-FREE descendant (list items keep their native
+      // bullet only) whose guide bridges "# Section"'s column — isolating
+      // exactly one guide layer with no marker layer of its own to
+      // disambiguate, so its resolved background-position's only pair IS
+      // the guide's own column.
+      const info = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const cm = (view.editor as any).cm;
+        const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+        const headingLine = lines[0] as HTMLElement;
+        const listLine = lines[2] as HTMLElement;
+
+        // The pseudo-element's own `left` is a SEPARATE offset from
+        // `background-position` (the box-widening `--to-own-shift` trick —
+        // see the guide-layer doc comment in decorations.ts) and must be
+        // included too: the pseudo's absolute position is the LINE's own
+        // rect, shifted by its `left`, THEN offset by `background-position`
+        // (and, for the marker specifically, by half its own width to get
+        // its center rather than its left edge — the guide's own gradient
+        // line renders exactly AT its background-position, no such
+        // adjustment needed there).
+        const firstPair = (value: string) => value.split(',')[0]!.trim().split(/\s+/);
+        const headingAfter = getComputedStyle(headingLine, '::after');
+        const listAfter = getComputedStyle(listLine, '::after');
+        const markerLeft = parseFloat(firstPair(headingAfter.backgroundPosition)[0]!);
+        const markerWidth = parseFloat(firstPair(headingAfter.backgroundSize)[0]!);
+        const headingPseudoLeft = parseFloat(headingAfter.left);
+        const guideX = parseFloat(firstPair(listAfter.backgroundPosition)[0]!);
+        const listPseudoLeft = parseFloat(listAfter.left);
+
+        return {
+          markerAbsX:
+            headingLine.getBoundingClientRect().left + headingPseudoLeft + markerLeft + markerWidth / 2,
+          guideAbsX: listLine.getBoundingClientRect().left + listPseudoLeft + guideX,
+        };
+      });
+
+      // Both resolve to the SAME absolute screen column — the marker's own
+      // center. A tolerance of 1px absorbs subpixel rounding between the
+      // two independently-computed CSS expressions.
+      expect(Math.abs(info.markerAbsX - info.guideAbsX)).toBeLessThan(1);
+    });
+  });
 });

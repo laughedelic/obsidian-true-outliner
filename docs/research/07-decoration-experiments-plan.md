@@ -727,8 +727,9 @@ a `quote`-kind fixture promoted into `ALL_DECORATION_FIXTURES` per this experime
 shared prerequisite) screenshotted, both bundled themes, plus targeted computed-style
 assertions on the resolved `::after` background-image — see
 [e2e/specs/52-block-markers-shapes.e2e.ts](../../e2e/specs/52-block-markers-shapes.e2e.ts),
-67/67 e2e tests green across the full suite (all 8 spec files, including a dedicated
-"marker vertical position" sub-suite added after real-vault review — see bug 5 below),
+68/68 e2e tests green across the full suite (all 8 spec files, including a dedicated
+"marker vertical position" sub-suite added after real-vault review — see bug 5 below —
+and a pixel-exact guide/marker-alignment test, see the guide-column follow-up below),
 plus 123/123 unit tests (`npm test`) including a new `decorate: kind` test. Confirmed live
 on 4 real vault notes (headings, paragraphs, lists, checkboxes, wikilinks, a code block, a
 callout, a table) — no defects found; markers coexist cleanly with real content, including
@@ -898,6 +899,33 @@ the "claim a third pseudo-element" move this experiment's own design explicitly 
 as unavailable. Worth a deliberate follow-up decision (accept the shared opacity, or
 promote markers off `::after` onto a real DOM node as 5a already does) once both variants
 are compared side by side.
+
+**Follow-up refinement: guide columns now align with a marker's own CENTER, not the raw
+depth boundary**, requested by the user to read more like native nested lists (a connecting
+line running straight through each bullet, not stopping short of it). Previously a guide at
+ancestor depth `d` was drawn at column `d * unit` exactly — the same column the NEXT depth
+level's indentation starts at, which is also where a marker's own reach calculation
+happened to START (its left edge), not where it visually CENTERS. This left a real, visible
+gap: the guide line sat to the right of the marker dot above/below it, a seam rather than a
+continuous line. Fixed by shifting every guide's own column left by `MARKER_HALF +
+MARKER_GAP` (`GUIDE_COLUMN_OFFSET`) — exactly the offset between a marker's own depth
+column and its rendered center (confirmed live, pixel-exact: a dedicated e2e test reads
+both a heading's own marker center and its descendant's guide column as independent
+absolute screen positions — accounting for the pseudo-element's own `left` CSS offset
+*and* `background-position`, a real bug in the test's first draft, not the implementation —
+and asserts they match within 1px).
+
+This shift itself went negative for shallow (in practice, depth-0) ancestors, the same
+"background can't paint outside its own box" constraint markers already ran into — fixed by
+generalizing the existing `markerShortfall`/`--to-own-shift` widening mechanism
+(`combineExtra`) to also cover the shallowest active guide's own reach, not just a line's
+own marker. The two are independent reasons a line's pseudo box might need widening (its
+OWN marker's left edge; a shallow ancestor's now marker-center-aligned guide column) that
+happen to share one box, so `combineExtra` takes the `max()` of whichever apply. This also
+meant a blank trailingGap line (which never carries a marker, only ever a guide) can now
+independently need `--to-own-shift` too — previously true only for a small minority of
+gap lines with genuinely shallow guides, but the mechanism generalizes without needing a
+gap-specific carve-out.
 
 ### Open question: shrinking only our own added list margin
 
