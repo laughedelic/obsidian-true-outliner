@@ -16,7 +16,7 @@
  * — byte-identical to outline-mode-off, a permanent regression invariant.
  */
 
-import type { OutlineDoc, OutlineNode } from '../model';
+import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
 import { isAtom } from '../model';
 
 export interface LineDecorationFact {
@@ -58,6 +58,23 @@ export interface LineDecorationFact {
    * position shifts by its non-list ancestors' contribution.
    */
   readonly supplementalDepth: number;
+  /**
+   * The node's own kind (Experiment 5, see
+   * docs/research/07-decoration-experiments-plan.md) — populated straight
+   * from `node.kind`, constant across all of a node's own lines (first +
+   * continuation). Used to pick a per-kind block marker; not consumed by
+   * Experiment 1/2b's own indentation/guide logic.
+   */
+  readonly kind: NodeKind;
+  /**
+   * True when the node has at least one child (`node.children.length > 0`),
+   * constant across all of a node's own lines. Atom kinds are leaves by
+   * construction (`ATOM_KINDS` never parse internals as nodes) so this is
+   * always `false` for them; list items are excluded from markers entirely
+   * regardless. Used by the marker-visibility setting (Experiment 5a
+   * follow-up) to optionally hide markers on leaf nodes.
+   */
+  readonly hasChildren: boolean;
 }
 
 /**
@@ -85,6 +102,8 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         isAtom: atom,
         isListItem,
         supplementalDepth: isListItem ? rootDepth! : 0,
+        kind: node.kind,
+        hasChildren: node.children.length > 0,
       });
     }
     current += node.lines.length + node.trailingGap.length;
