@@ -590,4 +590,110 @@ describe('outline decorations: experiment 5b (block markers, reused CSS-shape me
       expect(Math.abs(info.h2MarkerX - info.paraGuideXOnH2sColumn)).toBeLessThan(1);
     });
   });
+
+  describe('heading marker clears the native fold chevron', function () {
+    // Reported directly by the user: the chevron (`.collapse-indicator.
+    // collapse-icon` — Obsidian reserves this gutter on EVERY heading,
+    // painted at opacity 0 until hovered/foldable, confirmed live even on
+    // a heading with no children yet) sat in the exact same pixels as our
+    // marker. Fixed by having the marker clear the chevron's own
+    // live-measured width, not the (zero-width) `.cm-fold-indicator`
+    // wrapper.
+
+    it('marker never overlaps the fold chevron, at multiple heading depths', async function () {
+      const note = 'Scratch/decorations-marker-fold-chevron.md';
+      const md = [
+        '# H1 with child',
+        'child para',
+        '',
+        '## H2 with child',
+        'child para',
+        '',
+        '### H3 with child',
+        'child para',
+        '',
+      ].join('\n');
+      await h.createNote(note, md);
+      await ensureOutlineMode(note);
+      await browser.pause(150);
+
+      const info = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const cm = (view.editor as any).cm;
+        const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+        return [0, 3, 6].map((idx) => {
+          const line = lines[idx] as HTMLElement;
+          const lineRect = line.getBoundingClientRect();
+          const icon = line.querySelector('.collapse-indicator.collapse-icon') as HTMLElement;
+          const iconRect = icon.getBoundingClientRect();
+          const after = getComputedStyle(line, '::after');
+          const pos = after.backgroundPosition.split(',')[0]!.trim().split(/\s+/);
+          const size = after.backgroundSize.split(',')[0]!.trim().split(/\s+/);
+          const pseudoLeft = parseFloat(after.left);
+          const markerLeftAbs = lineRect.left + pseudoLeft + parseFloat(pos[0]!);
+          const markerRightAbs = markerLeftAbs + parseFloat(size[0]!);
+          return { iconLeftAbs: iconRect.left, markerRightAbs, iconWidth: iconRect.width };
+        });
+      });
+
+      for (const { iconLeftAbs, markerRightAbs, iconWidth } of info) {
+        // The chevron reserves REAL width in every theme this runs under —
+        // otherwise this test would trivially pass with nothing to clear.
+        expect(iconWidth).toBeGreaterThan(0);
+        // The marker's own right edge must sit at or left of the chevron's
+        // own left edge — never spilling into its reserved gutter.
+        expect(markerRightAbs).toBeLessThanOrEqual(iconLeftAbs + 0.5);
+      }
+    });
+
+    it('a list-item/atom descendant of a foldable heading still aligns its guide with the (fold-gap-shifted) marker', async function () {
+      // Regression coverage for a second real bug this fix shipped: fixing
+      // the heading's own marker (above) by shifting it left of the fold
+      // chevron ALSO moves that marker's CENTER — which every descendant's
+      // guide column must track, or the two stop lining up (guides were
+      // fixed to align with marker center in an earlier commit). A first
+      // version of this fix only recomputed the heading's OWN line, never
+      // propagating the shift to descendants' guide columns, AND separately
+      // dropped the `ownShiftUnits * unit` term for margin-shifted lines
+      // (atoms/list items) when it tried to fix that — both caught by
+      // comparing this exact scenario (a foldable heading with a list-item
+      // child) via absolute screen position, not by the narrower
+      // heading-only test above.
+      const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'heading-then-list')!;
+      await h.createNote(fixture.note, fixture.md);
+      await ensureOutlineMode(fixture.note);
+      await browser.pause(150);
+
+      const info = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const cm = (view.editor as any).cm;
+        const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+        const heading = lines[0] as HTMLElement; // "# Section" — has a list child, so a real fold icon
+        const listLine = lines[2] as HTMLElement; // "- top item" — no marker, bridges Section's guide
+
+        const nthPair = (value: string, i: number) => value.split(',')[i]!.trim().split(/\s+/);
+        const headingAfter = getComputedStyle(heading, '::after');
+        const listAfter = getComputedStyle(listLine, '::after');
+        const markerLeft = parseFloat(nthPair(headingAfter.backgroundPosition, 0)[0]!);
+        const markerWidth = parseFloat(nthPair(headingAfter.backgroundSize, 0)[0]!);
+        const headingPseudoLeft = parseFloat(headingAfter.left);
+        const guideX = parseFloat(nthPair(listAfter.backgroundPosition, 0)[0]!);
+        const listPseudoLeft = parseFloat(listAfter.left);
+
+        return {
+          markerAbsX:
+            heading.getBoundingClientRect().left + headingPseudoLeft + markerLeft + markerWidth / 2,
+          guideAbsX: listLine.getBoundingClientRect().left + listPseudoLeft + guideX,
+          iconWidth:
+            heading.querySelector('.collapse-indicator.collapse-icon')?.getBoundingClientRect()
+              .width ?? 0,
+        };
+      });
+
+      // A real fold icon must actually be present for this to be a
+      // meaningful test of the fold-gap interaction, not a vacuous one.
+      expect(info.iconWidth).toBeGreaterThan(0);
+      expect(Math.abs(info.markerAbsX - info.guideAbsX)).toBeLessThan(1);
+    });
+  });
 });

@@ -314,6 +314,53 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
     expect(byLine.get(6)?.guideDepths).toEqual([0, 1, 2]); // para: under A, B, C
   });
 
+  describe('headingGuideDepths: which guide columns are heading-owned (Experiment 5b)', () => {
+    it('is empty when the owning ancestor is a paragraph, even though guideDepths is not', () => {
+      // This project's own tree lets a paragraph own children (paragraph-
+      // adjacency encoding), but a paragraph never shows a native fold
+      // chevron in Obsidian — only headingGuideDepths should ever reserve
+      // room for one.
+      const md = ['Parent para.', '- Child para as list item.', ''].join('\n');
+      const facts = computeLineGuides(parse(md));
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      const childLine = md.split('\n').indexOf('- Child para as list item.');
+      expect(byLine.get(childLine)?.guideDepths).toEqual([0]); // bridges the paragraph
+      expect(byLine.get(childLine)?.headingGuideDepths).toEqual([]); // but paragraph ≠ heading
+    });
+
+    it('includes the depth when the owning ancestor is a heading', () => {
+      const md = ['# Section', '', 'para', ''].join('\n');
+      const facts = computeLineGuides(parse(md));
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      const paraLine = md.split('\n').indexOf('para');
+      expect(byLine.get(paraLine)?.guideDepths).toEqual([0]);
+      expect(byLine.get(paraLine)?.headingGuideDepths).toEqual([0]);
+    });
+
+    it('is always a subset of guideDepths, correctly picking out only the heading-owned ones among several', () => {
+      const md = ['# A', '', 'Parent para.', '- Child as list item.', '  - deeper item', ''].join(
+        '\n',
+      );
+      const facts = computeLineGuides(parse(md));
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      const deepLine = md.split('\n').indexOf('  - deeper item');
+      // "  - deeper item" bridges TWO active guides: "# A" (heading, depth
+      // 0) and "Parent para." (paragraph, depth 1) — the intervening list
+      // item ("- Child as list item.") never owns one at all. Only the
+      // heading's depth should show up in headingGuideDepths.
+      expect(byLine.get(deepLine)?.guideDepths).toEqual([0, 1]);
+      expect(byLine.get(deepLine)?.headingGuideDepths).toEqual([0]);
+    });
+
+    it('a list-item ancestor never contributes to headingGuideDepths either (never owns a guide at all)', () => {
+      const md = ['# Section', '', '- item', '  - nested', ''].join('\n');
+      const facts = computeLineGuides(parse(md));
+      const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+      const nestedLine = md.split('\n').indexOf('  - nested');
+      expect(byLine.get(nestedLine)?.headingGuideDepths).toEqual([0]); // just Section
+    });
+  });
+
   it('is a strict superset of decorate()’s line coverage (every decorate() line plus gap-only lines)', () => {
     const md = [
       '# Top',

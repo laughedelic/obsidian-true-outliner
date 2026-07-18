@@ -727,10 +727,11 @@ a `quote`-kind fixture promoted into `ALL_DECORATION_FIXTURES` per this experime
 shared prerequisite) screenshotted, both bundled themes, plus targeted computed-style
 assertions on the resolved `::after` background-image — see
 [e2e/specs/52-block-markers-shapes.e2e.ts](../../e2e/specs/52-block-markers-shapes.e2e.ts),
-69/69 e2e tests green across the full suite (all 8 spec files, including a dedicated
-"marker vertical position" sub-suite added after real-vault review — see bug 5 below —
-and two pixel-exact guide/marker-alignment tests, see the guide-column follow-up below),
-plus 123/123 unit tests (`npm test`) including a new `decorate: kind` test. Confirmed live
+71/71 e2e tests green across the full suite (all 8 spec files, including a dedicated
+"marker vertical position" sub-suite added after real-vault review — see bug 5 below,
+two pixel-exact guide/marker-alignment tests, and a fold-chevron-clearance sub-suite —
+see the follow-ups below), plus 127/127 unit tests (`npm test`), including new
+`decorate: kind`/`headingGuideDepths` tests. Confirmed live
 on 4 real vault notes (headings, paragraphs, lists, checkboxes, wikilinks, a code block, a
 callout, a table) — no defects found; markers coexist cleanly with real content, including
 multi-line paragraphs and wikilinks immediately after a marked line.
@@ -959,6 +960,68 @@ top-level pair. A concrete, second instance of this project's own recurring less
 real multi-level scenario is a different (and necessary) test from its simplest two-level
 stand-in, and a screenshot a human actually looked at caught what a passing assertion
 suite didn't.
+
+**Follow-up: the native fold chevron overlapped our marker on headings, fixed with a
+second, real multi-part bug of its own.** Reported directly by the user: Obsidian's own
+fold/collapse indicator (`.collapse-indicator.collapse-icon` — the actual glyph; its
+wrapper, `.cm-fold-indicator`, measured 0 width live and isn't itself a useful reference)
+sits in the exact same pixels our marker does, on every heading (confirmed live: the
+chevron's own gutter is reserved even on a heading with no children yet, painted at
+`opacity: 0` until hovered/foldable — so the reach is needed unconditionally, not only once
+a heading actually has a child, which also avoids the marker jumping sideways the moment
+one is added). Its own width doesn't vary by heading level (confirmed live, H1 through H3
+identical in the bundled theme), unlike its vertical position, so it's measured ONCE per
+render from any one heading line and applied uniformly — the same "measure a single
+representative reference" pattern `nativeMarginBasePx` already established, not a new one.
+
+Fixed by folding this reach into the SAME `markerShortfall`/`--to-own-shift` mechanism
+markers already use (not a parallel, independently-applied offset — an earlier draft of
+this exact fix tried that shape and it silently double-subtracted). Two real bugs shipped
+in getting there, both caught by the user pushing on the result rather than by any
+assertion in this experiment's own suite at the time:
+
+1. **Shifting a heading's own marker left of the chevron broke every DESCENDANT's guide
+   column, which still pointed at the marker's OLD (un-shifted) center.** A first version
+   only recomputed the fold-adjusted marker on the heading's OWN line, live, via
+   `MarginCompensation` — correct for that one line in isolation, but guides (already fixed
+   to align with a marker's CENTER, see above) are computed independently on every
+   DESCENDANT line, with no way to know the ancestor's marker had moved. Root cause,
+   structurally: only HEADINGS (and list items, which never own a guide at all) can fold in
+   Obsidian's own UI — a `paragraph`-owned guide (this project's tree lets a paragraph have
+   children too) never needs the extra reach, so the fix couldn't be a single per-line
+   constant; it needed to know, PER ACTIVE GUIDE DEPTH on a given line, whether THAT
+   specific depth's owning ancestor is a heading. Fixed by extending `computeLineGuides`
+   (decorate.ts) with a new `headingGuideDepths` field — the subset of `guideDepths` whose
+   owner is a heading — and generalizing `guideShortfall`/`guideLayer`/`guideBackground`/
+   `combineExtra` to accept a per-depth fold-gap reach instead of one shared value. Checking
+   only the shallowest active guide depth (the pre-existing optimization, valid without
+   fold-gap since shortfall strictly decreases with depth) also had to go: fold-gap breaks
+   that monotonicity, since it applies only to SOME depths — a deeper heading-owned guide
+   can now need more reach than a shallower paragraph-owned one on the same line, so
+   `combineExtra` checks every active depth, not just the first. The live-measurement pass
+   in `MarginCompensation` was correspondingly widened from "the heading's own line only" to
+   "every line that carries a marker OR bridges a heading-owned guide" — consolidated
+   through one new shared function, `computeMarkerAndGuideBg`, so `lineDecoration()`,
+   `gapLineDecoration()`, the widget loop, and this live pass all funnel through the exact
+   same computation (foldGapPx defaulting to 0 for the three static callers) rather than
+   four independently-maintained copies.
+2. **The fix for bug 1 then dropped the `ownShiftUnits * unit` term for margin-shifted
+   lines (atoms/list items) when recomputing `--to-own-shift` live**, caught by a dedicated
+   e2e test (not a screenshot this time — the discrepancy was small enough, and the
+   fixture specific enough, that a computed-style assertion was the right tool) failing by
+   exactly one `--to-decor-unit` (24px at default sizes): `--to-own-shift` for these kinds
+   must equal `ownShiftUnits * unit + extra` (their OWN depth-based margin shift, plus the
+   marker/guide widening) — the new general live-override path set it to `extra` alone,
+   which happens to be correct ONLY for block-kind lines (`ownShiftUnits === 0` there,
+   invisible on a heading-only smoke test), silently wrong for anything margin-shifted.
+   Fixed by reconstructing `ownShiftUnits` from the line's own fact (`isListItem` →
+   `supplementalDepth`, `isAtom` → `depth`, else 0) the same way `lineDecoration()` already
+   does, inside the live-override path too.
+
+New tests added for both: a heading-with-list-item-child fixture (the exact shape that
+exposed bug 2) checking the marker/guide alignment invariant survives the fold-gap
+interaction, plus the existing chevron-overlap check extended across three heading depths.
+All pass; full suite green (127 unit tests, 71 e2e tests across all 8 spec files).
 
 ### Open question: shrinking only our own added list margin
 

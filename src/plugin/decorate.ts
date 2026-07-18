@@ -158,6 +158,17 @@ export interface LineGuideFact {
    */
   readonly guideDepths: readonly number[];
   /**
+   * The SUBSET of `guideDepths` whose owning ancestor is a `heading` —
+   * needed by decorations.ts (Experiment 5b) to know which specific guide
+   * columns must additionally clear Obsidian's native fold chevron: only
+   * headings (and list items, which never own a guide at all — see above)
+   * can fold in Obsidian's own UI, so a `paragraph`-owned guide (this
+   * project's own tree lets a paragraph have children too) never needs
+   * that extra reach. Always a subset of `guideDepths`, same ascending
+   * order.
+   */
+  readonly headingGuideDepths: readonly number[];
+  /**
    * True for a blank trailingGap line carrying a guide (see the doc
    * comment above) — these have no corresponding `decorate()` fact at
    * all (no depth, no kind), so decorations.ts can't zip this array with
@@ -177,29 +188,47 @@ export function computeLineGuides(doc: OutlineDoc): LineGuideFact[] {
   const facts: LineGuideFact[] = [];
   let current = doc.preamble.length;
 
-  const walk = (node: OutlineNode, depth: number, guideDepths: readonly number[]): void => {
+  const walk = (
+    node: OutlineNode,
+    depth: number,
+    guideDepths: readonly number[],
+    headingGuideDepths: readonly number[],
+  ): void => {
     for (let i = 0; i < node.lines.length; i++) {
-      facts.push({ lineNumber: current + i, guideDepths, isGapLine: false });
+      facts.push({ lineNumber: current + i, guideDepths, headingGuideDepths, isGapLine: false });
     }
     current += node.lines.length;
 
     // This node starts owning a guide for its own children from here on —
     // unless it's a list item, which never owns one (see doc comment above).
     const childGuideDepths = node.kind === 'list-item' ? guideDepths : [...guideDepths, depth];
+    const childHeadingGuideDepths =
+      node.kind === 'list-item'
+        ? headingGuideDepths
+        : node.kind === 'heading'
+          ? [...headingGuideDepths, depth]
+          : headingGuideDepths;
 
     // Every trailing gap gets a fact now, for full continuity (see the doc
     // comment above): a leaf's own gap uses its own guideDepths; a node
     // with children's gap is already "inside" its subtree, so it uses
     // childGuideDepths instead — the same depths its first child gets.
     const gapGuideDepths = node.children.length === 0 ? guideDepths : childGuideDepths;
+    const gapHeadingGuideDepths =
+      node.children.length === 0 ? headingGuideDepths : childHeadingGuideDepths;
     for (let i = 0; i < node.trailingGap.length; i++) {
-      facts.push({ lineNumber: current + i, guideDepths: gapGuideDepths, isGapLine: true });
+      facts.push({
+        lineNumber: current + i,
+        guideDepths: gapGuideDepths,
+        headingGuideDepths: gapHeadingGuideDepths,
+        isGapLine: true,
+      });
     }
     current += node.trailingGap.length;
 
-    node.children.forEach((child) => walk(child, depth + 1, childGuideDepths));
+    node.children.forEach((child) => walk(child, depth + 1, childGuideDepths, childHeadingGuideDepths));
   };
 
-  doc.children.forEach((node) => walk(node, 0, []));
+  doc.children.forEach((node) => walk(node, 0, [], []));
   return facts;
 }

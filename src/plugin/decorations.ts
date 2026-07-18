@@ -122,27 +122,57 @@ const MARKER_GAP = 'var(--to-decor-marker-gap, 0.35rem)';
 // not a continuous line through it.
 const GUIDE_COLUMN_OFFSET = `calc(${MARKER_HALF} + ${MARKER_GAP})`;
 
-/** How much extra the pseudo's box must widen for a GUIDE at ancestor depth `depth` to reach its (marker-center-aligned) column without clipping. */
-function guideShortfall(depth: number): string {
+/**
+ * How much extra the pseudo's box must widen for a GUIDE at ancestor depth
+ * `depth` to reach its (marker-center-aligned) column without clipping.
+ * `foldGapPx` (nonzero only when THIS specific depth's owning ancestor is a
+ * `heading` — see `foldIndicatorGapPx` and `LineGuideFact.headingGuideDepths`
+ * in decorate.ts) is the SAME additional reach a heading's own marker needs
+ * to clear the native fold chevron: since the guide is aligned to that
+ * marker's center, a heading-owned guide column moves by exactly the same
+ * amount its owner's marker does, or the two stop lining up (this is
+ * genuinely per-DEPTH, not per-line — a single line can bridge BOTH a
+ * heading-owned and a paragraph-owned guide at once, each needing a
+ * DIFFERENT reach).
+ */
+function guideShortfall(depth: number, foldGapPx = 0): string {
   const unit = 'var(--to-decor-unit, 1.5rem)';
-  return `max(0px, calc(${GUIDE_COLUMN_OFFSET} - ${depth} * ${unit}))`;
+  const reserve = foldGapPx > 0 ? `calc(${GUIDE_COLUMN_OFFSET} + ${foldGapPx}px)` : GUIDE_COLUMN_OFFSET;
+  return `max(0px, calc(${reserve} - ${depth} * ${unit}))`;
 }
 
 // `extra` (see the block-markers section below) is an additional leftward
 // widening of the pseudo's own box, needed whenever a depth-0-ish marker OR
 // guide column on the SAME line needs to bleed further left than
 // `--to-own-shift` alone would otherwise provide — 0px on most lines, so
-// this is a no-op there.
-function guideLayer(depth: number, extra: string): string {
+// this is a no-op there. `foldGapPx` shifts THIS layer's own column further
+// left too (see `guideShortfall`'s doc comment) — 0 unless this specific
+// depth's owner is a heading.
+function guideLayer(depth: number, extra: string, foldGapPx = 0): string {
   const unit = 'var(--to-decor-unit, 1.5rem)';
+  const foldTerm = foldGapPx > 0 ? ` - ${foldGapPx}px` : '';
   return (
     `repeating-linear-gradient(to right, var(--text-faint) 0 1px, transparent 1px ${unit}) ` +
-    `calc(${depth} * ${unit} - ${GUIDE_COLUMN_OFFSET} + ${extra}) 0 / ${unit} 100% no-repeat`
+    `calc(${depth} * ${unit}${foldTerm} - ${GUIDE_COLUMN_OFFSET} + ${extra}) 0 / ${unit} 100% no-repeat`
   );
 }
 
-function guideBackground(guideDepths: readonly number[], extra: string): string {
-  return guideDepths.map((d) => guideLayer(d, extra)).join(', ');
+/**
+ * `headingGuideDepths` (see decorate.ts) picks out which of `guideDepths`
+ * need `foldGapPx` folded into their OWN column — every other depth gets
+ * `foldGapPx: 0` (a paragraph-owned guide never has a fold chevron to
+ * clear).
+ */
+function guideBackground(
+  guideDepths: readonly number[],
+  extra: string,
+  headingGuideDepths: readonly number[] = [],
+  foldGapPx = 0,
+): string {
+  const headingDepths = new Set(headingGuideDepths);
+  return guideDepths
+    .map((d) => guideLayer(d, extra, headingDepths.has(d) ? foldGapPx : 0))
+    .join(', ');
 }
 
 // ---- Block markers (Experiment 5b: CSS-shape markers) ----------------------
@@ -232,34 +262,73 @@ const MARKER_RESERVE = `calc(${MARKER_SIZE} + ${MARKER_GAP})`;
 const MARKER_Y = 'var(--to-decor-marker-y, 50%)';
 const MARKER_COLOR = 'var(--text-faint)'; // same color as the guide lines
 
-/** How much extra the pseudo's box must widen for a marker at `depth` to avoid negative (clipped) local coordinates. */
-function markerShortfall(depth: number): string {
+/**
+ * How much extra the pseudo's box must widen for a marker at `depth` to
+ * avoid negative (clipped) local coordinates. `foldGapPx` (see
+ * `foldIndicatorGapPx`'s doc comment) is an ADDITIONAL live-measured
+ * leftward reach a heading's marker needs to clear the native fold
+ * chevron — folded into the SAME reserve/shortfall calculation, not a
+ * separate term applied only to the box or only to the marker's own
+ * position: those two MUST move together (see `markerOriginX`'s doc
+ * comment for why a mismatch there is a real, previously-shipped bug).
+ */
+function markerShortfall(depth: number, foldGapPx = 0): string {
   const unit = 'var(--to-decor-unit, 1.5rem)';
-  return `max(0px, calc(${MARKER_RESERVE} - ${depth} * ${unit}))`;
+  const reserve = foldGapPx > 0 ? `calc(${MARKER_RESERVE} + ${foldGapPx}px)` : MARKER_RESERVE;
+  return `max(0px, calc(${reserve} - ${depth} * ${unit}))`;
 }
 
 /**
- * Combines a marker's own shortfall (if this line has one) with the
- * shallowest active guide's own shortfall (if any) into ONE widening
- * amount for this line's pseudo box — the two are independent reasons the
- * box might need to reach a negative local column (the marker's own left
- * edge; a shallow ancestor's marker-center-aligned guide column), and
- * since they share the same box they share the same widening. Guide
- * depths are ascending, so the shallowest (smallest) is always the worst
- * case — a deeper ancestor's guide column is never further left.
+ * Combines a marker's own shortfall (if this line has one) with EVERY
+ * active guide depth's own shortfall into ONE widening amount for this
+ * line's pseudo box — the marker's own left edge and each ancestor's
+ * marker-center-aligned guide column are all independent reasons the box
+ * might need to reach a negative local column, and since they share the
+ * same box they share the same widening (`max` of whichever is worst).
+ *
+ * Without fold-chevron reach, checking only the SHALLOWEST guide depth
+ * would suffice (shortfall strictly decreases as depth grows, so a deeper
+ * ancestor's column is never further left) — but `foldGapPx` breaks that
+ * monotonicity: it only applies to HEADING-owned depths (`headingDepths`),
+ * so a DEEPER heading-owned guide can need more reach than a SHALLOWER
+ * paragraph-owned one sitting right next to it on the same line. Checking
+ * every active depth (not just the shallowest) is the general fix, and is
+ * a no-op regression for the foldGapPx-free case (checking more candidates
+ * for a `max()` never changes the answer when they'd already have been
+ * dominated by the shallowest one).
  */
-function combineExtra(markerExtra: string | null, guideDepths: readonly number[]): string {
+function combineExtra(
+  markerExtra: string | null,
+  guideDepths: readonly number[],
+  headingGuideDepths: readonly number[] = [],
+  foldGapPx = 0,
+): string {
+  const headingDepths = new Set(headingGuideDepths);
   const parts: string[] = [];
   if (markerExtra) parts.push(markerExtra);
-  if (guideDepths.length > 0) parts.push(guideShortfall(guideDepths[0]!));
+  for (const d of guideDepths) {
+    parts.push(guideShortfall(d, headingDepths.has(d) ? foldGapPx : 0));
+  }
   if (parts.length === 0) return '0px';
   if (parts.length === 1) return parts[0]!;
   return `max(${parts.join(', ')})`;
 }
 
-function markerOriginX(depth: number, extra: string): string {
+/**
+ * `foldGapPx` (0 for every kind except heading — see `foldIndicatorGapPx`)
+ * shifts the marker an ADDITIONAL amount left, to clear the native fold
+ * chevron's own reserved gutter (see the doc comment on the fold-indicator
+ * section below). It must be baked into `extra` (via `markerShortfall`)
+ * the SAME way it's subtracted here — `extra` is what the box's own
+ * `--to-own-shift` widens by, and if the two diverge the marker renders
+ * offset from its intended column (confirmed the hard way once already,
+ * for the unrelated marker/guide-extra split — see that fix's own
+ * commit/doc entry).
+ */
+function markerOriginX(depth: number, extra: string, foldGapPx = 0): string {
   const unit = 'var(--to-decor-unit, 1.5rem)';
-  return `calc(${depth} * ${unit} - ${MARKER_SIZE} - ${MARKER_GAP} + ${extra})`;
+  const foldTerm = foldGapPx > 0 ? ` - ${foldGapPx}px` : '';
+  return `calc(${depth} * ${unit}${foldTerm} - ${MARKER_SIZE} - ${MARKER_GAP} + ${extra})`;
 }
 
 /**
@@ -306,15 +375,70 @@ function widgetMarkerYPx(el: HTMLElement, kind: NodeKind): number {
 }
 
 /**
+ * A heading's own live-rendered fold-chevron width (px), or 0 if none is
+ * mounted. Only headings can both fold AND carry one of our markers — list
+ * items fold too, but keep their fully native marker untouched (excluded
+ * from ours entirely); atoms/paragraphs never fold at all.
+ *
+ * Reads `.collapse-indicator.collapse-icon` — the actual chevron glyph's
+ * own element — NOT `.cm-fold-indicator` (its wrapper), which measured 0
+ * width live (confirmed): the wrapper is a zero-width anchor point Obsidian
+ * positions at the text's own start column, with the real icon extending
+ * LEFT of it by its own width via negative offset — exactly the box our
+ * marker needs to clear, not the wrapper's (non-existent) one. Confirmed
+ * live that this element (and its 15px-ish width, in the bundled theme) is
+ * present for EVERY heading regardless of whether it currently has
+ * children — Obsidian always reserves the gutter, just paints the chevron
+ * at `opacity: 0` until hovered/foldable — so this reach is needed
+ * unconditionally on every heading's marker, not only ones with children,
+ * which also avoids the marker jumping sideways the moment a first child
+ * is added.
+ */
+function foldIndicatorGapPx(el: HTMLElement): number {
+  const icon = el.querySelector<HTMLElement>('.collapse-indicator.collapse-icon');
+  return icon ? icon.getBoundingClientRect().width : 0;
+}
+
+/**
  * The `--to-marker` background-layer string: a single solid dot. Vertical
  * position always references `--to-decor-marker-y` (see the doc comment
  * above) — `MarginCompensation` sets the real, live-measured value after
  * each render; the `50%` fallback baked into `MARKER_Y` only matters for
  * the brief window before that pass runs.
  */
-function markerBackground(depth: number, extra: string): string {
-  const x = markerOriginX(depth, extra);
+function markerBackground(depth: number, extra: string, foldGapPx = 0): string {
+  const x = markerOriginX(depth, extra, foldGapPx);
   return `radial-gradient(circle, ${MARKER_COLOR} 62%, transparent 64%) ${x} ${MARKER_Y} / ${MARKER_SIZE} ${MARKER_SIZE} no-repeat`;
+}
+
+/**
+ * The single, shared computation behind every `--to-marker`/`--to-guides`/
+ * `--to-own-shift` triple in this module — `lineDecoration()`,
+ * `gapLineDecoration()`, the widget loop, and `MarginCompensation`'s live
+ * fold-gap pass all funnel through this one function so `extra` can never
+ * again drift between a marker's own position formula and the box's own
+ * widening (the exact class of bug this module has already shipped once).
+ *
+ * `markerDepth`/`isHeadingMarker` describe THIS line's own marker (`null`
+ * depth = no marker on this line). `foldGapPx` is 0 at static (StateField)
+ * build time — `MarginCompensation` is the only caller that ever passes a
+ * measured nonzero value, once per render, after finding the native fold
+ * chevron actually exists.
+ */
+function computeMarkerAndGuideBg(
+  markerDepth: number | null,
+  isHeadingMarker: boolean,
+  guideDepths: readonly number[],
+  headingGuideDepths: readonly number[],
+  foldGapPx: number,
+): { marker: string | null; guides: string | null; extra: string } {
+  const markerFoldGap = markerDepth !== null && isHeadingMarker ? foldGapPx : 0;
+  const markerExtra = markerDepth !== null ? markerShortfall(markerDepth, markerFoldGap) : null;
+  const extra = combineExtra(markerExtra, guideDepths, headingGuideDepths, foldGapPx);
+  const marker = markerDepth !== null ? markerBackground(markerDepth, extra, markerFoldGap) : null;
+  const guides =
+    guideDepths.length > 0 ? guideBackground(guideDepths, extra, headingGuideDepths, foldGapPx) : null;
+  return { marker, guides, extra };
 }
 
 function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decoration {
@@ -346,34 +470,23 @@ function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decorat
   // ancestors (no guide of their own today) still need a marker, so the
   // `to-decor-guides` gate (which also drives `position: relative` and the
   // whole `::after` rule) can no longer be guarded on the guide alone.
-  const markerExtra = fact.isFirstLine && !fact.isListItem ? markerShortfall(fact.depth) : null;
+  // `foldGapPx: 0` here — this is the static (StateField) pass, no DOM to
+  // measure the native fold chevron's width from; `MarginCompensation`
+  // overrides live, for every line, once it knows the real value (see its
+  // own doc comment for why "every line," not just headings).
+  const hasMarker = fact.isFirstLine && !fact.isListItem;
+  const { marker, guides, extra } = computeMarkerAndGuideBg(
+    hasMarker ? fact.depth : null,
+    fact.kind === 'heading',
+    guide.guideDepths,
+    guide.headingGuideDepths,
+    0,
+  );
   const hasGuide = guide.guideDepths.length > 0;
-  // Widen for whichever of the marker's own reach / the shallowest active
-  // guide's reach needs more (see `combineExtra`'s doc comment) — either
-  // can independently require it now that guides align to a marker's
-  // CENTER column, which goes negative earlier than the old depth-boundary
-  // column did. Computed BEFORE building `marker`: the box only has ONE
-  // `left` offset (`--to-own-shift`), so the marker's own X formula MUST
-  // use this same combined value, not its own (possibly smaller) shortfall
-  // alone — otherwise the two stop canceling out algebraically and the
-  // marker renders offset from its intended column. A first version got
-  // this backwards (built `marker` from `markerExtra` alone, then combined
-  // separately for `--to-own-shift`), which is exactly why deeper markers
-  // drifted left of their guide columns — caught by the user comparing a
-  // real screenshot, not by any of this experiment's own assertions, none
-  // of which checked cross-depth alignment against a REAL multi-level
-  // chain (the one dedicated alignment test used a depth-0/depth-1 pair,
-  // where the bug's `markerExtra` and combined `extra` happen to coincide).
-  const extra = combineExtra(markerExtra, guide.guideDepths);
-  // Vertical position is NOT computed here — see `MARKER_Y`'s doc comment:
-  // `markerBackground()` always references `--to-decor-marker-y`, which
-  // `MarginCompensation` sets live after render for every marker-bearing
-  // line, plain or widget alike.
-  const marker = markerExtra !== null ? markerBackground(fact.depth, extra) : null;
 
   if (hasGuide || marker) {
     cls += ' to-decor-guides';
-    if (hasGuide) styles.push(`--to-guides: ${guideBackground(guide.guideDepths, extra)}`);
+    if (guides) styles.push(`--to-guides: ${guides}`);
     if (marker) styles.push(`--to-marker: ${marker}`);
     if (ownShiftUnits > 0 || marker || hasGuide) {
       styles.push(
@@ -394,8 +507,14 @@ function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decorat
 // `GUIDE_COLUMN_OFFSET`), which is negative in local coordinates the same
 // way it is on any other line with that guide active.
 function gapLineDecoration(guide: LineGuideFact): Decoration {
-  const extra = combineExtra(null, guide.guideDepths);
-  const styles = [`--to-guides: ${guideBackground(guide.guideDepths, extra)}`];
+  const { guides, extra } = computeMarkerAndGuideBg(
+    null,
+    false,
+    guide.guideDepths,
+    guide.headingGuideDepths,
+    0,
+  );
+  const styles = [`--to-guides: ${guides ?? 'none'}`];
   if (guide.guideDepths.length > 0) styles.push(`--to-own-shift: ${extra}`);
   return Decoration.line({ class: 'to-decor-guides', attributes: { style: styles.join('; ') } });
 }
@@ -486,6 +605,30 @@ class MarginCompensation implements PluginValue {
     return ref ? parseFloat(getComputedStyle(ref).marginLeft) || 0 : 0;
   }
 
+  /**
+   * The native fold chevron's own live width (see `foldIndicatorGapPx`'s
+   * doc comment), measured ONCE per render from any ONE heading line —
+   * same "measure a single representative reference, apply uniformly"
+   * pattern `nativeMarginBasePx` already uses, valid here because the
+   * chevron's own width doesn't vary by heading level (confirmed live:
+   * H1/H2/H3 all measured the same width in the bundled theme) the way its
+   * VERTICAL position does. Falls back to 0 (no adjustment) if the current
+   * viewport has no heading lines at all.
+   */
+  private headingFoldGapPx(factsByLine: Map<number, LineDecorationFact>): number {
+    const headingLines = Array.from(
+      this.view.contentDOM.querySelectorAll<HTMLElement>(':scope > .cm-line'),
+    ).filter((el) => {
+      const lineNumber = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
+      return factsByLine.get(lineNumber)?.kind === 'heading';
+    });
+    for (const el of headingLines) {
+      const gap = foldIndicatorGapPx(el);
+      if (gap > 0) return gap;
+    }
+    return 0;
+  }
+
   private apply(): void {
     const path = this.view.state.field(editorInfoField, false)?.file?.path;
     if (!path || !this.modes.isOutline(path)) {
@@ -497,6 +640,7 @@ class MarginCompensation implements PluginValue {
     const factsByLine = new Map(decorate(doc).map((f) => [f.lineNumber, f]));
     const guidesByLine = new Map(computeLineGuides(doc).map((g) => [g.lineNumber, g]));
     const nativeBasePx = this.nativeMarginBasePx();
+    const headingFoldGapPx = this.headingFoldGapPx(factsByLine);
 
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
@@ -535,20 +679,21 @@ class MarginCompensation implements PluginValue {
         // (origin = nativeBasePx, restored by `--to-own-shift` cancelling
         // exactly whatever value it's set to against the matching
         // margin-left term), so any ownShiftExpr formula works unchanged.
-        // `markerShortfall` (see its doc comment) additionally folds in for
-        // a shallow (in practice, depth-0) widget atom, e.g. a bare `---`
-        // as literally the first line of a document — same reasoning as
-        // lineDecoration()'s plain-line case. `extra` (combined marker +
-        // guide reach) is computed BEFORE `marker` itself and used for
-        // BOTH — see lineDecoration()'s own doc comment for why using the
-        // marker's own (possibly smaller) shortfall alone here was a real,
-        // shipped bug (deeper markers drifting left of their guide column).
-        const markerExtra = fact.isFirstLine ? markerShortfall(fact.depth) : null;
-        const extra = combineExtra(markerExtra, hasGuide ? guide.guideDepths : []);
-        const marker = markerExtra !== null ? markerBackground(fact.depth, extra) : null;
+        // A widget atom is never itself a heading (`isHeadingMarker: false`
+        // always), but it CAN be a heading's DESCENDANT — `headingFoldGapPx`
+        // (measured once per render, see its own doc comment) still needs
+        // threading through so a bridging guide from an ancestor heading
+        // stays aligned with that ancestor's (fold-gap-shifted) marker.
+        const { marker, guides, extra } = computeMarkerAndGuideBg(
+          fact.isFirstLine ? fact.depth : null,
+          false,
+          hasGuide ? guide.guideDepths : [],
+          hasGuide ? guide.headingGuideDepths : [],
+          headingFoldGapPx,
+        );
         if (hasGuide || marker) {
           el.classList.add('to-decor-guides');
-          if (hasGuide) el.style.setProperty('--to-guides', guideBackground(guide.guideDepths, extra));
+          if (guides) el.style.setProperty('--to-guides', guides);
           else el.style.removeProperty('--to-guides');
           if (marker) el.style.setProperty('--to-marker', marker);
           else el.style.removeProperty('--to-marker');
@@ -618,16 +763,71 @@ class MarginCompensation implements PluginValue {
       if (fact?.isFirstLine && !fact.isListItem) {
         if (fact.kind === 'code') {
           el.style.setProperty('--to-decor-marker-y', CODE_MARKER_Y);
-          continue;
-        }
-        const center = firstRowCenterPx(el, el.getBoundingClientRect().top);
-        if (center !== null) {
-          el.style.setProperty('--to-decor-marker-y', `calc(${center}px - ${MARKER_HALF})`);
         } else {
-          el.style.removeProperty('--to-decor-marker-y');
+          const center = firstRowCenterPx(el, el.getBoundingClientRect().top);
+          if (center !== null) {
+            el.style.setProperty('--to-decor-marker-y', `calc(${center}px - ${MARKER_HALF})`);
+          } else {
+            el.style.removeProperty('--to-decor-marker-y');
+          }
         }
       } else {
         el.style.removeProperty('--to-decor-marker-y');
+      }
+
+      // The native fold chevron's own reserved gutter (see
+      // `foldIndicatorGapPx`'s doc comment) sits directly in a HEADING
+      // marker's reach — confirmed live, reported directly by the user
+      // ("the fold marker overlaps with the bullets"). Only known after
+      // render (this is real DOM geometry, not derivable from the tree),
+      // so whenever ANY heading in the document has one (`headingFoldGapPx
+      // > 0`), EVERY line that carries a marker OR bridges a heading-owned
+      // guide gets `--to-marker`/`--to-guides`/`--to-own-shift` RECOMPUTED
+      // via the shared `computeMarkerAndGuideBg` — not just the heading's
+      // own line: a first version only touched the heading itself, which
+      // shifted its marker but left every DESCENDANT's guide column
+      // pointing at the marker's OLD position, a real regression caught by
+      // the dedicated alignment tests failing (not by this fold-gap fix's
+      // own, narrower test, which only checked the heading's own line).
+      // `extra` (the combined widening) MUST be the SAME value fed to the
+      // box's own `--to-own-shift` and every layer's own position formula,
+      // or they stop canceling out algebraically — the exact class of bug
+      // the marker/guide-center fix already shipped once.
+      if (headingFoldGapPx > 0) {
+        const guideFact = guidesByLine.get(lineNumber);
+        const guideDepths = guideFact?.guideDepths ?? [];
+        const headingGuideDepths = guideFact?.headingGuideDepths ?? [];
+        const hasMarkerHere = !!fact?.isFirstLine && !fact.isListItem;
+        if (hasMarkerHere || guideDepths.length > 0) {
+          const { marker, guides, extra } = computeMarkerAndGuideBg(
+            hasMarkerHere ? fact.depth : null,
+            hasMarkerHere && fact.kind === 'heading',
+            guideDepths,
+            headingGuideDepths,
+            headingFoldGapPx,
+          );
+          if (marker) el.style.setProperty('--to-marker', marker);
+          if (guides) el.style.setProperty('--to-guides', guides);
+          if (marker || guides) {
+            // `extra` alone is NOT `--to-own-shift` for a margin-shifted
+            // line (atom/list item): their own box is ALREADY moved right
+            // by `ownShiftUnits * unit` (their own depth-based margin),
+            // and `--to-own-shift` must include BOTH terms — omitting
+            // `ownShiftUnits * unit` here was a real bug (caught by the
+            // dedicated alignment test, off by exactly one `unit`): block
+            // lines have `ownShiftUnits === 0` so it's invisible there,
+            // which is exactly why a heading-only smoke test missed it.
+            const ownShiftUnits = fact?.isListItem
+              ? fact.supplementalDepth
+              : fact?.isAtom
+                ? fact.depth
+                : 0;
+            el.style.setProperty(
+              '--to-own-shift',
+              `calc(${ownShiftUnits} * var(--to-decor-unit, 1.5rem) + ${extra})`,
+            );
+          }
+        }
       }
     }
 
