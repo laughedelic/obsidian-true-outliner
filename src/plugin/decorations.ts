@@ -347,18 +347,29 @@ function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decorat
   // `to-decor-guides` gate (which also drives `position: relative` and the
   // whole `::after` rule) can no longer be guarded on the guide alone.
   const markerExtra = fact.isFirstLine && !fact.isListItem ? markerShortfall(fact.depth) : null;
-  // Vertical position is NOT computed here — see `MARKER_Y`'s doc comment:
-  // `markerBackground()` always references `--to-decor-marker-y`, which
-  // `MarginCompensation` sets live after render for every marker-bearing
-  // line, plain or widget alike.
-  const marker = markerExtra !== null ? markerBackground(fact.depth, markerExtra) : null;
   const hasGuide = guide.guideDepths.length > 0;
   // Widen for whichever of the marker's own reach / the shallowest active
   // guide's reach needs more (see `combineExtra`'s doc comment) — either
   // can independently require it now that guides align to a marker's
   // CENTER column, which goes negative earlier than the old depth-boundary
-  // column did.
-  const extra = combineExtra(marker ? markerExtra : null, guide.guideDepths);
+  // column did. Computed BEFORE building `marker`: the box only has ONE
+  // `left` offset (`--to-own-shift`), so the marker's own X formula MUST
+  // use this same combined value, not its own (possibly smaller) shortfall
+  // alone — otherwise the two stop canceling out algebraically and the
+  // marker renders offset from its intended column. A first version got
+  // this backwards (built `marker` from `markerExtra` alone, then combined
+  // separately for `--to-own-shift`), which is exactly why deeper markers
+  // drifted left of their guide columns — caught by the user comparing a
+  // real screenshot, not by any of this experiment's own assertions, none
+  // of which checked cross-depth alignment against a REAL multi-level
+  // chain (the one dedicated alignment test used a depth-0/depth-1 pair,
+  // where the bug's `markerExtra` and combined `extra` happen to coincide).
+  const extra = combineExtra(markerExtra, guide.guideDepths);
+  // Vertical position is NOT computed here — see `MARKER_Y`'s doc comment:
+  // `markerBackground()` always references `--to-decor-marker-y`, which
+  // `MarginCompensation` sets live after render for every marker-bearing
+  // line, plain or widget alike.
+  const marker = markerExtra !== null ? markerBackground(fact.depth, extra) : null;
 
   if (hasGuide || marker) {
     cls += ' to-decor-guides';
@@ -527,10 +538,14 @@ class MarginCompensation implements PluginValue {
         // `markerShortfall` (see its doc comment) additionally folds in for
         // a shallow (in practice, depth-0) widget atom, e.g. a bare `---`
         // as literally the first line of a document — same reasoning as
-        // lineDecoration()'s plain-line case.
+        // lineDecoration()'s plain-line case. `extra` (combined marker +
+        // guide reach) is computed BEFORE `marker` itself and used for
+        // BOTH — see lineDecoration()'s own doc comment for why using the
+        // marker's own (possibly smaller) shortfall alone here was a real,
+        // shipped bug (deeper markers drifting left of their guide column).
         const markerExtra = fact.isFirstLine ? markerShortfall(fact.depth) : null;
-        const marker = markerExtra !== null ? markerBackground(fact.depth, markerExtra) : null;
-        const extra = combineExtra(marker ? markerExtra : null, hasGuide ? guide.guideDepths : []);
+        const extra = combineExtra(markerExtra, hasGuide ? guide.guideDepths : []);
+        const marker = markerExtra !== null ? markerBackground(fact.depth, extra) : null;
         if (hasGuide || marker) {
           el.classList.add('to-decor-guides');
           if (hasGuide) el.style.setProperty('--to-guides', guideBackground(guide.guideDepths, extra));

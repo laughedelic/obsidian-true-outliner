@@ -517,5 +517,77 @@ describe('outline decorations: experiment 5b (block markers, reused CSS-shape me
       // two independently-computed CSS expressions.
       expect(Math.abs(info.markerAbsX - info.guideAbsX)).toBeLessThan(1);
     });
+
+    it('holds at EVERY level of a real multi-level chain, not just depth 0->1', async function () {
+      // Regression coverage for a real shipped bug, reported directly by
+      // the user from a real-vault screenshot (a heading -> heading ->
+      // paragraph chain): the previous test's fixture only exercises a
+      // depth-0 ancestor with NO guide of its own (a top-level heading
+      // has no ancestors), so its own `markerExtra` (based purely on its
+      // OWN depth) and the combined `extra` (its own marker OR any active
+      // guide's reach, whichever is bigger) happen to be identical there —
+      // masking a real bug where a MID-chain node (like "Aurora review"
+      // here: depth 1, has both its own marker AND an active depth-0
+      // guide bridging through it) built its marker's X position from its
+      // own (smaller) shortfall alone instead of the combined one used for
+      // the box's actual widening, drifting deeper markers visibly left of
+      // their own guide column.
+      const note = 'Scratch/decorations-marker-guide-chain.md';
+      const md = ['# H1', '', '## H2', '', 'para', ''].join('\n');
+      await h.createNote(note, md);
+      await ensureOutlineMode(note);
+      await browser.pause(150);
+
+      const info = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        const cm = (view.editor as any).cm;
+        const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+        const h1 = lines[0] as HTMLElement; // "# H1", depth 0
+        const h2 = lines[2] as HTMLElement; // "## H2", depth 1
+        const para = lines[4] as HTMLElement; // "para", depth 2 — guide layers [0, 1]
+
+        const nthPair = (value: string, i: number) => value.split(',')[i]!.trim().split(/\s+/);
+
+        const markerCenterAbsX = (el: HTMLElement) => {
+          const after = getComputedStyle(el, '::after');
+          const left = parseFloat(nthPair(after.backgroundPosition, 0)[0]!);
+          const width = parseFloat(nthPair(after.backgroundSize, 0)[0]!);
+          const pseudoLeft = parseFloat(after.left);
+          return el.getBoundingClientRect().left + pseudoLeft + left + width / 2;
+        };
+        // The resolved `background-image`/`-position` list is a FLAT
+        // comma-join of `--to-marker` (one layer, when present) THEN
+        // `--to-guides` (one layer per active ancestor depth, ascending)
+        // — `background: var(--to-marker, none), var(--to-guides, none);`
+        // substitutes textually, so a line with both a marker AND N active
+        // guides has its OWN marker at index 0 and its guide depths at
+        // indices 1..N, in ascending depth order.
+        const guideColumnAbsX = (el: HTMLElement, layerIndex: number) => {
+          const after = getComputedStyle(el, '::after');
+          const x = parseFloat(nthPair(after.backgroundPosition, layerIndex)[0]!);
+          const pseudoLeft = parseFloat(after.left);
+          return el.getBoundingClientRect().left + pseudoLeft + x;
+        };
+
+        return {
+          h1MarkerX: markerCenterAbsX(h1),
+          // h2 has its OWN marker (index 0) THEN one guide layer for
+          // depth 0 (index 1).
+          h2GuideXOnH1sColumn: guideColumnAbsX(h2, 1),
+          h2MarkerX: markerCenterAbsX(h2),
+          // para has its OWN marker (index 0), a guide for depth 0
+          // (index 1), THEN a guide for depth 1 — H2's own — at index 2.
+          paraGuideXOnH2sColumn: guideColumnAbsX(para, 2),
+        };
+      });
+
+      expect(Math.abs(info.h1MarkerX - info.h2GuideXOnH1sColumn)).toBeLessThan(1);
+      // This is the pair the original bug broke: H2 is depth 1 (not 0),
+      // so its own marker shortfall alone is 0 — only the COMBINED extra
+      // (accounting for the depth-0 guide also active on its line) is
+      // correct, and using the wrong one drifted this comparison by a
+      // whole `MARKER_RESERVE` (~12px at default sizes).
+      expect(Math.abs(info.h2MarkerX - info.paraGuideXOnH2sColumn)).toBeLessThan(1);
+    });
   });
 });

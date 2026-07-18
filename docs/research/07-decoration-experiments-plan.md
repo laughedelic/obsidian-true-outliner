@@ -727,9 +727,9 @@ a `quote`-kind fixture promoted into `ALL_DECORATION_FIXTURES` per this experime
 shared prerequisite) screenshotted, both bundled themes, plus targeted computed-style
 assertions on the resolved `::after` background-image — see
 [e2e/specs/52-block-markers-shapes.e2e.ts](../../e2e/specs/52-block-markers-shapes.e2e.ts),
-68/68 e2e tests green across the full suite (all 8 spec files, including a dedicated
+69/69 e2e tests green across the full suite (all 8 spec files, including a dedicated
 "marker vertical position" sub-suite added after real-vault review — see bug 5 below —
-and a pixel-exact guide/marker-alignment test, see the guide-column follow-up below),
+and two pixel-exact guide/marker-alignment tests, see the guide-column follow-up below),
 plus 123/123 unit tests (`npm test`) including a new `decorate: kind` test. Confirmed live
 on 4 real vault notes (headings, paragraphs, lists, checkboxes, wikilinks, a code block, a
 callout, a table) — no defects found; markers coexist cleanly with real content, including
@@ -926,6 +926,39 @@ meant a blank trailingGap line (which never carries a marker, only ever a guide)
 independently need `--to-own-shift` too — previously true only for a small minority of
 gap lines with genuinely shallow guides, but the mechanism generalizes without needing a
 gap-specific carve-out.
+
+**Real bug shipped in the above fix, caught by the user from a real-vault screenshot
+(not by the dedicated alignment test) — mid-chain markers drifted visibly left of their
+own guide column.** The screenshot showed a real note (`Wednesday — review day` → `Aurora
+review` → paragraphs): the FIRST guide (from the top-level heading) correctly passed
+through the second level's marker, but every level from there down drifted — "the bullets
+(from the second level on) are shifted to the left, while the guides are evenly spaced,"
+in the user's own words, correctly diagnosing that the guides themselves were fine and the
+markers were the ones off. Root cause: the fix above computes ONE combined `extra` per
+line — `max` of the line's own marker shortfall and its shallowest active guide's shortfall
+— and that combined value is what the box is ACTUALLY widened by (`--to-own-shift`). The
+marker's own X-position formula must use that SAME combined value for the cancellation
+algebra to hold (`--to-own-shift` and the position formula need to widen/shift by identical
+amounts, or the difference leaks into the rendered position) — but the code built the
+marker's background string from its own (narrower) `markerShortfall` alone, computed
+*before* combining with the guide's requirement, then combined separately only for
+`--to-own-shift`. For a depth-0 node this is invisible (no guide of its own exists to
+diverge from, so the two values coincide) — exactly the case the dedicated alignment test
+used, which is why it passed despite the bug. For a MID-chain node like "Aurora review"
+(depth 1, carries both its own marker AND an active depth-0 guide bridging through it),
+its own shortfall alone is 0 (depth 1 doesn't need widening for its OWN marker), but the
+combined value is nonzero (the depth-0 guide does need it) — using the narrower value for
+the marker's position while the box widens by the larger one drifted the marker left by
+exactly `MARKER_RESERVE` (~12px at default sizes), confirmed by hand-deriving the algebra
+and matching it against live computed-style output before fixing. Fixed by computing the
+combined `extra` FIRST and using it for both the box widening AND the marker's own X
+formula. New e2e test added specifically for this shape (heading → heading → paragraph,
+three levels) rather than trusting the depth-0/depth-1 case again — verifies every
+ancestor's marker center against its immediate child's guide column, not just the
+top-level pair. A concrete, second instance of this project's own recurring lesson: a
+real multi-level scenario is a different (and necessary) test from its simplest two-level
+stand-in, and a screenshot a human actually looked at caught what a passing assertion
+suite didn't.
 
 ### Open question: shrinking only our own added list margin
 
