@@ -52,7 +52,7 @@ Two problems, both invisible in the synthetic fixtures:
 1. `styles.css` wasn't even loading — `vault:install` symlinked `manifest.json` and
    `main.js` but not `styles.css`. Fixed, but this alone should have been a signal that
    the verification loop (screenshot the sandboxed e2e vault) was disconnected from what
-   the user was actually running.
+   was actually running in the real vault.
 2. Once loaded: indentation "off, sometimes negative"; guide lines "all over the place,"
    including apparently when outline mode was off.
 
@@ -70,7 +70,7 @@ paragraphs got padding or a marker — and dropped the guide-line feature entire
 
 **This was the first process failure of the session**: a scope reduction (dropping the
 whole point of the change — one visual language across kinds) made and shipped without
-checking with the user first. Called out directly: *"how come you decided to change the
+checking first. Called out directly in review: *"how come you decided to change the
 design mid-implementation and didn't even stop to check with me?"*
 
 ### User rejects the narrowed scope; redirects to a specific reference
@@ -173,7 +173,7 @@ allow moving one without the other.
 Reverted to the safer, non-repositioning version: resize the *existing* glyph in place,
 touch nothing about its position. This can't collide with the fold-indicator or overlap
 text because it never moves anything — it accepts "bullets read as bold dashes, not
-matching dots" as a known, deferred cosmetic gap (which the user had already flagged as
+matching dots" as a known, deferred cosmetic gap (which review had already flagged as
 acceptable to defer, distinct from the indentation-consistency requirement which was
 not negotiable).
 
@@ -196,7 +196,7 @@ lists, code fences) — real use in the actual vault still showed:
 - **Indentation still "all over the place"** in real use, despite computed-style checks
   showing correct, consistent depth-based padding in the tested fixtures. Either the
   verified fixtures didn't cover the actual failure modes present in a real, long-lived
-  vault (different note shapes, different nesting patterns, interaction with the user's
+  vault (different note shapes, different nesting patterns, interaction with the author's
   actual theme), or there are further interactions with Obsidian's own CSS not yet
   identified.
 - **List node continuations (Shift+Enter multi-line nodes) don't get the right
@@ -208,7 +208,7 @@ lists, code fences) — real use in the actual vault still showed:
 - **List markers drawn on top of the dashes.** This directly contradicts the last known
   implementation state (resize-in-place, no overlay `::after`) and was never
   independently investigated before this document was written — the two live
-  possibilities are (a) the user was testing against a stale build (this session's
+  possibilities are (a) the manual test ran against a stale build (this session's
   build pipeline had already caused two prior false-negative verification rounds for
   exactly this reason), or (b) a real decoration-application bug — e.g., stale/duplicate
   entries surviving across a `DecorationSet` recompute or a toggle-off/on cycle — that
@@ -216,7 +216,7 @@ lists, code fences) — real use in the actual vault still showed:
 - **Guide lines completely misplaced.** The vertical guide-line feature was dropped
   after attempt 2 and never reintroduced in this session's final implementation, so this
   report likely refers to the marker/indentation confusion above rather than a literal
-  guide line — but it wasn't reconciled with the user before this document was written.
+  guide line — but it wasn't reconciled in review before this document was written.
 
 ## Why the testing approach kept producing false confidence
 
@@ -260,7 +260,7 @@ directly.
    shows up when a heading and a paragraph are visible together) either didn't
    reproduce in the synthetic fixtures at all, or reproduced but weren't looked for.
    Testing exclusively against hand-picked, already-passing-shaped fixtures — rather
-   than the user's actual notes, or a fixture corpus deliberately designed to be
+   than real, organic notes, or a fixture corpus deliberately designed to be
    adversarial — kept validating the wrong thing.
 
 6. **A fully green automated test suite (198 unit + 33 e2e) was maintained by updating

@@ -197,7 +197,7 @@ above.
 
 **Real-vault-equivalent pass**: `npm run vault:install` succeeded (symlinks in
 place, plugin bundle built via `build:plugin`, not just type-checked). This
-environment has no interactive access to the user's own Obsidian instance, so the
+environment has no interactive access to the author's own Obsidian instance, so the
 closest available check — the same one prior experiments on this project used as
 their "real (non-synthetic) vault notes" proxy — is screenshotting the bundled
 `test-vault`'s own real journal/notes/README content (not the synthetic fixture
@@ -206,7 +206,7 @@ multi-line-wrapped paragraphs get exactly one marker on their true first line
 (never repeated on wrapped continuation rows); a callout with mixed checkbox
 siblings, wikilinks, and a table all render correctly together with no clipping,
 overlap, or stacking conflict; dark theme unaffected. A genuine pass by the
-user's own hand against their personal vault is still the stronger bar the
+author's own hand against their personal vault is still the stronger bar the
 postmortem asks for and hasn't happened yet for this specific branch.
 
 **Code cost**: ~180 lines added to `decorations.ts` (icon builder switch + 8 SVG
@@ -311,7 +311,7 @@ under `'all'`/`'headings-and-paragraphs'` visibility it becomes marker-eligible
 and picks up both a stray marker icon *and* depth-based padding/margin exactly
 like a real top-level line, visibly corrupting the cell being edited. This is a
 real, live, user-facing bug, not just a test artifact — confirmed independently
-by the user noticing it in their own use before this was reported back.
+by the author noticing it in their own use before this was reported back.
 
 The state-only "is this note in outline mode" gate (`editorInfoField`, already
 used throughout `decorations.ts` as a reliable gate everywhere else) cannot
@@ -359,7 +359,7 @@ multi-line paragraphs and wikilinks immediately after a marked line.
 **Design pivoted once, after a live look at the first version.** The plan's own design
 called for a distinct shape+color per eligible kind (8 marks: dot/ring/square/diamond/
 plus/tick/wedge/cross across Obsidian's 8 accent colors) — built, screenshotted, and
-initially judged reasonable from a distance. On closer real-content review the user's
+initially judged reasonable from a distance. On closer real-content review our own
 verdict was that the variety read as **cryptic, not helpful**: eight different shapes and
 colors ask a reader to memorize a legend before the marks mean anything, which is the
 opposite of legible. Replaced with a single, uniform, solid dot — same color as the guide
@@ -431,7 +431,7 @@ lesson that visual claims need an actual look, not box-model reasoning alone):
    discrepancy was too small to notice) but glaring on a widget atom whose box spans its
    *entire* rendered height (a multi-line callout, not just its title line).
 4. **Heading markers sat noticeably above the native fold chevron on H1–H5, and merely
-   collided with it on H6 — reported directly by the user after a real-vault look, not
+   collided with it on H6 — reported directly from a real-vault look, not
    caught by any fixture or assertion.** The fix for bug 3 above replaced `%`-based
    vertical centering with a FIXED length from the box's own top, chosen to solve the
    widget-atom case — but a fixed length doesn't scale with a *heading's own* line-height,
@@ -447,16 +447,16 @@ lesson that visual claims need an actual look, not box-model reasoning alone):
    any level — but this fix didn't survive the NEXT round of real-vault review (bug 5).
 5. **The whole "one CSS formula per box-type" approach was still wrong — a full-suite
    real-vault review found FIVE distinct placement failures at once, all reported directly
-   by the user, none caught by any fixture/assertion.** Headings still sat above their own
+   by manual review, none caught by any fixture/assertion.** Headings still sat above their own
    text (the bug-4 fixed-top anchor didn't move with a font-size-driven line-height
-   *increase* the same way the chevron's OWN top didn't, but the user's own read of "middle
+   *increase* the same way the chevron's OWN top didn't, but our own read of "middle
    of the heading text" wanted the TEXT's center, and a bare fixed length can't track a
    font-size it has no knowledge of at layout time); single-line paragraphs sat at their own
    top edge (the still-present double-`HALF`-subtraction bug from bug 3, never actually
    fixed for the plain-line case, only worked around for widget atoms); wrapped multi-row
    paragraphs/blockquotes centered on their ENTIRE wrapped height instead of just the first
    visual row; callouts and code blocks sat at the literal top of the whole block instead of
-   near their own first content row. Root cause, named directly by the user: **no CSS-only
+   near their own first content row. Root cause, named directly in review: **no CSS-only
    formula (percentage, fixed length, or any mix) can know where "the first rendered visual
    row of this specific box's content" actually is** — that's fundamentally a *rendering*
    fact, not a static layout constant, and every earlier fix in this area was really just a
@@ -522,7 +522,7 @@ promote markers off `::after` onto a real DOM node as 5a already does) once both
 are compared side by side.
 
 **Follow-up refinement: guide columns now align with a marker's own CENTER, not the raw
-depth boundary**, requested by the user to read more like native nested lists (a connecting
+depth boundary**, requested in review to read more like native nested lists (a connecting
 line running straight through each bullet, not stopping short of it). Previously a guide at
 ancestor depth `d` was drawn at column `d * unit` exactly — the same column the NEXT depth
 level's indentation starts at, which is also where a marker's own reach calculation
@@ -548,13 +548,13 @@ independently need `--to-own-shift` too — previously true only for a small min
 gap lines with genuinely shallow guides, but the mechanism generalizes without needing a
 gap-specific carve-out.
 
-**Real bug shipped in the above fix, caught by the user from a real-vault screenshot
+**Real bug shipped in the above fix, caught by manual review from a real-vault screenshot
 (not by the dedicated alignment test) — mid-chain markers drifted visibly left of their
 own guide column.** The screenshot showed a real note (`Wednesday — review day` → `Aurora
 review` → paragraphs): the FIRST guide (from the top-level heading) correctly passed
 through the second level's marker, but every level from there down drifted — "the bullets
 (from the second level on) are shifted to the left, while the guides are evenly spaced,"
-in the user's own words, correctly diagnosing that the guides themselves were fine and the
+in the reviewer's own words, correctly diagnosing that the guides themselves were fine and the
 markers were the ones off. Root cause: the fix above computes ONE combined `extra` per
 line — `max` of the line's own marker shortfall and its shallowest active guide's shortfall
 — and that combined value is what the box is ACTUALLY widened by (`--to-own-shift`). The
@@ -582,7 +582,7 @@ stand-in, and a screenshot a human actually looked at caught what a passing asse
 suite didn't.
 
 **Follow-up: the native fold chevron overlapped our marker on headings, fixed with a
-second, real multi-part bug of its own.** Reported directly by the user: Obsidian's own
+second, real multi-part bug of its own.** Reported directly in review: Obsidian's own
 fold/collapse indicator (`.collapse-indicator.collapse-icon` — the actual glyph; its
 wrapper, `.cm-fold-indicator`, measured 0 width live and isn't itself a useful reference)
 sits in the exact same pixels our marker does, on every heading (confirmed live: the
@@ -597,7 +597,7 @@ representative reference" pattern `nativeMarginBasePx` already established, not 
 Fixed by folding this reach into the SAME `markerShortfall`/`--to-own-shift` mechanism
 markers already use (not a parallel, independently-applied offset — an earlier draft of
 this exact fix tried that shape and it silently double-subtracted). Two real bugs shipped
-in getting there, both caught by the user pushing on the result rather than by any
+in getting there, both caught by review pushing on the result rather than by any
 assertion in this experiment's own suite at the time:
 
 1. **Shifting a heading's own marker left of the chevron broke every DESCENDANT's guide
@@ -682,8 +682,8 @@ actually diverged on two independent axes:
 Keeping the axes separate matters for interpreting the outcome: 5b's design pivot was a
 verdict on *abstract CSS-gradient shapes* (lopsided pinwheels, a "⊥" for a plus-sign —
 gradient recipes are hard to draw well and harder to distinguish at 60% opacity), not on
-per-kind markers as such. 5a's real SVG icons are expressive and read clearly — the user's
-own assessment after living with both. So the design question resolved *differently per
+per-kind markers as such. 5a's real SVG icons are expressive and read clearly — our own
+assessment after living with both. So the design question resolved *differently per
 mechanism*, and the decisive comparison is chiefly about the mechanism.
 
 ### Comparison table
@@ -814,7 +814,7 @@ polish for when 5a graduates from experiment to the real implementation.
 
 ## Open question: shrinking only our own added list margin
 
-Raised by the user, not yet decided. The deferred list-hang issue (see [Experiment 1's results](08-experiment-1-additive-indentation.md)) is native
+Raised during Experiment 1's review, not yet decided. The deferred list-hang issue (see [Experiment 1's results](08-experiment-1-additive-indentation.md)) is native
 Obsidian chrome and explicitly out of scope for direct edits in this experiment. But a
 narrower variant stays inside the additive-only discipline: **reduce only the margin *we*
 add** to list items — not native `text-indent`/`padding-left` — by the list's own native

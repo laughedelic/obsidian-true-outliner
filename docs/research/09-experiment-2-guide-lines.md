@@ -52,7 +52,7 @@ the ancestor's own already-rendered position rather than recomputing depth × un
 obsidian-outliner's technique, applied to this project's universal (not list-only) tree.
 
 **Real-vault finding, fixed on this branch (not a separate follow-up)**: a *list-item*
-ancestor gets no guide of its own, deliberately. The user's own real-vault comparison
+ancestor gets no guide of its own, deliberately. Our own real-vault comparison
 (built-in indent guides only / both / ours only, screenshotted side by side) showed two
 problems, both traced to the same cause: (a) with Obsidian's native "Show indent guides"
 setting on, list nesting got visibly doubled lines; (b) even alone, our guides within a
@@ -145,7 +145,7 @@ review" below) — confirmed live by a human using the actual table scrollbar in
 vault, no defects found.
 
 **A first pass concluded margin-shifted lines (atoms/list items) could never render a guide at
-all — this was wrong, caught by the user pushing back rather than accepting the claim, and
+all — this was wrong, caught by review pushback rather than acceptance of the claim, and
 corrected by actually testing it instead of reasoning from the box model alone.** Recorded here
 in full because the correction process is as load-bearing as the result — this is exactly the
 kind of unverified claim the original postmortem's whole point was to stop shipping:
@@ -155,7 +155,7 @@ kind of unverified claim the original postmortem's whole point was to stop shipp
    move-the-box bug) shifts that box rightward, no `background-position` could reach a
    shallower ancestor's column — concluded "confirmed structural limitation" and shipped with
    e2e tests asserting the *absence* of a guide on those lines.
-2. **The user's challenge**: after seeing the shipped result (guides missing on list/atom
+2. **The reviewer's challenge**: after seeing the shipped result (guides missing on list/atom
    lines and gapping through real content), asked directly whether this was really a
    limitation of the technique or an implementation gap — refusing to accept the prior
    "confirmed" framing at face value.
@@ -212,7 +212,7 @@ specifically to get multi-line coverage right.
 `background` on `.cm-line.to-decor-guides` resolve exactly as set with no `!important` needed —
 confirmed via `getComputedStyle`, both in e2e and by eye in the real vault. The *additional*
 `contain: paint` fight on widget atoms (point 4 above) is a genuinely different mechanism this
-initial verification pass didn't anticipate, caught only by the user's follow-up push and a
+initial verification pass didn't anticipate, caught only by a follow-up review push and a
 live bisection test, not by the original "confirm rather than assume" pass — a reminder that
 "confirm" needs to mean actually trying the failing case, not just reasoning about why it
 should fail.
@@ -246,7 +246,7 @@ going forward — though the two are close enough that either would be a reasona
 2a's overlay approach remains proven and viable too.
 
 **Second round of real-vault review found four more real issues.** Every one was caught only
-because the user pushed on a specific rendering detail rather than accepting a screenshot
+because manual review pushed on a specific rendering detail rather than accepting a screenshot
 glance or a DOM-level "looks correct" check — directly reinforcing the original postmortem's
 central lesson a second time, on a technique that had already been through one round of
 "confirm rather than assume" and still had these left:
@@ -257,7 +257,7 @@ central lesson a second time, on a technique that had already been through one r
    native `::before` (`border-left`, confirmed via computed style with outline mode off). The
    guide rule also used `::before` on the same element — not a doubling, a full replacement (an
    element has exactly one `::before`), so activating a guide on a blockquote line silently
-   deleted its native bar entirely; what the user saw was almost certainly the guide itself
+   deleted its native bar entirely; what was seen was almost certainly the guide itself
    rendered where the (now-vanished) native bar used to be, not the native bar surviving.
    Confirmed `::after` is unused (`content: none`) by every kind this touches, including all
    four widget kinds, before switching the guide mechanism to it — now both the native bar and
@@ -292,7 +292,7 @@ central lesson a second time, on a technique that had already been through one r
    trailing gap (before the next sibling, at that leaf's own level) got a fact carrying the same
    `guideDepths` as its own content. That alone was shipped with the "before first child" case
    *deliberately* left uncovered, reasoning it matched Experiment 2a's own span (which also
-   starts at the first child's own line) — but the user's continued real-vault review found this
+   starts at the first child's own line) — but continued real-vault review found this
    read as a real, visible break too, not acceptable parity, so it was covered in a second pass:
    a node WITH children's own trailing gap now uses `childGuideDepths` (the same depths its first
    child gets), since that gap is already "inside" the node's own subtree. This made
@@ -336,7 +336,7 @@ central lesson a second time, on a technique that had already been through one r
      simultaneously (outer visible so the guide isn't clipped by *it*; wrapper auto so the real
      content still scrolls, contained). The probe had "worked" only because it was layered on
      top of a styles.css that *still* had the outer override from an earlier step — dropped when
-     consolidating. Caught only because the user tried the rebuilt plugin in their own real
+     consolidating. Caught only because a human tried the rebuilt plugin in a real
      Obsidian instance and reported the guide had disappeared, then asked for it to be
      double-checked rather than accepting a re-assurance — the exact same discipline that caught
      every other finding in this document, now catching a regression in the fix-verification
@@ -344,7 +344,7 @@ central lesson a second time, on a technique that had already been through one r
    - **Status: CONFIRMED.** Both rules are present and correct in `styles.css`, confirmed via
      computed style that both conditions hold simultaneously (outer `overflow-x: visible` and no
      longer overflowing itself; wrapper `overflow-x: auto` and still overflowing, i.e.
-     scrollable; guide's `::after` background resolved and non-none) — AND confirmed by the user
+     scrollable; guide's `::after` background resolved and non-none) — AND confirmed by a human
      actually using the table's scrollbar (trackpad/click-drag) with the rebuilt plugin in their
      own real Obsidian instance: "it actually works... I don't see any notable defects or UX
      issues." This closes the last remaining gap in the whole guide feature: every kind, every

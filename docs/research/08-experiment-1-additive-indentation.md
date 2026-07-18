@@ -9,7 +9,7 @@ indentation. Cross-experiment lessons live in [11-decoration-lessons.md](11-deco
 
 ## Design (from the plan)
 
-**Hypothesis**: your proposed compromise — drop the marker for non-list kinds entirely,
+**Hypothesis**: our proposed compromise — drop the marker for non-list kinds entirely,
 keep list items' native marker completely untouched, and get indentation right by *adding*
 to what's there rather than *replacing* it.
 
@@ -47,11 +47,11 @@ that already burned an attempt this cycle.
 
 **Verdict: keep.** All 8 corpus fixtures pass, both themes, screenshotted and visually
 reviewed (not just DOM-asserted) — see
-[e2e/specs/50-decorations.e2e.ts](../../e2e/specs/50-decorations.e2e.ts). The user toured
-every note in the real `test-vault` by hand — the actual dev-vault pass the postmortem
+[e2e/specs/50-decorations.e2e.ts](../../e2e/specs/50-decorations.e2e.ts). We toured every
+note in the real `test-vault` by hand — the actual dev-vault pass the postmortem
 insisted on, not a formality — and found three real bugs the synthetic corpus missed
 entirely (below). All three are fixed, with permanent fixtures/assertions added so they
-can't silently regress. User's assessment after the fixes: "much more promising" than the
+can't silently regress. The review verdict after the fixes: "much more promising" than the
 prior attempt — indentation alone gives real hierarchy legibility switching modes on and
 off, more than initially expected going in.
 
@@ -69,7 +69,7 @@ organic content, never by the synthetic corpus or DOM assertions):
    ancestor-chain specificity, not by escalating `!important` further (there's nowhere
    further to escalate — the tie-break past equal `!important` is specificity, then source
    order).
-2. **Tables and callouts not indenting at all, caught by the user in the real vault.**
+2. **Tables and callouts not indenting at all, caught by manual review in the real vault.**
    Obsidian renders tables, callouts, raw HTML blocks, and (surprisingly) horizontal rules
    as opaque replacement widgets in Live Preview (`.cm-embed-block`, or `.hr` for the rule,
    which oddly still carries a `cm-line` class despite being widget-rendered). A
@@ -84,7 +84,7 @@ organic content, never by the synthetic corpus or DOM assertions):
    regardless of specificity — a clean escape hatch for exactly this class of native-widget
    cascade fight. It reads the same `--to-decor-unit` CSS variable the class-based rules
    use, so the unit constant stays single-sourced.
-3. **Table still visibly offset from code/callout after fix #2, caught by the user.** Once
+3. **Table still visibly offset from code/callout after fix #2, caught by manual review.** Once
    tables got a margin at all, they still sat slightly further right than a same-depth code
    block or callout. Root cause: `.cm-embed-block.cm-table-widget` carries its own native
    left padding (for the row/column drag-handle icons) that callout's wrapper doesn't have.
@@ -112,6 +112,6 @@ narrower variant that stays additive-only.
 
 Also confirmed **not** a bug: the flat fixture (3 top-level paragraphs, all depth 0) shows
 no visual change from outline-mode-off. This was flagged going in as Experiment 3's
-trigger condition, but the user confirmed on real content that this reads correctly the
+trigger condition, but real-content review confirmed that this reads correctly the
 moment a heading sits above the paragraphs — depth-0-with-no-ancestor genuinely has nothing
 to convey, which is correct, not a legibility gap.
