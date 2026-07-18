@@ -74,7 +74,7 @@ stated pain with obsidian-outliner.
 - Any node can become the temporary root of the view ("zoom in" / "hoist" / Logseq "focus").
 - Breadcrumbs show the ancestor path; clicking a crumb zooms to it.
 - Zoom is a *view* state, not a document mutation. (Workflowy takes this to the extreme: the
-  entire product is one infinite outline you're always zoomed into some part of.)
+  entire product is one infinite outline, always zoomed into some part of it.)
 
 ### 7. Drag and drop
 

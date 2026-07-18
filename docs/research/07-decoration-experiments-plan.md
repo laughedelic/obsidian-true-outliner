@@ -103,10 +103,10 @@ without reintroducing any font-size-dependent sizing.
 **If this also isn't good enough**: fall back to the overlay-measured marker (same
 mechanism as 2a, sized as a fixed absolute value, never inheriting font-size by
 construction) — this is the "real" fix for the original marker-size bug, just held in
-reserve since it's more implementation work than the compromise you proposed.
+reserve since it's more implementation work than the compromise Experiment 1 proposes.
 
 **Outcome.** Not triggered in practice. Its trigger condition (flat fixture unreadable) technically
-fires, but the user's real-content read is that it's not actually a legibility gap (see
+fires, but our real-content read is that it's not actually a legibility gap (see
 Experiment 1's "also confirmed not a bug" note in
 [08-experiment-1-additive-indentation.md](08-experiment-1-additive-indentation.md)). Markers are judged less important than
 initially scoped now that indentation alone reads as hierarchy.
@@ -146,7 +146,7 @@ real vault notes once its three bugs were fixed
 
 ## Architecture question: per-block editor tree — resolved, not prototyped
 
-Researched via your `continuous-journal` plugin as the concrete test case (see chat).
+Researched via the author's `continuous-journal` plugin as the concrete test case.
 Verdict: not a lighter alternative to the already-rejected custom-view path — it requires a
 comparable-or-larger private-API footprint (leaf-grafting, `setActiveLeaf` monkey-patching)
 plus a genuinely unsolved new problem (N editors bound to overlapping ranges of one shared

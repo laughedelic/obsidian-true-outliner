@@ -35,7 +35,7 @@ finding came from.
   dimensions — `left`/`right` can widen it arbitrarily, including leftward past where a
   `margin`-shifted line's own box starts.** A first pass on 2b wrongly concluded the opposite
   ("a per-line background can only ever paint within that line's own box, full stop") and
-  shipped it as a "confirmed structural limitation" — this was corrected only after the user
+  shipped it as a "confirmed structural limitation" — this was corrected only after review
   explicitly refused to accept that framing and asked for verification, not because the
   original box-model reasoning was re-examined unprompted. The actual fix: widen the pseudo by
   exactly the line's own known `margin-left` value (`--to-own-shift`), which brings its box's
@@ -85,7 +85,7 @@ finding came from.
   analogy with *length*-based positioning (where a literal offset does need that
   correction, since a length value places the image's top-left corner directly, with no
   automatic size-aware adjustment) — the two positioning modes have different semantics and
-  don't compose the way intuition suggests. Caught only because the user reported a marker
+  don't compose the way intuition suggests. Caught only because manual review reported a marker
   sitting suspiciously close to a line's top edge on real content; a synthetic single-line
   fixture at the exact right size could easily have looked "close enough" to pass a casual
   screenshot glance.
