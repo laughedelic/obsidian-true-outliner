@@ -294,7 +294,7 @@ Quick-scan status; full detail in the subsections below.
 | 2b | Guides — CSS stacked-gradient | Done, full corpus coverage confirmed (blockquote, community themes, gap continuity, and table all fixed + confirmed live) | **Keep** — full parity with 2a's coverage; simpler and smaller code, zero pixel measurement |
 | 3 | Minimal marker fallback (conditional) | Not triggered | Deprioritized — see below |
 | 4 | Widget-spacer spike (optional) | Not triggered | No fragility observed that would call for it |
-| 5a | Block markers — real icons, new widget mechanism | Done, full corpus + real-vault coverage confirmed | **Keep** (pending 5b head-to-head) |
+| 5a | Block markers — real icons, new widget mechanism | Done; four follow-up rounds: fold-chevron collision fixed, placement settled on centered, leaf-visibility setting added, nested-editor decoration leak found and fixed | **Keep** (pending 5b head-to-head) |
 | 5b | Block markers — CSS shapes, reused guide layer | Not started | — |
 
 ### Experiment 1 — additive indentation, no marker
@@ -807,6 +807,129 @@ helpers), ~35 lines in `styles.css` (gutter reservation + `position: relative` +
 extended `contain`/`overflow` override gate), ~10 lines in `decorate.ts` (the
 shared `kind` field prerequisite).
 
+**Follow-up round 1: fold-indicator/marker crowding, found in review.** A
+heading's native collapse chevron (`.cm-fold-indicator .collapse-indicator`) is
+inserted at essentially the same "line start" anchor the marker's own target
+column is defined relative to — its default position overlapped the marker at
+every heading level, and (unlike a list item, where the native chevron already
+sits well left of the bullet) a heading's chevron rendered to the marker's
+*right* instead, an inconsistent layout. Fixed by repositioning the chevron via
+`transform: translateX(...)` to sit left of both the marker and (when present) a
+shallower ancestor's own guide column. Two rounds of live correction went into
+the fix: measuring against the WRAPPER (`.collapse-indicator`, 22px wide)
+instead of the actual painted `<svg>` glyph (~10px, centered inside with ~6px of
+invisible hit-area padding per side) made a fit look impossible at deeper
+nesting, where an ancestor's own guide is also active on the same row — it
+wasn't; the wrapper can't avoid both neighbors in the available space, but the
+glyph comfortably can. Also needed testing against a genuinely nested fixture
+(3 heading levels deep), not a flat 2-level one — the collision this guards
+against only appears when a shallower ancestor's guide line is also active on
+the same row. See `e2e/specs/52-block-markers-icons.e2e.ts`'s "native fold
+chevron glyph sits between the marker and an ancestor's guide line, clear of
+both."
+
+**Follow-up round 2: marker placement — three variants explored, settled on
+centered.** Post-review, tried three candidates for WHERE the icon sits
+relative to the shared guide-line column, each wired as a real (temporary,
+debug-only) plugin setting so they could be compared live against a real vault
+without a rebuild per attempt: (A) icon's own left edge at the column; (B) icon
+horizontally centered on the column; (C) no marker gutter reserved at all —
+text stays at the exact no-marker column, and the icon's own right edge sits in
+whatever whitespace already exists to the left (none at depth 0, by
+construction). B read best in real-vault comparison and was kept permanently;
+the setting itself (and A/C) were removed once the choice was made — unlike the
+visibility setting below, placement was never meant to be a permanent, shipped
+axis of configurability, just a way to compare candidates without a rebuild per
+attempt.
+
+**Follow-up round 3: leaf-node marker visibility — kept as a real, permanent
+setting.** User observation after living with 5a for a while: a marker reads
+well as "a crown on top of the guide line" indicating a BRANCH node's kind, but
+adds comparatively little for a LEAF — most leaf atom kinds (code, table,
+callout, quote, html, hr) already carry their own native visual style (a code
+fence's background, a callout's colored bar, etc.), so a marker there can read
+as pure distraction. Added `markerVisibility` (`'all'` / `'with-children'` /
+`'headings-and-paragraphs'`) as a genuine, persisted, user-facing setting
+(`mode-registry.ts`) — not a temporary debug toggle like the placement
+exploration above, since which nodes get a marker at all turned out to be a
+legitimate, ongoing matter of taste the original plan didn't anticipate needing
+to stay configurable. `'with-children'` hides markers on any leaf, atoms
+included (`hasChildren` is a new, pure `LineDecorationFact` field:
+`node.children.length > 0`). `'headings-and-paragraphs'` instead keys off KIND,
+not per-instance state: the only two kinds that can *ever* have children in
+this tree model — atoms are leaves by construction, and list items are already
+excluded from markers unconditionally — so `!fact.isAtom` exactly captures it.
+
+A real, separate bug was found and fixed while wiring this setting's live-
+refresh path: `computeMarkers`/`computeDecorations` both skip widget-replaced
+atoms entirely (`MarginCompensation` owns their marker instead), so for a note
+containing *only* widget atoms (e.g. a lone table), changing `markerVisibility`
+produced byte-identical decoration output before and after — CM6 correctly saw
+no diff and never re-fired `MarginCompensation`'s `docViewUpdate` hook, silently
+failing to update the table's marker until the next full mode toggle. The
+existing mode-toggle refresh (a plain cursor nudge) doesn't reliably reach a
+ViewPlugin with no decorations of its own, for exactly this reason. Fixed by
+having the setting's own setter toggle outline mode off then immediately back
+on (via the registry directly, not the user-facing command) — guaranteeing two
+genuinely different decoration outputs (none vs. the real thing) that CM6
+always detects, reliably re-triggering `docViewUpdate` twice. This also
+retroactively fixed the identical latent gap in the earlier placement setting
+(round 2), which no test happened to exercise against a table-only note.
+
+**Follow-up round 4: a genuine architectural bug, found via a flaky test —
+decorations leaking into Obsidian's own nested per-cell editors.** While
+verifying the visibility setting's e2e coverage, one specific test (visibility
+`'headings-and-paragraphs'` against a table) failed intermittently — first
+misdiagnosed as an async timing race in the table widget's own DOM settling (a
+`browser.pause()` was gambling against however long that took) and "fixed"
+with a poll-based wait instead of a fixed sleep, which is a legitimate,
+permanent improvement in its own right (`waitForContentChildCount` in
+`e2e/helpers.ts`, mirroring the existing `waitForNotice` pattern) but did *not*
+fix the underlying test — it kept failing deterministically once actual
+machine load (which had been intermittently masking/unmasking it across runs)
+settled down enough to reproduce reliably.
+
+Root-caused by tracing the stray marker element's full DOM ancestry: Obsidian
+renders an actively-edited table cell (cursor inside it) as its own separate,
+independent CM6 `EditorView`, mounted inside the outer table widget's own DOM
+(`.cm-embed-block.cm-table-widget` → `.table-wrapper` → `<table>` → `<tr>` →
+`<th>`/`<td>` → `.table-cell-wrapper` → a whole nested `.cm-editor`). This
+plugin's `registerEditorExtension` (`main.ts`) applies its decorations to
+*every* CM6 instance Obsidian creates app-wide — this nested one included — and
+that nested editor's own "document" is just the cell's raw text (e.g. a single
+word), which `decorate()`/`parse()` classifies as a plain paragraph (the
+default block kind for a bare line with no special syntax) — not an atom, so
+under `'all'`/`'headings-and-paragraphs'` visibility it becomes marker-eligible
+and picks up both a stray marker icon *and* depth-based padding/margin exactly
+like a real top-level line, visibly corrupting the cell being edited. This is a
+real, live, user-facing bug, not just a test artifact — confirmed independently
+by the user noticing it in their own use before this was reported back.
+
+The state-only "is this note in outline mode" gate (`editorInfoField`, already
+used throughout `decorations.ts` as a reliable gate everywhere else) cannot
+distinguish the nested editor from the real top-level one — confirmed live via
+`EditorView.findFromDOM()` on the nested instance that its own `editorInfoField`
+resolves to the exact *same* outer `MarkdownView` object as the real note. Only
+DOM ancestry can tell them apart: a real top-level note's own `.cm-editor` is
+never itself nested inside a `.cm-embed-block` (those are its own descendants,
+never its ancestors). Since `StateField.create`/`update` have no view/DOM
+access at all, fixing this required moving both decoration `StateField`s
+(`computeDecorations`/`computeMarkers`) to `ViewPlugin`s (which do have
+`view.dom`), gating each — and `MarginCompensation`, already a ViewPlugin — on
+a shared `isNestedEditor(view)` check (`view.dom.closest('.cm-embed-block') !==
+null`). Confirmed fixed via the same DOM-ancestry trace, and via two
+consecutive clean e2e runs of the affected test (previously flaky, now
+deterministic) plus the full 8-spec-file suite (58 tests) twice with no
+regressions.
+
+**Code cost of rounds 2-4 combined**: ~20 lines in `decorate.ts`
+(`hasChildren`), ~15 lines in `mode-registry.ts` (`MarkerVisibility` type +
+setting), ~15 lines in `main.ts` (setter + the off/on `forceRedraw` toggle +
+settings dropdown), net ~+85 lines in `decorations.ts` after removing the
+placement-variant machinery (round 2) and adding the nested-editor guard (round
+4: two new small `ViewPlugin` wrapper classes replacing two `StateField`s, plus
+`isNestedEditor`/`shouldShowMarker`).
+
 ### Open question: shrinking only our own added list margin
 
 Raised by the user, not yet decided. The deferred list-hang issue (above) is native
@@ -973,6 +1096,35 @@ technical findings" section was meant to be used — read this before starting 2
   final rule — silently losing a piece that was necessary but easy to assume the new rule
   subsumed. Caught only because a human tried the rebuilt output and reported a regression,
   not because the "surely this is equivalent" reasoning was double-checked before shipping it.
+- **A CM6 extension registered via `registerEditorExtension` applies to EVERY `EditorView`
+  instance Obsidian creates app-wide, including nested/embedded ones a naive mental model
+  wouldn't expect.** Obsidian renders an actively-edited table cell in Live Preview as its own
+  separate, independent CM6 instance mounted inside the outer table widget's DOM — not a
+  detail this project's own decoration code accounted for. A mechanism built assuming "I only
+  run on the real top-level note" silently also runs there, and a bare line of cell text gets
+  classified exactly like real top-level content (here: a plain paragraph, since that's the
+  default block kind for a line with no special syntax), picking up markers/indentation meant
+  only for the actual document and visibly corrupting the cell being edited. `editorInfoField`
+  (Obsidian's own "which file is this editor for" field, a reliable outline-mode gate
+  everywhere else in this project) resolves to the exact SAME object for both — confirmed live
+  via `EditorView.findFromDOM()` on the nested instance — so state alone can never distinguish
+  a nested editor from the real one; only DOM ancestry can (`view.dom.closest('.cm-embed-
+  block')`), which requires `view` access a plain `StateField` doesn't have (fixed here by
+  moving to `ViewPlugin`s). Any future CM6 extension in this project that implicitly assumes
+  "I only run on the real note" should check this explicitly, not assume it — table cells are
+  the one confirmed case so far, but any other Obsidian construct that edits a fragment of a
+  document as its own nested editor would have the identical exposure.
+- **A test that stays flaky after a plausible-looking fix may be revealing a real bug, not a
+  residual timing issue — a fix that reduces flakiness without eliminating it hasn't
+  necessarily fixed the actual cause.** A specific e2e test's intermittent failure was first
+  attributed to an async DOM-settling race and "fixed" with a poll instead of a fixed sleep (a
+  legitimate improvement in its own right, kept permanently) — but it kept failing
+  deterministically once machine load stopped intermittently masking/unmasking the real cause.
+  The poll-based fix was necessary but not sufficient; the actual bug (the nested-editor
+  decoration leak, immediately above) was found only by tracing the failing assertion's own DOM
+  ancestry down to its root, in an environment quiet enough to reproduce it every time rather
+  than intermittently. Don't declare a flaky test "fixed" on the strength of a plausible
+  mechanism alone — confirm the fix actually eliminates the failure, not just reduces its rate.
 
 ## Setup (done, 2026-07-13)
 
