@@ -56,7 +56,7 @@
  * own doc comment below for the fix.
  */
 
-import { RangeSetBuilder, StateField, type Extension, type EditorState } from '@codemirror/state';
+import { RangeSetBuilder, type Extension, type EditorState } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -592,6 +592,70 @@ function clearWidgetMarker(el: HTMLElement): void {
   delete el.dataset.markerDepth;
 }
 
+/**
+ * True when `view` is NOT the real, top-level note editor but a separate,
+ * nested CM6 instance Obsidian mounts inside another widget's own DOM — the
+ * only case found so far: a table cell currently being edited in Live
+ * Preview renders as its own tiny, independent `EditorView` embedded inside
+ * `.cm-embed-block.cm-table-widget` (confirmed live by walking the DOM
+ * ancestry of a stray marker up to the table widget). `registerEditorExtension`
+ * (main.ts) applies this whole extension to EVERY CM6 instance app-wide,
+ * this nested one included, and its own "document" is just the cell's raw
+ * text — a bare line with no special syntax reads as a plain paragraph to
+ * decorate()/parse(), so without this guard it picks up a marker AND
+ * depth-based padding/margin exactly like a real top-level paragraph,
+ * visibly corrupting the cell being edited. A real top-level note's own
+ * `.cm-editor` is never itself nested inside a `.cm-embed-block` (those are
+ * its own descendants, not its ancestors), so this only ever fires for a
+ * genuinely embedded editor — confirmed also via `editorInfoField`, which
+ * resolves to the SAME outer `MarkdownView` for both, so state alone can't
+ * tell them apart; only the DOM ancestry can, which is why this check lives
+ * here (view-level) rather than in the state-only decoration builders.
+ */
+function isNestedEditor(view: EditorView): boolean {
+  return view.dom.closest('.cm-embed-block') !== null;
+}
+
+class DecorationsPlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly modes: DecorationSource,
+  ) {
+    this.decorations = this.compute();
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  private compute(): DecorationSet {
+    if (isNestedEditor(this.view)) return Decoration.none;
+    return computeDecorations(this.view.state, this.modes);
+  }
+}
+
+class MarkersPlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly modes: DecorationSource,
+  ) {
+    this.decorations = this.compute();
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  private compute(): DecorationSet {
+    if (isNestedEditor(this.view)) return Decoration.none;
+    return computeMarkers(this.view.state, this.modes);
+  }
+}
+
 class MarginCompensation implements PluginValue {
   constructor(
     private readonly view: EditorView,
@@ -637,7 +701,10 @@ class MarginCompensation implements PluginValue {
 
   private apply(): void {
     const path = this.view.state.field(editorInfoField, false)?.file?.path;
-    if (!path || !this.modes.isOutline(path)) {
+    // See isNestedEditor's own doc comment — a nested per-cell editor
+    // shares this.modes.isOutline's own path with the real top-level note,
+    // so that check alone can't exclude it; only the DOM-level one can.
+    if (!path || !this.modes.isOutline(path) || isNestedEditor(this.view)) {
       this.clearAll();
       return;
     }
@@ -804,23 +871,23 @@ class MarginCompensation implements PluginValue {
 
 export function decorationsExtension(modes: DecorationSource): Extension {
   return [
-    StateField.define<DecorationSet>({
-      create: (state) => computeDecorations(state, modes),
-      // Recomputes on every transaction, not just docChanged ones:
-      // toggling outline mode has no doc change of its own, only a nudged
-      // selection transaction (see main.ts) to make this field re-run.
-      update: (_value, tr) => computeDecorations(tr.state, modes),
-      provide: (field) => EditorView.decorations.from(field),
+    // ViewPlugins (not plain StateFields) specifically so each has `view`
+    // access to run isNestedEditor's DOM-ancestry check — state alone can't
+    // tell a nested per-cell editor apart from the real top-level note (see
+    // isNestedEditor's own doc comment). Recomputes on every update, not
+    // just docChanged ones: toggling outline mode has no doc change of its
+    // own, only a nudged selection transaction (see main.ts) to make these
+    // re-run.
+    ViewPlugin.define((view) => new DecorationsPlugin(view, modes), {
+      decorations: (v) => v.decorations,
     }),
-    // A SEPARATE StateField for block-marker widgets (Experiment 5a), not
+    // A SEPARATE plugin for block-marker widgets (Experiment 5a), not
     // merged into the same RangeSetBuilder as the line decorations above —
-    // CM6 merges decorations from multiple StateFields correctly on its
-    // own, sidestepping any need to reason about Decoration.line/
-    // Decoration.widget ordering at the same document position.
-    StateField.define<DecorationSet>({
-      create: (state) => computeMarkers(state, modes),
-      update: (_value, tr) => computeMarkers(tr.state, modes),
-      provide: (field) => EditorView.decorations.from(field),
+    // CM6 merges decorations from multiple sources correctly on its own,
+    // sidestepping any need to reason about Decoration.line/Decoration.
+    // widget ordering at the same document position.
+    ViewPlugin.define((view) => new MarkersPlugin(view, modes), {
+      decorations: (v) => v.decorations,
     }),
     ViewPlugin.define<MarginCompensation>((view) => new MarginCompensation(view, modes)),
   ];
