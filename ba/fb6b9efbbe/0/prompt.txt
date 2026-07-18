@@ -1,0 +1,36 @@
+Assuming that we keep the version 2b, what is the next experiment we should run according to the plan?  (new branch, please)
+I wonder, what if we could add block markers since we were able to, uh, draw consistent guidelines? Maybe we can also add the markers. It would be nice to have separate marker symbols for headings, paragraphs, call out tables, and so on so that they're... they don't have to be the same as the lists, but they could, umstill add some visual queue for the user.
+
+---
+
+let's make a new branch (off of 2b) with number 5, commit the plan changes there, then I'll use it as a base for each of the 5a/5b parallel experiments.
+
+one more question, before I launch them on separate worktrees: will there be any issue with running e2e tests with wdio-obsidian-service in parallel from two worktrees? is there any sort of isolation between them?
+
+---
+
+both experiments 5a and 5b have concluded and on their own branches (in worktrees) with the learnings recorded in the 07 document (separately).
+
+review the implementations and let's have a comprehensive comparison and additionally a "dumbed-down" summary version (non-expert) with tradeoffs across different factors like complexity, maintainability, and any other relevant axes.
+
+from the user perspective: 
+
+* 5a looks nicer and seems to have more potential
+* 5b is simpler and closer to the traditional outliner ("everything is a nested list") approach
+
+---
+
+both experiments 5a and 5b have concluded and on their own branches (in worktrees) with the learnings recorded in the 07 document (separately).
+
+review the implementations and let's have a comprehensive comparison and additionally a "dumbed-down" summary version (non-expert) with tradeoffs across different factors like complexity, maintainability, and any other relevant axes.
+
+from the user perspective: 
+
+* 5a looks nicer and seems to have more potential
+* 5b is simpler and closer to the traditional outliner ("everything is a nested list") approach
+
+---
+
+I think the choice here is more about the approach than design. 5b was simplified because the abstract CSS-only icons were not expressive enough. but in 5a case, icons look good and not confusing. so the main thing I wanted to understand in this comparison is which approach to the implementation is more robust, least hacky, and more maintainable.
+
+it sounds like 5a is the way to go then. I assume that the optimization you mentioned can minimize its overhead. other than that, are there any other concerns about 5a approach?
