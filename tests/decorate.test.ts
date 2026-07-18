@@ -121,6 +121,55 @@ describe('decorate: first line / native marker flags', () => {
   });
 });
 
+describe('decorate: node kind (Experiment 5, block markers)', () => {
+  it('carries the node kind at every line, including list-item continuations', () => {
+    const md = [
+      '# Heading',
+      '',
+      'Para.',
+      '',
+      '- item',
+      '  continuation',
+      '',
+      '```',
+      'code',
+      '```',
+      '',
+      '> quoted',
+      '',
+    ].join('\n');
+    const doc = parse(md);
+    const facts = decorate(doc);
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+
+    expect(byLine.get(0)?.kind).toBe('heading');
+    expect(byLine.get(2)?.kind).toBe('paragraph');
+    expect(byLine.get(4)?.kind).toBe('list-item');
+    expect(byLine.get(5)?.kind).toBe('list-item'); // continuation carries the same kind
+    expect(byLine.get(7)?.kind).toBe('code');
+    expect(byLine.get(8)?.kind).toBe('code');
+    expect(byLine.get(9)?.kind).toBe('code');
+    expect(byLine.get(11)?.kind).toBe('quote');
+  });
+
+  it('carries whether the node has children, constant across its own lines', () => {
+    // Separate, minimal fixtures per case — a paragraph/list-item followed
+    // by more content nests that content as a CHILD (same adjacency rule
+    // MIXED_MD's own "Parent para." + list item relies on), so isolating
+    // each case avoids accidentally testing the wrong node's children.
+    const headingWithChild = decorate(parse('# H\n\npara\n'));
+    expect(headingWithChild.find((f) => f.lineNumber === 0)?.hasChildren).toBe(true);
+    expect(headingWithChild.find((f) => f.lineNumber === 2)?.hasChildren).toBe(false); // leaf para
+
+    const listItems = decorate(parse('- item\n  - nested\n\n- item2\n'));
+    expect(listItems.find((f) => f.lineNumber === 0)?.hasChildren).toBe(true); // has nested
+    expect(listItems.find((f) => f.lineNumber === 3)?.hasChildren).toBe(false); // no children
+
+    const code = decorate(parse('```\ncode\n```\n'));
+    expect(code.every((f) => f.hasChildren === false)).toBe(true); // atoms are always leaves
+  });
+});
+
 describe('decorate: supplemental depth (additive list margin)', () => {
   it('flags isListItem for every line of a list item, including continuations', () => {
     const md = 'Para.\n\n- item\n  continuation\n\n## Heading\n';

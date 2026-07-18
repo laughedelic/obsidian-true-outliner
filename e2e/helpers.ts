@@ -404,6 +404,35 @@ export async function waitForNotice(text: string): Promise<void> {
   );
 }
 
+/**
+ * Poll the active editor's content DOM for a selector's match count, rather
+ * than sleeping a fixed duration — a widget-replaced atom (table/callout/
+ * html/hr) can settle its own DOM asynchronously after our decoration patch
+ * runs, so a fixed pause is a race against however long that happens to take
+ * (worse under system load). Waits until `expected` is observed, or throws.
+ */
+export async function waitForContentChildCount(
+  selector: string,
+  expected: number,
+  timeout = 5000,
+): Promise<void> {
+  await browser.waitUntil(
+    async () => {
+      const count = await browser.executeObsidian(
+        ({ app, obsidian }, selector) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+          if (!view) return -1;
+          const cm = (view.editor as any).cm;
+          return cm.contentDOM.querySelectorAll(selector).length as number;
+        },
+        selector,
+      );
+      return count === expected;
+    },
+    { timeout, timeoutMsg: `expected ${expected} "${selector}" element(s) within ${timeout}ms` },
+  );
+}
+
 export async function dismissNotices(): Promise<void> {
   await browser.execute(() => {
     document.querySelectorAll('.notice').forEach((n) => n.remove());
