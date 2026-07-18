@@ -135,50 +135,58 @@ function guideBackground(guideDepths: readonly number[]): string {
 // own first line only (never a list item — the native bullet/number already
 // does that job, same exclusion guides already use).
 //
-// Placement exploration (post-review): three variants of WHERE the icon
-// sits relative to the guide-line column — a real, user-facing setting
-// (`markerVariant` on `DecorationSource`, below), not a module constant to
-// flip and rebuild: a real-vault comparison needs to be triable without a
-// rebuild per attempt. See main.ts's settings tab.
-//   'A' — icon's own LEFT edge at the guide column (icon reads as sitting
-//         just right of/on top of the guide line); a marker gutter is
-//         reserved additively so text still clears the icon.
-//   'B' — icon horizontally CENTERED on the guide column; same gutter
-//         reservation as 'A'.
-//   'C' — text stays at the ORIGINAL (pre-marker) guide column, exactly as
-//         if no marker existed at all — no gutter reserved — and the icon's
-//         own RIGHT edge sits at that column instead, occupying whatever
-//         whitespace already exists to the left (none at depth 0, by
-//         construction, matching the trade-off the option itself implies).
-// `MarkerVariant` itself lives in mode-registry.ts (not here), so that pure,
-// Obsidian-free module can keep defining PluginData without importing this
-// one (which pulls in the real `obsidian` package for `editorInfoField`).
-export type { MarkerVariant } from './mode-registry';
-import type { MarkerVariant } from './mode-registry';
+// Placement exploration (post-review) settled on the icon horizontally
+// CENTERED on the guide-line column, with a marker gutter reserved
+// additively so text still clears the icon (the other two candidates tried —
+// icon's own left edge at the column, and no gutter with the icon's own
+// right edge at the column — read worse in a real vault and were dropped).
+// `MarkerVisibility` itself lives in mode-registry.ts (not here), so that
+// pure, Obsidian-free module can keep defining PluginData without importing
+// this one (which pulls in the real `obsidian` package for
+// `editorInfoField`).
+export type { MarkerVisibility } from './mode-registry';
+import type { MarkerVisibility } from './mode-registry';
 
 /** Anything that can supply decorations needs to say which notes are in
- * outline mode (ModeSource) AND which marker placement variant is active —
- * a real Obsidian setting now, read fresh on every recompute so switching
- * it live (no rebuild) takes effect on the very next transaction, the same
- * way toggling outline mode already does (see main.ts's refreshDecorations). */
+ * outline mode (ModeSource) and which nodes get a marker at all — a real
+ * Obsidian setting, read fresh on every recompute so switching it live (no
+ * rebuild) takes effect on the very next transaction, the same way toggling
+ * outline mode already does (see main.ts's refreshDecorations). */
 export interface DecorationSource extends ModeSource {
-  readonly markerVariant: MarkerVariant;
+  readonly markerVisibility: MarkerVisibility;
 }
 
-// Only 'A'/'B' reserve extra indentation for the icon; 'C' deliberately
-// keeps text/guides byte-identical to the no-marker column and lets the
-// icon sit in already-existing whitespace instead.
-function isGutterReserved(variant: MarkerVariant): boolean {
-  return variant !== 'C';
+/**
+ * Whether a given node's marker should render at all (Experiment 5a
+ * follow-up — see `MarkerVisibility`'s own doc comment in mode-registry.ts
+ * for the reasoning). Deliberately does NOT touch the marker gutter
+ * reservation (padding-left/margin-left) at all — that stays reserved
+ * uniformly regardless of this setting, so hiding some markers never
+ * reflows text/shifts indentation; only whether the icon itself is drawn
+ * in that already-reserved space changes.
+ */
+function shouldShowMarker(fact: LineDecorationFact, visibility: MarkerVisibility): boolean {
+  switch (visibility) {
+    case 'all':
+      return true;
+    case 'with-children':
+      return fact.hasChildren;
+    case 'headings-and-paragraphs':
+      // The only two marker-eligible kinds that can ever have children in
+      // this tree model — atoms are leaves by construction (see hasChildren
+      // itself), so `!fact.isAtom` is exactly "heading or paragraph."
+      return !fact.isAtom;
+  }
 }
+
 const MARKER_GUTTER_REM = 1.25;
 const MARKER_ICON_REM = 0.85;
 // The actual CSS length emitted per line (see lineDecoration()) — a single
 // source of truth the static CSS rules, the live margin overrides, AND the
-// marker's own left-offset calc all agree with.
-function markerGutterCss(variant: MarkerVariant): string {
-  return isGutterReserved(variant) ? `${MARKER_GUTTER_REM}rem` : '0px';
-}
+// marker's own left-offset calc all agree with. Every non-list-item line
+// reserves this gutter unconditionally (see lineDecoration()'s own
+// reasoning for why list items don't).
+const MARKER_GUTTER_CSS = `${MARKER_GUTTER_REM}rem`;
 const MARKER_ICON_CSS = `${MARKER_ICON_REM}rem`;
 
 /**
@@ -189,18 +197,13 @@ const MARKER_ICON_CSS = `${MARKER_ICON_REM}rem`;
  * their own already-established `--to-own-shift`-style formula, so the
  * marker automatically stays correct if those formulas ever change). Used
  * only by the widget-atom mechanism below (table/callout/hr/html) — the
- * plain-line mechanism uses `markerLeftShiftExpr` instead (see its own doc
- * comment for why the two need different math).
+ * plain-line mechanism uses `MARKER_LEFT_SHIFT_EXPR` instead (see its own
+ * doc comment for why the two need different math). Centers the icon on the
+ * target column (the placement exploration's winner — see the module doc
+ * comment above).
  */
-function markerAnchorLeftExpr(targetRelExpr: string, variant: MarkerVariant): string {
-  switch (variant) {
-    case 'A':
-      return targetRelExpr; // icon's own left edge at the target column
-    case 'B':
-      return `calc(${targetRelExpr} - (${MARKER_ICON_CSS} / 2))`; // centered on the column
-    case 'C':
-      return `calc(${targetRelExpr} - ${MARKER_ICON_CSS})`; // icon's own right edge at the column
-  }
+function markerAnchorLeftExpr(targetRelExpr: string): string {
+  return `calc(${targetRelExpr} - (${MARKER_ICON_CSS} / 2))`;
 }
 
 /**
@@ -215,16 +218,14 @@ function markerAnchorLeftExpr(targetRelExpr: string, variant: MarkerVariant): st
  * always exactly `gutter` to the right of the shared target column,
  * regardless of kind or depth (that IS the definition of the gutter), the
  * needed shift collapses to a single depth/kind-independent expression:
- * `iconSize * anchorFraction(variant) - gutter`. Worked through concretely
- * for both block (padding-shifted text, unshifted box) and atom-plain
- * (margin-shifted box, unshifted-relative-to-box text) — the depth terms
- * cancel identically in both cases, confirmed by hand before relying on it
- * here (see the git history of this comment for the full derivation).
+ * `iconSize * 0.5 - gutter` (icon centered on the column). Worked through
+ * concretely for both block (padding-shifted text, unshifted box) and
+ * atom-plain (margin-shifted box, unshifted-relative-to-box text) — the
+ * depth terms cancel identically in both cases, confirmed by hand before
+ * relying on it here (see the git history of this comment for the full
+ * derivation).
  */
-function markerLeftShiftExpr(variant: MarkerVariant): string {
-  const anchorFraction = variant === 'A' ? 1 : variant === 'B' ? 0.5 : 0;
-  return `calc(${MARKER_ICON_CSS} * ${anchorFraction} - ${markerGutterCss(variant)})`;
-}
+const MARKER_LEFT_SHIFT_EXPR = `calc(${MARKER_ICON_CSS} * 0.5 - ${MARKER_GUTTER_CSS})`;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -431,9 +432,6 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
 
   const doc = parse(state.doc.toString());
   const totalLines = state.doc.lines;
-  // Depth/kind-independent (see markerLeftShiftExpr's doc comment) — computed
-  // once per recompute, not per fact.
-  const leftShiftExpr = markerLeftShiftExpr(modes.markerVariant);
   const builder = new RangeSetBuilder<Decoration>();
   for (const fact of decorate(doc)) {
     // List items keep their fully native marker, untouched (same exclusion
@@ -442,19 +440,20 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
     // Widget-replaced atoms have no plain `.cm-line` for a widget decoration
     // to attach to — MarginCompensation injects their marker directly.
     if (WIDGET_ATOM_KINDS.has(fact.kind)) continue;
+    if (!shouldShowMarker(fact, modes.markerVisibility)) continue;
     if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
 
     const from = state.doc.line(fact.lineNumber + 1).from; // CM6 lines are 1-indexed
     builder.add(
       from,
       from,
-      Decoration.widget({ widget: new MarkerWidget(fact.kind, leftShiftExpr), side: -1 }),
+      Decoration.widget({ widget: new MarkerWidget(fact.kind, MARKER_LEFT_SHIFT_EXPR), side: -1 }),
     );
   }
   return builder.finish();
 }
 
-function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact, variant: MarkerVariant): Decoration {
+function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decoration {
   const styles: string[] = [];
   let cls: string;
   // Own-shift expression (units of `--to-decor-unit`, plus the marker
@@ -473,15 +472,14 @@ function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact, variant:
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
-    styles.push(`--to-marker-gutter: ${markerGutterCss(variant)}`);
-    // Every non-list line reserves the marker gutter (when the variant
-    // calls for one), so the box is always shifted by at least the
-    // gutter, even at depth 0.
+    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
+    // Every non-list line reserves the marker gutter, so the box is always
+    // shifted by at least the gutter, even at depth 0.
     ownShiftExpr = `calc(${fact.depth} * ${UNIT} + var(--to-marker-gutter, 0px))`;
   } else {
     cls = 'to-decor-block';
     styles.push(`--to-depth: ${fact.depth}`);
-    styles.push(`--to-marker-gutter: ${markerGutterCss(variant)}`);
+    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
     ownShiftExpr = undefined; // padding-left never shifts a block line's own box
   }
 
@@ -532,7 +530,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     }
     const fact = factsByLine.get(guide.lineNumber);
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
-    builder.add(from, from, lineDecoration(fact, guide, modes.markerVariant));
+    builder.add(from, from, lineDecoration(fact, guide));
   }
   return builder.finish();
 }
@@ -571,14 +569,9 @@ const PLAIN_MARGIN_SELECTOR = '.cm-line.to-decor-atom, .cm-line.to-decor-list';
  * below) — visibly offsetting the table's marker from every other kind's
  * marker at the same depth.
  */
-function applyWidgetMarker(
-  el: HTMLElement,
-  kind: NodeKind,
-  ownShiftExpr: string,
-  variant: MarkerVariant,
-): void {
+function applyWidgetMarker(el: HTMLElement, kind: NodeKind, ownShiftExpr: string): void {
   const targetRelExpr = `calc(${el.dataset.markerDepth ?? '0'} * ${UNIT} - (${ownShiftExpr}))`;
-  const leftExpr = markerAnchorLeftExpr(targetRelExpr, variant);
+  const leftExpr = markerAnchorLeftExpr(targetRelExpr);
   const existing = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
   if (existing) {
     applyMarkerWrapperStyle(existing, leftExpr);
@@ -649,7 +642,6 @@ class MarginCompensation implements PluginValue {
       return;
     }
 
-    const variant = this.modes.markerVariant;
     const doc = parse(this.view.state.doc.toString());
     const factsByLine = new Map(decorate(doc).map((f) => [f.lineNumber, f]));
     const guidesByLine = new Map(computeLineGuides(doc).map((g) => [g.lineNumber, g]));
@@ -680,16 +672,25 @@ class MarginCompensation implements PluginValue {
         // of the *difference* between any two lines' columns and must be
         // added to margin-left but never to `--to-own-shift`. Includes the
         // marker gutter (Experiment 5a) — every widget atom always gets a
-        // marker, so its own box is always shifted by at least the gutter
-        // (when RESERVE_MARKER_GUTTER), even at depth 0. `applyWidgetMarker`
-        // below derives the marker's OWN target column from this exact
-        // same expression, so the two can never silently diverge again.
-        const ownShiftExpr = `max(0px, calc(${fact.depth} * ${UNIT} - ${nativePaddingLeft}px)) + ${markerGutterCss(variant)}`;
+        // marker, so its own box is always shifted by at least the gutter,
+        // even at depth 0. `applyWidgetMarker` below derives the marker's
+        // OWN target column from this exact same expression, so the two can
+        // never silently diverge again.
+        const ownShiftExpr = `max(0px, calc(${fact.depth} * ${UNIT} - ${nativePaddingLeft}px)) + ${MARKER_GUTTER_CSS}`;
         el.style.setProperty('margin-left', `calc(${nativeBasePx}px + ${ownShiftExpr})`, 'important');
 
-        el.classList.add('to-decor-marker');
-        el.dataset.markerDepth = String(fact.depth);
-        applyWidgetMarker(el, fact.kind, ownShiftExpr, variant);
+        // The gutter reservation above stays unconditional regardless of
+        // markerVisibility — hiding some markers should never reflow text
+        // or shift indentation, only whether the icon itself is drawn in
+        // that already-reserved space (see shouldShowMarker's own doc
+        // comment).
+        if (shouldShowMarker(fact, this.modes.markerVisibility)) {
+          el.classList.add('to-decor-marker');
+          el.dataset.markerDepth = String(fact.depth);
+          applyWidgetMarker(el, fact.kind, ownShiftExpr);
+        } else {
+          clearWidgetMarker(el);
+        }
 
         const guide = guidesByLine.get(lineNumber);
         if (guide && guide.guideDepths.length > 0) {
@@ -720,14 +721,12 @@ class MarginCompensation implements PluginValue {
     const plainLines = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(PLAIN_MARGIN_SELECTOR),
     );
-    const markerLeftShift = markerLeftShiftExpr(variant);
     for (const el of plainLines) {
       const isListItem = el.classList.contains('to-decor-list');
       const depthVar = isListItem ? '--to-supp-depth' : '--to-depth';
       // List items get no marker gutter (native bullet/number only, no
-      // icon); atom lines (code/quote) always reserve one (when the
-      // variant calls for one), even at depth 0.
-      const gutter = isListItem ? '0px' : markerGutterCss(variant);
+      // icon); atom lines (code/quote) always reserve one, even at depth 0.
+      const gutter = isListItem ? '0px' : MARKER_GUTTER_CSS;
       el.style.setProperty(
         'margin-left',
         `calc(${nativeBasePx}px + var(${depthVar}, 0) * ${UNIT} + ${gutter})`,
@@ -735,7 +734,7 @@ class MarginCompensation implements PluginValue {
       );
 
       // Marker horizontal compensation: `computeMarkers`'s own `left` calc
-      // (via markerLeftShiftExpr) assumes the widget's insertion point has
+      // (via MARKER_LEFT_SHIFT_EXPR) assumes the widget's insertion point has
       // zero native rightward shift on this line — true for a plain
       // paragraph, but not for two atom-plain cases, both live-verified:
       //
@@ -776,7 +775,9 @@ class MarginCompensation implements PluginValue {
         // exactly 0 and the marker landed with no shift whatsoever.
         icon.style.setProperty(
           'left',
-          nativeShift !== 0 ? `calc(${markerLeftShift} - ${nativeShift}px)` : markerLeftShift,
+          nativeShift !== 0
+            ? `calc(${MARKER_LEFT_SHIFT_EXPR} - ${nativeShift}px)`
+            : MARKER_LEFT_SHIFT_EXPR,
           'important',
         );
       }

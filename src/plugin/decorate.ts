@@ -66,6 +66,15 @@ export interface LineDecorationFact {
    * Experiment 1/2b's own indentation/guide logic.
    */
   readonly kind: NodeKind;
+  /**
+   * True when the node has at least one child (`node.children.length > 0`),
+   * constant across all of a node's own lines. Atom kinds are leaves by
+   * construction (`ATOM_KINDS` never parse internals as nodes) so this is
+   * always `false` for them; list items are excluded from markers entirely
+   * regardless. Used by the marker-visibility setting (Experiment 5a
+   * follow-up) to optionally hide markers on leaf nodes.
+   */
+  readonly hasChildren: boolean;
 }
 
 /**
@@ -94,6 +103,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         isListItem,
         supplementalDepth: isListItem ? rootDepth! : 0,
         kind: node.kind,
+        hasChildren: node.children.length > 0,
       });
     }
     current += node.lines.length + node.trailingGap.length;

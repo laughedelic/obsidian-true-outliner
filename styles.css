@@ -22,10 +22,9 @@
  * atom alike) — list items reserve nothing, since they keep their fully
  * native marker untouched. `rem`, never `em`, same reasoning as
  * `--to-decor-unit` above. Explicitly set per-line by `lineDecoration()`
- * (decorations.ts) — its value (a real length, or `0px`) depends on which
- * marker-placement variant is currently selected there, so this rule's own
- * fallback (`0px`) only matters before that JS has run at all; it is never
- * the value actually in effect. `position: relative` gives the marker icon
+ * (decorations.ts) — this rule's own fallback (`0px`) only matters before
+ * that JS has run at all; it is never the value actually in effect.
+ * `position: relative` gives the marker icon
  * (a real, absolutely-positioned DOM child, not a pseudo-element — the
  * whole reason Experiment 5a doesn't need to fight over `::before`/
  * `::after` with the guide or blockquote's native bar) a containing block

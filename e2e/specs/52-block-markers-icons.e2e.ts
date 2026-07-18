@@ -360,40 +360,6 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
     expect(Math.abs(offsets.h1 - offsets.h3)).toBeLessThan(15);
   });
 
-  it('changing the marker-variant setting live (no rebuild) moves the marker on the very next edit', async function () {
-    // Experiment 5a's placement round is a real, persisted setting (not a
-    // module constant to flip and rebuild) specifically so it's triable
-    // against a real vault — see mode-registry.ts's PluginData and
-    // main.ts's settings tab. Calling the plugin's own public setter
-    // directly (same pattern e2e/helpers.ts's resetPluginState already
-    // uses for saveData) is the realistic path here, not clicking through
-    // Obsidian's own settings modal, which isn't this plugin's surface.
-    const note = 'Scratch/markers-live-variant-switch.md';
-    await h.createNote(note, '# Heading\n');
-    await ensureOutlineMode(note);
-    await browser.pause(150);
-
-    async function setVariantAndNudge(variant: string): Promise<void> {
-      await browser.executeObsidian(async ({ plugins }, v) => {
-        await (plugins.trueOutliner as any).setMarkerVariant(v);
-      }, variant);
-      await browser.pause(150);
-    }
-
-    await setVariantAndNudge('A');
-    const leftA = (await h.getLineChildRects(0, MARKER_ICON_SELECTOR))[0]!.left;
-
-    await setVariantAndNudge('C');
-    const leftC = (await h.getLineChildRects(0, MARKER_ICON_SELECTOR))[0]!.left;
-
-    // Variant C's icon sits to the LEFT of variant A's (right edge at the
-    // guide column vs. left edge at it) — a real, visible difference,
-    // confirming the setting change took effect with no plugin reload.
-    expect(leftC).toBeLessThan(leftA);
-
-    await setVariantAndNudge('B'); // leave the vault on the default for other specs
-  });
-
   it('native fold chevron glyph sits between the marker and an ancestor’s guide line, clear of both', async function () {
     // Real usability issue found in review: the native collapse chevron
     // (`.cm-fold-indicator .collapse-indicator`) is inserted at essentially
@@ -467,5 +433,136 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
     // guarding against a future regression ballooning the spacing.
     expect(info.markerRect!.left - info.glyphRect!.right).toBeLessThan(10);
     expect(info.glyphRect!.left - info.ancestorGuideCol).toBeLessThan(10);
+  });
+
+  describe('marker visibility setting', function () {
+    // Markers read well as "a crown on the guide line" for a branch node,
+    // but add little for a leaf — most leaf atom kinds already carry their
+    // own native visual style. `markerVisibility` (mode-registry.ts) is a
+    // real, persisted, live setting so it's triable against a real vault
+    // without a rebuild.
+    async function setVisibilityAndNudge(visibility: string): Promise<void> {
+      await browser.executeObsidian(async ({ plugins }, v) => {
+        await (plugins.trueOutliner as any).setMarkerVisibility(v);
+      }, visibility);
+      await browser.pause(150);
+    }
+
+    afterEach(async function () {
+      await setVisibilityAndNudge('all'); // leave the vault on the default for other specs
+    });
+
+    it("'with-children': only branch nodes get a marker, regardless of kind", async function () {
+      const note = 'Scratch/markers-visibility-with-children.md';
+      const md = [
+        '# Heading with a child',
+        '',
+        'child para (this heading is a branch)',
+        '',
+        'Leaf paragraph, no children.',
+        '',
+        '```js',
+        'code line',
+        '```',
+        '',
+      ].join('\n');
+      await h.createNote(note, md);
+      await ensureOutlineMode(note);
+      await setVisibilityAndNudge('with-children');
+      await browser.pause(150);
+
+      // Lines: 0 heading (branch), 2 child para (leaf), 4 leaf para (leaf),
+      // 6 code opener (leaf — atoms can never have children).
+      expect((await h.getLineChildRects(0, MARKER_ICON_SELECTOR)).length).toBe(1);
+      expect((await h.getLineChildRects(2, MARKER_ICON_SELECTOR)).length).toBe(0);
+      expect((await h.getLineChildRects(4, MARKER_ICON_SELECTOR)).length).toBe(0);
+      expect((await h.getLineChildRects(6, MARKER_ICON_SELECTOR)).length).toBe(0);
+    });
+
+    it("'with-children': a widget-replaced atom (table) with children obviously still gets no marker — atoms are always leaves", async function () {
+      const note = 'Scratch/markers-visibility-table-leaf.md';
+      await h.createNote(note, '| a | b |\n| --- | --- |\n| 1 | 2 |\n');
+      await ensureOutlineMode(note);
+      await setVisibilityAndNudge('with-children');
+      await browser.pause(150);
+
+      const rect = await h
+        .getContentChildRect('.cm-embed-block.cm-table-widget .to-decor-marker-icon', 0)
+        .catch(() => null);
+      expect(rect).toBeNull();
+    });
+
+    it("'headings-and-paragraphs': only those two kinds get a marker, leaf or not — atoms never do", async function () {
+      const note = 'Scratch/markers-visibility-headings-paragraphs.md';
+      const md = [
+        '# Heading, no children of its own text',
+        '',
+        'A paragraph.',
+        '',
+        '> A quoted line',
+        '',
+      ].join('\n');
+      await h.createNote(note, md);
+      await ensureOutlineMode(note);
+      await setVisibilityAndNudge('headings-and-paragraphs');
+      await browser.pause(150);
+
+      // Lines: 0 heading, 2 paragraph, 4 quote (an atom — excluded even
+      // though it's a leaf, same as every other atom kind).
+      expect((await h.getLineChildRects(0, MARKER_ICON_SELECTOR)).length).toBe(1);
+      expect((await h.getLineChildRects(2, MARKER_ICON_SELECTOR)).length).toBe(1);
+      expect((await h.getLineChildRects(4, MARKER_ICON_SELECTOR)).length).toBe(0);
+
+      const tableNote = 'Scratch/markers-visibility-headings-paragraphs-table.md';
+      await h.createNote(tableNote, '| a | b |\n| --- | --- |\n| 1 | 2 |\n');
+      await ensureOutlineMode(tableNote);
+      // Explicit re-nudge on the newly-active note, not just relying on the
+      // setting's own persistence across the note switch — keeps this
+      // assertion unambiguous about what triggered the recompute.
+      await setVisibilityAndNudge('headings-and-paragraphs');
+      // Poll rather than sleep a fixed duration: the table widget's own DOM
+      // can settle asynchronously after our decoration patch runs, and a
+      // fixed pause is a race against however long that happens to take
+      // (worse under system load) — see waitForContentChildCount's own doc
+      // comment in helpers.ts.
+      await h.waitForContentChildCount(
+        '.cm-embed-block.cm-table-widget .to-decor-marker-icon',
+        0,
+      );
+    });
+
+    it('changing marker visibility live (no rebuild) toggles a leaf marker on the very next edit', async function () {
+      const note = 'Scratch/markers-visibility-live-switch.md';
+      await h.createNote(note, '# Heading\n\nLeaf paragraph.\n');
+      await ensureOutlineMode(note);
+      await browser.pause(150);
+
+      await setVisibilityAndNudge('all');
+      expect((await h.getLineChildRects(2, MARKER_ICON_SELECTOR)).length).toBe(1);
+
+      await setVisibilityAndNudge('with-children');
+      expect((await h.getLineChildRects(2, MARKER_ICON_SELECTOR)).length).toBe(0);
+      // The branch heading keeps its marker throughout.
+      expect((await h.getLineChildRects(0, MARKER_ICON_SELECTOR)).length).toBe(1);
+    });
+
+    it('hiding a marker never reflows the reserved gutter — text position is unaffected', async function () {
+      // Real design decision this guards: markerVisibility only gates
+      // whether the icon is DRAWN, never the gutter reservation itself —
+      // otherwise toggling the setting would shift indentation/text
+      // position, not just show/hide an icon.
+      const note = 'Scratch/markers-visibility-gutter-stable.md';
+      await h.createNote(note, 'Leaf paragraph.\n');
+      await ensureOutlineMode(note);
+      await browser.pause(150);
+
+      const paddingWithMarker = await h.getLineComputedStyle(0, 'padding-left');
+      await setVisibilityAndNudge('with-children'); // this leaf loses its marker
+      await browser.pause(150);
+      const paddingWithoutMarker = await h.getLineComputedStyle(0, 'padding-left');
+
+      expect((await h.getLineChildRects(0, MARKER_ICON_SELECTOR)).length).toBe(0);
+      expect(paddingWithoutMarker).toBe(paddingWithMarker);
+    });
   });
 });
