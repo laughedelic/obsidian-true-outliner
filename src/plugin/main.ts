@@ -20,7 +20,13 @@ import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension } from './keymap';
-import { decorationsExtension } from './decorations';
+import { decorationsExtension, type MarkerVariant } from './decorations';
+
+const MARKER_VARIANT_LABELS: Record<MarkerVariant, string> = {
+  A: 'A — on the guide line',
+  B: 'B — centered on the guide line',
+  C: 'C — text unchanged, icon to the left',
+};
 
 type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
 
@@ -97,6 +103,20 @@ export default class TrueOutlinerPlugin extends Plugin {
   async setDebugCrossCheck(value: boolean): Promise<void> {
     this.data.debugCrossCheck = value;
     await this.saveData(this.data);
+  }
+
+  get markerVariant(): MarkerVariant {
+    return this.data.markerVariant;
+  }
+
+  async setMarkerVariant(value: MarkerVariant): Promise<void> {
+    this.data.markerVariant = value;
+    await this.saveData(this.data);
+    // No specific note to check against (unlike toggleMode) — this is a
+    // global setting, so just nudge whatever's currently open, the same
+    // public-API trick refreshDecorations already uses.
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    view?.editor.setCursor(view.editor.getCursor());
   }
 
   private async toggleMode(path: string): Promise<void> {
@@ -209,6 +229,17 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         toggle
           .setValue(this.plugin.debugCrossCheck)
           .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
+      );
+    new Setting(this.containerEl)
+      .setName('Debug: block marker placement (Experiment 5a)')
+      .setDesc(
+        'Where the per-kind block marker icon sits relative to the guide line. Takes effect on the next edit or note switch — not a shipped setting, just a way to compare placements against a real vault.',
+      )
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(MARKER_VARIANT_LABELS)
+          .setValue(this.plugin.markerVariant)
+          .onChange((value) => void this.plugin.setMarkerVariant(value as MarkerVariant)),
       );
   }
 }
