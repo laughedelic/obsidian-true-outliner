@@ -16,7 +16,7 @@
  * — byte-identical to outline-mode-off, a permanent regression invariant.
  */
 
-import type { OutlineDoc, OutlineNode } from '../model';
+import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
 import { isAtom } from '../model';
 
 export interface LineDecorationFact {
@@ -58,6 +58,14 @@ export interface LineDecorationFact {
    * position shifts by its non-list ancestors' contribution.
    */
   readonly supplementalDepth: number;
+  /**
+   * The node's own kind — straight from `node.kind`, no extra tree walk.
+   * Added for Experiment 5 (per-kind block markers, see
+   * docs/research/07-decoration-experiments-plan.md): `isFirstLine` is
+   * already exactly the right gate for "does this line get a marker,"
+   * decorations.ts just also needs to know WHICH mark to paint.
+   */
+  readonly kind: NodeKind;
 }
 
 /**
@@ -85,6 +93,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         isAtom: atom,
         isListItem,
         supplementalDepth: isListItem ? rootDepth! : 0,
+        kind: node.kind,
       });
     }
     current += node.lines.length + node.trailingGap.length;

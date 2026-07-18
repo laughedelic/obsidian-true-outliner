@@ -73,6 +73,18 @@
  * a guide became active on a blockquote line. Confirmed `::after` is
  * unused (`content: none`) by every kind this rule targets, including all
  * four widget kinds, before switching to it.
+ *
+ * Block markers (Experiment 5b) share this SAME `::after` rather than
+ * claiming a third pseudo-element — CSS gives each line exactly two, and
+ * both are already spoken for (native bar uses `::before`, guides use
+ * `::after`). `--to-marker` and `--to-guides` are each an independently
+ * computed, self-contained comma-joined layer list (see decorations.ts);
+ * `var(..., none)` on each lets either be absent without disturbing the
+ * other. The `to-decor-guides` class (gating `position: relative` and this
+ * whole rule) is no longer guide-exclusive despite its name — it now also
+ * gates on a marker being present, so a depth-0 node with no ancestors
+ * (no guide of its own) can still show a marker; kept the same class name
+ * to avoid touching every other selector in this file that depends on it.
  */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guides,
 .markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-guides {
@@ -87,7 +99,7 @@
   left: calc(-1 * var(--to-own-shift, 0px));
   right: 0;
   bottom: 0;
-  background: var(--to-guides);
+  background: var(--to-marker, none), var(--to-guides, none);
   opacity: 0.6;
   pointer-events: none;
   z-index: -1;

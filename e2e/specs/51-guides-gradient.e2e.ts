@@ -126,8 +126,13 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     await browser.pause(150);
 
     // "# Parent" (line 0) is the owner, not its own descendant — no guide
-    // class on its own line.
-    expect(await h.getLineClassList(0)).not.toContain('to-decor-guides');
+    // LAYER on its own line (Experiment 5b, built on top of this branch,
+    // gives the owner heading its own marker instead, which happens to
+    // reuse the same `to-decor-guides` class — so the class itself is no
+    // longer a reliable guide-only signal; check the resolved background
+    // has no repeating-linear-gradient guide layer instead).
+    const ownerBg = await h.getLinePseudoComputedStyle(0, 'background-image');
+    expect(gradientLayerCount(ownerBg)).toBe(0);
     // "A child paragraph." (line 2) is a descendant block line — one active
     // ancestor guide (depth 0).
     expect(await h.getLineClassList(2)).toContain('to-decor-guides');

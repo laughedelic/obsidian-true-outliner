@@ -136,6 +136,13 @@ export const WIDE_TABLE_MD = [
   '',
 ].join('\n');
 
+export const QUOTE_NOTE = 'Scratch/decorations-quote.md';
+// Plain blockquote (`quote` kind) — promoted from a one-off inline fixture
+// in 51-guides-gradient.e2e.ts into the shared corpus (Experiment 5): the
+// one kind of the eight that ground rule #2's "screenshot everything, every
+// time" had never actually covered.
+export const QUOTE_MD = ['# Section', '', '> A quoted line', '> continuation', ''].join('\n');
+
 export interface DecorationFixture {
   readonly note: string;
   readonly md: string;
@@ -152,4 +159,5 @@ export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
   { note: DEEP_NESTING_NOTE, md: DEEP_NESTING_MD, label: 'deep-nesting' },
   { note: WIDGET_ATOMS_NOTE, md: WIDGET_ATOMS_MD, label: 'widget-atoms' },
   { note: WIDE_TABLE_NOTE, md: WIDE_TABLE_MD, label: 'wide-table' },
+  { note: QUOTE_NOTE, md: QUOTE_MD, label: 'quote' },
 ];

@@ -199,6 +199,38 @@ describe('decorate: supplemental depth (additive list margin)', () => {
   });
 });
 
+describe('decorate: kind (Experiment 5)', () => {
+  it('carries node.kind straight through at every line, list-item included', () => {
+    const md = [
+      '# Heading',
+      '',
+      'Para.',
+      '',
+      '- item',
+      '  continuation',
+      '',
+      '```',
+      'code',
+      '```',
+      '',
+      '> quoted',
+      '',
+    ].join('\n');
+    const doc = parse(md);
+    const facts = decorate(doc);
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+
+    expect(byLine.get(0)?.kind).toBe('heading');
+    expect(byLine.get(2)?.kind).toBe('paragraph');
+    expect(byLine.get(4)?.kind).toBe('list-item'); // "- item"
+    expect(byLine.get(5)?.kind).toBe('list-item'); // continuation, same node
+    expect(byLine.get(7)?.kind).toBe('code'); // ``` opener
+    expect(byLine.get(8)?.kind).toBe('code'); // code line
+    expect(byLine.get(9)?.kind).toBe('code'); // ``` closer
+    expect(byLine.get(11)?.kind).toBe('quote');
+  });
+});
+
 describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () => {
   it('produces empty guideDepths for every line of a flat, childless document', () => {
     const md = 'First.\n\nSecond.\n\nThird.\n';

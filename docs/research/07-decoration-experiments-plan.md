@@ -294,8 +294,8 @@ Quick-scan status; full detail in the subsections below.
 | 2b | Guides — CSS stacked-gradient | Done, full corpus coverage confirmed (blockquote, community themes, gap continuity, and table all fixed + confirmed live) | **Keep** — full parity with 2a's coverage; simpler and smaller code, zero pixel measurement |
 | 3 | Minimal marker fallback (conditional) | Not triggered | Deprioritized — see below |
 | 4 | Widget-spacer spike (optional) | Not triggered | No fragility observed that would call for it |
-| 5a | Block markers — real icons, new widget mechanism | Not started | — |
-| 5b | Block markers — CSS shapes, reused guide layer | Not started | — |
+| 5a | Block markers — real icons, new widget mechanism | Not started (worked on a sibling branch/session) | — |
+| 5b | Block markers — CSS shapes, reused guide layer | Done, three real bugs found and fixed | **Keep** (pending head-to-head against 5a) |
 
 ### Experiment 1 — additive indentation, no marker
 
@@ -709,13 +709,195 @@ real vault notes once the three bugs above were fixed — nothing suggests the
 
 ### Experiment 5 — per-kind block markers (icons vs. CSS shapes)
 
-Not started. Branches created off 2b (`experiment/decorations-5a-block-markers-icons`,
-`experiment/decorations-5b-block-markers-shapes`), each to be worked in its own git
+Branches created off 2b (`experiment/decorations-5a-block-markers-icons`,
+`experiment/decorations-5b-block-markers-shapes`), each worked in its own git
 worktree/session rather than by the assistant directly, since getting the marks reading
-well is expected to need the same kind of live, iterative, human-in-the-loop
-verification every prior experiment in this doc needed. See the Experiment 5 section
-above for the design and "Handoff prompts" below for the self-contained starting
-instructions for each.
+well needed the same kind of live, iterative, human-in-the-loop verification every prior
+experiment in this doc needed. See the Experiment 5 section above for the design and
+"Handoff prompts" below for the self-contained starting instructions for each. 5b's own
+results are below; 5a's are recorded on its own sibling session/branch. The head-to-head
+comparison table (design's "Compare on" section) is filled in once both are available in
+the same context.
+
+### Experiment 5b — CSS-shape markers, reusing 2b's background-layer mechanism
+
+**Verdict: keep**, pending the head-to-head against 5a. Branched off
+`experiment/decorations-2b-guides-css-gradient`. All 9 corpus fixtures (the shared 8, plus
+a `quote`-kind fixture promoted into `ALL_DECORATION_FIXTURES` per this experiment's own
+shared prerequisite) screenshotted, both bundled themes, plus targeted computed-style
+assertions on the resolved `::after` background-image — see
+[e2e/specs/52-block-markers-shapes.e2e.ts](../../e2e/specs/52-block-markers-shapes.e2e.ts),
+67/67 e2e tests green across the full suite (all 8 spec files, including a dedicated
+"marker vertical position" sub-suite added after real-vault review — see bug 5 below),
+plus 123/123 unit tests (`npm test`) including a new `decorate: kind` test. Confirmed live
+on 4 real vault notes (headings, paragraphs, lists, checkboxes, wikilinks, a code block, a
+callout, a table) — no defects found; markers coexist cleanly with real content, including
+multi-line paragraphs and wikilinks immediately after a marked line.
+
+**Design pivoted once, after a live look at the first version.** The plan's own design
+called for a distinct shape+color per eligible kind (8 marks: dot/ring/square/diamond/
+plus/tick/wedge/cross across Obsidian's 8 accent colors) — built, screenshotted, and
+initially judged reasonable from a distance. On closer real-content review the user's
+verdict was that the variety read as **cryptic, not helpful**: eight different shapes and
+colors ask a reader to memorize a legend before the marks mean anything, which is the
+opposite of legible. Replaced with a single, uniform, solid dot — same color as the guide
+lines themselves (`var(--text-faint)`) — for every eligible kind. This is a real design
+lesson worth carrying forward past this one experiment: for a piece of chrome whose whole
+job is "signal that a node starts here," uniformity communicates that job better than
+variety that has no established meaning yet. The per-kind shape system is described below
+only for the record (what was tried and why it was reverted), not as the current design —
+current code has exactly one shape.
+
+**Mechanism (current)**: a single `radial-gradient` dot (`markerBackground()` in
+`decorations.ts`), same color as guides, one call site for every eligible kind (heading/
+paragraph/code/table/callout/quote/html/hr — everything except list-item, which needs no
+marker check at all now: eligibility collapsed to "not a list item," full stop, since
+every other `NodeKind` gets the identical mark). Exposed as a new `--to-marker` custom
+property, painted through the *exact* same `::after` 2b's guides already use
+(`background: var(--to-marker, none), var(--to-guides, none);`) — zero new
+pseudo-element, zero new DOM, zero new `ViewPlugin`. Gap lines stay explicitly
+marker-free (they carry no `decorate()` fact/kind at all — verified by a dedicated e2e
+test).
+
+**The real integration wrinkle, exactly as flagged going in**: `lineDecoration()`'s
+`to-decor-guides` gate (driving `position: relative` and the whole `::after` rule) was
+guide-only (`guideDepths.length > 0`); changed to `guideDepths.length > 0 || hasMarker` so
+a depth-0 node with zero ancestors (e.g. a bare top-level heading, which has no guide of
+its own today) still shows a marker — confirmed live and by a dedicated e2e test
+(`getLinePseudoComputedStyle` reads a non-empty resolved background at depth 0). This
+touches the shared `MarginCompensation` `ViewPlugin` too (for widget-rendered atoms:
+table/callout/html/hr), which needed the identical gate change plus setting `--to-marker`
+alongside its existing `--to-guides` handling.
+
+**Bugs found and fixed** (all caught only by actually looking at a rendered screenshot,
+not by any DOM/computed-style assertion — directly reinforcing this project's recurring
+lesson that visual claims need an actual look, not box-model reasoning alone):
+
+1. **Depth-0 markers were completely invisible, caught by zooming into a screenshot of
+   the `mixed` fixture's top-level `"# Top"` heading.** The marker's `background-position`
+   is deliberately negative at shallow depths (it sits `MARKER_GAP` left of the node's own
+   indent column, which is column 0 at depth 0) — but a background can *never* paint
+   outside its own element's box, regardless of what any ancestor's `overflow`/`contain`
+   allows. This is a **stricter** rule than the one guides rely on: guides' own doc comment
+   established that a pseudo's box can be *widened* via `left`/`right` to reach a shallower
+   column, but a first pass here wrongly assumed the same finding covered a marker's own
+   small negative position too, without the box actually being widened for it. Fixed by
+   computing `markerShortfall(depth)` — `max(0px, MARKER_RESERVE − depth × unit)`, the same
+   `max(0px, ...)` clamp idiom Experiment 1's own table-padding fix established — and
+   folding it into `--to-own-shift` (which now activates whenever `ownShiftUnits > 0 ||
+   marker`, not just for margin-shifted kinds) *and* into every guide layer's own position
+   formula active on the same line (`guideLayer` gained an `extra` parameter), since the
+   pseudo's local coordinate origin is one shared thing for the whole box — widening it for
+   the marker's sake shifts everything else painted in that same box too. At this module's
+   default sizes, only depth 0 actually needs the extra reach — confirmed live that every
+   depth ≥ 1 marker rendered correctly even before this fix, which is exactly why the bug
+   surfaced only on the flat/mixed fixtures' top-level nodes and not on any nested one.
+2. **(Per-kind design, since reverted) The table's diamond mark rendered as a lopsided
+   pinwheel**, caught by zooming into a screenshot of the `widget-atoms` fixture — the
+   standard 4-gradient diamond recipe requires every quadrant's gradient to list
+   `transparent 50%` before the color, consistently across all four; an earlier version
+   flipped that order on two of the four quadrants, producing a shape with the wrong
+   halves filled.
+3. **(Per-kind design, since reverted) The callout's plus-sign rendered as a lopsided "⊥"**
+   (vertical bar with the crossbar near its bottom, not its middle), caught by zooming into
+   the same `widget-atoms` screenshot. Root cause: the vertical-centering formula used `%`,
+   and `background-position`'s `%` component resolves relative to *that specific layer's
+   own image size* subtracted from the box — which differed between the vertical bar (a
+   full-height image) and the horizontal bar (a much thinner one), so the "same" `50%`
+   position landed at two different absolute heights for the two layers making up one
+   shape. Invisible on single-line plain `.cm-line`s (box height ≈ marker size, so the
+   discrepancy was too small to notice) but glaring on a widget atom whose box spans its
+   *entire* rendered height (a multi-line callout, not just its title line).
+4. **Heading markers sat noticeably above the native fold chevron on H1–H5, and merely
+   collided with it on H6 — reported directly by the user after a real-vault look, not
+   caught by any fixture or assertion.** The fix for bug 3 above replaced `%`-based
+   vertical centering with a FIXED length from the box's own top, chosen to solve the
+   widget-atom case — but a fixed length doesn't scale with a *heading's own* line-height,
+   which varies by level (H1's line box is taller than H6's). Measured live, not guessed:
+   `.cm-fold-indicator`'s own `getBoundingClientRect()` against its line's, for H1 through
+   H6 in a real running Obsidian instance. Two findings: the chevron's own vertical
+   *center* sits at a level-dependent ~67–70% down the line box (not a clean, reusable
+   constant), but its **top** is a robust, level-independent constant — exactly 1rem below
+   the line's own top at every level measured — because the chevron's position is fixed
+   while only *its own icon size* (not its position) scales with the heading's font-size.
+   First fix: gave heading lines specifically a measured fixed-top anchor (`1rem`, matching
+   the chevron's own measured top). Confirmed live via screenshot — no longer "above" on
+   any level — but this fix didn't survive the NEXT round of real-vault review (bug 5).
+5. **The whole "one CSS formula per box-type" approach was still wrong — a full-suite
+   real-vault review found FIVE distinct placement failures at once, all reported directly
+   by the user, none caught by any fixture/assertion.** Headings still sat above their own
+   text (the bug-4 fixed-top anchor didn't move with a font-size-driven line-height
+   *increase* the same way the chevron's OWN top didn't, but the user's own read of "middle
+   of the heading text" wanted the TEXT's center, and a bare fixed length can't track a
+   font-size it has no knowledge of at layout time); single-line paragraphs sat at their own
+   top edge (the still-present double-`HALF`-subtraction bug from bug 3, never actually
+   fixed for the plain-line case, only worked around for widget atoms); wrapped multi-row
+   paragraphs/blockquotes centered on their ENTIRE wrapped height instead of just the first
+   visual row; callouts and code blocks sat at the literal top of the whole block instead of
+   near their own first content row. Root cause, named directly by the user: **no CSS-only
+   formula (percentage, fixed length, or any mix) can know where "the first rendered visual
+   row of this specific box's content" actually is** — that's fundamentally a *rendering*
+   fact, not a static layout constant, and every earlier fix in this area was really just a
+   differently-shaped guess at it. Fixed by abandoning CSS-only positioning for `Y` entirely
+   and measuring it live: `MarginCompensation` (already the established "StateField draws a
+   default, ViewPlugin patches in the true live-read value" mechanism for `nativeMarginBasePx`
+   and table-padding compensation) now computes a real per-line pixel offset via
+   `document.createRange().selectNodeContents(lineEl); range.getClientRects()[0]` — the DOM's
+   own notion of an element's first wrapped visual row, which handles word-wrap for free and
+   scales with whatever font-size is actually in effect, no guessing required. Written to a
+   new `--to-decor-marker-y` custom property; `markerBackground()` itself only ever emits a
+   `var(--to-decor-marker-y, 50%)` reference (the `50%` fallback is now CORRECTLY centering,
+   not double-subtracted, for the brief window before the ViewPlugin's own pass overrides
+   it). Widget atoms get the same technique aimed at a kind-appropriate reference element
+   instead of the widget's own root (a callout's `.callout-title`, a table's first `<tr>`;
+   `hr` has no text content at all, so its own half-height stands in; `html`, arbitrary raw
+   markup with no fixed structure, falls back to the same first-row Range technique applied
+   to its own root). One deliberate, documented exception: a code fence's structural first
+   `.cm-line` is the OPENING marker row (confirmed live to be a REAL, normal-height row —
+   not collapsed to zero — that Live Preview just renders with nothing but a language badge
+   on it, with the actual code text starting on the NEXT line down) — reaching into that next
+   line for a "true" measurement was rejected because this pseudo-element's own box is
+   exactly ONE line tall and a background can never paint outside its own box (the same hard
+   rule bug 1 already established), so doing this safely would need the same kind of
+   vertical box-widening `--to-own-shift` already does horizontally, introducing an unverified
+   NEW paint-order risk against the next (opaque-backgrounded) code line. Per an explicit user
+   ask ("if that is harder to calculate, let's try an offset, to make it a bit lower"), code
+   fences instead bias toward the bottom of their own (still fully in-bounds, zero clipping
+   risk) opener row via a plain `95%` — confirmed live via computed style (`background-position:
+   12px 95%`) to land within ~1px of the next line's own top, a pragmatic near-miss rather than
+   an exact, mechanism-stretching alignment. All five cases now covered by dedicated e2e tests
+   (see `52-block-markers-shapes.e2e.ts`'s "marker vertical position" suite) reading the
+   resolved `background-position` directly, not just the raw custom property.
+
+**Code cost (current, single-dot design + live-measured Y)**: ~110 lines added to
+`decorations.ts` (marker position/color constants, `markerBackground()`, `firstRowCenterPx`/
+`widgetMarkerYPx`, and the `lineDecoration()`/`MarginCompensation` integration — still
+meaningfully SMALLER than the original 8-shape version's ~150 lines despite the added
+live-measurement code, since one shape needs no per-kind switch, no quadrant/tick/bar helper
+functions, and no color table), ~1 line changed in `styles.css` (the `::after` rule's
+`background` shorthand, plus an expanded doc comment), ~10 lines added to `decorate.ts`
+(`kind` field on `LineDecorationFact` — still used by `MarginCompensation`'s widget-Y
+dispatch and the code-fence Y exception, even though `markerBackground()` itself no longer
+branches on kind). Reuses 100% of 2b's existing plumbing (custom property → single
+`::after`, `--to-own-shift` compensation, `MarginCompensation`'s widget-DOM patching loop)
+for X-axis positioning and shape/color — no new CM6 mechanism, no new pseudo-element, no
+new `ViewPlugin`. Y-axis positioning is a GENUINELY new piece of live-measurement code
+(not reused from guides, which never needed it), the first real net-new mechanism this
+experiment added rather than reused. The one real *design* cost independent of Y (not
+code-size cost) is that `--to-own-shift` and every guide layer's X position formula are no
+longer independent of whether a marker is *also* active on the same line — a coupling 5a's
+separate-DOM-element mechanism wouldn't have, since a real DOM child element doesn't need
+to share a single pseudo-element's one coordinate space with the guide gradient.
+
+**Known limitation, not fixed on this branch**: markers and guides share one `::after`'s
+single `opacity: 0.6`, inherited from the guide rule (subtle-on-purpose, for a background
+grid). A marker dot at 60% opacity is legible but visibly softer than surrounding text —
+CSS has no way to give two background layers on the *same* element independent opacity.
+Splitting them (e.g. painting the marker at full opacity some other way) would cost exactly
+the "claim a third pseudo-element" move this experiment's own design explicitly ruled out
+as unavailable. Worth a deliberate follow-up decision (accept the shared opacity, or
+promote markers off `::after` onto a real DOM node as 5a already does) once both variants
+are compared side by side.
 
 ### Open question: shrinking only our own added list margin
 
