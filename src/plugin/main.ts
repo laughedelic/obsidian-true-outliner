@@ -20,12 +20,12 @@ import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension } from './keymap';
-import { decorationsExtension, type MarkerVariant } from './decorations';
+import { decorationsExtension, type MarkerVisibility } from './decorations';
 
-const MARKER_VARIANT_LABELS: Record<MarkerVariant, string> = {
-  A: 'A — on the guide line',
-  B: 'B — centered on the guide line',
-  C: 'C — text unchanged, icon to the left',
+const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
+  all: 'All eligible kinds (status quo)',
+  'with-children': 'Only nodes that have children',
+  'headings-and-paragraphs': 'Only headings and paragraphs',
 };
 
 type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
@@ -105,18 +105,48 @@ export default class TrueOutlinerPlugin extends Plugin {
     await this.saveData(this.data);
   }
 
-  get markerVariant(): MarkerVariant {
-    return this.data.markerVariant;
+  get markerVisibility(): MarkerVisibility {
+    return this.data.markerVisibility;
   }
 
-  async setMarkerVariant(value: MarkerVariant): Promise<void> {
-    this.data.markerVariant = value;
+  async setMarkerVisibility(value: MarkerVisibility): Promise<void> {
+    this.data.markerVisibility = value;
     await this.saveData(this.data);
-    // No specific note to check against (unlike toggleMode) — this is a
-    // global setting, so just nudge whatever's currently open, the same
-    // public-API trick refreshDecorations already uses.
+    await this.forceRedraw();
+  }
+
+  /**
+   * A plain cursor nudge (what `refreshDecorations` uses for the mode
+   * toggle) forces `computeDecorations`/`computeMarkers` to recompute, but
+   * doesn't reliably reach `MarginCompensation` — a ViewPlugin with no
+   * decorations of its own, whose `docViewUpdate` hook only fires when
+   * SOME decoration source's output actually differs (CM6's own doc
+   * comment: "due to content, decoration, or viewport changes"). For a
+   * note containing only widget-replaced atoms (table/callout/hr/html —
+   * `computeMarkers` deliberately skips these; `computeDecorations` doesn't
+   * read `markerVisibility` at all), changing the setting produces
+   * byte-identical StateField output, so CM6 correctly sees no diff and
+   * never re-fires `docViewUpdate` — confirmed live: a table-only note's
+   * marker visibility silently failed to update until this fix.
+   *
+   * Toggling outline mode off then immediately back on (via the registry
+   * directly, not `toggleMode` — no user-facing Notice for an internal
+   * refresh) guarantees two GENUINELY different decoration outputs
+   * (`Decoration.none` vs. the real thing) regardless of note content,
+   * which CM6 always detects as a real change — reliably triggering
+   * `docViewUpdate` twice, with the second pass reading the just-saved
+   * setting. Both toggles are public-API-only (an `Editor.setCursor` per
+   * step, same trick `refreshDecorations` already uses) — no private CM6
+   * access, consistent with this project's own public-API-only bar.
+   */
+  private async forceRedraw(): Promise<void> {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    view?.editor.setCursor(view.editor.getCursor());
+    const path = view?.file?.path;
+    if (!view || !path || !this.registry.isOutline(path)) return; // nothing rendered to refresh
+    await this.registry.toggle(path); // off
+    view.editor.setCursor(view.editor.getCursor());
+    await this.registry.toggle(path); // back on, now reading the new setting
+    view.editor.setCursor(view.editor.getCursor());
   }
 
   private async toggleMode(path: string): Promise<void> {
@@ -231,15 +261,15 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
       );
     new Setting(this.containerEl)
-      .setName('Debug: block marker placement (Experiment 5a)')
+      .setName('Debug: block marker visibility (Experiment 5a)')
       .setDesc(
-        'Where the per-kind block marker icon sits relative to the guide line. Takes effect on the next edit or note switch — not a shipped setting, just a way to compare placements against a real vault.',
+        'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, html, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
       )
       .addDropdown((dropdown) =>
         dropdown
-          .addOptions(MARKER_VARIANT_LABELS)
-          .setValue(this.plugin.markerVariant)
-          .onChange((value) => void this.plugin.setMarkerVariant(value as MarkerVariant)),
+          .addOptions(MARKER_VISIBILITY_LABELS)
+          .setValue(this.plugin.markerVisibility)
+          .onChange((value) => void this.plugin.setMarkerVisibility(value as MarkerVisibility)),
       );
   }
 }

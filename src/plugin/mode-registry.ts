@@ -3,32 +3,42 @@
  * log Q2.6: files stay clean — no frontmatter, no markers). Pure module: the
  * plugin injects persistence, so this is unit-testable without Obsidian.
  *
- * `MarkerVariant` lives here (not decorations.ts, which imports `obsidian`
+ * `MarkerVisibility` lives here (not decorations.ts, which imports `obsidian`
  * for `editorInfoField`) specifically so this module can stay pure — it's
  * really just a data type, not a decoration-rendering concern.
  */
 
-/** See docs/research/07-decoration-experiments-plan.md, Experiment 5a's
- * placement round — decorations.ts imports this type back from here. */
-export type MarkerVariant = 'A' | 'B' | 'C';
-export const DEFAULT_MARKER_VARIANT: MarkerVariant = 'B';
+/**
+ * Which nodes get a block marker at all (Experiment 5a follow-up: markers
+ * read as "a crown on top of the guide line" for a branch, but add little
+ * for a leaf — most leaf atom kinds already carry their own native visual
+ * style, e.g. a code fence's background or a callout's colored bar).
+ * - 'all' — every eligible kind's first line (status quo).
+ * - 'with-children' — only nodes that actually have at least one child.
+ *   Atom kinds are leaves by construction, so this always excludes them.
+ * - 'headings-and-paragraphs' — only the two kinds that CAN ever have
+ *   children in this tree model, regardless of whether a given instance
+ *   currently does. Atoms never qualify (they can't have children at all);
+ *   list items are already excluded from markers unconditionally.
+ */
+export type MarkerVisibility = 'all' | 'with-children' | 'headings-and-paragraphs';
+export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = 'all';
 
 export interface PluginData {
   outlinePaths: string[];
   coexistenceWarned: boolean;
   debugCrossCheck: boolean;
-  /** Experiment 5a placement round (see docs/research/07-decoration-
-   * experiments-plan.md) — a real, persisted setting so it can be tried
-   * against a real vault without a rebuild. Not meant to survive past the
-   * experiment: once a variant is picked, this whole setting goes away. */
-  markerVariant: MarkerVariant;
+  /** Experiment 5a leaf-visibility round (see docs/research/07-decoration-
+   * experiments-plan.md) — a real, persisted, user-facing setting so it can
+   * be tried against a real vault without a rebuild. */
+  markerVisibility: MarkerVisibility;
 }
 
 export const DEFAULT_DATA: PluginData = {
   outlinePaths: [],
   coexistenceWarned: false,
   debugCrossCheck: false,
-  markerVariant: DEFAULT_MARKER_VARIANT,
+  markerVisibility: DEFAULT_MARKER_VISIBILITY,
 };
 
 export class OutlineModeRegistry {
