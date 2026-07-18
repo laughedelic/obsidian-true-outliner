@@ -130,7 +130,7 @@ function guideBackground(guideDepths: readonly number[]): string {
 
 // ---- Block markers (Experiment 5a: icon markers) ---------------------------
 //
-// See docs/research/07-decoration-experiments-plan.md, Experiment 5/5a. A
+// See docs/research/10-experiment-5-block-markers.md (Experiment 5/5a). A
 // small, distinct, self-drawn SVG icon per node kind, rendered on a node's
 // own first line only (never a list item — the native bullet/number already
 // does that job, same exclusion guides already use).

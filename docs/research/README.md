@@ -16,7 +16,11 @@ Research date: July 2026.
 | [04-open-questions.md](04-open-questions.md) | Decisions that need alignment before any planning/spec work |
 | [05-org-mode-comparison.md](05-org-mode-comparison.md) | Where our mapping algebra aligns with / diverges from org-mode, the closest living reference system |
 | [06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md) | Postmortem on the failed `outline-decorations` visual-chrome attempt: what was tried, why the CSS-override strategy kept breaking, and why the testing approach gave false confidence |
-| [07-decoration-experiments-plan.md](07-decoration-experiments-plan.md) | Isolated, falsifiable prototyping experiments for the next decorations attempt, informed by prior-art research (obsidian-outliner, Logseq, Silverbullet) and a feasibility verdict on a per-block-editor-tree alternative |
+| [07-decoration-experiments-plan.md](07-decoration-experiments-plan.md) | **Hub** for the decoration-experiments series (informed by prior-art research: obsidian-outliner, Logseq, Silverbullet): ground rules, shared fixture corpus, final results table with verdicts, the two never-triggered experiments, and the map to the per-experiment docs below |
+| [08-experiment-1-additive-indentation.md](08-experiment-1-additive-indentation.md) | Experiment 1: additive-only indentation — design, results, 3 real-vault bugs. **Kept**; the foundation for everything after |
+| [09-experiment-2-guide-lines.md](09-experiment-2-guide-lines.md) | Experiment 2: guide lines — 2a (pixel-measured overlay) vs. 2b (CSS stacked-gradient) head to head. **2b chosen** |
+| [10-experiment-5-block-markers.md](10-experiment-5-block-markers.md) | Experiment 5: per-kind block markers — 5a (SVG icons, DOM mechanism) vs. 5b (CSS shapes → uniform dot) head to head. **5a chosen**; includes the comparison verdict and the 5a hardening checklist |
+| [11-decoration-lessons.md](11-decoration-lessons.md) | Accumulated cross-experiment findings (CSS cascade/box model, CodeMirror 6, Obsidian internals, verification discipline) — read before touching decorations or CM6 extensions |
 
 ## TL;DR
 
