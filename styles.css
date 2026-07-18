@@ -14,15 +14,38 @@
  * `!important` keyword by itself.
  */
 
+/*
+ * `--to-marker-gutter` (Experiment 5a, see
+ * docs/research/07-decoration-experiments-plan.md): a fixed, additive
+ * reservation for a per-kind block marker icon, on top of the existing
+ * depth-based indentation. Applies to every non-list-item line (block and
+ * atom alike) — list items reserve nothing, since they keep their fully
+ * native marker untouched. `rem`, never `em`, same reasoning as
+ * `--to-decor-unit` above. Explicitly set per-line by `lineDecoration()`
+ * (decorations.ts) — its value (a real length, or `0px`) depends on which
+ * marker-placement variant is currently selected there, so this rule's own
+ * fallback (`0px`) only matters before that JS has run at all; it is never
+ * the value actually in effect. `position: relative` gives the marker icon
+ * (a real, absolutely-positioned DOM child, not a pseudo-element — the
+ * whole reason Experiment 5a doesn't need to fight over `::before`/
+ * `::after` with the guide or blockquote's native bar) a containing block
+ * matching this line's own box.
+ */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block {
-  padding-left: calc(var(--to-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
+  position: relative;
+  padding-left: calc(
+    var(--to-depth, 0) * var(--to-decor-unit, 1.5rem) + var(--to-marker-gutter, 0px)
+  ) !important;
 }
 
 /* Atoms (code/table/quote/callout/html/hr) render a visible background or
  * border box; padding-left only shifts an element's own content, never
  * that box, so atoms need margin-left instead. */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom {
-  margin-left: calc(var(--to-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
+  position: relative;
+  margin-left: calc(
+    var(--to-depth, 0) * var(--to-decor-unit, 1.5rem) + var(--to-marker-gutter, 0px)
+  ) !important;
 }
 
 /* List items: native text-indent/padding-left (the bullet hang) is never
@@ -140,13 +163,25 @@
  * actually using the table's scrollbar (trackpad/click-drag) in a real
  * running vault — no visual or usability defects found. Guides now render
  * correctly through every kind in the corpus, tables included.
+ *
+ * `.to-decor-marker` (Experiment 5a) needs the exact same override, for the
+ * exact same reason: a widget atom's marker icon is a real DOM child
+ * positioned outside its own box (`left: -gutter`, see decorations.ts), and
+ * `contain: paint` clips real descendant elements, not just pseudo-element
+ * backgrounds — a marker is present on EVERY widget atom (unlike a guide,
+ * which needs an ancestor), so this can't stay gated on `.to-decor-guides`
+ * alone, or a depth-0 table/callout/hr/html with no ancestor would have its
+ * marker silently clipped.
  */
-.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides {
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides,
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-marker {
+  position: relative;
   contain: none !important;
   overflow: visible !important;
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-guides .table-wrapper {
+.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-guides .table-wrapper,
+.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-marker .table-wrapper {
   overflow-x: auto !important;
   max-width: 100% !important;
 }

@@ -121,6 +121,38 @@ describe('decorate: first line / native marker flags', () => {
   });
 });
 
+describe('decorate: node kind (Experiment 5, block markers)', () => {
+  it('carries the node kind at every line, including list-item continuations', () => {
+    const md = [
+      '# Heading',
+      '',
+      'Para.',
+      '',
+      '- item',
+      '  continuation',
+      '',
+      '```',
+      'code',
+      '```',
+      '',
+      '> quoted',
+      '',
+    ].join('\n');
+    const doc = parse(md);
+    const facts = decorate(doc);
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+
+    expect(byLine.get(0)?.kind).toBe('heading');
+    expect(byLine.get(2)?.kind).toBe('paragraph');
+    expect(byLine.get(4)?.kind).toBe('list-item');
+    expect(byLine.get(5)?.kind).toBe('list-item'); // continuation carries the same kind
+    expect(byLine.get(7)?.kind).toBe('code');
+    expect(byLine.get(8)?.kind).toBe('code');
+    expect(byLine.get(9)?.kind).toBe('code');
+    expect(byLine.get(11)?.kind).toBe('quote');
+  });
+});
+
 describe('decorate: supplemental depth (additive list margin)', () => {
   it('flags isListItem for every line of a list item, including continuations', () => {
     const md = 'Para.\n\n- item\n  continuation\n\n## Heading\n';

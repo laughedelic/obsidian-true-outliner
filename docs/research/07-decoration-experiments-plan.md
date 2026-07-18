@@ -294,7 +294,7 @@ Quick-scan status; full detail in the subsections below.
 | 2b | Guides — CSS stacked-gradient | Done, full corpus coverage confirmed (blockquote, community themes, gap continuity, and table all fixed + confirmed live) | **Keep** — full parity with 2a's coverage; simpler and smaller code, zero pixel measurement |
 | 3 | Minimal marker fallback (conditional) | Not triggered | Deprioritized — see below |
 | 4 | Widget-spacer spike (optional) | Not triggered | No fragility observed that would call for it |
-| 5a | Block markers — real icons, new widget mechanism | Not started | — |
+| 5a | Block markers — real icons, new widget mechanism | Done, full corpus + real-vault coverage confirmed | **Keep** (pending 5b head-to-head) |
 | 5b | Block markers — CSS shapes, reused guide layer | Not started | — |
 
 ### Experiment 1 — additive indentation, no marker
@@ -709,13 +709,103 @@ real vault notes once the three bugs above were fixed — nothing suggests the
 
 ### Experiment 5 — per-kind block markers (icons vs. CSS shapes)
 
-Not started. Branches created off 2b (`experiment/decorations-5a-block-markers-icons`,
-`experiment/decorations-5b-block-markers-shapes`), each to be worked in its own git
-worktree/session rather than by the assistant directly, since getting the marks reading
-well is expected to need the same kind of live, iterative, human-in-the-loop
-verification every prior experiment in this doc needed. See the Experiment 5 section
-above for the design and "Handoff prompts" below for the self-contained starting
-instructions for each.
+Branches created off 2b (`experiment/decorations-5a-block-markers-icons`,
+`experiment/decorations-5b-block-markers-shapes`), each worked in its own git
+worktree/session. 5a done (see below); 5b worked in a separate session on its own
+sibling branch — head-to-head comparison and a final pick are still pending until
+both are in.
+
+#### Experiment 5a — icon markers, new DOM-element mechanism
+
+**Status: done, corpus + real-vault coverage confirmed.** Shared prerequisite added
+first: `kind: NodeKind` on `LineDecorationFact` (`decorate.ts`), plus a unit test
+confirming it at every line including list-item continuations
+([tests/decorate.test.ts](../../tests/decorate.test.ts)); the plain-blockquote
+fixture promoted into `ALL_DECORATION_FIXTURES` as `quote`
+([e2e/fixtures/decorations.ts](../../e2e/fixtures/decorations.ts)), so the full
+8-kind set is now covered by the shared "screenshot everything" loop.
+
+**Mechanism, as planned**: a small, distinct, self-drawn SVG icon per kind (heading
+"H", paragraph text-lines, code `</>`, table grid, callout alert-circle, quote
+opening-marks, html tag-with-fold, hr bar), built via DOM APIs (`createElementNS` +
+attribute setting), never a data-URI. Two delivery mechanisms, split the same way
+indentation/guides already are: a CM6 `Decoration.widget` (`side: -1`,
+`position: absolute`, out of flow) in a **separate StateField** from the existing
+line-decoration one (sidesteps any need to reason about `Decoration.line`/
+`Decoration.widget` ordering at equal positions — CM6 merges multiple StateFields'
+decorations correctly on its own) for plain lines (heading/paragraph/code/quote);
+a direct DOM child injected by the existing `MarginCompensation` `ViewPlugin` for
+widget-replaced atoms (table/callout/html/hr), the same proven escape hatch already
+used for their `margin-left` (a CM6 decoration has zero effect on these, confirmed
+by Experiment 1/2b).
+
+**A real design decision beyond the handoff prompt's literal wording**: the prompt
+didn't specify how much extra space a marker needs vs. the *existing* depth-based
+indentation. Reusing the existing gutter (marker inside already-reserved padding)
+doesn't work at depth 0 — flat/top-level nodes have zero padding, so there's no
+gutter to draw into, yet the whole point of Experiment 5 is a marker on every
+eligible kind at every depth, depth 0 included. Resolved by reserving a **new,
+small, fixed (`rem`, never `em`) `--to-marker-gutter` additively on top of the
+existing depth formula**, for every non-list-item line (continuation lines
+included, so text stays aligned across a whole multi-line node, not just its own
+first line) — list items reserve nothing (no marker, native bullet/number
+untouched). This makes the marker's absolute column agree exactly between the two
+mechanisms: block lines (padding-left, box not shifted) place the icon at
+`left: depth * unit` (the start of the new gutter); atom lines — both plain
+(margin-left) and widget-replaced — place it at `left: -gutter` relative to their
+own (already gutter-shifted) box, landing at the identical global column. Verified
+live via rect/computed-style assertions, not reasoned from the box model alone (see
+`e2e/specs/52-block-markers-icons.e2e.ts`).
+
+**Two real integration risks found and fixed, both by extending existing,
+already-hardened machinery rather than reasoning from scratch**:
+
+1. `contain: paint` (Obsidian's own containment hint on widget-replaced atoms,
+   already fought once for guides) also clips a real DOM child positioned outside
+   its own box — not just a pseudo-element background. The existing override was
+   gated on `.to-decor-guides` (only present when an ancestor owns a guide), but a
+   marker is present on **every** widget atom, guide or not — a depth-0 table with
+   no ancestor would have had its marker silently clipped. Fixed by widening the
+   gate to `.to-decor-guides, .to-decor-marker`, and adding a regression test
+   specifically for the no-ancestor case
+   (`no !important/specificity or contain:paint regression: a depth-0 table...`).
+2. The guide's own `--to-own-shift` compensation (2b) had to grow to include the
+   new marker gutter for atom lines (both plain and widget-replaced), since their
+   own box is now shifted right by `depth * unit + gutter`, not just `depth * unit`
+   — otherwise a guide on a marker-bearing atom line would land one gutter-width
+   short of the correct ancestor column. Block lines needed no change (padding
+   never shifts the box, so their own-shift stays 0 regardless of the gutter).
+
+**Full test suite** (`npm test` + `npm run test:e2e`, 8 e2e spec files, 44 tests)
+green after the change, including two **pre-existing** Experiment 1/2b tests that
+needed deliberate updates (not silently patched to match, per the postmortem's own
+warning about that failure mode) because the underlying behavior legitimately
+changed: a depth-0 heading's `padding-left` is no longer `0px` (now the marker
+gutter, since every non-list block reserves one even at depth 0), and a same-depth
+list item vs. code fence no longer land at the same column (the code fence, an
+atom, reserves a marker gutter; the list item, excluded from markers, doesn't) —
+both changes are documented inline at the updated assertions with the reasoning
+above.
+
+**Real-vault-equivalent pass**: `npm run vault:install` succeeded (symlinks in
+place, plugin bundle built via `build:plugin`, not just type-checked). This
+environment has no interactive access to the user's own Obsidian instance, so the
+closest available check — the same one prior experiments on this project used as
+their "real (non-synthetic) vault notes" proxy — is screenshotting the bundled
+`test-vault`'s own real journal/notes/README content (not the synthetic fixture
+corpus) through the e2e harness, both themes. Reviewed by eye:
+multi-line-wrapped paragraphs get exactly one marker on their true first line
+(never repeated on wrapped continuation rows); a callout with mixed checkbox
+siblings, wikilinks, and a table all render correctly together with no clipping,
+overlap, or stacking conflict; dark theme unaffected. A genuine pass by the
+user's own hand against their personal vault is still the stronger bar the
+postmortem asks for and hasn't happened yet for this specific branch.
+
+**Code cost**: ~180 lines added to `decorations.ts` (icon builder switch + 8 SVG
+shapes, `MarkerWidget`, `computeMarkers`, widget-atom marker injection/cleanup
+helpers), ~35 lines in `styles.css` (gutter reservation + `position: relative` +
+extended `contain`/`overflow` override gate), ~10 lines in `decorate.ts` (the
+shared `kind` field prerequisite).
 
 ### Open question: shrinking only our own added list margin
 

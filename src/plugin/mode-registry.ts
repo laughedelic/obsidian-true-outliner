@@ -2,18 +2,33 @@
  * Per-note outline-mode state, persisted in the plugin data store (decision
  * log Q2.6: files stay clean — no frontmatter, no markers). Pure module: the
  * plugin injects persistence, so this is unit-testable without Obsidian.
+ *
+ * `MarkerVariant` lives here (not decorations.ts, which imports `obsidian`
+ * for `editorInfoField`) specifically so this module can stay pure — it's
+ * really just a data type, not a decoration-rendering concern.
  */
+
+/** See docs/research/07-decoration-experiments-plan.md, Experiment 5a's
+ * placement round — decorations.ts imports this type back from here. */
+export type MarkerVariant = 'A' | 'B' | 'C';
+export const DEFAULT_MARKER_VARIANT: MarkerVariant = 'B';
 
 export interface PluginData {
   outlinePaths: string[];
   coexistenceWarned: boolean;
   debugCrossCheck: boolean;
+  /** Experiment 5a placement round (see docs/research/07-decoration-
+   * experiments-plan.md) — a real, persisted setting so it can be tried
+   * against a real vault without a rebuild. Not meant to survive past the
+   * experiment: once a variant is picked, this whole setting goes away. */
+  markerVariant: MarkerVariant;
 }
 
 export const DEFAULT_DATA: PluginData = {
   outlinePaths: [],
   coexistenceWarned: false,
   debugCrossCheck: false,
+  markerVariant: DEFAULT_MARKER_VARIANT,
 };
 
 export class OutlineModeRegistry {
