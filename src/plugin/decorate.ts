@@ -1,6 +1,6 @@
 /**
  * Pure per-line decoration facts for outline mode's additive-only indentation
- * (see docs/research/07-decoration-experiments-plan.md, Experiment 1).
+ * (see docs/research/08-experiment-1-additive-indentation.md).
  *
  * Headings, paragraphs, and atoms have no native indentation of their own —
  * decorations.ts sets `padding-left`/`margin-left` = `depth × unit` directly,
@@ -60,7 +60,7 @@ export interface LineDecorationFact {
   readonly supplementalDepth: number;
   /**
    * The node's own kind (Experiment 5, see
-   * docs/research/07-decoration-experiments-plan.md) — populated straight
+   * docs/research/10-experiment-5-block-markers.md) — populated straight
    * from `node.kind`, constant across all of a node's own lines (first +
    * continuation). Used to pick a per-kind block marker; not consumed by
    * Experiment 1/2b's own indentation/guide logic.
@@ -116,7 +116,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
 
 /**
  * One line's active guide-line ancestor depths (Experiment 2b, see
- * docs/research/07-decoration-experiments-plan.md) — the CSS
+ * docs/research/09-experiment-2-guide-lines.md) — the CSS
  * stacked-gradient alternative to Experiment 2a's pixel-measured overlay.
  *
  * A depth `d` is active on a line when some strict, non-list-item ancestor
