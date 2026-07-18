@@ -393,4 +393,79 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
 
     await setVariantAndNudge('B'); // leave the vault on the default for other specs
   });
+
+  it('native fold chevron glyph sits between the marker and an ancestor’s guide line, clear of both', async function () {
+    // Real usability issue found in review: the native collapse chevron
+    // (`.cm-fold-indicator .collapse-indicator`) is inserted at essentially
+    // the same "text start" anchor our own marker's target column is
+    // defined relative to, so its default position overlapped our marker
+    // at every heading level — and unlike list items (where the native
+    // chevron already sits well left of the bullet), a heading's chevron
+    // rendered to the marker's right, an inconsistent layout.
+    //
+    // Two rounds of live correction went into the fix this asserts:
+    // 1. Measuring against `.collapse-indicator` (the WRAPPER, 22px wide)
+    //    instead of the actual painted `<svg>` glyph (~10px, centered
+    //    inside that wrapper with ~6px of invisible hit-area padding on
+    //    each side) made a real fit look impossible at deeper nesting,
+    //    where an ancestor's own guide column also passes through this
+    //    line. It wasn't — the WRAPPER can't avoid both the guide and the
+    //    marker in the available space, but the GLYPH comfortably can.
+    // 2. Nested headings need testing, not just a flat 2-level fixture —
+    //    the collision this guards against only appears when a shallower
+    //    ancestor's guide line is also active on the same row.
+    //
+    // This checks the glyph (not the wrapper) against BOTH neighbors: the
+    // marker on its right, and the nearest ancestor's guide column on its
+    // left. Wrapper-vs-marker overlap is explicitly NOT asserted against —
+    // our own marker has `pointer-events: none`, so hit-area overlap with
+    // it is harmless; only the visible glyph's position matters here.
+    const note = 'Scratch/markers-fold-chevron.md';
+    const md = ['# A', '', '## B', '', '### C with a child', '', 'child', ''].join('\n');
+    await h.createNote(note, md);
+    await ensureOutlineMode(note);
+    await browser.pause(150);
+
+    // Force the chevron visible for measurement — real behavior is
+    // hover/collapsed-only, but opacity doesn't affect layout/position.
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const style = document.createElement('style');
+      style.textContent = '.collapse-indicator { opacity: 1 !important; }';
+      cm.dom.appendChild(style);
+    });
+    await browser.pause(150);
+
+    const info = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+      // Lines: 0 "# A", 2 "## B", 4 "### C with a child" (depth 2, with
+      // ancestor guides from A [depth 0] and B [depth 1] both active).
+      const cLine = lines[4] as HTMLElement;
+      const glyph = cLine.querySelector('.collapse-indicator svg') as SVGSVGElement | null;
+      const marker = cLine.querySelector('.to-decor-marker-icon') as HTMLElement | null;
+      const contentRect = cm.contentDOM.getBoundingClientRect();
+      const unitPx = parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5;
+      return {
+        glyphRect: glyph?.getBoundingClientRect(),
+        markerRect: marker?.getBoundingClientRect(),
+        // B's own guide column (depth 1) — the nearest ancestor guide to a
+        // depth-2 node, and the one the chevron has the least room against.
+        ancestorGuideCol: contentRect.left + 1 * unitPx,
+      };
+    });
+
+    expect(info.glyphRect).toBeDefined();
+    expect(info.markerRect).toBeDefined();
+    // Glyph clears the marker (to its right) with a real, positive gap.
+    expect(info.markerRect!.left - info.glyphRect!.right).toBeGreaterThan(0.5);
+    // Glyph clears the ancestor guide column (to its left) too.
+    expect(info.glyphRect!.left - info.ancestorGuideCol).toBeGreaterThan(0.5);
+    // Sanity bound on both gaps — not precise pixel assertions, just
+    // guarding against a future regression ballooning the spacing.
+    expect(info.markerRect!.left - info.glyphRect!.right).toBeLessThan(10);
+    expect(info.glyphRect!.left - info.ancestorGuideCol).toBeLessThan(10);
+  });
 });
