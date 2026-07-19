@@ -251,8 +251,8 @@ axis of configurability, just a way to compare candidates without a rebuild per
 attempt.
 
 **Follow-up round 3: leaf-node marker visibility — kept as a real, permanent
-setting.** User observation after living with 5a for a while: a marker reads
-well as "a crown on top of the guide line" indicating a BRANCH node's kind, but
+setting.** A review observation after living with 5a for a while: a marker reads
+well as a crown on top of the guide line, indicating a BRANCH node's kind, but
 adds comparatively little for a LEAF — most leaf atom kinds (code, table,
 callout, quote, html, hr) already carry their own native visual style (a code
 fence's background, a callout's colored bar, etc.), so a marker there can read
@@ -482,8 +482,8 @@ lesson that visual claims need an actual look, not box-model reasoning alone):
    exactly ONE line tall and a background can never paint outside its own box (the same hard
    rule bug 1 already established), so doing this safely would need the same kind of
    vertical box-widening `--to-own-shift` already does horizontally, introducing an unverified
-   NEW paint-order risk against the next (opaque-backgrounded) code line. Per an explicit user
-   ask ("if that is harder to calculate, let's try an offset, to make it a bit lower"), code
+   NEW paint-order risk against the next (opaque-backgrounded) code line. Per an explicit review
+   decision (accepting a slightly-lower offset over the harder exact calculation), code
    fences instead bias toward the bottom of their own (still fully in-bounds, zero clipping
    risk) opener row via a plain `95%` — confirmed live via computed style (`background-position:
    12px 95%`) to land within ~1px of the next line's own top, a pragmatic near-miss rather than
@@ -552,10 +552,9 @@ gap-specific carve-out.
 (not by the dedicated alignment test) — mid-chain markers drifted visibly left of their
 own guide column.** The screenshot showed a real note (`Wednesday — review day` → `Aurora
 review` → paragraphs): the FIRST guide (from the top-level heading) correctly passed
-through the second level's marker, but every level from there down drifted — "the bullets
-(from the second level on) are shifted to the left, while the guides are evenly spaced,"
-in the reviewer's own words, correctly diagnosing that the guides themselves were fine and the
-markers were the ones off. Root cause: the fix above computes ONE combined `extra` per
+through the second level's marker, but every level from there down drifted — the report correctly
+diagnosed the guides themselves as evenly spaced and fine, and the markers (from the
+second level on) as the ones shifted left. Root cause: the fix above computes ONE combined `extra` per
 line — `max` of the line's own marker shortfall and its shallowest active guide's shortfall
 — and that combined value is what the box is ACTUALLY widened by (`--to-own-shift`). The
 marker's own X-position formula must use that SAME combined value for the cancellation
@@ -578,7 +577,7 @@ three levels) rather than trusting the depth-0/depth-1 case again — verifies e
 ancestor's marker center against its immediate child's guide column, not just the
 top-level pair. A concrete, second instance of this project's own recurring lesson: a
 real multi-level scenario is a different (and necessary) test from its simplest two-level
-stand-in, and a screenshot a human actually looked at caught what a passing assertion
+stand-in, and a screenshot a reviewer actually looked at caught what a passing assertion
 suite didn't.
 
 **Follow-up: the native fold chevron overlapped our marker on headings, fixed with a
@@ -649,7 +648,7 @@ indentation column and (for headings) the native fold chevron, vertically center
 node's own first rendered visual row, and horizontally centered on any bridging guide line
 from a shallower ancestor. Eight real bugs were found and fixed across three follow-up
 rounds after the initial "keep" verdict — none caught by this experiment's own fixture
-corpus or assertions at the time they shipped; every one came from a human looking at real
+corpus or assertions at the time they shipped; every one came from a reviewer looking at real
 rendered output — a shared screenshot, in most cases — and pushing back on what they saw.
 Total code cost stayed smaller than the initial 8-shape design despite three rounds
 of bug fixes and the addition of a genuinely new live-measurement subsystem (Y-position,
