@@ -64,3 +64,9 @@ good work. one minor thing I want to flag immediately that I noticed in 08:
 this is written as if you were talking to me. that style is okay in our conversations. but all our docs committed to the repo have to be written in a more neutral language, using pronouns like we/our. we are working as a team and anything that lands as durable documentation should reflect that spirit. this will also read better for anyone else who might stumble upon this (when it's released).
 
 so let's fix this language across all of our docs.
+
+---
+
+okay. one more minor nit: how about replacing "human" with "user" or "tester" (depending on the context)? from what I see, the distinction is more about automated interaction vs. manual (via human user/tester/reviewer), rather than between human and AI.
+
+and another nit: you mentioned the quote "how come you decided ...". I don't quite like to have it in the docs. I don't think that the exact quote is necessary there. let's remove it or replace with a description of what happened, not the verbal interaction. let me know if there are more cases like that.
