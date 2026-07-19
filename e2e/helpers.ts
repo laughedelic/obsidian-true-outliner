@@ -245,6 +245,50 @@ export function getLineComputedStyle(lineIndex: number, prop: string): Promise<s
   );
 }
 
+/**
+ * Computed style property of the Nth (0-indexed) `.cm-line`'s `::before`
+ * pseudo-element — for Experiment 2b's guide-line gradient, which is
+ * consumed by `::after` (not `::before` — that's Obsidian's own native
+ * blockquote colored-bar pseudo, see styles.css), not the line itself.
+ * Reading the browser's own *resolved* value (not the raw `--to-guides`
+ * custom property we set) confirms something actually rendered, the same
+ * rigor 2a's rect assertions provide for its overlay divs — a DOM-attribute
+ * check alone (e.g. reading `--to-guides` off the line) only proves the
+ * code ran, not that Obsidian's own CSS didn't silently override it (the
+ * postmortem's central false-confidence warning).
+ */
+export function getLinePseudoComputedStyle(lineIndex: number, prop: string): Promise<string> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex, prop) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+      const el = lines[lineIndex] as HTMLElement | undefined;
+      if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
+      return getComputedStyle(el, '::after').getPropertyValue(prop);
+    },
+    lineIndex,
+    prop,
+  );
+}
+
+/** classList of the Nth (0-indexed) `.cm-line` in the active editor. */
+export function getLineClassList(lineIndex: number): Promise<string[]> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+      const el = lines[lineIndex] as HTMLElement | undefined;
+      if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
+      return Array.from(el.classList);
+    },
+    lineIndex,
+  );
+}
+
 /** Bounding rects of every element matching `selector` within the Nth `.cm-line`. */
 export function getLineChildRects(lineIndex: number, selector: string): Promise<Rect[]> {
   return browser.executeObsidian(
@@ -285,6 +329,33 @@ export function getContentChildComputedStyle(
       const el = matches[index] as HTMLElement | undefined;
       if (!el) throw new Error(`no "${selector}" at index ${index}`);
       return getComputedStyle(el).getPropertyValue(prop);
+    },
+    selector,
+    index,
+    prop,
+  );
+}
+
+/**
+ * Computed style property of the Nth (0-indexed) element matching
+ * `selector`'s `::after` pseudo-element — the widget-atom equivalent of
+ * getLinePseudoComputedStyle, for guide-line assertions on table/callout/
+ * html/hr (which don't render as a plain `.cm-line`, `.hr` excepted).
+ */
+export function getContentChildPseudoComputedStyle(
+  selector: string,
+  index: number,
+  prop: string,
+): Promise<string> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, selector, index, prop) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const matches = cm.contentDOM.querySelectorAll(selector);
+      const el = matches[index] as HTMLElement | undefined;
+      if (!el) throw new Error(`no "${selector}" at index ${index}`);
+      return getComputedStyle(el, '::after').getPropertyValue(prop);
     },
     selector,
     index,
