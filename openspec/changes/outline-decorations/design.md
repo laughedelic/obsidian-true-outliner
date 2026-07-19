@@ -350,6 +350,10 @@ disabling the plugin, which already restores stock rendering.
 
 ## Open Questions
 
+*(All deferred decoration work — these open questions plus the gaps found after the
+hardening pass — is consolidated in
+[docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).)*
+
 - **Shrinking only our own added list margin** — raised during Experiment 1's review, not
   yet decided. List items sit visibly further right than a same-depth sibling
   paragraph/blockquote, traced to Obsidian's own native list hang (`text-indent`/

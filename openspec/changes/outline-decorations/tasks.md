@@ -76,11 +76,17 @@ Cross-experiment lessons:
   finding (flat paragraph-heavy documents give no visual signal) is resolved: indentation +
   guides alone give real hierarchy legibility even before a marker is added (08's "also
   confirmed not a bug" note); markers add per-kind identification on top.
-  **Not yet done**: a pass by the plugin author's own hand, in their own personal Obsidian
-  vault, on the final merged (1+2b+5a) combination together — every experiment's own
-  "real-vault" pass used the bundled `test-vault` proxy or, per doc 10, review of the
-  bundled `test-vault`'s content through the e2e harness, not the author's live instance.
-  Doc 10 flags this explicitly as the "stronger bar" still outstanding.
+  **The stronger bar is now met** (2026-07-20, after the hardening pass): the plugin
+  author ran a broad pass in their personal vault — deeply nested and flat notes alike —
+  and judged the merged combination good, with no issues in the bundled experience.
+  Additionally verified there: fold chevrons look and behave well under live Obsidian
+  1.13 (exercising the 5.1 live-measurement path, which the e2e harness's pinned 1.12
+  cannot), the declarative settings tab renders and is searchable on 1.13 (the 5.5 path),
+  and Chinese IME input works with no indentation/marker issues (closing 5.6's deferred
+  IME item). One real gap found and diagnosed, deferred deliberately: wiki-embed blocks
+  (`![[Another note]]`) bypass decoration when widget-rendered — see
+  [docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md)
+  for the full diagnosis and the model decision a fix needs.
 
 ## 4. Traceability gaps found during the 0.6 backfill
 
@@ -190,9 +196,11 @@ Ranked, from
   - **IME composition at line start**: not automatable in this harness — chromedriver
     cannot drive a real IME, and synthetic `CompositionEvent`s bypass the
     beforeinput/mutation-observer path CM6 actually uses for composition, so a synthetic
-    test would give false confidence. Deferred to the manual real-vault pass. Theory to
-    verify there: `MarkerWidget.eq()` returns stable identity for an unchanged kind, so
-    CM6 should leave the widget's DOM alone mid-composition rather than aborting it.
+    test would give false confidence. **Verified manually** (2026-07-20, personal-vault
+    pass): Chinese IME input in headings, paragraphs, and list items — including
+    indent/outdent while composing — showed no indentation or marker issues, consistent
+    with the theory that `MarkerWidget.eq()`'s stable identity keeps CM6 from touching
+    the widget's DOM mid-composition.
   - **Community themes**: probed Minimal, Catppuccin, and Things (three representative
     fixtures each — mixed, deep-nesting, widget-atoms — in light and dark, via a
     throwaway spec that installed each theme into the sandboxed vault; screenshots
@@ -201,7 +209,10 @@ Ranked, from
     interaction noted for the record: Things' native H2 underline spans the line's full
     padded region (including our reserved gutter/indentation), which reads fine but is
     visible in the screenshots.
-- [ ] 5.9 RTL rendering (found by 5.6's verification pass): with RTL text, the marker
+- [x] 5.9 (Recorded and deliberately deprioritized — no RTL work until real users need
+  it; tracked with the other deferred items in
+  [docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).)
+  RTL rendering (found by 5.6's verification pass): with RTL text, the marker
   icon's `left`-shift math assumes the line's first character renders at the physical left
   — in RTL it renders at the *right*, so the icon lands on top of the text (confirmed by
   screenshot: the heading's icon overlaps its first characters, the paragraph's strikes

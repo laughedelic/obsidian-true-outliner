@@ -886,6 +886,10 @@ building, and CM6's own `syntaxTree` as a kind-classification source.
 
 ### Potential follow-ups (deliberately out of Experiment 5's scope)
 
+*(These, plus everything deferred since, are consolidated in
+[12-decoration-follow-ups.md](12-decoration-follow-ups.md) — the standing parking lot
+for decoration work; this section is kept as the original record.)*
+
 - **Per-level heading markers (H1–H6).** Considered during the experiment but kept out to
   avoid scope creep; lapel validates the idea in the wild. Under 5a's mechanism this is
   small: carry the heading `level` (already on `OutlineNode`, present iff
