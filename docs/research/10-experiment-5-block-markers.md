@@ -808,7 +808,14 @@ polish for when 5a graduates from experiment to the real implementation.
    scorecard" bar (decision Q1) commits to satisfying. Static styles should move to CSS
    classes; genuinely dynamic ones (`left`, per-kind expressions) to `setCssProps`. Found
    by `npm run lint` on the merged branch, 2026-07-19; pre-existing warnings aside, the
-   errors are all in 5a's marker code.
+   errors are all in 5a's marker code. **Status (2026-07-19 backfill): resolved on `main`**
+   (`npm run lint`: 0 errors) — static styles moved to CSS classes, dynamic ones to
+   `setCssProps`, per the plan above. Only one warning remains
+   (`obsidianmd/settings-tab/prefer-setting-definitions`, unrelated to marker code — the
+   settings tab predates Experiment 5 and was never migrated to the declarative settings
+   API), now tracked as its own hardening task
+   ([tasks.md item 5.5](../../openspec/changes/outline-decorations/tasks.md)) rather than
+   bundled here.
 6. **Polish**: `aria-hidden="true"` on the marker SVGs (decorative, screen readers should
    skip them); untested contexts — RTL text, IME composition at line start, community
    themes beyond those exercised.

@@ -13,12 +13,14 @@ can see the tree they're editing.
 
 - **Node chrome decorations**: a CM6 decoration layer, active only in outline mode (same
   per-keypress/per-render gating pattern as the keyboard grammar's `ModeSource`), that
-  draws a leader marker at the start of every **paragraph** node's first line — the one
-  node kind with no native visual leader at all. List items keep Obsidian's native
-  bullet/number unchanged; headings keep their native `#`/typography; atoms (code, table,
-  callout, quote, HTML, hr) already read as distinct blocks via their own chrome. Only
-  paragraphs are invisible as tree nodes today, and flat (paragraph-only) documents are
-  exactly where the dev-vault finding showed the gap.
+  draws a kind-specific leader marker at the start of a node's first line. List items keep
+  Obsidian's native bullet/number unchanged — their native marker already does this job.
+  As implemented, every other kind (heading, paragraph, and each atom kind) gets its own
+  distinct marker, gated by a user-configurable visibility setting, rather than being
+  limited to paragraphs alone as first proposed here; see `design.md`'s D5 for how
+  real-content review during implementation widened this from the original paragraph-only
+  scope. Flat (paragraph-only) documents, the original dev-vault finding's motivating case,
+  are covered as a special case of this broader mechanism.
 - **Indentation guides by tree depth**: a vertical guide per ancestor level, computed from
   the node's position in the parsed tree — not from raw markdown indentation — so heading
   levels, list indentation, and paragraph adjacency (three different depth encodings) all
@@ -52,15 +54,21 @@ either spec's requirements)
 
 ## Impact
 
-- New code: `src/plugin/decorations.ts` (pure depth/marker computation from an
-  `OutlineDoc`, unit-testable without CM6) + a thin `ViewPlugin`/ `StateField` adapter
-  registered in `main.ts` alongside `grammarExtension`, reusing the existing `ModeSource`
-  gate.
+- New code, as built: `src/plugin/decorate.ts` (pure depth/guide/marker-fact computation
+  from an `OutlineDoc`, unit-testable without CM6) + `src/plugin/decorations.ts` (three
+  `ViewPlugin`s — not `StateField`s, since the nested-editor guard needs `view`/DOM access a
+  `StateField` doesn't have; see `design.md`'s "Nested-editor gating") registered in
+  `main.ts` alongside `grammarExtension`, extending `ModeSource` into `DecorationSource`
+  (adds `markerVisibility`).
 - No changes to the mapping core (`src/parse.ts`, `src/ops.ts`, `src/model.ts`) — this is
   a read-only projection of the existing tree, not a new operation.
 - No new dependencies — `@codemirror/view`'s `Decoration`/`ViewPlugin` APIs are already
   available (same package the keyboard grammar imports).
-- Testing: unit tests for the pure marker/depth computation (mapping-core-style, no CM6);
-  e2e coverage extends `e2e/specs/` with a visual/DOM-inspection suite (query rendered
-  decoration elements rather than screenshots) per the existing wdio-obsidian-service
+- Testing, as built: unit tests for the pure depth/guide/marker-fact computation
+  (`tests/decorate.test.ts`, mapping-core-style, no CM6); e2e coverage in `e2e/specs/`
+  combines full-corpus screenshots (both bundled themes) with DOM/computed-style assertions
+  (`50-decorations.e2e.ts`, `51-guides-gradient.e2e.ts`, `52-block-markers-icons.e2e.ts`) —
+  both proved necessary in practice, not an either/or: the experiment docs record several
+  bugs a screenshot glance missed and a rect/computed-style assertion caught, and others the
+  reverse, per the existing wdio-obsidian-service
   harness.
