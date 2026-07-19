@@ -1,0 +1,34 @@
+/*
+ * Outline mode decorations — additive-only indentation (Experiment 1, see
+ * docs/research/07-decoration-experiments-plan.md and the postmortem it
+ * links). `rem`, not `em`: custom properties resolve at the point of use,
+ * so an `em`-based unit would inflate under a heading's larger font-size —
+ * exactly the bug that shipped last time.
+ *
+ * Selector specificity: `!important` alone is not enough. Obsidian's own
+ * app.css has `.markdown-source-view.mod-cm6 .cm-content > * { margin: 0px
+ * !important; }` (three classes) resetting margin on every `.cm-line` —
+ * our `.cm-line.to-decor-*` (two classes) lost to it outright even with
+ * `!important` on both sides, confirmed live against a real build. Matching
+ * the same ancestor structure they use is what wins the cascade, not the
+ * `!important` keyword by itself.
+ */
+
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block {
+  padding-left: calc(var(--to-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
+}
+
+/* Atoms (code/table/quote/callout/html/hr) render a visible background or
+ * border box; padding-left only shifts an element's own content, never
+ * that box, so atoms need margin-left instead. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom {
+  margin-left: calc(var(--to-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
+}
+
+/* List items: native text-indent/padding-left (the bullet hang) is never
+ * touched. margin-left is a box-model property native list rendering
+ * doesn't otherwise use, so adding supplemental depth here is genuinely
+ * additive on top of untouched native positioning. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
+  margin-left: calc(var(--to-supp-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
+}

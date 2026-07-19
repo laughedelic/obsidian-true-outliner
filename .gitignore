@@ -11,6 +11,7 @@ node_modules/
 dist/
 /main.js
 /test-vault/.obsidian/plugins/true-outliner/main.js
+/test-vault/.obsidian/plugins/true-outliner/styles.css
 
 # Obsidian UI session state — rewritten on every open, not a fixture
 /test-vault/.obsidian/workspace.json

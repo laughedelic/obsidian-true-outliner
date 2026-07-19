@@ -135,6 +135,21 @@ op-closure, inverse laws — thousands of generated cases). Findings to carry fo
   outline mode is hard to verify by eye in flat documents. Decorations change moves up
   in priority.
 
+### Verdict from the outline-decorations implementation (2026-07-13): FAILED
+
+Three full redesign cycles, 198 unit tests, 33 e2e tests (all green), and multiple
+screenshot-verification rounds later, the feature was still visibly broken in real vault
+use — marker size scaling with heading font-size, inconsistent indentation, wrong
+continuation-line indentation, markers overlapping native bullets, misplaced guide
+lines. The CSS-override strategy (own `padding-left`/`text-indent`/`margin-left` via
+`!important`) kept producing new regressions each time a prior one was patched, and the
+testing approach (DOM-attribute assertions, narrow synthetic fixtures, tests updated to
+match whatever the implementation currently did) gave false confidence at every stage.
+Full account, root causes, and carried-forward technical findings:
+[06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md). The
+"visual layer is the testability bottleneck" problem above is **still open** — this
+attempt did not resolve it.
+
 ## Q3. Node identity & metadata storage ✅ DECIDED
 
 Native `^block-id` **on demand** (only when a node is actually referenced); collapse state in

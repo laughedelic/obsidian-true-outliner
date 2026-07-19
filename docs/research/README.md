@@ -15,6 +15,8 @@ Research date: July 2026.
 | [03-obsidian-api-feasibility.md](03-obsidian-api-feasibility.md) | Can the experience be built on public APIs only? Architecture options, guidelines/scorecard constraints, verdict |
 | [04-open-questions.md](04-open-questions.md) | Decisions that need alignment before any planning/spec work |
 | [05-org-mode-comparison.md](05-org-mode-comparison.md) | Where our mapping algebra aligns with / diverges from org-mode, the closest living reference system |
+| [06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md) | Postmortem on the failed `outline-decorations` visual-chrome attempt: what was tried, why the CSS-override strategy kept breaking, and why the testing approach gave false confidence |
+| [07-decoration-experiments-plan.md](07-decoration-experiments-plan.md) | Isolated, falsifiable prototyping experiments for the next decorations attempt, informed by prior-art research (obsidian-outliner, Logseq, Silverbullet) and a feasibility verdict on a per-block-editor-tree alternative |
 
 ## TL;DR
 
