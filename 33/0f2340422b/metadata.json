@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "330f2340422b",
+  "strategy": "manual-commit",
+  "branch": "docs/openspec-backfill-decorations",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/10-experiment-5-block-markers.md",
+    "openspec/changes/outline-decorations/design.md",
+    "openspec/changes/outline-decorations/proposal.md",
+    "openspec/changes/outline-decorations/specs/outline-decorations/spec.md",
+    "openspec/changes/outline-decorations/tasks.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/33/0f2340422b/0/metadata.json",
+      "transcript": "/33/0f2340422b/0/full.jsonl",
+      "compact_transcript": "/33/0f2340422b/0/transcript.jsonl",
+      "content_hash": "/33/0f2340422b/0/content_hash.txt",
+      "prompt": "/33/0f2340422b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1510,
+    "cache_creation_tokens": 182976,
+    "cache_read_tokens": 8566612,
+    "output_tokens": 45317,
+    "api_call_count": 47
+  }
+}
