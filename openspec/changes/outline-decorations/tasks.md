@@ -129,14 +129,18 @@ Ranked, from
   previously-validated bundled-theme values exactly. The chevron e2e test now additionally
   asserts the live-measured property landed (not just that the resulting geometry is
   right), so a silently-dead measurement path can't hide behind the fallback.
-- [ ] 5.2 Protect two documented invariants in code review going forward: (a) DOM injection
-  into widget-atom subtrees relies on Obsidian never re-diffing those opaque subtrees
-  internally — undocumented-to-Obsidian, failure mode is re-injection flicker/duplicated
-  markers; (b) never append a child into a plain `.cm-line` — confirmed to peg CM6's
-  renderer at 100%+ CPU via its mutation-observer feedback loop (already documented inline
-  in `decorations.ts`'s module comment; this task is about keeping it true across future
-  refactors, e.g. by adding a lint rule or a regression test if a lightweight one is
-  feasible).
+- [x] 5.2 Protect two documented invariants in code review going forward — done via a
+  scoped lint guard: a `no-restricted-syntax` rule (eslint.config.js) flags every DOM
+  insertion call (`append`/`appendChild`/`prepend`/`insertBefore`/`before`/`after`) in
+  `src/plugin/**`, with a message restating both invariants; the sanctioned sites carry
+  targeted `eslint-disable-next-line` directives whose justification descriptions are
+  themselves enforced (`eslint-comments/require-description` is already in the shared
+  config), so a future refactor cannot add an insertion site silently — it must either
+  route through CM6's own `Decoration.widget` path or state, in place, why the target is
+  detached or a widget-atom subtree. `buildMarkerIcon`'s per-branch appends were funneled
+  through one sanctioned site (a `children` array appended once to the detached `svg`) so
+  the guard stays low-noise. The duplicate-marker e2e test remains the runtime net for
+  invariant (a)'s failure mode (re-injection flicker/duplicated markers).
 - [x] 5.3 Evaluate `app.workspace.updateOptions()` as a replacement for the `forceRedraw`
   off/on mode-toggle hack — evaluated, **rejected with evidence; the hack stays**. Swapped
   in and run against the marker-visibility e2e suite: `updateOptions()` fails exactly the
