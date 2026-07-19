@@ -117,12 +117,18 @@ Ranked, from
 [docs/research/10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md)'s
 "Next steps: hardening 5a" section. None are architecture-threatening.
 
-- [ ] 5.1 Replace the two hardcoded fold-chevron measurement constants
-  (`0.425rem`/`3px` in the chevron-repositioning `translateX`) with live measurement,
-  porting 5b's approach (`getBoundingClientRect()` against the chevron's own glyph, not its
-  wrapper). Currently the one place this design violates its own "read native values live"
-  rule; a theme/Obsidian update that resizes the chevron silently degrades layout
-  (cosmetic-only failure mode).
+- [x] 5.1 Replace the two hardcoded fold-chevron measurement constants
+  (`0.425rem`/`3px` in the chevron-repositioning `translateX`) with live measurement —
+  done. The shift decomposes as `gutter + iconSize/2 + 3px gap − chevron right-side dead
+  space`; only the dead space is a native measurement, now read live per render by
+  `MarginCompensation.measureChevron()` (`.collapse-indicator` box vs. its painted `<svg>`
+  glyph — a width difference, translation-invariant, so measuring the transformed chevron
+  is sound) into `--to-chevron-dead-right` on the content DOM. `--to-marker-icon-size` is
+  likewise threaded from its JS source of truth (`MARKER_ICON_CSS`), which also replaced
+  styles.css's "keep in sync" duplicate of the icon size. CSS fallbacks reproduce the
+  previously-validated bundled-theme values exactly. The chevron e2e test now additionally
+  asserts the live-measured property landed (not just that the resulting geometry is
+  right), so a silently-dead measurement path can't hide behind the fallback.
 - [ ] 5.2 Protect two documented invariants in code review going forward: (a) DOM injection
   into widget-atom subtrees relies on Obsidian never re-diffing those opaque subtrees
   internally — undocumented-to-Obsidian, failure mode is re-injection flicker/duplicated

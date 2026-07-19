@@ -769,7 +769,11 @@ Concerns identified in the post-experiment code review (2026-07-19), ranked. Non
 architecture-threatening; they're hardening tasks, invariants to protect, and deferred
 polish for when 5a graduates from experiment to the real implementation.
 
-1. **Replace the two hardcoded fold-chevron constants with live measurement.** The chevron
+1. **Replace the two hardcoded fold-chevron constants with live measurement.**
+   **Status (hardening pass): done** — `MarginCompensation.measureChevron()` reads the
+   chevron's right-side dead space live (`.collapse-indicator` box vs. its painted `<svg>`
+   glyph) into `--to-chevron-dead-right`; the icon-size term is threaded from
+   `MARKER_ICON_CSS`; CSS fallbacks reproduce the old constants. Originally: the chevron
    repositioning is a static CSS transform (`translateX(calc(-1 * (var(--to-marker-gutter)
    + 0.425rem - 3px)))`) where `0.425rem` is half the chevron wrapper's measured 22px width
    and `3px` is measured internal dead space. This is the one place 5a violates the

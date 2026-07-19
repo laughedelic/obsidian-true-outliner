@@ -724,6 +724,50 @@ class MarginCompensation implements PluginValue {
     return ref ? parseFloat(getComputedStyle(ref).marginLeft) || 0 : 0;
   }
 
+  /**
+   * Live measurement for the fold-chevron repositioning transform
+   * (styles.css) — hardening 5.1, replacing two hardcoded measured
+   * constants with the same read-native-values-live pattern
+   * `nativeMarginBasePx` establishes: measure one representative element
+   * per render, apply uniformly via a custom property on the content DOM
+   * (custom properties inherit, so every chevron's transform picks it up).
+   *
+   * What the transform needs (see styles.css's own comment for the full
+   * spatial story): shift = gutter + half our marker icon's width + a small
+   * visual gap − the chevron's own right-side DEAD SPACE (the invisible
+   * hit-area padding between its `.collapse-indicator` box's right edge and
+   * the painted `<svg>` glyph's right edge — ~6px in the bundled themes,
+   * but native Obsidian sizing that a theme/Obsidian update can change,
+   * which is exactly why it must be measured, not hardcoded). Only the dead
+   * space is a native measurement; the gutter and icon size are our own
+   * constants, threaded from their single JS source of truth
+   * (`MARKER_GUTTER_CSS`/`MARKER_ICON_CSS`) per the shared-value lesson.
+   *
+   * Measures `.collapse-indicator` (the element that actually carries the
+   * box width) against its own painted `<svg>` — NOT the `.cm-fold-indicator`
+   * wrapper, which is a zero-width anchor whose rect is technically true but
+   * practically useless (the measure-the-glyph-not-the-wrapper lesson,
+   * 11-decoration-lessons.md). A width DIFFERENCE is translation-invariant,
+   * so measuring an already-transformed chevron still yields the correct
+   * dead space — no untransformed-position bookkeeping needed. When no
+   * chevron is currently rendered (nothing foldable in the viewport), the
+   * last measurement — or, before any, the CSS fallback matching the
+   * previously-validated bundled-theme values — stays in effect.
+   */
+  private measureChevron(): void {
+    const wrapper = this.view.contentDOM.querySelector<HTMLElement>(
+      '.cm-fold-indicator .collapse-indicator',
+    );
+    const glyph = wrapper?.querySelector('svg');
+    if (!wrapper || !glyph) return;
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const glyphRect = glyph.getBoundingClientRect();
+    if (wrapperRect.width === 0 || glyphRect.width === 0) return;
+    this.view.contentDOM.setCssProps({
+      '--to-chevron-dead-right': `${wrapperRect.right - glyphRect.right}px`,
+    });
+  }
+
   private apply(): void {
     const path = this.view.state.field(editorInfoField, false)?.file?.path;
     // See isNestedEditor's own doc comment — a nested per-cell editor
@@ -733,6 +777,13 @@ class MarginCompensation implements PluginValue {
       this.clearAll();
       return;
     }
+
+    // The chevron transform's inputs: our own icon size, threaded from its
+    // JS source of truth, plus the live-measured native dead space (see
+    // measureChevron). Set every render — cheap, and keeps a theme switch
+    // mid-session correct on the next update.
+    this.view.contentDOM.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
+    this.measureChevron();
 
     const { factsByLine, guidesByLine } = docFacts(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
@@ -875,6 +926,8 @@ class MarginCompensation implements PluginValue {
   }
 
   private clearAll(): void {
+    this.view.contentDOM.style.removeProperty('--to-marker-icon-size');
+    this.view.contentDOM.style.removeProperty('--to-chevron-dead-right');
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
     );
