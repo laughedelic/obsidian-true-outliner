@@ -238,3 +238,42 @@
   .collapse-indicator {
   transform: translateX(calc(-1 * (var(--to-marker-gutter, 1.25rem) + 0.425rem - 3px)));
 }
+
+/*
+ * Marker icon (Experiment 5a): static styling for both delivery mechanisms
+ * (decorations.ts's `MarkerWidget` for plain lines, `applyWidgetMarker` for
+ * widget-replaced atoms) moved here per `eslint-plugin-obsidianmd`'s
+ * `no-static-styles-assignment` rule — only the marker's own `left` offset
+ * genuinely varies per instance (by depth/kind), so JS only ever sets that,
+ * via `setCssProps({'--to-marker-left': ...})`.
+ *
+ * The two mechanisms can't share one positioning scheme (see decorations.ts's
+ * own doc comments: plain lines rely on inline flow + `vertical-align:
+ * baseline` to track the surrounding text's font metrics; a widget atom is
+ * its own opaque, already-full-height box, stretched and flex-centered
+ * instead) — `.to-decor-marker-icon` carries what's common to both,
+ * `.to-decor-marker-icon--widget` overrides the rest for the widget-atom
+ * case.
+ */
+.to-decor-marker-icon {
+  display: inline-block;
+  position: relative;
+  left: var(--to-marker-left, 0px);
+  vertical-align: baseline;
+  width: 0.85rem; /* MARKER_ICON_REM, decorations.ts — keep in sync */
+  height: 0.85rem;
+  margin-left: -0.85rem; /* -1 * MARKER_ICON_REM */
+  pointer-events: none;
+  color: var(--text-faint);
+}
+
+.to-decor-marker-icon--widget {
+  display: flex;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  margin-left: 0;
+  align-items: center;
+  justify-content: center;
+}
