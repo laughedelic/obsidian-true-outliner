@@ -138,15 +138,18 @@ Ranked, from
   mode as an internal refresh mechanism is fragile if mode toggling ever gains side effects.
   `updateOptions()` is Obsidian's public API for "editor-extension-affecting settings
   changed"; obsidian-lapel confirms the pattern works in the wild.
-- [ ] 5.4 Consolidate to one shared `parse()`/`decorate()` pass per transaction. Currently
-  three `ViewPlugin`s each independently re-parse the full document on every update (the 2b
-  baseline already did it twice; 5a added a third). Same asymptotics, tripled constant —
-  fine for normal notes, worth doing before testing against multi-thousand-line files.
-  Building only over `view.viewport` (rebuild on `docChanged || viewportChanged`) is a
-  further, separately-deferred option — obsidian-lapel demonstrates the standard shape, and
-  additionally shows CM6's own incremental `syntaxTree` could supply per-line *kind*
-  classification with no separate reparse, though not our tree *depths* (our universal-tree
-  semantics aren't in CM6's grammar).
+- [x] 5.4 Consolidate to one shared `parse()`/`decorate()` pass per transaction — done:
+  `docFacts()` in `decorations.ts` computes parse/decorate/computeLineGuides once per
+  document and caches by the CM6 `Text` instance (WeakMap, no invalidation logic — entries
+  die with the document; sound because the facts depend on nothing but the text, with mode
+  gating and `markerVisibility` filtering both applied downstream by the consumers). All
+  three `ViewPlugin`s now share it; non-doc updates (mode toggles, selection nudges) reuse
+  the cache too, so they no longer reparse at all. Building only over `view.viewport`
+  (rebuild on `docChanged || viewportChanged`) remains a further, separately-deferred
+  option — obsidian-lapel demonstrates the standard shape, and additionally shows CM6's
+  own incremental `syntaxTree` could supply per-line *kind* classification with no
+  separate reparse, though not our tree *depths* (our universal-tree semantics aren't in
+  CM6's grammar).
 - [ ] 5.5 Adopt the declarative settings API (`getSettingDefinitions`) for
   `TrueOutlinerSettingTab` in `main.ts` — the one remaining `npm run lint` warning as of this
   backfill (`obsidianmd/settings-tab/prefer-setting-definitions`; confirmed 0 errors, 1

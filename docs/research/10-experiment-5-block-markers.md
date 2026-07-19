@@ -791,7 +791,10 @@ polish for when 5a graduates from experiment to the real implementation.
    "editor-extension-affecting settings changed" — and obsidian-lapel (see the prior-art
    addendum below) confirms the pattern works in the wild: it swaps the registered
    extension array's entry in place and makes this one call.
-4. **Consolidate to one shared `parse()`/`decorate()` pass per transaction.** Currently
+4. **Consolidate to one shared `parse()`/`decorate()` pass per transaction.**
+   **Status (hardening pass): done** — `docFacts()` in `decorations.ts` computes the pure
+   facts once per document, cached by the CM6 `Text` instance in a WeakMap; all three
+   ViewPlugins share it, and non-doc updates reuse the cache entirely. Originally: currently
    three ViewPlugins each re-parse the full document on every update (the 2b baseline did
    it twice). Same asymptotics, tripled constant; fine for normal notes, worth
    consolidating before testing against multi-thousand-line files. Decoration sets are
