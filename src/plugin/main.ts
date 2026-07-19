@@ -261,9 +261,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
       );
     new Setting(this.containerEl)
-      .setName('Debug: block marker visibility (Experiment 5a)')
+      .setName('Debug: block marker visibility (experiment 5a)')
       .setDesc(
-        'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, html, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
+        'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
       )
       .addDropdown((dropdown) =>
         dropdown

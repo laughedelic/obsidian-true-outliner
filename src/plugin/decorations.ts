@@ -235,7 +235,7 @@ function svgEl<K extends keyof SVGElementTagNameMap>(
 ): SVGElementTagNameMap[K] {
   const el = document.createElementNS(SVG_NS, tag);
   for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
-  return el as SVGElementTagNameMap[K];
+  return el;
 }
 
 const STROKE_ATTRS = {
@@ -346,18 +346,17 @@ const WIDGET_ATOM_KINDS: ReadonlySet<NodeKind> = new Set(['table', 'callout', 'h
  * line-height/leading asymmetry; stretching the box to its full containing-
  * block height via `top`+`bottom` and centering the icon inside with flex
  * lets the browser's own box layout do the centering, unambiguously.
+ *
+ * Everything but `left` is a fixed constant, moved into the
+ * `.to-decor-marker-icon`/`.to-decor-marker-icon--widget` CSS classes
+ * (styles.css) per `eslint-plugin-obsidianmd`'s `no-static-styles-assignment`
+ * rule — `left` is the only value that genuinely varies per instance
+ * (depth/kind-dependent), so it's the only one JS still sets, via
+ * `setCssProps` onto the `--to-marker-left` custom property the class
+ * references.
  */
-function applyMarkerWrapperStyle(el: HTMLElement, leftExpr: string): void {
-  el.style.position = 'absolute';
-  el.style.top = '0';
-  el.style.bottom = '0';
-  el.style.left = leftExpr;
-  el.style.width = MARKER_ICON_CSS;
-  el.style.display = 'flex';
-  el.style.alignItems = 'center';
-  el.style.justifyContent = 'center';
-  el.style.pointerEvents = 'none';
-  el.style.color = 'var(--text-faint)';
+function applyMarkerLeft(el: HTMLElement, leftExpr: string): void {
+  el.setCssProps({ '--to-marker-left': leftExpr });
 }
 
 class MarkerWidget extends WidgetType {
@@ -406,17 +405,8 @@ class MarkerWidget extends WidgetType {
    * of the text, confirmed live against every heading level and paragraph.
    */
   toDOM(): HTMLElement {
-    const wrapper = document.createElement('span');
-    wrapper.className = 'to-decor-marker-icon';
-    wrapper.style.display = 'inline-block';
-    wrapper.style.verticalAlign = 'baseline';
-    wrapper.style.position = 'relative';
-    wrapper.style.left = this.leftShiftExpr;
-    wrapper.style.marginLeft = `calc(-1 * ${MARKER_ICON_CSS})`;
-    wrapper.style.width = MARKER_ICON_CSS;
-    wrapper.style.height = MARKER_ICON_CSS;
-    wrapper.style.pointerEvents = 'none';
-    wrapper.style.color = 'var(--text-faint)';
+    const wrapper = createSpan({ cls: 'to-decor-marker-icon' });
+    applyMarkerLeft(wrapper, this.leftShiftExpr);
     wrapper.appendChild(buildMarkerIcon(this.kind));
     return wrapper;
   }
@@ -574,14 +564,13 @@ function applyWidgetMarker(el: HTMLElement, kind: NodeKind, ownShiftExpr: string
   const leftExpr = markerAnchorLeftExpr(targetRelExpr);
   const existing = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
   if (existing) {
-    applyMarkerWrapperStyle(existing, leftExpr);
+    applyMarkerLeft(existing, leftExpr);
     if (existing.dataset.kind === kind) return;
     existing.remove();
   }
-  const icon = document.createElement('span');
-  icon.className = 'to-decor-marker-icon';
+  const icon = createSpan({ cls: 'to-decor-marker-icon to-decor-marker-icon--widget' });
   icon.dataset.kind = kind;
-  applyMarkerWrapperStyle(icon, leftExpr);
+  applyMarkerLeft(icon, leftExpr);
   icon.appendChild(buildMarkerIcon(kind));
   el.prepend(icon);
 }
