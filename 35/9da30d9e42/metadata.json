@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "359da30d9e42",
+  "strategy": "manual-commit",
+  "branch": "harden/outline-decorations",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/35/9da30d9e42/0/metadata.json",
+      "transcript": "/35/9da30d9e42/0/full.jsonl",
+      "compact_transcript": "/35/9da30d9e42/0/transcript.jsonl",
+      "content_hash": "/35/9da30d9e42/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 287,
+    "cache_creation_tokens": 384545,
+    "cache_read_tokens": 25369453,
+    "output_tokens": 88052,
+    "api_call_count": 127
+  }
+}
