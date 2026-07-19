@@ -8,6 +8,7 @@ import {
   PluginSettingTab,
   Setting,
   TFile,
+  type SettingDefinitionItem,
 } from 'obsidian';
 import type { OutlineDoc, OutlineNode } from '../model';
 import { parse } from '../parse';
@@ -258,6 +259,16 @@ export default class TrueOutlinerPlugin extends Plugin {
   }
 }
 
+const SETTING_DEBUG_CROSSCHECK = {
+  name: 'Debug: cross-check parser against metadata cache',
+  desc: 'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
+} as const;
+
+const SETTING_MARKER_VISIBILITY = {
+  name: 'Debug: block marker visibility (experiment 5a)',
+  desc: 'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
+} as const;
+
 class TrueOutlinerSettingTab extends PluginSettingTab {
   constructor(
     app: App,
@@ -266,23 +277,72 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
+  /**
+   * Declarative settings (Obsidian 1.13+, hardening 5.5): the settings
+   * render from these definitions and become discoverable via Obsidian's
+   * settings search. `display()` below is kept ONLY as the documented
+   * fallback for pre-1.13 Obsidian (`minAppVersion` is older, and the e2e
+   * harness's pinned runtime still exercises it) — on 1.13+ it is never
+   * called once this returns a non-empty array. Keep the two in sync.
+   */
+  override getSettingDefinitions(): SettingDefinitionItem[] {
+    return [
+      {
+        ...SETTING_DEBUG_CROSSCHECK,
+        control: { type: 'toggle', key: 'debugCrossCheck', defaultValue: false },
+      },
+      {
+        ...SETTING_MARKER_VISIBILITY,
+        control: {
+          type: 'dropdown',
+          key: 'markerVisibility',
+          options: MARKER_VISIBILITY_LABELS,
+          defaultValue: 'all',
+        },
+      },
+    ];
+  }
+
+  /** This plugin doesn't use the conventional `this.plugin.settings` shape
+   * the base implementation reads, so both value hooks are overridden to go
+   * through the plugin's own accessors (which also own persistence and the
+   * decoration refresh on change). */
+  override getControlValue(key: string): unknown {
+    switch (key) {
+      case 'debugCrossCheck':
+        return this.plugin.debugCrossCheck;
+      case 'markerVisibility':
+        return this.plugin.markerVisibility;
+      default:
+        return undefined;
+    }
+  }
+
+  override async setControlValue(key: string, value: unknown): Promise<void> {
+    switch (key) {
+      case 'debugCrossCheck':
+        await this.plugin.setDebugCrossCheck(Boolean(value));
+        break;
+      case 'markerVisibility':
+        await this.plugin.setMarkerVisibility(value as MarkerVisibility);
+        break;
+    }
+  }
+
+  /** Pre-1.13 fallback only — see getSettingDefinitions() above. */
   override display(): void {
     this.containerEl.empty();
     new Setting(this.containerEl)
-      .setName('Debug: cross-check parser against metadata cache')
-      .setDesc(
-        'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
-      )
+      .setName(SETTING_DEBUG_CROSSCHECK.name)
+      .setDesc(SETTING_DEBUG_CROSSCHECK.desc)
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.debugCrossCheck)
           .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
       );
     new Setting(this.containerEl)
-      .setName('Debug: block marker visibility (experiment 5a)')
-      .setDesc(
-        'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
-      )
+      .setName(SETTING_MARKER_VISIBILITY.name)
+      .setDesc(SETTING_MARKER_VISIBILITY.desc)
       .addDropdown((dropdown) =>
         dropdown
           .addOptions(MARKER_VISIBILITY_LABELS)
