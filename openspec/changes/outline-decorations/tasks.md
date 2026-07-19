@@ -87,16 +87,18 @@ Cross-experiment lessons:
 Requirements in `specs/outline-decorations/spec.md` with no direct covering test (recorded
 so they don't silently stay uncovered):
 
-- [ ] 4.1 **Nested per-cell editor decoration state** has no dedicated e2e test. The only
-  evidence is indirect: a marker-visibility test's intermittent failure was traced to this
-  exact leak and is now passing deterministically, but no test explicitly opens a table cell
-  for editing and asserts the nested editor's own line carries no padding/margin/marker. Add
-  one to `e2e/specs/52-block-markers-icons.e2e.ts` (or a new nested-editor-focused spec).
-- [ ] 4.2 **The non-mutation contract** (no transaction/cursor/undo-stack side effect from a
-  decoration recompute) has no dedicated e2e assertion — only inferable from the pure
-  module's own lack of side effects and the absence of any reported regression. Add an e2e
-  test that snapshots cursor position and undo-stack depth before/after a decoration
-  recompute (e.g. triggered by a mode toggle) and asserts both are unchanged.
+- [x] 4.1 **Nested per-cell editor decoration state** — covered:
+  `e2e/specs/53-decoration-contracts.e2e.ts` clicks into a table cell (under a heading, so
+  a leak would be visibly nonzero, not a lucky 0), waits for the nested `.cm-editor`, and
+  asserts via computed styles (not DOM attributes) that its line carries no `to-decor-*`
+  class, zero padding/margin, and no marker — while the outer note's own decorations stay
+  active.
+- [x] 4.2 **The non-mutation contract** — covered in the same spec: after one known real
+  edit, a double mode toggle (the recompute path with no doc change of its own) leaves the
+  buffer and cursor byte-identical, and a SINGLE undo then reverts the real edit — proving
+  no change-bearing transaction was interposed on the undo stack by the recomputes (the
+  undo-stack-depth assertion phrased through public API only, since CM6's history depth
+  isn't publicly readable).
 
 Code behaviors present in `decorations.ts` with no explicit spec requirement (recorded as
 either intentionally-undocumented implementation detail or a genuine gap — reviewed and
