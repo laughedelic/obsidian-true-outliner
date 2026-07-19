@@ -56,7 +56,7 @@
  * own doc comment below for the fix.
  */
 
-import { RangeSetBuilder, type Extension, type EditorState } from '@codemirror/state';
+import { RangeSetBuilder, type Extension, type EditorState, type Text } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -75,6 +75,45 @@ import {
   type LineGuideFact,
 } from './decorate';
 import type { ModeSource } from './keymap';
+
+// ---- Shared per-document fact computation (hardening 5.4) ------------------
+//
+// All three ViewPlugins below need the same pure facts (parse → decorate →
+// computeLineGuides) on every update. Each used to compute them
+// independently — same asymptotics, tripled constant (the 2b baseline
+// already did it twice; 5a added a third). Consolidated here into one
+// computation cached by the *document* (`state.doc`, CM6's immutable `Text`
+// instance): whichever plugin runs first on a given document pays the cost,
+// every other consumer — and every subsequent non-doc update, where CM6
+// reuses the same `Text` instance — gets the cached result. A WeakMap keyed
+// on the `Text` itself (not a doc string) means no invalidation logic and
+// no leak: entries die with the document they describe. Sound because the
+// facts depend on nothing but the document text — mode gating and
+// markerVisibility filtering both happen in the consumers, after this.
+interface DocFacts {
+  readonly facts: readonly LineDecorationFact[];
+  readonly factsByLine: ReadonlyMap<number, LineDecorationFact>;
+  readonly guides: readonly LineGuideFact[];
+  readonly guidesByLine: ReadonlyMap<number, LineGuideFact>;
+}
+
+const docFactsCache = new WeakMap<Text, DocFacts>();
+
+function docFacts(state: EditorState): DocFacts {
+  const cached = docFactsCache.get(state.doc);
+  if (cached) return cached;
+  const doc = parse(state.doc.toString());
+  const facts = decorate(doc);
+  const guides = computeLineGuides(doc);
+  const computed: DocFacts = {
+    facts,
+    factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
+    guides,
+    guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
+  };
+  docFactsCache.set(state.doc, computed);
+  return computed;
+}
 
 // ---- Guide lines (Experiment 2b: CSS stacked-gradient) ---------------------
 //
@@ -420,10 +459,9 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
   const path = state.field(editorInfoField, false)?.file?.path;
   if (!path || !modes.isOutline(path)) return Decoration.none;
 
-  const doc = parse(state.doc.toString());
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
-  for (const fact of decorate(doc)) {
+  for (const fact of docFacts(state).facts) {
     // List items keep their fully native marker, untouched (same exclusion
     // guides already use); continuation lines never repeat the marker.
     if (fact.isListItem || !fact.isFirstLine) continue;
@@ -499,15 +537,13 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   const path = state.field(editorInfoField, false)?.file?.path;
   if (!path || !modes.isOutline(path)) return Decoration.none;
 
-  const doc = parse(state.doc.toString());
   // computeLineGuides is a strict superset of decorate() by line coverage
   // (every line decorate() covers, plus gap-only lines) — iterate it as
   // the primary sequence (still ascending by lineNumber, required by
   // RangeSetBuilder) and look up the matching decorate() fact by line
   // number instead of assuming index alignment, since gap lines have no
   // corresponding entry there at all.
-  const factsByLine = new Map(decorate(doc).map((f) => [f.lineNumber, f]));
-  const guides = computeLineGuides(doc);
+  const { factsByLine, guides } = docFacts(state);
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
   for (const guide of guides) {
@@ -698,9 +734,7 @@ class MarginCompensation implements PluginValue {
       return;
     }
 
-    const doc = parse(this.view.state.doc.toString());
-    const factsByLine = new Map(decorate(doc).map((f) => [f.lineNumber, f]));
-    const guidesByLine = new Map(computeLineGuides(doc).map((g) => [g.lineNumber, g]));
+    const { factsByLine, guidesByLine } = docFacts(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
 
     const widgets = Array.from(

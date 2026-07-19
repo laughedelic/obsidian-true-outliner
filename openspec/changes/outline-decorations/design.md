@@ -273,12 +273,16 @@ in the source.
 
 ### D4. Full-document recompute on every relevant transaction, no incremental diffing
 Confirmed as built, now across three `ViewPlugin`s rather than the originally-proposed
-single `ViewPlugin`: `DecorationsPlugin`, `MarkersPlugin`, and `MarginCompensation` each
-independently call `parse(view.state.doc.toString())` on every update — the 2b baseline
-already did this twice before Experiment 5 added a third pass. Same asymptotic budget
-already accepted for the keyboard grammar and structural commands, tripled constant factor;
-fine for normal notes, flagged as a hardening item (consolidate to one shared `parse()`/
-`decorate()` pass per transaction) rather than a blocker — see `tasks.md`.
+single `ViewPlugin`: `DecorationsPlugin`, `MarkersPlugin`, and `MarginCompensation` all
+consume one shared `parse()`/`decorate()`/`computeLineGuides()` computation per document
+(`docFacts()` in `decorations.ts`, cached by the CM6 `Text` instance in a `WeakMap` —
+whichever plugin runs first pays the cost; the others, and every subsequent non-doc
+update reusing the same `Text`, get the cached result). The hardening pass consolidated
+this from three independent full reparses per update (the 2b baseline did two; Experiment
+5 added a third). Same asymptotic budget already accepted for the keyboard grammar and
+structural commands. Viewport-limited building (obsidian-lapel's shape: build only over
+`view.viewport`, rebuild on `docChanged || viewportChanged`) remains a separately-deferred
+option, not needed at current document sizes.
 
 ### D5. Marker scope: every non-list-item kind, gated by a persisted visibility setting
 This revises the original D5 ("paragraphs only"). Real-content review during Experiment 5
@@ -301,9 +305,9 @@ design didn't anticipate), every plugin's `decorations` field is the empty `Deco
 
 ## Risks / Trade-offs
 
-- **Triple full-reparse per transaction** (D4) — same accepted budget as before, now with a
-  3x constant. Not yet a problem on normal notes; consolidation is a tracked hardening task,
-  not a blocker.
+- **Full-document reparse per doc change** (D4) — same accepted budget as before; the
+  hardening pass consolidated the former 3x constant into one shared, per-document cached
+  computation. Viewport-limited building stays deferred until document sizes demand it.
 - **Two hardcoded fold-chevron measurement constants** in the marker-repositioning CSS
   (`decorations.ts`) are the one place this design violates its own "read native values
   live" rule — a theme or Obsidian update that resizes the chevron degrades layout
