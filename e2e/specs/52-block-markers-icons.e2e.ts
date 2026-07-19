@@ -436,15 +436,18 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
 
     // Hardening 5.1: the chevron shift's dead-space term is measured live
     // (MarginCompensation.measureChevron), not hardcoded. Assert the
-    // measured property actually landed on the content DOM with a sane
-    // value — otherwise the CSS fallback could silently be the only thing
-    // ever in effect, which is exactly the drift the live path exists to
-    // prevent. (The geometry assertions above already prove the RESULT is
-    // right; this proves the live mechanism produced it.)
+    // measured property actually landed — on `view.dom`, the outer
+    // `.cm-editor`, NOT `contentDOM`: writing an attribute on contentDOM
+    // itself sits inside CM6's own mutation-observer scope and looped (see
+    // measureChevron's doc comment) — with a sane value; otherwise the CSS
+    // fallback could silently be the only thing ever in effect, which is
+    // exactly the drift the live path exists to prevent. (The geometry
+    // assertions above already prove the RESULT is right; this proves the
+    // live mechanism produced it.)
     const deadRight = await browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
       const cm = (view.editor as any).cm;
-      return (cm.contentDOM as HTMLElement).style.getPropertyValue('--to-chevron-dead-right');
+      return (cm.dom as HTMLElement).style.getPropertyValue('--to-chevron-dead-right');
     });
     expect(deadRight).toMatch(/^\d+(\.\d+)?px$/);
     expect(parseFloat(deadRight)).toBeGreaterThan(0);
