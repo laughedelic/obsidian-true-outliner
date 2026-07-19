@@ -137,13 +137,18 @@ Ranked, from
   in `decorations.ts`'s module comment; this task is about keeping it true across future
   refactors, e.g. by adding a lint rule or a regression test if a lightweight one is
   feasible).
-- [ ] 5.3 Evaluate `app.workspace.updateOptions()` as a replacement for the `forceRedraw`
-  off/on mode-toggle hack currently used to refresh `MarginCompensation` after a settings
-  change when decoration output is byte-identical (e.g. `markerVisibility` changing on a
-  table-only note). The hack works and its reasoning is sound, but toggling a user-visible
-  mode as an internal refresh mechanism is fragile if mode toggling ever gains side effects.
-  `updateOptions()` is Obsidian's public API for "editor-extension-affecting settings
-  changed"; obsidian-lapel confirms the pattern works in the wild.
+- [x] 5.3 Evaluate `app.workspace.updateOptions()` as a replacement for the `forceRedraw`
+  off/on mode-toggle hack — evaluated, **rejected with evidence; the hack stays**. Swapped
+  in and run against the marker-visibility e2e suite: `updateOptions()` fails exactly the
+  scenario the hack exists for (a `markerVisibility` change on a table-only note — the
+  byte-identical-decoration-output case — left the widget-atom marker stale; the table-only
+  'with-children' test failed with the marker still present). Mechanism: its reconfigure
+  transaction re-runs the decoration plugins, but with byte-identical output CM6 correctly
+  sees no decoration diff and never fires `MarginCompensation.docViewUpdate`. obsidian-
+  lapel's use works because lapel swaps its registered extension array entry in place (a
+  real reconfigure diff); our extension instance is unchanged and reads the setting live,
+  so there is no diff to see. Recorded in `forceRedraw`'s own doc comment so it isn't
+  re-tried; the table-only e2e tests remain the regression net for the scenario.
 - [x] 5.4 Consolidate to one shared `parse()`/`decorate()` pass per transaction — done:
   `docFacts()` in `decorations.ts` computes parse/decorate/computeLineGuides once per
   document and caches by the CM6 `Text` instance (WeakMap, no invalidation logic — entries
@@ -187,6 +192,15 @@ Ranked, from
   timeouts) when run as part of the full suite on a memory-pressured dev machine, but passed
   cleanly in three separate isolated reruns against the same code — attributed to session
   degradation from local system load, not a defect; confirmed clean on a fresh CI runner.
+  **Root cause found and fixed during the hardening pass**: the signature (only
+  `saveScreenshot` times out, at chromedriver's 10s renderer-message limit, while
+  `executeObsidian` script round-trips keep passing) is Chromium throttling frame
+  production for an occluded/background window — screenshot capture needs a fresh frame,
+  script execution doesn't. Reproduced deterministically against code that had passed the
+  same spec minutes earlier (only the machine's window/session state changed), and
+  eliminated completely by launching Obsidian with
+  `--disable-renderer-backgrounding --disable-background-timer-throttling
+  --disable-backgrounding-occluded-windows` in both wdio configs.
 
   Not covered by this pass: the real Capacitor mobile app (emulation is still Electron under
   a phone-sized viewport, so it can't surface a platform gap that isn't viewport/CSS) — see

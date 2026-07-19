@@ -138,6 +138,24 @@ export default class TrueOutlinerPlugin extends Plugin {
    * setting. Both toggles are public-API-only (an `Editor.setCursor` per
    * step, same trick `refreshDecorations` already uses) — no private CM6
    * access, consistent with this project's own public-API-only bar.
+   *
+   * `app.workspace.updateOptions()` — Obsidian's public "editor-extension-
+   * affecting settings changed" API, and the obvious-looking replacement —
+   * was evaluated (hardening 5.3) and FAILS exactly the scenario this hack
+   * exists for, so don't swap it back in: its reconfigure transaction does
+   * re-run the decoration plugins, but on a note whose decoration output is
+   * byte-identical across the setting change (the table-only case above)
+   * CM6 correctly sees no decoration diff and never fires
+   * `MarginCompensation.docViewUpdate`, so the widget-atom marker silently
+   * keeps its stale visibility — confirmed empirically: the marker-
+   * visibility e2e tests (52-block-markers-icons.e2e.ts, the table-only
+   * 'with-children' case in particular) fail with `updateOptions()` in
+   * place of this method and pass with it. obsidian-lapel's use of
+   * `updateOptions()` works because lapel swaps its registered extension
+   * array entry in place (a genuinely different extension → a real
+   * reconfigure diff); our extension instance is unchanged and reads the
+   * setting live, so there is no diff for CM6 to see. Those same e2e tests
+   * stay as the regression net for this scenario.
    */
   private async forceRedraw(): Promise<void> {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);

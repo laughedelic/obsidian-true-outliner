@@ -788,7 +788,14 @@ polish for when 5a graduates from experiment to the real implementation.
    renderer at 100%+ CPU via CM6's mutation-observer feedback loop (documented in
    `decorations.ts`'s module comment). Both must survive future refactors.
 3. **Evaluate `app.workspace.updateOptions()` as a replacement for the `forceRedraw`
-   off/on mode-toggle hack** (used to refresh `MarginCompensation` after a settings change
+   off/on mode-toggle hack.**
+   **Status (hardening pass): evaluated, rejected with evidence — the hack stays.** With
+   `updateOptions()` swapped in, the table-only marker-visibility e2e test fails (stale
+   marker): a reconfigure with byte-identical decoration output produces no diff for CM6,
+   so `MarginCompensation.docViewUpdate` never fires. Lapel's usage works only because it
+   swaps its extension array entry in place — a real reconfigure diff, which our
+   read-the-setting-live extension deliberately doesn't produce. Full account in
+   `forceRedraw`'s doc comment (main.ts). Originally: (used to refresh `MarginCompensation` after a settings change
    when decoration output is byte-identical). The hack works and its reasoning is sound,
    but toggling a user-visible mode as an internal refresh is fragile if mode toggling
    ever gains side effects. `updateOptions()` is Obsidian's public API for exactly
