@@ -829,7 +829,9 @@ polish for when 5a graduates from experiment to the real implementation.
    settings tab predates Experiment 5 and was never migrated to the declarative settings
    API), now tracked as its own hardening task
    ([tasks.md item 5.5](../../openspec/changes/outline-decorations/tasks.md)) rather than
-   bundled here.
+   bundled here. **Status (hardening pass): that last warning is resolved too** —
+   `getSettingDefinitions()` adopted, `display()` kept as the documented pre-1.13
+   fallback; lint is fully clean (0 errors, 0 warnings).
 6. **Polish**: `aria-hidden="true"` on the marker SVGs (decorative, screen readers should
    skip them); untested contexts — RTL text, IME composition at line start, community
    themes beyond those exercised.

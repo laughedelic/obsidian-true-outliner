@@ -161,13 +161,16 @@ Ranked, from
   own incremental `syntaxTree` could supply per-line *kind* classification with no
   separate reparse, though not our tree *depths* (our universal-tree semantics aren't in
   CM6's grammar).
-- [ ] 5.5 Adopt the declarative settings API (`getSettingDefinitions`) for
-  `TrueOutlinerSettingTab` in `main.ts` — the one remaining `npm run lint` warning as of this
-  backfill (`obsidianmd/settings-tab/prefer-setting-definitions`; confirmed 0 errors, 1
-  warning on `main`). Split out as its own task rather than bundled with 5.6, since the
-  `eslint-plugin-obsidianmd` *errors* Experiment 5a originally introduced (inline styles
-  tripping `no-static-styles-assignment`/`prefer-create-el`) are already resolved on `main`
-  — see the corresponding status note in doc 10.
+- [x] 5.5 Adopt the declarative settings API (`getSettingDefinitions`) for
+  `TrueOutlinerSettingTab` in `main.ts` — done: `getSettingDefinitions()` returns the
+  toggle + dropdown definitions (making both settings discoverable via Obsidian 1.13+'s
+  settings search), with `getControlValue`/`setControlValue` overridden to route through
+  the plugin's own accessors (this plugin doesn't use the conventional `plugin.settings`
+  shape the base implementation reads, and the accessors own persistence plus the
+  decoration refresh). `display()` is kept as the documented pre-1.13 fallback —
+  `minAppVersion` is 1.5.0 and the e2e harness's pinned Obsidian (1.12.x) still exercises
+  it — sharing name/desc constants with the definitions so the two can't drift. `npm run
+  lint` is now fully clean: 0 errors, 0 warnings.
 - [ ] 5.6 Polish: `aria-hidden="true"` on the marker SVGs (decorative, screen readers should
   skip them); untested contexts — RTL text, IME composition at line start, community themes
   beyond those already exercised (bundled light/dark, one community theme for guides only).
