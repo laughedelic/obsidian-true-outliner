@@ -788,12 +788,20 @@ polish for when 5a graduates from experiment to the real implementation.
    when decoration output is byte-identical). The hack works and its reasoning is sound,
    but toggling a user-visible mode as an internal refresh is fragile if mode toggling
    ever gains side effects. `updateOptions()` is Obsidian's public API for exactly
-   "editor-extension-affecting settings changed."
+   "editor-extension-affecting settings changed" — and obsidian-lapel (see the prior-art
+   addendum below) confirms the pattern works in the wild: it swaps the registered
+   extension array's entry in place and makes this one call.
 4. **Consolidate to one shared `parse()`/`decorate()` pass per transaction.** Currently
    three ViewPlugins each re-parse the full document on every update (the 2b baseline did
    it twice). Same asymptotics, tripled constant; fine for normal notes, worth
    consolidating before testing against multi-thousand-line files. Decoration sets are
-   also built for the whole document, not the viewport — a further (deferred) option.
+   also built for the whole document, not the viewport — a further (deferred) option;
+   obsidian-lapel demonstrates the standard viewport-limited shape (build only over
+   `view.viewport`, rebuild on `docChanged || viewportChanged`), and additionally shows
+   that per-line *kind* facts can come from CM6's own incremental `syntaxTree` (via
+   `lineClassNodeProp`) with no separate reparse at all — not a fit for our own tree
+   depths (our universal-tree semantics aren't in CM6's grammar), but potentially a fit
+   for the kind-classification part of the work.
 5. **Resolve the `eslint-plugin-obsidianmd` violations 5a introduced.** The marker
    widget's inline styles trip `obsidianmd/no-static-styles-assignment` (14 errors) and
    `obsidianmd/prefer-create-el` — the official lint rules this project's "perfect
@@ -810,6 +818,61 @@ polish for when 5a graduates from experiment to the real implementation.
    longer padding-free; same-depth list items vs. atoms no longer share a column). The
    pure-list invariant (a list with no non-list ancestors renders byte-identical to
    outline-mode-off) still holds — list items reserve nothing.
+
+## Prior-art addendum: obsidian-lapel (2026-07-19)
+
+Reviewed after the head-to-head verdict, before calling the experiment wrapped:
+[obsidian-lapel](https://github.com/liamcain/obsidian-lapel) (by Liam Cain, an Obsidian
+team member) ships a related idea — per-level heading markers ("H1"…"H6") with a
+click-to-change-level menu. Four source files, so the whole implementation was read.
+
+**Mechanism: a third approach neither 5a nor 5b tried.** Lapel renders markers in a CM6
+`gutter()` — a dedicated column left of the content area, ordered relative to the
+line-number gutter via extension precedence (`Prec.high`/`Prec.low`). Because a gutter
+marker lives entirely outside `.cm-content`, *every* hard problem this experiment fought
+simply doesn't exist there: no text-layout impact, no gutter reservation, no
+`contain: paint`, no fold-chevron collision, no blockquote `::before` conflict, no
+readable-line-width margin interaction. The trade-off is structural: a gutter is a flat,
+fixed column — it cannot place a marker at the node's own indent depth, which is the whole
+point of our design (the marker as a crown on the guide line, at the node's own column).
+So it doesn't replace 5a's mechanism for us, but it is the right tool for flat per-line
+chrome, worth remembering if we ever add any (e.g. node handles, diagnostics).
+
+**Independent confirmation of the nested-editor leak (5a's round 4).** Lapel hit the exact
+same bug class: its gutter renders inside Obsidian's per-table-cell nested editors. Their
+fix is a CSS hide (`.table-cell-wrapper .cm-gutters { display: none }`) with a comment
+calling it a hack to remove "once there's a proper way to not register the editor
+extension inside table cells" — i.e. they too found no official API to scope
+`registerEditorExtension`, and their workaround only hides the symptom (the extension
+still runs). Our DOM-ancestry `isNestedEditor()` gate is structurally stronger: it stops
+the computation, not just the paint.
+
+**Confirmations picked up into the hardening checklist** (items 3 and 4 above):
+`app.workspace.updateOptions()` as the settings-refresh mechanism, viewport-limited
+building, and CM6's own `syntaxTree` as a kind-classification source.
+
+### Potential follow-ups (deliberately out of Experiment 5's scope)
+
+- **Per-level heading markers (H1–H6).** Considered during the experiment but kept out to
+  avoid scope creep; lapel validates the idea in the wild. Under 5a's mechanism this is
+  small: carry the heading `level` (already on `OutlineNode`, present iff
+  `kind === 'heading'`) through `LineDecorationFact`, and either branch
+  `buildMarkerIcon` per level or render a small text label. Lapel's customization
+  pattern is worth copying regardless of the visual: a `data-level` attribute plus a
+  CSS-custom-property indirection (`--heading-marker`, consumed by `content:`) lets
+  themes/snippets restyle markers per level without touching the plugin — our markers
+  could expose `data-kind` (and `data-level`) the same way.
+- **Marker interactivity.** Lapel's markers are clickable: a `Menu` listing heading
+  levels 1–6 (checked state on the current level, `lucide-heading-N` icons) plus a
+  "Body" option, dispatching a line rewrite. This is exactly the "future interactivity"
+  potential the head-to-head credited 5a's real-DOM mechanism with — a node's marker as
+  a click target for outline operations (change kind/level, fold, zoom, structural
+  moves). Two caveats from lapel's own code: our `MarkerWidget` currently sets
+  `pointer-events: none` + `ignoreEvent() { return true }`, both of which would need
+  revisiting carefully (CM6 widget event handling interacts with editor focus/cursor);
+  and lapel positions its menu via `Menu.setParentElement`, which is NOT public API
+  (they augment `obsidian.d.ts` locally) — a public-API-only equivalent
+  (`showAtMouseEvent` alone) needs verifying against our bar first.
 
 ## Open question: shrinking only our own added list margin
 

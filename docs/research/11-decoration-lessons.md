@@ -182,7 +182,12 @@ finding came from.
   a nested editor from the real one; only DOM ancestry can (`view.dom.closest('.cm-embed-
   block')`), which requires `view` access a plain `StateField` doesn't have (fixed here by
   moving to `ViewPlugin`s). Any future CM6 extension in this project that implicitly assumes
-  "I only run on the real note" should check this explicitly, not assume it — table cells are
+  "I only run on the real note" should check this explicitly, not assume it — the leak is
+  independently confirmed in the wild, too: obsidian-lapel's gutter renders inside per-cell
+  editors and its changelog carries the same fix, done as a CSS hide of the symptom
+  (`.table-cell-wrapper .cm-gutters { display: none }`) with a comment that there is no
+  proper way to scope `registerEditorExtension` — a weaker fix than a DOM-ancestry gate,
+  since the extension still computes, it just doesn't paint. Table cells are
   the one confirmed case so far, but any other Obsidian construct that edits a fragment of a
   document as its own nested editor would have the identical exposure.
 
