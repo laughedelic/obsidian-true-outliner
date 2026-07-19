@@ -1,6 +1,6 @@
 /**
  * Outline-decorations Experiment 1 (additive-only indentation, no synthetic
- * marker) — see docs/research/07-decoration-experiments-plan.md. Screenshots
+ * marker) — see docs/research/08-experiment-1-additive-indentation.md. Screenshots
  * every fixture in the shared corpus, in both bundled themes (ground rule
  * #2: never just the fixture for whatever is currently being verified), plus
  * targeted computed-style/rect assertions for the success criteria that a
@@ -97,7 +97,12 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     // Lines: 0 "# Section", 1 blank, 2 "- top item", 3 "  - nested item",
     // 4 "    - deeply nested item".
     const headingPadding = await h.getLineComputedStyle(0, 'padding-left');
-    expect(headingPadding).toBe('0px'); // depth 0
+    // Depth 0 alone would be 0px (Experiment 1's own invariant) — but this
+    // branch is built on top of Experiment 5a's block markers, which
+    // additively reserve a fixed marker gutter on every non-list-item line,
+    // even at depth 0 (the marker is the whole point of the reservation).
+    // See docs/research/10-experiment-5-block-markers.md (Experiment 5a).
+    expect(headingPadding).toBe('20px'); // depth 0 + --to-marker-gutter default (1.25rem)
 
     const topRect = await h.getLineRect(2);
     const nestedRect = await h.getLineRect(3);

@@ -1,7 +1,7 @@
 /*
  * Outline mode decorations — additive-only indentation (Experiment 1, see
- * docs/research/07-decoration-experiments-plan.md and the postmortem it
- * links). `rem`, not `em`: custom properties resolve at the point of use,
+ * docs/research/08-experiment-1-additive-indentation.md and the postmortem
+ * it links). `rem`, not `em`: custom properties resolve at the point of use,
  * so an `em`-based unit would inflate under a heading's larger font-size —
  * exactly the bug that shipped last time.
  *
@@ -14,15 +14,37 @@
  * `!important` keyword by itself.
  */
 
+/*
+ * `--to-marker-gutter` (Experiment 5a, see
+ * docs/research/10-experiment-5-block-markers.md): a fixed, additive
+ * reservation for a per-kind block marker icon, on top of the existing
+ * depth-based indentation. Applies to every non-list-item line (block and
+ * atom alike) — list items reserve nothing, since they keep their fully
+ * native marker untouched. `rem`, never `em`, same reasoning as
+ * `--to-decor-unit` above. Explicitly set per-line by `lineDecoration()`
+ * (decorations.ts) — this rule's own fallback (`0px`) only matters before
+ * that JS has run at all; it is never the value actually in effect.
+ * `position: relative` gives the marker icon
+ * (a real, absolutely-positioned DOM child, not a pseudo-element — the
+ * whole reason Experiment 5a doesn't need to fight over `::before`/
+ * `::after` with the guide or blockquote's native bar) a containing block
+ * matching this line's own box.
+ */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block {
-  padding-left: calc(var(--to-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
+  position: relative;
+  padding-left: calc(
+    var(--to-depth, 0) * var(--to-decor-unit, 1.5rem) + var(--to-marker-gutter, 0px)
+  ) !important;
 }
 
 /* Atoms (code/table/quote/callout/html/hr) render a visible background or
  * border box; padding-left only shifts an element's own content, never
  * that box, so atoms need margin-left instead. */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom {
-  margin-left: calc(var(--to-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
+  position: relative;
+  margin-left: calc(
+    var(--to-depth, 0) * var(--to-decor-unit, 1.5rem) + var(--to-marker-gutter, 0px)
+  ) !important;
 }
 
 /* List items: native text-indent/padding-left (the bullet hang) is never
@@ -36,7 +58,7 @@
 /*
  * Guide lines (Experiment 2b) — CSS stacked-gradient technique
  * (@replit/codemirror-indentation-markers), see
- * docs/research/07-decoration-experiments-plan.md. decorations.ts merges a
+ * docs/research/09-experiment-2-guide-lines.md. decorations.ts merges a
  * `--to-guides` custom property (a comma-joined list of repeating-linear-
  * gradient layers, one per active ancestor depth) into the same line that
  * already carries `--to-depth`/`--to-supp-depth` — a single `::before`
@@ -140,13 +162,118 @@
  * actually using the table's scrollbar (trackpad/click-drag) in a real
  * running vault — no visual or usability defects found. Guides now render
  * correctly through every kind in the corpus, tables included.
+ *
+ * `.to-decor-marker` (Experiment 5a) needs the exact same override, for the
+ * exact same reason: a widget atom's marker icon is a real DOM child
+ * positioned outside its own box (`left: -gutter`, see decorations.ts), and
+ * `contain: paint` clips real descendant elements, not just pseudo-element
+ * backgrounds — a marker is present on EVERY widget atom (unlike a guide,
+ * which needs an ancestor), so this can't stay gated on `.to-decor-guides`
+ * alone, or a depth-0 table/callout/hr/html with no ancestor would have its
+ * marker silently clipped.
  */
-.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides {
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides,
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-marker {
+  position: relative;
   contain: none !important;
   overflow: visible !important;
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-guides .table-wrapper {
+.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-guides .table-wrapper,
+.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-marker .table-wrapper {
   overflow-x: auto !important;
   max-width: 100% !important;
+}
+
+/*
+ * Fold-indicator/marker crowding (Experiment 5a follow-up): a heading's
+ * native collapse chevron (`.cm-fold-indicator .collapse-indicator`) is
+ * inserted at essentially the same "line start" position our own marker
+ * icon anchors to, and its own `inset-inline-end: 0` (no extra offset)
+ * lands it right on top of our marker at every heading level — confirmed
+ * live via `document.styleSheets` inspection of the actual matching rule.
+ *
+ * A first attempt mirrored Obsidian's OWN list-line override for this same
+ * problem (`padding-inline-end` + a matching negative `inset-inline-end`,
+ * driven there by a `--list-bullet-end-padding` theme variable) — but
+ * verified live (screenshot + rect measurement) that this widens the
+ * chevron's own invisible hit-area rightward without actually relocating
+ * the visible glyph — the two properties' effects on a shrink-to-fit
+ * `position: absolute` flex box cancel out for the glyph's own position,
+ * they don't move it. `transform: translateX()` instead moves the WHOLE
+ * rendered box — glyph and hit-area together — unambiguously, confirmed
+ * live to actually place the chevron to the left of our marker instead of
+ * merely reducing the overlap.
+ *
+ * The shift is depth-independent by construction, the same way
+ * `markerLeftShiftExpr` (decorations.ts) turned out to be: the chevron's
+ * wrapper is inserted at essentially the same "text start" anchor our own
+ * marker's target column is defined relative to, so the needed leftward
+ * distance is always `gutter + half the marker's own width + a small
+ * visual gap`, regardless of heading depth.
+ *
+ * A real spatial constraint, found via a real-vault report (a nested
+ * heading, not this experiment's flat 2-level fixtures): for a heading at
+ * depth N > 0, the guide column belonging to its shallowest ANCESTOR (not
+ * its own depth) also passes through this line, one `--to-decor-unit`
+ * closer to the marker than the shift above accounts for. Measured live at
+ * depth 2: ~17px of clear space exists between that ancestor guide and the
+ * marker's own left edge.
+ *
+ * A second real correction, also caught by the user (not assumed from the
+ * box model): the WRAPPER box (`.collapse-indicator`, 22px, what the two
+ * paragraphs above size against) is NOT the same as the visible glyph —
+ * confirmed live via the actual `<svg>` element's own rect and `<path>`
+ * `getBBox()`: the painted glyph is only ~10px wide, centered inside that
+ * 22px box (~6px of invisible padding on each side, part of the click
+ * hit-area but never painted). The 17px gap comfortably fits a 10px glyph;
+ * the earlier "22px can't fit in 17px" conclusion measured the wrong box.
+ * `deadSpace` below is that fixed ~6px (native Obsidian sizing, not one of
+ * our own `rem`-scaled constants — kept as a bare px measured constant, the
+ * same way `MARKER_GUTTER_REM` itself started as a measured value).
+ */
+.markdown-source-view.mod-cm6.is-live-preview
+  .cm-line.to-decor-block
+  .cm-fold-indicator
+  .collapse-indicator {
+  transform: translateX(calc(-1 * (var(--to-marker-gutter, 1.25rem) + 0.425rem - 3px)));
+}
+
+/*
+ * Marker icon (Experiment 5a): static styling for both delivery mechanisms
+ * (decorations.ts's `MarkerWidget` for plain lines, `applyWidgetMarker` for
+ * widget-replaced atoms) moved here per `eslint-plugin-obsidianmd`'s
+ * `no-static-styles-assignment` rule — only the marker's own `left` offset
+ * genuinely varies per instance (by depth/kind), so JS only ever sets that,
+ * via `setCssProps({'--to-marker-left': ...})`.
+ *
+ * The two mechanisms can't share one positioning scheme (see decorations.ts's
+ * own doc comments: plain lines rely on inline flow + `vertical-align:
+ * baseline` to track the surrounding text's font metrics; a widget atom is
+ * its own opaque, already-full-height box, stretched and flex-centered
+ * instead) — `.to-decor-marker-icon` carries what's common to both,
+ * `.to-decor-marker-icon--widget` overrides the rest for the widget-atom
+ * case.
+ */
+.to-decor-marker-icon {
+  display: inline-block;
+  position: relative;
+  left: var(--to-marker-left, 0px);
+  vertical-align: baseline;
+  width: 0.85rem; /* MARKER_ICON_REM, decorations.ts — keep in sync */
+  height: 0.85rem;
+  margin-left: -0.85rem; /* -1 * MARKER_ICON_REM */
+  pointer-events: none;
+  color: var(--text-faint);
+}
+
+.to-decor-marker-icon--widget {
+  display: flex;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  margin-left: 0;
+  align-items: center;
+  justify-content: center;
 }

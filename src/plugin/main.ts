@@ -20,7 +20,13 @@ import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension } from './keymap';
-import { decorationsExtension } from './decorations';
+import { decorationsExtension, type MarkerVisibility } from './decorations';
+
+const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
+  all: 'All eligible kinds (status quo)',
+  'with-children': 'Only nodes that have children',
+  'headings-and-paragraphs': 'Only headings and paragraphs',
+};
 
 type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
 
@@ -97,6 +103,50 @@ export default class TrueOutlinerPlugin extends Plugin {
   async setDebugCrossCheck(value: boolean): Promise<void> {
     this.data.debugCrossCheck = value;
     await this.saveData(this.data);
+  }
+
+  get markerVisibility(): MarkerVisibility {
+    return this.data.markerVisibility;
+  }
+
+  async setMarkerVisibility(value: MarkerVisibility): Promise<void> {
+    this.data.markerVisibility = value;
+    await this.saveData(this.data);
+    await this.forceRedraw();
+  }
+
+  /**
+   * A plain cursor nudge (what `refreshDecorations` uses for the mode
+   * toggle) forces `computeDecorations`/`computeMarkers` to recompute, but
+   * doesn't reliably reach `MarginCompensation` — a ViewPlugin with no
+   * decorations of its own, whose `docViewUpdate` hook only fires when
+   * SOME decoration source's output actually differs (CM6's own doc
+   * comment: "due to content, decoration, or viewport changes"). For a
+   * note containing only widget-replaced atoms (table/callout/hr/html —
+   * `computeMarkers` deliberately skips these; `computeDecorations` doesn't
+   * read `markerVisibility` at all), changing the setting produces
+   * byte-identical StateField output, so CM6 correctly sees no diff and
+   * never re-fires `docViewUpdate` — confirmed live: a table-only note's
+   * marker visibility silently failed to update until this fix.
+   *
+   * Toggling outline mode off then immediately back on (via the registry
+   * directly, not `toggleMode` — no user-facing Notice for an internal
+   * refresh) guarantees two GENUINELY different decoration outputs
+   * (`Decoration.none` vs. the real thing) regardless of note content,
+   * which CM6 always detects as a real change — reliably triggering
+   * `docViewUpdate` twice, with the second pass reading the just-saved
+   * setting. Both toggles are public-API-only (an `Editor.setCursor` per
+   * step, same trick `refreshDecorations` already uses) — no private CM6
+   * access, consistent with this project's own public-API-only bar.
+   */
+  private async forceRedraw(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const path = view?.file?.path;
+    if (!view || !path || !this.registry.isOutline(path)) return; // nothing rendered to refresh
+    await this.registry.toggle(path); // off
+    view.editor.setCursor(view.editor.getCursor());
+    await this.registry.toggle(path); // back on, now reading the new setting
+    view.editor.setCursor(view.editor.getCursor());
   }
 
   private async toggleMode(path: string): Promise<void> {
@@ -209,6 +259,17 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         toggle
           .setValue(this.plugin.debugCrossCheck)
           .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
+      );
+    new Setting(this.containerEl)
+      .setName('Debug: block marker visibility (experiment 5a)')
+      .setDesc(
+        'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
+      )
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(MARKER_VISIBILITY_LABELS)
+          .setValue(this.plugin.markerVisibility)
+          .onChange((value) => void this.plugin.setMarkerVisibility(value as MarkerVisibility)),
       );
   }
 }

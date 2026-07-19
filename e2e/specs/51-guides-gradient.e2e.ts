@@ -1,6 +1,6 @@
 /**
  * Outline-decorations Experiment 2b (guide lines via CSS stacked-gradient)
- * — see docs/research/07-decoration-experiments-plan.md. Head-to-head
+ * — see docs/research/09-experiment-2-guide-lines.md. Head-to-head
  * alternative to Experiment 2a (pixel-measured overlay), NOT a fallback:
  * screenshots every fixture in the shared corpus, in both bundled themes
  * (ground rule #2), plus targeted computed-style assertions — reading the
@@ -180,7 +180,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // hold simultaneously; a human has also confirmed live, in a real
     // running vault, that the scrollbar itself (trackpad swipe,
     // click-drag) still works with no visual or usability defects — see
-    // docs/research/07-decoration-experiments-plan.md.
+    // docs/research/09-experiment-2-guide-lines.md.
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'widget-atoms')!;
     await h.createNote(fixture.note, fixture.md);
     await ensureOutlineMode(fixture.note);
@@ -487,9 +487,13 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // the right of the depth-0 heading — never at or left of it.
     expect(info.listLeft).toBeGreaterThan(info.headingLeft);
     expect(info.codeLeft).toBeGreaterThan(info.headingLeft);
-    // And both depth-1 margin-based lines should agree with each other
-    // (list's supplementalDepth and the code fence's depth are both 1
-    // here), confirming the compensation is consistent, not coincidental.
-    expect(info.codeLeft).toBeCloseTo(info.listLeft, 0);
+    // This branch is built on top of Experiment 5a's block markers: the
+    // code fence (an atom) now reserves an additional fixed marker gutter
+    // list items never get (native bullet/number only, no icon) — so the
+    // two depth-1 lines no longer land at the same column, by design. The
+    // code fence sits exactly one marker-gutter further right than the
+    // list item at the same nominal depth.
+    expect(info.codeLeft).toBeGreaterThan(info.listLeft);
+    expect(info.codeLeft - info.listLeft).toBeCloseTo(20, 0); // --to-marker-gutter default (1.25rem)
   });
 });
