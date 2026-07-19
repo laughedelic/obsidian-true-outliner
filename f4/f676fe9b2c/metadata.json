@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "f4f676fe9b2c",
+  "strategy": "manual-commit",
+  "branch": "experiment/decorations-5-block-markers",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/10-experiment-5-block-markers.md",
+    "docs/research/11-decoration-lessons.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f4/f676fe9b2c/0/metadata.json",
+      "transcript": "/f4/f676fe9b2c/0/full.jsonl",
+      "compact_transcript": "/f4/f676fe9b2c/0/transcript.jsonl",
+      "content_hash": "/f4/f676fe9b2c/0/content_hash.txt",
+      "prompt": "/f4/f676fe9b2c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 305,
+    "cache_creation_tokens": 1498403,
+    "cache_read_tokens": 37485729,
+    "output_tokens": 220663,
+    "api_call_count": 161
+  }
+}
