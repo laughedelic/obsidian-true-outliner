@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "7606c3d27090",
+  "strategy": "manual-commit",
+  "branch": "docs/decoration-experiments-restructure",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/76/06c3d27090/0/metadata.json",
+      "transcript": "/76/06c3d27090/0/full.jsonl",
+      "compact_transcript": "/76/06c3d27090/0/transcript.jsonl",
+      "content_hash": "/76/06c3d27090/0/content_hash.txt",
+      "prompt": "/76/06c3d27090/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 279,
+    "cache_creation_tokens": 1151347,
+    "cache_read_tokens": 32792077,
+    "output_tokens": 209350,
+    "api_call_count": 147
+  }
+}

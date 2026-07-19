@@ -1,0 +1,66 @@
+Assuming that we keep the version 2b, what is the next experiment we should run according to the plan?  (new branch, please)
+I wonder, what if we could add block markers since we were able to, uh, draw consistent guidelines? Maybe we can also add the markers. It would be nice to have separate marker symbols for headings, paragraphs, call out tables, and so on so that they're... they don't have to be the same as the lists, but they could, umstill add some visual queue for the user.
+
+---
+
+let's make a new branch (off of 2b) with number 5, commit the plan changes there, then I'll use it as a base for each of the 5a/5b parallel experiments.
+
+one more question, before I launch them on separate worktrees: will there be any issue with running e2e tests with wdio-obsidian-service in parallel from two worktrees? is there any sort of isolation between them?
+
+---
+
+both experiments 5a and 5b have concluded and on their own branches (in worktrees) with the learnings recorded in the 07 document (separately).
+
+review the implementations and let's have a comprehensive comparison and additionally a "dumbed-down" summary version (non-expert) with tradeoffs across different factors like complexity, maintainability, and any other relevant axes.
+
+from the user perspective: 
+
+* 5a looks nicer and seems to have more potential
+* 5b is simpler and closer to the traditional outliner ("everything is a nested list") approach
+
+---
+
+both experiments 5a and 5b have concluded and on their own branches (in worktrees) with the learnings recorded in the 07 document (separately).
+
+review the implementations and let's have a comprehensive comparison and additionally a "dumbed-down" summary version (non-expert) with tradeoffs across different factors like complexity, maintainability, and any other relevant axes.
+
+from the user perspective: 
+
+* 5a looks nicer and seems to have more potential
+* 5b is simpler and closer to the traditional outliner ("everything is a nested list") approach
+
+---
+
+I think the choice here is more about the approach than design. 5b was simplified because the abstract CSS-only icons were not expressive enough. but in 5a case, icons look good and not confusing. so the main thing I wanted to understand in this comparison is which approach to the implementation is more robust, least hacky, and more maintainable.
+
+it sounds like 5a is the way to go then. I assume that the optimization you mentioned can minimize its overhead. other than that, are there any other concerns about 5a approach?
+
+---
+
+okay, sounds good. let's settle for 5a then, document the comparison, these concerns, relevant learnings from 5b, etc. I want as much potentially useful information from all the experiments preserved as possible. we won't need it all the time, but it should be available for the reference at any time in the future development, so that we don't repeat the same mistakes and don't waste time on wild-goose chase that has already happened before.
+
+I've pushed all the branches as stacked draft PRs, so now there is a tree:
+
+* 1
+   * 2a
+   * 2b
+      * 5
+         * 5a
+         * 5b
+
+And the chosen path is: 1 <- 2b <- 5 <- 5a, while 2a and 5b will be closed later. I want to merge them starting from 1 (into main), then 2b, but 5a can be merged into 5 before getting merged into main, since 5 does not have any code changes itself. Merging 1 and 2b is out of scope here, but handling branches and PRs for 5/5a/5b is ok here.
+
+I'm describing this in detail because I'm not sure what the best approach to recording this comparison is: create a new branch on top of 5a? or just add into 5a? 
+
+I also think that the 07 doc has grown way too long, and it contains too many experiment setup details that aren't relevant anymore. So maybe it's worth pruning it, and splitting into several documents.
+
+Let's start with a plan for all of this.
+
+---
+
+good work. one minor thing I want to flag immediately that I noticed in 08:
+> Hypothesis: *your* proposed compromise
+
+this is written as if you were talking to me. that style is okay in our conversations. but all our docs committed to the repo have to be written in a more neutral language, using pronouns like we/our. we are working as a team and anything that lands as durable documentation should reflect that spirit. this will also read better for anyone else who might stumble upon this (when it's released).
+
+so let's fix this language across all of our docs.
