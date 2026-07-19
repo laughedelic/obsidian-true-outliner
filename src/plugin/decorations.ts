@@ -753,7 +753,24 @@ class MarginCompensation implements PluginValue {
    * chevron is currently rendered (nothing foldable in the viewport), the
    * last measurement — or, before any, the CSS fallback matching the
    * previously-validated bundled-theme values — stays in effect.
+   *
+   * The property is written to `view.dom` (the outer `.cm-editor`), NOT
+   * `view.contentDOM`, and only when the (rounded) value actually changed —
+   * both preventive, chosen deliberately rather than in response to an
+   * observed failure. CM6's DOMObserver observes `contentDOM` itself with
+   * `attributes: true` (confirmed in @codemirror/view's source), so a
+   * style-attribute write there lands inside the observed set; and this
+   * measurement is a rect difference on a transformed element, which could
+   * in principle jitter subpixel between renders. A value that keeps
+   * changing, written to an observed attribute, from a hook the resulting
+   * mutation might re-trigger, is the same mutation-observer feedback-loop
+   * family as the module doc comment's "never append a child into a plain
+   * `.cm-line`" invariant — staying outside the observed subtree removes
+   * the question entirely, at zero cost (custom properties inherit, so
+   * `view.dom` serves the descendant chevron rule just as well).
    */
+  private lastDeadRight = '';
+
   private measureChevron(): void {
     const wrapper = this.view.contentDOM.querySelector<HTMLElement>(
       '.cm-fold-indicator .collapse-indicator',
@@ -763,9 +780,10 @@ class MarginCompensation implements PluginValue {
     const wrapperRect = wrapper.getBoundingClientRect();
     const glyphRect = glyph.getBoundingClientRect();
     if (wrapperRect.width === 0 || glyphRect.width === 0) return;
-    this.view.contentDOM.setCssProps({
-      '--to-chevron-dead-right': `${wrapperRect.right - glyphRect.right}px`,
-    });
+    const deadRight = `${(wrapperRect.right - glyphRect.right).toFixed(1)}px`;
+    if (deadRight === this.lastDeadRight) return;
+    this.lastDeadRight = deadRight;
+    this.view.dom.setCssProps({ '--to-chevron-dead-right': deadRight });
   }
 
   private apply(): void {
@@ -779,10 +797,12 @@ class MarginCompensation implements PluginValue {
     }
 
     // The chevron transform's inputs: our own icon size, threaded from its
-    // JS source of truth, plus the live-measured native dead space (see
-    // measureChevron). Set every render — cheap, and keeps a theme switch
-    // mid-session correct on the next update.
-    this.view.contentDOM.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
+    // JS source of truth (a constant, so writing it repeatedly is safe),
+    // plus the live-measured native dead space (see measureChevron — set on
+    // `view.dom`, not `contentDOM`, for the observer-loop reason documented
+    // there; same target here for consistency). Re-measured every render,
+    // so a theme switch mid-session corrects on the next update.
+    this.view.dom.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
     this.measureChevron();
 
     const { factsByLine, guidesByLine } = docFacts(this.view.state);
@@ -926,8 +946,9 @@ class MarginCompensation implements PluginValue {
   }
 
   private clearAll(): void {
-    this.view.contentDOM.style.removeProperty('--to-marker-icon-size');
-    this.view.contentDOM.style.removeProperty('--to-chevron-dead-right');
+    this.view.dom.style.removeProperty('--to-marker-icon-size');
+    this.view.dom.style.removeProperty('--to-chevron-dead-right');
+    this.lastDeadRight = '';
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
     );
