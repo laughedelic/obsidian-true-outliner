@@ -781,7 +781,10 @@ polish for when 5a graduates from experiment to the real implementation.
    ([11-decoration-lessons.md](11-decoration-lessons.md)); a theme or Obsidian update that
    resizes the chevron silently degrades the layout (cosmetic-only failure). 5b's session
    solved the same problem with live measurement — port that approach.
-2. **Protect two documented invariants in code review.** (a) DOM injection into widget-atom
+2. **Protect two documented invariants in code review.**
+   **Status (hardening pass): done** — a scoped `no-restricted-syntax` lint rule flags
+   every DOM-insertion call in plugin code; sanctioned sites carry enforced-description
+   eslint-disables stating why they're safe. Originally: (a) DOM injection into widget-atom
    subtrees works because Obsidian never re-diffs those opaque subtrees — an undocumented
    invariant; failure mode on an Obsidian change is re-injection flicker or duplicated
    markers. (b) Never append children into a plain `.cm-line` — confirmed to peg the

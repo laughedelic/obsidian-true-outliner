@@ -302,11 +302,12 @@ function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
     height: '100%',
     'aria-hidden': 'true',
   });
+  const children: SVGElement[] = [];
 
   switch (kind) {
     case 'heading':
       // A blocky "H": two vertical bars + a crossbar.
-      svg.append(
+      children.push(
         svgEl('rect', { x: '3', y: '2', width: '2', height: '12', fill: 'currentColor' }),
         svgEl('rect', { x: '11', y: '2', width: '2', height: '12', fill: 'currentColor' }),
         svgEl('rect', { x: '3', y: '7', width: '10', height: '2', fill: 'currentColor' }),
@@ -314,7 +315,7 @@ function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       break;
     case 'paragraph':
       // Three text lines, the last one shorter.
-      svg.append(
+      children.push(
         svgEl('line', { ...STROKE_ATTRS, x1: '2', y1: '4', x2: '14', y2: '4' }),
         svgEl('line', { ...STROKE_ATTRS, x1: '2', y1: '8', x2: '14', y2: '8' }),
         svgEl('line', { ...STROKE_ATTRS, x1: '2', y1: '12', x2: '9', y2: '12' }),
@@ -322,7 +323,7 @@ function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       break;
     case 'code':
       // "</>"
-      svg.append(
+      children.push(
         svgEl('polyline', { ...STROKE_ATTRS, points: '6,3 2,8 6,13' }),
         svgEl('line', { ...STROKE_ATTRS, x1: '9.5', y1: '2', x2: '6.5', y2: '14' }),
         svgEl('polyline', { ...STROKE_ATTRS, points: '10,3 14,8 10,13' }),
@@ -330,7 +331,7 @@ function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       break;
     case 'table':
       // 2x2 grid.
-      svg.append(
+      children.push(
         svgEl('rect', { ...STROKE_ATTRS, x: '2', y: '2', width: '12', height: '12', rx: '1' }),
         svgEl('line', { ...STROKE_ATTRS, x1: '2', y1: '8', x2: '14', y2: '8' }),
         svgEl('line', { ...STROKE_ATTRS, x1: '8', y1: '2', x2: '8', y2: '14' }),
@@ -338,7 +339,7 @@ function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       break;
     case 'callout':
       // Filled alert circle with an "!" bar.
-      svg.append(
+      children.push(
         svgEl('circle', { cx: '8', cy: '8', r: '6', fill: 'currentColor' }),
         svgEl('rect', { x: '7', y: '4', width: '2', height: '5', fill: 'var(--background-primary)' }),
         svgEl('rect', { x: '7', y: '10', width: '2', height: '2', fill: 'var(--background-primary)' }),
@@ -346,7 +347,7 @@ function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       break;
     case 'quote':
       // Two opening-quote marks.
-      svg.append(
+      children.push(
         svgEl('circle', { cx: '5', cy: '5', r: '2', fill: 'currentColor' }),
         svgEl('rect', { x: '4', y: '5', width: '2', height: '4', fill: 'currentColor' }),
         svgEl('circle', { cx: '11', cy: '5', r: '2', fill: 'currentColor' }),
@@ -355,21 +356,27 @@ function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       break;
     case 'html':
       // An outlined tag/document shape with a folded corner.
-      svg.append(
+      children.push(
         svgEl('rect', { ...STROKE_ATTRS, x: '3', y: '2', width: '10', height: '12', rx: '1' }),
         svgEl('line', { ...STROKE_ATTRS, x1: '9', y1: '2', x2: '13', y2: '6' }),
       );
       break;
     case 'hr':
       // A single bold horizontal bar.
-      svg.append(svgEl('rect', { x: '2', y: '7', width: '12', height: '2', fill: 'currentColor' }));
+      children.push(svgEl('rect', { x: '2', y: '7', width: '12', height: '2', fill: 'currentColor' }));
       break;
     default:
       // Unreachable for list-item (excluded by every caller) — a small dot
       // keeps this exhaustive-in-spirit without dead code paths elsewhere.
-      svg.append(svgEl('circle', { cx: '8', cy: '8', r: '2', fill: 'currentColor' }));
+      children.push(svgEl('circle', { cx: '8', cy: '8', r: '2', fill: 'currentColor' }));
   }
 
+  // Safe DOM insertion (see the no-restricted-syntax guard in
+  // eslint.config.js, hardening 5.2): `svg` is detached — built here, never
+  // queried from the live document — so no CM6-owned or Obsidian-owned
+  // subtree is being mutated.
+  // eslint-disable-next-line no-restricted-syntax -- detached DOM: built here, never mounted by this code
+  svg.append(...children);
   return svg;
 }
 
@@ -454,6 +461,12 @@ class MarkerWidget extends WidgetType {
   toDOM(): HTMLElement {
     const wrapper = createSpan({ cls: 'to-decor-marker-icon' });
     applyMarkerLeft(wrapper, this.leftShiftExpr);
+    // Safe DOM insertion (see the no-restricted-syntax guard in
+    // eslint.config.js, hardening 5.2): `wrapper` is detached at this point
+    // — CM6 itself mounts a widget's toDOM() result through its own
+    // supported insertion path, which is the whole reason plain-line
+    // markers use Decoration.widget instead of direct DOM injection.
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM: CM6 mounts toDOM()'s result via its own supported path
     wrapper.appendChild(buildMarkerIcon(this.kind));
     return wrapper;
   }
@@ -615,7 +628,19 @@ function applyWidgetMarker(el: HTMLElement, kind: NodeKind, ownShiftExpr: string
   const icon = createSpan({ cls: 'to-decor-marker-icon to-decor-marker-icon--widget' });
   icon.dataset.kind = kind;
   applyMarkerLeft(icon, leftExpr);
+  // Safe DOM insertion: `icon` is still detached here.
+  // eslint-disable-next-line no-restricted-syntax -- detached DOM: icon not yet mounted
   icon.appendChild(buildMarkerIcon(kind));
+  // THE sanctioned live-DOM injection site (invariant (a), see the module
+  // doc comment and the no-restricted-syntax guard in eslint.config.js):
+  // `el` is a widget-replaced atom (matched by WIDGET_ATOM_SELECTOR only) —
+  // an opaque, Obsidian-owned subtree CM6 never re-diffs internally, which
+  // is what makes this append safe where the same call on a plain
+  // `.cm-line` pegs the renderer. If Obsidian ever starts re-diffing these
+  // subtrees, the failure mode is re-injection flicker/duplicated markers —
+  // the idempotence guard above (kind/position skip) is the first line of
+  // defense, and the duplicate-marker e2e test the second.
+  // eslint-disable-next-line no-restricted-syntax -- sanctioned widget-atom injection (invariant (a), see comment above)
   el.prepend(icon);
 }
 
