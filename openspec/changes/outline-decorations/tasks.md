@@ -157,11 +157,31 @@ Ranked, from
 - [ ] 5.6 Polish: `aria-hidden="true"` on the marker SVGs (decorative, screen readers should
   skip them); untested contexts — RTL text, IME composition at line start, community themes
   beyond those already exercised (bundled light/dark, one community theme for guides only).
-- [ ] 5.7 Mobile-emulation verification pass — **blocked** on the mobile e2e infrastructure
-  landing (PR #7, "test: automate mobile smoke testing via Obsidian mobile emulation",
-  currently draft). Once merged, run the full decoration corpus + a real-vault-equivalent
-  pass under mobile emulation; the design's "mobile-safe" goal (CM6 `Decoration`/CSS/DOM
-  only, no Node/Electron APIs) has been designed for but not yet verified under emulation.
+- [x] 5.7 Mobile-emulation verification pass — done (PR #7, "test: automate mobile smoke
+  testing via Obsidian mobile emulation"). This is a feedback loop for continuously
+  assessing mobile feasibility, not a hard mobile-support requirement — full mobile support
+  isn't a goal at this stage; the project's standing bar remains "mobile-safe from day 1,
+  desktop-tested for v1.0" (docs/research/04-open-questions.md Q7). The value is early
+  discovery: if a design or architecture choice here would make mobile support harder or
+  impossible later, we want that insight now, while it's cheap to react to, rather than once
+  mobile becomes the focus.
+
+  Ran the full decoration corpus (`50-decorations.e2e.ts`, `51-guides-gradient.e2e.ts`,
+  `52-block-markers-icons.e2e.ts`) plus the real-vault-equivalent screenshots, under
+  Obsidian's mobile emulation (390×844 viewport) against the merged 1 → 2b → 5a
+  implementation — never previously exercised under mobile emulation. Result: no
+  mobile-specific rendering issues found. Indentation, guides, and markers all render
+  correctly at the narrow viewport; the "mobile-safe" goal (CM6 `Decoration`/CSS/DOM only, no
+  Node/Electron APIs) holds under emulation, consistent with `no-nodejs-modules` already
+  enforcing it statically. One local-machine artifact was observed and ruled out during this
+  pass: screenshot-heavy tests in `50-decorations.e2e.ts` timed out (chromedriver render
+  timeouts) when run as part of the full suite on a memory-pressured dev machine, but passed
+  cleanly in three separate isolated reruns against the same code — attributed to session
+  degradation from local system load, not a defect; confirmed clean on a fresh CI runner.
+
+  Not covered by this pass: the real Capacitor mobile app (emulation is still Electron under
+  a phone-sized viewport, so it can't surface a platform gap that isn't viewport/CSS) — see
+  README's "Mobile testing" section for the real-Android/iOS coverage gap and options.
 - [ ] 5.8 Accepted design costs, restated so they aren't rediscovered as bugs: every
   non-list line reserves a 1.25rem marker gutter, so text visibly shifts when toggling
   outline mode; two Experiment-1 invariants were knowingly relaxed (depth-0 lines are no

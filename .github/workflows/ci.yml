@@ -59,3 +59,27 @@ jobs:
 
       # Obsidian is an Electron app and needs a display even "headless" in CI
       - run: xvfb-run --auto-servernum npm run test:e2e
+
+  e2e-test-mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      # Caches the downloaded Obsidian installer(s) used by wdio-obsidian-service
+      - uses: actions/cache@v4
+        with:
+          path: .obsidian-cache
+          key: obsidian-cache-${{ runner.os }}-earliest-latest
+
+      - run: npm run build:plugin
+
+      # Same suite, run under Obsidian's mobile emulation (still Electron;
+      # see README's "Mobile testing" section).
+      - run: xvfb-run --auto-servernum npm run test:e2e:mobile

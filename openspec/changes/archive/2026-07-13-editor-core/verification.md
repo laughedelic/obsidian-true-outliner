@@ -41,11 +41,21 @@ shares is automated.)
 - Coexistence warning (via stub `obsidian-outliner` plugin): once, not after
   restart
 
+### Mobile emulation → `npm run test:e2e:mobile` (`e2e/wdio.mobile-emulation.conf.mts`)
+
+- Full spec suite re-run under Obsidian's `app.emulateMobile()` at a
+  phone-sized viewport: plugin loads without errors, `00-smoke.e2e.ts`'s
+  platform-mode guard confirms emulation actually engaged
+- Still Electron, not the real Capacitor mobile app — see README's "Mobile
+  testing" section
+
 ## Manual residue
 
-- [ ] Mobile smoke (optional this change): plugin loads on iOS/Android
-      without errors — wdio-obsidian-service supports Android/emulation if we
-      ever want to automate this
+- [ ] Real-device mobile smoke (iOS/Android on the actual Capacitor app):
+      `test:e2e:mobile` above only covers emulation. wdio-obsidian-service
+      can drive a real Android Virtual Device via Appium if the heavier setup
+      (Android Studio, an AVD) becomes worth it; iOS isn't supported by the
+      harness at all
 - [ ] Right-click editor menu entry appears and toggles (visual/UX check)
 - [ ] Debug cross-check sweep: setting on, run ops across corpus-style notes,
       console clean of `[true-outliner] parse disagreement` (automatable
