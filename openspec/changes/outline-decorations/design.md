@@ -305,6 +305,14 @@ design didn't anticipate), every plugin's `decorations` field is the empty `Deco
 
 ## Risks / Trade-offs
 
+- **Accepted design costs — deliberate, not bugs** (restated here so they aren't
+  rediscovered as regressions): every non-list line reserves a 1.25rem marker gutter, so
+  text visibly shifts when toggling outline mode on or off; and two Experiment-1
+  invariants were knowingly relaxed when the marker layer landed — depth-0 lines are no
+  longer padding-free (they carry the gutter), and same-depth list items vs. atoms no
+  longer share a column (list items reserve no gutter; atoms always do). The pure-list
+  invariant (a list with no non-list ancestors renders byte-identical to
+  outline-mode-off) still holds unconditionally and remains covered by dedicated tests.
 - **Full-document reparse per doc change** (D4) — same accepted budget as before; the
   hardening pass consolidated the former 3x constant into one shared, per-document cached
   computation. Viewport-limited building stays deferred until document sizes demand it.

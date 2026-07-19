@@ -843,7 +843,9 @@ polish for when 5a graduates from experiment to the real implementation.
    light+dark, screenshots reviewed) clean; RTL surfaced a real marker-overlaps-text
    placement issue, recorded as its own follow-up task (tasks.md 5.9) rather than patched;
    IME is not automatable in the e2e harness and stays on the manual real-vault checklist.
-7. **Accepted design costs, restated so they aren't rediscovered as "bugs" later**: every
+7. **Accepted design costs, restated so they aren't rediscovered as "bugs" later.**
+   **Status (hardening pass): recorded durably** in the openspec change's design.md
+   (Risks / Trade-offs), not just this checklist. Originally: every
    non-list line reserves the 1.25rem marker gutter, so text visibly shifts when toggling
    outline mode; two Experiment-1 invariants were knowingly relaxed (depth-0 lines are no
    longer padding-free; same-depth list items vs. atoms no longer share a column). The
