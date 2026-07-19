@@ -1,0 +1,73 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "f41bf357aaf6",
+  "session_id": "1e113290-a5d2-40da-a767-d4bc153b5599",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-19T21:17:27.604021Z",
+  "branch": "harden/outline-decorations",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "openspec/changes/outline-decorations/design.md",
+    "openspec/changes/outline-decorations/tasks.md",
+    "docs/research/10-experiment-5-block-markers.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "d69495c34e27",
+  "checkpoint_transcript_start": 542,
+  "transcript_lines_at_start": 542,
+  "compact_transcript_start": 164,
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 2069,
+    "cache_read_tokens": 1192692,
+    "output_tokens": 1608,
+    "api_call_count": 4
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01Hb5472YmY768a1bCpR4Pp9",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "d69495c34e27",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 12,
+        "end": 13,
+        "entry_ids": [
+          "2dff08b1-3759-4448-b1a9-05e8d603ff34"
+        ],
+        "tool_use_id": "toolu_01Hb5472YmY768a1bCpR4Pp9"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Hb5472YmY768a1bCpR4Pp9"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-apply-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "initial_attribution": {
+    "calculated_at": "2026-07-19T21:17:27.491678Z",
+    "agent_lines": 14,
+    "agent_removed": 2,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 14,
+    "total_lines_changed": 16,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
