@@ -433,6 +433,22 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
     // guarding against a future regression ballooning the spacing.
     expect(info.markerRect!.left - info.glyphRect!.right).toBeLessThan(10);
     expect(info.glyphRect!.left - info.ancestorGuideCol).toBeLessThan(10);
+
+    // Hardening 5.1: the chevron shift's dead-space term is measured live
+    // (MarginCompensation.measureChevron), not hardcoded. Assert the
+    // measured property actually landed on the content DOM with a sane
+    // value — otherwise the CSS fallback could silently be the only thing
+    // ever in effect, which is exactly the drift the live path exists to
+    // prevent. (The geometry assertions above already prove the RESULT is
+    // right; this proves the live mechanism produced it.)
+    const deadRight = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      return (cm.contentDOM as HTMLElement).style.getPropertyValue('--to-chevron-dead-right');
+    });
+    expect(deadRight).toMatch(/^\d+(\.\d+)?px$/);
+    expect(parseFloat(deadRight)).toBeGreaterThan(0);
+    expect(parseFloat(deadRight)).toBeLessThan(15);
   });
 
   describe('marker visibility setting', function () {

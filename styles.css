@@ -220,23 +220,43 @@
  * depth 2: ~17px of clear space exists between that ancestor guide and the
  * marker's own left edge.
  *
- * A second real correction, also caught by the user (not assumed from the
- * box model): the WRAPPER box (`.collapse-indicator`, 22px, what the two
- * paragraphs above size against) is NOT the same as the visible glyph —
+ * A second real correction, also caught by manual review (not assumed from
+ * the box model): the WRAPPER box (`.collapse-indicator`, 22px, what the
+ * two paragraphs above size against) is NOT the same as the visible glyph —
  * confirmed live via the actual `<svg>` element's own rect and `<path>`
  * `getBBox()`: the painted glyph is only ~10px wide, centered inside that
  * 22px box (~6px of invisible padding on each side, part of the click
  * hit-area but never painted). The 17px gap comfortably fits a 10px glyph;
  * the earlier "22px can't fit in 17px" conclusion measured the wrong box.
- * `deadSpace` below is that fixed ~6px (native Obsidian sizing, not one of
- * our own `rem`-scaled constants — kept as a bare px measured constant, the
- * same way `MARKER_GUTTER_REM` itself started as a measured value).
+ *
+ * The shift decomposes as: marker gutter + half our marker icon's width
+ * (so the chevron clears the icon centered on the guide column) + a small
+ * fixed visual gap (3px, a design choice of ours) − the chevron's own
+ * right-side dead space (that invisible ~6px between its box's right edge
+ * and the painted glyph — overlap the marker by that much and the GLYPH
+ * still clears it). The dead space is the one genuinely NATIVE measurement
+ * here, so it's read live per render by `MarginCompensation.measureChevron`
+ * (decorations.ts) into `--to-chevron-dead-right` — hardening 5.1,
+ * replacing a hardcoded measured constant that would silently drift if a
+ * theme/Obsidian update resized the chevron. `--to-marker-icon-size` is
+ * likewise set from its JS source of truth (`MARKER_ICON_CSS`). The
+ * fallbacks below reproduce the previously-validated bundled-theme values
+ * exactly (0.85rem/2 + 3px − 6px = the old 0.425rem − 3px), so rendering
+ * is unchanged until the first measurement lands.
  */
 .markdown-source-view.mod-cm6.is-live-preview
   .cm-line.to-decor-block
   .cm-fold-indicator
   .collapse-indicator {
-  transform: translateX(calc(-1 * (var(--to-marker-gutter, 1.25rem) + 0.425rem - 3px)));
+  transform: translateX(
+    calc(
+      -1 *
+        (
+          var(--to-marker-gutter, 1.25rem) + var(--to-marker-icon-size, 0.85rem) / 2 + 3px -
+            var(--to-chevron-dead-right, 6px)
+        )
+    )
+  );
 }
 
 /*
@@ -260,9 +280,11 @@
   position: relative;
   left: var(--to-marker-left, 0px);
   vertical-align: baseline;
-  width: 0.85rem; /* MARKER_ICON_REM, decorations.ts — keep in sync */
-  height: 0.85rem;
-  margin-left: -0.85rem; /* -1 * MARKER_ICON_REM */
+  /* --to-marker-icon-size is set on the content DOM from its JS source of
+   * truth (MARKER_ICON_CSS, decorations.ts); the fallback matches it. */
+  width: var(--to-marker-icon-size, 0.85rem);
+  height: var(--to-marker-icon-size, 0.85rem);
+  margin-left: calc(-1 * var(--to-marker-icon-size, 0.85rem));
   pointer-events: none;
   color: var(--text-faint);
 }
