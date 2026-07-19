@@ -835,6 +835,11 @@ polish for when 5a graduates from experiment to the real implementation.
 6. **Polish**: `aria-hidden="true"` on the marker SVGs (decorative, screen readers should
    skip them); untested contexts — RTL text, IME composition at line start, community
    themes beyond those exercised.
+   **Status (hardening pass): done** — `aria-hidden` set and e2e-asserted on both
+   mechanisms. Verification passes run: community themes (Minimal/Catppuccin/Things,
+   light+dark, screenshots reviewed) clean; RTL surfaced a real marker-overlaps-text
+   placement issue, recorded as its own follow-up task (tasks.md 5.9) rather than patched;
+   IME is not automatable in the e2e harness and stays on the manual real-vault checklist.
 7. **Accepted design costs, restated so they aren't rediscovered as "bugs" later**: every
    non-list line reserves the 1.25rem marker gutter, so text visibly shifts when toggling
    outline mode; two Experiment-1 invariants were knowingly relaxed (depth-0 lines are no

@@ -454,6 +454,64 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
     expect(parseFloat(deadRight)).toBeLessThan(15);
   });
 
+  it('marker SVGs are aria-hidden on both delivery mechanisms (decorative — screen readers skip them)', async function () {
+    // Hardening 5.6. A DOM-attribute check is the right rigor here, unlike
+    // for visual assertions: the attribute IS the accessibility behavior
+    // (there's no separate "resolved" value a cascade could override).
+    const note = 'Scratch/markers-aria-hidden.md';
+    await h.createNote(note, '# Heading\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n');
+    await ensureOutlineMode(note);
+    await browser.pause(150);
+
+    const ariaValues = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      return Array.from(
+        cm.contentDOM.querySelectorAll('.to-decor-marker-icon svg') as NodeListOf<SVGSVGElement>,
+      ).map((svg) => svg.getAttribute('aria-hidden'));
+    });
+    // One marker per mechanism: the heading (CM6 widget) and the table
+    // (direct DOM injection).
+    expect(ariaValues.length).toBe(2);
+    for (const value of ariaValues) expect(value).toBe('true');
+  });
+
+  it('RTL text: markers, indentation, and guides still render (verification pass)', async function () {
+    // Hardening 5.6's RTL verification pass. Obsidian auto-detects per-line
+    // direction from the text itself, so Hebrew content exercises the RTL
+    // rendering path with no settings change. Deliberately asserts only
+    // conservative invariants (decorations present, hierarchy indentation
+    // applied, guide painted) — RTL *placement polish* (whether physical
+    // left-side indentation is the right visual language for RTL outlines)
+    // is a design question recorded in the research docs, not something to
+    // freeze into an assertion here. The screenshot is the reviewable
+    // artifact for that.
+    const note = 'Scratch/markers-rtl.md';
+    const md = ['# כותרת עברית', '', 'פסקה בעברית מתחת לכותרת.', '', '- פריט רשימה', ''].join('\n');
+    await h.createNote(note, md);
+    await ensureOutlineMode(note);
+    await browser.pause(150);
+
+    // Heading (line 0) and its child paragraph (line 2) each carry exactly
+    // one marker; the list item (line 4) none — same rules as LTR.
+    expect((await h.getLineChildRects(0, MARKER_ICON_SELECTOR)).length).toBe(1);
+    expect((await h.getLineChildRects(2, MARKER_ICON_SELECTOR)).length).toBe(1);
+    expect((await h.getLineChildRects(4, MARKER_ICON_SELECTOR)).length).toBe(0);
+
+    // Depth-based indentation still applies: the child paragraph's
+    // padding-left exceeds the depth-0 heading's (which reserves only the
+    // marker gutter).
+    const headingPad = parseFloat(await h.getLineComputedStyle(0, 'padding-left'));
+    const paraPad = parseFloat(await h.getLineComputedStyle(2, 'padding-left'));
+    expect(paraPad).toBeGreaterThan(headingPad);
+
+    // The heading's guide still paints through its child.
+    const guideBg = await h.getLinePseudoComputedStyle(2, 'background-image');
+    expect(guideBg).toContain('repeating-linear-gradient');
+
+    await h.screenshotFull(SCREENSHOT_DIR, 'rtl-verification');
+  });
+
   describe('marker visibility setting', function () {
     // Markers read well as "a crown on the guide line" for a branch node,
     // but add little for a leaf — most leaf atom kinds already carry their

@@ -171,9 +171,41 @@ Ranked, from
   `minAppVersion` is 1.5.0 and the e2e harness's pinned Obsidian (1.12.x) still exercises
   it — sharing name/desc constants with the definitions so the two can't drift. `npm run
   lint` is now fully clean: 0 errors, 0 warnings.
-- [ ] 5.6 Polish: `aria-hidden="true"` on the marker SVGs (decorative, screen readers should
-  skip them); untested contexts — RTL text, IME composition at line start, community themes
-  beyond those already exercised (bundled light/dark, one community theme for guides only).
+- [x] 5.6 Polish: `aria-hidden="true"` on the marker SVGs — done (`buildMarkerIcon` sets it
+  on every icon; an e2e test asserts it on both delivery mechanisms, where a DOM-attribute
+  check is the right rigor since the attribute *is* the behavior). Verification passes for
+  the untested contexts, run to the same record-findings-fix-only-cheap-and-safe framing as
+  mobile:
+  - **RTL text**: a new e2e test (Hebrew heading/paragraph/list) asserts the conservative
+    invariants — markers present per the normal rules, depth indentation applied, guides
+    painted — and screenshots the result for review. Manual screenshot review found a real
+    rendering issue, recorded as task 5.9 below, not fixed here (direction-aware placement
+    is a design decision, not a cheap-and-safe patch).
+  - **IME composition at line start**: not automatable in this harness — chromedriver
+    cannot drive a real IME, and synthetic `CompositionEvent`s bypass the
+    beforeinput/mutation-observer path CM6 actually uses for composition, so a synthetic
+    test would give false confidence. Deferred to the manual real-vault pass. Theory to
+    verify there: `MarkerWidget.eq()` returns stable identity for an unchanged kind, so
+    CM6 should leave the widget's DOM alone mid-composition rather than aborting it.
+  - **Community themes**: probed Minimal, Catppuccin, and Things (three representative
+    fixtures each — mixed, deep-nesting, widget-atoms — in light and dark, via a
+    throwaway spec that installed each theme into the sandboxed vault; screenshots
+    reviewed by eye). No defects: markers sit on their columns, guides run continuously,
+    widget atoms indent and scroll correctly, pure lists stay native. One benign
+    interaction noted for the record: Things' native H2 underline spans the line's full
+    padded region (including our reserved gutter/indentation), which reads fine but is
+    visible in the screenshots.
+- [ ] 5.9 RTL rendering (found by 5.6's verification pass): with RTL text, the marker
+  icon's `left`-shift math assumes the line's first character renders at the physical left
+  — in RTL it renders at the *right*, so the icon lands on top of the text (confirmed by
+  screenshot: the heading's icon overlaps its first characters, the paragraph's strikes
+  through its first word) instead of in the gutter, and the depth indentation + guides sit
+  on the physical left edge, visually detached from right-aligned text. Fixing this
+  properly means direction-aware placement (per-line direction detection, mirrored marker
+  shift, and a decision about which side the gutter/guides belong on in RTL) — a design
+  question to decide deliberately, not a patch. The RTL e2e test pins today's conservative
+  invariants (decorations render, no crash) without freezing the broken placement into an
+  assertion.
 - [x] 5.7 Mobile-emulation verification pass — done (PR #7, "test: automate mobile smoke
   testing via Obsidian mobile emulation"). This is a feedback loop for continuously
   assessing mobile feasibility, not a hard mobile-support requirement — full mobile support

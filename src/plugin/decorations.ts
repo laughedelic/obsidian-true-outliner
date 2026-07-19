@@ -293,7 +293,15 @@ const STROKE_ATTRS = {
  * this project (see the plan's own framing of Experiment 5a).
  */
 function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
-  const svg = svgEl('svg', { viewBox: '0 0 16 16', width: '100%', height: '100%' });
+  // `aria-hidden`: the marker is purely decorative chrome (the node's kind
+  // is already in the accessible text itself — heading level, code fence,
+  // etc.), so screen readers should skip it entirely (hardening 5.6).
+  const svg = svgEl('svg', {
+    viewBox: '0 0 16 16',
+    width: '100%',
+    height: '100%',
+    'aria-hidden': 'true',
+  });
 
   switch (kind) {
     case 'heading':
