@@ -246,7 +246,9 @@ Ranked, from
   Not covered by this pass: the real Capacitor mobile app (emulation is still Electron under
   a phone-sized viewport, so it can't surface a platform gap that isn't viewport/CSS) — see
   README's "Mobile testing" section for the real-Android/iOS coverage gap and options.
-- [ ] 5.8 Accepted design costs, restated so they aren't rediscovered as bugs: every
+- [x] 5.8 (Recorded in design.md's Risks / Trade-offs section during the hardening pass,
+  so the restatement lives in the architecture doc rather than only in this checklist.)
+  Accepted design costs, restated so they aren't rediscovered as bugs: every
   non-list line reserves a 1.25rem marker gutter, so text visibly shifts when toggling
   outline mode; two Experiment-1 invariants were knowingly relaxed (depth-0 lines are no
   longer padding-free; same-depth list items vs. atoms no longer share a column). The
