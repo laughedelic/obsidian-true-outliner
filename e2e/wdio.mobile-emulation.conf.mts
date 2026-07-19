@@ -31,6 +31,13 @@ export const config: WebdriverIO.Config = {
         emulateMobile: true,
       },
       'goog:chromeOptions': {
+        // Same anti-throttling flags as wdio.conf.mts — see the comment
+        // there for the occluded-window screenshot-timeout flake they fix.
+        args: [
+          '--disable-renderer-backgrounding',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+        ],
         mobileEmulation: {
           // Phone-sized viewport; Obsidian's tablet UI switches in around
           // width/height >= 600, so this stays in "phone" mode. Push both

@@ -15,6 +15,22 @@ export const config: WebdriverIO.Config = {
     {
       browserName: 'obsidian',
       browserVersion: 'latest',
+      // Keep Electron rendering at full rate even when the test window is
+      // occluded or the machine's display is asleep — without these,
+      // Chromium throttles frame production for background windows, and
+      // screenshot capture (a renderer round-trip) times out while plain
+      // script execution keeps working. This is the exact signature of the
+      // "screenshot-heavy tests time out under local load, pass on a fresh
+      // CI runner" flake documented in tasks.md 5.7 — reproduced locally
+      // during the hardening pass on code that had passed the same spec
+      // minutes earlier, with only the machine's session state changed.
+      'goog:chromeOptions': {
+        args: [
+          '--disable-renderer-backgrounding',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+        ],
+      },
       'wdio:obsidianOptions': {
         installerVersion: 'earliest',
         plugins: [
