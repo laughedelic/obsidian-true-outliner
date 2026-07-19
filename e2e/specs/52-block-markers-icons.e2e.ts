@@ -1,7 +1,7 @@
 /**
  * Outline-decorations Experiment 5a (per-kind block markers — icons, new
  * DOM-element mechanism) — see
- * docs/research/07-decoration-experiments-plan.md, Experiment 5's section.
+ * docs/research/10-experiment-5-block-markers.md (Experiment 5's design and results).
  * Head-to-head alternative to Experiment 5b (CSS-shape markers, worked on a
  * sibling branch), NOT a fallback: screenshots every fixture in the shared
  * corpus (quote fixture included, promoted here), in both bundled themes,
