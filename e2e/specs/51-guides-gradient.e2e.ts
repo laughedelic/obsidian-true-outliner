@@ -1,6 +1,6 @@
 /**
  * Outline-decorations Experiment 2b (guide lines via CSS stacked-gradient)
- * — see docs/research/07-decoration-experiments-plan.md. Head-to-head
+ * — see docs/research/09-experiment-2-guide-lines.md. Head-to-head
  * alternative to Experiment 2a (pixel-measured overlay), NOT a fallback:
  * screenshots every fixture in the shared corpus, in both bundled themes
  * (ground rule #2), plus targeted computed-style assertions — reading the
@@ -180,7 +180,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // hold simultaneously; a human has also confirmed live, in a real
     // running vault, that the scrollbar itself (trackpad swipe,
     // click-drag) still works with no visual or usability defects — see
-    // docs/research/07-decoration-experiments-plan.md.
+    // docs/research/09-experiment-2-guide-lines.md.
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'widget-atoms')!;
     await h.createNote(fixture.note, fixture.md);
     await ensureOutlineMode(fixture.note);

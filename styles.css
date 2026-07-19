@@ -1,7 +1,7 @@
 /*
  * Outline mode decorations — additive-only indentation (Experiment 1, see
- * docs/research/07-decoration-experiments-plan.md and the postmortem it
- * links). `rem`, not `em`: custom properties resolve at the point of use,
+ * docs/research/08-experiment-1-additive-indentation.md and the postmortem
+ * it links). `rem`, not `em`: custom properties resolve at the point of use,
  * so an `em`-based unit would inflate under a heading's larger font-size —
  * exactly the bug that shipped last time.
  *
@@ -16,7 +16,7 @@
 
 /*
  * `--to-marker-gutter` (Experiment 5a, see
- * docs/research/07-decoration-experiments-plan.md): a fixed, additive
+ * docs/research/10-experiment-5-block-markers.md): a fixed, additive
  * reservation for a per-kind block marker icon, on top of the existing
  * depth-based indentation. Applies to every non-list-item line (block and
  * atom alike) — list items reserve nothing, since they keep their fully
@@ -58,7 +58,7 @@
 /*
  * Guide lines (Experiment 2b) — CSS stacked-gradient technique
  * (@replit/codemirror-indentation-markers), see
- * docs/research/07-decoration-experiments-plan.md. decorations.ts merges a
+ * docs/research/09-experiment-2-guide-lines.md. decorations.ts merges a
  * `--to-guides` custom property (a comma-joined list of repeating-linear-
  * gradient layers, one per active ancestor depth) into the same line that
  * already carries `--to-depth`/`--to-supp-depth` — a single `::before`
