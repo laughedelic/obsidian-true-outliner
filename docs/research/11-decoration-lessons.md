@@ -225,25 +225,25 @@ finding came from.
 ## Verification and process discipline
 
 - **The synthetic corpus, even a deliberately adversarial one, missed all three real bugs
-  above.** Every one was caught only by a human visually reviewing real, organic vault
+  above.** Every one was caught only by a tester visually reviewing real, organic vault
   content (not synthetic fixtures, not DOM-attribute assertions). This reaffirms the
   postmortem's central lesson directly, in a new implementation: treat the real-vault pass
   as load-bearing verification for every future experiment, not a final formality after the
   fixtures pass.
 - **A script-driven interaction (setting `.scrollLeft` programmatically, reading it back) is
-  real evidence that a scroll container is *functional*, but it is not equivalent to a human
+  real evidence that a scroll container is *functional*, but it is not equivalent to a user
   actually using it.** It doesn't exercise trackpad/wheel gesture handling, doesn't reveal
   whether a scrollbar is visually discoverable, and doesn't catch problems that only show up
   under real input events. A fix that passes every computed-style and scripted-interaction
-  check should still be handed to a human for a final pass before being called settled if the
-  thing being fixed is itself a human-facing interaction (as opposed to, say, a purely visual
+  check should still be handed to a tester for a final pass before being called settled if the
+  thing being fixed is itself a user-facing interaction (as opposed to, say, a purely visual
   property like a color or an alignment, where a computed-style check IS the full story).
 - **Consolidating a fix from a scratch/probe test into the "real" file is itself a step that
   needs re-verification, not just a mechanical copy.** A probe's injected `<style>` tag can
   "work" only because it's layered on top of OTHER state (here, a still-present earlier
   override in `styles.css`) that gets dropped when the probe's finding is folded into a single,
   final rule — silently losing a piece that was necessary but easy to assume the new rule
-  subsumed. Caught only because a human tried the rebuilt output and reported a regression,
+  subsumed. Caught only because a tester tried the rebuilt output and reported a regression,
   not because the "surely this is equivalent" reasoning was double-checked before shipping it.
 - **A test that stays flaky after a plausible-looking fix may be revealing a real bug, not a
   residual timing issue — a fix that reduces flakiness without eliminating it hasn't

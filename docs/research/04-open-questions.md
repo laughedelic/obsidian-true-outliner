@@ -117,7 +117,7 @@ op-closure, inverse laws — thousands of generated cases). Findings to carry fo
   the old separator blank line with the untouched sibling (a loose list — same tree).
   Cosmetic; a "tidy gaps" pass could be a later opt-in.
 
-### Dev-vault findings (2026-07-13, first human verification round)
+### Dev-vault findings (2026-07-13, first manual verification round)
 
 - **Indentation unit: RESOLVED (was an open design question).** Obsidian indents lists
   with tabs by default; synthesizing space-based indentation silently double-outdented

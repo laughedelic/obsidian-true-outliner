@@ -141,7 +141,7 @@ into the same `Decoration.line` that already carries `--to-depth`, consumed by a
 `::before` (`@replit/codemirror-indentation-markers`'s technique, per the plan). Guides render
 correctly through every kind — block, atom, list item, and (after one native-CSS override)
 widget-replaced atoms, tables included after a later fix (see the "second round of real-vault
-review" below) — confirmed live by a human using the actual table scrollbar in a real running
+review" below) — confirmed live by a tester using the actual table scrollbar in a real running
 vault, no defects found.
 
 **A first pass concluded margin-shifted lines (atoms/list items) could never render a guide at
@@ -187,7 +187,7 @@ kind of unverified claim the original postmortem's whole point was to stop shipp
    `overflow: visible` was first assumed unsafe, then confirmed unsafe by actually trying it
    (see the "second round of real-vault review" below for the full account) — but a working
    fix was then found (decoupling the guide's own box from the table's internal scroll
-   container) and confirmed live by a human using the real scrollbar, no defects found.
+   container) and confirmed live by a tester using the real scrollbar, no defects found.
 
 **Contrast with Experiment 2a**: 2a's overlay `<div>`s paint in a layer entirely outside
 `.cm-content`, so a per-line box shift never mattered to it in the first place — this is a
@@ -236,7 +236,7 @@ kind, every gap line, tables included. Tables were, for a while, believed to be 
 deliberate, structural gap (a trade against breaking real horizontal-scroll functionality) —
 see finding #4 below for the full account of how that conclusion was revisited and a fix found
 (decoupling the guide's own box from the table's internal scroll container via Obsidian's
-existing `.table-wrapper` element), confirmed live by a human using the real scrollbar with no
+existing `.table-wrapper` element), confirmed live by a tester using the real scrollbar with no
 defects found. 2b reaches full parity with 2a at the cost of two small, narrow, well-understood
 CSS overrides (`contain: none`, and `.table-wrapper`'s `overflow-x: auto`) that 2a doesn't need.
 2b is simpler, has zero pixel-measurement code, and rides the existing StateField with no new
@@ -252,8 +252,8 @@ central lesson a second time, on a technique that had already been through one r
 "confirm rather than assume" and still had these left:
 
 1. **Blockquotes: the native colored bar was being silently deleted, not just misaligned.**
-   Reported as "the colored side-line stays at the leftmost position while the text indents
-   correctly" — investigation found Obsidian implements a blockquote's own left bar via a
+   Reported in review as the colored side-line staying at the leftmost position while the
+   text indented correctly — investigation found Obsidian implements a blockquote's own left bar via a
    native `::before` (`border-left`, confirmed via computed style with outline mode off). The
    guide rule also used `::before` on the same element — not a doubling, a full replacement (an
    element has exactly one `::before`), so activating a guide on a blockquote line silently
@@ -336,7 +336,7 @@ central lesson a second time, on a technique that had already been through one r
      simultaneously (outer visible so the guide isn't clipped by *it*; wrapper auto so the real
      content still scrolls, contained). The probe had "worked" only because it was layered on
      top of a styles.css that *still* had the outer override from an earlier step — dropped when
-     consolidating. Caught only because a human tried the rebuilt plugin in a real
+     consolidating. Caught only because a tester tried the rebuilt plugin in a real
      Obsidian instance and reported the guide had disappeared, then asked for it to be
      double-checked rather than accepting a re-assurance — the exact same discipline that caught
      every other finding in this document, now catching a regression in the fix-verification
@@ -344,21 +344,21 @@ central lesson a second time, on a technique that had already been through one r
    - **Status: CONFIRMED.** Both rules are present and correct in `styles.css`, confirmed via
      computed style that both conditions hold simultaneously (outer `overflow-x: visible` and no
      longer overflowing itself; wrapper `overflow-x: auto` and still overflowing, i.e.
-     scrollable; guide's `::after` background resolved and non-none) — AND confirmed by a human
+     scrollable; guide's `::after` background resolved and non-none) — AND confirmed by a tester
      actually using the table's scrollbar (trackpad/click-drag) with the rebuilt plugin in their
-     own real Obsidian instance: "it actually works... I don't see any notable defects or UX
-     issues." This closes the last remaining gap in the whole guide feature: every kind, every
+     own real Obsidian instance — real scrolling works, with no notable defects or UX
+     issues found. This closes the last remaining gap in the whole guide feature: every kind, every
      gap line, and tables, all fully continuous, with 2b needing only two small, well-understood,
      narrowly-scoped CSS overrides (`contain: none`, and `.table-wrapper`'s `overflow-x: auto`)
      beyond the base mechanism — full parity with 2a's coverage, at meaningfully lower code cost
      and zero pixel measurement.
 
 All four were verified live (computed style, rect measurements, a bisection test, or a real
-human trying the rebuilt plugin), not assumed from reasoning alone — the SAME discipline the
+manual pass with the rebuilt plugin), not assumed from reasoning alone — the SAME discipline the
 postmortem asked for, applied repeatedly, including to catch a mistake made while applying it.
 Full e2e suite (unit + e2e) re-verified green after each fix; see
 [e2e/specs/51-guides-gradient.e2e.ts](../../e2e/specs/51-guides-gradient.e2e.ts) for the
 blockquote-coexistence, margin-compensation, gap-continuity, and table (computed-style side of
-the fix) regression tests. The human-scrollbar-interaction side is, by nature, not something an
+the fix) regression tests. The manual-scrollbar-interaction side is, by nature, not something an
 automated e2e assertion can fully substitute for — the computed-style test is a floor, not a
 replacement for a periodic real-vault spot check if this area is touched again later.

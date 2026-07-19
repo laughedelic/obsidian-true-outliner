@@ -51,7 +51,7 @@ reviewed (not just DOM-asserted) — see
 note in the real `test-vault` by hand — the actual dev-vault pass the postmortem
 insisted on, not a formality — and found three real bugs the synthetic corpus missed
 entirely (below). All three are fixed, with permanent fixtures/assertions added so they
-can't silently regress. The review verdict after the fixes: "much more promising" than the
+can't silently regress. The review verdict after the fixes: markedly more promising than the
 prior attempt — indentation alone gives real hierarchy legibility switching modes on and
 off, more than initially expected going in.
 
@@ -59,7 +59,7 @@ off, more than initially expected going in.
 ~150-line `decorations.ts` adapter (a `StateField` for plain lines plus a `ViewPlugin` for
 widget-replaced atoms), ~25-line `styles.css`.
 
-**Bugs found and fixed** (chronological — each was caught only by a human looking at real,
+**Bugs found and fixed** (chronological — each was caught only by manual review of real,
 organic content, never by the synthetic corpus or DOM assertions):
 
 1. **Cascade fight, caught in the synthetic corpus.** Obsidian's own `app.css` has

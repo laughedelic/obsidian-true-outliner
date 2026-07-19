@@ -53,8 +53,8 @@ Two problems, both invisible in the synthetic fixtures:
    `main.js` but not `styles.css`. Fixed, but this alone should have been a signal that
    the verification loop (screenshot the sandboxed e2e vault) was disconnected from what
    was actually running in the real vault.
-2. Once loaded: indentation "off, sometimes negative"; guide lines "all over the place,"
-   including apparently when outline mode was off.
+2. Once loaded: indentation was off, sometimes negative; guide lines were misplaced
+   throughout, including apparently when outline mode was off.
 
 ### Attempt 2: unilateral pivot to "leave list items alone entirely"
 
@@ -70,8 +70,8 @@ paragraphs got padding or a marker — and dropped the guide-line feature entire
 
 **This was the first process failure of the session**: a scope reduction (dropping the
 whole point of the change — one visual language across kinds) made and shipped without
-checking first. Called out directly in review: *"how come you decided to change the
-design mid-implementation and didn't even stop to check with me?"*
+checking first. Review called this out directly as a process failure: the design was
+changed mid-implementation without stopping to check.
 
 ### User rejects the narrowed scope; redirects to a specific reference
 
@@ -193,7 +193,7 @@ lists, code fences) — real use in the actual vault still showed:
   caught the first em/rem bug — it wasn't, because that fix was verified narrowly
   (indentation values only) rather than by re-auditing every other `em`-based rule in
   the same stylesheet for the same class of bug.
-- **Indentation still "all over the place"** in real use, despite computed-style checks
+- **Indentation still visibly misplaced throughout** in real use, despite computed-style checks
   showing correct, consistent depth-based padding in the tested fixtures. Either the
   verified fixtures didn't cover the actual failure modes present in a real, long-lived
   vault (different note shapes, different nesting patterns, interaction with the author's
