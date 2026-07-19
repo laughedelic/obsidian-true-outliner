@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "2cc98487f7d4",
+  "strategy": "manual-commit",
+  "branch": "harden/outline-decorations",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/10-experiment-5-block-markers.md",
+    "e2e/specs/52-block-markers-icons.e2e.ts",
+    "openspec/changes/outline-decorations/tasks.md",
+    "src/plugin/decorations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2c/c98487f7d4/0/metadata.json",
+      "transcript": "/2c/c98487f7d4/0/full.jsonl",
+      "compact_transcript": "/2c/c98487f7d4/0/transcript.jsonl",
+      "content_hash": "/2c/c98487f7d4/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 34396,
+    "cache_read_tokens": 5126687,
+    "output_tokens": 15524,
+    "api_call_count": 20
+  }
+}
