@@ -1,0 +1,88 @@
+/openspec-apply-change outline-selection-enforcement
+
+---
+
+go on
+
+---
+
+Check on background e2e task bxyrka1h5 (second consecutive full-suite run). Confirmed it's progressing normally (new Obsidian instance launched for a later spec file, consistent with normal per-spec restarts). Should be close to done. Once complete: verify all specs pass, run npm run vault:install, finalize tasks.md section 6, and give the user a full completion summary of the outline-selection-enforcement implementation (all tasks done, Phase A findings, what needs a human manual pass for UX feel).
+
+---
+
+strange, but checking the plugin in test-vault doesn't feel any different from before. selection (mouse or keyboard) is just normal character-per-character selection, and crossing any boundaries doesn't influence it anyhow.
+
+one thought I've had before: let's modify the manifest of the plugin we copy into the test-vault with the latest commit as the version, and maybe commit message as the description. this way it should be easy for me to check the plugin setting to make sure I'm using the intended version and not a stale one. I also disable-enable the plugin manually every time. is there a way to automate that?
+
+---
+
+Background e2e task b3uxag0z8: confirmed it IS progressing (worker PID changed between checks, meaning specs are completing and new ones starting), just slower than usual under system load — not actually stuck. Check the output file and task status again. Once complete: verify results, then run npm run vault:install one final time, check final git status, and give the user the full completion summary: hot-reload + manifest-stamping confirmed working (via the earlier throwaway check), and clear guidance that the most likely cause of "escalation didn't work" is outline mode not being toggled ON for the tested note (it's per-note, opt-in via the toggle-outline-mode command — check Settings or the file menu). If it still hasn't finished by next check, that's fine — the timeout=590s wrapper will kill it soon regardless.
+
+---
+
+okay. now I see it really working. good job! most of it works well and intuitively. the visual selection is still character-level, but I guess changing that (to a block-level selection indication) is out of scope here.
+
+a few things that didn't feel quite right. not necessarily wrong, but up for a discussion:
+
+* first, what seems like a bug: selecting inside atom-blocks like callouts or tables does not escalate in the live-preview mode when the mouse cursor goes out of the block.
+   * when I put the cursor inside a callout and see the underlying markdown source, selection works as expected (both with mouse or keyboard).
+   * when the cursor is outside the callout, I see the live-preview rendered block. if I start selecting the text inside it with the mouse (dragging, not placing the cursor inside first), the selection does not escape that rendered block, no matter how far the cursor is dragged out.
+   * note, that this does not affect blockquotes and code blocks. I noticed this only in callouts and tables.
+   * tables are probably a whole other story because they have their own native selection escalation going on: when selection inside a cell escapes the cell's boundary, the whole cell is selected (visually different, as a cell/block), that escalates to rows and columns and the whole table. but it's impossible to drag the cursor to the next paragraph and get both the table and the paragraph selected.
+   * in either case, starting from any other block type and dragging selection over callout or table selects them as a whole, as expected. notably, both of those block types are treated as a "single character" widget/block when in live-preview mode.
+   * finally, this  is probably part of the native behavior. selection that starts from inside  live-preview callout/table behaves the same way (can't escape) even without the outline enabled.
+* second, what seems like a small improvement: currently, selection escalates only when it crosses to another node and gets them both (with their subtrees) selected. there is no way to select a single node as a whole. 
+   * I think a natural way to do that is to escalate the selection to the node when the cursor is out of the node, but hasn't crossed the boundary of the next one yet.
+   * while writing it, I'm realizing that my intuition about it was wrong. I thought that the gap lines between nodes are just empty space, but now I'm realizing that the trailing whitespace is counted as part of the previous node. that explains current escalation behavior. is this something we can change?
+   * generally, my expectation is that there is always a way to drag the selection over the node boundary before reaching the next node to select only the current one as a whole.
+   * I also check how this works in Logseq and it's quite different overall: when selecting inside a node, it's character-level, then dragging between the nodes switches to block-level selection and selects both nodes, but dragging the cursor back to the original node stays in the block-selection mode and has that whole node selected. this allows selecting a single node as a whole, but also means that after switching to block-selection mode, you have to start a new selection to switch to the character-level selection again. 
+      * Logseq doesn't have those gap lines between the nodes, so it doesn't have the same problem. it can have trailing whitespace inside the node, but it's explicitly part of that node, in our case selecting a gap line looks like a newline between blocks (no indentation there)
+      * in our current behavior dragging back to the original node returns to the exact character-level selection, which feels nice, safe (from accidentally messing careful selection within a node).
+   * I don't know what the solution is yet, but this brings me to think that we need to do something about the gap lines in general.
+* finally, something that is a deliberate initial choice, but doesn't feel quite right: the "Multi-range selections escalate per range" spec requirement.
+   * it works as described, but this approach might be breaking our fundamental structural boundaries requirement: if I make a mixed multi-selection (part block-level, part node-local character-level), then copy and paste it somewhere else, what am I going to get? is it going to have a valid node-tree structure? I'm not sure.
+      * what I observe now is that pasting a character-level piece and a block-level selection in a new spot joins the character-level piece to the next block and that becomes a new joint paragraph in the pasted result. it's not too strange or unexpected, but I'm not sure that this is the most sensible behavior for multi-selection in the outline mode in general
+   * maybe escalation in one of the cursors should mean minimal escalation in the other as well? so if one of the multi-cursors crossed the boundary to the next node, but the other is still in its node, it should escalate to that node. from then on selection should be block-level. so if keyboard is used and the selection has been escalated to a block in the beginning, and a group of blocks in the middle of the document, and a down key is pressed, it's not a matter of moving those individual cursors in the text inside the blocks, but extending both selections to the appropriately escalated next block selection (in each place).
+      * let me know if this doesn't make sense. I think it's worth a try. but if I'm missing something, let's discuss it first.
+
+---
+
+go ahead with both, fold them into this change. keep the notes for the future modal behavior work (both gap lines and block-level selection) somewhere where the phase C will pick it up
+
+---
+
+<task-notification>
+<task-id>bntw1vkte</task-id>
+<tool-use-id>toolu_012vT1NoVJhBwuZ2f7K5aZWJ</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/4fa6642d-5530-41e6-8eef-e856229e3a74/tasks/bntw1vkte.output</output-file>
+<status>completed</status>
+<summary>Background command "Full e2e suite with amendments" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Fallback check on background e2e task bntw1vkte (full-suite run with the D4 amendments) in case its completion notification never arrived. When done: verify results, run npm run vault:install, mark tasks.md 7.5 complete, and give the user the completion summary of the two adopted amendments (gap-line trigger + expand-only, uniform multi-range) with the note that hot-reload means they can just re-test immediately.
+
+---
+
+ok. great. both improvements seem to work well and feel intuitive.
+
+some comments for further discussion before we wrap this up:
+
+* Single-node selection: we don't have gap lines between list elements, so it doesn't seem to be possible to select a single list node as a whole. any ideas on how to improve this?
+* related to the above, I'd like to propose a change to the select-all spec:
+   * one of the improvements that obsidian-outliner does is changing the cmd-A behavior: "Press the hotkey once to select the current list item. Press the hotkey twice to select the entire list".
+   * I would generalize that to the same behavior as in Logseq (btw, is this consistent with Workflowy?)
+      * the hotkey first selects the whole text _inside_ the node
+      * next it escalates to block-selection of the node as a whole (together with its subtree)
+      * next it escalates to the node's parent subtree
+      * and so on, until the whole outline, then the whole document (together with the frontmatter)
+   * this should gracefully generalize for multi-select, joining selection when the escalated subtrees overlap
+
+---
+
+I'm thinking, haven't we scope-creeped phase C? it was about edits rewriting/filtering. and now it includes substantial work on selections: block-level plus the select-all ladder. shouldn't those be separate?
+
+---
+
+okay, let's commit everything (on a new branch+PR), then sync/archive the change. the tooling infra improvements should probably be a separate commit

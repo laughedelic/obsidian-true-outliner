@@ -1,0 +1,81 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "822fd09e3c1b",
+  "session_id": "4fa6642d-5530-41e6-8eef-e856229e3a74",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T14:12:23.18364Z",
+  "branch": "outline-selection-enforcement",
+  "checkpoints_count": 10,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "64e6e5d561c7",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 691,
+    "cache_creation_tokens": 1433866,
+    "cache_read_tokens": 116529936,
+    "output_tokens": 316924,
+    "api_call_count": 327
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-openspec-apply-change-2026-07-20T00:54:48.933665Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "abec50ed4088",
+      "timestamp": "2026-07-20T00:54:48.933665Z",
+      "native": {
+        "command": "/openspec-apply-change"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/openspec-apply-change",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_015FfQQsS7AA1xQeHVQGPxrX",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-archive-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "64e6e5d561c7",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1214,
+        "end": 1215,
+        "entry_ids": [
+          "e47095df-0d33-437f-b39c-ee89bc69a472"
+        ],
+        "tool_use_id": "toolu_015FfQQsS7AA1xQeHVQGPxrX"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_015FfQQsS7AA1xQeHVQGPxrX"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-archive-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 10
+  }
+}
