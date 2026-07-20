@@ -1,0 +1,9 @@
+this is very helpful and clarifies things a lot. thank you.
+
+with the decorations now implemented, and all of this in mind, what should be the next steps on our roadmap to validate our core assumptions about the "novel engineering" feasibility? what should be the next spec proposal to work on?
+
+I want to see the editing and selection working through the transactionFilter. but maybe there are other things to implement first?
+
+---
+
+sounds like a solid plan. go ahead with the A+B proposal
