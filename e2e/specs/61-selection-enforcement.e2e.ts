@@ -33,6 +33,7 @@ describe('node-selection-enforcement: Phase B', function () {
   });
 
   it('forward mouse drag crossing a boundary escalates to both paragraphs in full', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await outlineNote(md);
     await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 });
@@ -42,6 +43,7 @@ describe('node-selection-enforcement: Phase B', function () {
   });
 
   it('backward mouse drag crossing a boundary escalates with head at the start side', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await outlineNote(md);
     await h.mouseDragSelect({ line: 2, ch: 6 }, { line: 0, ch: 6 });
@@ -51,6 +53,7 @@ describe('node-selection-enforcement: Phase B', function () {
   });
 
   it('within-node mouse drag stays native (no escalation)', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await outlineNote(md);
     await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 0, ch: 8 });
@@ -84,6 +87,7 @@ describe('node-selection-enforcement: Phase B', function () {
   });
 
   it('selection leaving a heading escalates to the heading\'s entire subtree', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = '# Head\n\nBody one.\n\nBody two.\n';
     await outlineNote(md);
     // Anchor inside the heading text, head inside the section body.
@@ -94,6 +98,7 @@ describe('node-selection-enforcement: Phase B', function () {
   });
 
   it('live drag stability: each pointer update along a multi-step drag stays escalated, no flicker', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await outlineNote(md);
     // A drag with several intermediate pointer-move ticks; the FINAL
@@ -129,6 +134,7 @@ describe('node-selection-enforcement: Phase B', function () {
   });
 
   it('off-mode drag selection is native (byte-for-byte stock, no escalation)', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await h.createNote(NOTE, md);
     expect(await h.isOutlineMode(NOTE)).toBe(false);
@@ -214,6 +220,7 @@ describe('node-selection-enforcement: Phase B', function () {
   });
 
   it('dragging past a node\'s end onto its gap line selects exactly that node whole', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await outlineNote(md);
     // Drag from mid-node down onto the blank line below it — short of the

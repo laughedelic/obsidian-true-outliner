@@ -258,12 +258,19 @@ capability rests its architecture on:
   original nodes classified `boundary-crossing-edit` instead of `programmatic` — still
   safe (default-permit, nothing rewritten either way in this change) but it would have
   inflated the boundary-crossing counter Phase C needs as a USER-edit sizing metric.
-  Fixed in `classify.ts`'s `isProgrammatic`. Separately: **undo does not dispatch
-  through `transactionFilter` at all** — confirmed live, zero classifications recorded
-  for an undo that reverted a real typed edit. Whatever mechanism Obsidian uses to
-  restore prior editor state on undo bypasses CM6's transaction-filter pipeline
-  entirely, which is an even stronger safety guarantee than "classified programmatic
-  and passed through untouched": there is no transaction here to misclassify.
+  Fixed in `classify.ts`'s `isProgrammatic`. Separately: **on desktop, undo does not
+  dispatch through `transactionFilter` at all** — confirmed live, zero classifications
+  recorded for an undo that reverted a real typed edit. Whatever mechanism Obsidian
+  uses to restore prior editor state on undo bypasses CM6's transaction-filter
+  pipeline entirely, which is an even stronger safety guarantee than "classified
+  programmatic and passed through untouched": there is no transaction here to
+  misclassify. Caveat found later on the mobile-emulation run: the bypass is
+  platform-dependent — under macOS `emulateMobile` the undo DOES arrive as a real
+  transaction (Linux CI emulation bypasses like desktop). Safe either way — an
+  arriving undo carries the history userEvent and classifies `programmatic` — but the
+  "never reaches the filter" form is a desktop observation, not a portable invariant;
+  the e2e test asserts the portable half (never an enforced edit class) everywhere and
+  the stronger bypass form on desktop only.
 - **Nested-editor safety without DOM access**: confirmed live on the wide-table fixture
   (type a character inside an actively-edited cell) — zero `boundary-crossing-edit`
   classifications from the cell edit, and the outer note's own structure untouched.
