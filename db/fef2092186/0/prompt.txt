@@ -86,3 +86,7 @@ I'm thinking, haven't we scope-creeped phase C? it was about edits rewriting/fil
 ---
 
 okay, let's commit everything (on a new branch+PR), then sync/archive the change. the tooling infra improvements should probably be a separate commit
+
+---
+
+interestingly, the mobile e2e test failed in CI. let's look into that before we wrap this up
