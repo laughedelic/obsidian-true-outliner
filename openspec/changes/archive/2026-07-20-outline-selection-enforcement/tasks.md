@@ -56,10 +56,13 @@
 - [x] 3.6 Performance measurement on a ~2000-line stress note: record median/p95
       against the D7 budget; add the stress fixture if the corpus lacks one — budget met
       on real typing + real mouse-drag selection; see 3.8 for numbers
-- [ ] 3.7 IME composition check (manual if not automatable in the harness): composition
+- [x] 3.7 IME composition check (manual if not automatable in the harness): composition
       transactions classified `composition` and uninterfered; record the verdict —
-      NOT automated (WebDriver has no reliable IME composition event synthesis in this
-      harness); genuinely needs a human manual pass, tracked with 6.2/6.3
+      not automatable (WebDriver has no reliable IME composition event synthesis), so
+      verified manually (2026-07-20, Chinese IME in the dev vault with debug logging
+      on): transactions during composition classify `composition`; the commit
+      transaction once a character is selected classifies `programmatic` — both are
+      pass-through classes, so composition is never interfered with at any stage
 - [x] 3.8 Record Phase A findings (observed userEvent values per source, timings,
       nested-editor verdict) in design.md and docs/research/04; falsified assumptions
       block Phase B until the design is amended — no assumption was falsified in a way
