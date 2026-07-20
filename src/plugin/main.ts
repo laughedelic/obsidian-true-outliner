@@ -22,6 +22,8 @@ import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension } from './keymap';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
+import { transactionFilterExtension } from './transaction-filter';
+import { TransactionStats } from './stats';
 
 const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
   all: 'All eligible kinds (status quo)',
@@ -36,6 +38,9 @@ const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 export default class TrueOutlinerPlugin extends Plugin {
   private data: PluginData = { ...DEFAULT_DATA };
   private registry!: OutlineModeRegistry;
+  /** Public so the e2e harness can read classification evidence the same
+   * way it already reads `isOutline` (design.md D8). */
+  readonly stats = new TransactionStats();
 
   override async onload(): Promise<void> {
     this.data = { ...DEFAULT_DATA, ...((await this.loadData()) as Partial<PluginData> | null) };
@@ -87,6 +92,16 @@ export default class TrueOutlinerPlugin extends Plugin {
 
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
+    this.registerEditorExtension(transactionFilterExtension(this, this.stats));
+
+    this.addCommand({
+      id: 'print-transaction-stats',
+      name: 'Debug: print transaction classification stats',
+      callback: () => {
+        console.debug(`[true-outliner] transaction stats\n${this.stats.formatSummary()}`);
+        new Notice('Transaction classification stats printed to console.', 2000);
+      },
+    });
 
     this.addSettingTab(new TrueOutlinerSettingTab(this.app, this));
 

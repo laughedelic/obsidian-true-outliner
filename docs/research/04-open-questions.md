@@ -234,3 +234,66 @@ long-term. **Verdict: keep it.** Findings:
   boundary/offset oracle feeding our existing `OutlineNode`/encode/ops unchanged — this
   "tokenize with micromark, keep your own tree" pattern is exactly how `mdast-util-from-markdown`
   itself is built, so it's proven architecture, just not something to adopt preemptively.
+
+## Q14. Transaction filter choke-point assumptions ✅ CONFIRMED (2026-07-20, `outline-selection-enforcement` Phase A)
+
+Live evidence (`60-transaction-classification.e2e.ts`, real Obsidian via wdio-obsidian-service,
+not a mock) for the five choke-point assumptions design.md's `transaction-classification`
+capability rests its architecture on:
+
+- **Mutation-path coverage**: typing, real clipboard paste (`navigator.clipboard` +
+  Cmd/Ctrl+V), real mouse-drag selection (`browser.action('pointer')`, not
+  `Editor.setSelection`), keyboard selection (Shift+Arrow), `setValue`-style programmatic
+  replacement, and external `Vault.process` reconciliation were all driven through the
+  ACTUAL registered `transactionFilter` and observed via the stats surface with their
+  expected class. Find-and-replace (Obsidian's own search/replace UI panel) and
+  cross-position drag-drop-to-reorder text were not separately automated — both are
+  UI-panel/native-HTML5-DnD gestures WebDriver's Actions API doesn't reliably synthesize
+  in this harness; flagged as a coverage gap for a future pass, not evidence of a problem.
+- **Programmatic/remote detection**: `setValue` dispatches with no `userEvent` (as
+  expected). External `Vault.process` reconciliation, however, dispatches a REAL
+  transaction annotated `userEvent: "set"` — the original D3 hypothesis ("no
+  distinguishing annotation") was wrong for this specific path. Before the classifier
+  was tightened to recognize `"set"`, a reconciliation whose diff crossed multiple
+  original nodes classified `boundary-crossing-edit` instead of `programmatic` — still
+  safe (default-permit, nothing rewritten either way in this change) but it would have
+  inflated the boundary-crossing counter Phase C needs as a USER-edit sizing metric.
+  Fixed in `classify.ts`'s `isProgrammatic`. Separately: **undo does not dispatch
+  through `transactionFilter` at all** — confirmed live, zero classifications recorded
+  for an undo that reverted a real typed edit. Whatever mechanism Obsidian uses to
+  restore prior editor state on undo bypasses CM6's transaction-filter pipeline
+  entirely, which is an even stronger safety guarantee than "classified programmatic
+  and passed through untouched": there is no transaction here to misclassify.
+- **Nested-editor safety without DOM access**: confirmed live on the wide-table fixture
+  (type a character inside an actively-edited cell) — zero `boundary-crossing-edit`
+  classifications from the cell edit, and the outer note's own structure untouched.
+  Degeneracy-by-construction (D6's primary hypothesis) holds; the `StateField` fallback
+  flag was not needed.
+- **Keystroke-latency budget**: on a synthetic ~1600-line stress note (400 sections,
+  heading+paragraph pairs), driving 20 real typed edits and 10 real boundary-crossing
+  mouse-drag selections through the live filter, every observed class's timing stayed
+  well within budget — measured this session (dev hardware, not dedicated CI-class
+  hardware; re-measure there before treating as final):
+
+  | class             | count | median  | p95     | max     |
+  |--------------------|------:|--------:|--------:|--------:|
+  | programmatic       |    63 | ~0ms    | 0.60ms  | 0.70ms  |
+  | selection-only     |    40 | ~0ms    | 0.20ms  | 0.20ms  |
+  | within-node-edit   |    20 | ~0ms    | 0.10ms  | 0.10ms  |
+
+  (budget: median ≤ 1ms, p95 ≤ 8ms — every number here is roughly an order of
+  magnitude under budget). `boundary-crossing-edit`/`composition`/`plugin-own` had no
+  samples in this run (the drives used were all within-node typing and boundary-
+  crossing *selection*, not boundary-crossing *edits*). Full re-parse per `Text`
+  identity (no incremental reuse) is sufficient at this note size — the D7 fallback is
+  not needed.
+- **IME non-interference**: NOT automated — this harness (chromedriver via
+  wdio-obsidian-service) has no reliable way to synthesize a genuine IME composition
+  session (`compositionstart`/`compositionupdate`/`compositionend` with real native
+  input). Genuinely needs a human manual pass; tracked alongside the real-vault
+  selection-feel pass (tasks.md 6.2/6.3), not resolved by this change.
+
+No finding blocked or reversed Phase B — both surprises (a path arriving WITH an
+annotation the design assumed it wouldn't have, and a path not arriving as a
+transaction at all) resolved toward MORE safety than the original hypothesis, not less,
+which is exactly the shape default-permit is designed to tolerate.

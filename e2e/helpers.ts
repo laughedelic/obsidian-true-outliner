@@ -82,6 +82,22 @@ export function setSelection(
   );
 }
 
+/** Overwrite a note's content the way an external tool (sync, another
+ * editor) would: through `Vault.process`, which Obsidian diffs into any
+ * currently-open editor for that file as a no-userEvent transaction — the
+ * real-world "programmatic/remote" path, not just `setValue`. */
+export async function processFileExternally(notePath: string, content: string): Promise<void> {
+  await browser.executeObsidian(
+    async ({ app }, p, c) => {
+      const file = app.vault.getAbstractFileByPath(p);
+      if (!file) throw new Error(`no file at ${p}`);
+      await app.vault.process(file as import('obsidian').TFile, () => c);
+    },
+    notePath,
+    content,
+  );
+}
+
 export function getCursor(): Promise<{ line: number; ch: number }> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
@@ -89,6 +105,181 @@ export function getCursor(): Promise<{ line: number; ch: number }> {
     const cursor = view.editor.getCursor();
     return { line: cursor.line, ch: cursor.ch };
   });
+}
+
+export function getSelection(): Promise<{
+  anchor: { line: number; ch: number };
+  head: { line: number; ch: number };
+}> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const editor = view.editor as any;
+    const cm = editor.cm;
+    const range = cm.state.selection.main;
+    const doc = cm.state.doc;
+    const toPos = (offset: number) => {
+      const line = doc.lineAt(offset);
+      return { line: line.number - 1, ch: offset - line.from };
+    };
+    return { anchor: toPos(range.anchor), head: toPos(range.head) };
+  });
+}
+
+// ---- Real pointer input (mouse drag selection) -----------------------------
+
+interface Coords {
+  left: number;
+  top: number;
+  bottom: number;
+}
+
+function readCoordsAt(line: number, ch: number): Promise<Coords | null> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, line, ch) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const pos = cm.state.doc.line(line + 1).from + ch;
+      const coords = cm.coordsAtPos(pos);
+      return coords ? { left: coords.left, top: coords.top, bottom: coords.bottom } : null;
+    },
+    line,
+    ch,
+  );
+}
+
+/** Scrolls a document position into view without touching selection/cursor
+ * — dispatches CM6's own `EditorView.scrollIntoView` StateEffect, reached
+ * via the live instance's own constructor (the only reference to the
+ * `EditorView` class available in this browser-context script). */
+function scrollPositionIntoView(line: number, ch: number): Promise<void> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, line, ch) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const pos = cm.state.doc.line(line + 1).from + ch;
+      cm.dispatch({ effects: (cm.constructor as any).scrollIntoView(pos, { y: 'center' }) });
+    },
+    line,
+    ch,
+  );
+}
+
+/**
+ * Viewport pixel coordinates of a document position, via CM6's own
+ * `coordsAtPos` — precise per-character placement, unlike approximating
+ * from a `.cm-line`'s bounding rect. On a large (virtualized) document the
+ * target position may not currently be rendered (`coordsAtPos` returns
+ * null for anything outside CM6's render window), so this scrolls it into
+ * view and polls — a scroll dispatch doesn't synchronously reflow within
+ * one `executeObsidian` call, so `waitUntil` gives the browser real turns
+ * to actually repaint between checks.
+ */
+export async function posToCoords(line: number, ch: number): Promise<Coords> {
+  let coords = await readCoordsAt(line, ch);
+  if (!coords) {
+    await scrollPositionIntoView(line, ch);
+    await browser.waitUntil(
+      async () => {
+        coords = await readCoordsAt(line, ch);
+        return coords !== null;
+      },
+      { timeout: 3000, timeoutMsg: `no coords at line ${line} ch ${ch} after scrolling into view` },
+    );
+  }
+  return coords!;
+}
+
+/**
+ * Real mouse drag selection: a genuine W3C pointer down/move.../up sequence
+ * (not `Editor.setSelection`), so it exercises the SAME `select.pointer`
+ * userEvent path a real user's drag produces — the thing Phase A's
+ * choke-point claim ("every mutation path flows through the filter") is
+ * actually about. `steps` intermediate moves let a test assert the
+ * live-drag stability scenario (each pointer update stays escalated, no
+ * flicker), not just the final released position.
+ */
+export async function mouseDragSelect(
+  from: { line: number; ch: number },
+  to: { line: number; ch: number },
+  steps = 3,
+): Promise<void> {
+  const fromCoords = await posToCoords(from.line, from.ch);
+  const toCoords = await posToCoords(to.line, to.ch);
+  const fromY = Math.round((fromCoords.top + fromCoords.bottom) / 2);
+  const toY = Math.round((toCoords.top + toCoords.bottom) / 2);
+  const fromX = Math.round(fromCoords.left);
+  const toX = Math.round(toCoords.left);
+
+  const action = browser.action('pointer', { parameters: { pointerType: 'mouse' } });
+  action.move({ x: fromX, y: fromY, origin: 'viewport' }).down({ button: 0 }).pause(20);
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    action.move({
+      x: Math.round(fromX + (toX - fromX) * t),
+      y: Math.round(fromY + (toY - fromY) * t),
+      origin: 'viewport',
+      duration: 30,
+    });
+  }
+  action.up({ button: 0 });
+  await action.perform();
+}
+
+/** A real double-click at a document position (word selection). */
+export async function doubleClickAt(line: number, ch: number): Promise<void> {
+  const coords = await posToCoords(line, ch);
+  const x = Math.round(coords.left);
+  const y = Math.round((coords.top + coords.bottom) / 2);
+  await browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x, y, origin: 'viewport' })
+    .down({ button: 0 })
+    .up({ button: 0 })
+    .pause(10)
+    .down({ button: 0 })
+    .up({ button: 0 })
+    .perform();
+}
+
+/**
+ * Dispatches a real multi-range selection transaction directly through the
+ * live CM6 instance, annotated with a genuine `select`-family userEvent —
+ * for the multi-range escalation scenario, where simulating the actual
+ * "add a selection range" mouse/keyboard gesture (Cmd/Ctrl+click then
+ * Shift+click, CM6's standard two-step pattern) turned out to be
+ * unreliable in this harness: a modifier held via `perform(true)` across
+ * separate `performActions` calls did not survive to the next call
+ * (verified empirically — both a held-modifier drag and a held-modifier
+ * click behaved as if no modifier were held at all, replacing the
+ * selection instead of adding to it). This is a harness/WebDriver-session
+ * limitation, not a plugin behavior under test, so it's worked around by
+ * exercising the SAME real adapter code path (the actual registered
+ * `transactionFilter`, unmocked) through a direct dispatch instead of a
+ * simulated gesture — every single-range scenario elsewhere in this suite
+ * already covers genuine mouse/keyboard input; this covers the one thing
+ * that's specifically about multi-range iteration.
+ */
+export async function dispatchSelectOnlyRanges(
+  ranges: readonly { anchor: { line: number; ch: number }; head: { line: number; ch: number } }[],
+): Promise<void> {
+  await browser.executeObsidian(
+    ({ app, obsidian }, ranges) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const Selection = cm.state.selection.constructor;
+      const toOffset = (pos: { line: number; ch: number }) =>
+        cm.state.doc.line(pos.line + 1).from + pos.ch;
+      const cmRanges = ranges.map((r: (typeof ranges)[number]) =>
+        Selection.range(toOffset(r.anchor), toOffset(r.head)),
+      );
+      cm.dispatch({ selection: Selection.create(cmRanges), userEvent: 'select' });
+    },
+    ranges,
+  );
 }
 
 /**
@@ -178,6 +369,33 @@ export function commandAvailable(shortId: string): Promise<boolean> {
     },
     `${PLUGIN_ID}:${shortId}`,
   );
+}
+
+// ---- Transaction classification stats (design.md D8) ----------------------
+
+export interface StatsTiming {
+  count: number;
+  median: number;
+  p95: number;
+  max: number;
+}
+
+export interface StatsSnapshot {
+  counts: Record<string, number>;
+  timing: Record<string, StatsTiming>;
+  recent: { cls: string; userEvent: string | undefined; ms: number; timestamp: number }[];
+}
+
+export function getStats(): Promise<StatsSnapshot> {
+  return browser.executeObsidian(
+    ({ plugins }) => (plugins.trueOutliner as any).stats.snapshot() as StatsSnapshot,
+  );
+}
+
+export function resetStats(): Promise<void> {
+  return browser.executeObsidian(({ plugins }) => {
+    (plugins.trueOutliner as any).stats.reset();
+  });
 }
 
 // ---- Outline mode --------------------------------------------------------
@@ -453,3 +671,13 @@ export const keys = {
   undo: () => browser.keys([PRIMARY_MOD, 'z']),
   type: (text: string) => browser.keys([...text]),
 };
+
+/** A real clipboard paste (Ctrl/Cmd+V after writing to the OS clipboard) —
+ * carries CM6's own paste userEvent, distinct from typed input; genuine
+ * mutation-path coverage rather than a programmatic `replaceSelection`. */
+export async function pasteText(text: string): Promise<void> {
+  await browser.execute(async (t) => {
+    await navigator.clipboard.writeText(t);
+  }, text);
+  await browser.keys([PRIMARY_MOD, 'v']);
+}
