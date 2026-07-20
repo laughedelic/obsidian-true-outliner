@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "b240b3a728ba",
+  "strategy": "manual-commit",
+  "branch": "outline-selection-enforcement",
+  "checkpoints_count": 10,
+  "files_touched": [
+    ".gitignore",
+    "package.json",
+    "scripts/stamp-vault-manifest.mjs",
+    "test-vault/.hotreload",
+    "test-vault/.obsidian/community-plugins.json",
+    "test-vault/.obsidian/plugins/hot-reload/main.js",
+    "test-vault/.obsidian/plugins/hot-reload/manifest.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b2/40b3a728ba/0/metadata.json",
+      "transcript": "/b2/40b3a728ba/0/full.jsonl",
+      "compact_transcript": "/b2/40b3a728ba/0/transcript.jsonl",
+      "content_hash": "/b2/40b3a728ba/0/content_hash.txt",
+      "prompt": "/b2/40b3a728ba/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 657,
+    "cache_creation_tokens": 1414064,
+    "cache_read_tokens": 108837420,
+    "output_tokens": 303162,
+    "api_call_count": 310
+  }
+}

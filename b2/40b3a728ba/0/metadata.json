@@ -1,0 +1,70 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "b240b3a728ba",
+  "session_id": "4fa6642d-5530-41e6-8eef-e856229e3a74",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-20T13:47:43.471064Z",
+  "branch": "outline-selection-enforcement",
+  "checkpoints_count": 10,
+  "save_step_count": 1,
+  "files_touched": [
+    ".gitignore",
+    "package.json",
+    "scripts/stamp-vault-manifest.mjs",
+    "test-vault/.hotreload",
+    "test-vault/.obsidian/community-plugins.json",
+    "test-vault/.obsidian/plugins/hot-reload/main.js",
+    "test-vault/.obsidian/plugins/hot-reload/manifest.json"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "64e6e5d561c7",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 657,
+    "cache_creation_tokens": 1414064,
+    "cache_read_tokens": 108837420,
+    "output_tokens": 303162,
+    "api_call_count": 310
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-openspec-apply-change-2026-07-20T00:54:48.933665Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "abec50ed4088",
+      "timestamp": "2026-07-20T00:54:48.933665Z",
+      "native": {
+        "command": "/openspec-apply-change"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/openspec-apply-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 10
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-20T13:47:43.324982Z",
+    "agent_lines": 120,
+    "agent_removed": 2,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 120,
+    "total_lines_changed": 123,
+    "agent_percentage": 99.1869918699187,
+    "metric_version": 2
+  }
+}
