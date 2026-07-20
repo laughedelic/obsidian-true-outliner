@@ -82,3 +82,7 @@ some comments for further discussion before we wrap this up:
 ---
 
 I'm thinking, haven't we scope-creeped phase C? it was about edits rewriting/filtering. and now it includes substantial work on selections: block-level plus the select-all ladder. shouldn't those be separate?
+
+---
+
+okay, let's commit everything (on a new branch+PR), then sync/archive the change. the tooling infra improvements should probably be a separate commit
