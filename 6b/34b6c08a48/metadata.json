@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "6b34b6c08a48",
+  "strategy": "manual-commit",
+  "branch": "outline-selection-enforcement",
+  "checkpoints_count": 10,
+  "files_touched": [
+    "docs/research/04-open-questions.md",
+    "docs/research/13-selection-follow-ups.md",
+    "e2e/helpers.ts",
+    "e2e/specs/60-transaction-classification.e2e.ts",
+    "e2e/specs/61-selection-enforcement.e2e.ts",
+    "openspec/changes/outline-selection-enforcement/design.md",
+    "openspec/changes/outline-selection-enforcement/specs/node-selection-enforcement/spec.md",
+    "openspec/changes/outline-selection-enforcement/tasks.md",
+    "src/classify.ts",
+    "src/escalate.ts",
+    "src/index.ts",
+    "src/locate.ts",
+    "src/plugin/locate.ts",
+    "src/plugin/main.ts",
+    "src/plugin/parsed-doc.ts",
+    "src/plugin/stats.ts",
+    "src/plugin/transaction-filter.ts",
+    "test-vault/.obsidian/plugins/true-outliner/manifest.json",
+    "tests/classify.test.ts",
+    "tests/escalate.test.ts",
+    "tests/stats.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6b/34b6c08a48/0/metadata.json",
+      "transcript": "/6b/34b6c08a48/0/full.jsonl",
+      "compact_transcript": "/6b/34b6c08a48/0/transcript.jsonl",
+      "content_hash": "/6b/34b6c08a48/0/content_hash.txt",
+      "prompt": "/6b/34b6c08a48/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 649,
+    "cache_creation_tokens": 1408979,
+    "cache_read_tokens": 107076465,
+    "output_tokens": 300160,
+    "api_call_count": 306
+  }
+}
