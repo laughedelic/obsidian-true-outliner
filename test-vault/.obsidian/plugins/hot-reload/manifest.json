@@ -1,0 +1,9 @@
+{
+  "id": "hot-reload",
+  "name": "Hot Reload (dev vault)",
+  "version": "0.0.1",
+  "minAppVersion": "1.5.0",
+  "description": "Dev-only: watches other plugins' main.js/manifest.json/styles.css for changes and automatically disables+re-enables them, so `npm run vault:install` no longer requires a manual toggle in Settings. Opt-in per vault via a `.hotreload` marker file at the vault root (present in this vault).",
+  "author": "true-outliner dev tooling",
+  "isDesktopOnly": false
+}
