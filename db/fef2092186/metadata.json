@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "dbfef2092186",
+  "strategy": "manual-commit",
+  "branch": "outline-selection-enforcement",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/db/fef2092186/0/metadata.json",
+      "transcript": "/db/fef2092186/0/full.jsonl",
+      "compact_transcript": "/db/fef2092186/0/transcript.jsonl",
+      "content_hash": "/db/fef2092186/0/content_hash.txt",
+      "prompt": "/db/fef2092186/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 737,
+    "cache_creation_tokens": 1471668,
+    "cache_read_tokens": 127635350,
+    "output_tokens": 330995,
+    "api_call_count": 350
+  }
+}
