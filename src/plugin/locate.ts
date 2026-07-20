@@ -1,26 +1,8 @@
 /**
- * Cursor-line → node resolution over a parsed document. A node owns its own
- * lines and its trailing gap; a cursor on a gap line resolves to the node
- * that precedes it. Preamble lines resolve to nothing.
+ * Re-exported from core (src/locate.ts) — moved there so classify.ts and
+ * escalate.ts can resolve node boundaries without src/ depending on
+ * src/plugin/. Kept here so existing CM6-adapter imports (main.ts,
+ * grammar.ts) don't need to change.
  */
 
-import type { OutlineDoc, OutlineNode } from '../model';
-
-export function nodeAtLine(doc: OutlineDoc, line: number): OutlineNode | undefined {
-  let current = doc.preamble.length;
-  if (line < current) return undefined;
-  let found: OutlineNode | undefined;
-  const walk = (node: OutlineNode): void => {
-    if (found) return;
-    const end = current + node.lines.length + node.trailingGap.length;
-    if (line < end) {
-      found = node;
-      // Descend no further: children come after this node's own span.
-      return;
-    }
-    current = end;
-    node.children.forEach(walk);
-  };
-  doc.children.forEach(walk);
-  return found;
-}
+export { nodeAtLine } from '../locate';
