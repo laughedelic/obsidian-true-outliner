@@ -12,6 +12,22 @@ import * as path from 'node:path';
 
 export const PLUGIN_ID = 'true-outliner';
 
+/**
+ * True when running under e2e/wdio.mobile-emulation.conf.mts (set by
+ * `test:e2e:mobile`; same env var 00-smoke's platform check uses). Tests
+ * that drive REAL MOUSE DRAGS must skip themselves on this run: Chrome's
+ * mobile emulation translates W3C pointer sequences to touch semantics,
+ * where a drag scrolls instead of selecting — the gesture the test means
+ * to make simply doesn't exist there (confirmed in CI: every drag-based
+ * selection test fails under emulation with the selection never leaving
+ * the drag start, while all keyboard/dispatch-driven tests pass). Real
+ * mobile selection (long-press + handles) produces ordinary CM6 selection
+ * transactions the filter handles like any other — it just isn't a
+ * gesture this harness can synthesize, consistent with the project's Q7
+ * decision: mobile-safe by construction, desktop-tested.
+ */
+export const IS_MOBILE_RUN = process.env.OBSIDIAN_E2E_MOBILE === '1';
+
 // ---- Notes and editor buffer -------------------------------------------
 
 export async function openNote(notePath: string): Promise<void> {

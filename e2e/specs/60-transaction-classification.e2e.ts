@@ -47,12 +47,17 @@ describe('transaction classification: Phase A evidence', function () {
     expect(snap.counts['within-node-edit']).toBeGreaterThan(0);
 
     // --- mouse drag selection → selection-only ---
-    await outlineNote('First paragraph.\n\nSecond paragraph.\n');
-    await h.setCursor(0, 0);
-    await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 0, ch: 8 });
-    await browser.pause(50);
-    snap = await h.getStats();
-    expect(snap.counts['selection-only']).toBeGreaterThan(0);
+    // Desktop only: no drag-select gesture exists under mobile emulation
+    // (see IS_MOBILE_RUN); the keyboard-selection block below covers the
+    // selection-only path on the mobile run.
+    if (!h.IS_MOBILE_RUN) {
+      await outlineNote('First paragraph.\n\nSecond paragraph.\n');
+      await h.setCursor(0, 0);
+      await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 0, ch: 8 });
+      await browser.pause(50);
+      snap = await h.getStats();
+      expect(snap.counts['selection-only']).toBeGreaterThan(0);
+    }
 
     // --- keyboard selection → selection-only ---
     await outlineNote('First paragraph.\n\nSecond paragraph.\n');
@@ -114,13 +119,16 @@ describe('transaction classification: Phase A evidence', function () {
     expect(await h.getBuffer()).toBe('From outside.\n');
   });
 
-  it('undo restores state exactly and never reaches the filter at all', async function () {
-    // Phase A finding (tasks.md 3.8): confirmed live that Obsidian's undo
-    // does not dispatch through the CM6 transaction pipeline this filter
-    // observes at all (zero classifications recorded, not even
-    // "programmatic") — restoring prior editor state some other way. An
+  it('undo restores state exactly and is never treated as an enforceable edit', async function () {
+    // Phase A finding (tasks.md 3.8): on DESKTOP, Obsidian's undo does not
+    // dispatch through the CM6 transaction pipeline this filter observes at
+    // all (zero classifications recorded, not even "programmatic") — an
     // even stronger safety guarantee than D3's "classified programmatic,
-    // never re-normalized": there is no transaction here to touch.
+    // never re-normalized". Under MOBILE EMULATION the undo can arrive as a
+    // real transaction instead (observed on macOS emulate-mobile; the
+    // Linux CI emulation run bypasses like desktop — platform-dependent).
+    // The spec requirement is satisfied either way: state restores exactly,
+    // and nothing about an undo ever classifies as an enforced edit class.
     await outlineNote('Alpha.\n\nBeta.\n');
     await h.setCursor(0, 6); // end of "Alpha."
     await h.keys.type(' more');
@@ -131,7 +139,12 @@ describe('transaction classification: Phase A evidence', function () {
     await h.keys.undo();
     expect(await h.getBuffer()).toBe('Alpha.\n\nBeta.\n');
     const snap = await h.getStats();
-    expect(Object.values(snap.counts).every((n) => n === 0)).toBe(true);
+    expect(snap.counts['within-node-edit']).toBe(0);
+    expect(snap.counts['boundary-crossing-edit']).toBe(0);
+    if (!h.IS_MOBILE_RUN) {
+      // The stronger desktop form: undo bypasses the filter entirely.
+      expect(Object.values(snap.counts).every((n) => n === 0)).toBe(true);
+    }
   });
 
   it('grammar/structural-command transactions are plugin-own and byte-identical to the grammar\'s own output', async function () {
@@ -238,9 +251,20 @@ describe('transaction classification: Phase A evidence', function () {
       await h.keys.type('x');
     }
     // Drive selection across several sections (including boundary-crossing
-    // drags, which also exercise escalation).
-    for (let i = 0; i < 10; i++) {
-      await h.mouseDragSelect({ line: i * 40 + 2, ch: 2 }, { line: i * 40 + 2, ch: 8 });
+    // drags, which also exercise escalation). Drags are desktop-only (see
+    // IS_MOBILE_RUN); on the mobile run, keyboard selection exercises the
+    // selection-only timing path instead — without this branch the drag
+    // loop silently no-ops there, which would make the run look like it
+    // measured drags when it didn't.
+    if (h.IS_MOBILE_RUN) {
+      for (let i = 0; i < 10; i++) {
+        await h.setCursor(i * 40 + 2, 2);
+        await browser.keys([Key.Shift, Key.ArrowRight]);
+      }
+    } else {
+      for (let i = 0; i < 10; i++) {
+        await h.mouseDragSelect({ line: i * 40 + 2, ch: 2 }, { line: i * 40 + 2, ch: 8 });
+      }
     }
 
     const snap = await h.getStats();

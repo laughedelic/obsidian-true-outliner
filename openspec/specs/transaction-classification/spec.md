@@ -88,7 +88,9 @@ interop guarantee that other tools' edits are never fought or rewritten.
 
 **Covered by**: `e2e/specs/60-transaction-classification.e2e.ts` ("setValue-style and
 external replacements…", "undo restores state exactly…" — which also records the
-finding that Obsidian's undo bypasses the filter entirely, a stronger guarantee)
+finding that on desktop Obsidian's undo bypasses the filter entirely, a stronger
+guarantee; under mobile emulation the bypass is platform-dependent, see
+docs/research/04 Q14)
 
 ### Requirement: Grammar and command transactions are recognized as plugin-own
 Transactions dispatched by this plugin's own keyboard grammar and structural commands
