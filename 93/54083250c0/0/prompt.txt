@@ -1,0 +1,18 @@
+here are a few more things I'd like to add to the potential follow ups doc (just ideas/wants):
+
+* make most of the decorations configurable and optional. 
+   * only indentation is essential. but it should be possible to configure the size of indentation.
+   * it should be possible to switch off guide lines, or icons separately, choose which icons to show, maybe even elect the style, or pick per-block type icons, etc. all of that without breaking the indentation.
+      * configurable, or even custom icons per node type? this includes the H1-H6 numbered heading icons idea from Lapel.
+      * simpler consistent bullet-style markers opt-in? more like a traditional outliner.
+* ideas for the marker/guide actions/hover
+   * hover on marker: highlight the guide
+   * click on marker: zoom into that node (separate functionality)
+   * click on guide: zoom in, or fold the whole subtree (configurable)
+* implementing the outline mode view in the reading mode: right now it only works in the live-preview edit mode, but it should be possible to toggle outline mode independently of the edit/reading mode. if we implement this, the plugin in the current state is already useful as a reading mode aid, making the document structure explicit. 
+* improving vertical alignment for the table and callout icons: they should stick near the top of the block instead of the middle for consistency with everything else. code block icon can be slightly adjusted too (too high at the top). not a big deal, so leaving it for later.
+* collapsing the gap lines. gap lines between paragraphs, headings and other blocks are currently fully preserved, but could be removed when the outline structure is explicit. if it's possible to collapse/hide them, it should be a configurable option.
+* in a long document, switching to and from outline mode jumps to the top of the document. we should make best effort to preserve the position of the viewport so that the user doesn't loose context when switching modes. 
+   * this might be harder with the collapsible gap lines, but we still need t omake best effort based on some consistent logic. 
+   * cursor can be used as an anchor (reading mode is a different story)
+* not important now, but we might still want to experiment more with the native list decorations, improving the spacing, alignment and bullet-marker style.
