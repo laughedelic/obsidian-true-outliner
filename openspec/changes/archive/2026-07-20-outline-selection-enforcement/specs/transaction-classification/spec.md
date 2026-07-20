@@ -48,11 +48,12 @@ capability.
   filter absent
 
 ### Requirement: Programmatic and remote transactions pass through untouched
-Transactions carrying no `userEvent` annotation, or carrying undo/redo history
-signatures, SHALL be classified `programmatic` and passed through with changes and
-selection untouched. This SHALL hold for full-document loads and sync/external-reload
-style replacements, preserving the interop guarantee that other tools' edits are never
-fought or rewritten.
+Transactions carrying no `userEvent` annotation, carrying undo/redo history
+signatures, or carrying the `set` annotation Obsidian uses when reconciling an
+external file change into an open editor SHALL be classified `programmatic` and
+passed through with changes and selection untouched. This SHALL hold for
+full-document loads and sync/external-reload style replacements, preserving the
+interop guarantee that other tools' edits are never fought or rewritten.
 
 #### Scenario: External-style full-document replacement
 - **WHEN** the document is replaced programmatically (a `setValue`-style dispatch with

@@ -287,11 +287,16 @@ capability rests its architecture on:
   crossing *selection*, not boundary-crossing *edits*). Full re-parse per `Text`
   identity (no incremental reuse) is sufficient at this note size — the D7 fallback is
   not needed.
-- **IME non-interference**: NOT automated — this harness (chromedriver via
+- **IME non-interference**: not automatable — this harness (chromedriver via
   wdio-obsidian-service) has no reliable way to synthesize a genuine IME composition
   session (`compositionstart`/`compositionupdate`/`compositionend` with real native
-  input). Genuinely needs a human manual pass; tracked alongside the real-vault
-  selection-feel pass (tasks.md 6.2/6.3), not resolved by this change.
+  input) — so verified manually instead (2026-07-20, Chinese IME in the dev vault
+  with per-transaction debug logging on): transactions during an active composition
+  classify `composition`, and the commit transaction once a candidate character is
+  selected classifies `programmatic`. Both are pass-through classes, so composition
+  is untouched at every stage. The commit-as-`programmatic` detail is another
+  instance of the userEvent-taxonomy finding above (a path arriving with a different
+  annotation shape than assumed, resolving toward more safety, not less).
 
 No finding blocked or reversed Phase B — both surprises (a path arriving WITH an
 annotation the design assumed it wouldn't have, and a path not arriving as a
