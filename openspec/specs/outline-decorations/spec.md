@@ -1,4 +1,14 @@
-## ADDED Requirements
+# outline-decorations Specification
+
+## Purpose
+Defines outline mode's visual layer: additive-only indentation derived from the parsed
+tree, indentation guides that fill only the gaps Obsidian's native list guides don't
+cover, and per-kind block markers — all strictly read-only rendering, scoped to
+outline-mode notes in Live Preview, and byte-identical to stock Obsidian everywhere else.
+Architecture and rationale: the outline-decorations change's design.md (see
+`docs/research/07`–`12` for the experiment series it distills).
+
+## Requirements
 
 ### Requirement: Decorations are scoped to outline mode
 The decoration layer SHALL be registered as CodeMirror extensions via
@@ -281,13 +291,13 @@ even though its outline-mode gate resolves to the same file as the real top-leve
 - **THEN** the cell's own nested editor renders with no added padding/margin and no marker,
   regardless of what the cell's raw text would otherwise parse as
 
-**Covered by**: indirectly, `e2e/specs/52-block-markers-icons.e2e.ts`'s
-`"'headings-and-paragraphs': only those two kinds get a marker, leaf or not — atoms never
-do"` (this test's intermittent failure, traced to the nested-editor leak, is what surfaced
-this requirement — see
-[docs/research/10-experiment-5-block-markers.md](../../../../../docs/research/10-experiment-5-block-markers.md#follow-up-round-4-a-genuine-architectural-bug-found-via-a-flaky-test--decorations-leaking-into-obsidians-own-nested-per-cell-editors)).
-No test directly opens a cell for editing and asserts the nested editor's own decoration
-state — tracked as a coverage gap in `tasks.md`.
+**Covered by**: `e2e/specs/53-decoration-contracts.e2e.ts` ("a nested per-cell table
+editor carries no decoration state at all (isNestedEditor gate)" — opens a cell for
+editing and asserts, via computed styles, zero padding/margin/marker on the nested
+editor's own line while the outer note's decorations stay active). The requirement was
+originally surfaced indirectly by a flaky marker-visibility test traced to this exact
+leak — see
+[docs/research/10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md#follow-up-round-4-a-genuine-architectural-bug-found-via-a-flaky-test--decorations-leaking-into-obsidians-own-nested-per-cell-editors).
 
 ### Requirement: Decorations never mutate document state
 The decoration layer SHALL be a pure rendering projection: it SHALL NOT dispatch any
@@ -300,7 +310,9 @@ regardless of how often it recomputes.
   and the document text, cursor position, and undo stack are exactly as they were left by
   that triggering change
 
-**Covered by**: `tests/decorate.test.ts` ("produces no facts for an empty document or
-preamble-only document" — the pure computation has no side effects to begin with); no
-dedicated e2e assertion checks the undo stack/cursor position directly after a decoration
-recompute — tracked as a coverage gap in `tasks.md`.
+**Covered by**: `e2e/specs/53-decoration-contracts.e2e.ts` ("a decoration recompute
+mutates nothing: buffer, cursor, and undo stack all unchanged" — after a known real edit,
+a double mode toggle leaves buffer and cursor byte-identical, and a single undo reverts
+that edit, proving no change-bearing transaction was interposed); `tests/decorate.test.ts`
+("produces no facts for an empty document or preamble-only document" — the pure
+computation has no side effects to begin with).
