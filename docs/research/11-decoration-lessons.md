@@ -204,6 +204,24 @@ finding came from.
   depth); the extra offset users notice is pre-existing Obsidian behavior becoming more
   visible now that everything else aligns precisely, not a regression this experiment
   introduced.
+- **A block-kind line (heading/paragraph) with 1-3 literal leading spaces gets its own native
+  hang pair, not just list items.** Obsidian applies a `padding-inline-start`/`text-indent`
+  pair (meant to keep soft-wrapped continuation aligned under the first visible character) to
+  any line whose raw text starts with whitespace short of the 4-space indented-code-block
+  threshold — headings included, since the parser keeps their leading whitespace in `lines`
+  even though it hardcodes their own `indent` field to 0. `to-decor-block`'s `padding-left
+  !important` always won the padding half of that fight (an `!important` stylesheet rule beats
+  a non-important inline style even across the logical/physical property pair), but an earlier
+  version left `text-indent` completely untouched — its native value isn't proportional to the
+  leading-space count alone, either: live measurement showed it also folds in whatever
+  padding-left was already rendered by the time Obsidian measured it, i.e. it double-counts our
+  own contribution. The unopposed native `text-indent` then outdented the line by
+  `ourPadding - nativeTextIndent` (negative), worse with every extra leading space, snapping
+  back to correct only at 4 spaces where the line reclassifies as a stock indented code block
+  (no hang pair at all). Fixed by neutralizing `text-indent: 0 !important` alongside the
+  existing `padding-left` override on `to-decor-block` — same additive-only invariant every
+  other kind here already keeps, rather than trying to compute a compensating value from a
+  measurement that's already contaminated by our own prior render.
 - **A custom guide mechanism must actively coexist with Obsidian's own native "Show indent
   guides" setting for lists, not just avoid crashing next to it.** Real-vault side-by-side
   comparison (native only / both / ours only) showed native list guides are already precise

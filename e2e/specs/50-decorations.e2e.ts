@@ -223,6 +223,44 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     expect(htmlContentLeft).toBeCloseTo(tableGridLeft, 0);
   });
 
+  it('space-indented paragraph lines align with their unindented sibling, own literal whitespace on top', async function () {
+    // Obsidian applies a native HyperMD hanging-indent pair
+    // (padding-inline-start/text-indent) to a paragraph line whose raw text
+    // starts with 1-3 literal spaces (not enough to become an indented code
+    // block). Our own padding-left always wins that fight, but an earlier
+    // version of styles.css left text-indent untouched, so its native
+    // negative value (itself measured after our own padding had already
+    // shifted the box) leaked through unopposed and outdented the line —
+    // worse with more leading spaces. Regression fixture for that bug.
+    const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'space-indented-paragraph')!;
+    await h.createNote(fixture.note, fixture.md);
+    if (!(await h.isOutlineMode(fixture.note))) {
+      await h.toggleOutlineMode();
+      await h.waitForNotice('Outline mode on');
+      await h.dismissNotices();
+    }
+    await browser.pause(150);
+
+    // Lines: 0 "Unindented sibling.", 1 blank, 2 " One leading space.",
+    // 3 blank, 4 "  Two leading spaces.", 5 blank,
+    // 6 "   Three leading spaces.", 7 blank,
+    // 8 "    Four leading spaces (indented code block)."
+    const siblingRect = await h.getLineRect(0);
+    const siblingPadding = await h.getLineComputedStyle(0, 'padding-left');
+    for (const idx of [2, 4, 6]) {
+      const rect = await h.getLineRect(idx);
+      const padding = await h.getLineComputedStyle(idx, 'padding-left');
+      const textIndent = await h.getLineComputedStyle(idx, 'text-indent');
+      // The box itself (padding-left, and therefore its left edge) must
+      // match the unindented sibling exactly — no outdenting, regardless of
+      // how many leading spaces this particular line has.
+      expect(padding).toBe(siblingPadding);
+      expect(rect.left).toBeCloseTo(siblingRect.left, 0);
+      // The native hang must be fully neutralized, not merely reduced.
+      expect(textIndent).toBe('0px');
+    }
+  });
+
   it('fold indicator on a parent list item does not collide with decorated content', async function () {
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'heading-then-list')!;
     await h.createNote(fixture.note, fixture.md);

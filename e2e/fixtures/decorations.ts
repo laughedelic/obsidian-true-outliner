@@ -136,6 +136,32 @@ export const WIDE_TABLE_MD = [
   '',
 ].join('\n');
 
+export const SPACE_INDENTED_PARAGRAPH_NOTE = 'Scratch/decorations-space-indented-paragraph.md';
+// A paragraph line with 1-3 literal leading spaces triggers Obsidian's own
+// native HyperMD hanging-indent pair (`padding-inline-start`/`text-indent`,
+// meant to keep soft-wrapped continuation aligned under the first visible
+// character) — our own `padding-left` always wins that fight, but
+// `text-indent` was left untouched, so its native negative value (measured
+// AFTER our own padding already shifted the box, so it double-counts our
+// own contribution) leaked straight through and outdented the line, worse
+// with every extra leading space. At exactly 4 leading spaces Obsidian
+// reclassifies the line as an indented code block (no hang pair at all,
+// and this project's own parser also deliberately treats a top-level
+// 4-space-indented line as a paragraph — see parse.ts), which is why the
+// bug didn't show up there.
+export const SPACE_INDENTED_PARAGRAPH_MD = [
+  'Unindented sibling.',
+  '',
+  ' One leading space.',
+  '',
+  '  Two leading spaces.',
+  '',
+  '   Three leading spaces.',
+  '',
+  '    Four leading spaces (indented code block).',
+  '',
+].join('\n');
+
 export const QUOTE_NOTE = 'Scratch/decorations-quote.md';
 // The one atom kind (`quote`) the shared corpus never covered on its own —
 // previously only exercised via a one-off inline fixture in
@@ -161,4 +187,9 @@ export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
   { note: WIDGET_ATOMS_NOTE, md: WIDGET_ATOMS_MD, label: 'widget-atoms' },
   { note: WIDE_TABLE_NOTE, md: WIDE_TABLE_MD, label: 'wide-table' },
   { note: QUOTE_NOTE, md: QUOTE_MD, label: 'quote' },
+  {
+    note: SPACE_INDENTED_PARAGRAPH_NOTE,
+    md: SPACE_INDENTED_PARAGRAPH_MD,
+    label: 'space-indented-paragraph',
+  },
 ];
