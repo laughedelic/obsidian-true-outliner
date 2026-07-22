@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "23823886f7fc",
+  "strategy": "manual-commit",
+  "branch": "outline-edit-enforcement",
+  "checkpoints_count": 21,
+  "files_touched": [
+    "e2e/helpers.ts",
+    "e2e/specs/30-keyboard-grammar.e2e.ts",
+    "e2e/specs/60-transaction-classification.e2e.ts",
+    "e2e/specs/62-outline-edit-enforcement.e2e.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/23/823886f7fc/0/metadata.json",
+      "transcript": "/23/823886f7fc/0/full.jsonl",
+      "compact_transcript": "/23/823886f7fc/0/transcript.jsonl",
+      "content_hash": "/23/823886f7fc/0/content_hash.txt",
+      "prompt": "/23/823886f7fc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1417,
+    "cache_creation_tokens": 5954408,
+    "cache_read_tokens": 359021969,
+    "output_tokens": 621488,
+    "api_call_count": 664
+  }
+}
