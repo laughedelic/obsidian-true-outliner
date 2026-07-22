@@ -9,9 +9,7 @@ keystroke-latency budget, nested-editor safety, and the dev-facing observability
 turns each choke-point assumption into a permanent regression test. Architecture and
 rationale: the outline-selection-enforcement change's design.md; evidence and findings:
 `docs/research/04` Q14.
-
 ## Requirements
-
 ### Requirement: Enforcement funnel is registered and scoped to outline mode
 A CM6 `transactionFilter` SHALL be registered via `registerEditorExtension` and SHALL
 inspect every transaction dispatched in any editor. For editors whose file does not have
@@ -38,7 +36,23 @@ In outline-mode editors the filter SHALL assign each transaction exactly one cla
 `boundary-crossing-edit` — evaluated in that order, first match wins. Classification
 SHALL be computed by a pure function over transaction facts and the parsed tree, unit-
 and property-tested independently of Obsidian. Any transaction not confidently matching
-an enforced class SHALL pass through unmodified (default-permit).
+an enforced class SHALL pass through unmodified (default-permit). Transactions
+classified `boundary-crossing-edit` SHALL additionally be handed to the
+node-edit-enforcement verdict layer, which determines whether they pass, are
+rewritten, or are vetoed.
+
+`boundary-crossing-edit` covers, beyond change ranges whose line spans touch more than
+one node: pure insertions whose inserted text parses as a multi-block sequence
+(landing on a node's own line), single-character deletions of a line boundary whose
+adjacent lines belong to different nodes, and — per node-edit-enforcement's
+chrome-transparency requirement (amendment 2026-07-21) — chrome-boundary deletions
+whose merge intent is established by the pre-edit cursor position: a deletion of a
+list marker's trailing space ending exactly at the item's first content column with
+the cursor there, and a deletion of the newline ending a node's last content line
+with the cursor at that node's content end (Delete into the node's own trailing
+gap). The pre-edit main-selection cursor is a classification fact supplied by the
+adapter for exactly these shapes; an edit with the same bytes but a different cursor
+(editing the gap from within it) remains `within-node-edit`.
 
 #### Scenario: Typing inside a node
 - **WHEN** the user types a character in the middle of a paragraph node's text
@@ -47,25 +61,23 @@ an enforced class SHALL pass through unmodified (default-permit).
 #### Scenario: Edit spanning two nodes counted but not altered
 - **WHEN** a deletion's change range starts inside one node and ends inside the next
 - **THEN** the transaction is classified `boundary-crossing-edit`, counted in the stats
-  surface, and applied unmodified (rewriting is out of scope for this capability)
+  surface, and receives a verdict per the node-edit-enforcement capability (superseded
+  by this change: "not altered" no longer holds unconditionally — a `rewrite` or
+  `veto` verdict may change or block the edit; the byte-identical guarantee survives
+  narrowed to a `pass` verdict, per the new "Text modification is confined to enforced
+  verdicts" requirement below)
 
-**Covered by**: `tests/classify.test.ts` (order precedence, every class reachable,
-totality property); `e2e/specs/60-transaction-classification.e2e.ts` (coverage matrix)
+#### Scenario: Marker-space deletion at content start is enforced
+- **WHEN** the cursor sits at a list item's first content character and Backspace
+  deletes the marker's trailing space
+- **THEN** the transaction is classified `boundary-crossing-edit` and handed to the
+  verdict layer (a merge intent), not applied as a within-node marker corruption
 
-### Requirement: Document text is never modified by this layer
-The classification layer SHALL NOT add, remove, or alter any change spec of any
-transaction, in any class, under any condition. Its only permitted transaction
-modification is the selection replacement defined by the node-selection-enforcement
-capability.
-
-#### Scenario: Byte-identical buffer across classified edits
-- **WHEN** any sequence of edits is dispatched in an outline-mode note with the filter
-  active
-- **THEN** the resulting buffer is byte-identical to the same sequence applied with the
-  filter absent
-
-**Covered by**: `e2e/specs/60-transaction-classification.e2e.ts` (on-mode vs off-mode
-byte-identity; undo-stack non-interference)
+#### Scenario: The same bytes with a gap-line cursor stay native
+- **WHEN** a deletion removes the newline between a node's last content line and its
+  own trailing gap, with the pre-edit cursor ON the gap line
+- **THEN** the transaction is classified `within-node-edit` and applied unmodified
+  (deliberate whitespace authoring)
 
 ### Requirement: Programmatic and remote transactions pass through untouched
 Transactions carrying no `userEvent` annotation, carrying undo/redo history
@@ -172,3 +184,23 @@ the funnel.
 (coverage matrix — note: find-and-replace and drag-drop-text are known automation gaps,
 recorded in the change's tasks.md 3.1; both are UI-panel/native-DnD gestures the
 WebDriver harness cannot reliably synthesize)
+
+### Requirement: Text modification is confined to enforced verdicts
+The funnel SHALL NOT add, remove, or alter any change spec of any transaction
+classified `programmatic`, `composition`, `plugin-own`, `selection-only`, or
+`within-node-edit`, under any condition — for these classes the buffer SHALL remain
+byte-identical to the same dispatches applied with the filter absent. Only
+transactions classified `boundary-crossing-edit` may have their changes replaced, and
+only as prescribed by the node-edit-enforcement capability.
+
+#### Scenario: Pass-through classes stay byte-identical
+- **WHEN** a sequence of within-node edits, programmatic replacements, and plugin-own
+  grammar operations is dispatched in an outline-mode note
+- **THEN** the resulting buffer is byte-identical to the same sequence applied with
+  the filter absent
+
+#### Scenario: Off-mode is untouched by the verdict layer
+- **WHEN** any boundary-crossing edit is made in a note without outline mode
+- **THEN** the transaction is applied exactly as dispatched, with no classification
+  or verdict recorded
+

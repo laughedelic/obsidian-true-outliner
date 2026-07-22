@@ -118,3 +118,45 @@ decoration work — independent of Phase C:
   scope for the enforcement change — it belongs with the decoration/polish layer
   (docs/research/12) but becomes more valuable once escalated selections are the
   operand of structural edits (Phase C) and of the ladder/modal gestures above.
+- **Gap-line cursor transparency (vertical navigation) — filed 2026-07-21, second
+  Phase C manual pass.** The chrome-transparency principle (design.md D9, Phase C)
+  currently governs *edit* recognition only: Backspace/Delete correctly reads intent
+  from the cursor regardless of gap width, but the cursor itself can still be
+  *placed* on a gap line or moved through one arrow-key-press-at-a-time, same as
+  stock. The natural completion — cursor placement/navigation skips gap lines
+  entirely, the same way it's landing for list markers in this same change (below)
+  — was deliberately deferred rather than folded into node-edit-enforcement:
+  - **The concrete risk, not just caution**: CM6's vertical-motion commands
+    (`cursorLineUp`/`cursorLineDown`) track a *goal column* across consecutive
+    presses so Down-Down-Down through lines of different lengths stays visually
+    aligned. Snapping the landing position away from a gap line on every vertical
+    move recomputes the next move's goal column from the snapped position, not from
+    the user's actual motion — real drift risk over a few presses, needs hands-on
+    testing against real navigation, not a code review call.
+  - **Mouse-click ambiguity**: clicking the rendered blank line between two nodes has
+    no obviously-correct single answer for which side of the gap the cursor should
+    land on (closer-in-pixels vs. always-next-node vs. always-previous-node) —
+    another thing to prototype and feel-test, not decide from first principles.
+  - **An invariant to knowingly reverse**: node-selection-enforcement's own spec
+    states "empty ranges (cursors) SHALL never be moved by this layer — including
+    cursors placed on gap lines," backed by a property test. Extending enforcement
+    from edits to cursor *placement* is architecturally sound (cursor moves are
+    `selection-only` transactions through the same filter — not the
+    enumerate-the-inputs anti-pattern), but it's a different invariant than either
+    Phase B or Phase C signed up for, and deserves its own design pass headed by a
+    vertical-motion prototype as its first task.
+  - **The escape hatch stays the mode toggle, not an in-outline-mode exception.** If
+    cursor placement itself can't reach a gap line, "cursor deliberately left on the
+    gap, editing it" stops being a real case in outline mode at all — switching
+    outline mode off is already how this plugin offers raw character-level editing,
+    so there's no separate in-mode exception to design. (Marker-transparent cursor
+    placement, landing in this same change, needs no such exception either — the
+    marker prefix has no legitimate "deliberately edit the chrome" use case the way
+    a gap's blank-line-count arguably might, e.g. matching a template's spacing.)
+  - **Combine with**: this belongs with Track 2 above (progressive Select All,
+    modal block selection) as one future selection/cursor-UX change — both are
+    keymap-adjacent, cursor/selection-level work built on the same escalation core,
+    independent of edit rewriting.
+  - **Visual pairing**: docs/research/12's "Collapsing gap lines" idea is the
+    decoration-layer half of the same eventual feature (hiding, not just
+    non-navigating, the gap) — cross-referenced there.

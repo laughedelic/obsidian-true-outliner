@@ -140,7 +140,18 @@ pure `decorate()`/`computeLineGuides()` layer does.
   outline view. Needs investigation of whether CM6 line-hiding (replace decorations over
   blank lines) coexists with editing on those positions, and interacts with the guide
   continuity work (`computeLineGuides` deliberately covers gap lines — collapsed gaps
-  change that geometry).
+  change that geometry). **Scope boundary decided 2026-07-21** (node-edit-enforcement's
+  second manual pass, docs/research/13's "Gap-line cursor transparency" entry): this is
+  *visual* hiding only — the text on disk is untouched either way, same additive-only
+  discipline as the rest of decorations. **Not in scope, here or anywhere near-term**:
+  auto-correcting or preventing the user from *creating* extra blank lines (e.g. an
+  outline-mode Enter-Enter-Enter collapsing itself to one gap) — that's auto-correcting
+  keystrokes as they happen, the exact shape of surprise this project's design
+  philosophy warns against ("a wrong rewrite is surprising"), and a different problem
+  from hiding what's already there. Pairs with (and should land alongside, not before)
+  gap-line cursor/vertical-navigation transparency — a decoration that visually hides a
+  gap but still lets the cursor rest inside it one arrow-press at a time would be a
+  confusing half-measure.
 - **Preserve the viewport position when toggling outline mode.** In a long document,
   toggling outline mode on or off currently jumps the view to the top — the user loses
   their place exactly when comparing the two renderings. Best effort, on some consistent

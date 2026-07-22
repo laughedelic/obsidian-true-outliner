@@ -5,7 +5,6 @@ Defines the automated end-to-end verification harness: a real (sandboxed) Obsidi
 instance driven against a throwaway copy of `test-vault/` to exercise behavior that only
 exists in a live app — command dispatch, keyboard grammar, on-disk byte fidelity, and
 persistence across restarts — replacing the manual dev-vault checklist it supersedes.
-
 ## Requirements
 ### Requirement: Sandboxed real-Obsidian harness
 
@@ -133,10 +132,11 @@ show its cue.
 
 #### Scenario: Enter split semantics per kind
 
-- **WHEN** Enter is pressed mid-item, at item end, at paragraph end, and on
-  a heading
-- **THEN** respectively: the item splits with children staying up; an empty
-  `- ` sibling appears with the cursor after the marker; a blank line plus
+- **WHEN** Enter is pressed mid-item (childless), mid-item (with children), at
+  item end, at paragraph end, and on a heading
+- **THEN** respectively: the childless item splits into siblings; the parent
+  item's remainder becomes its new first child above the existing children; an
+  empty `- ` sibling appears with the cursor after the marker; a blank line plus
   cursor appears and typed text becomes the sibling; an empty line appears
   below the heading and typed text becomes a child paragraph
 

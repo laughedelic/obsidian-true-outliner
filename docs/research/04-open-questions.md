@@ -309,3 +309,342 @@ No finding blocked or reversed Phase B — both surprises (a path arriving WITH 
 annotation the design assumed it wouldn't have, and a path not arriving as a
 transaction at all) resolved toward MORE safety than the original hypothesis, not less,
 which is exactly the shape default-permit is designed to tolerate.
+
+## Q15. Node-edit-enforcement implementation findings ✅ RECORDED (2026-07-20, `outline-edit-enforcement` Phase C)
+
+Findings from implementing and evidence-testing the verdict layer (`src/enforce.ts`) and
+its three new ops (`deleteSubtrees`, `mergeNodes`, `insertSubtrees`). None reversed the
+design; two required a real (documented) extension to `classify.ts` beyond what D1/D3
+assumed, and two were implementation bugs caught by property/e2e tests before shipping —
+recorded per the series' "the finding gets recorded and the classifier tightened"
+discipline (Q14's own precedent).
+
+- **`classify.ts` needed two new facts it didn't have, both filed as optional fields on
+  `ChangedLineSpan` so every pre-Phase-C call site is unaffected.**
+  1. *Single-newline boundary deletions degenerate to one line.* A literal one-character
+     Backspace/Delete that removes exactly the separator between two nodes has
+     `fromLine === toLine` under the existing `Math.max(fromA, toA - 1)` convention —
+     removing one character can't span two lines by that formula's own (correct, for
+     ordinary edits) logic. Left alone, this means the D4 merge/veto scenarios could
+     never reach `boundary-crossing-edit` at all. Fixed by a `deletesLineBoundary` fact
+     the CM6 adapter computes from the true character offsets; classify.ts checks the
+     identity of `fromLine` against `fromLine + 1` only when this bit is set. Existing
+     classify.test.ts behavior is unaffected (the field defaults to `undefined`).
+  2. *A multi-block paste at a bare cursor never crosses a boundary by span either* — a
+     pure insertion's OLD-document span is always the single line it lands on, insertion
+     or not. Fixed the same way: an optional `insertedText` fact, checked only for pure
+     insertions landing on a real node's line, via `parse(insertedText).children.length
+     > 1`. Both extensions are additive to the classification taxonomy, not changes to
+     its six-class order — the transaction-classification delta's own framing survives
+     unmodified.
+- **The per-kind merge table's paragraph←paragraph row is real but organically
+  unreachable as an enforced REWRITE.** Two sibling paragraph nodes can never have a
+  zero-gap adjacency in a validly-parsed document — the segmenter always folds two
+  ungapped text lines into one paragraph already (this is why `arbTree()`'s generator
+  never produces that adjacency either). So a live Backspace sequence on two typed
+  paragraphs never reaches `mergeNodes`: the first press shrinks the gap (a safe native
+  `pass`, verified via `isSingleSeparatorMerge`'s trailing-gap check), and by the second
+  the buffer already reparses as one node — an ordinary `within-node-edit`. The
+  byte-level RESULT is identical either way (two Backspaces still correctly join the
+  text), just via native reparse rather than an explicit rewrite. Verified live in
+  `62-outline-edit-enforcement.e2e.ts`. The row stays in the merge table (and its own
+  property/unit tests) because `mergeNodes` is a general pure op exercised directly, and
+  because a non-organic zero-gap state could in principle arrive via some other route
+  the table should still handle correctly if it ever does.
+- **Structural-paste threshold**: "more than one top-level parsed block" is the line
+  between `pass` (single block, or a whole one-node subtree copy with its own nested
+  children) and `rewrite` (splice at the boundary). Matches D5's conservative bias — no
+  real-vault evidence yet to tighten it further (task 5.2/5.3's own job once a manual
+  pass runs).
+- **Two implementation bugs caught before shipping, both from the same root cause**
+  (`ops.ts`'s `finalize` always returns a FRESH `parse()` of the final text, so `OpOutput
+  .doc`'s node ids never match the ids of the surgery tree that produced it — every
+  existing op sidesteps this by only ever using `finalize`'s own pre-computed cursor,
+  never re-deriving a position from `.doc` by id afterward):
+  1. *Type-over cursor placement.* Naively reusing `insertSubtrees`'s own cursor
+     (content-START of the first inserted node — correct for one-shot structural
+     commands like indent/outdent) put a follow-up type-over keystroke BEFORE what was
+     just typed, reversing character order. Fixed by computing the end of the inserted
+     run by LINE position and sibling offset from the first block (`endOfInsertedRun`),
+     not by id.
+  2. *Stale survivor id.* `composeTypeOver` looked up the deletion's surviving neighbor
+     by its PRE-deletion id in `deleteSubtrees`'s POST-reparse tree — always missed,
+     vetoing every type-over that had a real neighbor (`node-not-found`). Fixed by
+     re-resolving the survivor via `nodeAtLine` at the deletion's own returned cursor
+     line (stable across reparse) instead of by id. Both caught by the e2e evidence
+     suite before either shipped; a dedicated unit regression test now guards each
+     (`tests/enforce.test.ts`).
+- **Automation-gap retry, find-and-replace panel: automatable after all, and a sharper
+  finding than Phase A's hedge.** Phase A declared the panel a WebDriver-gesture gap
+  without attempting it. Renewed attempt: the panel (`editor:open-search-replace`) is
+  plain DOM — find/replace `<input>`s and a "Replace all" button, all reachable via
+  ordinary WebDriver interaction. A within-node replace-all is now real automated
+  coverage (`62-outline-edit-enforcement.e2e.ts`). A genuine cross-node-boundary MATCH,
+  however, is inexpressible in this Obsidian version's panel independent of any harness
+  limitation: there is no regex toggle, and the find field can't hold a literal newline
+  (Enter is bound to find-next). Carried as a manual-pass note, not a WebDriver gap.
+- **Automation-gap retry, HTML5 drag-drop: still infeasible, confirmed the prior
+  finding.** No W3C Actions API primitive fires HTML5 `DragEvent`s, and CM6 only
+  presents drop targets inside a live contentEditable surface WebDriver can't script a
+  drag payload into. Same native limitation `13-selection-follow-ups.md` already
+  recorded for widget-interior drag-selection. Carried as a scripted manual-pass
+  scenario (below).
+- **Performance**: the enforced path's first real per-verdict timing samples (dev
+  hardware, ~2000-line stress note, `62-outline-edit-enforcement.e2e.ts`'s perf
+  scenario, two measured rounds after a warm-up round) stayed within the existing
+  budget (median ≤ 1ms, p95 ≤ 8ms) across `pass`/`rewrite` verdicts on boundary
+  deletions, list-item merges, and structural pastes — confirming Phase A's ~10×
+  headroom claim extends to the rewrite path, which may parse the deleted/inserted
+  content twice (once for the cover, once for the pasted-block parse).
+- **Trailing-gap deletion becoming user-visible**: confirmed working as designed
+  (`deleteSubtrees` unit/property tests, D3) — not separately re-verified live beyond
+  the evidence suite; visual gap treatment stays out of scope per the standing
+  docs/research/12 parking-lot rule.
+
+### Manual-pass scenarios still to record (task 5.2)
+
+- HTML5 drag-drop of a block-level selection onto a mid-paragraph position: expected
+  (per design) to splice at the nearest boundary like a structural paste; needs a human
+  pass in the dev vault since it can't be scripted.
+- Cross-boundary find-and-replace: not just unautomated but structurally inexpressible
+  in the panel (see above) — record whether users organically hit this via multi-line
+  regex-mode plugins (Obsidian core has none) or third-party search plugins, which
+  would use a different (unaudited) code path.
+- General veto-frequency and paste-heuristic-misfire feel on organic editing, per
+  design.md's risk register — this change's actual real-vault gate.
+
+## Q16. First real-vault manual pass — chrome-transparency amendment ✅ RESOLVED (2026-07-21)
+
+The first real-vault pass of `outline-edit-enforcement` surfaced four symptoms that
+turned out to be one systemic gap, not four independent bugs:
+
+- A paragraph selection with a child list, or a selected heading with its own
+  subtree, hit "Nothing to act on" on Backspace/Delete — a genuine implementation bug
+  (below), not the systemic issue.
+- Backspace at a node's first character did nothing useful across a real blank-line
+  gap — it took one keystroke per gap line before anything merged.
+- Backspace at a list item's content start ate the marker's trailing space instead of
+  merging, corrupting the item into a stray paragraph fragment.
+- Enter mid-text in a node WITH children created the remainder as a sibling PAST the
+  whole subtree — visually jumping over the children instead of landing next to the
+  split point.
+
+**Diagnosis**: the verdict layer recognized intent from raw markdown-character-space
+edit shapes, while the user acts in outline-content-space (nodes and the adjacency
+between their CONTENTS, chrome invisible). The two coincide for whole-subtree
+deletions and multi-block pastes (why those worked correctly in evidence-suite
+testing) and diverge everywhere chrome — gap lines, list markers — sits between the
+cursor and the content boundary. Trailing-gap ownership is correct for STORAGE (byte
+fidelity) but had leaked into user-facing EDITING semantics — exactly the shape this
+series' own document (docs/research/13) flagged as a recurring theme across
+selection enforcement and now edit enforcement.
+
+**Resolution** — a new principle (chrome transparency, D9) plus two rule amendments,
+implemented and re-verified in the same session (all deltas amended, code revised,
+full suite green twice, mobile-emulation confirmed):
+
+- **D10, content-adjacent merges**: recognition is now cursor-derived, not just
+  edit-shape-derived — the pre-edit main-selection position distinguishes "Backspace
+  at a node's content start reaching into chrome" (merge intent, whatever the gap
+  width) from "cursor left on a blank gap line, editing the gap" (stays native — the
+  deliberate escape hatch). The merge table gained cross-kind joins (list item into
+  its parent paragraph and vice versa — the common real case), children re-parenting
+  instead of rejecting, and single-line heading absorption (a markdown heading has no
+  continuation lines, so multi-line content still rejects).
+- **D11, content-adjacent split**: `splitNode` on a node WITH children now lands the
+  remainder as the new FIRST CHILD, matching where the split point actually is.
+
+**A separate, real implementation bug** (not the chrome-transparency issue, though
+surfaced by the same test): the deletion cover computation
+(`siblingCoverIds`/`enforce.ts`) mishandled the case where one end of a range is an
+ANCESTOR of the other (a single node selected together with its own subtree) —
+escalate.ts's own scope resolution already had this fallback (the scope is one level
+above the shallower node), `enforce.ts` didn't mirror it, so the cover came back
+empty and the deletion vetoed as "Nothing to act on." Sibling-subtree selections
+(paths diverging before either ends) masked it in prior testing. Fixed with
+unit + e2e regressions.
+
+**Harness note**: a mobile-emulation-only failure surfaced in the direct-CM6-dispatch
+selection helper (`dispatchSelectOnlyRanges`) immediately followed by a keypress —
+the dispatched selection didn't survive to the Backspace event under mobile Chrome
+emulation specifically (`Editor.setSelection` immediately followed by a keypress
+works fine on both platforms). Not a product bug; the affected e2e scenario now uses
+`setSelection` instead, which is also a MORE representative test of the D3
+stale-selection path.
+
+**Not filed here**: a pre-existing decoration bug (paragraphs with 1–3 leading spaces
+render badly misaligned) was also found during this pass. It touches no file this
+change owns and was spun off as its own task, not folded into node-edit-enforcement's
+scope.
+
+## Q17. Third manual pass — two pre-existing gaps surfaced, pending a decision (2026-07-21)
+
+The third real-vault pass of `outline-edit-enforcement` surfaced one clean fix (D14,
+below) and two findings that trace back to operations that PREDATE this change
+entirely — `outdent` (mapping-core, Q2) and heading Enter-handling
+(outline-keyboard-grammar) — confirmed real via direct testing, not yet fixed pending
+an explicit decision (holding per the project's "measure twice" discipline for
+foundational, wide-blast-radius changes).
+
+- **Structural paste onto an empty anchor now replaces it (D14, implemented).** A
+  freshly-created empty list item (e.g. right after Enter) used to sit stranded next
+  to a pasted multi-block sequence instead of being consumed by it. Fixed by
+  detecting the empty-anchor case and routing through the same delete-then-splice
+  composition the type-over path already uses (`deleteAndSplice`, shared between
+  `composeTypeOver` and `computePasteVerdict`).
+- **`outdent` drops a node's following siblings instead of re-parenting them under
+  it — CONFIRMED, pre-existing, not a Phase C regression.** Direct test: outdenting
+  the middle item of `- p\n\t- x\n\t- y\n\t- z\n` (outdenting `x`) produces
+  `- p\n\t- y\n\t- z\n\n- x` — `x` jumps to AFTER the entire `p` section (past `y`
+  and `z`, its own former following siblings), rather than becoming `p`'s immediate
+  next sibling with `y`/`z` re-parented under it. This is the CURRENT, ALREADY-SHIPPED
+  behavior of the core `outdent` operation from `mapping-core` (Q2) — no existing
+  test in `ops.test.ts`/`closure.test.ts` ever covered "outdenting a node with
+  following siblings under the same parent," so the gap shipped unnoticed until this
+  change's merge→split→outdent interaction surfaced it in practice (merging a node
+  with children into a predecessor, then splitting the predecessor again, then trying
+  to outdent the split-off remainder no longer restores the original sibling
+  structure — the re-parented children stay with the merged node instead of
+  following the split-off node back out). Proposed fix, matching Logseq's outdent
+  semantics ("outdent in place"): a node's FOLLOWING siblings (under the same
+  parent, after the outdented node) re-parent as the outdented node's OWN children,
+  rather than staying with the original parent. This is NOT scoped to
+  node-edit-enforcement — it changes core `outdent` behavior for every existing
+  scenario with following siblings, well beyond what D10/D11 touch. Holding for an
+  explicit decision before implementing (tasks.md 8.2).
+- **Heading Enter inserts a blank line rather than splitting into a new paragraph —
+  pre-existing, predates this change.** Confirmed via `grammar.ts`'s `'split'` case
+  for `node.kind === 'heading'`: Enter ANYWHERE in a heading's text (not just at its
+  end) ignores the cursor's actual position within the line and inserts one blank
+  line after the heading's own line, requiring a subsequent keystroke to materialize
+  a child paragraph — it does not split the heading's text at the cursor into a
+  genuine new paragraph node the way paragraphs/list-items do via `splitNode`. This
+  is the ORIGINAL outline-keyboard-grammar design (predates outline-edit-enforcement
+  entirely), not something D11 touched. Whether to change it — split heading text at
+  the cursor into a real paragraph node instead — is a foundational grammar decision
+  with its own trade-offs (the two-regime algebra's heading/content asymmetry is a
+  core, deliberate design choice from Q2). Holding for an explicit decision
+  (tasks.md 8.3).
+- **Filed but explicitly NOT for near-term action** (per the user's own framing):
+  whether heading `#` markers should get the same direct-edit-prohibition list
+  markers now have (D13) — raised as a "think about it, don't act on it" idea. Not
+  recorded as a task; revisit only if raised again with a concrete proposal.
+
+## Q18. Fourth manual pass — single-node paste re-indentation fixed; two redo-cursor reports not reproduced (2026-07-22)
+
+- **Structural paste, single-node-with-children copy — CONFIRMED and FIXED (D15).**
+  Copying a whole subtree rooted at ONE node (e.g. one list item with a nested
+  child) and pasting it elsewhere: (a) never even reached the rewrite path — both
+  `isMultiBlockInsertion` (classify.ts) and `computePasteVerdict`'s own gate
+  required strictly more than one top-level parsed block, so a single node with
+  children fell through to a raw, untouched character-level insertion, landing
+  with its ORIGINAL literal indentation regardless of the target depth; and (b)
+  once that gate is fixed, the existing `reencodeForDestination`/`shiftSubtree`
+  re-indent path expresses a depth change as a flat numeric column delta added as
+  SPACES, so a tab-indented subtree's deeper descendants ended up mixing the
+  original tabs with newly-inserted spaces — same width, wrong characters, visibly
+  inconsistent. Root-caused via direct reasoning about `shiftLine`'s delta>0 branch
+  (`' '.repeat(delta)`, unconditionally spaces) before writing any test, then
+  confirmed by writing exactly this scenario as a unit test. Both fixed: a shared
+  `isStructuralBlockSequence` predicate (one node with children counts, matching
+  the multi-node case already handled correctly) and a new
+  `reindentSubtreeVerbatim` (swaps the top node's own leading-whitespace PREFIX for
+  the destination's indent text, preserving each descendant's original relative
+  indent string beyond that prefix verbatim — can't introduce a unit mismatch,
+  since nothing new is synthesized). Scoped to `insertSubtrees`'s no-kind-
+  conversion case only; `indent`/`outdent` (single-level, same-document moves)
+  keep the original numeric-delta path unchanged.
+- **Redo cursor after a merge, and delete→undo→redo cursor landing on chrome — NOT
+  REPRODUCED despite genuine effort.** Five varied e2e scenarios attempted for the
+  merge/redo report (list-item merge, paragraph-across-gap merge, cross-kind merge
+  with re-parented children, three consecutive undo/redo cycles) — every one
+  restored the exact join-point cursor on redo, matching the original merge's own
+  cursor exactly. Three varied scenarios for the delete→undo→redo report (doc-start
+  escalated-selection deletion, mid-list escalated-selection deletion) — every one
+  landed redo's cursor at the correct survivor content-start, never on chrome.
+  Recorded rather than silently dropped: this may be a real bug in a shape not yet
+  tried (a specific platform's redo keybinding, an intermediate action between
+  undo and redo, real touch/manual-interaction timing), or it may already be
+  resolved by an earlier fix this session — more specific repro steps requested
+  from the user before spending further effort guessing at shapes.
+
+## Q19. Fifth manual pass — paste-depth root cause found and fixed; redo-cursor mechanism understood but still unreproduced (2026-07-22)
+
+- **Paste "resets to original depth at +2 or more" — root cause confirmed via a
+  real-vault repro note, fixed (D16).** The user's own "Paste bug repro.md" gave
+  the exact input/action/observed-output triple: pasting a copied subtree into an
+  EMPTY list item that has no siblings at all (the sole child under "plus two
+  levels", depth 3) produced the pasted content as new TOP-LEVEL nodes, discarding
+  the target depth entirely. Traced precisely: this specific shape (empty anchor,
+  zero siblings) routes through `deleteAndSplice`'s `insertAsOnlyChildren`
+  fallback — the ONE splice path D15 didn't touch, because D15's own regression
+  tests all used anchors with at least one real sibling. `insertAsOnlyChildren`
+  spliced the parsed blocks in completely unindented; on re-parse, unindented list
+  markers pop out to whatever shallower scope (often top-level) their raw
+  indentation implies. Confirmed byte-for-byte against the repro note's own
+  "Expected outcome" before and after the fix. Extracted the shared
+  `reencodeBlocksForDestination` (ops.ts) so `insertSubtrees` and
+  `insertAsOnlyChildren` can no longer drift apart on this rule — the second
+  instance this change has hit of "one correct call site, one silently-stale
+  duplicate" (the first was D15's own detection-gate split between classify.ts
+  and enforce.ts).
+- **Redo-cursor-after-merge — mechanism now understood precisely, but still not
+  reproduced.** Read the actual `@codemirror/commands` `history.ts` source (via
+  targeted fetches of the upstream file) to understand exactly how CM6 restores
+  selection on redo, rather than continue guessing from behavior alone:
+  - Undo pops the "done" stack's event and dispatches `changes: event.changes⁻¹`,
+    `selection: event.startSelection` (the selection captured when the ORIGINAL
+    edit was first made, i.e. the pre-edit cursor) — this matches the user's own
+    observation ("undo → cursor at start of paragraph B") exactly.
+  - That SAME undo dispatch also pushes a new event onto the "undone" stack,
+    whose OWN `startSelection` is set to the selection that was active AT THE
+    MOMENT THE UNDO TRANSACTION ITSELF WAS BUILT — i.e., `tr.startState
+    .selection` right before undo fires, which (absent any intervening change)
+    should be exactly our rewrite's own explicit join-point cursor.
+  - Redo later pops that "undone" event and restores ITS `startSelection`
+    directly — no position-remapping. So in the ordinary case, redo SHOULD
+    restore our exact rewrite cursor, and every automated repro (7+ variants:
+    list-item merge, paragraph-across-gap merge, cross-kind merge with
+    re-parented children, repeated undo/redo cycles, the user's LITERAL
+    "paragraph A"/"paragraph B" content with zero-pause and paused cursor
+    checks) confirms exactly that.
+  - **Empirically confirmed undo/redo NEVER reach `transactionFilter` at all**:
+    driving the exact repro and reading `stats.snapshot().counts` before/after
+    each step shows the `programmatic` counter never increments for either undo
+    or redo (matching the pre-existing Phase A finding that desktop undo bypasses
+    the filter — now confirmed to hold for redo too). This means our own
+    rewrite/clamp/escalation code cannot be directly responsible for a wrong
+    redo cursor: the transaction never runs through it. Whatever selects the
+    (allegedly wrong) cursor on redo happens entirely inside CM6/Obsidian's own
+    history mechanism, which our plugin has no path to influence.
+  - **Working hypothesis**: something in the real environment inserts an
+    intervening selection change between the rewrite and pressing undo — even
+    one invisible to the user (e.g. a real mouse click's coordinate-derived
+    selection differing subtly from a programmatic one, a decoration-triggered
+    view update, or another community plugin) — which becomes what "the moment
+    undo runs" captures, and that's what redo later restores instead of our
+    rewrite's own cursor.
+  - **Next diagnostic steps, offered to the user rather than guessed further**:
+    reproduce in a vault with ONLY true-outliner enabled (isolates other
+    community plugins as a cause); report the exact Obsidian version and any
+    non-default editor settings (e.g. Strict line breaks, Vim mode); note whether
+    the initial cursor placement in step 1 is via mouse click or keyboard, since
+    that's the one variable this session's repro attempts couldn't fully match
+    (all used a programmatic `setCursor`, not a real click).
+
+## Q20. Redo-cursor bug spun out to a separate investigation (2026-07-23)
+
+Follow-up manual testing showed the redo-cursor symptom is broader than Q19's
+mechanism write-up anticipated: the cursor has been observed landing not just on
+the next (gap) line after a merge, but past the end of the current subtree
+entirely on redo — more than one wrong-landing shape, not a single off-by-one.
+This rules out a narrow fix scoped to `outline-edit-enforcement` and confirms Q19's
+own conclusion that the cause sits outside this change's code paths (undo/redo
+never reach `transactionFilter`).
+
+Decision: this is carried forward as its own investigation, out of scope for
+`outline-edit-enforcement`'s closure — this change ships without a fix or further
+diagnosis for it. Q19's mechanism research (CM6 `history.ts` selection-restoration
+semantics, the empirical `programmatic`-counter proof) and its diagnostic asks
+(isolated vault, Obsidian version, non-default settings, mouse-vs-keyboard cursor
+placement) remain the starting point whenever that investigation picks up.
