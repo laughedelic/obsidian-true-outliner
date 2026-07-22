@@ -1,0 +1,261 @@
+/openspec-apply-change  outline-edit-enforcement
+
+---
+
+<task-notification>
+<task-id>b18lquxil</task-id>
+<tool-use-id>toolu_011VoixhX1hDs2BxGfKn6gV5</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/b18lquxil.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-run2.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+okay. this is a big change. I need to verify it carefully.
+
+* first, I noticed a bug (might be pre-existing): a paragraph with 1-3 preceeding spaces gets very misaligned, outdented to the leftmost guide line. 
+   * the block marker is at the correct relative distance (increases with more spaces), even further to the left. 
+   * at 4 spaces it jumps back in place with the 4 spaces shown correctly in the indented block before the text.
+   * it can be reproduced by adding a space before any paragraph text line.
+* selecting a heading with its subtree, then pressing backspace/delete does nothing and shows a toast "Nothing to act on". also looks like a bug.
+   * but strangely selecting two or more sibling headings with their subtrees gets deleted as expected. 
+   * I think it goes for any node with children (e.g. paragraph + list, or even list item with a child).
+* gap lines are getting in a way of the expected behavior. this has already come up in the selection enforcement implementation, and I feel like it's going to keep coming up until we figure out a better way to deal with the gap lines.
+   * right now gap lines are just trailing whitespace owned by the preceeding parsed node/block. but in an outliner there is a difference between the trailing space that is part of a block (in text it would normally be actual indentation whitespace on a separate line, part of the block at the same indentation level), and the empty lines with only a newline character between the blocks (that normally isn't part of the tree).
+   * so when I see two sibling nodes and place cursor at the beginning of the second node, and press backspace, I expect that node to get merged with the first one and the text to be appended to the end of it. but because of the gap lines, it doesn't happen like that, nodes get merged, but the text gets appended in place of that gap line. or the gap line gets deleted (e.g. between a heading and a paragraph), but the nodes are not merged. etc.
+   * my intuition is that we need to skip over the gap lines and treat them as if they weren't part of the text. they are an implementation detail of the markdown representation which requires or allows to separate blocks with empty lines, but in an outline tree structure, they are not structurally functional and the ownership of those lines is not clear to the user.
+   * think about it and let's decide how to deal with this.
+* lists are not handled well: if I place cursor at the beginning of any list item and press backspace, I expect it to get merged with the previous list item or its parent paragraph. but instead, it deletes the space after the `-` dash-bullet. turning it into a strange paragraph. 
+   * this might be out of scope here, but list markers should not be directly editable in the outline mode. this is what obsidian-outliner tries to do with its "Stick the cursor to the content" functionality. 
+* if a list item has a child and I decide to split the parent node by pressing enter in the middle of the text, I expect that to create a new first child (new preceeding sibling to the existing child). but right now it creates a sibling of the parent and it feels very unnatural because it jumps over the child.
+   * if the node doesn't have a child, splitting it should create a sibling.
+* it seems like there are more quirks and strange behaviors, but I think that we've got enough to work with for now. think about these things as a whole, not just a list of cases to test and fix, but as indicators of the current system not behaving well. consider whether the spec itself needs an adjustment, whether the undelying system needs to change, or whether there is still a gap in our fundamental functionality that prevents us from getting the natural feel of working with an outline. it's probably a combination of all the factors.
+
+---
+
+<system-reminder>
+The user started your suggested background task task_b7c93c30 ("Fix decoration misalignment for space-indented paragraphs") in a separate local session. It is running independently. You will be notified here when it ends.
+</system-reminder>
+<system-reminder>
+The separate session for background task task_b7c93c30 ("Fix decoration misalignment for space-indented paragraphs") has ended.
+</system-reminder>
+
+go on
+
+---
+
+go on
+
+---
+
+go on
+
+---
+
+<task-notification>
+<task-id>brvs1ghqv</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/brvs1ghqv.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-amend-run2.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+okay. this is definitely an improvement and now feels more natural. but it needs more work and potentially more discussion on the fundamentals.
+
+* first, there is a new bug: when merging two nodes (backspace at the beginning, or delete at the end), the result looks correct, but the cursor jumps to the beginning of the new merged node. it is supposed to be at the merge point, between the end of the first node and beginning of the second. 
+   * related to this, I wonder if it's in scope here to also control the movement of cursor. same way as pressing backspace at the beginning of a node goes to the end of the previous one, pressing left should just move cursor to the same place, or pressing up should go to the beginning of the previous node, etc. right now we are still moving through all of the "chrome" characters that aren't part of the outline structure (which brings me to the next point)
+* second point is up for a discussion. I like the new principle: "gap lines and list markers are storage-layer chrome; no editing semantic may depend on them", but I want to push back a bit on the second part: "A cursor placed on the chrome itself stays the escape hatch for deliberate whitespace editing."
+   * I would go as far as saying that in the outline mode user is not supposed to interact directly with whatever isn't part of the outline (such as the "chrome"). they can always switch back to the normal markdown editing and do arbitrary character-level edits there.
+   * this potentially means that cursor should just jump over the gap lines, from one node's content, to the other. and that it shouldn't be possible to place cursor outside of a node's content. no manual list dashes/bullets editing, only via structural operations.
+      * this might also mean that we don't want arbitrary sized gaps, and we might even want to hide them (an idea that has already come up before). we don't need to enforce that on the text level, but it probably shouldn't be possible to create unnecessary gaps from the outline mode (i.e. if we press enter at the end of a paragraph, we insert a gap line and start a new paragraph node, but that gap is strictly necessary to separate the paragraph nodes), and hiding or normalizing gaps could be a cosmetic UX thing (similar to indentation).
+   * I want your honest take on this. does it make sense or is it going to cause problems?
+
+---
+
+<task-notification>
+<task-id>blaxljoed</task-id>
+<tool-use-id>toolu_01PdT13fZs7cHXk9t873atuX</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/blaxljoed.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-cursorfix-run1.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+okay. good arguments. let's go ahead with the recommendation. the work on hiding/_visually_-normalizing gaps and the related vertical cursor navigation could go in a separate change and potentially combine with the selection UX work that's been already set for later.
+
+but before you jump into the implementation, make sure that the SDD documentation is updated and record the ideas for the follow up work somewhere as well (potentially make the @docs/research/12-decoration-follow-ups.md or broaden @docs/research/13-selection-follow-ups.md, or a new doc, your call). 
+
+docs first, then implementation of what we agreed on here, then the status on the completion of the change. I will give it another pass and we'll continue from there.
+
+---
+
+<task-notification>
+<task-id>bsl48u5ca</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/bsl48u5ca.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-d13-run1.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b1pbkel57</task-id>
+<tool-use-id>toolu_01ReRUKAZxU9d9pYCn4iYzUt</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/b1pbkel57.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-d13-run2.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+ok. great. here are some more observations:
+
+* one thing that is the consequence of the adjustment I requested before is that splitting or adding a new node after one with children introduces a new child. in some cases this introduces a "soft-lock".
+   * say we have 2 paragraphs: A (simple) and B with children (a list). then we merge A and B, B becomes part of A, its children are now owned by the merged paragraph node. if I press enter after that, B becomes A's new first list-child.
+      * first, this might seem a bit unintuitive that pressing backspace, then enter doesn't return to the same initial state. I'm not saying it has to be like that, but it's just an observation that is worth pointing out.
+         * I've thought about treating paragraphs and lists a bit differently, so thay pressing enter in a paragraph introduces always a new paragraph (new or split), even if there is a list after it, it will become the subtree of the new paragraph. this feels natural in theory, but not very consistent if we keep the rule that in lists the same action would introduce a new child. so I think a better solution is to keep it consistent, but allow outdenting in place (next point)
+      * second, after these motions, it's impossible to return to the original state with the structural operations: after the new split, if I'm on B (now list-child of A), and press shift-tab, it becomes A's sibling, but jumps across the list. A stole B's children!
+         * I don't think this is correct behavior. it's similar to the correction we made before. I think on shift-tab, B should become a paragraph with its original children, i.e. outdent in-place, instead of becoming A's _new_ sibling. 
+            * this is consistent with Logseq: if a sibling can be outdented in place, it happens so and its following ex-siblings become its children. note indenting after that is not symmetric: now that node has children and they will be indented too.
+* pressing enter anywhere in a heading jumps out of it and adds a gap line. is this intended behavior? why doesn't it split the heading adding a new paragraph. same for just pressing enter at the end of the heading, it should create a new paragraph node.
+* adjustment to the tree pasting: if I copy/cut a list subtree, then create a new node in the list and paste, that new empty node should be treated as the pasting anchor, i.e. replaced by the pasted subtree. currently the subtree is pasted correctly, but after the empty node. empty node should not stay empty after pasting.
+* something to think about, not necessarily act on immediately: what if we treat headings `#` chrome the same way as the lists bullets? it can be always adjusted via tab/shift-tab, but shouldn't be editable directly. I think this would prompt another change: transition between H6 and paragraphs. but then there is no easy way to go from H2 to a paragraph (currently it's possible to just delete the `##` manually). maybe this idea is too raw. 
+* I'm not sure what else to try and verify. do you have any candidates for questionable feel that I need to validate with manual vibe-testing?
+
+---
+
+<task-notification>
+<task-id>bg2ljh0nw</task-id>
+<tool-use-id>toolu_01TnNnu3FpHYpWTKkPzxr9H1</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/bg2ljh0nw.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-d14-run1.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>baqlik4wq</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/baqlik4wq.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-d14-run1b.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Check /tmp/e2e-d14-run1b.log (background task baqlik4wq) for the full e2e suite result. Two nested-table-cell-click tests (53-decoration-contracts, 60-transaction-classification) failed twice in a row with "element did not become interactable" on a table row drag-handle — unrelated code paths to anything touched this session (git diff confirms no changes to decorations.ts/keymap.ts/table handling), and test-vault/ shows uncommitted user edits from their own manual-pass session, plus their real Obsidian.app is running — likely environmental interference, not a regression. Confirm this diagnosis against the new run: if only these same 2 tests fail again (or nothing fails), proceed to report results to the user candidly (both the D14 verification status AND this flaky-test observation, and ask if their own Obsidian being open on the test vault might be interfering) alongside the prepared discussion response (outdent-in-place, heading-Enter-split, heading-marker-chrome take, vibe-testing candidates). If something ELSE fails or a DIFFERENT pattern emerges, investigate further before reporting.
+
+---
+
+first, I don't think that empty anchor paste is fixed. sometime it works as expected, but sometimes it doesn't. I copy a list subtree with some children at a >1 depth, then try to paste it somewhere else.
+
+* sometimes it pastes with the first items' literal `\t\t-` prefix. this seems to happen when the copied subtree has a single parent/top-level node. when there are siblings, it works fine. 
+* when I paste at a different depth, the whole subtree should be inserted at that depth. but it looks like if the paste-depth is deeper than the original, it still pastes at the original depth. lower depth seems to work fine.
+   * this seems to work differently for the multi-sibling pasting (like the previous point), but at some depth it still breaks.
+
+---
+
+* Undo then redo of a rewritten edit:
+   * good call on checking redo. it has a cursor placing problem: merge two nodes via delete/backspace, undo (cursor on the merging poing), redo, cursor is misplaced to the line under the merged node instead of being at the merge point again.
+
+* Compound delete→undo→redo: 
+   * fine, except cursor is placed in a strange place (e.g. behind the list's chrome). it's not clear what the right place is, since the sequence starts with a selection, but it must be placed on some content, not the chrome or gap/whitespace.
+
+
+the rest of the things seem okay so far.
+
+---
+
+<task-notification>
+<task-id>bq91sl4n7</task-id>
+<tool-use-id>toolu_01K7moQUswQ4Hnx6MQKF3Ap4</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/bq91sl4n7.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-d15-run1.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bb83x6lkk</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/bb83x6lkk.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-d15-run2.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Check /tmp/e2e-d15-run2.log (background task bb83x6lkk). If clean, run npm run vault:install, mark tasks.md 8.4 done, and deliver the prepared honest report to the user: D15 (paste detection + re-indentation, two compounding bugs both fixed) verified through unit/property/e2e tests and the real dispatch path, full suite green twice; and the redo-cursor / delete-undo-redo-chrome reports investigated with 5+ varied e2e scenarios each but NOT reproduced — ask for more specific repro steps (exact starting content, exact key sequence, platform, anything else done between steps) rather than guessing further.
+
+---
+
+there is an improvement. but the re-indentation math must be still partially broken. pasting a subtree at lower depth, same as original, or +1 works. but at the +2 depth or more, it resets back to the original. check  that please,
+
+---
+
+redo-cursor: still broken and reliably reproducible in real UI. example:
+
+
+```
+paragraph A
+
+paragraph B
+```
+
+
+1. cursor at the start of paragraph B. 
+2. press backspace. paragraphs merged, cursor between the merged paragraphs (atfer `A`)
+3. undo (cmd-Z), initial state. cursor at the start of paragraph B, same as at the start.
+4. redo (cmd-shift-Z), same merge. but the cursor is on the next (gap) line. this is the problem!
+
+
+nothing else happening between the steps. macOS, desktop Obsidian, using keyboard.
+
+---
+
+I tried restarting the app, reloading the plugin, etc. same result, the cursor placement bug is reproducible every time. try to figure out why the testing harness is not detecting this behavior. and try to figure the reason for this behavior from the current implementation, even if you can't reproduce it. if you need any more debug information I can provide through manual testing, let's do it.
+
+----
+
+for the paste bug, see `Paste bug repro` in the test-vault. let me know if that is enough to understand the problematic behavior
+
+---
+
+<task-notification>
+<task-id>bgxz1xwot</task-id>
+<tool-use-id>toolu_01NCm4izPtMeC3nyoBBEGi8x</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/bgxz1xwot.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-d16-run1.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Check /tmp/e2e-d16-run2.log (background task b3iddzhii). If clean (or only known-flaky tests), run npm run vault:install, mark tasks.md 9.1/9.2 done, and deliver the prepared report to the user: (1) D16 paste bug fixed — root cause explained (insertAsOnlyChildren fallback never re-indented, same bug SHAPE as D15 — two call sites, only one fixed each time), confirmed byte-for-byte against their repro note's expected output; (2) redo-cursor — explain the CM6 history.ts mechanism researched directly from source, and the empirical confirmation that undo/redo never reach our transactionFilter (stats' programmatic counter never increments for either), meaning our code cannot be the direct cause; ask for a minimal-vault test (only true-outliner enabled) plus Obsidian version, non-default editor settings, and whether the initial cursor placement was via mouse click or keyboard.
+
+---
+
+okay, great. the paste bug is fixed now. good work. I think we should be recording the work so far, so prepare a branch for the change and make commits (no need for the full history reproduction, but if you can split up the changeset in sensible separate commits, good).
+
+---
+
+about the redo cursor placement bug, I think it's more convoluted. I see it in different forms, with the cursor landing after the current subtree on redo, not only on the next line. so I think it's more interesting and probably deserves a separate investigation. let's record it somewhere and work on it separately.
+
+---
+
+let's start wrapping up the change. let's defer tasks 8.2 and 8.3 for now. what else is left?
+
+---
+
+open a draft PR, then sync the specs and archive the change. I will merge the PR myself
+
+---
+
+make sure all specs have the purpose section filled out
