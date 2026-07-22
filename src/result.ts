@@ -10,7 +10,13 @@ export type RejectionReason =
   | 'no-sibling-below'
   | 'not-expressible-under-target'
   | 'cannot-reorder-across-heading-boundary'
-  | 'cannot-split';
+  | 'cannot-split'
+  | 'empty-selection'
+  | 'non-contiguous-subtrees'
+  | 'no-following-neighbor'
+  | 'would-orphan-children'
+  | 'merge-not-expressible'
+  | 'insertion-not-expressible';
 
 export interface Rejection {
   readonly reason: RejectionReason;
