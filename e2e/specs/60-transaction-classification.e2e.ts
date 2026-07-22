@@ -99,10 +99,13 @@ describe('transaction classification: Phase A evidence', function () {
     expect(snap.counts['boundary-crossing-edit']).toBe(0);
   });
 
-  it('boundary-crossing edits are counted (not rewritten) — headline Phase A metric', async function () {
+  it('boundary-crossing edits are counted — headline Phase A metric, now also verdict-processed by Phase C', async function () {
     await outlineNote('First paragraph.\n\nSecond paragraph.\n');
     // Select from mid-first-paragraph through mid-second-paragraph, then
-    // delete — a genuine boundary-crossing change range.
+    // delete — a genuine boundary-crossing change range. Phase A counted
+    // this class without altering it; node-edit-enforcement (Phase C) now
+    // additionally hands it a verdict — see 62-outline-edit-enforcement for
+    // the rewrite/veto evidence suite.
     await h.setSelection({ line: 0, ch: 6 }, { line: 2, ch: 6 });
     await browser.keys(Key.Backspace);
     const snap = await h.getStats();
@@ -195,7 +198,16 @@ describe('transaction classification: Phase A evidence', function () {
     expect(await h.getBuffer()).toContain('# Section');
   });
 
-  it('a boundary-crossing edit sequence is byte-identical whether outline mode is on or off', async function () {
+  it('off-mode boundary-crossing edits stay native; on-mode now rewrites (node-edit-enforcement supersedes the old byte-identical guarantee for THIS class only)', async function () {
+    // Phase A/B guaranteed on-mode was byte-identical to off-mode for every
+    // class, including boundary-crossing-edit (nothing was ever rewritten).
+    // node-edit-enforcement's transaction-classification delta explicitly
+    // supersedes that for boundary-crossing-edit specifically — see
+    // "Text modification is confined to enforced verdicts". Off-mode is
+    // untouched (no classification/verdict at all); on-mode now performs
+    // the structural (subtree-cover) deletion. Every OTHER class's
+    // byte-identical guarantee is unaffected — covered by
+    // 62-outline-edit-enforcement's pass-through-classes scenario.
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     const onNote = 'Scratch/mutation-on.md';
     const offNote = 'Scratch/mutation-off.md';
@@ -216,7 +228,10 @@ describe('transaction classification: Phase A evidence', function () {
     await browser.keys(Key.Backspace);
     const offResult = await h.getBuffer();
 
-    expect(onResult).toBe(offResult);
+    expect(offResult).toBe('First  paragraph.\n'); // stock character splice
+    // On-mode: the stale (never-escalated) mid-node range covers both whole
+    // paragraphs — deleting it removes both subtrees entirely (D3).
+    expect(onResult).toBe('');
   });
 
   it('a decoration/classification recompute has no undo-stack side effect', async function () {

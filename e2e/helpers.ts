@@ -400,6 +400,8 @@ export interface StatsSnapshot {
   counts: Record<string, number>;
   timing: Record<string, StatsTiming>;
   recent: { cls: string; userEvent: string | undefined; ms: number; timestamp: number }[];
+  verdictCounts: Record<string, number>;
+  verdictTiming: Record<string, StatsTiming>;
 }
 
 export function getStats(): Promise<StatsSnapshot> {
