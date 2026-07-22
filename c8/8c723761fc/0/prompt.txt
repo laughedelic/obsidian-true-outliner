@@ -239,3 +239,15 @@ for the paste bug, see `Paste bug repro` in the test-vault. let me know if that 
 ---
 
 Check /tmp/e2e-d16-run2.log (background task b3iddzhii). If clean (or only known-flaky tests), run npm run vault:install, mark tasks.md 9.1/9.2 done, and deliver the prepared report to the user: (1) D16 paste bug fixed — root cause explained (insertAsOnlyChildren fallback never re-indented, same bug SHAPE as D15 — two call sites, only one fixed each time), confirmed byte-for-byte against their repro note's expected output; (2) redo-cursor — explain the CM6 history.ts mechanism researched directly from source, and the empirical confirmation that undo/redo never reach our transactionFilter (stats' programmatic counter never increments for either), meaning our code cannot be the direct cause; ask for a minimal-vault test (only true-outliner enabled) plus Obsidian version, non-default editor settings, and whether the initial cursor placement was via mouse click or keyboard.
+
+---
+
+okay, great. the paste bug is fixed now. good work. I think we should be recording the work so far, so prepare a branch for the change and make commits (no need for the full history reproduction, but if you can split up the changeset in sensible separate commits, good).
+
+---
+
+about the redo cursor placement bug, I think it's more convoluted. I see it in different forms, with the cursor landing after the current subtree on redo, not only on the next line. so I think it's more interesting and probably deserves a separate investigation. let's record it somewhere and work on it separately.
+
+---
+
+let's start wrapping up the change. let's defer tasks 8.2 and 8.3 for now. what else is left?
