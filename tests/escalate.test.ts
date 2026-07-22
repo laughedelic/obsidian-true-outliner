@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
-import { escalateRange, escalateRanges, type LinePos, type LineRange } from '../src/escalate';
+import { clampCursorToContent, escalateRange, escalateRanges, type LinePos, type LineRange } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
+import { contentColumnCh } from '../src/ops';
 import { arbTree } from './generators';
 
 const pos = (line: number, ch: number): LinePos => ({ line, ch });
@@ -281,6 +282,125 @@ describe('escalateRange: idempotence and boundary invariants (property)', () => 
         const cursor = range(pos(line, 0), pos(line, 0));
         const untouched = escalateRange(doc, cursor);
         return untouched.anchor.line === line && untouched.head.line === line;
+      }),
+      { numRuns: 300 },
+    );
+  });
+});
+
+describe('clampCursorToContent: marker-transparent cursor placement (design.md D13)', () => {
+  it('a cursor before a list item\'s marker+space redirects to content start', () => {
+    const doc = parse('- alpha\n');
+    expect(clampCursorToContent(doc, pos(0, 0))).toEqual(pos(0, 2));
+    expect(clampCursorToContent(doc, pos(0, 1))).toEqual(pos(0, 2));
+  });
+
+  it('a cursor already at or past content start is unchanged', () => {
+    const doc = parse('- alpha\n');
+    expect(clampCursorToContent(doc, pos(0, 2))).toEqual(pos(0, 2));
+    expect(clampCursorToContent(doc, pos(0, 5))).toEqual(pos(0, 5));
+  });
+
+  it('an ordered marker (longer prefix) redirects correctly', () => {
+    const doc = parse('12. item\n');
+    expect(clampCursorToContent(doc, pos(0, 0))).toEqual(pos(0, 4));
+    expect(clampCursorToContent(doc, pos(0, 3))).toEqual(pos(0, 4));
+  });
+
+  it('a continuation line\'s alignment whitespace also redirects', () => {
+    const doc = parse('- alpha\n  more text\n');
+    // Line 1 is the continuation line, indented to the content column (2).
+    expect(clampCursorToContent(doc, pos(1, 0))).toEqual(pos(1, 2));
+    expect(clampCursorToContent(doc, pos(1, 2))).toEqual(pos(1, 2));
+  });
+
+  it('a nested (indented) list item redirects past its own indent AND marker', () => {
+    const doc = parse('- a\n\t- b\n');
+    const bLine = 1;
+    expect(clampCursorToContent(doc, pos(bLine, 0))).toEqual(pos(bLine, 3)); // '\t- '.length
+    expect(clampCursorToContent(doc, pos(bLine, 1))).toEqual(pos(bLine, 3));
+  });
+
+  it('paragraphs and headings are untouched, even with marker-like leading text', () => {
+    const doc = parse('# Heading\n\nPara.\n');
+    expect(clampCursorToContent(doc, pos(0, 0))).toEqual(pos(0, 0));
+    expect(clampCursorToContent(doc, pos(2, 0))).toEqual(pos(2, 0));
+  });
+
+  it('gap lines are untouched (deliberately deferred, docs/research/13)', () => {
+    const doc = parse('First.\n\nSecond.\n');
+    expect(clampCursorToContent(doc, pos(1, 0))).toEqual(pos(1, 0));
+  });
+
+  it('preamble/out-of-jurisdiction positions are untouched', () => {
+    const doc = parse('---\nk: 1\n---\n\n- item\n');
+    expect(clampCursorToContent(doc, pos(1, 0))).toEqual(pos(1, 0));
+  });
+
+  it('property: clamping is idempotent', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), (tree, linePick, chPick) => {
+        const text = encode(tree);
+        const doc = parse(text);
+        const lines = text === '' ? [] : text.split('\n');
+        if (lines.length === 0) return true;
+        const line = linePick % lines.length;
+        const ch = chPick % ((lines[line]?.length ?? 0) + 1);
+        const once = clampCursorToContent(doc, pos(line, ch));
+        const twice = clampCursorToContent(doc, once);
+        return once.line === twice.line && once.ch === twice.ch;
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('property: clamping never moves to a different line, and only ever increases ch', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), (tree, linePick, chPick) => {
+        const text = encode(tree);
+        const doc = parse(text);
+        const lines = text === '' ? [] : text.split('\n');
+        if (lines.length === 0) return true;
+        const line = linePick % lines.length;
+        const ch = chPick % ((lines[line]?.length ?? 0) + 1);
+        const result = clampCursorToContent(doc, pos(line, ch));
+        return result.line === line && result.ch >= ch;
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('property: only list-item lines are ever changed', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), (tree, linePick) => {
+        const text = encode(tree);
+        const doc = parse(text);
+        const lines = text === '' ? [] : text.split('\n');
+        if (lines.length === 0) return true;
+        const line = linePick % lines.length;
+        const result = clampCursorToContent(doc, pos(line, 0));
+        if (result.ch === 0) return true; // unchanged
+        const node = nodeAtLine(doc, line);
+        return node?.kind === 'list-item';
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('property: clamping a list-item line at ch 0 matches contentColumnCh exactly', () => {
+    fc.assert(
+      fc.property(arbTree(), (tree) => {
+        const text = encode(tree);
+        const doc = parse(text);
+        const lines = text === '' ? [] : text.split('\n');
+        for (let line = 0; line < lines.length; line++) {
+          const node = nodeAtLine(doc, line);
+          if (node?.kind !== 'list-item') continue;
+          const result = clampCursorToContent(doc, pos(line, 0));
+          const expected = contentColumnCh(lines[line] ?? '');
+          if (result.ch !== expected) return false;
+        }
+        return true;
       }),
       { numRuns: 300 },
     );

@@ -35,15 +35,30 @@ describe('splitNode', () => {
     expect(result.cursor).toEqual({ line: 1, ch: 2 });
   });
 
-  it('children stay with the upper half', () => {
-    const { text } = splitOk('- parent text\n\t- child\n', '- parent text', {
+  it('a parent with children puts the remainder as its new FIRST CHILD (amendment 2026-07-21)', () => {
+    // Content-adjacent split: the remainder lands directly below the split
+    // point, above the existing children — never jumping over the subtree.
+    const { text, result } = splitOk('- parent text\n\t- child\n', '- parent text', {
       line: 0,
       ch: 9,
     });
-    expect(text).toBe('- parent \n\t- child\n- text\n');
+    expect(text).toBe('- parent \n\t- text\n\t- child\n');
     const doc = parse(text);
-    expect(doc.children[0]!.children[0]!.lines[0]).toBe('\t- child');
-    expect(doc.children[1]!.lines[0]).toBe('- text');
+    expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['\t- text', '\t- child']);
+    expect(result.cursor).toEqual({ line: 1, ch: 3 });
+  });
+
+  it('a paragraph with a child list splits its remainder into a first child list item', () => {
+    const { text } = splitOk('one two\n- child\n', 'one two', { line: 0, ch: 4 });
+    expect(text).toBe('one \n- two\n- child\n');
+    const doc = parse(text);
+    expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['- two', '- child']);
+  });
+
+  it('end-of-node split of a parent creates an empty first child item', () => {
+    const { text, result } = splitOk('- parent\n\t- child\n', '- parent', { line: 0, ch: 8 });
+    expect(text).toBe('- parent\n\t- \n\t- child\n');
+    expect(result.cursor).toEqual({ line: 1, ch: 3 });
   });
 
   it('splits a paragraph mid-text with blank separation', () => {

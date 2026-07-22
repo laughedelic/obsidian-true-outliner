@@ -102,6 +102,139 @@ describe('classify: order precedence and each class reachable', () => {
     ]);
     expect(reached).toEqual(new Set(ALL_CLASSES));
   });
+
+  it('node-edit-enforcement rewrite userEvents are plugin-own (D7a short-circuit)', () => {
+    for (const ev of ['delete.structural', 'delete.structural.merge', 'input.paste.structural']) {
+      expect(classify(facts({ userEvent: ev, changedLineSpans: [span(2, 4)] }), doc)).toBe('plugin-own');
+    }
+  });
+});
+
+describe('classify: node-edit-enforcement D4/D5 boundary shapes', () => {
+  const doc = parse('# H\n\nPara one.\n\nPara two.\n');
+  // 0 '# H' / 1 gap(H) / 2 'Para one.' / 3 gap / 4 'Para two.' / 5 gap
+
+  it('a single-character deletion of the boundary newline is boundary-crossing despite fromLine === toLine', () => {
+    // The span itself is degenerate (fromLine === toLine === 3, the gap
+    // line) under the exclusive-end convention; only `deletesLineBoundary`
+    // reveals it touches "Para two." too.
+    expect(
+      classify(
+        facts({
+          userEvent: 'input.type',
+          changedLineSpans: [{ fromLine: 3, toLine: 3, deletesLineBoundary: true }],
+        }),
+        doc,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('the same single-character span WITHOUT the boundary-deletion bit stays within-node', () => {
+    expect(
+      classify(facts({ userEvent: 'input.type', changedLineSpans: [{ fromLine: 3, toLine: 3 }] }), doc),
+    ).toBe('within-node-edit');
+  });
+
+  it('a pure insertion whose text parses to multiple blocks is boundary-crossing', () => {
+    expect(
+      classify(
+        facts({
+          userEvent: 'input.paste',
+          changedLineSpans: [{ fromLine: 2, toLine: 2, insertedText: 'One.\n\nTwo.' }],
+        }),
+        doc,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('a pure insertion whose text parses to a single block stays within-node', () => {
+    expect(
+      classify(
+        facts({
+          userEvent: 'input.paste',
+          changedLineSpans: [{ fromLine: 2, toLine: 2, insertedText: 'just one line' }],
+        }),
+        doc,
+      ),
+    ).toBe('within-node-edit');
+  });
+
+  it('a multi-block insertion landing in the preamble stays within-node (out of jurisdiction)', () => {
+    const withFm = parse('---\nk: 1\n---\n\nBody.\n');
+    expect(
+      classify(
+        facts({
+          userEvent: 'input.paste',
+          changedLineSpans: [{ fromLine: 1, toLine: 1, insertedText: 'One.\n\nTwo.' }],
+        }),
+        withFm,
+      ),
+    ).toBe('within-node-edit');
+  });
+});
+
+describe('classify: chrome-boundary deletion shapes (chrome-transparency amendment)', () => {
+  const doc = parse('- alpha\n- beta\n');
+  // 0 '- alpha' / 1 '- beta'
+
+  it('marker-space deletion at a list item content start, cursor there → boundary-crossing', () => {
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 1, toLine: 1, insertedText: '', fromCh: 1, toCh: 2 }],
+          cursorBefore: { line: 1, ch: 2 },
+        }),
+        doc,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('the same span without the cursor fact stays within-node (conservative default)', () => {
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 1, toLine: 1, insertedText: '', fromCh: 1, toCh: 2 }],
+        }),
+        doc,
+      ),
+    ).toBe('within-node-edit');
+  });
+
+  it('Delete into the node\'s own trailing gap with cursor at content end → boundary-crossing', () => {
+    const gapped = parse('First.\n\nSecond.\n');
+    // Deleting the newline ending "First." — both adjacent lines belong to
+    // First. (line 1 is its own gap), so only the cursor reveals intent.
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.forward',
+          changedLineSpans: [
+            { fromLine: 0, toLine: 0, insertedText: '', deletesLineBoundary: true },
+          ],
+          cursorBefore: { line: 0, ch: 'First.'.length },
+        }),
+        gapped,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('the same bytes with the cursor on the gap line stay within-node (escape hatch)', () => {
+    const gapped = parse('First.\n\nSecond.\n');
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [
+            { fromLine: 0, toLine: 0, insertedText: '', deletesLineBoundary: true },
+          ],
+          cursorBefore: { line: 1, ch: 0 },
+        }),
+        gapped,
+      ),
+    ).toBe('within-node-edit');
+  });
 });
 
 describe('classify: preamble and gap-line edge cases', () => {

@@ -39,4 +39,28 @@ describe('TransactionStats', () => {
     const snap = stats.snapshot();
     expect(snap.timing.composition).toEqual({ count: 0, median: 0, p95: 0, max: 0 });
   });
+
+  it('counts per-verdict occurrences and timing independently of class counts', () => {
+    const stats = new TransactionStats();
+    stats.record('boundary-crossing-edit', 2, 'delete.structural');
+    stats.recordVerdict('rewrite', 2);
+    stats.record('boundary-crossing-edit', 1, 'input.type');
+    stats.recordVerdict('veto', 1);
+    stats.record('boundary-crossing-edit', 3, 'input.type');
+    stats.recordVerdict('pass', 3);
+
+    const snap = stats.snapshot();
+    expect(snap.verdictCounts).toEqual({ pass: 1, rewrite: 1, veto: 1 });
+    expect(snap.verdictTiming.rewrite.count).toBe(1);
+    expect(snap.verdictTiming.rewrite.max).toBe(2);
+  });
+
+  it('reset also clears verdict counters and timing', () => {
+    const stats = new TransactionStats();
+    stats.recordVerdict('veto', 5);
+    stats.reset();
+    const snap = stats.snapshot();
+    expect(snap.verdictCounts).toEqual({ pass: 0, rewrite: 0, veto: 0 });
+    expect(snap.verdictTiming.veto).toEqual({ count: 0, median: 0, p95: 0, max: 0 });
+  });
 });
