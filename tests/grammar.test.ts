@@ -82,6 +82,15 @@ describe('grammar planner: Enter (split)', () => {
   it('declines inside an atom (stock newline)', () => {
     expect(plan('```\ncode\n```\n', { line: 1, ch: 2 }, 'split')).toBeNull();
   });
+
+  it('splitting a list item WITH children lands the remainder as its first child (amendment 2026-07-21)', () => {
+    const src = '- parent text\n\t- child\n';
+    const outcome = plan(src, { line: 0, ch: 9 }, 'split');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text, cursor } = applyPlan(src, outcome.plan);
+    expect(text).toBe('- parent \n\t- text\n\t- child\n');
+    expect(cursor).toBe('- parent \n\t- '.length);
+  });
 });
 
 describe('grammar planner: Shift+Enter (continue)', () => {
