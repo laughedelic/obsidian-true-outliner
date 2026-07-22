@@ -13,4 +13,10 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   'not-expressible-under-target': "Markdown can't express that nesting here.",
   'cannot-reorder-across-heading-boundary': 'Sections only swap with same-level sections.',
   'cannot-split': "This block can't be split here.",
+  'empty-selection': 'Nothing to act on.',
+  'non-contiguous-subtrees': "Can't remove a partial selection — select whole nodes.",
+  'no-following-neighbor': 'Nothing here to join with.',
+  'would-orphan-children': "Joining here would leave a node's children without a parent.",
+  'merge-not-expressible': "These blocks can't be joined into one.",
+  'insertion-not-expressible': "Markdown can't express that content here.",
 };
