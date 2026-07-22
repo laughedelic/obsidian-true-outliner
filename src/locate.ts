@@ -11,6 +11,25 @@
 
 import type { OutlineDoc, OutlineNode } from './model';
 
+/** A node's own absolute start line (0-based) in `doc`, by id; -1 when the
+ * id is absent. The shared home for a walk several modules were each
+ * re-implementing privately. */
+export function nodeStartLine(doc: OutlineDoc, id: number): number {
+  let line = doc.preamble.length;
+  let found = -1;
+  const walk = (node: OutlineNode): void => {
+    if (found !== -1) return;
+    if (node.id === id) {
+      found = line;
+      return;
+    }
+    line += node.lines.length + node.trailingGap.length;
+    node.children.forEach(walk);
+  };
+  doc.children.forEach(walk);
+  return found;
+}
+
 export function nodeAtLine(doc: OutlineDoc, line: number): OutlineNode | undefined {
   let current = doc.preamble.length;
   if (line < current) return undefined;

@@ -13,7 +13,9 @@
  */
 
 import type { OutlineDoc } from './model';
-import { nodeAtLine } from './locate';
+import { nodeAtLine, nodeStartLine } from './locate';
+import { parse } from './parse';
+import { contentColumnCh } from './ops';
 
 export type TransactionClass =
   | 'programmatic'
@@ -33,6 +35,37 @@ export type TransactionClass =
 export interface ChangedLineSpan {
   readonly fromLine: number;
   readonly toLine: number;
+  /**
+   * Text this change inserts, verbatim — populated only by the Phase C
+   * adapter, optional so every pre-existing call site (and test) is
+   * unaffected. Needed for exactly one thing: a multi-block paste/drop
+   * landing at a single cursor position (nothing deleted) never crosses a
+   * boundary by span alone — `fromLine === toLine` in the OLD document,
+   * since nothing spanned multiple lines before the edit — so recognizing
+   * it as `boundary-crossing-edit` requires looking at what's being
+   * inserted, not just what was touched (node-edit-enforcement D5).
+   */
+  readonly insertedText?: string;
+  /**
+   * True when this change deletes EXACTLY one character and that character
+   * is the line break ending `fromLine` — the Backspace-at-node-start /
+   * Delete-at-node-end shape (node-edit-enforcement D4). A single-character
+   * deletion always has `fromLine === toLine` above by construction (removing
+   * one character can't span two lines under the `Math.max(fromA, toA - 1)`
+   * convention, which is deliberately blind to a single trailing newline —
+   * correct for the boundary-INSENSITIVE cases that convention exists for),
+   * so recognizing THIS one shape as boundary-crossing needs this separate
+   * bit from the adapter, which alone has the true character offsets.
+   */
+  readonly deletesLineBoundary?: boolean;
+  /**
+   * Character offsets of the change's OLD-document range on `fromLine` /
+   * `toLine` — populated by the Phase C adapter alongside the two facts
+   * above, needed only by the chrome-boundary shapes (a marker-space
+   * deletion is invisible at line granularity).
+   */
+  readonly fromCh?: number;
+  readonly toCh?: number;
 }
 
 /**
@@ -48,6 +81,17 @@ export interface TransactionFacts {
   readonly isComposition: boolean;
   /** Empty iff the transaction has no document changes at all. */
   readonly changedLineSpans: readonly ChangedLineSpan[];
+  /**
+   * The PRE-edit main-selection head (old-document line/ch) — the fact that
+   * distinguishes a chrome-boundary merge intent from deliberate gap
+   * editing (node-edit-enforcement's chrome-transparency amendment):
+   * Backspace at a node's content start and Delete at the end of the
+   * preceding gap line produce byte-identical transactions; only where the
+   * cursor WAS tells them apart. Optional so every pre-amendment call site
+   * (and test) is unaffected; without it the chrome shapes simply don't
+   * classify as boundary-crossing (conservative default).
+   */
+  readonly cursorBefore?: { readonly line: number; readonly ch: number };
 }
 
 /** This plugin's own grammar/command userEvent values (grammar.ts) —D2
@@ -61,6 +105,13 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   'input.structure.outdent',
   'input.structure.split',
   'move.structure',
+  // node-edit-enforcement rewrites (design.md D7a): these carry the SAME
+  // short-circuit grammar dispatches already rely on — a rewritten
+  // transaction must never be handed back to the verdict layer a second
+  // time, so it is unconditionally `plugin-own` regardless of the shape of
+  // the change it carries.
+  'delete.structural',
+  'input.paste.structural',
 ];
 
 /** CM6's own `Transaction.isUserEvent` semantics, reimplemented on plain
@@ -118,6 +169,105 @@ function spanCrossesBoundary(doc: OutlineDoc, span: ChangedLineSpan): boolean {
 }
 
 /**
+ * Whether a parsed block sequence needs boundary splicing rather than a raw
+ * character-level insertion (node-edit-enforcement D5, corrected 2026-07-22
+ * third manual pass): true for more than one top-level block, OR a single
+ * top-level block that itself has CHILDREN — a whole one-node subtree copy
+ * (e.g. a list item with nested children) needs exactly the same splice/
+ * re-indent treatment a multi-node copy does, since its children's
+ * indentation is baked into the copied text at the ORIGINAL depth and is
+ * meaningless pasted verbatim at a different one. A single block with no
+ * children (a plain paragraph, or a lone childless list item) is left as a
+ * raw insertion — indistinguishable from continuation-line typing.
+ */
+export function isStructuralBlockSequence(parsedBlocks: readonly { children: readonly unknown[] }[]): boolean {
+  return parsedBlocks.length > 1 || (parsedBlocks.length === 1 && parsedBlocks[0]!.children.length > 0);
+}
+
+/**
+ * A pure insertion (nothing deleted) whose inserted text parses as a
+ * structural block sequence (see `isStructuralBlockSequence`), landing on a
+ * real node's own line (not the preamble) — the shape node-edit-enforcement
+ * D5 splices at a boundary rather than leaving as a raw mid-node character
+ * insertion.
+ */
+function isMultiBlockInsertion(doc: OutlineDoc, span: ChangedLineSpan): boolean {
+  if (!span.insertedText) return false;
+  if (span.fromLine !== span.toLine) return false;
+  if (!nodeAtLine(doc, span.fromLine)) return false; // preamble: out of jurisdiction
+  return isStructuralBlockSequence(parse(span.insertedText).children);
+}
+
+/** The single-newline-deletion shape (see `deletesLineBoundary`'s own
+ * comment) checked against the line immediately following `fromLine` —
+ * the line whose owner the removed newline used to separate `fromLine`
+ * from. */
+function crossesViaBoundaryDeletion(doc: OutlineDoc, span: ChangedLineSpan): boolean {
+  if (!span.deletesLineBoundary) return false;
+  return lineIdentity(doc, span.fromLine) !== lineIdentity(doc, span.fromLine + 1);
+}
+
+/**
+ * Chrome-boundary deletion shapes (node-edit-enforcement's
+ * chrome-transparency amendment, 2026-07-21) — deletions that stay inside
+ * ONE node at line granularity yet express a content-level merge intent,
+ * established by the pre-edit cursor:
+ *
+ * 1. Marker-space deletion: a single-character deletion on a list item's
+ *    first line ending exactly at its content column, cursor there —
+ *    Backspace at the item's first content character eating the marker's
+ *    trailing space.
+ * 2. Delete into the own gap: a single-newline deletion whose adjacent
+ *    lines BOTH belong to one node (the newline ending its last content
+ *    line, pulling its own trailing gap up), cursor at the node's content
+ *    end — Delete at the last content character reaching for the next node
+ *    through the gap.
+ *
+ * The same bytes with the cursor elsewhere (editing the gap from within
+ * it) deliberately do NOT match — that's the native whitespace-authoring
+ * escape hatch.
+ */
+function crossesViaChromeDeletion(
+  doc: OutlineDoc,
+  facts: TransactionFacts,
+  span: ChangedLineSpan,
+): boolean {
+  const cursor = facts.cursorBefore;
+  if (!cursor) return false;
+  if (span.insertedText !== undefined && span.insertedText !== '') return false;
+
+  // Shape 1: marker-space deletion at a list item's content start.
+  if (
+    span.fromLine === span.toLine &&
+    span.fromCh !== undefined &&
+    span.toCh !== undefined &&
+    span.toCh - span.fromCh === 1 &&
+    !span.deletesLineBoundary
+  ) {
+    const node = nodeAtLine(doc, span.fromLine);
+    if (!node || node.kind !== 'list-item') return false;
+    if (nodeStartLine(doc, node.id) !== span.fromLine) return false;
+    const contentCol = contentColumnCh(node.lines[0] ?? '');
+    return (
+      span.toCh === contentCol && cursor.line === span.fromLine && cursor.ch === contentCol
+    );
+  }
+
+  // Shape 2: Delete at content end into the node's own trailing gap.
+  if (span.deletesLineBoundary) {
+    const node = nodeAtLine(doc, span.fromLine);
+    if (!node) return false;
+    if (nodeAtLine(doc, span.fromLine + 1) !== node) return false; // crossing case is handled above
+    const lastContentLine = nodeStartLine(doc, node.id) + node.lines.length - 1;
+    if (span.fromLine !== lastContentLine) return false; // gap-interior deletion
+    const lastLen = (node.lines[node.lines.length - 1] ?? '').length;
+    return cursor.line === lastContentLine && cursor.ch === lastLen;
+  }
+
+  return false;
+}
+
+/**
  * Classifies one transaction. Total and side-effect-free: every input
  * produces exactly one class, in the D2 order.
  */
@@ -126,7 +276,14 @@ export function classify(facts: TransactionFacts, doc: OutlineDoc): TransactionC
   if (facts.isComposition) return 'composition';
   if (isPluginOwn(facts)) return 'plugin-own';
   if (facts.changedLineSpans.length === 0) return 'selection-only';
-  return facts.changedLineSpans.some((span) => spanCrossesBoundary(doc, span))
-    ? 'boundary-crossing-edit'
-    : 'within-node-edit';
+  if (facts.changedLineSpans.some((span) => spanCrossesBoundary(doc, span))) {
+    return 'boundary-crossing-edit';
+  }
+  const other = facts.changedLineSpans.some(
+    (span) =>
+      isMultiBlockInsertion(doc, span) ||
+      crossesViaBoundaryDeletion(doc, span) ||
+      crossesViaChromeDeletion(doc, facts, span),
+  );
+  return other ? 'boundary-crossing-edit' : 'within-node-edit';
 }
