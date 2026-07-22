@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "108f452890e9",
+  "strategy": "manual-commit",
+  "branch": "outline-edit-enforcement",
+  "checkpoints_count": 21,
+  "files_touched": [
+    "src/classify.ts",
+    "src/enforce.ts",
+    "src/escalate.ts",
+    "src/locate.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/10/8f452890e9/0/metadata.json",
+      "transcript": "/10/8f452890e9/0/full.jsonl",
+      "compact_transcript": "/10/8f452890e9/0/transcript.jsonl",
+      "content_hash": "/10/8f452890e9/0/content_hash.txt",
+      "prompt": "/10/8f452890e9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1405,
+    "cache_creation_tokens": 5950588,
+    "cache_read_tokens": 358331834,
+    "output_tokens": 619550,
+    "api_call_count": 658
+  }
+}
