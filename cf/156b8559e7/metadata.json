@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "cf156b8559e7",
+  "strategy": "manual-commit",
+  "branch": "outline-edit-enforcement",
+  "checkpoints_count": 21,
+  "files_touched": [
+    "src/plugin/messages.ts",
+    "src/plugin/stats.ts",
+    "src/plugin/transaction-filter.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/cf/156b8559e7/0/metadata.json",
+      "transcript": "/cf/156b8559e7/0/full.jsonl",
+      "compact_transcript": "/cf/156b8559e7/0/transcript.jsonl",
+      "content_hash": "/cf/156b8559e7/0/content_hash.txt",
+      "prompt": "/cf/156b8559e7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1409,
+    "cache_creation_tokens": 5951804,
+    "cache_read_tokens": 358559199,
+    "output_tokens": 620074,
+    "api_call_count": 660
+  }
+}
