@@ -116,15 +116,20 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('1. two\n2. one\n3. three\n');
   });
 
-  it('Enter mid-item splits into two items; children stay with the upper', async function () {
+  it('Enter mid-item splits into two items (childless)', async function () {
     await grammarNote('- alpha beta\n', 0, 8);
     await h.keys.enter();
     expect(await h.getBuffer()).toBe('- alpha \n- beta\n');
     expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+  });
 
+  it('Enter mid-item WITH children lands the remainder as the new first child (amendment 2026-07-21)', async function () {
+    // Content-adjacent split: the remainder sits directly below the split
+    // point, above the existing children — not a sibling past the subtree.
     await grammarNote('- parent text\n\t- child\n', 0, 9);
     await h.keys.enter();
-    expect(await h.getBuffer()).toBe('- parent \n\t- child\n- text\n');
+    expect(await h.getBuffer()).toBe('- parent \n\t- text\n\t- child\n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 3 });
   });
 
   it('Enter at item end creates an empty sibling, cursor after marker', async function () {
