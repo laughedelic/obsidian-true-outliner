@@ -1,116 +1,38 @@
-# obsidian-true-outliner
+# True Outliner
 
-A true outliner for Obsidian — *any note is an outline*: enforced structure, node
-selection, and a lossless (isomorphic) mapping between markdown and its inherent block
-tree. Research and decisions: [docs/research/](docs/research/).
+True outliner experience for Obsidian
 
-**Status**: mapping core implemented (pure library, no Obsidian/CodeMirror dependencies
-yet). The editor integration comes in later changes.
+> [!WARNING]
+> **Work in progress.** This is an early-stage, research-heavy project, not a usable plugin yet. It's public because the work happens in the open, not because it's ready for users. There's no release, no install instructions, and no support yet, check back later. If you want to support the project or have opinions on the direction, please open a [discussion](https://github.com/laughedelic/obsidian-true-outliner/discussions).
 
-## The mapping core (`src/`)
+## Vision
 
-Markdown ↔ block tree, plus the structural operations, with machine-checked guarantees:
+- Outliner apps (Workflowy, Roam, Logseq, Tana) share one invariant: the document is a **tree of nodes**, and every operation (typing, selecting, deleting, moving, pasting) respects **node boundaries**. The structure can't be malformed.
+- Obsidian's markdown lists don't have that invariant.
+  - Existing outliner plugins bolt keyboard tricks onto flat text, so the structure is one careless selection away from breaking.
+  - This is fragile: the cursor has to be in just the right place, and copying or moving things around often breaks the file.
+- True Outliner aims to bring the enforced-tree invariant to Obsidian without leaving markdown behind.
+  - Any note is an outline: every note already has a block structure (headings, paragraphs, list items), and that structure maps losslessly onto a node tree.
+  - The plugin lets you view and edit that tree directly, with the same guarantees as a dedicated outliner.
+  - The file on disk stays plain, readable markdown, so it still works with every other tool, plugin, and sync method Obsidian offers.
 
-- **Byte-identity round-trip** — `encode(parse(md)) === md` for *any* input. Nodes own
-  their original lines verbatim; encoding is span concatenation, so identity is
-  structural, not aspirational.
-- **Op closure** — every accepted operation returns a tree that re-parses identically
-  from its own encoding, plus a minimal line-edit list that reproduces it.
-- **Minimal edits** — lines outside the moved/re-leveled subtree are byte-identical
-  (documented exception: ordered-list marker renumbering).
+## Goals
 
-### API
+- Structural integrity: no operation can produce broken indentation, orphaned children, or text floating outside the tree. This is enforced, not best-effort.
+- Lossless, isomorphic markdown mapping: the block tree and its markdown encoding are two views of the same thing.
+  - Parsing and re-encoding a file round-trips byte-for-byte.
+  - Every structural edit resolves to a well-defined, minimal diff, never hidden state, never a lossy rewrite of the whole file.
+- Any note, not a special mode: the outliner isn't a separate note type or a vault takeover, it's a way of looking at and editing the notes you already have.
+- Public APIs only: built on Obsidian's documented editor and plugin APIs, no monkey-patching private internals, so it stays compatible and passes the community plugin safety bar honestly.
+- Clean files: no required front matter, IDs, or metadata just to make the outliner work. What the outliner needs to track (like fold state) lives in plugin data, not in your notes.
 
-```ts
-import { parse, encode, indent, outdent, moveUp, moveDown } from './src';
+## Approach
 
-const doc = parse(markdown);            // OutlineDoc: block tree, verbatim spans
-encode(doc) === markdown;               // always
-
-const result = indent(doc, nodeId);     // OpResult<{ doc, edits }>
-if (result.ok) {
-  result.value.doc;                     // new tree (re-parsed canonical form)
-  result.value.edits;                   // minimal line-range replacements
-} else {
-  result.rejection.reason;              // typed: 'at-h6-bound', 'at-top-level', …
-}
-```
-
-### The two-regime algebra
-
-- **Headings**: indent/outdent = level ± 1 (org-mode promote/demote), whole subtree
-  shifts, hierarchy re-derives from levels; rejected only at the h1/h6 bounds.
-- **Everything else**: indent = child of previous sibling, outdent = brother→uncle;
-  the node's encoding (paragraph vs list item) is recomputed from its new context.
-- **Always**: an op writes the minimal markdown encoding of the new tree, or is
-  rejected as a typed value — never hidden state, never lossy conversion.
-
-Full rules and their rationale: [docs/research/04-open-questions.md](docs/research/04-open-questions.md);
-org-mode alignment: [docs/research/05-org-mode-comparison.md](docs/research/05-org-mode-comparison.md).
-
-### Dialect notes
-
-Block-level Obsidian markdown, not strict CommonMark: callouts and task markers are
-recognized; lazy continuation lines are not supported; top-level 4-space-indented code
-parses as paragraph nodes (bytes still round-trip); setext headings are recognized and
-rewritten to ATX only when a level op touches them. New nesting uses 2-space
-indentation; existing indentation (including tabs) is preserved via relative shifts.
-
-## Development
-
-```sh
-npm test        # vitest: unit + fast-check property suites + corpus round-trips
-npm run build   # tsc --noEmit
-npm run lint    # eslint (obsidianmd plugin config lands with the plugin surface)
-npm run test:e2e  # end-to-end: real Obsidian against a sandboxed copy of test-vault/
-```
-
-### End-to-end tests (`e2e/`)
-
-`npm run test:e2e` builds the plugin, then uses
-[wdio-obsidian-service](https://github.com/jesse-r-s-hines/wdio-obsidian-service)
-to download Obsidian (first run only, cached in `.obsidian-cache/`), launch it
-against a throwaway copy of `test-vault/` with the plugin installed, and run
-the specs in `e2e/specs/`. The checked-in vault is never modified.
-
-The suites automate the verification protocol in
-`openspec/changes/archive/2026-07-13-editor-core/verification.md` — see that
-file for the scenario-to-spec map. To add a spec, drop a `*.e2e.ts` file in `e2e/specs/`
-and use the helpers in `e2e/helpers.ts` (buffer/disk/data.json readers, key
-chords, notice assertions). `browser.executeObsidian(({app, obsidian}) => …)`
-runs code inside the app; `browser.reloadObsidian()` restarts it for
-persistence tests. The harness lives outside the plugin bundle, the vitest
-suite, and the root typecheck (`npm run build:e2e` typechecks it).
-
-### Mobile testing
-
-```sh
-npm run test:e2e:mobile   # same specs, under Obsidian's mobile UI
-```
-
-This is a feedback loop for continuously assessing mobile feasibility, not a
-hard requirement to build against — full mobile support isn't a goal at this
-stage; our standing bar remains "mobile-safe from day 1, desktop-tested for
-v1.0" ([docs/research/04-open-questions.md](docs/research/04-open-questions.md)
-Q7). The value is early discovery: if a design or architecture choice would
-make mobile support harder or impossible later, we want that insight now,
-while it's cheap to react to, rather than once mobile becomes the focus.
-
-This re-runs the full spec suite against Obsidian's own [mobile
-emulation](https://docs.obsidian.md/Plugins/Getting+started/Mobile+development#Emulate+mobile+device+on+desktop)
-(`app.emulateMobile()` at a phone-sized viewport, via
-`e2e/wdio.mobile-emulation.conf.mts`) — no physical device or manual plugin
-install needed, first run downloads Obsidian the same way `test:e2e` does.
-`00-smoke.e2e.ts`'s platform-mode check fails loudly if emulation didn't
-actually engage.
-
-Emulation is still the Electron desktop app wearing a phone-sized viewport,
-not the real Capacitor mobile app — good for the mobile *UI* (layout at
-narrow widths, `is-mobile`/`is-phone`/`is-tablet` behavior, touch-sized
-targets) but it can't surface a Capacitor-only platform gap. The one that
-matters most here — no Node/Electron APIs on mobile — is already enforced
-separately by `eslint-plugin-obsidianmd`'s `no-nodejs-modules` rule, so this
-harness gap is narrower than it first looks. `wdio-obsidian-service` can also
-drive a real Android Virtual Device via Appium for a higher-fidelity (but
-much heavier — Android Studio, an AVD, slower runs) test; not set up here.
-iOS isn't supported by the harness at all.
+- The design splits into two layers:
+  - A pure mapping core: markdown parsing, encoding, and structural operations (indent, outdent, move, etc.) as a standalone library with no editor or Obsidian dependency. Correctness here (round-tripping, op closure, minimal edits) is verified independently of any UI.
+  - An editor integration: a CodeMirror 6 extension inside Obsidian's standard markdown view that renders and drives that model, giving the outliner experience without replacing the file format or the editor.
+- The mapping algebra has two structural regimes:
+  - Headings behave like org-mode promote/demote: indent/outdent shifts heading level.
+  - Everything else reparents relative to siblings, with markdown encoding recomputed from context.
+  - Either way, an operation produces a well-formed tree, or it's rejected with a clear, typed reason, never a partial or ambiguous result.
+- The research and design decisions behind these choices are written up in [docs/research/](docs/research/).
