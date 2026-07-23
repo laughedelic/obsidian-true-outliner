@@ -31,6 +31,19 @@ const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
   'headings-and-paragraphs': 'Only headings and paragraphs',
 };
 
+/**
+ * Note: `indent`/`outdent` also accept an optional trailing
+ * `fallbackIndentUnit` (the unit to use for brand-new indentation with no
+ * existing evidence in the document — see ops.ts's `destinationIndent`).
+ * The command-palette path here can't supply it: Obsidian's public `Editor`/
+ * `MarkdownView` API doesn't expose the underlying CM6 `EditorState`, so
+ * there's no public-API way to read the live "Indent using tabs" setting
+ * (the `@codemirror/language` `indentUnit` facet) from a command callback
+ * the way keymap.ts's Tab/Shift-Tab handler and transaction-filter.ts's
+ * paste path do. These commands fall back to inferring from the document's
+ * own existing indentation, same as before this fix — a known, small gap
+ * limited to the command-palette / custom-hotkey entry point.
+ */
 type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];

@@ -6,6 +6,7 @@
 
 import { Prec, type Extension } from '@codemirror/state';
 import { keymap, type EditorView } from '@codemirror/view';
+import { indentUnit } from '@codemirror/language';
 import { Notice, editorInfoField } from 'obsidian';
 import { planKey, type GrammarKey } from './grammar';
 
@@ -21,10 +22,14 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
 
     const head = view.state.selection.main.head;
     const line = view.state.doc.lineAt(head);
+    // Public CM6 facet — Obsidian sets it from its own "Indent using tabs"
+    // editor setting, so reading it here respects that preference without
+    // touching any Obsidian-private API (confirmed live: toggling the
+    // setting flips this facet's value immediately).
     const outcome = planKey(view.state.doc.toString(), {
       line: line.number - 1,
       ch: head - line.from,
-    }, key);
+    }, key, view.state.facet(indentUnit));
 
     if (outcome === null) return false;
     if ('notice' in outcome) {

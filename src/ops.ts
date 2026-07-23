@@ -255,30 +255,41 @@ function renumberOrdered(nodes: readonly OutlineNode[]): readonly OutlineNode[] 
  * 2. else the parent's own indentation plus one inferred unit (list-item
  *    parents) or exactly the parent's indentation (paragraph parents),
  * 3. else '' under headings/root.
+ *
+ * `fallbackIndentUnit` only matters for step 2 when the document itself has
+ * no existing indented list item to infer a unit from (a brand-new note, or
+ * the first indent in one) — see `inferIndentUnit`.
  */
 export function destinationIndent(
   doc: OutlineDoc,
   parent: OutlineNode | 'root',
   siblingsAtDestination: readonly OutlineNode[],
+  fallbackIndentUnit?: string,
 ): string {
   const sibling = siblingsAtDestination.find((n) => n.kind === 'list-item');
   if (sibling) return leadingWhitespace(sibling.lines[0] ?? '');
   if (parent === 'root' || parent.kind === 'heading') return '';
   const parentIndent = leadingWhitespace(parent.lines[0] ?? '');
   if (parent.kind === 'paragraph') return parentIndent;
-  return parentIndent + inferIndentUnit(doc);
+  return parentIndent + inferIndentUnit(doc, fallbackIndentUnit);
 }
 
-/** The document's list indent unit: tab if any indented list line uses one,
- * else the first indented item's spaces, else two spaces. */
-function inferIndentUnit(doc: OutlineDoc): string {
+/**
+ * The document's list indent unit: tab if any indented list line uses one,
+ * else the first indented item's spaces, else `fallback` — which lets
+ * callers with a live editor (Obsidian's own "Indent using tabs" setting,
+ * read from CodeMirror's public `indentUnit` facet) supply the vault's
+ * preferred unit instead of a hardcoded default. Only reached when the
+ * document has no existing indented list item to infer from at all.
+ */
+function inferIndentUnit(doc: OutlineDoc, fallback = '  '): string {
   for (const node of walkDoc(doc)) {
     if (node.kind !== 'list-item') continue;
     const ws = leadingWhitespace(node.lines[0] ?? '');
     if (ws.includes('\t')) return '\t';
     if (ws.length > 0) return ws.length >= 4 ? '    ' : ws;
   }
-  return '  ';
+  return fallback;
 }
 
 function* walkDoc(doc: OutlineDoc): Generator<OutlineNode> {
@@ -293,7 +304,11 @@ function* walkDoc(doc: OutlineDoc): Generator<OutlineNode> {
 
 // ------------------------------------------------------------------ indent
 
-export function indent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
+export function indent(
+  doc: OutlineDoc,
+  nodeId: number,
+  fallbackIndentUnit?: string,
+): OpResult<OpOutput> {
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
@@ -330,7 +345,7 @@ export function indent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
   const moved = reencodeForDestination(
     node,
     newKind,
-    destinationIndent(doc, target, target.children.slice(0, insertIndex)),
+    destinationIndent(doc, target, target.children.slice(0, insertIndex), fallbackIndentUnit),
   );
 
   let surgery = updateSiblings(doc, parentPath, (nodes) => {
@@ -345,7 +360,11 @@ export function indent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
 
 // ----------------------------------------------------------------- outdent
 
-export function outdent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
+export function outdent(
+  doc: OutlineDoc,
+  nodeId: number,
+  fallbackIndentUnit?: string,
+): OpResult<OpOutput> {
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
@@ -385,7 +404,7 @@ export function outdent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
     // adopts the parent's own indentation string.
     node.kind === 'list-item' || newKind === 'list-item'
       ? leadingWhitespace(parent.lines[0] ?? '')
-      : destinationIndent(doc, grandParent ?? 'root', []),
+      : destinationIndent(doc, grandParent ?? 'root', [], fallbackIndentUnit),
   );
 
   // Outdent-in-place (Logseq semantics): the node's own former following
@@ -482,6 +501,7 @@ export function splitNode(
   doc: OutlineDoc,
   nodeId: number,
   position: { line: number; ch: number },
+  fallbackIndentUnit?: string,
 ): OpResult<OpOutput> {
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
@@ -519,7 +539,7 @@ export function splitNode(
     // whose child scope demands a paragraph can't materialize a first child
     // — fall through to the childless sibling behavior for that edge.
     if (!(emptyRemainder && childKind === 'paragraph')) {
-      const indentText = destinationIndent(doc, node, node.children);
+      const indentText = destinationIndent(doc, node, node.children, fallbackIndentUnit);
       let lower: OutlineNode;
       if (childKind === 'list-item') {
         const firstLine = emptyRemainder
@@ -851,8 +871,9 @@ export function reencodeBlocksForDestination(
   precedingSiblings: readonly OutlineNode[],
   followingSiblings: readonly OutlineNode[],
   parsedBlocks: readonly OutlineNode[],
+  fallbackIndentUnit?: string,
 ): readonly OutlineNode[] {
-  const indentText = destinationIndent(doc, parent, precedingSiblings);
+  const indentText = destinationIndent(doc, parent, precedingSiblings, fallbackIndentUnit);
   const newContentKind = encodingKindAtDestination({
     parentKind: parent === 'root' ? 'root' : parent.kind,
     precedingSiblings,
@@ -876,6 +897,7 @@ export function insertSubtrees(
   anchorId: number,
   parsedBlocks: readonly OutlineNode[],
   position: 'before' | 'after',
+  fallbackIndentUnit?: string,
 ): OpResult<OpOutput> {
   if (parsedBlocks.length === 0) return reject('empty-selection');
   const anchorPath = findPath(doc, anchorId);
@@ -897,7 +919,14 @@ export function insertSubtrees(
   const insertIndex = position === 'before' ? anchorIndex : anchorIndex + 1;
   const precedingSiblings = siblings.slice(0, insertIndex);
   const followingSiblings = siblings.slice(insertIndex);
-  const reencoded = reencodeBlocksForDestination(doc, parent, precedingSiblings, followingSiblings, parsedBlocks);
+  const reencoded = reencodeBlocksForDestination(
+    doc,
+    parent,
+    precedingSiblings,
+    followingSiblings,
+    parsedBlocks,
+    fallbackIndentUnit,
+  );
 
   // Gap ownership (design.md D2, mirroring splitNode's own gap-repair):
   // the anchor's trailing gap represents its separation from whatever

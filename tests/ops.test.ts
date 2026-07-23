@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { walkNodes, type OutlineDoc } from '../src/model';
-import { indent, outdent, moveDown, moveUp } from '../src/ops';
+import { indent, outdent, moveDown, moveUp, splitNode } from '../src/ops';
 import { applyEdits } from '../src/result';
 
 /** Find the node whose first line matches. */
@@ -175,6 +175,64 @@ describe('paragraph/list reparenting', () => {
     expectReject(outdent, 'Top level.\n', 'Top level.', 'at-top-level');
     expectReject(indent, '```\ncode\n```\n\nAfter code.\n', 'After code.', 'not-expressible-under-target');
     expectReject(outdent, '# H\n\nInside section.\n', 'Inside section.', 'not-expressible-under-target');
+  });
+});
+
+describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
+  // A document with no existing indented list item anywhere has nothing to
+  // infer a unit from — this is exactly the case that used to hardcode two
+  // spaces regardless of the vault's own tab/space preference.
+  function applyWithUnit(
+    op: typeof indent,
+    md: string,
+    line: string,
+    fallbackIndentUnit: string | undefined,
+  ): { text: string; doc: OutlineDoc } {
+    const doc = parse(md);
+    const result = op(doc, byLine(doc, line), fallbackIndentUnit);
+    if (!result.ok) throw new Error(`unexpected rejection: ${result.rejection.reason}`);
+    const text = encode(result.value.doc);
+    return { text, doc: result.value.doc };
+  }
+
+  it('with no override, still defaults to two spaces (unchanged default)', () => {
+    const { text } = applyWithUnit(indent, '- a\n- b\n', '- b', undefined);
+    expect(text).toBe('- a\n  - b\n');
+  });
+
+  it('a caller-supplied tab is used for brand-new indentation', () => {
+    const { text, doc } = applyWithUnit(indent, '- a\n- b\n', '- b', '\t');
+    expect(text).toBe('- a\n\t- b\n');
+    expect(doc.children[0]!.children[0]!.lines[0]).toBe('\t- b');
+  });
+
+  it('a caller-supplied space width is used for brand-new indentation', () => {
+    const { text } = applyWithUnit(indent, '- a\n- b\n', '- b', '    ');
+    expect(text).toBe('- a\n    - b\n');
+  });
+
+  it("existing document indentation still wins over the fallback (doesn't override an established style)", () => {
+    // The doc already uses tabs elsewhere, so indenting b under a should
+    // still infer tabs even when the fallback says spaces.
+    const { text } = applyWithUnit(indent, '- x\n\t- y\n\n- a\n- b\n', '- b', '    ');
+    expect(text).toBe('- x\n\t- y\n\n- a\n\t- b\n');
+  });
+
+  it("splitNode's content-adjacent split honors the fallback too", () => {
+    // "a" already has a paragraph child ("child para"), so splitting inside
+    // "a"'s own text lands the remainder as a NEW first-child paragraph —
+    // no list-item sibling at that landing spot to copy indentation from,
+    // so the fallback governs its indentation (see destinationIndent).
+    const src = '- a\n\n  child para\n';
+    const doc = parse(src);
+    const a = byLine(doc, '- a');
+    const withoutFallback = splitNode(doc, a, { line: 0, ch: 2 });
+    if (!withoutFallback.ok) throw new Error(`unexpected rejection: ${withoutFallback.rejection.reason}`);
+    expect(encode(withoutFallback.value.doc)).toBe('- \n\n  a\n\n  child para\n');
+
+    const withTab = splitNode(doc, a, { line: 0, ch: 2 }, '\t');
+    if (!withTab.ok) throw new Error(`unexpected rejection: ${withTab.rejection.reason}`);
+    expect(encode(withTab.value.doc)).toBe('- \n\n\ta\n\n  child para\n');
   });
 });
 
