@@ -150,6 +150,21 @@ describe('5.3 inverse laws', () => {
       }
     }
   });
+
+  it('outdent with following siblings still closes (parse(encode(surgery)) round-trips)', () => {
+    // docs/research/04-open-questions.md Q17: outdenting a node with
+    // following siblings under the same parent used to drop them instead of
+    // re-parenting them — regression coverage for closure on that path.
+    const doc = parse('- p\n\t- x\n\t- y\n\t- z\n');
+    const x = [...walkNodes(doc)].find((n) => n.lines[0] === '\t- x')!;
+    const result = outdent(doc, x.id);
+    if (!result.ok) throw new Error(`unexpected rejection: ${result.rejection.reason}`);
+    const text = encode(result.value.doc);
+    expect(treesEqual(result.value.doc, parse(text))).toBe(true);
+    const viaEdits = applyEdits(encode(doc).split('\n'), result.value.edits).join('\n');
+    expect(viaEdits).toBe(text);
+    expect(text).toBe('- p\n- x\n\t- y\n\t- z\n');
+  });
 });
 
 describe('5.4 rejections are total and typed', () => {

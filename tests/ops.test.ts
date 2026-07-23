@@ -111,6 +111,47 @@ describe('paragraph/list reparenting', () => {
     expect(x.children[0]!.lines[0]).toBe('- y');
   });
 
+  it('outdent re-parents following siblings as the node\'s own children', () => {
+    const { text, doc } = applyOk(outdent, '- p\n\t- x\n\t- y\n\t- z\n', '\t- x');
+    expect(text).toBe('- p\n- x\n\t- y\n\t- z\n');
+    expect(doc.children.map((n) => n.lines[0])).toEqual(['- p', '- x']);
+    const p = doc.children[0]!;
+    const x = doc.children[1]!;
+    expect(p.children).toEqual([]);
+    expect(x.children.map((n) => n.lines[0])).toEqual(['\t- y', '\t- z']);
+  });
+
+  it('outdent appends re-parented following siblings after the node\'s own children', () => {
+    const src = '- p\n\t- x\n\t\t- w\n\t- y\n\t- z\n';
+    const { text, doc } = applyOk(outdent, src, '\t- x');
+    expect(text).toBe('- p\n- x\n\t- w\n\t- y\n\t- z\n');
+    const x = doc.children[1]!;
+    expect(x.children.map((n) => n.lines[0])).toEqual(['\t- w', '\t- y', '\t- z']);
+  });
+
+  it('outdent with no following siblings is unaffected (last child)', () => {
+    const { text, doc } = applyOk(outdent, '- p\n\t- x\n\t- y\n\t- z\n', '\t- z');
+    expect(text).toBe('- p\n\t- x\n\t- y\n- z\n');
+    const p = doc.children[0]!;
+    expect(p.children.map((n) => n.lines[0])).toEqual(['\t- x', '\t- y']);
+    expect(doc.children[1]!.lines[0]).toBe('- z');
+    expect(doc.children[1]!.children).toEqual([]);
+  });
+
+  it('re-parented following siblings are re-encoded for their new context', () => {
+    // x has a nested paragraph child ("nested para"); its former following
+    // sibling z (a list item under p) becomes x's next child and, per the
+    // context-determined encoding rule, takes its kind from the nearest
+    // preceding donor — x's own paragraph child — converting from list-item
+    // to paragraph.
+    const src = '- p\n  - x\n\n    nested para\n\n  - z\n';
+    const { text, doc } = applyOk(outdent, src, '  - x');
+    expect(text).toBe('- p\n- x\n\n  nested para\n\n  z\n');
+    const x = doc.children[1]!;
+    expect(x.children.map((n) => n.kind)).toEqual(['paragraph', 'paragraph']);
+    expect(x.children[1]!.lines[0]).toBe('  z');
+  });
+
   it('nested-list outdent adopts the destination level indentation (tabs kept)', () => {
     // c becomes b's sibling — at b's level, with b's tab indentation.
     const { text, doc } = applyOk(outdent, '- a\n\t- b\n\t\t- c\n', '\t\t- c');

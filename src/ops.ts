@@ -378,7 +378,7 @@ export function outdent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
         followingSiblings: grandSiblings.slice(parentIndex + 1),
       })
     : undefined;
-  const moved = reencodeForDestination(
+  let moved = reencodeForDestination(
     node,
     newKind,
     // Brother→uncle: the node lands at its former parent's level, so it
@@ -388,8 +388,34 @@ export function outdent(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
       : destinationIndent(doc, grandParent ?? 'root', []),
   );
 
+  // Outdent-in-place (Logseq semantics): the node's own former following
+  // siblings under `parent` re-parent as ITS trailing children — they stay
+  // attached to the node they used to sit beside, rather than being left
+  // behind under `parent` (which would silently drop them out of the
+  // subtree the user just moved).
+  const followingSiblings = childrenAt(doc, parentPath).slice(index + 1);
+  if (followingSiblings.length > 0) {
+    let children = moved.children;
+    for (const [i, sibling] of followingSiblings.entries()) {
+      const newSiblingKind = isContent(sibling)
+        ? encodingKindAtDestination({
+            parentKind: moved.kind,
+            precedingSiblings: children,
+            followingSiblings: followingSiblings.slice(i + 1),
+          })
+        : undefined;
+      const reencoded = reencodeForDestination(
+        sibling,
+        newSiblingKind,
+        destinationIndent(doc, moved, children),
+      );
+      children = [...children, reencoded];
+    }
+    moved = { ...moved, children: renumberOrdered(children) };
+  }
+
   let surgery = updateSiblings(doc, parentPath, (nodes) =>
-    renumberOrdered(nodes.filter((_, i) => i !== index)),
+    renumberOrdered(nodes.slice(0, index)),
   );
   surgery = updateSiblings(surgery, grandPath, (nodes) =>
     renumberOrdered([
