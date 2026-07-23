@@ -68,6 +68,7 @@ import {
 import { editorInfoField } from 'obsidian';
 import type { NodeKind } from '../model';
 import { parse } from '../parse';
+import { coveredSubtreeRoots, type LinePos, type LineRange } from '../escalate';
 import {
   computeLineGuides,
   decorate,
@@ -75,6 +76,7 @@ import {
   type LineGuideFact,
 } from './decorate';
 import type { ModeSource } from './keymap';
+import { parsedDoc } from './parsed-doc';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
 //
@@ -502,42 +504,52 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
   return builder.finish();
 }
 
+/**
+ * Own-shift expression (units of `--to-decor-unit`, plus the marker gutter
+ * where applicable): how far this line's own box has been shifted right by
+ * its own margin-left/padding-left — the exact compensation a leftward-
+ * reaching overlay (a guide, or escalated-selection chrome, below) needs to
+ * widen its box by to reach a shallower ancestor's column (see the doc
+ * comment above `guideLayer`). `'0px'` means the box isn't shifted at all
+ * (block lines: padding-left never moves the box). Static/formula-based —
+ * NOT the more precise, live-measured value `MarginCompensation` computes
+ * per widget atom (which additionally corrects for native padding); callers
+ * needing that precision use their own value instead of this one.
+ */
+function plainOwnShiftExpr(fact: LineDecorationFact): string {
+  if (fact.isListItem) {
+    // List items get no marker gutter (native bullet/number only).
+    return fact.supplementalDepth > 0 ? `calc(${fact.supplementalDepth} * ${UNIT})` : '0px';
+  }
+  if (fact.isAtom) {
+    // Every non-list line reserves the marker gutter, so the box is always
+    // shifted by at least the gutter, even at depth 0.
+    return `calc(${fact.depth} * ${UNIT} + var(--to-marker-gutter, 0px))`;
+  }
+  return '0px'; // padding-left never shifts a block line's own box
+}
+
 function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decoration {
   const styles: string[] = [];
   let cls: string;
-  // Own-shift expression (units of `--to-decor-unit`, plus the marker
-  // gutter where applicable) this line's own box has been shifted right by
-  // its own margin-left — the exact compensation the guide's pseudo needs
-  // to widen its box by, leftward, to reach a shallower ancestor's column
-  // (see the doc comment above `guideLayer`). `undefined` means the box
-  // isn't shifted at all (block lines: padding-left never moves the box).
-  let ownShiftExpr: string | undefined;
 
   if (fact.isListItem) {
     cls = 'to-decor-list';
     styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
-    // List items get no marker gutter (native bullet/number only).
-    ownShiftExpr = fact.supplementalDepth > 0 ? `calc(${fact.supplementalDepth} * ${UNIT})` : undefined;
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
     styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
-    // Every non-list line reserves the marker gutter, so the box is always
-    // shifted by at least the gutter, even at depth 0.
-    ownShiftExpr = `calc(${fact.depth} * ${UNIT} + var(--to-marker-gutter, 0px))`;
   } else {
     cls = 'to-decor-block';
     styles.push(`--to-depth: ${fact.depth}`);
     styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
-    ownShiftExpr = undefined; // padding-left never shifts a block line's own box
   }
 
   if (guide.guideDepths.length > 0) {
     cls += ' to-decor-guides';
     styles.push(`--to-guides: ${guideBackground(guide.guideDepths)}`);
-    if (ownShiftExpr) {
-      styles.push(`--to-own-shift: ${ownShiftExpr}`);
-    }
+    styles.push(`--to-own-shift: ${plainOwnShiftExpr(fact)}`);
   }
 
   return Decoration.line({ class: cls, attributes: { style: styles.join('; ') } });
@@ -578,6 +590,131 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const fact = factsByLine.get(guide.lineNumber);
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
     builder.add(from, from, lineDecoration(fact, guide));
+  }
+  return builder.finish();
+}
+
+// ---- Escalated-selection chrome (selection-visual-treatment) ---------------
+//
+// docs/research/13's "Escalated-selection visual treatment": when the
+// current selection covers a whole node/subtree (per escalate.ts's
+// `coveredSubtreeRoots` — a stateless, geometric query, not a flag threaded
+// from the transaction filter; see design.md), every line that cover spans
+// gets an additional class so it reads as "this whole node is selected,"
+// not just a wider character-level highlight. Purely additive: the class
+// composes with whatever `lineDecoration`/`gapLineDecoration` already put on
+// the same line (CM6 merges same-position line decorations across separate
+// providers), and this never touches the selection itself.
+export const SELECTED_NODE_CLASS = 'to-decor-node-selected';
+
+// Set on `view.dom` (the outer `.cm-editor`) whenever `allRangesCovered`
+// holds — styles.css uses it to suppress the native character-level
+// `::selection` highlight, so it doesn't visually compete with the chrome
+// above (a real finding from user review: showing both looked confusing).
+export const BLOCK_SELECTING_CLASS = 'to-decor-block-selecting';
+
+function offsetToLinePos(doc: Text, offset: number): LinePos {
+  const line = doc.lineAt(offset);
+  return { line: line.number - 1, ch: offset - line.from };
+}
+
+/**
+ * Every physical line (0-based) covered by an escalated-selection-cover
+ * range in the current selection, mapped to the CSS expression for that
+ * cover's ROOT column — shared by the plain-`.cm-line` path
+ * (`computeSelectionDecorations`, below) and the widget-atom DOM-patch path
+ * (`MarginCompensation.apply`), the same declarative/imperative split every
+ * other decoration in this module already uses. Not cached: unlike
+ * `docFacts` (keyed on the doc `Text` alone), this also depends on the
+ * current selection, which changes far more often than the document —
+ * caching it would need a compound key for no measured benefit (see
+ * design.md's Risks section).
+ *
+ * The root's column, not each line's own: a covered range's whole subtree
+ * should read as ONE rectangle bounded on the left by the covered ROOT's own
+ * column — e.g. selecting an H3 section highlights from that H3's own guide
+ * column all the way to the right edge, INCLUDING under any more-indented
+ * descendant (a nested list, a code fence, a table) — never each line's own
+ * (deeper) indentation, which would leave the space between the root's
+ * column and a descendant's own narrower box untinted (the "no block-
+ * selection background under the indentation" gap). The root's own fact is
+ * looked up at the cover's start line — exactly the root's own first line,
+ * by construction of `coveredSubtreeRoots`/`siblingRunCover`. A list-item
+ * root has no additive column of its own (list guides are deferred entirely
+ * to native rendering, same as `computeLineGuides`'s own precedent) — its
+ * target is just its own line's shift, i.e. the rectangle starts at the
+ * root's own box with no further leftward reach.
+ */
+function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string> {
+  const { doc } = parsedDoc(state.doc);
+  const { factsByLine } = docFacts(state);
+  const totalLines = state.doc.lines;
+  const targets = new Map<number, string>();
+  for (const selRange of state.selection.ranges) {
+    if (selRange.empty) continue; // cursors never get chrome
+    const lineRange: LineRange = {
+      anchor: offsetToLinePos(state.doc, selRange.anchor),
+      head: offsetToLinePos(state.doc, selRange.head),
+    };
+    if (!coveredSubtreeRoots(doc, lineRange)) continue;
+    const loLine = Math.min(lineRange.anchor.line, lineRange.head.line);
+    const hiLine = Math.min(Math.max(lineRange.anchor.line, lineRange.head.line), totalLines - 1);
+    const rootFact = factsByLine.get(loLine);
+    if (!rootFact) continue; // cover's start line always has a fact; defensive only
+    const rootTarget = rootFact.isListItem
+      ? plainOwnShiftExpr(rootFact)
+      : `calc(${rootFact.depth} * ${UNIT})`;
+    for (let line = loLine; line <= hiLine; line++) targets.set(line, rootTarget);
+  }
+  return targets;
+}
+
+/**
+ * True when the current selection has at least one non-empty range and
+ * EVERY non-empty range is an escalated-selection cover — i.e. the whole
+ * selection reads as "block-selected," not a mix of block and character
+ * selection. Drives suppressing the native character-level highlight
+ * (styles.css), so the two don't visually overlap and compete. Per-range
+ * suppression isn't attempted: a genuinely mixed selection (one covered
+ * range, one plain-content range) can't arise through the real transaction
+ * filter — the uniform multi-range rule (node-selection-enforcement) forces
+ * every range to at least its own node's cover once any range escalates —
+ * so the only way to reach a mixed state is a raw, atypical programmatic
+ * dispatch bypassing the filter, which this all-or-nothing check simply
+ * doesn't suppress for (native highlight stays visible there, same as any
+ * non-covered selection).
+ */
+function allRangesCovered(state: EditorState): boolean {
+  const { doc } = parsedDoc(state.doc);
+  let sawNonEmpty = false;
+  for (const selRange of state.selection.ranges) {
+    if (selRange.empty) continue;
+    sawNonEmpty = true;
+    const lineRange: LineRange = {
+      anchor: offsetToLinePos(state.doc, selRange.anchor),
+      head: offsetToLinePos(state.doc, selRange.head),
+    };
+    if (!coveredSubtreeRoots(doc, lineRange)) return false;
+  }
+  return sawNonEmpty;
+}
+
+function computeSelectionDecorations(state: EditorState, modes: DecorationSource): DecorationSet {
+  const path = state.field(editorInfoField, false)?.file?.path;
+  if (!path || !modes.isOutline(path)) return Decoration.none;
+
+  const totalLines = state.doc.lines;
+  const { factsByLine } = docFacts(state);
+  const builder = new RangeSetBuilder<Decoration>();
+  const targets = Array.from(selectedLineRootTargets(state).entries()).sort((a, b) => a[0] - b[0]);
+  for (const [line, rootTarget] of targets) {
+    if (line >= totalLines) continue; // stale, defensive only
+    const from = state.doc.line(line + 1).from; // CM6 lines are 1-indexed
+    // A gap line has no fact (no shift of its own — a blank line is never
+    // margin/padding-shifted), same fallback `gapLineDecoration` relies on.
+    const ownShift = factsByLine.get(line) ? plainOwnShiftExpr(factsByLine.get(line)!) : '0px';
+    const style = `--to-selected-left: calc(${rootTarget} - (${ownShift}))`;
+    builder.add(from, from, Decoration.line({ class: SELECTED_NODE_CLASS, attributes: { style } }));
   }
   return builder.finish();
 }
@@ -714,6 +851,36 @@ class MarkersPlugin implements PluginValue {
   }
 }
 
+class SelectionDecorationPlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly modes: DecorationSource,
+  ) {
+    this.decorations = this.compute();
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  destroy(): void {
+    this.view.dom.classList.remove(BLOCK_SELECTING_CLASS);
+  }
+
+  private compute(): DecorationSet {
+    const path = this.view.state.field(editorInfoField, false)?.file?.path;
+    const isOutline = !isNestedEditor(this.view) && !!path && this.modes.isOutline(path);
+    this.view.dom.classList.toggle(
+      BLOCK_SELECTING_CLASS,
+      isOutline && allRangesCovered(this.view.state),
+    );
+    if (!isOutline) return Decoration.none;
+    return computeSelectionDecorations(this.view.state, this.modes);
+  }
+}
+
 class MarginCompensation implements PluginValue {
   constructor(
     private readonly view: EditorView,
@@ -840,12 +1007,24 @@ class MarginCompensation implements PluginValue {
 
     const { factsByLine, guidesByLine } = docFacts(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
+    const selectedLineTargets = selectedLineRootTargets(this.view.state);
 
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
     );
     for (const el of widgets) {
       const lineNumber = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
+      // Same class the plain-`.cm-line` path applies via CM6 decoration
+      // (computeSelectionDecorations) — widgets need the imperative DOM
+      // patch instead, same reasoning as margin/marker below. Toggled
+      // unconditionally so it's cleared the moment the line leaves the
+      // covered set, on every render. `--to-selected-left` (the covered
+      // range's root-column target minus THIS widget's own, live-measured
+      // shift — more precise than the generic per-kind formula
+      // `selectedLineRootTargets` uses for plain lines) is set per branch
+      // below, wherever this widget's own `ownShiftExpr` is in scope.
+      const rootTarget = selectedLineTargets.get(lineNumber);
+      el.classList.toggle(SELECTED_NODE_CLASS, rootTarget !== undefined);
       const fact = factsByLine.get(lineNumber);
       if (fact?.isAtom) {
         // Some widgets (tables, for their row/column drag-handles) carry
@@ -896,11 +1075,18 @@ class MarginCompensation implements PluginValue {
           el.style.removeProperty('--to-guides');
           el.style.removeProperty('--to-own-shift');
         }
+
+        if (rootTarget !== undefined) {
+          el.style.setProperty('--to-selected-left', `calc(${rootTarget} - (${ownShiftExpr}))`);
+        } else {
+          el.style.removeProperty('--to-selected-left');
+        }
       } else {
         el.style.removeProperty('margin-left');
         el.classList.remove('to-decor-guides');
         el.style.removeProperty('--to-guides');
         el.style.removeProperty('--to-own-shift');
+        el.style.removeProperty('--to-selected-left');
         clearWidgetMarker(el);
       }
     }
@@ -988,8 +1174,10 @@ class MarginCompensation implements PluginValue {
     for (const el of widgets) {
       el.style.removeProperty('margin-left');
       el.classList.remove('to-decor-guides');
+      el.classList.remove(SELECTED_NODE_CLASS);
       el.style.removeProperty('--to-guides');
       el.style.removeProperty('--to-own-shift');
+      el.style.removeProperty('--to-selected-left');
       clearWidgetMarker(el);
     }
     const plainLines = Array.from(
@@ -1017,6 +1205,13 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // sidestepping any need to reason about Decoration.line/Decoration.
     // widget ordering at the same document position.
     ViewPlugin.define((view) => new MarkersPlugin(view, modes), {
+      decorations: (v) => v.decorations,
+    }),
+    // A fourth, independent plugin for escalated-selection chrome
+    // (selection-visual-treatment) — same reasoning as MarkersPlugin above:
+    // a separate DecorationSet CM6 merges with the others at the same line
+    // position, not extra branching inside DecorationsPlugin's own builder.
+    ViewPlugin.define((view) => new SelectionDecorationPlugin(view, modes), {
       decorations: (v) => v.decorations,
     }),
     ViewPlugin.define<MarginCompensation>((view) => new MarginCompensation(view, modes)),

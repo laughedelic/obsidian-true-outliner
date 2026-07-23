@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
-import { clampCursorToContent, escalateRange, escalateRanges, type LinePos, type LineRange } from '../src/escalate';
+import {
+  clampCursorToContent,
+  coveredSubtreeRoots,
+  escalateRange,
+  escalateRanges,
+  rangesEqual,
+  type LinePos,
+  type LineRange,
+} from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
 import { contentColumnCh } from '../src/ops';
 import { arbTree } from './generators';
@@ -403,6 +411,116 @@ describe('clampCursorToContent: marker-transparent cursor placement (design.md D
         return true;
       }),
       { numRuns: 300 },
+    );
+  });
+});
+
+describe('coveredSubtreeRoots: escalated-selection-decoration query (docs/research/13)', () => {
+  // H
+  //  - Para one.       (leaf)
+  //  - Para two.        -> item -> child   (nested: a naked list after a
+  //                                          paragraph becomes its child)
+  const md = '# H\n\nPara one.\n\nPara two.\n\n- item\n  - child\n';
+  const doc = parse(md);
+  const paraOne = nodeAtLine(doc, 2)!;
+  const paraTwo = nodeAtLine(doc, 4)!;
+
+  it('cursor (empty range) never matches', () => {
+    expect(coveredSubtreeRoots(doc, range(pos(2, 3), pos(2, 3)))).toBeNull();
+  });
+
+  it('a partial within-node selection does not match', () => {
+    expect(coveredSubtreeRoots(doc, range(pos(2, 0), pos(2, 5)))).toBeNull();
+  });
+
+  it('an exact single-line leaf match matches, with no gap involved', () => {
+    const r = range(pos(2, 0), pos(2, 'Para one.'.length));
+    expect(coveredSubtreeRoots(doc, r)).toEqual([paraOne]);
+  });
+
+  it('a raw (pre-escalation) boundary-crossing range does not yet match', () => {
+    // Same shape as the "drag from mid-paragraph into the next paragraph"
+    // scenario, before the filter has escalated it — lo isn't at the cover's
+    // start yet, so this must not be mistaken for an already-covering range.
+    expect(coveredSubtreeRoots(doc, range(pos(2, 5), pos(4, 3)))).toBeNull();
+  });
+
+  it('the escalated result of that same drag matches both sibling subtrees', () => {
+    const escalated = escalateRange(doc, range(pos(2, 5), pos(4, 3)));
+    const result = coveredSubtreeRoots(doc, escalated);
+    expect(result).toEqual([paraOne, paraTwo]);
+  });
+
+  it('preamble-jurisdiction ranges never match', () => {
+    const withFm = parse('---\nk: 1\n---\n\n# H\n\nBody.\n');
+    expect(coveredSubtreeRoots(withFm, range(pos(1, 0), pos(5, 2)))).toBeNull();
+  });
+
+  describe('the gap-line trigger shape (expand-only retains hi past the cover end)', () => {
+    const gapMd = 'First.\n\nSecond.\n';
+    const gapDoc = parse(gapMd);
+    // 0 'First.' / 1 gap / 2 'Second.' / 3 final gap
+    const first = nodeAtLine(gapDoc, 0)!;
+    const second = nodeAtLine(gapDoc, 2)!;
+
+    it('a drag past a node\'s end onto its gap line still matches, once escalated', () => {
+      const escalated = escalateRange(gapDoc, range(pos(0, 2), pos(1, 0)));
+      // Sanity: this is exactly the shape escalateRange's own gap-trigger
+      // test asserts (lo pinned to cover start, hi retained on the gap).
+      expect(escalated).toEqual(range(pos(0, 0), pos(1, 0)));
+      expect(coveredSubtreeRoots(gapDoc, escalated)).toEqual([first]);
+    });
+
+    it('Select All (multi-node, no frontmatter) matches the full top-level run', () => {
+      const all = range(pos(0, 0), pos(3, 0));
+      expect(rangesEqual(escalateRange(gapDoc, all), all)).toBe(true); // unchanged (expand-only)
+      expect(coveredSubtreeRoots(gapDoc, all)).toEqual([first, second]);
+    });
+
+    it('a cursor placed on a gap line never matches', () => {
+      expect(coveredSubtreeRoots(gapDoc, range(pos(1, 0), pos(1, 0)))).toBeNull();
+    });
+  });
+
+  it('property: any range escalateRange actually changes is recognized as a cover once escalated', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), (tree, aPick, bPick) => {
+        const text = encode(tree);
+        const lines = text === '' ? [] : text.split('\n');
+        const d = parse(text);
+        const candidates: number[] = [];
+        for (let i = 0; i < lines.length; i++) if (nodeAtLine(d, i)) candidates.push(i);
+        if (candidates.length < 2) return true;
+        const aLine = candidates[aPick % candidates.length]!;
+        const bLine = candidates[bPick % candidates.length]!;
+        const r = range(pos(aLine, 0), pos(bLine, (lines[bLine] ?? '').length));
+        const escalated = escalateRange(d, r);
+        if (rangesEqual(escalated, r)) return true; // not an escalation of interest here
+        return coveredSubtreeRoots(d, escalated) !== null;
+      }),
+      { numRuns: 500 },
+    );
+  });
+
+  it('property: escalating an already-covering range never changes it (idempotence via the query)', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), (tree, aPick, bPick) => {
+        const text = encode(tree);
+        const lines = text === '' ? [] : text.split('\n');
+        const d = parse(text);
+        const candidates: number[] = [];
+        for (let i = 0; i < lines.length; i++) if (nodeAtLine(d, i)) candidates.push(i);
+        if (candidates.length < 2) return true;
+        const aLine = candidates[aPick % candidates.length]!;
+        const bLine = candidates[bPick % candidates.length]!;
+        const r = range(pos(aLine, 0), pos(bLine, (lines[bLine] ?? '').length));
+        const escalated = escalateRange(d, r);
+        const roots = coveredSubtreeRoots(d, escalated);
+        if (roots === null) return true;
+        // A recognized cover must itself be a fixed point of escalation.
+        return rangesEqual(escalateRange(d, escalated), escalated);
+      }),
+      { numRuns: 500 },
     );
   });
 });
