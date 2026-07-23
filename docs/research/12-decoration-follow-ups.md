@@ -14,6 +14,39 @@ not bug fixes.
 
 ## Known gaps (diagnosed, deferred)
 
+### Under the Minimal theme, boxed atoms (callouts, code blocks) overflow the reading column when indented
+
+Found during the selection-visual-treatment change's manual visual pass (activating the
+real Minimal theme, kepano's, already present in the test vault via the existing e2e
+infrastructure — `obsidianPage.setTheme('Minimal')`). Toggling outline mode on a note with
+a callout or code block nested under a heading: the box's LEFT edge correctly shifts
+right by our own `margin-left` (additive indentation, Experiment 1), but its RIGHT edge
+stays exactly where it was — the box doesn't shrink, it just moves, so it now overflows
+past the reading column's right edge by exactly our own margin contribution. Confirmed
+live via computed style: Minimal sizes these boxed elements with `max-width: 88%` (of
+some ancestor), which resolves to a fixed pixel `width` that does NOT recompute when
+`margin-left` changes — unlike the bundled themes, where the same elements apparently use
+`width: auto` (so the browser recomputes width as "available space minus margins,"
+correctly shrinking to accommodate our added margin). A depth-1 callout measured: bundled
+theme's heading sibling had `marginLeft: 40.8px, marginRight: 40.8px` (symmetric, native
+centering); the callout with our own indentation added had `marginLeft: 84.8px,
+marginRight: -3.2px` — a negative right margin is the tell: the box's fixed width plus
+the new left margin already exceeds the centering container's width, so the right edge
+is forced outward to compensate.
+
+This is a base-indentation issue (`MarginCompensation`, Experiment 1), not a
+selection-visual-treatment one — the escalated-selection chrome merely inherits whatever
+box width these atoms end up with, and was found while manually reviewing that change's
+own screenshots, not caused by it. **Not an obvious/low-risk fix**: closing it properly
+means live-measuring, per widget-atom kind, what width the box would have BEFORE our own
+margin contribution (mirroring `nativeMarginBasePx`'s "read the native value live, don't
+assume" pattern, but for `max-width`-based sizing instead of `margin-inline: auto`), then
+explicitly constraining `width`/`max-width` to compensate — and verifying that fix doesn't
+regress the bundled-theme case (which already works via a completely different sizing
+mechanism, `width: auto`). Needs its own investigation with Minimal (and ideally another
+max-width-style theme) actually installed and screenshotted, not a guess from one data
+point.
+
 ### Wiki-embed blocks bypass decoration entirely
 
 Found in the 2026-07-20 personal-vault pass. A `![[Another note]]` line parses as a

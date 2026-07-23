@@ -78,32 +78,46 @@ mechanism (declarative decoration or direct DOM patch) already reaches that line
 - **THEN** the table's rendered element receives the same selected-node chrome as
   plain lines in the same cover, alongside its existing margin and marker
 
+#### Scenario: A widget atom's chrome matches the right edge every plain line reaches
+- **WHEN** an escalated cover includes a widget atom (e.g. a table) whose own rendered
+  box is wider on the right than a plain line's (reserved space for a native UI
+  affordance not part of its visible content)
+- **THEN** that widget's chrome right edge matches every plain line's own right edge in
+  the same cover, not the widget's own wider box
+
 **Covered by**: e2e coverage extending the existing decoration corpus with an
 escalated-selection-over-table/callout fixture.
 
-### Requirement: Chrome anchors to the covered root's own column, not each line's own
+### Requirement: Chrome anchors one level beyond the covered root's own column, not each line's own
 The chrome's left edge SHALL align to the SAME column for every line an escalated cover
-spans — the covered root node's own column (its absolute depth, the same column an
-ancestor's indentation guide would render at) — regardless of how much more deeply any
-individual descendant line (a nested list item, code fence, blockquote, or table) is
-itself indented. The chrome SHALL NOT reach further left than the covered root's own
-column (content there belongs to a shallower ancestor, outside the current selection).
-A list-item root has no additive column of its own (list indentation is deferred
-entirely to native rendering, consistent with how indentation guides already treat
-list-item ancestors) — its own line's left edge is used as the target instead.
+spans, regardless of how much more deeply any individual descendant line (a nested list
+item, code fence, blockquote, or table) is itself indented. That shared column SHALL be
+one level shallower than the covered root's own column — the same column the root's
+PARENT would render an indentation guide at, clearing the root's own marker icon (which
+is centered ON its own column) rather than bisecting it. A top-level root (no parent)
+SHALL use an equivalent one-level offset rather than its own column. The chrome SHALL
+NOT reach any further left than this (content further left belongs to a shallower
+ancestor, outside the current selection). A list-item root has no additive column of its
+own (list indentation is deferred entirely to native rendering, consistent with how
+indentation guides already treat list-item ancestors) — its own line's shift, less one
+level, is used as the target instead.
 
 #### Scenario: A selected section's nested list/code/blockquote/table all align to one edge
 - **WHEN** an escalated cover is rooted at a heading and spans a nested list item, a
   code fence, a blockquote, and a table at various (deeper) depths
 - **THEN** every one of those lines' chrome renders with its left edge at the SAME
-  absolute column as the root heading's own chrome — none of them show a gap between
-  the root's column and their own (more deeply indented) content
+  absolute column, one level shallower than the root heading's own column — none of
+  them show a gap between that column and their own (more deeply indented) content
+
+#### Scenario: Chrome clears the covered root's own marker instead of bisecting it
+- **WHEN** an escalated cover is rooted at a heading that has its own marker icon
+- **THEN** the chrome's left edge sits to the left of that marker's own column, so the
+  marker renders fully inside the tinted region rather than being cut through its middle
 
 #### Scenario: Chrome never reaches into a shallower ancestor's own territory
 - **WHEN** an escalated cover is rooted at a nested (e.g. H3) heading inside a deeper
   document structure (H1 > H2 > H3)
-- **THEN** the shallower ancestor headings' (H1, H2) own lines render no chrome, and the
-  covered root's chrome does not extend left of its own column
+- **THEN** the shallower ancestor headings' (H1, H2) own lines render no chrome
 
 **Covered by**: e2e coverage comparing the resolved viewport position of the chrome's
 left edge across a heading root, its descendants at varying depths (list, code,

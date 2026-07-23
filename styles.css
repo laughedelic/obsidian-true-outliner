@@ -348,23 +348,37 @@
  * coexist without one replacing the other (an element has exactly one of
  * each).
  *
- * `left` reaches to the COVERED ROOT's own column (`--to-selected-left`,
- * computed per-line by decorations.ts's `selectedLineRootTargets` — a
- * per-line `calc(rootColumn - thisLine'sOwnShift)`, the same "widen a
- * leftward-reaching pseudo by this line's own shift" technique the guide
- * layer above already uses, just anchored to the covered subtree's root
- * depth instead of each ancestor's own). A real finding from user review of
- * the first version of this rule (which used a flat `inset: 0`, confined to
- * each line's own box): selecting a whole section left the chrome stair-
- * stepping to match each descendant's own (deeper) indentation, with NO
- * fill at all under a nested list/code-block/callout/table/blockquote's own
- * indentation — exactly backwards from "the whole section is one
- * rectangle." Anchoring to the root's column instead means selecting an H3
- * section, say, tints from that H3's own guide column all the way to the
- * right edge, uniformly across every descendant line regardless of how
- * deep it's nested — never reaching further left than the H3's own column
- * (content to the left of that belongs to shallower ancestors, not this
- * selection). `right: 0` (unchanged) still reaches the full line width.
+ * `left` reaches one level further left than the COVERED ROOT's own column
+ * (`--to-selected-left`, computed by decorations.ts's
+ * `selectedLineRootTargets` — a per-line `calc(parentColumn -
+ * thisLine'sOwnShift)`, the same "widen a leftward-reaching pseudo by this
+ * line's own shift" technique the guide layer above already uses, just
+ * anchored to the covered subtree's PARENT depth instead of each
+ * ancestor's own). A real finding from user review of the first version of
+ * this rule (which used a flat `inset: 0`, confined to each line's own
+ * box): selecting a whole section left the chrome stair-stepping to match
+ * each descendant's own (deeper) indentation, with NO fill at all under a
+ * nested list/code-block/callout/table/blockquote's own indentation —
+ * exactly backwards from "the whole section is one rectangle." A second
+ * round of review then asked for the left edge to go one level further
+ * still (matching Logseq's own block-selection convention): anchoring
+ * exactly at the root's own column ran the edge straight through the
+ * middle of the root's own marker icon (the icon is CENTERED on that
+ * column, per Experiment 5a's own placement) — reaching the PARENT's
+ * column instead clears the marker entirely, the same way selecting a
+ * whole H3 section now visibly starts past H2's own guide, not H3's.
+ *
+ * `right` similarly is NOT a flat `0`: `--to-selected-right` (widget atoms
+ * only; plain lines keep `right: 0`, they never have this problem) pulls
+ * the edge in from a widget's own box to match the same right edge every
+ * plain line reaches — found by user review as a "notch" specifically on
+ * tables, which reserve extra box width past their own visible grid for
+ * the "+ column" button (present whether or not that button is currently
+ * visible), poking the table's own chrome out past every other line's.
+ * Read live (`MarginCompensation`, the same "never hardcode a native
+ * measurement" discipline as its padding/margin compensation elsewhere),
+ * not assumed to be table-specific in case another widget kind ever grows
+ * a similar reserved-but-invisible edge.
  *
  * Painted BEHIND both the guide layer (`::after`) and the line's own text:
  * `z-index: -1` on a `position: relative` line places a pseudo-element
@@ -398,10 +412,31 @@
   top: 0;
   bottom: 0;
   left: var(--to-selected-left, 0px);
-  right: 0;
+  right: var(--to-selected-right, 0px);
   width: auto;
-  background: var(--interactive-accent);
-  opacity: 0.08;
+  /* `--to-selected-bg` (decorations.ts's `measureSelectionColor`) — a
+   * live-resolved COPY of `--text-selection`, the SAME variable native
+   * character-level selection itself uses (confirmed live via
+   * document.styleSheets: Obsidian's own `.markdown-source-view.mod-cm6
+   * ::selection { background-color: var(--text-selection); }`), at full
+   * opacity rather than an extra reduction of our own. A real finding from
+   * user review: an accent tint at 0.08 opacity read as too faint/hard to
+   * see, and picking a DIFFERENT color independently of the theme risked
+   * being inconsistent across themes anyway. `--text-selection` already
+   * carries its own theme-appropriate alpha (themes design it to read
+   * clearly against their own text/background pair), so reusing it is the
+   * one choice guaranteed to match "the native selection style" the user
+   * asked for, in every theme, with no separate opacity tuning to get
+   * wrong — but NOT via a direct `var(--text-selection)` reference here:
+   * Obsidian's own `.cm-table-widget.is-selected { --text-selection:
+   * transparent; }` (avoiding a double selection render inside table
+   * cells) would silently make this chrome transparent on any table under
+   * an escalated selection too, since a `var()` reference re-resolves
+   * against whatever's inherited AT THE ELEMENT USING IT, not "frozen" at
+   * whichever ancestor last set it — see `measureSelectionColor`'s own
+   * doc comment for the full story (a real bug, found live).
+   */
+  background: var(--to-selected-bg, var(--text-selection));
   pointer-events: none;
   z-index: -1;
 }

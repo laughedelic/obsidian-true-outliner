@@ -661,9 +661,22 @@ function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string
     const hiLine = Math.min(Math.max(lineRange.anchor.line, lineRange.head.line), totalLines - 1);
     const rootFact = factsByLine.get(loLine);
     if (!rootFact) continue; // cover's start line always has a fact; defensive only
+    // One level further left than the root's own column — the PARENT's own
+    // guide column, not the root's — so the chrome clears the root's own
+    // marker icon (centered ON the root's column) instead of running
+    // through its middle. Matches Logseq's own block-selection convention
+    // (confirmed by user review): the highlighted rectangle is wider on the
+    // left than the block's own indentation, reaching the next level out.
+    // A top-level root (depth 0) has no shallower level to reach for the
+    // same reason a guide never renders at a negative depth — subtracting
+    // one full UNIT anyway keeps the same "one level out" amount uniform
+    // rather than clamping to 0 (which would put the edge right back at the
+    // root's own column, reintroducing the exact problem this fixes) and
+    // stays within the leftward-overflow margin the guide layer's own doc
+    // comment already confirmed is never clipped.
     const rootTarget = rootFact.isListItem
-      ? plainOwnShiftExpr(rootFact)
-      : `calc(${rootFact.depth} * ${UNIT})`;
+      ? `calc(${plainOwnShiftExpr(rootFact)} - ${UNIT})`
+      : `calc((${rootFact.depth} - 1) * ${UNIT})`;
     for (let line = loLine; line <= hiLine; line++) targets.set(line, rootTarget);
   }
   return targets;
@@ -925,6 +938,30 @@ class MarginCompensation implements PluginValue {
   }
 
   /**
+   * The right edge every plain, undecorated `.cm-line` actually renders at —
+   * used to pull the escalated-selection chrome's right edge in to match,
+   * for a widget atom whose own box is wider (see the call site's own doc
+   * comment). Deliberately NOT `contentDOM.getBoundingClientRect().right`
+   * (a real bug in the first version of this fix, found live): Obsidian's
+   * "readable line width" centers each `.cm-line` INDIVIDUALLY via its own
+   * `margin-inline: auto` under a `max-width` (see `nativeMarginBasePx`'s
+   * own doc comment) — `.cm-content` itself stays full-viewport-width
+   * regardless, so referencing it directly only happened to work in a
+   * narrow viewport (below the max-width threshold, where no line actually
+   * gets centered yet); at a wide enough viewport, every plain line's own
+   * right edge sits well short of `.cm-content`'s own, and the fix
+   * silently regressed to pulling the chrome in far MORE than intended.
+   * Same reference-line selector as `nativeMarginBasePx`, for the same
+   * "uncontaminated, not one of our own widget patches" reason.
+   */
+  private nativeContentRightPx(): number {
+    const ref = this.view.contentDOM.querySelector<HTMLElement>(
+      `.cm-line:not(.to-decor-atom):not(.to-decor-list):not(.hr)`,
+    );
+    return ref ? ref.getBoundingClientRect().right : this.view.contentDOM.getBoundingClientRect().right;
+  }
+
+  /**
    * Live measurement for the fold-chevron repositioning transform
    * (styles.css) — hardening 5.1, replacing two hardcoded measured
    * constants with the same read-native-values-live pattern
@@ -986,6 +1023,36 @@ class MarginCompensation implements PluginValue {
     this.view.dom.setCssProps({ '--to-chevron-dead-right': deadRight });
   }
 
+  /**
+   * Resolves `--text-selection` to a CONCRETE color value (not a `var()`
+   * reference) and stores it as `--to-selected-bg` on `view.dom`, for the
+   * escalated-selection chrome (styles.css) to consume instead of
+   * referencing `--text-selection` directly. A real bug found live, not
+   * assumed: Obsidian's own native CSS sets
+   * `.cm-table-widget.is-selected { --text-selection: transparent; }`
+   * (avoiding a double-selection render inside table cells, which have
+   * their OWN native selection UI) — since a `var()` reference re-resolves
+   * against the referenced property's value AT THE ELEMENT WHERE IT'S
+   * USED (not "frozen" at whatever ancestor declared it), the chrome rule
+   * on a SELECTED table's own `::before` would inherit that SAME
+   * transparent override merely by referencing `--text-selection`,
+   * silently making the chrome invisible on any table currently under an
+   * escalated selection — confirmed live via `document.styleSheets`
+   * after the effect first showed up as chrome visibly stopping partway
+   * through a table in a manual visual pass. Reading the value once via
+   * `getComputedStyle` on `contentDOM` (never itself `.is-selected`) and
+   * writing it back as a literal breaks that inheritance chain: no
+   * property named `--to-selected-bg` is ever reset by that native rule,
+   * so it reaches the table unchanged. Re-measured every render (a theme
+   * switch corrects on the next one), same as `--to-marker-icon-size` and
+   * the chevron dead-space above.
+   */
+  private measureSelectionColor(): void {
+    const color = getComputedStyle(this.view.contentDOM).getPropertyValue('--text-selection');
+    if (!color) return;
+    this.view.dom.setCssProps({ '--to-selected-bg': color });
+  }
+
   private apply(): void {
     const path = this.view.state.field(editorInfoField, false)?.file?.path;
     // See isNestedEditor's own doc comment — a nested per-cell editor
@@ -1004,10 +1071,24 @@ class MarginCompensation implements PluginValue {
     // so a theme switch mid-session corrects on the next update.
     this.view.dom.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
     this.measureChevron();
+    this.measureSelectionColor();
 
     const { factsByLine, guidesByLine } = docFacts(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
     const selectedLineTargets = selectedLineRootTargets(this.view.state);
+    // The right edge every plain `.cm-line` naturally reaches — read live
+    // (not assumed to be `right: 0` relative to a widget's OWN box), since
+    // a widget atom's own box can be WIDER than that on the right (a table
+    // reserves extra space past its visible grid for the "+ column" button,
+    // confirmed live: same width regardless of whether the button is
+    // currently visible). Used below to pull the chrome's right edge back
+    // in to match every other line, rather than reaching as far as the
+    // widget's own wider box — a real "notch" found by user review
+    // (visibly poking out past the right edge of surrounding chrome, as
+    // tall as the whole widget). See `nativeContentRightPx`'s own doc
+    // comment for why this must be a reference LINE's own edge, not
+    // `contentDOM`'s.
+    const contentRightPx = this.nativeContentRightPx();
 
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
@@ -1078,8 +1159,33 @@ class MarginCompensation implements PluginValue {
 
         if (rootTarget !== undefined) {
           el.style.setProperty('--to-selected-left', `calc(${rootTarget} - (${ownShiftExpr}))`);
+          // `right` resolves against the containing block's PADDING box,
+          // whose edge sits INSET FROM THE BORDER BOX BY THE BORDER WIDTH
+          // only (not by padding — a wrong assumption in an earlier version
+          // of this fix, corrected after re-deriving it from the CSS box
+          // model instead of assuming). This widget has no border
+          // (`border-width: 0`, confirmed live), so its padding box and
+          // border box coincide exactly — `getBoundingClientRect()` (the
+          // border box) is already the correct reference with no further
+          // adjustment. Read `borderRightWidth` live anyway rather than
+          // hardcoding the zero, in case a theme ever adds one.
+          const nativeBorderRight = parseFloat(getComputedStyle(el).borderRightWidth) || 0;
+          const paddingBoxRight = el.getBoundingClientRect().right - nativeBorderRight;
+          const rightOverhang = Math.max(0, paddingBoxRight - contentRightPx);
+          // POSITIVE, not negated: CSS `right` pushes an absolutely
+          // positioned box's own right edge INWARD (leftward) from its
+          // containing block's edge as the value increases — the opposite
+          // sign from `left` (where more negative reaches further outward).
+          // A real bug in an earlier version of this fix, found by forcing
+          // an extreme value (-300px) and seeing NO visual change from
+          // -16px: both were actually extending the edge outward, past an
+          // ancestor's real overflow-clipping boundary, and getting clipped
+          // to the same visible result either way — not, as first assumed,
+          // `right` having no effect at all.
+          el.style.setProperty('--to-selected-right', `${rightOverhang}px`);
         } else {
           el.style.removeProperty('--to-selected-left');
+          el.style.removeProperty('--to-selected-right');
         }
       } else {
         el.style.removeProperty('margin-left');
@@ -1087,6 +1193,7 @@ class MarginCompensation implements PluginValue {
         el.style.removeProperty('--to-guides');
         el.style.removeProperty('--to-own-shift');
         el.style.removeProperty('--to-selected-left');
+        el.style.removeProperty('--to-selected-right');
         clearWidgetMarker(el);
       }
     }
@@ -1167,6 +1274,7 @@ class MarginCompensation implements PluginValue {
   private clearAll(): void {
     this.view.dom.style.removeProperty('--to-marker-icon-size');
     this.view.dom.style.removeProperty('--to-chevron-dead-right');
+    this.view.dom.style.removeProperty('--to-selected-bg');
     this.lastDeadRight = '';
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
@@ -1178,6 +1286,7 @@ class MarginCompensation implements PluginValue {
       el.style.removeProperty('--to-guides');
       el.style.removeProperty('--to-own-shift');
       el.style.removeProperty('--to-selected-left');
+      el.style.removeProperty('--to-selected-right');
       clearWidgetMarker(el);
     }
     const plainLines = Array.from(

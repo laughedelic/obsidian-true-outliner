@@ -111,9 +111,9 @@ to each line's OWN box (`inset: 0`) instead of the covered subtree's ROOT column
       blockquote line. Extended the existing widget-atom `contain: none !important;
       overflow: visible !important` override to include `.to-decor-node-selected`
       (needed now that the chrome reaches outside a widget's own box, same reason
-      guides/markers already needed it) — this also incidentally fixed the table
-      "notch" from section 4.3 (it was `contain: paint` clipping the rightward reach,
-      not a table-layout limitation as first diagnosed).
+      guides/markers already needed it). (This was NOT actually the fix for the table
+      "notch" from section 4.3, despite looking like it at the time — see section 8,
+      which found and fixed the real cause: a widget-specific right-edge overhang.)
 - [x] 6.6 Add `allRangesCovered(state): boolean` and toggle `to-decor-block-selecting`
       on `view.dom` (`SelectionDecorationPlugin`). Investigated live which mechanism
       actually renders Obsidian's selection (CM6's `drawSelection()` background layer
@@ -133,3 +133,55 @@ to each line's OWN box (`inset: 0`) instead of the covered subtree's ROOT column
 - [x] 6.9 Re-ran full unit suite (287 passed), typecheck (main + e2e), lint, and the
       full e2e suite (79+ passing across all decoration/selection/edit-enforcement
       specs) — no regressions from this round's changes.
+
+## 7. Second round of user review: marker clearance, the real table notch, color, two deferred findings
+
+A second round of screenshots surfaced four more items: the chrome's left edge ran
+through the middle of the covered root's own marker icon (compare Logseq's convention —
+block selection there is wider on the left, reaching the next level, not the node's own);
+the table notch from section 4.3/6.5 was still visible despite the `contain: none` fix;
+the chrome color (an accent tint at low opacity) was hard to see and not obviously
+theme-consistent; and, incidentally, two things the user flagged as worth a cursory
+look but not necessarily in scope — a Minimal-theme base-indentation issue, and a
+gap-line escalation question.
+
+- [x] 7.1 `selectedLineRootTargets` now targets the PARENT's column (one level shallower
+      than the root's own — `calc((rootDepth - 1) * UNIT)`, or the root's own line-shift
+      minus one `UNIT` for a list-item root), not the root's own column. Clears the
+      root's own marker (centered on its own column) instead of bisecting it.
+- [x] 7.2 Chrome color: `MarginCompensation.measureSelectionColor()` resolves
+      `--text-selection` live (from `contentDOM`, never itself `.is-selected`) into a new
+      `--to-selected-bg` property, consumed by the chrome rule instead of a direct
+      `var(--text-selection)` reference. A real bug found live: Obsidian's own
+      `.cm-table-widget.is-selected { --text-selection: transparent; }` (avoiding a
+      double selection render inside table cells) silently inherited into the chrome too
+      when referenced directly, since a `var()` reference re-resolves at its use site,
+      not where an ancestor last set it — made the chrome fully invisible on any table
+      under an escalated selection, found only via a live pixel-color check (the
+      computed CSS values looked completely correct).
+- [x] 7.3 The real table-notch fix: `MarginCompensation`'s widget loop computes
+      `--to-selected-right` per widget by live-measuring a reference plain line's own
+      right edge (`nativeContentRightPx`, mirroring `nativeMarginBasePx`'s pattern) and
+      pulling the widget's own (wider) box in to match. Two real bugs caught while
+      building this (see design.md's own doc comment on this decision for the full
+      story): a wrong assumption that a positioned descendant's containing block is
+      inset by PADDING (it's inset by BORDER width only), and a sign error (CSS `right`
+      pushes INWARD as it increases, the opposite of `left`) that an extreme-value sanity
+      test (`-300px` looking identical to `-16px`) exposed.
+- [x] 7.4 Cursory investigation of two items flagged for "record if extensive, fix if
+      obvious" — both diagnosed live, neither obvious/low-risk, both deferred:
+      - Minimal theme (kepano's, confirmed already present in the test vault via the
+        existing e2e infrastructure, activated via `obsidianPage.setTheme('Minimal')`):
+        boxed atoms (callouts, code blocks) overflow the reading column once indented at
+        all — a base-indentation issue (`MarginCompensation`), not this change's own
+        scope. Full diagnosis in docs/research/12's "Known gaps."
+      - A same-node selection reaching a node's own text doesn't yet include that node's
+        owned trailing gap — only dragging INTO the gap does. This is
+        `node-selection-enforcement`'s own escalation math (`D4`'s
+        `subtreeContentEnd`), a different capability's spec — not touched here. Full
+        diagnosis in docs/research/13's "Escalation math re-examination candidate."
+- [x] 7.5 Re-ran full unit suite, typecheck, lint, and the targeted e2e specs
+      (63/50/51/52) plus a dedicated visual pass across four fixtures (top-level,
+      nested-heading-with-marker, table, and the full mixed H1>H2>H3>{list,blockquote,
+      code} fixture) confirming all of 7.1–7.3 together, both bundled themes — no
+      regressions.

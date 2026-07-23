@@ -33,6 +33,37 @@ see design.md's "D4 amendments" and the amended node-selection-enforcement delta
   never shrinks a range, which keeps no-frontmatter Select All byte-identical to stock
   (and fixed a latent trailing-newline exclusion in the pre-amendment behavior).
 
+## Escalation math re-examination candidate (found 2026-07-23, selection-visual-treatment review)
+
+**A same-node selection that reaches a node's own text does not yet include that node's
+owned trailing gap — only a selection that's dragged INTO the gap does.** Confirmed live:
+in `paragraph A\n\nparagraph B\n\nparagraph C\n`, dragging from mid-A to mid-B escalates to
+exactly `paragraph A` + the gap between + `paragraph B`'s own text (lines 0–2) — NOT
+B's own trailing gap (line 3). Continuing the SAME drag one line further, onto that gap,
+extends the selection to include it. Both are consistent with `escalateRange`'s existing,
+deliberate D4 design: `subtreeContentEnd` excludes a node's own trailing gap from its
+cover, and expand-only only RETAINS an end already placed beyond the cover — it never
+reaches for the gap proactively.
+
+The question raised in review: since gap ownership already means "this blank line
+belongs to the preceding node" (the same ownership the gap-line trigger itself is built
+on), should reaching ANY point in a node's own text — not just dragging past it into the
+gap — be enough to escalate that node's cover to include its owned gap? That would make
+"select node B as a block" always include its gap in one motion, rather than needing a
+second, separate drag into blank space most users wouldn't think to make.
+
+**Deliberately not changed here**: this is `node-selection-enforcement`'s own escalation
+math (`src/escalate.ts`'s `subtreeCoverOf`/`subtreeContentEnd`), a different capability
+with its own already-archived spec and property tests — out of scope for
+`selection-visual-treatment`, which only renders whatever the existing escalation
+produces (see that change's own design.md Non-Goals). It's also not obviously a bug: the
+current shape was a deliberate D4 amendment already reviewed once in a real-vault pass,
+and changing `subtreeContentEnd`'s definition would ripple into every existing scenario
+in `tests/escalate.test.ts` and `node-selection-enforcement`'s spec, not just this one —
+a decision that deserves its own dedicated look (ideally with a few real-vault passes
+the way D4 itself got), not a reflexive fix bundled into an unrelated rendering change.
+Flagging here for whoever picks up `node-selection-enforcement` refinements next.
+
 ## Known native limitation (not ours to fix)
 
 **Drags starting inside a rendered callout/table can't escape the widget.** In Live

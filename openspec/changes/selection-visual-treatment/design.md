@@ -162,15 +162,28 @@ at this H3's own column, don't reach into H1/H2's territory."
 `selectedLineRootTargets(state): ReadonlyMap<number, string>` (decorations.ts) replaces
 the old membership-only `selectedNodeLines`: for each covered range, it looks up the
 cover's ROOT fact at the cover's own start line (exactly the root's first line, by
-construction of `coveredSubtreeRoots`), computes that root's own column expression —
-`calc(rootDepth * UNIT)` for a block/atom/heading root (the same absolute-depth column
-`guideLayer` already renders an ancestor's guide at), or the root's own line-shift for a
-list-item root (list guides are already deferred entirely to native rendering per
-`computeLineGuides`'s own precedent — a list-item root gets no additive column of its
-own to reach for) — and maps every line the cover spans to that ONE shared target. Each
-consumer then computes ITS OWN `left: calc(rootTarget - thisLine'sOwnShift)`, the same
-"widen a leftward-reaching pseudo by this line's own shift" technique the guide layer
-already uses, just anchored to the root's depth instead of each ancestor's own.
+construction of `coveredSubtreeRoots`), computes a target column, and maps every line
+the cover spans to that ONE shared target. Each consumer then computes ITS OWN
+`left: calc(target - thisLine'sOwnShift)`, the same "widen a leftward-reaching pseudo by
+this line's own shift" technique the guide layer already uses.
+
+**The target is the PARENT's column, not the root's own** — `calc((rootDepth - 1) *
+UNIT)` for a block/atom/heading root, or the root's own line-shift MINUS one `UNIT` for
+a list-item root (list guides are deferred entirely to native rendering per
+`computeLineGuides`'s own precedent, so there's no additive guide column to target
+directly; subtracting one unit from the root's own shift approximates "one level out"
+the same way). A second, later round of user review corrected the FIRST version of this
+decision, which anchored to the root's OWN column (`rootDepth * UNIT`) — reusing exactly
+where an ancestor's guide renders. That looked right in isolation but ran the chrome's
+left edge straight through the MIDDLE of the root's own marker icon (the icon is
+CENTERED on its own column, per Experiment 5a's placement decision) — comparing directly
+against Logseq's own block-selection convention, which is "wider on the left, going till
+the next level," made the fix obvious: target the PARENT's column instead, clearing the
+marker entirely. A top-level root (depth 0) has no shallower level to reach for the same
+reason a guide never renders at negative depth — subtracting one `UNIT` anyway (rather
+than clamping to the root's own column) keeps the same "one level out" amount uniform,
+and stays within the leftward-overflow margin the guide layer's own doc comment already
+confirmed is never clipped.
 
 **Why:** reuses the exact column concept guides already establish (an ancestor's guide
 renders at `ancestorDepth * UNIT` regardless of which descendant line it threads
@@ -192,6 +205,33 @@ way the original guide-line code learned this exact lesson for the SAME native r
 rule can't switch pseudo the same way (it needs `::before` specifically so it can coexist
 with guides' `::after` on the same element), so it resets the conflicting property
 instead.
+
+### A widget atom's right edge is pulled in to match plain lines, not left at its own (wider) box
+A table widget reserves extra box width past its own visible grid for the "+ column"
+button (present in the DOM whether or not currently visible/hovered) — found by user
+review as a visible "notch": the table's chrome, matching its own wider box via a flat
+`right: 0`, poked out past every plain line's own right edge in the same cover.
+`MarginCompensation`'s widget loop now computes `--to-selected-right` per widget: live-
+measures a reference plain line's own right edge (`nativeContentRightPx` — deliberately
+NOT `contentDOM.getBoundingClientRect().right`, a real bug in an early version of this
+fix: Obsidian's readable-line-width centers each `.cm-line` INDIVIDUALLY via its own
+`margin-inline: auto`, so `contentDOM` itself stays full-viewport-width regardless — only
+correct in a viewport narrow enough that no line was being centered at all yet), then
+pulls the widget's own right edge in by however much its box exceeds that reference.
+
+**Two more real bugs found live while building this, both instructive:** (1) an early
+version subtracted the widget's own `padding-right` from its border-box edge, reasoning
+that a positioned descendant's containing block is inset by padding — wrong: it's inset
+by BORDER width only (this widget has none, so no adjustment was needed at all, and the
+subtraction silently reintroduced a same-size gap on the other side). (2) after removing
+that, the fix still visibly did nothing — forcing an extreme test value (`-300px`)
+looked IDENTICAL to the real one (`-16px`), which turned out to mean both were pushing
+the edge OUTWARD (CSS `right` more negative = further right/outward, the opposite of
+`left`, where more negative reaches further left/outward) past an ancestor's real
+overflow-clipping boundary, clipped to the same visible result either way — not, as
+first assumed, that `right` had no effect. The actual fix needed a POSITIVE value (push
+inward). Both errors were caught by forcing extreme/adversarial values and comparing
+against live computed geometry, not by re-reading the CSS spec harder.
 
 ### Native character-level highlight suppressed while fully block-selected
 A real finding from user review: showing the chrome above AND CM6's own character-level
@@ -223,6 +263,28 @@ where the real complexity would be anyway.
 highlight for exactly the text it covers, without touching selection state, and the
 all-or-nothing scope matches what's actually reachable through real usage.
 
+### Chrome color reuses `--text-selection`, resolved live rather than referenced directly
+The chrome's background color is a live-resolved COPY of the theme's own
+`--text-selection` variable (the same one native selection itself uses — full opacity,
+no separate tint/reduction of our own), not a plain accent color at low opacity. A real
+finding from user review: the first version's `--interactive-accent` at 0.08 opacity
+read as too faint, and picking any other color independently of the theme risked
+inconsistency across themes; reusing the theme's OWN selection color was the direct fix.
+
+Resolved live and copied into a NEW property (`--to-selected-bg`,
+`MarginCompensation.measureSelectionColor`), not referenced directly as
+`var(--text-selection)` in the chrome rule: Obsidian's own
+`.cm-table-widget.is-selected { --text-selection: transparent; }` (avoiding a double
+selection render inside table cells, which have their own native selection UI) would
+otherwise silently make the chrome invisible on any table under an escalated selection
+too — a real bug, found live via a manual visual pass showing the color-fixed chrome
+correctly tinted everywhere EXCEPT the table (which stayed completely blank). A `var()`
+reference re-resolves against whatever's inherited AT THE ELEMENT USING IT, not "frozen"
+at whichever ancestor last declared it, so merely referencing `--text-selection` inherits
+that same local override. Reading the value once via `getComputedStyle` on `contentDOM`
+(never itself `.is-selected`) and writing it back as a resolved color literal under a
+property name NOTHING else resets breaks that inheritance chain outright.
+
 ## Risks / Trade-offs
 
 - **[Risk] Recomputing cover-membership on every selection-only view update adds cost
@@ -252,6 +314,22 @@ all-or-nothing scope matches what's actually reachable through real usage.
   a native rule's specificity only guarantees winning the properties actually declared,
   never the ones left to fall through — is worth remembering for any FUTURE property this
   rule might need to add.
+- **[Deferred, out of scope] Under the Minimal community theme, boxed atoms (callouts,
+  code blocks) overflow the reading column when indented at all** — a base-indentation
+  issue (`MarginCompensation`, Experiment 1), not something this change introduces or can
+  fix within its own scope: Minimal sizes these boxes via a fixed `max-width` percentage
+  that doesn't recompute when `margin-left` changes, unlike the bundled themes' `width:
+  auto`. The chrome merely inherits whatever box width these atoms end up with. Confirmed
+  live (Minimal theme, already present in the test vault via the existing e2e
+  infrastructure) and diagnosed in full in docs/research/12's "Known gaps."
+- **[Deferred, out of scope] A same-node selection that reaches a node's own text doesn't
+  yet include that node's owned trailing gap — only dragging INTO the gap does.**
+  Confirmed live: this is `node-selection-enforcement`'s own escalation math (`D4`'s
+  `subtreeContentEnd`), unrelated to how escalated selections render. Whether reaching a
+  node at all (not just dragging past it) should be enough to pull its gap into the
+  cover is a real, worthwhile question, but changing that math ripples into a different
+  capability's own spec and property tests — deliberately not touched here. Full
+  diagnosis in docs/research/13's "Escalation math re-examination candidate."
 
 ## Open Questions — resolved by the manual visual pass
 
