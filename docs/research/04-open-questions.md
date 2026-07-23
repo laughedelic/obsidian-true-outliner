@@ -493,11 +493,12 @@ foundational, wide-blast-radius changes).
   composition the type-over path already uses (`deleteAndSplice`, shared between
   `composeTypeOver` and `computePasteVerdict`).
 - **`outdent` drops a node's following siblings instead of re-parenting them under
-  it — CONFIRMED, pre-existing, not a Phase C regression.** Direct test: outdenting
-  the middle item of `- p\n\t- x\n\t- y\n\t- z\n` (outdenting `x`) produces
-  `- p\n\t- y\n\t- z\n\n- x` — `x` jumps to AFTER the entire `p` section (past `y`
+  it — CONFIRMED, pre-existing, not a Phase C regression. FIXED** (change
+  `fix-outdent-following-siblings`, 2026-07-23). Direct test: outdenting
+  the middle item of `- p\n\t- x\n\t- y\n\t- z\n` (outdenting `x`) used to produce
+  `- p\n\t- y\n\t- z\n\n- x` — `x` jumped to AFTER the entire `p` section (past `y`
   and `z`, its own former following siblings), rather than becoming `p`'s immediate
-  next sibling with `y`/`z` re-parented under it. This is the CURRENT, ALREADY-SHIPPED
+  next sibling with `y`/`z` re-parented under it. This was the CURRENT, ALREADY-SHIPPED
   behavior of the core `outdent` operation from `mapping-core` (Q2) — no existing
   test in `ops.test.ts`/`closure.test.ts` ever covered "outdenting a node with
   following siblings under the same parent," so the gap shipped unnoticed until this
@@ -505,13 +506,19 @@ foundational, wide-blast-radius changes).
   with children into a predecessor, then splitting the predecessor again, then trying
   to outdent the split-off remainder no longer restores the original sibling
   structure — the re-parented children stay with the merged node instead of
-  following the split-off node back out). Proposed fix, matching Logseq's outdent
+  following the split-off node back out). Fixed to match Logseq's outdent
   semantics ("outdent in place"): a node's FOLLOWING siblings (under the same
-  parent, after the outdented node) re-parent as the outdented node's OWN children,
-  rather than staying with the original parent. This is NOT scoped to
-  node-edit-enforcement — it changes core `outdent` behavior for every existing
-  scenario with following siblings, well beyond what D10/D11 touch. Holding for an
-  explicit decision before implementing (tasks.md 8.2).
+  parent, after the outdented node) now re-parent as the outdented node's OWN
+  children (appended after any children it already had), rather than staying with
+  the original parent — `outdent(...)` in [src/ops.ts](../../src/ops.ts) now
+  truncates `parent`'s remaining children at the outdented node's index and
+  re-encodes the removed tail via the same context-determined encoding rule used
+  for the outdented node itself. This was NOT scoped to node-edit-enforcement — it
+  changed core `outdent` behavior for every existing scenario with following
+  siblings, well beyond what D10/D11 touch — see
+  `openspec/changes/fix-outdent-following-siblings/` (proposal/design/specs/tasks)
+  for the full rationale and regression coverage
+  (`tests/ops.test.ts`, `tests/closure.test.ts`).
 - **Heading Enter inserts a blank line rather than splitting into a new paragraph —
   pre-existing, predates this change.** Confirmed via `grammar.ts`'s `'split'` case
   for `node.kind === 'heading'`: Enter ANYWHERE in a heading's text (not just at its
