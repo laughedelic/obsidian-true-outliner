@@ -69,5 +69,5 @@
 
 ## 6. Sync specs
 
-- [ ] 6.1 Run `openspec sync-specs` (or the equivalent skill) to merge this change's
+- [x] 6.1 Run `openspec sync-specs` (or the equivalent skill) to merge this change's
       `structural-operations` delta spec into `openspec/specs/structural-operations/spec.md`.
