@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "220bdb8e4d20",
+  "strategy": "manual-commit",
+  "branch": "fix-outdent-following-siblings",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/research/04-open-questions.md",
+    "openspec/changes/fix-outdent-following-siblings/.openspec.yaml",
+    "openspec/changes/fix-outdent-following-siblings/design.md",
+    "openspec/changes/fix-outdent-following-siblings/proposal.md",
+    "openspec/changes/fix-outdent-following-siblings/specs/structural-operations/spec.md",
+    "openspec/changes/fix-outdent-following-siblings/tasks.md",
+    "src/ops.ts",
+    "tests/closure.test.ts",
+    "tests/ops.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/22/0bdb8e4d20/0/metadata.json",
+      "transcript": "/22/0bdb8e4d20/0/full.jsonl",
+      "compact_transcript": "/22/0bdb8e4d20/0/transcript.jsonl",
+      "content_hash": "/22/0bdb8e4d20/0/content_hash.txt",
+      "prompt": "/22/0bdb8e4d20/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 546,
+    "cache_creation_tokens": 320701,
+    "cache_read_tokens": 58851099,
+    "output_tokens": 140013,
+    "api_call_count": 273
+  }
+}
