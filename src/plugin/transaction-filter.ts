@@ -26,6 +26,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { indentUnit } from '@codemirror/language';
 import { editorInfoField, Notice } from 'obsidian';
 import type { OutlineDoc } from '../model';
 import { encodeLines } from '../encode';
@@ -216,7 +217,11 @@ export function transactionFilterExtension(
       if (escalated) result = [tr, { selection: escalated }];
     } else if (cls === 'boundary-crossing-edit') {
       const edit = collectEditFact(tr);
-      const verdict = computeVerdict(cls, outlineDoc, edit);
+      // Public CM6 facet, same as keymap.ts's grammar path — Obsidian sets
+      // it from "Indent using tabs", so a structural rewrite that has to
+      // materialize brand-new indentation (paste/type-over with no
+      // existing indented line to infer from) respects the same setting.
+      const verdict = computeVerdict(cls, outlineDoc, edit, tr.startState.facet(indentUnit));
       verdictKind = verdict.kind;
       if (verdict.kind === 'rewrite') {
         result = buildRewriteSpec(tr, outlineDoc, verdict);

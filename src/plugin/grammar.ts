@@ -110,7 +110,12 @@ function insertionPlan(
   };
 }
 
-export function planKey(text: string, cursor: EditorPos, key: GrammarKey): GrammarOutcome {
+export function planKey(
+  text: string,
+  cursor: EditorPos,
+  key: GrammarKey,
+  fallbackIndentUnit?: string,
+): GrammarOutcome {
   const doc = parse(text);
   const node = nodeAtLine(doc, cursor.line);
   if (!node) return null; // preamble or nothing: stock behavior
@@ -130,9 +135,9 @@ export function planKey(text: string, cursor: EditorPos, key: GrammarKey): Gramm
 
   switch (key) {
     case 'indent':
-      return planFromOp(lines, indent(doc, node.id), 'input.structure.indent');
+      return planFromOp(lines, indent(doc, node.id, fallbackIndentUnit), 'input.structure.indent');
     case 'outdent':
-      return planFromOp(lines, outdent(doc, node.id), 'input.structure.outdent');
+      return planFromOp(lines, outdent(doc, node.id, fallbackIndentUnit), 'input.structure.outdent');
     case 'move-up':
       return planFromOp(lines, moveUp(doc, node.id), 'move.structure');
     case 'move-down':
@@ -150,7 +155,7 @@ export function planKey(text: string, cursor: EditorPos, key: GrammarKey): Gramm
       }
       return planFromOp(
         lines,
-        splitNode(doc, node.id, cursor),
+        splitNode(doc, node.id, cursor, fallbackIndentUnit),
         'input.structure.split',
       );
     }

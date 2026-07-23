@@ -282,9 +282,10 @@ function insertAsOnlyChildren(
   doc: OutlineDoc,
   parentPath: readonly number[],
   parsedBlocks: readonly OutlineNode[],
+  fallbackIndentUnit: string | undefined,
 ): OpResult<OpOutput> {
   const parent = parentPath.length === 0 ? 'root' : nodeAt(doc, parentPath)!;
-  const reencoded = reencodeBlocksForDestination(doc, parent, [], [], parsedBlocks);
+  const reencoded = reencodeBlocksForDestination(doc, parent, [], [], parsedBlocks, fallbackIndentUnit);
   const rebuild = (nodes: readonly OutlineNode[], depth: number): readonly OutlineNode[] => {
     if (depth === parentPath.length) return reencoded;
     const index = parentPath[depth]!;
@@ -340,7 +341,12 @@ function endOfInsertedRun(
  * the placeholder stranded next to it). `parsedBlocks.length === 0` is a
  * pure deletion (no replacement text/content).
  */
-function deleteAndSplice(doc: OutlineDoc, ids: readonly number[], parsedBlocks: readonly OutlineNode[]): Verdict {
+function deleteAndSplice(
+  doc: OutlineDoc,
+  ids: readonly number[],
+  parsedBlocks: readonly OutlineNode[],
+  fallbackIndentUnit: string | undefined,
+): Verdict {
   const deletion = deleteSubtrees(doc, ids);
   if (!deletion.ok) return vetoFrom(deletion);
 
@@ -358,11 +364,11 @@ function deleteAndSplice(doc: OutlineDoc, ids: readonly number[], parsedBlocks: 
 
   let inserted: OpResult<OpOutput>;
   if (after && survivorInDoc2) {
-    inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'before');
+    inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'before', fallbackIndentUnit);
   } else if (before && survivorInDoc2) {
-    inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'after');
+    inserted = insertSubtrees(doc2, survivorInDoc2.id, parsedBlocks, 'after', fallbackIndentUnit);
   } else {
-    inserted = insertAsOnlyChildren(doc2, parentPath, parsedBlocks);
+    inserted = insertAsOnlyChildren(doc2, parentPath, parsedBlocks, fallbackIndentUnit);
   }
   if (!inserted.ok) return vetoFrom(inserted);
 
@@ -373,8 +379,13 @@ function deleteAndSplice(doc: OutlineDoc, ids: readonly number[], parsedBlocks: 
   return { kind: 'rewrite', edits: finalEdits, cursor, userEvent: 'input.paste.structural' };
 }
 
-function composeTypeOver(doc: OutlineDoc, ids: readonly number[], insertText: string): Verdict {
-  return deleteAndSplice(doc, ids, parse(insertText).children);
+function composeTypeOver(
+  doc: OutlineDoc,
+  ids: readonly number[],
+  insertText: string,
+  fallbackIndentUnit: string | undefined,
+): Verdict {
+  return deleteAndSplice(doc, ids, parse(insertText).children, fallbackIndentUnit);
 }
 
 /** A list item with no content of its own (just typed, e.g. via Enter) and
@@ -386,7 +397,11 @@ function isEmptyAnchor(node: OutlineNode): boolean {
   return line.slice(contentColumnCh(line)).trim() === '';
 }
 
-function computeDeletionVerdict(doc: OutlineDoc, edit: EditFact): Verdict {
+function computeDeletionVerdict(
+  doc: OutlineDoc,
+  edit: EditFact,
+  fallbackIndentUnit: string | undefined,
+): Verdict {
   const range: LineRange = { anchor: edit.from, head: edit.to };
   const ids = coverIdsOf(doc, range);
   if (!ids) return PASS; // preamble jurisdiction
@@ -396,7 +411,7 @@ function computeDeletionVerdict(doc: OutlineDoc, edit: EditFact): Verdict {
     if (!deletion.ok) return vetoFrom(deletion);
     return rewriteFrom(deletion.value, 'delete.structural');
   }
-  return composeTypeOver(doc, ids, edit.insert);
+  return composeTypeOver(doc, ids, edit.insert, fallbackIndentUnit);
 }
 
 /**
@@ -412,38 +427,53 @@ function computeDeletionVerdict(doc: OutlineDoc, edit: EditFact): Verdict {
  * veto — "a wrong pass is editable text; a wrong rewrite is surprising
  * relocation."
  */
-function computePasteVerdict(doc: OutlineDoc, edit: EditFact): Verdict {
+function computePasteVerdict(
+  doc: OutlineDoc,
+  edit: EditFact,
+  fallbackIndentUnit: string | undefined,
+): Verdict {
   const node = nodeAtLine(doc, edit.from.line);
   if (!node) return PASS;
   const parsedBlocks = parse(edit.insert).children;
   if (!isStructuralBlockSequence(parsedBlocks)) return PASS;
 
   if (isEmptyAnchor(node)) {
-    const verdict = deleteAndSplice(doc, [node.id], parsedBlocks);
+    const verdict = deleteAndSplice(doc, [node.id], parsedBlocks, fallbackIndentUnit);
     if (verdict.kind === 'rewrite') return verdict;
     // Fall through to the plain splice-after path below if replacing the
     // empty anchor didn't work out for some reason (conservative bias).
   }
 
-  const inserted = insertSubtrees(doc, node.id, parsedBlocks, 'after');
+  const inserted = insertSubtrees(doc, node.id, parsedBlocks, 'after', fallbackIndentUnit);
   if (!inserted.ok) return PASS;
   const cursor = endOfInsertedRun(inserted.value.doc, inserted.value.cursor, parsedBlocks.length);
   return { kind: 'rewrite', edits: inserted.value.edits, cursor, userEvent: 'input.paste.structural' };
 }
 
-/** The verdict for one transaction. `edit` is `undefined` for shapes this
+/**
+ * The verdict for one transaction. `edit` is `undefined` for shapes this
  * phase doesn't model (multi-range changes) — always `pass`, never a veto,
- * per the conservative-default-permit posture (D1). */
+ * per the conservative-default-permit posture (D1).
+ *
+ * `fallbackIndentUnit` — the unit to materialize brand-new indentation with
+ * when nothing in the document itself gives a unit to infer (see
+ * `ops.ts`'s `destinationIndent`/`inferIndentUnit`) — is the caller's
+ * (CM6 adapter's) live read of Obsidian's "Indent using tabs" setting via
+ * the public `@codemirror/language` `indentUnit` facet. `undefined` here
+ * keeps the existing space-inferring default, so every pure-function call
+ * site in tests stays unaffected.
+ */
 export function computeVerdict(
   cls: TransactionClass,
   doc: OutlineDoc,
   edit: EditFact | undefined,
+  fallbackIndentUnit?: string,
 ): Verdict {
   if (cls !== 'boundary-crossing-edit' || !edit) return PASS;
 
   const isPureInsertion = edit.from.line === edit.to.line && edit.from.ch === edit.to.ch;
   if (isPureInsertion) {
-    return edit.insert === '' ? PASS : computePasteVerdict(doc, edit);
+    return edit.insert === '' ? PASS : computePasteVerdict(doc, edit, fallbackIndentUnit);
   }
   // Merge shapes route first (D10): single-newline and marker-space
   // deletions are either merge intents, native chrome edits, or the
@@ -452,5 +482,5 @@ export function computeVerdict(
   const intent = recognizeMergeIntent(doc, edit);
   if (intent === 'native') return PASS;
   if (intent !== undefined) return computeMergeVerdict(doc, intent);
-  return computeDeletionVerdict(doc, edit);
+  return computeDeletionVerdict(doc, edit, fallbackIndentUnit);
 }

@@ -104,6 +104,28 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('- alpha\n- beta\n');
   });
 
+  it('Tab respects the vault\'s "Indent using tabs" setting for brand-new indentation', async function () {
+    // A note with no existing indented list item: the unit for this first
+    // Tab has nothing in the document to infer from, so it must come from
+    // Obsidian's own editor setting instead of a hardcoded default.
+    try {
+      await h.setIndentUsingTabs(true);
+      await grammarNote('- alpha\n- beta\n', 1, 4);
+      await h.keys.tab();
+      const withTabs = await h.getBuffer();
+      expect(withTabs).toBe('- alpha\n\t- beta\n');
+
+      await h.setIndentUsingTabs(false);
+      await grammarNote('- alpha\n- beta\n', 1, 4);
+      await h.keys.tab();
+      const withSpaces = await h.getBuffer();
+      expect(withSpaces.split('\n')[1]).toMatch(/^ +- beta$/);
+      expect(withSpaces).not.toContain('\t');
+    } finally {
+      await h.setIndentUsingTabs(false); // restore the vault's default for later specs
+    }
+  });
+
   it('Alt+Up/Down move nodes with their children; ordered runs renumber', async function () {
     await grammarNote('- a\n\t- a1\n- b\n', 0, 2);
     await h.keys.altDown();

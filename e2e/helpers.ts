@@ -114,6 +114,25 @@ export async function processFileExternally(notePath: string, content: string): 
   );
 }
 
+/**
+ * Test-setup-only: toggles Obsidian's own "Indent using tabs" editor
+ * setting (Settings → Editor). `vault.setConfig`/`getConfig` aren't part of
+ * the plugin's public-API surface — the plugin itself never touches them
+ * (it reads the equivalent CM6 `indentUnit` facet instead, see
+ * src/plugin/keymap.ts) — but arranging Obsidian's own state for a test is
+ * a different concern from what the shipped plugin code is allowed to do,
+ * same category as this file's existing `(editor as any).cm` reads.
+ * `updateOptions()` is the same public "editor-extension-affecting settings
+ * changed" call the plugin's own `forceRedraw` uses, so a freshly-opened or
+ * re-focused editor's CM6 state picks up the new facet value.
+ */
+export async function setIndentUsingTabs(useTab: boolean): Promise<void> {
+  await browser.executeObsidian(({ app }, useTab) => {
+    (app.vault as any).setConfig('useTab', useTab);
+    app.workspace.updateOptions();
+  }, useTab);
+}
+
 export function getCursor(): Promise<{ line: number; ch: number }> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
