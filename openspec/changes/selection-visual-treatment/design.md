@@ -285,6 +285,136 @@ that same local override. Reading the value once via `getComputedStyle` on `cont
 (never itself `.is-selected`) and writing it back as a resolved color literal under a
 property name NOTHING else resets breaks that inheritance chain outright.
 
+### A blockquote's native side-bar BORDER needed resetting too, not just its width
+A third round of user review found the native colored side-bar (blockquote's
+`.HyperMD-quote::before`) visibly relocating along with the chrome's own `left` — the
+wider the selection, the further out the bar got dragged. Root cause: native sets both
+`inset-inline-start: 0` (pinning that edge at native position 0) AND `border-inline-start`
+(a border painted at the box's OWN edge) on the SAME `::before` this rule also targets.
+This rule's `left` out-specifies native's `inset-inline-start` for that property (same as
+every other property this rule already wins), which relocates the box — and since a
+border always paints at wherever its OWN box's edge ends up, the bar moves right along
+with it, growing more displaced the shallower/wider the covered selection.
+
+**First fix attempt, rejected on further review:** simply reset the real border to
+`border-inline-start: none` (the same technique that fixed the `width: 1px` leak) —
+harmless everywhere else this rule applies, since nothing else declares a competing
+border there. This stopped the relocation, but traded one visible bug for a different
+one: the bar just vanished entirely while the blockquote was part of an escalated
+selection, judged too blunt on review — the bar should stay exactly where it always is,
+not disappear.
+
+**The actual fix:** reproduce the bar as a `background-image` (a flat-color
+`linear-gradient`) on the SAME pseudo-element, positioned independently of the box's own
+edges via `background-position` — a border is always tied to the box's own edge, but a
+background-image's position is not. Since the box's own edge is now at `nativeEdge +
+shift` (where `shift` is this rule's own `--to-selected-left`, and `nativeEdge` is where
+the box would render un-shifted, i.e. where the real border used to sit), positioning the
+stripe at `background-position-x: calc(-1 * var(--to-selected-left))` lands it back at
+`nativeEdge` in absolute page terms, regardless of `shift` — confirmed live (both via
+screenshots at two very different shift amounts, and via a direct rect/position
+calculation) that the stripe's absolute position doesn't move at all as the shift varies,
+while the box's own edge clearly does. The real border stays reset to `none` (a real
+border still can't stay put while the box's edge moves) — only its VISUAL reproduction
+moves to the background layer instead.
+
+`--blockquote-border-color`/`--blockquote-border-thickness` are Obsidian's own theme
+variables — confirmed live via `document.styleSheets` that native's rule is literally
+`border-inline-start: var(--blockquote-border-thickness) solid
+var(--blockquote-border-color)` on this exact pseudo-element — so the reproduction uses
+the theme's real values directly, with no separate JS measurement needed (unlike
+`--to-selected-bg`/`--to-selected-right` elsewhere in this file, which measure a property
+with no stable variable of its own to reference).
+
+Scoped to a `.HyperMD-quote`-specific rule, layered on top of the shared one (using
+`background-color` on the shared rule instead of the `background` shorthand, so the
+blockquote-specific `background-image`/`-position`/`-size` layer on top rather than
+resetting): only blockquote lines have a native bar to reproduce, so sizing the stripe
+from these two variables on the SHARED rule (applying to every kind) would paint a stray
+sliver on headings/paragraphs/etc. too.
+
+Considered and rejected: decoupling the bar from the chrome box via `box-shadow` instead
+(a non-inset box-shadow, offset to extend the fill leftward without moving the box itself,
+was explored as an alternative to the `left`/`right` override mechanism generally — but
+would need re-deriving the widget right-edge pull-in logic against a differently-shaped
+primitive, for no benefit over the simpler background-image fix once the real native
+variables were found); reverting blockquote's own `left` to native's `0` (would
+reintroduce the earlier "no fill under nested content" bug this same rule was built to
+fix).
+
+**Why:** the same general lesson the `width: 1px` fix already established (out-specifying
+a native rule only wins the properties actually declared, never ones left unset) applied
+to a second property on the same pseudo-element — but this time, discarding the property
+outright (as the width fix could get away with, since nothing visible was lost) traded one
+bug for another; the real fix needed a way to keep the bar's VISUAL presence while
+decoupling its position from the box's own moving edge, which only a background-position-
+based reproduction (not a border, which is always edge-bound) could do.
+
+### A line needs its own stacking context for its `z-index: -1` chrome to resolve behind its OWN background
+A third-round user request ("can callout-style tinting extend to code blocks too?")
+surfaced that code fence lines showed NO visible tint at all, while callouts already
+tinted correctly — even though the chrome's `::before` measured a fully correct
+`background-color` and `z-index: -1` in both cases (confirmed live via computed styles,
+which looked identical in shape for both kinds). The actual paint order didn't match:
+computed CSS values can look completely correct while cascade/stacking interactions
+still hide the result, the same lesson the `--text-selection` inheritance bug (above)
+already taught.
+
+Root cause: `position: relative` alone, with `z-index: auto` (as this rule originally
+declared), does NOT make an element its own stacking-context root — only an explicit
+non-`auto` `z-index` does. Without that, a `z-index: -1` pseudo-element doesn't resolve
+"one layer behind THIS element's own content" at all; it hoists to whichever ANCESTOR
+first establishes a stacking context and paints behind EVERYTHING there, at stack level
+-1 — including this SAME line's own background, if the line sets one directly (a code
+line does, opaquely, via `background-color` on the `.cm-line` itself; a heading or
+paragraph stays transparent, so the bug was invisible on them). A callout's own colored
+background lives on a nested CHILD element deep inside its widget, not on the widget's
+own outer box directly, so it never competed with the hoisted pseudo the same way —
+purely incidental to why callouts "happened" to already work, not evidence the mechanism
+was actually correct.
+
+Fix: add `z-index: 0` alongside the existing `position: relative` on this rule (styles.
+css) — gives the line its own local stacking context, so its `z-index: -1` pseudo now
+correctly resolves relative to THAT line's own background/content only, not whatever
+ancestor context it would otherwise hoist to. Confirmed live (screenshot + a direct
+`getComputedStyle().zIndex` check) that a selected code fence now tints identically to a
+selected callout, with no change to unselected lines (the rule is scoped to
+`.to-decor-node-selected`, applied only while covered).
+
+**Why:** this was a genuine correctness gap in the general chrome mechanism, not a
+code-block-specific special case — any future widget/line kind that sets its own opaque
+background directly (rather than on a nested child) would have hit the exact same bug.
+Framed by the user as a low-risk "experiment, might be revert" ask; turned out to be a
+one-property, root-cause-understood fix rather than something needing a revertible
+fallback.
+
+### Tried and reverted: a border + corner-radius around the whole selection rectangle
+A third-round visual-polish request, explicitly gated by the user as "only if it's
+simple" for both a slim border and slight corner rounding. Prototyped the obvious
+approach — add `border`/`border-radius` directly to the existing shared chrome rule,
+which is a SEPARATE `::before` per covered LINE, not one box spanning the whole cover —
+and confirmed live via screenshot that it looks wrong: every line gets its own
+independent rounded border, producing a visible stack of separate pill-shaped boxes with
+a double-thickness seam at every line boundary, not one clean rectangle around the whole
+selection.
+
+A correct implementation would need each line to know whether it's the FIRST or LAST
+line of its own cover (to gate `border-top`/`border-bottom` and the corresponding two
+corners' radius to only those lines, while every line still gets `border-left`/
+`border-right` uniformly) — genuinely new state, not a style tweak: `selectedLineRootTargets`
+would need to track first/last-of-cover per line (straightforward there, since the
+loop already knows `loLine`/`hiLine`), but that flag would then need threading through
+BOTH the declarative CM6 path (`computeSelectionDecorations`) and the widget DOM-patch
+path (`MarginCompensation.apply`) as an additional per-line class or property, plus new
+e2e coverage for edge cases a flat left/right value never had to consider: a multi-range
+selection where each range has its own independent first/last pair, and a cover whose
+first or last line is itself a widget atom (a different code path from a plain line).
+
+Reverted rather than built: the user's own stated bar for this specific ask was "not
+worth the trouble if complicated," and this crosses from a style change into new
+per-line state threaded through two decoration mechanisms — worth reconsidering as its
+own focused follow-up if wanted later, not as a corner of an already-large change.
+
 ## Risks / Trade-offs
 
 - **[Risk] Recomputing cover-membership on every selection-only view update adds cost
@@ -305,15 +435,18 @@ property name NOTHING else resets breaks that inheritance chain outright.
   cover once any one escalates).
 - **[Risk, found and fixed during this change] A leftover native CSS property leaking
   through an unset property on this rule's own `::before`/`::selection` overrides, since
-  higher specificity alone only wins properties THIS rule actually declares.** Two real
-  instances, both caught by the manual visual pass, not by inspection: a blockquote's
-  native `width: 1px` (side-bar rule) shrinking the whole chrome box to an invisible
-  sliver, and (before the redesign below) an under-reaching `left` leaving gaps under
-  nested content. Both fixed by explicitly declaring the previously-unset property
-  (`width: auto`) or by the root-anchoring redesign itself. The general lesson — matching
-  a native rule's specificity only guarantees winning the properties actually declared,
-  never the ones left to fall through — is worth remembering for any FUTURE property this
-  rule might need to add.
+  higher specificity alone only wins properties THIS rule actually declares.** Three real
+  instances, all caught by manual visual/live-pixel review, not by inspection: a
+  blockquote's native `width: 1px` (side-bar rule) shrinking the whole chrome box to an
+  invisible sliver; (before the redesign below) an under-reaching `left` leaving gaps
+  under nested content; and the SAME blockquote side-bar rule's `border-inline-start`
+  visibly relocating along with this rule's own `left` (a third-round finding — see
+  "A blockquote's native side-bar BORDER needed resetting too" above). All three fixed by
+  explicitly declaring the previously-unset property (`width: auto`, `border-inline-start:
+  none`) or by the root-anchoring redesign itself. The general lesson — matching a native
+  rule's specificity only guarantees winning the properties actually declared, never the
+  ones left to fall through — is worth remembering for any FUTURE property this rule might
+  need to add.
 - **[Deferred, out of scope] Under the Minimal community theme, boxed atoms (callouts,
   code blocks) overflow the reading column when indented at all** — a base-indentation
   issue (`MarginCompensation`, Experiment 1), not something this change introduces or can

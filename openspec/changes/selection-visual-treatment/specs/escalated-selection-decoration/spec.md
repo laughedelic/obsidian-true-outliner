@@ -67,6 +67,12 @@ and marker decorations on the same lines without removing, overriding, or visual
 replacing them, and SHALL apply to widget-replaced atom lines (tables, callouts, raw
 HTML, horizontal rules) exactly as it applies to plain `.cm-line`s, using whichever
 mechanism (declarative decoration or direct DOM patch) already reaches that line kind.
+A line or widget that sets its OWN opaque background directly (e.g. a code fence) SHALL
+still show the chrome tint blended with that background, the same as a line that stays
+transparent. A line with its own native decorative element positioned at a fixed column
+(e.g. a blockquote's colored side-bar) SHALL keep that element rendering at its own
+native, unshifted position, regardless of how far the chrome's own left edge reaches for
+that cover.
 
 #### Scenario: A covered subtree containing an indented list item keeps its indentation
 - **WHEN** an escalated cover includes a list item several levels deep
@@ -85,8 +91,29 @@ mechanism (declarative decoration or direct DOM patch) already reaches that line
 - **THEN** that widget's chrome right edge matches every plain line's own right edge in
   the same cover, not the widget's own wider box
 
+#### Scenario: A code fence's own opaque background still shows the chrome tint
+- **WHEN** an escalated cover includes a code fence line, which (unlike a heading or
+  paragraph) sets its own opaque `background-color` directly on the line rather than
+  staying transparent
+- **THEN** the chrome tint renders blended with that background, the same as it does on
+  a transparent line — the line becomes its own stacking-context root so its `z-index:
+  -1` chrome pseudo resolves behind just that line's own content, not hoisted to an
+  ancestor context where it would paint behind the line's own background too
+
+#### Scenario: A blockquote's native side-bar stays at its own position, not the chrome's left edge
+- **WHEN** an escalated cover includes a blockquote line, and the cover's shared left
+  edge reaches well past that blockquote's own native column
+- **THEN** the blockquote's own colored side-bar renders at its own native, unshifted
+  position — neither relocated to the chrome's left edge nor removed/hidden — regardless
+  of how far that edge reaches for this particular cover
+
 **Covered by**: e2e coverage extending the existing decoration corpus with an
-escalated-selection-over-table/callout fixture.
+escalated-selection-over-table/callout fixture; a dedicated code-fence stacking-context
+regression check (asserting the selected line's own resolved `z-index`, since computed
+background-color/z-index values on the chrome pseudo alone look correct even when the
+actual paint order is wrong); a dedicated blockquote regression check comparing the
+side-bar's resolved absolute position across two covers with very different shift
+amounts on the same blockquote line.
 
 ### Requirement: Chrome anchors one level beyond the covered root's own column, not each line's own
 The chrome's left edge SHALL align to the SAME column for every line an escalated cover

@@ -185,3 +185,69 @@ gap-line escalation question.
       nested-heading-with-marker, table, and the full mixed H1>H2>H3>{list,blockquote,
       code} fixture) confirming all of 7.1–7.3 together, both bundled themes — no
       regressions.
+
+## 8. Third round of user review: blockquote border, code-block tinting
+
+A third round of live screenshots surfaced one confirmed bug (not experimental) and one
+user-flagged "experiment, might be reverted" request that turned out to be a genuine,
+root-cause-understood correctness fix rather than something fragile.
+
+- [x] 8.1 Blockquote regression: a selected blockquote's native colored side-bar (a
+      `border-inline-start` on the same `::before` this rule's `left` also targets) was
+      visibly dragged out to wherever the chrome's own `left` pointed — the broader the
+      selection, the further displaced. A first fix (`border-inline-start: none`, the
+      same technique as the earlier `width: 1px` leak) stopped the relocation but traded
+      it for a different regression on user re-review: the bar just vanished entirely
+      while selected, instead of staying at its own native position. The real fix
+      reproduces the bar as a `background-image` (flat-color `linear-gradient`) sized
+      from Obsidian's own `--blockquote-border-thickness`/`--blockquote-border-color`
+      variables (confirmed live via `document.styleSheets` that native's rule references
+      these directly — no separate JS measurement needed), positioned via
+      `background-position-x: calc(-1 * var(--to-selected-left))` — since a
+      background-image's position (unlike a border) isn't tied to the box's own edge,
+      this lands the stripe back at its native absolute position regardless of how far
+      the box itself shifts for any given cover. Scoped to a `.HyperMD-quote`-specific
+      rule layered on the shared one (which now uses `background-color`, not the
+      `background` shorthand, so it doesn't reset this layer). New e2e regression
+      coverage (`blockquoteStripeAbsoluteX`/`blockquoteStripeWidthPx` helpers,
+      `63-selection-visual-treatment.e2e.ts`) confirms the stripe's absolute position is
+      IDENTICAL across two covers with very different shift amounts on the same
+      blockquote line, sits well clear of the chrome's own left edge (not fused with it),
+      and never appears on non-blockquote lines.
+- [x] 8.2 Code-block tinting (user-flagged experiment): investigated why a selected code
+      fence showed no chrome tint at all while a selected callout already did, despite
+      both measuring correct `background-color`/`z-index: -1` on the chrome pseudo.
+      Root cause: `position: relative` with `z-index: auto` (this rule's original
+      declaration) never makes a line its own stacking-context root, so its `z-index: -1`
+      pseudo hoists to whichever ANCESTOR establishes one and paints behind everything
+      there — including this same line's own opaque background (a code line sets one
+      directly; a callout's colored background lives on a nested child, not the widget's
+      own box, so it never competed the same way). Fixed with one added property,
+      `z-index: 0`, alongside the existing `position: relative` — confirmed live
+      (screenshot across callout/code/blockquote/list/table together, both themes) with
+      no regressions to any other kind. New e2e regression coverage asserts the
+      resolved `z-index` directly (a computed-background-color check alone wouldn't have
+      caught this bug, since that value looked correct even while the paint order was
+      wrong).
+- [x] 8.3 Re-ran full unit suite (287 passed), typecheck (main + e2e), lint, the full
+      `63-selection-visual-treatment` spec (19 passing after 8.1's corrected fix), and the
+      broader decoration suite (50/51/52 all passing; 53's one failure is the
+      pre-existing, already-documented table-drag-handle flake from section 5.1,
+      unrelated) — no regressions from either fix.
+- [x] 8.4 On user re-review, 8.1's first attempt (discarding the border via
+      `border-inline-start: none`) was found too blunt — the bar shouldn't just vanish
+      while selected. Corrected as described in 8.1 above (reproduced via a positioned
+      `background-image` instead of a border); re-validated with the corrected e2e
+      coverage.
+- [x] 8.5 Visual-polish experiment (user-gated "only if simple"): a slim border + slight
+      corner rounding around the selection rectangle. Prototyped the direct approach —
+      `border`/`border-radius` on the existing shared chrome rule — and found it live via
+      screenshot: since that rule is a SEPARATE `::before` per covered LINE, not one box
+      for the whole cover, this produces a visibly wrong result (a stack of individually
+      rounded/bordered boxes with a double-seam at every line boundary, not one clean
+      rectangle). A correct version needs each line to know if it's the first/last line
+      of its own cover — new state needing threading through both the declarative CM6
+      path and the widget DOM-patch path, plus new edge-case coverage (multi-range
+      selections, a widget atom as a cover's first/last line) — crossing out of "simple"
+      per the user's own stated bar. Reverted; not implemented. Full diagnosis in
+      design.md's "Tried and reverted" section.

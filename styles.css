@@ -381,9 +381,22 @@
  * a similar reserved-but-invisible edge.
  *
  * Painted BEHIND both the guide layer (`::after`) and the line's own text:
- * `z-index: -1` on a `position: relative` line places a pseudo-element
- * behind the line's normal-flow (auto-stacked) content — same reasoning
- * the guide layer's own comment above already documents.
+ * `z-index: -1` on the pseudo places it behind the line's normal-flow
+ * (auto-stacked) content — same reasoning the guide layer's own comment
+ * above already documents. This ONLY works if the line itself is the
+ * pseudo's stacking-context root — `position: relative` alone leaves
+ * `z-index: auto`, which does NOT establish one, so the `z-index: -1`
+ * pseudo would instead hoist to whatever ANCESTOR first establishes a
+ * stacking context and paint behind EVERYTHING there, at stack level -1 —
+ * including this same line's own background if it sets one directly
+ * (a code line does, opaquely; a heading/paragraph stays transparent so the
+ * bug was invisible on them). A real, confirmed-live regression from user
+ * review: a selected code fence showed no tint at all, while a selected
+ * callout (whose colored background lives on a NESTED child element, not
+ * this line/widget's own box, so it never competed with the hoisted pseudo)
+ * tinted correctly. `z-index: 0` alongside `position: relative` gives the
+ * line its own local stacking context, so the chrome resolves as "one layer
+ * behind just this line's own content," as the `-1` was always meant to.
  *
  * `width: auto` is NOT redundant, even though `left`+`right` alone already
  * imply it for a normal absolutely-positioned box: Obsidian's own
@@ -403,6 +416,7 @@
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-node-selected,
 .markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-node-selected {
   position: relative;
+  z-index: 0;
 }
 
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-node-selected::before,
@@ -436,9 +450,71 @@
    * whichever ancestor last set it — see `measureSelectionColor`'s own
    * doc comment for the full story (a real bug, found live).
    */
-  background: var(--to-selected-bg, var(--text-selection));
+  /* `background-color`, NOT the `background` shorthand: the blockquote-
+   * specific rule below layers a `background-image` on this SAME pseudo,
+   * and the shorthand would reset it back to `none` if used here too. */
+  background-color: var(--to-selected-bg, var(--text-selection));
+  /* A blockquote's own native colored side-bar (`.HyperMD-quote::before`,
+   * see the `width: auto` doc comment above) is a `border-inline-start` ON
+   * THIS SAME pseudo-element — and a border always paints at the BOX's OWN
+   * edge, wherever `left`/`width` currently put it. Since this rule's own
+   * `left` reaches all the way to the covered subtree's shared column (not
+   * the blockquote's own native position), the native bar was being
+   * dragged along with it — a real bug found by user review: "the broader
+   * the selection, the further that [bar] gets pushed out." A real border
+   * can't stay at one edge while the box's own edge (which is *where* a
+   * border always paints) moves — so it's reset to `none` here (harmless
+   * everywhere else this rule applies, since nothing else declares one) and
+   * reproduced instead as a fixed-position background stripe, below.
+   */
+  border-inline-start: none;
   pointer-events: none;
   z-index: -1;
+}
+
+/*
+ * Reproducing the blockquote's native side-bar at its own FIXED (unshifted)
+ * position, rather than just discarding it: a second round of user review
+ * on the `border-inline-start: none` fix above found it too blunt — the bar
+ * shouldn't just vanish while the blockquote is part of an escalated
+ * selection, it should stay exactly where it always renders.
+ *
+ * A `background-image`, unlike a `border`, can be positioned independently
+ * of the box's own edges via `background-position` — so this paints a
+ * solid-color stripe (a zero-to-zero `linear-gradient`, the standard trick
+ * for a flat fill via `background-image` rather than `background-color`,
+ * needed here since `background-color` is already spoken for by the tint
+ * above and an element has only one) sized to the native border's own
+ * thickness, then shifts it by the NEGATIVE of this rule's own `left` shift
+ * (`--to-selected-left`) to land back at the blockquote's native (unshifted)
+ * edge — wherever this box's own edge actually ends up, in absolute page
+ * terms the stripe cancels that shift out. Confirmed live that this target
+ * offset always falls inside the box's own (wider, leftward-reaching)
+ * bounds, so nothing here gets clipped.
+ *
+ * `--blockquote-border-color`/`--blockquote-border-thickness` are Obsidian's
+ * OWN theme variables — confirmed live via `document.styleSheets` that
+ * native's rule is `border-inline-start: var(--blockquote-border-thickness)
+ * solid var(--blockquote-border-color)` on this exact pseudo-element, so
+ * this reproduces the real native value for every theme with no separate
+ * live measurement needed (unlike `--to-selected-bg`/`--to-selected-right`
+ * elsewhere in this file, which DO need one — those read a property with no
+ * stable variable of its own to reference directly).
+ *
+ * Scoped to `.HyperMD-quote` specifically (not the shared rule above): the
+ * shared rule already resets `border-inline-start` for every kind, but only
+ * blockquote lines have a native bar to reproduce at all — sizing this
+ * stripe from the SAME two variables unconditionally on every kind would
+ * paint a stray sliver on headings/paragraphs/etc. too.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.HyperMD-quote.to-decor-node-selected::before {
+  background-image: linear-gradient(
+    var(--blockquote-border-color),
+    var(--blockquote-border-color)
+  );
+  background-repeat: no-repeat;
+  background-size: var(--blockquote-border-thickness) 100%;
+  background-position: calc(-1 * var(--to-selected-left, 0px)) 0;
 }
 
 /*

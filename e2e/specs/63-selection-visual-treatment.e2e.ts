@@ -97,6 +97,113 @@ async function chromeBeforeWidthPx(lineNumber: number): Promise<number> {
   );
 }
 
+/** Resolved (px) `border-inline-start-width` of the escalated-selection
+ * chrome's `::before` for whatever element renders logical line
+ * `lineNumber` — confirms the REAL border stays reset to `none` (a border
+ * always paints at the box's own edge, which this rule's own `left` moves,
+ * so a real border here would still visibly relocate) now that the native
+ * bar is reproduced instead via the fixed-position background stripe (see
+ * `blockquoteStripeAbsoluteX` below). */
+async function chromeBeforeBorderWidthPx(lineNumber: number): Promise<number> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineNumber) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const pos = cm.state.doc.line(lineNumber + 1).from;
+      const { node } = cm.domAtPos(pos);
+      const start = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+      const el = start?.closest('.cm-line, .cm-embed-block') as HTMLElement | null;
+      if (!el) throw new Error(`no line/widget element for line ${lineNumber}`);
+      return parseFloat(getComputedStyle(el, '::before').borderInlineStartWidth) || 0;
+    },
+    lineNumber,
+  );
+}
+
+/**
+ * Absolute viewport X of the blockquote-specific background-image stripe
+ * (styles.css's `.HyperMD-quote.to-decor-node-selected::before` rule) that
+ * reproduces the native side-bar at its own FIXED position. `background-
+ * position-x` resolves relative to the PSEUDO-ELEMENT's own box, not the
+ * `.cm-line`'s — so this is the line's rect left, PLUS the pseudo's own
+ * resolved `left` (how far this rule's `--to-selected-left` shifts the
+ * pseudo away from the line's edge), PLUS `background-position-x` (how far
+ * the stripe sits from the pseudo's own, now-shifted, edge). Unlike the
+ * real border it replaces, this MUST resolve to the same absolute column
+ * regardless of how far `--to-selected-left` shifts the box itself (that's
+ * the whole point: the stripe cancels the shift out via `calc(-1 *
+ * var(--to-selected-left))`), so comparing this across different cover
+ * depths (different shift amounts) is the actual regression guard.
+ */
+async function blockquoteStripeAbsoluteX(lineNumber: number): Promise<number> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineNumber) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const pos = cm.state.doc.line(lineNumber + 1).from;
+      const { node } = cm.domAtPos(pos);
+      const start = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+      const el = start?.closest('.cm-line, .cm-embed-block') as HTMLElement | null;
+      if (!el) throw new Error(`no line/widget element for line ${lineNumber}`);
+      const rect = el.getBoundingClientRect();
+      const before = getComputedStyle(el, '::before');
+      const pseudoLeft = parseFloat(before.left) || 0;
+      const posX = parseFloat(before.backgroundPositionX) || 0;
+      return rect.left + pseudoLeft + posX;
+    },
+    lineNumber,
+  );
+}
+
+/** Resolved (px) `background-size` WIDTH of the blockquote stripe — nonzero
+ * only on an actual blockquote line (the rule is scoped to `.HyperMD-quote`),
+ * confirming the stripe doesn't leak onto other kinds. */
+async function blockquoteStripeWidthPx(lineNumber: number): Promise<number> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineNumber) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const pos = cm.state.doc.line(lineNumber + 1).from;
+      const { node } = cm.domAtPos(pos);
+      const start = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+      const el = start?.closest('.cm-line, .cm-embed-block') as HTMLElement | null;
+      if (!el) throw new Error(`no line/widget element for line ${lineNumber}`);
+      const size = getComputedStyle(el, '::before').backgroundSize;
+      return parseFloat(size) || 0;
+    },
+    lineNumber,
+  );
+}
+
+/**
+ * Resolved `z-index` of whatever element renders logical (0-based) line
+ * `lineNumber` itself (not its `::before`) — a regression guard for the
+ * code-block/callout tinting bug: a `position: relative` line with
+ * `z-index: auto` never becomes its own stacking-context root, so its
+ * `z-index: -1` chrome pseudo gets hoisted to whichever ANCESTOR does
+ * establish one, painting behind everything there — including that same
+ * line's own opaque background (e.g. a code line's `background-color` set
+ * directly on the `.cm-line`), which paints later, at stack level 0. An
+ * explicit `z-index: 0` alongside `position: relative` makes the line its
+ * own stacking-context root, so the chrome resolves as "one layer behind
+ * just this line's own content," as intended.
+ */
+async function lineOwnZIndex(lineNumber: number): Promise<string> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineNumber) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const pos = cm.state.doc.line(lineNumber + 1).from;
+      const { node } = cm.domAtPos(pos);
+      const start = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+      const el = start?.closest('.cm-line, .cm-embed-block') as HTMLElement | null;
+      if (!el) throw new Error(`no line/widget element for line ${lineNumber}`);
+      return getComputedStyle(el).zIndex;
+    },
+    lineNumber,
+  );
+}
+
 /**
  * Native `::selection` computed `background-color` on the first real
  * `.cm-line` — used to confirm the suppression rule (styles.css) is
@@ -359,5 +466,91 @@ describe('escalated-selection-decoration: chrome anchors to the covered root\'s 
     await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 4, ch: 3 }); // whole section
     expect(await classListAtLine(2)).toContain(CLASS);
     expect(await chromeBeforeWidthPx(2)).toBeGreaterThan(100);
+  });
+
+  it('a selected blockquote\'s native side-bar is not dragged to the chrome\'s left edge, and not just discarded (regression guard)', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    // Nested under H1>H2>H3 so the chrome's left edge (one level shallower
+    // than H3's own column) sits well away from the blockquote's own native
+    // position — before the first fix, the native bar (a border-inline-start
+    // on this same ::before) rendered wherever this rule's own `left` put
+    // it. A second round found the FIRST fix (resetting that border to
+    // `none`) too blunt: the bar just vanished instead of staying at its own
+    // native position — the current fix reproduces it as a background-image
+    // stripe positioned independently of the box's own (shifted) edge.
+    const md = '# One\n\n## Two\n\n### Three\n\n> a blockquote\n\nAfter.\n';
+    await outlineNote(md);
+    // 0 '# One' / 2 '## Two' / 4 '### Three' / 6 '> a blockquote' / 8 'After.'
+
+    // Cover A: rooted at "### Three" (a SMALLER shift — target is "## Two"'s
+    // column).
+    await h.mouseDragSelect({ line: 4, ch: 4 }, { line: 8, ch: 3 });
+    expect(await classListAtLine(6)).toContain(CLASS);
+    // The real border is still reset (a real border can't stay put while
+    // the box's own edge — where a border always paints — moves).
+    expect(await chromeBeforeBorderWidthPx(6)).toBe(0);
+    expect(await blockquoteStripeWidthPx(6)).toBeGreaterThan(0); // not discarded
+    const stripeXSmallShift = await blockquoteStripeAbsoluteX(6);
+    const chromeXSmallShift = await chromeLeftAbsoluteX(6); // the tinted box's own (far-left) edge
+    // The stripe sits well to the right of the chrome's own left edge — it
+    // was NOT dragged out to match it (the original bug's exact symptom).
+    expect(stripeXSmallShift).toBeGreaterThan(chromeXSmallShift + 20);
+
+    // Cover B: rooted at "# One" (a MUCH LARGER shift — target is one level
+    // above "# One", the shallowest possible). Same document, same
+    // blockquote, same native indentation — only the shift amount differs.
+    await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 8, ch: 3 });
+    expect(await classListAtLine(6)).toContain(CLASS);
+    const chromeXBigShift = await chromeLeftAbsoluteX(6);
+    expect(chromeXBigShift).toBeLessThan(chromeXSmallShift - 20); // confirms the shift really is bigger
+    // The stripe still resolves to the EXACT SAME absolute column as under
+    // the smaller shift — proving its position is independent of how far
+    // `--to-selected-left` moves the box, unlike the original bug.
+    expect(await blockquoteStripeAbsoluteX(6)).toBeCloseTo(stripeXSmallShift, 0);
+  });
+
+  it('the blockquote stripe never appears on a non-blockquote line (regression guard)', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    const md = '# Head\n\nBody.\n\n> a blockquote\n\nAfter.\n';
+    await outlineNote(md);
+    await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 6, ch: 3 });
+    expect(await classListAtLine(0)).toContain(CLASS);
+    expect(await classListAtLine(2)).toContain(CLASS);
+    expect(await blockquoteStripeWidthPx(0)).toBe(0); // heading
+    expect(await blockquoteStripeWidthPx(2)).toBe(0); // paragraph
+  });
+});
+
+describe('escalated-selection-decoration: chrome tints a line\'s own opaque background (user review)', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+
+  afterEach(async function () {
+    await h.dismissNotices();
+  });
+
+  it('a selected code fence line becomes its own stacking-context root, not z-index: auto (regression guard)', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    // A code line sets its own opaque `background-color` directly (unlike a
+    // heading/paragraph, which stay transparent) — before this fix, that
+    // background silently painted OVER the chrome's `z-index: -1` pseudo
+    // instead of under it, since `position: relative` alone (no `z-index`)
+    // never gives the line its own stacking context for that pseudo to
+    // resolve against locally.
+    const md = '# Head\n\n```\ncode fence\n```\n\nAfter.\n';
+    await outlineNote(md);
+    await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 6, ch: 3 });
+    expect(await classListAtLine(3)).toContain(CLASS); // the 'code fence' line itself
+    expect(await lineOwnZIndex(3)).toBe('0');
+  });
+
+  it('an unselected code fence line keeps z-index: auto (no unconditional stacking-context change)', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    const md = '# Head\n\n```\ncode fence\n```\n\nAfter.\n';
+    await outlineNote(md);
+    expect(await classListAtLine(3)).not.toContain(CLASS);
+    expect(await lineOwnZIndex(3)).toBe('auto');
   });
 });
