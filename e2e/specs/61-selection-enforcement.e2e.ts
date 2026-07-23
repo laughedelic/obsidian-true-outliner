@@ -39,7 +39,9 @@ describe('node-selection-enforcement: Phase B', function () {
     await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 });
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 0 });
-    expect(sel.head).toEqual({ line: 2, ch: 'Second paragraph.'.length });
+    // Line 3 is "Second paragraph."'s own trailing gap — included in the
+    // cover (escalate-include-owned-gap).
+    expect(sel.head).toEqual({ line: 3, ch: 0 });
   });
 
   it('backward mouse drag crossing a boundary escalates with head at the start side', async function () {
@@ -48,7 +50,7 @@ describe('node-selection-enforcement: Phase B', function () {
     await outlineNote(md);
     await h.mouseDragSelect({ line: 2, ch: 6 }, { line: 0, ch: 6 });
     const sel = await h.getSelection();
-    expect(sel.anchor).toEqual({ line: 2, ch: 'Second paragraph.'.length });
+    expect(sel.anchor).toEqual({ line: 3, ch: 0 });
     expect(sel.head).toEqual({ line: 0, ch: 0 });
   });
 
@@ -82,8 +84,8 @@ describe('node-selection-enforcement: Phase B', function () {
     await browser.keys([Key.Shift, Key.ArrowDown]);
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 0 });
-    expect(sel.head.line).toBe(2);
-    expect(sel.head.ch).toBe('Second.'.length);
+    // Line 3 is "Second."'s own trailing gap — included in the cover.
+    expect(sel.head).toEqual({ line: 3, ch: 0 });
   });
 
   it('selection leaving a heading escalates to the heading\'s entire subtree', async function () {
@@ -94,7 +96,8 @@ describe('node-selection-enforcement: Phase B', function () {
     await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 4, ch: 3 });
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 0 });
-    expect(sel.head).toEqual({ line: 4, ch: 'Body two.'.length });
+    // Line 5 is "Body two."'s own trailing gap — included in the cover.
+    expect(sel.head).toEqual({ line: 5, ch: 0 });
   });
 
   it('live drag stability: each pointer update along a multi-step drag stays escalated, no flicker', async function () {
@@ -112,7 +115,9 @@ describe('node-selection-enforcement: Phase B', function () {
       await h.mouseDragSelect({ line: 0, ch: 3 }, { line: 2, ch: 3 }, 6);
       const sel = await h.getSelection();
       expect(sel.anchor).toEqual({ line: 0, ch: 0 });
-      expect(sel.head).toEqual({ line: 2, ch: 'Second paragraph.'.length });
+      // Line 3 is "Second paragraph."'s own trailing gap — included in the
+      // cover.
+      expect(sel.head).toEqual({ line: 3, ch: 0 });
     }
   });
 
@@ -187,10 +192,12 @@ describe('node-selection-enforcement: Phase B', function () {
     const secondRange = ranges.find((r: any) => r.anchor.line === 4 || r.head.line === 4);
     expect(firstRange).toBeDefined();
     expect(firstRange.anchor).toEqual({ line: 0, ch: 0 });
-    expect(firstRange.head).toEqual({ line: 0, ch: 'One.'.length });
+    // Line 1 is "One."'s own trailing gap, line 7 is "Four."'s — both
+    // included in their covers (escalate-include-owned-gap).
+    expect(firstRange.head).toEqual({ line: 1, ch: 0 });
     expect(secondRange).toBeDefined();
     expect(secondRange.anchor).toEqual({ line: 4, ch: 0 });
-    expect(secondRange.head).toEqual({ line: 6, ch: 'Four.'.length });
+    expect(secondRange.head).toEqual({ line: 7, ch: 0 });
   });
 
   it('all-within-node multi-range selection stays byte-for-byte native', async function () {
@@ -225,11 +232,26 @@ describe('node-selection-enforcement: Phase B', function () {
     await outlineNote(md);
     // Drag from mid-node down onto the blank line below it — short of the
     // next node. The gap-line trigger (D4 amendment) escalates to just this
-    // node; expand-only keeps the head where the user dragged it.
+    // node; its cover already includes its one-line owned gap in full
+    // (escalate-include-owned-gap).
     await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 1, ch: 0 });
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 0 });
     expect(sel.head).toEqual({ line: 1, ch: 0 });
+  });
+
+  it('reaching a node\'s content via a cross-node drag includes its whole owned gap, no second drag needed', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
+    const md = 'paragraph A\n\n\nparagraph B\n\n\nparagraph C\n';
+    await outlineNote(md);
+    // 0 'paragraph A' / 1 gap / 2 gap / 3 'paragraph B' / 4 gap / 5 gap / 6 'paragraph C' / 7 gap
+    // Drag from mid-A into mid-B's text, stopping there — never touching
+    // B's own (two-blank-line) trailing gap at all.
+    await h.mouseDragSelect({ line: 0, ch: 5 }, { line: 3, ch: 3 });
+    const sel = await h.getSelection();
+    expect(sel.anchor).toEqual({ line: 0, ch: 0 });
+    // B's entire owned gap (lines 4-5) is included in one motion.
+    expect(sel.head).toEqual({ line: 5, ch: 0 });
   });
 
   it('Select All without frontmatter is byte-identical to stock (expand-only)', async function () {

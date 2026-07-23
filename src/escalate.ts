@@ -19,6 +19,13 @@
  * which subtree(s), if any, does it exactly cover? Built from the same
  * `siblingRunCover`/`subtreeCoverOf` geometry `escalateRange` uses to
  * escalate a range in the first place — a membership test, not new math.
+ *
+ * A subtree's cover (`subtreeCoverEnd`) includes its own owned trailing gap
+ * in full (escalate-include-owned-gap, docs/research/13's "Escalation math
+ * re-examination candidate"): gap ownership is already all-or-nothing in
+ * the parse model, so once a node is escalated into a selection — via the
+ * gap-line trigger or by a boundary crossing reaching its content — its
+ * whole gap comes with it, not just whatever the drag happened to reach.
  */
 
 import type { NodePath, OutlineDoc, OutlineNode } from './model';
@@ -85,13 +92,19 @@ function subtreeLineCount(node: OutlineNode): number {
 }
 
 /**
- * The end position of a subtree's OWN content: the last line of its
- * deepest last-descendant's `lines`, excluding that leaf's trailing gap
- * (D4: "trailing gap lines excluded from the visual selection but owned
- * for Phase C semantics"). `startLine` is `node`'s own absolute start line.
+ * The end position of a subtree's cover: the last line of its deepest
+ * last-descendant, INCLUDING that leaf's own trailing gap in full
+ * (escalate-include-owned-gap: gap ownership is all-or-nothing, so a
+ * subtree's cover always carries its whole owned gap along, not just
+ * whatever a drag happened to reach). `startLine` is `node`'s own absolute
+ * start line.
  */
-function subtreeContentEnd(node: OutlineNode, startLine: number): LinePos {
+function subtreeCoverEnd(node: OutlineNode, startLine: number): LinePos {
   if (node.children.length === 0) {
+    if (node.trailingGap.length > 0) {
+      const lastGapLine = node.trailingGap[node.trailingGap.length - 1] ?? '';
+      return { line: startLine + node.lines.length + node.trailingGap.length - 1, ch: lastGapLine.length };
+    }
     const lastLine = node.lines[node.lines.length - 1] ?? '';
     return { line: startLine + node.lines.length - 1, ch: lastLine.length };
   }
@@ -104,7 +117,7 @@ function subtreeContentEnd(node: OutlineNode, startLine: number): LinePos {
   for (let i = 0; i < node.children.length - 1; i++) {
     line += subtreeLineCount(node.children[i]!);
   }
-  return subtreeContentEnd(node.children[node.children.length - 1]!, line);
+  return subtreeCoverEnd(node.children[node.children.length - 1]!, line);
 }
 
 function childrenAtScope(doc: OutlineDoc, scopePath: NodePath): readonly OutlineNode[] {
@@ -120,7 +133,7 @@ interface Cover {
 
 function subtreeCoverOf(doc: OutlineDoc, node: OutlineNode): Cover {
   const start = startLineOf(doc, node);
-  return { start: { line: start, ch: 0 }, end: subtreeContentEnd(node, start) };
+  return { start: { line: start, ch: 0 }, end: subtreeCoverEnd(node, start) };
 }
 
 /**
@@ -128,10 +141,13 @@ function subtreeCoverOf(doc: OutlineDoc, node: OutlineNode): Cover {
  * common ancestor scope) spanning two distinct nodes, plus its combined
  * cover — the shared geometry both `escalateRange` (to compute the
  * expand-only union) and `coveredSubtreeRoots` (to test an existing range
- * against it) need. See `escalateRange`'s own doc comment for the "one node
- * is an ancestor of the other" scope-resolution note; unchanged here, just
- * extracted so both callers agree by construction rather than by
- * duplicated logic.
+ * against it) need. The cover's end includes the last subtree's own owned
+ * trailing gap in full (`subtreeCoverEnd`), so reaching a node's content by
+ * crossing into it is enough to pull its whole gap into the cover — no
+ * separate drag onto the blank line required. See `escalateRange`'s own doc
+ * comment for the "one node is an ancestor of the other" scope-resolution
+ * note; unchanged here, just extracted so both callers agree by
+ * construction rather than by duplicated logic.
  */
 function siblingRunCover(
   doc: OutlineDoc,
@@ -159,7 +175,7 @@ function siblingRunCover(
     nodes,
     cover: {
       start: { line: startLineOf(doc, firstSubtree), ch: 0 },
-      end: subtreeContentEnd(lastSubtree, startLineOf(doc, lastSubtree)),
+      end: subtreeCoverEnd(lastSubtree, startLineOf(doc, lastSubtree)),
     },
   };
 }
@@ -279,19 +295,16 @@ export function clampCursorToContent(doc: OutlineDoc, pos: LinePos): LinePos {
  * single-node cover) when so, `null` otherwise.
  *
  * The match is `lo` at the cover's exact start AND `hi` at-or-beyond the
- * cover's end — NOT strict equality on both ends. Strict equality on `hi`
- * would reject the single most common escalated shape: the gap-line
- * trigger's own expand-only rule (`escalateRange`) pins `lo` to the cover's
- * start but deliberately RETAINS `hi` wherever the user's drag actually
- * ended, inside the node's trailing gap — past the cover's own content end,
- * never pulled back. `!posBefore(hi, cover.end)` accepts that retained
- * extension (hi can't stray past this node/run's own territory without
- * `headNode` resolving to a different node and taking the other branch
- * below), while still requiring `hi` to reach at least the full cover —
- * this is also what makes an exact single-line leaf match (no gap touched
- * at all, `hi` lands precisely on `cover.end`) qualify too, satisfying the
- * "any exact cover, leaf included" decision in design.md with no separate
- * case for it.
+ * cover's end — NOT strict equality on both ends. `cover.end` is already
+ * gap-inclusive (`subtreeCoverEnd`, escalate-include-owned-gap), so for an
+ * escalated range `hi` almost always lands exactly on it; `!posBefore(hi,
+ * cover.end)` rather than strict equality is kept for robustness (`hi`
+ * cannot stray past this node/run's own territory without `headNode`
+ * resolving to a different node and taking the other branch below) and
+ * because it's what makes an exact single-line leaf match (no gap at all,
+ * `hi` lands precisely on `cover.end`) qualify too, satisfying the "any
+ * exact cover, leaf included" decision in design.md with no separate case
+ * for it.
  *
  * Stateless and history-independent by design: this asks "does the CURRENT
  * selection cover this subtree," not "was this selection produced by
