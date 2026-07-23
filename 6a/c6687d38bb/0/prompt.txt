@@ -1,0 +1,20 @@
+/openspec-propose Fix the outdent following-siblings bug (04-open-questions.md Q17)
+
+---
+
+/openspec-apply-change work on a new branch
+
+---
+
+good. this seems fixed. but I noticed another indentation-related bug that might be in scope for fixing here.
+I noticed that in the outline mode we indent using spaces, disregarding user preference set via Obsidian's built in setting "Indent using tabs". this actually breaks indentation in multiple cases. investigate this. if we can respect the setting and use tabs or spaces depending on it, it would be great
+
+---
+
+can you separate the changes? if you can, let's commit the original one on the fix-outdent-following-siblings branch, and the indent whitespace one on a new branch (name after the change). we'll open separate PRs for them.
+
+---
+
+ok. the first fix is merged. let's focus on respect-tab-space-indent-setting here.
+
+I don't think it's complete yet. see `tab indent merge bug repro` in the test-vault for an example where we still mess up the indentation
