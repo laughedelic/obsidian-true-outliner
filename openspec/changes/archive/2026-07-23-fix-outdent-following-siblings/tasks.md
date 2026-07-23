@@ -41,7 +41,7 @@
 
 - [x] 3.1 Run the full test suite (`ops.test.ts`, `closure.test.ts`, and any other affected
       unit suites) and confirm all pass, including the new tests from section 1. (806/806 pass.)
-- [ ] 3.2 Re-run the outline-edit-enforcement e2e scenario that originally surfaced this gap
+- [x] 3.2 Re-run the outline-edit-enforcement e2e scenario that originally surfaced this gap
       (merge → split → outdent interaction, docs/research/04-open-questions.md Q17) and
       confirm the outdented remainder now restores the expected sibling/children structure.
       **Not done in this session** — that finding came from a manual real-vault pass in the
@@ -56,6 +56,6 @@
 
 ## 4. Sync specs
 
-- [ ] 4.1 Run `openspec sync-specs` (or the equivalent skill) to merge this change's
+- [x] 4.1 Run `openspec sync-specs` (or the equivalent skill) to merge this change's
       `structural-operations` delta spec into `openspec/specs/structural-operations/spec.md`
       once implementation and verification are complete.
