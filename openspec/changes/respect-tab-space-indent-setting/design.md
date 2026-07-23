@@ -80,6 +80,39 @@ style; it only governs indentation with zero existing evidence, matching the exi
 "tab-indented vaults... adopt the destination level indentation" design intent
 (structural-operations spec) rather than overriding it.
 
+### `mergeNodes`'s child re-indentation: measure the ACTUAL sibling column, not an assumed formula
+Found via manual testing after the fallback-unit work above landed
+(`test-vault/tab indent merge bug repro.md`) — a related but distinct, pre-existing bug
+(reproduces identically on `main` before this change; the fallback-unit fix doesn't
+touch this path at all, since the document here has plenty of existing tab evidence).
+`mergeNodes` re-parents the absorbed node's children by shifting every line a flat
+number of COLUMNS: `childBaseCol(first) - childBaseCol(second)`, where `childBaseCol`
+assumes children sit exactly `markerWidth` columns past a list-item's own indent (strict
+CommonMark marker-alignment). But the parser's real nesting rule is laxer — a child
+only needs indent ≥ the marker's content column, not exact alignment — so tab-indented
+documents routinely indent children a full tab (4 columns) past a 2-column marker. When
+the assumed formula's delta doesn't land on a whole tab boundary, `shiftSubtree`'s
+dedent leaves a fractional remainder it pads with spaces mid-tab, corrupting a
+pure-tab subtree into mixed tab+space indentation — and the innermost affected line
+stops parsing as a list item at all (mixed leading whitespace breaks the marker match).
+Fixed by computing the shift from each side's ACTUAL existing child indentation —
+sampled from a real surviving sibling child when one exists (the node's own first
+child, or its second child when the first is the one being absorbed) — falling back to
+the assumed formula only when there's no real child to measure (the node has no
+children yet, so there's nothing to preserve). Same theme as the fallback-unit fix
+above (respect what the document actually uses over a hardcoded assumption), which is
+why it's folded into this change rather than opened as a separate one.
+**Alternative considered**: reuse `reencodeBlocksForDestination`'s
+"`reindentSubtreeVerbatim` for the no-kind-conversion case" strategy (carry original
+indent characters through verbatim, re-rooted at the destination) instead of a
+numeric-delta shift — more robust in principle (avoids width-math entirely), but
+`mergeNodes`'s children are re-parented via `shiftSubtree` throughout the whole
+function for a reason: they may need to shift by a NEGATIVE amount deeper than their
+own top-level prefix in ways `reindentSubtreeVerbatim`'s prefix-swap approach isn't
+built for (that helper carries a subtree's original characters forward at a NEW
+location, not remove/shorten them). Measuring the actual column instead of assuming
+one is the minimal fix that stays inside the function's existing shift-based design.
+
 ## Risks / Trade-offs
 
 - **[Risk] `@codemirror/language` version drift between this plugin's devDependency

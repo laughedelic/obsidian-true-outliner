@@ -128,6 +128,22 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(await h.getCursor()).toEqual({ line: 0, ch: '- alpha'.length });
   });
 
+  it('a merge that promotes tab-indented grandchildren keeps tabs, no space/tab mixing (real-vault repro)', async function () {
+    // "tab indent merge bug repro.md" in test-vault: absorbing a list item
+    // whose own children are a full tab past the marker (not exactly
+    // markerWidth columns) used to shift by the wrong numeric delta,
+    // padding the remainder with spaces mid-tab and breaking the
+    // grandchild's own list-item parse.
+    const md = 'paragraph\n- list parent1\n\t- child1\n\t\t- grandchild1\n\t- child2\n- list parent2\n';
+    await outlineNote(md);
+    await h.setCursor(1, 0); // start of "- list parent1"
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe(
+      'paragraphlist parent1\n- child1\n\t- grandchild1\n- child2\n- list parent2\n',
+    );
+    expect(await h.getBuffer()).not.toContain('  \t'); // no space-then-tab mixing
+  });
+
   it('a structure-corrupting merge (absorbing a heading) vetoes with the rejection cue; buffer stays byte-identical', async function () {
     const md = 'Intro.\n## Section\n\nChild body.\n';
     await outlineNote(md);

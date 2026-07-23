@@ -165,6 +165,47 @@ describe('mergeNodes', () => {
     expect(encode(result.value.doc)).toBe('- parentchild\n  - grand\n- next\n');
   });
 
+  it('tab-indented children re-parent without corrupting into spaces (real-vault repro)', () => {
+    // "list parent1" is already `paragraph`'s first child (attachment
+    // rule), with "list parent2" as its second; list parent1's own
+    // children are indented a full TAB past the marker, not exactly
+    // markerWidth (2) columns — a common tab-indented-vault convention.
+    // The old numeric-column-delta shift assumed strict marker-alignment,
+    // producing a fractional remainder that got padded with spaces
+    // mid-tab (mixing tabs and spaces, breaking grandchild1's own
+    // list-item parse). Absorbing "list parent1" promotes its children
+    // (child1, child2) to paragraph's direct children, taking its former
+    // position ahead of the untouched "list parent2".
+    const md = 'paragraph\n- list parent1\n\t- child1\n\t\t- grandchild1\n\t- child2\n- list parent2\n';
+    const doc = parse(md);
+    const para = byLine(doc, 'paragraph');
+    const result = mergeNodes(doc, para.id);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe(
+      'paragraphlist parent1\n- child1\n\t- grandchild1\n- child2\n- list parent2\n',
+    );
+    const merged = result.value.doc.children[0]!;
+    expect(merged.children.map((n) => n.lines[0])).toEqual(['- child1', '- child2', '- list parent2']);
+    const child1 = merged.children[0]!;
+    expect(child1.children[0]!.kind).toBe('list-item'); // grandchild1 still a real list item
+    expect(child1.children[0]!.lines[0]).toBe('\t- grandchild1');
+  });
+
+  it('a parent absorbing its first (tab-indented) child re-parents the grandchild at the SURVIVING sibling\'s actual column', () => {
+    // "absorbed" is parent's first child (its own successor); "moved" is
+    // absorbed's child, becoming parent's direct child. The reference for
+    // where it lands is "sibling2" — parent's OTHER pre-existing child,
+    // still at its own real (one-tab) column — not an assumed formula.
+    const md = '- parent\n\t- absorbed\n\t\t- moved\n\t- sibling2\n';
+    const doc = parse(md);
+    const parent = byLine(doc, '- parent');
+    const result = mergeNodes(doc, parent.id);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('- parentabsorbed\n\t- moved\n\t- sibling2\n');
+    const merged = result.value.doc.children[0]!;
+    expect(merged.children.map((n) => n.lines[0])).toEqual(['\t- moved', '\t- sibling2']);
+  });
+
   it('cross-kind join: list item text into its parent paragraph (amendment 2026-07-21)', () => {
     const md = 'Para.\n- item\n';
     const doc = parse(md);

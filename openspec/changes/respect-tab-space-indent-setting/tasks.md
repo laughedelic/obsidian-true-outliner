@@ -46,7 +46,28 @@
 - [x] 4.5 Run the full e2e suite (12 spec files, 130+ tests) — confirm no regression.
 - [x] 4.6 Run typecheck (`tsc --noEmit`) and lint (`npm run lint`) — clean.
 
-## 5. Sync specs
+## 5. Addendum: `mergeNodes` tab-indentation bug (found via manual testing)
 
-- [ ] 5.1 Run `openspec sync-specs` (or the equivalent skill) to merge this change's
+- [x] 5.1 Reproduce `test-vault/tab indent merge bug repro.md` and confirm it's
+      pre-existing (reproduces identically on `main`, unrelated to the fallback-unit
+      threading above — the document has plenty of existing tab evidence).
+- [x] 5.2 Root-cause: `mergeNodes`'s `childShift = childBaseCol(first) -
+      childBaseCol(second)` assumes strict marker-width alignment; tab-indented
+      documents commonly indent children a full tab past the marker instead, and the
+      resulting wrong delta corrupts tabs into mixed tab+space indentation.
+- [x] 5.3 Fix: measure the shift from each side's actual existing child indentation
+      (a real surviving sibling child) instead of the assumed formula, falling back to
+      `childBaseCol` only when there's no child to measure.
+- [x] 5.4 `tests/edit-ops.test.ts`: regression tests for the exact repro (childless
+      target absorbing a tab-indented list item) and the `secondIsFirstChild` branch
+      (target already has its own tab-indented sibling child to reference).
+- [x] 5.5 `e2e/specs/62-outline-edit-enforcement.e2e.ts`: real-Obsidian regression test
+      for the exact repro (Backspace-driven merge).
+- [x] 5.6 Add `test-vault/tab indent merge bug repro.md` as a tracked fixture (matching
+      the existing `Paste bug repro.md` convention).
+- [x] 5.7 Full unit suite, typecheck, lint, and relevant e2e specs re-run clean.
+
+## 6. Sync specs
+
+- [ ] 6.1 Run `openspec sync-specs` (or the equivalent skill) to merge this change's
       `structural-operations` delta spec into `openspec/specs/structural-operations/spec.md`.

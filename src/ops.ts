@@ -723,21 +723,34 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
     ];
   }
 
-  // second's children re-parent under the merged node: shift from second's
-  // child column to first's, preserving internal structure; when second was
-  // first's own first child they precede first's remaining children (they
-  // take second's structural position), else first is childless (its raw
-  // successor was reached by walking up or sideways) and they become its
-  // only children.
-  const childShift = childBaseCol(first) - childBaseCol(second);
-  const adopted = second.children.map((child) => shiftSubtree(child, childShift));
-
   const firstParentPath = path.slice(0, -1);
   const firstIndex = path[path.length - 1]!;
   const secondParentPath = nextPath.slice(0, -1);
   const secondIndex = nextPath[nextPath.length - 1]!;
   const secondIsFirstChild =
     arraysEqual(secondParentPath, path) && secondIndex === 0;
+
+  // second's children re-parent under the merged node: shift from second's
+  // child column to first's, preserving internal structure; when second was
+  // first's own first child they precede first's remaining children (they
+  // take second's structural position), else first is childless (its raw
+  // successor was reached by walking up or sideways) and they become its
+  // only children. The shift is measured against each side's ACTUAL
+  // existing child indentation (a real sibling child, when one survives to
+  // sample) rather than the assumed marker-width formula — many documents
+  // (tab-indented ones especially) indent children a full tab past their
+  // marker rather than exactly `markerWidth` columns past it, and shifting
+  // by the wrong delta leaves a fractional remainder that gets converted to
+  // spaces mid-tab (see structural-operations' own note on this exact
+  // failure mode for a flat numeric-width delta).
+  const referenceChild = (node: OutlineNode, skipFirst: boolean): OutlineNode | undefined =>
+    skipFirst ? node.children[1] : node.children[0];
+  const actualChildCol = (node: OutlineNode | 'root', sample: OutlineNode | undefined): number =>
+    sample ? indentWidth(sample.lines[0] ?? '') : childBaseCol(node);
+  const childShift =
+    actualChildCol(first, referenceChild(first, secondIsFirstChild)) -
+    actualChildCol(second, referenceChild(second, false));
+  const adopted = second.children.map((child) => shiftSubtree(child, childShift));
 
   const merged: OutlineNode = {
     ...first,
