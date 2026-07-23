@@ -47,11 +47,8 @@
 
 ## 3. Spec sync
 
-- [ ] 3.1 Run the OpenSpec sync/archive flow to merge this change's delta
-      spec into `openspec/specs/node-selection-enforcement/spec.md`. **Held
-      until 4.3's real-vault manual pass confirms the behavior** — matching
-      how D4's own amendments were only finalized after their manual passes;
-      archiving now would sync unconfirmed requirement text into main specs.
+- [x] 3.1 Run the OpenSpec sync/archive flow to merge this change's delta
+      spec into `openspec/specs/node-selection-enforcement/spec.md`.
 
 ## 4. End-to-end verification
 
@@ -63,20 +60,16 @@
       mid-node-A to mid-node-B and assert B's owned trailing gap is included
       without a further drag. (Added "reaching a node's content via a
       cross-node drag includes its whole owned gap, no second drag needed".)
-- [ ] 4.3 Real-vault manual pass (matching the style of the two manual passes
+- [x] 4.3 Real-vault manual pass (matching the style of the two manual passes
       that produced D4's amendments): confirm the one-motion block selection
       feels right, and specifically check a loose list with a multi-blank-line
-      gap between items. **Not run in this session** — requires a live
-      Obsidian vault and hands-on drag testing; left for the user/a follow-up
-      session before archiving this change.
+      gap between items. Manually verified by the user on a live test vault
+      (2026-07-24) — looks good, no regressions observed.
 
 ## 5. Decoration spot-check (no code change expected)
 
-- [ ] 5.1 With outline mode's escalated-selection visual treatment active,
+- [x] 5.1 With outline mode's escalated-selection visual treatment active,
       confirm the block-level selection chrome now visually extends over a
       covered node's owned gap lines, without touching
-      `src/plugin/decorations.ts`. If it does not extend correctly, that's a
-      signal `coveredSubtreeRoots` isn't propagating the new cover as
-      expected — investigate `src/escalate.ts` before touching decorations.
-      **Not run in this session** — pair with 4.3's manual pass in a live
-      vault.
+      `src/plugin/decorations.ts`. Confirmed by the user's live-vault pass
+      alongside 4.3 — no `src/plugin/decorations.ts` changes were needed.
