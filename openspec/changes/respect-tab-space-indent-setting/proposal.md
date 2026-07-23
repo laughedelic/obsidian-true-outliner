@@ -38,6 +38,23 @@ indentation in multiple cases" a user notices immediately.
 - New devDependency: `@codemirror/language` (types only — already externalized in
   `esbuild.config.mjs`, resolved to Obsidian's own bundled copy at runtime, so no
   extra bytes ship and the facet reference is the SAME instance Obsidian itself sets).
+- **Addendum (found via manual real-vault testing after the above landed,
+  `test-vault/tab indent merge bug repro.md`):** `mergeNodes` had a related, pre-existing
+  bug (reproduces identically on `main`, unaffected by the fallback-unit work above) —
+  absorbing a node re-parents its children via a flat numeric COLUMN-width delta
+  (`childBaseCol(first) - childBaseCol(second)`) computed from an ASSUMED
+  marker-alignment formula, not the children's actual existing indentation. Tab-indented
+  documents commonly indent children a full tab past the marker rather than exactly
+  `markerWidth` columns past it (the parser already accepts this — nesting only
+  requires indent ≥ the marker's content column, not exact alignment); when the
+  assumed delta doesn't land on a whole tab boundary, the dedent leaves a fractional
+  remainder that gets padded with SPACES mid-tab, corrupting a pure-tab subtree into
+  mixed indentation (and breaking the innermost node's own list-item parse). Fixed by
+  measuring the shift against each side's ACTUAL existing child indentation (sampled
+  from a real surviving sibling child, when one exists) instead of the assumed
+  formula — same theme as the rest of this change (respect what the document/vault
+  actually uses over a hardcoded assumption), so it stays in this change rather than
+  becoming a separate one.
 
 ## Capabilities
 
@@ -59,7 +76,11 @@ indentation in multiple cases" a user notices immediately.
   command-palette gap).
 - `src/plugin/grammar.ts`: `planKey` gains the same optional parameter.
 - `package.json`/`package-lock.json`: `@codemirror/language` devDependency added.
+- `src/ops.ts`'s `mergeNodes`: child-reindentation shift now measured from actual
+  sibling indentation instead of an assumed marker-width formula.
 - Tests: new unit coverage in `tests/ops.test.ts` (fallback-unit behavior for
-  `indent`/`splitNode`), a new e2e test in `e2e/specs/30-keyboard-grammar.e2e.ts`
-  toggling the real Obsidian setting and asserting Tab output, and a new
+  `indent`/`splitNode`) and `tests/edit-ops.test.ts` (`mergeNodes` tab-indentation
+  regressions), a new e2e test in `e2e/specs/30-keyboard-grammar.e2e.ts` toggling the
+  real Obsidian setting and asserting Tab output, another in
+  `e2e/specs/62-outline-edit-enforcement.e2e.ts` for the merge repro, and a new
   test-setup-only `setIndentUsingTabs` helper in `e2e/helpers.ts`.
