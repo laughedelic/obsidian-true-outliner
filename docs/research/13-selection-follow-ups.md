@@ -64,6 +64,214 @@ a decision that deserves its own dedicated look (ideally with a few real-vault p
 the way D4 itself got), not a reflexive fix bundled into an unrelated rendering change.
 Flagging here for whoever picks up `node-selection-enforcement` refinements next.
 
+## Live Preview raw-markdown reveal during block selection: CSS approach tried and reverted, blur approach in progress (2026-07-24)
+
+`selection-visual-treatment` (the escalated-selection chrome change) took on a
+significant-UX-improvement request beyond its original chrome scope: while a
+selection is a whole-node/subtree block cover, keep Live Preview's RENDERED
+appearance instead of the raw-markdown reveal Obsidian normally shows for any
+line a selection touches. Two real approaches were tried; this records both
+for whoever picks this up next, since the second (kept) approach has its own
+real, unresolved cost.
+
+### Root cause of the reveal (still true, independent of which fix is used)
+Confirmed live: stock Obsidian hides a raw-markdown "formatting mark"
+whenever NO selection range overlaps its own line, and reveals it (as real,
+selectable text) whenever ANY range does — for every line the range spans,
+not just its two endpoints. Normal, correct behavior for character-level
+editing; distracting once the user has selected a whole block. The reveal is
+also NOT instant: a real drag-release leaves marks unchanged for roughly one
+paint, then reveals within ~50ms — confirmed by polling `textContent` at
+increasing delays after release. No plugin-facing signal (focus events,
+`EditorSelection` changes, an inspectable CM6 field) was found that fires
+exactly at that boundary and not before — this looks baked into Obsidian's
+own internal Live Preview implementation, with no documented extension
+point to intercept it directly.
+
+### Attempt 1 (reverted): hide revealed marks via CSS
+`.cm-formatting` turned out to be a stable, shared class Obsidian puts on
+every revealed mark span regardless of kind (`cm-formatting-header`,
+`-strong`, `-em`, `-quote`, `-link`, `-link-string`) — hiding it
+(`display: none`), scoped under `.to-decor-block-selecting
+.to-decor-node-selected`, worked CLEANLY for marks whose "hidden" form is
+just invisible/absent text: heading `#`, bold `**`, italic `*`, blockquote
+`>`, a regular link's `[]()` (plus its raw URL text, `cm-string cm-url`,
+which needed a second rule since it carries no `cm-formatting` class of its
+own).
+
+It did NOT work cleanly for marks whose "hidden" form is a RICHER WIDGET that
+Obsidian removes from the DOM entirely on reveal, replacing it with plain
+classed text — confirmed live via DOM diffing baseline (unfocused) vs.
+covered (revealed) states:
+- A list marker's round bullet comes from a nested `.list-bullet` span
+  present only when hidden; revealing swaps it for plain "- "/"1. " text
+  with no such span.
+- A task checkbox's real `<input type="checkbox">` is likewise present only
+  when hidden; revealing swaps it for plain "[ ]"/"[x]" text
+  (`cm-formatting-task`).
+- A code fence's opening line shows a `code-block-flair` language badge
+  (hidden) or collapses to plain "```js" text (revealed,
+  `cm-formatting-code-block`) — and since that text was the line's ONLY
+  content, hiding it also collapsed the line's own height.
+- A callout's title line (`> [!note] Title`) is ONE span carrying
+  `cm-hmd-callout`, with no separate mark/content split.
+
+Hiding the text that replaced these widgets can't bring the widget back —
+CSS operates on what EXISTS, not on what used to exist. An indiscriminate
+first version hid all of these too, and real-vault testing surfaced concrete
+regressions: list items with literally no bullet at all, a blank gap where a
+checkbox used to be, a visibly shrunken code block with its badge gone, and
+a completely blank callout title line. Excluding each
+(`:not(.cm-formatting-list):not(.cm-formatting-task):not(.cm-formatting-code-block):not(.cm-hmd-callout)`)
+reverted them to native raw-text display instead — coherent, but not
+rendered.
+
+A separate real bug, also found on real content but genuinely fixable (not a
+widget-swap case): a WIKI link's brackets carry `cm-formatting-link` plus a
+`-start`/`-end` suffix, WITHOUT the plain `cm-formatting` class — the general
+rule had zero effect on wiki links at all. A dedicated rule
+(`.cm-formatting-link-start`, `.cm-formatting-link-end`) fixed the base case,
+but a SECOND round of real-vault testing found it was still incomplete: an
+ALIASED wiki link (`[[Note|Alias]]`) showed BOTH the canonical link text and
+the alias simultaneously; the link's underline styling disappeared even
+though the brackets stayed hidden; and — unrelated to wiki links —
+blockquote/callout body text visibly shifted to stick against the left
+border once its `> ` mark was hidden (hiding the mark's own trailing space
+along with it, apparently). None of these three were investigated further.
+
+Also found on that second real-vault review, but NOT a defect in this rule
+at all: a callout's own colored background/icon disappearing on selection is
+NATIVE Obsidian behavior, confirmed live — selecting through a callout's own
+lines (not just around it) makes Obsidian revert its entire custom widget
+rendering to plain blockquote-styled per-line text, independent of outline
+mode. A callout only looks visually distinct while collapsed to its atomic
+`.cm-embed-block` widget form; Obsidian itself expands it to individually
+editable `.cm-line`s the moment a selection reaches inside it. (This also
+explains the FIRST round's "callouts already stay rendered" observation:
+that selection never actually landed inside the callout's own content.)
+
+**Why reverted**: not any single bug, but the shape of the growing exception
+list itself — four widget-swap exclusions, a wiki-link-specific rule, and
+two more real bugs surfacing on the SECOND real-vault pass (aliases,
+underline, blockquote spacing) with no sign the list would stop growing.
+Explicit user call: rather than keep chasing individual constructs with more
+CSS special cases, back off to either true native behavior or a
+simple-to-implement intermediate state, and try a structurally different
+mechanism instead (below) before deciding what, if anything, to keep from
+this one.
+
+### Attempt 2 (kept, confirmed working): reproduce a real "click away" via blur, recover keyboard interaction via a real replay
+A real, manual "click outside the text area" after a block-covering selection
+already returns Live Preview to its fully native rendered form — confirmed
+directly by the user, including for every case the CSS approach couldn't
+reach (callout widget, real checkboxes, round bullets, wiki-link aliases,
+all of it). The insight: this isn't something to re-derive piecemeal via
+CSS — it's Obsidian's own correct rendering, gated on FOCUS, not on the CSS
+classes attempt 1 was keying off.
+
+The fix (`SelectionDecorationPlugin` in `src/plugin/decorations.ts`): a
+`mouseup` listener on the editor DOM, deferred by one tick (the drag's own
+selection-escalation transaction, and CM6's own internal mouseup handling,
+may not have committed yet at the exact moment the native event fires), that
+blurs `view.contentDOM` whenever the resulting selection is a whole-block
+cover (`allRangesCovered`) — reproducing the exact DOM effect a manual click
+elsewhere already produces.
+
+**Confirmed working by the user, in their real vault**: dragging over blocks
+selects them with the selection background as the only visual change — no
+raw-markdown flash at all, staying in fully rendered form including
+everything the CSS approach couldn't restore. Exactly the target behavior.
+
+**The initial cost, then recovered**: blurring removes DOM focus from the
+editor entirely, so typing, Backspace, Delete, and arrow-key navigation were
+all initially silently ignored while unfocused — manually clicking away and
+testing the same interactions reproduced identically, confirming this was
+inherent to being unfocused, not a bug in the blur trigger itself. Cmd+C and
+Cmd+X DID still work while unfocused even at this stage — the clue that led
+to the fix: copy/cut are evidently handled via a pathway that doesn't
+require contenteditable focus (a document/window-level clipboard handler, or
+the browser's native Selection object being sufficient on its own), unlike
+keydown-routed commands which need the contentEditable itself focused to
+receive the event at all.
+
+**The recovery mechanism**: a second listener, on `document` itself
+(`keydown`, capture phase), fires whenever a keystroke lands with nothing
+meaningfully focused (`document.activeElement === document.body`) while this
+specific view is the one currently blurred due to a covering selection. It:
+1. Refocuses `view.contentDOM` — alone, sufficient to restore ordinary
+   character typing, since browsers insert typed text via a SEPARATE, later
+   `beforeinput`/`input` dispatch evaluated against whatever is focused AT
+   THAT time, not something frozen at the original keydown.
+2. Replays the SAME `KeyboardEvent` through `@codemirror/view`'s
+   `runScopeHandlers(view, event, 'editor')` — a public CM6 API for exactly
+   this situation ("run this view's installed keymap against an event that
+   didn't originate on its own DOM"). This is what recovers Backspace,
+   Delete, arrow keys, Tab, Cmd+A, and — critically — this project's OWN
+   layered keymap (the structural-edit rewriting, marker-transparent cursor
+   placement, etc.), since those are matched via keydown-bound commands, and
+   the ORIGINAL event's own propagation path is already fixed to
+   `document.body`'s ancestry, not `contentDOM`'s — CM6's real keymap facet
+   never sees it without this replay. Deliberately NOT reimplemented by hand
+   (e.g. calling `@codemirror/commands` functions directly): that would
+   bypass this project's own higher-precedence keymap entirely, a real
+   correctness risk given how much of this codebase's own edit-enforcement
+   logic lives in that layer. `runScopeHandlers` runs the real, complete,
+   already-installed keymap, nothing rebuilt.
+
+**A real bug found on the first manual test round, then fixed**: once
+`runScopeHandlers` DID match and run a command, the ORIGINAL event was never
+told it had been handled — so once the browser finished dispatching it, it
+ALSO applied its own native default action against whatever was now focused.
+For Backspace/Delete: a SECOND, generic contentEditable deletion on top of
+the correct structural one, confirmed live on `## Heading 1` / `paragraph` /
+`## Heading 2` — selecting Heading 1's subtree and pressing Backspace once
+required TWO undos to fully revert, and the surviving cursor position
+(`##|Heading 2`, missing the space after `##`) matched exactly what a
+second, redundant single-character deletion from the CORRECTLY-placed
+post-command cursor (`## |Heading 2`) would produce; Delete showed the same
+pattern in the opposite direction (`## |eading 2` — the `H` of `Heading`
+also consumed). For Tab: the browser's own native "cycle focus to the next
+focusable element" behavior (Tab's default action outside a text field),
+stealing focus to a toolbar button. Fixed with `event.preventDefault()` +
+`event.stopPropagation()` — but ONLY when `runScopeHandlers` reports a
+command actually matched; an UNMATCHED key (plain character typing) must NOT
+be prevented, since that default action (the browser's own native
+`beforeinput` insertion against the now-refocused editor) is exactly what
+makes ordinary typing work.
+
+**Confirmed working by the user after the fix**: typing, arrows, Backspace,
+Delete (single keystroke, correct result, one undo), and copy/cut/paste all
+behave correctly with the block-covering selection staying fully rendered
+throughout.
+
+**Known, accepted limitations, not chased further**:
+- **Multi-pane conflict**: if two outline-mode panes both happen to be in
+  the blurred/block-selected state simultaneously (both selected, neither
+  since typed in), both views' listeners would try to claim the same
+  keystroke — the guard (`document.activeElement === document.body`) can't
+  distinguish which pane the user actually means. Not hit in practice, not
+  fixed.
+- **Keyboard-only block selection never triggers this at all** — the blur is
+  wired to `mouseup` specifically, matching how the user originally framed
+  the ask ("click outside" mimicking mouse interaction). A block cover
+  reached via Shift+Arrow alone still shows the old reveal-while-focused
+  behavior.
+- **IME composition (Japanese/Chinese/Korean input) is untested.** Plausible
+  it works (composition keydowns shouldn't match any keybinding, so
+  wouldn't get `preventDefault`, letting native composition proceed against
+  the refocused editor) but not verified live.
+- **Tab/Shift-Tab's own multi-node behavior** (observed: indents only the
+  LAST of several selected nodes, not all of them) is a separate,
+  pre-existing gap, not introduced by this mechanism — see the new Track 2
+  entry below ("Structural keymap commands need selection-aware behavior").
+
+**Current status**: kept as the shipped mechanism (`decorations.ts`), not
+reverted. No e2e coverage was added for either listener, deliberately —
+focus/blur timing interacting with real keyboard/drag input is exactly the
+kind of thing flagged as unlikely to test reliably through the automated
+harness; validation here was manual, in a real vault, by design, and it
+passed.
+
 ## Known native limitation (not ours to fix)
 
 **Drags starting inside a rendered callout/table can't escape the widget.** In Live
@@ -143,6 +351,24 @@ decoration work — independent of Phase C:
   selection simultaneously. This is a modal-behavior design (when to enter/leave the
   mode, how it interacts with the reversible drag-back behavior the manual pass
   praised) — spec it deliberately, not as a patch on the current rule.
+- **Structural keymap commands need selection-aware behavior for multi-node/subtree
+  selections — filed 2026-07-24, selection-visual-treatment's keyboard-recovery
+  testing.** With a covering selection spanning SEVERAL sibling subtrees, Tab
+  (indent) was observed to indent only the LAST of the selected nodes, not all of
+  them — the plain per-cursor Tab command has no concept of "this whole selection is
+  several nodes, indent all of them together." The user's own framing: this needs
+  real design, not a quick patch, and likely extends to Shift-Tab (outdent) and
+  Cmd+Up/Cmd+Down (move node) too — all of them currently operate on a single
+  cursor/line's own position, with no special-cased behavior for "several nodes or
+  subtrees are currently selected." The user's own assessment (not independently
+  re-verified against a normal, natively-focused multi-node selection): likely a
+  pre-existing gap in the structural keymap itself
+  (`src/plugin/keymap.ts`/`node-edit-enforcement`'s own command implementations),
+  not something the keyboard-recovery work introduced — worth confirming that
+  assumption before starting on a fix. Belongs with Track 2's other
+  keyboard/selection-UX work above (the ladder, modal block selection), since it's
+  the same category of question: what should a keyboard command do differently once
+  the CURRENT operand is "several whole subtrees," not a single cursor position.
 - **Escalated-selection visual treatment.** The manual pass noted selection still
   *renders* as character-level highlight even when escalated to whole nodes; a
   block-level selection indication (whole-node highlight chrome) was judged out of

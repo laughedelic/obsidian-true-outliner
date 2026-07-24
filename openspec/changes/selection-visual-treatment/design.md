@@ -43,6 +43,15 @@ node/subtree-selected chrome.
   split the existing decoration layer already uses.
 - Remain purely reactive/derived: no new persisted state, no change to selection
   computation, the transaction filter, or document content.
+- While a selection is a whole-node/subtree block cover, Live Preview's rendered
+  (WYSIWYG) appearance SHALL stay intact rather than reverting to raw markdown syntax —
+  since a block selection is about working with whole blocks, not editing raw text at a
+  position (a user-requested "significant UX improvement," not merely a visual-polish
+  nit). Reached via blurring the editor on a covering selection and recovering keyboard
+  interaction through a real keymap replay, after a CSS-only approach was tried and
+  reverted — see "Live Preview stays rendered while block-selected" below and
+  docs/research/13-selection-follow-ups.md for the full investigation, including a
+  handful of known, accepted residual limitations.
 
 **Non-Goals:**
 - No change to *when* or *how* selections escalate — that's `node-selection-enforcement`,
@@ -388,6 +397,82 @@ Framed by the user as a low-risk "experiment, might be revert" ask; turned out t
 one-property, root-cause-understood fix rather than something needing a revertible
 fallback.
 
+### Live Preview stays rendered while block-selected: tried CSS-based mark hiding, reverted; blur-based approach kept and validated
+A fourth-round user request, framed as "a significant UX improvement": stock Obsidian
+reveals a line's raw markdown marks whenever any selection range overlaps it — normal
+for character-level editing, distracting once a whole block is selected. This spans
+TWO real, substantially different attempts; only a short summary lives here — the full
+investigation (root cause, exact class names, every regression found on real vault
+content across two review rounds, and the reasoning behind each decision) is recorded in
+docs/research/13-selection-follow-ups.md's "Live Preview raw-markdown reveal during
+block selection" section, since it's more detail than belongs in this change's own
+design doc and is exactly the kind of learning worth preserving if this gets picked up
+again later.
+
+**Attempt 1 (reverted): hide revealed marks via CSS**, keyed off Obsidian's own
+`.cm-formatting` class. Worked cleanly for marks whose "hidden" form is just
+invisible/absent text (heading, bold, italic, blockquote, links) but NOT for marks whose
+"hidden" form is a richer WIDGET Obsidian removes from the DOM entirely on reveal (a list
+marker's round bullet, a task checkbox's real `<input>`, a code fence's language badge, a
+callout's title-line rendering) — CSS can hide text but can't resurrect a widget that's
+gone. Excluding those four reverted them to native raw-text display rather than the
+blank-gap/collapsed-height regressions an indiscriminate version produced, but a second
+real-vault review round found the exception list still growing (an aliased wiki link
+showing both forms at once, a wiki link's underline disappearing, blockquote/callout
+content sticking to the border) with no sign it would stop. Reverted on that basis, not
+any single remaining bug: rather than keep chasing individual constructs with more CSS
+special cases, the user asked to step back and try a structurally different mechanism.
+
+**Attempt 2 (kept, confirmed working): reproduce a real "click away" via blur, recover
+keyboard interaction via a real keymap replay.** A manual click outside the text area
+after a block-covering selection already returns Live Preview to its fully native
+rendered form — confirmed by the user for every case attempt 1 couldn't reach (callout
+widget, real checkboxes, round bullets, wiki-link aliases). `SelectionDecorationPlugin`
+(`decorations.ts`) blurs `view.contentDOM` on `mouseup` whenever the resulting selection
+is a whole-block cover, reproducing that same DOM effect programmatically.
+
+Blurring alone cost keyboard interaction entirely (typing, Backspace, Delete, arrow keys
+all silently ignored while unfocused — confirmed identical to manually clicking away).
+Recovered via a second listener, on `document` itself (`keydown`, capture phase): when a
+keystroke lands with nothing meaningfully focused while this view is the one blurred, it
+refocuses `contentDOM` (sufficient on its own for plain typing, which the browser
+delivers via a separate, later `beforeinput` dispatch evaluated against whatever's
+CURRENTLY focused) and replays the same event through `@codemirror/view`'s
+`runScopeHandlers(view, event, 'editor')` — a public CM6 API for exactly this ("run this
+view's installed keymap against an event that didn't originate on its own DOM"). This
+recovers Backspace/Delete/arrows/Tab/Cmd+A, including this project's OWN layered keymap
+(the structural-edit rewriting, marker-transparent cursor placement), without
+reimplementing any command by hand — deliberately NOT calling `@codemirror/commands`
+functions directly, which would bypass this project's own higher-precedence keymap
+entirely.
+
+A real bug surfaced on the first manual test round and was fixed: `runScopeHandlers`
+matching and running a command didn't stop the ORIGINAL event's own native default
+action from ALSO firing against the now-focused editor — a second, generic
+contentEditable deletion on top of the correct structural one for Backspace/Delete
+(confirmed live: one Backspace press on a selected subtree needed TWO undos, and the
+surviving text matched exactly what a redundant extra single-character deletion from the
+correctly-placed post-command cursor would produce), and the browser's native
+focus-cycling for Tab (stealing focus to a toolbar button, Tab's own default action
+outside a text field). Fixed with `event.preventDefault()`/`stopPropagation()` — but only
+when `runScopeHandlers` reports a command actually matched, since an unmatched key (plain
+typing) must NOT be prevented, or the native `beforeinput` insertion that makes typing
+work stops firing too.
+
+**Confirmed working by the user after the fix**: typing, arrows, Backspace, Delete (one
+keystroke, correct result, one undo), and copy/cut/paste all behave correctly with the
+selection staying fully rendered throughout.
+
+**Known, accepted limitations** (not chased further, none observed in practice): a
+multi-pane conflict if two outline-mode panes are both blurred/block-selected
+simultaneously; keyboard-only block selection (Shift+Arrow, no mouse) never triggers the
+blur at all, since it's wired to `mouseup` specifically; IME composition is untested. Full
+detail on all of these, and everything from attempt 1, is in
+docs/research/13-selection-follow-ups.md. No e2e coverage was added for either listener,
+deliberately: focus/blur timing interacting with real keyboard/drag input is exactly the
+kind of thing unlikely to test reliably through the automated harness — validation here
+was manual, in a real vault, by design, and it passed.
+
 ### Tried and reverted: a border + corner-radius around the whole selection rectangle
 A third-round visual-polish request, explicitly gated by the user as "only if it's
 simple" for both a slim border and slight corner rounding. Prototyped the obvious
@@ -417,6 +502,17 @@ own focused follow-up if wanted later, not as a corner of an already-large chang
 
 ## Risks / Trade-offs
 
+- **[Risk, mitigated] The blur-based Live-Preview-stays-rendered mechanism initially
+  traded away keyboard interaction with a block-covering selection entirely** (typing,
+  Backspace, Delete, arrows all silently ignored while unfocused) **— recovered via a
+  `document`-level `keydown` listener that refocuses the editor and replays the event
+  through CM6's own `runScopeHandlers`, confirmed working by the user for all of these.**
+  Known, accepted residual limitations (none observed in practice): a multi-pane
+  conflict if two outline-mode panes are both blurred/block-selected simultaneously;
+  keyboard-only block selection (no mouse) never triggers the blur at all; IME
+  composition is untested. See docs/research/13-selection-follow-ups.md for the full
+  investigation, including the abandoned CSS-based alternative this replaced and every
+  detail of the keyboard-recovery mechanism.
 - **[Risk] Recomputing cover-membership on every selection-only view update adds cost
   on very large/deep documents.** → Mitigation: the check is per-range (typically one or
   a handful of ranges) and reuses `escalate.ts`'s existing O(tree size) walks, the same

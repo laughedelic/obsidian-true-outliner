@@ -60,6 +60,7 @@ import { RangeSetBuilder, type Extension, type EditorState, type Text } from '@c
 import {
   Decoration,
   EditorView,
+  runScopeHandlers,
   ViewPlugin,
   WidgetType,
   type DecorationSet,
@@ -872,6 +873,8 @@ class SelectionDecorationPlugin implements PluginValue {
     private readonly modes: DecorationSource,
   ) {
     this.decorations = this.compute();
+    this.view.dom.addEventListener('mouseup', this.onMouseUp);
+    document.addEventListener('keydown', this.onDocumentKeyDown, { capture: true });
   }
 
   update(): void {
@@ -880,11 +883,120 @@ class SelectionDecorationPlugin implements PluginValue {
 
   destroy(): void {
     this.view.dom.classList.remove(BLOCK_SELECTING_CLASS);
+    this.view.dom.removeEventListener('mouseup', this.onMouseUp);
+    document.removeEventListener('keydown', this.onDocumentKeyDown, { capture: true });
   }
 
-  private compute(): DecorationSet {
+  private isOutlineNote(): boolean {
     const path = this.view.state.field(editorInfoField, false)?.file?.path;
-    const isOutline = !isNestedEditor(this.view) && !!path && this.modes.isOutline(path);
+    return !isNestedEditor(this.view) && !!path && this.modes.isOutline(path);
+  }
+
+  /**
+   * EXPERIMENTAL, manual-testing-only hypothesis (docs/research/13's
+   * "Escalated-selection visual treatment" follow-ups): a real, manual
+   * "click outside the text area" after a block-covering selection already
+   * returns Live Preview to its fully native rendered form (confirmed by
+   * user report) — every raw-mark-hiding edge case a CSS-only approach
+   * chased individually (list bullets, task checkboxes, code-fence badges,
+   * callout widgets, wiki-link aliases) is just Obsidian's OWN correct
+   * rendering once unfocused, not something to re-derive piecemeal (see
+   * docs/research/13 for that abandoned approach's full history).
+   *
+   * This reproduces that SAME transition programmatically: right after a
+   * drag settles into a whole-block cover, blur the content DOM — the same
+   * DOM effect a manual click elsewhere already produces. Deferred via
+   * `setTimeout`: the drag's own selection-escalation transaction (and
+   * CM6's own internal mouseup handling) may not have committed yet at the
+   * exact moment this native event fires.
+   *
+   * Confirmed by the user in their real vault: stays fully rendered with no
+   * raw-markdown flash at all. Real, confirmed cost: blurring removes DOM
+   * focus, so typing/Backspace/Delete/arrow keys are silently ignored while
+   * unfocused (identical to manually clicking away) — `onDocumentKeyDown`
+   * below is the current attempt at recovering that.
+   */
+  private readonly onMouseUp = (): void => {
+    window.setTimeout(() => {
+      if (this.isOutlineNote() && allRangesCovered(this.view.state)) {
+        this.view.contentDOM.blur();
+      }
+    }, 0);
+  };
+
+  /**
+   * EXPERIMENTAL, manual-testing-only: recovering keyboard interaction with
+   * a block-covering selection after `onMouseUp` above has blurred the
+   * editor. A blurred `contentDOM` never sees `keydown` at all (events
+   * target `document.activeElement`, typically `document.body` once
+   * blurred, and `contentDOM` isn't an ancestor of that) — so this listens
+   * on `document` itself instead, then does two things once it sees a key
+   * press meant for this view:
+   *
+   * 1. Refocuses `contentDOM`. This alone should be enough for ordinary
+   *    character typing: browsers insert typed text via a SEPARATE,
+   *    later `beforeinput`/`input` dispatch (not the current `keydown`
+   *    event continuing somehow), evaluated against whatever is focused AT
+   *    THAT time — so once refocused here, the browser's own native
+   *    insertion should land on the editor correctly.
+   * 2. Replays the SAME `KeyboardEvent` through `runScopeHandlers`
+   *    (`@codemirror/view`'s own public API for exactly this situation —
+   *    "run this view's installed keymap against an event that didn't
+   *    originate on its own DOM"). This matters for anything CM6 handles
+   *    via keydown-bound commands rather than beforeinput — Backspace,
+   *    Delete, arrow keys, Tab, Cmd+A, and this project's OWN layered
+   *    keymap (the structural-edit rewriting, marker-transparent cursor
+   *    placement, etc.) — refocusing alone would NOT reach those, since
+   *    THIS event's own propagation path is already fixed to
+   *    `document.body`'s ancestry, not `contentDOM`'s; CM6's real keymap
+   *    facet never sees it without this. Deliberately NOT reimplemented by
+   *    hand (e.g. calling `@codemirror/commands` functions directly) —
+   *    that would bypass this project's own higher-precedence keymap
+   *    entirely; `runScopeHandlers` runs the SAME real, fully-layered
+   *    keymap this editor already has installed.
+   *
+   * Guarded to only act when THIS view is the one currently blurred due to
+   * a covering selection (`BLOCK_SELECTING_CLASS`) AND nothing else has
+   * legitimately claimed focus since (`document.activeElement ===
+   * document.body`) — otherwise this would steal keystrokes meant for a
+   * different pane, the search box, or any other UI element entirely.
+   *
+   * A real bug found on the first manual test round, once `runScopeHandlers`
+   * DID match and run a command (Backspace, Delete, Tab): the ORIGINAL
+   * event was never told it had been handled, so once the browser finished
+   * dispatching it, it ALSO applied its own native default action against
+   * whatever ended up focused — a SECOND, generic contentEditable deletion
+   * on top of the correct structural one (confirmed live: pressing Backspace
+   * once needed TWO undos to fully revert, and the surviving cursor position
+   * matched exactly what a second, redundant single-character deletion from
+   * the correctly-placed post-command cursor would produce), and, for Tab,
+   * the browser's own native "cycle focus to the next focusable element"
+   * behavior (stealing focus to a toolbar button) since Tab's native default
+   * outside a text field is focus-cycling. `preventDefault`/
+   * `stopPropagation` — but ONLY when a command actually matched — fixes
+   * both: an UNMATCHED key (plain character typing) must NOT be prevented
+   * here, since that default action (the browser's own native `beforeinput`
+   * insertion against the now-refocused editor) is exactly what makes
+   * ordinary typing work at all.
+   *
+   * Manual-testing-only by design: focus/blur timing interacting with real
+   * keyboard input is exactly the kind of thing unlikely to test reliably
+   * through the automated e2e harness.
+   */
+  private readonly onDocumentKeyDown = (event: KeyboardEvent): void => {
+    if (this.view.hasFocus) return;
+    if (document.activeElement !== document.body) return;
+    if (!this.isOutlineNote() || !allRangesCovered(this.view.state)) return;
+    this.view.contentDOM.focus();
+    const handled = runScopeHandlers(this.view, event, 'editor');
+    if (handled) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
+  private compute(): DecorationSet {
+    const isOutline = this.isOutlineNote();
     this.view.dom.classList.toggle(
       BLOCK_SELECTING_CLASS,
       isOutline && allRangesCovered(this.view.state),

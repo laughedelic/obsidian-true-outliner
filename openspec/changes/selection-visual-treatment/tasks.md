@@ -251,3 +251,103 @@ root-cause-understood correctness fix rather than something fragile.
       selections, a widget atom as a cover's first/last line) — crossing out of "simple"
       per the user's own stated bar. Reverted; not implemented. Full diagnosis in
       design.md's "Tried and reverted" section.
+
+## 9-10. Fourth round: Live Preview stays rendered during a block-covering selection (CSS approach — tried, then reverted; see section 11)
+
+A user-requested "significant UX improvement": stop Obsidian's normal raw-markdown
+reveal from kicking in for lines that are part of a block-covering selection. Investigated
+the reveal mechanism live (selection-overlap-driven, asynchronous, no plugin-facing hook
+to intercept it at the source) and implemented a CSS-based fix keyed off Obsidian's own
+`.cm-formatting` class, refined across two real-vault review rounds to exclude marks
+whose "hidden" form is a widget CSS can't restore (list bullets, task checkboxes,
+code-fence badges, callout titles) and to add a wiki-link-specific rule. Validated with
+27 e2e scenarios and full unit/typecheck/lint passes at the time.
+
+**Reverted in section 11** after a second real-vault review found the exception list
+still growing (aliased wiki links, underline loss, blockquote content sticking to the
+border) with no sign it would stop — full detail of everything found and fixed along the
+way (exact class names, every regression, the reasoning behind each exclusion) is
+preserved in docs/research/13-selection-follow-ups.md's "Live Preview raw-markdown
+reveal during block selection" section, not repeated here.
+
+## 11. Reverted the CSS approach; kept a blur-based approach instead
+
+- [x] 11.1 Implemented and manually verified (in the user's real vault, not via e2e — see
+      11.4) a structurally different mechanism: `SelectionDecorationPlugin`
+      (`decorations.ts`) now blurs `view.contentDOM` on `mouseup` whenever the resulting
+      selection is a whole-block cover, deferred by one tick so the drag's own
+      escalation transaction has time to commit. This reproduces the same DOM effect a
+      manual "click outside the text area" already produces.
+- [x] 11.2 Removed the CSS-based approach entirely: the `.cm-formatting`/`.cm-url`/
+      `.cm-formatting-link-start`/`-link-end` hide rules from `styles.css`, the
+      corresponding "Live Preview stays rendered..." describe block and its
+      `formattingMarkDisplay`/`waitForFormattingMark` helpers from
+      `63-selection-visual-treatment.e2e.ts`, and the matching spec.md requirement.
+- [x] 11.3 Recorded the full investigation (both attempts, every regression found, the
+      reasoning behind each) in docs/research/13-selection-follow-ups.md, and condensed
+      design.md's own decision section to a short pointer there.
+- [x] 11.4 Confirmed working by the user in their real vault: dragging over blocks shows
+      only the selection background as a visual change, staying fully rendered
+      (including callout widget, real checkboxes, round bullets — everything the CSS
+      approach couldn't restore) with no raw-markdown flash at all.
+- [x] 11.5 Confirmed the real, unresolved cost: with focus removed, typing over the
+      selection, Backspace, Delete, and arrow-key navigation are all silently ignored —
+      manually clicking away and testing the same interactions reproduces identically,
+      confirming this is inherent to losing focus, not the blur trigger itself. Cmd+C/
+      Cmd+X DID still work unfocused — a real clue that some interaction paths don't
+      require contentEditable focus, worth investigating to restore the rest.
+      Deliberately no e2e coverage was added for this mechanism: focus/blur timing
+      interacting with real drag gestures was flagged as unlikely to test reliably
+      through the automated harness.
+- [x] 11.6 Re-ran full unit suite (287 passed), typecheck (main + e2e), and lint after
+      the revert — no regressions. (63's e2e count drops from 27 back to 20, matching
+      the removed describe block; not re-verified against a fresh e2e run at this
+      exact commit, since the removal is purely subtractive.)
+
+
+## 12. Recovered keyboard interaction, confirmed working, checkpoint
+
+- [x] 12.1 Implemented the recovery mechanism: a `document`-level `keydown` listener
+      (capture phase) on `SelectionDecorationPlugin` that, when a keystroke lands with
+      nothing meaningfully focused while this view is the one blurred due to a covering
+      selection, refocuses `view.contentDOM` and replays the event through
+      `@codemirror/view`'s `runScopeHandlers(view, event, 'editor')` — a public CM6 API
+      for running a view's installed keymap against an event that didn't originate on
+      its own DOM. Deliberately not implemented by hand-calling `@codemirror/commands`
+      functions directly, which would bypass this project's own higher-precedence
+      keymap (the structural-edit rewriting, marker-transparent cursor placement).
+- [x] 12.2 A real bug found on the first manual test round, then fixed: matching and
+      running a command via `runScopeHandlers` didn't stop the ORIGINAL event's own
+      native default action from ALSO firing — a second, generic contentEditable
+      deletion for Backspace/Delete (confirmed live: one Backspace on a selected
+      subtree needed two undos, with the surviving cursor position matching exactly
+      what a redundant extra deletion from the correct post-command cursor would
+      produce), and the browser's native focus-cycling for Tab (stealing focus to a
+      toolbar button). Fixed with `event.preventDefault()`/`stopPropagation()`, but
+      only when `runScopeHandlers` reports a command actually matched — an unmatched
+      key (plain typing) must stay unprevented, or the native `beforeinput` insertion
+      that makes typing work stops firing too.
+- [x] 12.3 Confirmed working by the user, in their real vault, after the fix: typing,
+      arrows, Backspace, Delete (single keystroke, correct result, one undo), and
+      copy/cut/paste all behave correctly with the selection staying fully rendered
+      throughout.
+- [x] 12.4 A separate, real gap surfaced during this same testing round, explicitly
+      NOT part of this change: with a covering selection spanning several sibling
+      subtrees, Tab (indent) only indents the LAST selected node, not all of them —
+      the user's own assessment is this is a pre-existing gap in the structural
+      keymap's own commands (likely extending to Shift-Tab and Cmd+Up/Down too), not
+      something the keyboard-recovery work introduced, and needs its own design
+      (what should a structural command do when the operand is "several whole
+      subtrees," not one cursor). Filed in docs/research/13-selection-follow-ups.md's
+      Track 2 for a future selection-UX change.
+- [x] 12.5 Documented three known, accepted residual limitations, none observed in
+      practice: a multi-pane conflict if two outline-mode panes are both blurred/
+      block-selected simultaneously; keyboard-only block selection (no mouse) never
+      triggers the blur at all; IME composition is untested.
+- [x] 12.6 Re-ran full unit suite (287 passed), typecheck (main + e2e), lint, and the
+      full `63-selection-visual-treatment` e2e spec (19 passing) after the fix — no
+      regressions.
+- [x] 12.7 Updated design.md's Goals/Decisions/Risks and
+      docs/research/13-selection-follow-ups.md to reflect the mechanism as confirmed
+      working, not merely "kept, still being refined" — this is the checkpoint to
+      commit from.
