@@ -38,7 +38,7 @@
       gap-line trigger shape (expand-only retains hi past the cover end)",
       to match the new gap-inclusive cover — some of these cases may
       collapse since expand-only is no longer doing that work. (Retitled to
-      "cover end is the node's own owned gap"; single-blank-line gap
+      "cover end is the node's own gap"; single-blank-line gap
       scenarios were already gap-inclusive by coincidence so assertions
       were unchanged, only wording updated.)
 - [x] 2.7 Run `tests/escalate.test.ts` and confirm all cases pass under the

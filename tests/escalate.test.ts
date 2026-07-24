@@ -84,7 +84,7 @@ describe('escalateRange: gap-line trigger and expand-only (D4 amendments)', () =
 
   it('drag past a node\'s end onto its gap line escalates to that single node', () => {
     const result = escalateRange(doc, range(pos(0, 2), pos(1, 0)));
-    // Whole node from its first char through its own owned trailing gap
+    // Whole node from its first char through its own trailing gap
     // (one blank line here, so the cover's end already lands here).
     expect(result).toEqual(range(pos(0, 0), pos(1, 0)));
   });
@@ -101,6 +101,7 @@ describe('escalateRange: gap-line trigger and expand-only (D4 amendments)', () =
     const result = escalateRange(loose, range(pos(0, 2), pos(1, 0)));
     expect(result).toEqual(range(pos(0, 0), pos(2, 0)));
   });
+
 
   it('cursor placed on a gap line is never moved', () => {
     const r = range(pos(1, 0), pos(1, 0));
@@ -470,9 +471,20 @@ describe('coveredSubtreeRoots: escalated-selection-decoration query (docs/resear
     expect(coveredSubtreeRoots(doc, r)).toBeNull();
   });
 
-  it('an exact leaf match, content plus its own owned trailing gap', () => {
+  it('an exact leaf match, content plus its own trailing gap', () => {
     const r = range(pos(2, 0), pos(3, 0));
     expect(coveredSubtreeRoots(doc, r)).toEqual([paraOne]);
+  });
+
+  it('a whitespace-only gap line matches at ch 0, not the stored line\'s length', () => {
+    // parse.ts's isBlank treats a whitespace-only line as blank, but stores
+    // it verbatim in trailingGap. The cover end must resolve to ch 0
+    // regardless, so a range ending right at the gap line's start still
+    // matches — it must not require reaching past the incidental whitespace.
+    const whitespaceGap = parse('First.\n  \nSecond.\n');
+    const first = nodeAtLine(whitespaceGap, 0)!;
+    const r = range(pos(0, 0), pos(1, 0));
+    expect(coveredSubtreeRoots(whitespaceGap, r)).toEqual([first]);
   });
 
   it('a raw (pre-escalation) boundary-crossing range does not yet match', () => {
@@ -493,7 +505,7 @@ describe('coveredSubtreeRoots: escalated-selection-decoration query (docs/resear
     expect(coveredSubtreeRoots(withFm, range(pos(1, 0), pos(5, 2)))).toBeNull();
   });
 
-  describe('the gap-line trigger shape (cover end is the node\'s own owned gap)', () => {
+  describe('the gap-line trigger shape (cover end is the node\'s own gap)', () => {
     const gapMd = 'First.\n\nSecond.\n';
     const gapDoc = parse(gapMd);
     // 0 'First.' / 1 gap / 2 'Second.' / 3 final gap

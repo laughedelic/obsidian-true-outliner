@@ -278,7 +278,7 @@ describe('escalated-selection-decoration', function () {
     // 61-selection-enforcement.e2e.ts's own programmatic-restore test) —
     // yet the chrome renders anyway, since detection is purely geometric,
     // not "was this produced by escalation." The node's bounds now include
-    // its own owned trailing gap (escalate-include-owned-gap), so the
+    // its own trailing gap (escalate-include-owned-gap), so the
     // matching selection must reach it too, not just the content line.
     await h.setSelection({ line: 0, ch: 0 }, { line: 1, ch: 0 });
     expect(await h.getLineClassList(0)).toContain(CLASS);

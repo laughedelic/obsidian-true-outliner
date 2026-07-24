@@ -20,7 +20,7 @@
  * `siblingRunCover`/`subtreeCoverOf` geometry `escalateRange` uses to
  * escalate a range in the first place — a membership test, not new math.
  *
- * A subtree's cover (`subtreeCoverEnd`) includes its own owned trailing gap
+ * A subtree's cover (`subtreeCoverEnd`) includes its own trailing gap
  * in full (escalate-include-owned-gap, docs/research/13's "Escalation math
  * re-examination candidate"): gap ownership is already all-or-nothing in
  * the parse model, so once a node is escalated into a selection — via the
@@ -102,8 +102,12 @@ function subtreeLineCount(node: OutlineNode): number {
 function subtreeCoverEnd(node: OutlineNode, startLine: number): LinePos {
   if (node.children.length === 0) {
     if (node.trailingGap.length > 0) {
-      const lastGapLine = node.trailingGap[node.trailingGap.length - 1] ?? '';
-      return { line: startLine + node.lines.length + node.trailingGap.length - 1, ch: lastGapLine.length };
+      // Gap lines are semantically blank (parse.ts's `isBlank` treats any
+      // whitespace-only line as blank) even though whitespace-only ones are
+      // stored verbatim — `ch: 0` here, not the stored line's length, so
+      // matching (`coveredSubtreeRoots`) doesn't depend on incidental
+      // trailing whitespace within a "blank" gap line.
+      return { line: startLine + node.lines.length + node.trailingGap.length - 1, ch: 0 };
     }
     const lastLine = node.lines[node.lines.length - 1] ?? '';
     return { line: startLine + node.lines.length - 1, ch: lastLine.length };
@@ -141,7 +145,7 @@ function subtreeCoverOf(doc: OutlineDoc, node: OutlineNode): Cover {
  * common ancestor scope) spanning two distinct nodes, plus its combined
  * cover — the shared geometry both `escalateRange` (to compute the
  * expand-only union) and `coveredSubtreeRoots` (to test an existing range
- * against it) need. The cover's end includes the last subtree's own owned
+ * against it) need. The cover's end includes the last subtree's own
  * trailing gap in full (`subtreeCoverEnd`), so reaching a node's content by
  * crossing into it is enough to pull its whole gap into the cover — no
  * separate drag onto the blank line required. See `escalateRange`'s own doc

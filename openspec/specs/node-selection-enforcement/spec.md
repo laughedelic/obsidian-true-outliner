@@ -16,7 +16,7 @@ anchor and head resolve to different nodes of the parsed tree, the filter SHALL 
 that range with the minimal contiguous cover of whole sibling subtrees that also
 contains the original range: the run of children of the ends' deepest common ancestor
 scope that spans both ends, extended at least from the first subtree's first character
-to the last subtree's last character, INCLUDING the last subtree's own owned trailing
+to the last subtree's last character, INCLUDING the last subtree's own trailing
 gap in full. A node is never partially selected together with content outside it, and a
 covered node's owned trailing gap is never partially included — reaching any point of a
 node's own content by crossing into it is enough to pull its whole gap into the cover,
