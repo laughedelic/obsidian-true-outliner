@@ -51,7 +51,9 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 }, 6);
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 0 }); // drag actually escalated
-    expect(sel.head).toEqual({ line: 2, ch: 'Second paragraph.'.length });
+    // Line 3 is "Second paragraph."'s own trailing gap — included in the
+    // cover (escalate-include-owned-gap).
+    expect(sel.head).toEqual({ line: 3, ch: 0 });
     await browser.keys(Key.Backspace);
     expect(await h.getBuffer()).toBe('Third paragraph.\n');
     const snap = await h.getStats();
