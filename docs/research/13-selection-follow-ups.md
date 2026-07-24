@@ -334,6 +334,77 @@ the enumerate-the-inputs architecture the manifest rejects — or an upstream Ob
 change. Mitigation that already works: sweep from outside the widget and it is
 selected whole.
 
+## Known pre-existing issue: a brief raw/character-level flash before block-cover
+## chrome settles on keyboard-driven escalation (found 2026-07-24, progressive-select-all)
+
+**A momentary flash of native character-level selection appears immediately before
+block-cover chrome settles, on repeated keyboard-driven escalation from an already-
+covering selection** — reported first against `progressive-select-all`'s Mod-A ladder,
+then confirmed by the user to reproduce on stock `main` with plain Shift+ArrowDown too
+(pressed repeatedly from an already-covering selection). Not introduced by
+`progressive-select-all`; pre-existing since `selection-visual-treatment`
+(d045b9b770bf1fecb2e8d0b1915da3278dee7278) first added the blur-based chrome mechanism.
+Not fixed here — see "why not fixed here" below.
+
+**Confirmed root cause for the Shift+ArrowDown case, via pure-function testing (not
+timing-dependent, not a WebDriver artifact)**: `src/plugin/transaction-filter.ts`'s
+`escalateSelection` returns a plain corrected selection when it changes something, and
+the filter wraps that as `result = [tr, { selection: escalated }]` — an ARRAY of two
+`TransactionSpec`s. CM6 applies an array from a `transactionFilter` as two SEPARATE,
+sequential state transitions, each with its own DOM sync: first `tr` UNMODIFIED (the
+raw, pre-escalation selection — e.g. a plain one-line cursor extension from
+`cursorLineDown`-with-extend), THEN a second transaction correcting the selection to the
+escalated/covering form. Confirmed directly: `escalateRanges(doc, rawOneLineExtension)`
+returns a different (escalated) range for a same-node-crossing extension — exactly the
+shape Shift+ArrowDown produces when it crosses into a covering shape. The raw transaction
+is real and genuinely gets its own DOM sync; before this change existed, that brief raw
+frame was invisible (both frames rendered as ordinary native highlight, no chrome to
+contrast against). `selection-visual-treatment`'s blur/chrome mechanism is what makes it
+visible: the raw frame renders with native highlight + focus, and the corrected frame is
+blurred with chrome, so the two now visibly differ, and the flash reads as a "blink."
+
+**`progressive-select-all`'s own dispatches do NOT trigger this specific mechanism** —
+verified directly: `escalateRanges` run on each of the ladder's rungs (own-subtree-with-
+gap, siblings-run, ancestor-subtree) returns them UNCHANGED, since a ladder rung is
+already an exact cover by construction — the filter leaves a single, unsplit transaction
+for these. Repeated Mod-A presses still visibly exhibit a similar flash in practice
+(confirmed via instrumented real-Obsidian testing: a real `focus` event fires on
+`contentDOM`, followed by the block-cover CSS class briefly toggling off then back on,
+all within ~20ms), but through a DIFFERENT, not-yet-fully-isolated path — most likely
+`SelectionDecorationPlugin`'s `onDocumentKeyDown` recovery mechanism (which refocuses the
+already-blurred editor before replaying the keystroke via `runScopeHandlers`), possibly
+compounded by Obsidian's or Electron's own Cmd+A handling independently touching focus
+before the plugin's own code ever runs. A first attempted fix (deferring
+`contentDOM.focus()` in `onDocumentKeyDown` until after the replay, skipped entirely when
+the replayed command's result is still covering) was implemented, verified via the exact
+same instrumented-listener technique to have ZERO measurable effect on the observed
+event log, and reverted — ruling out that specific call site as the (sole) cause without
+identifying the real one.
+
+**Why not fixed here**: this is `node-selection-enforcement`/`transaction-filter.ts` and
+`escalated-selection-decoration`/`decorations.ts` territory — two already-shipped,
+already-tested capabilities with their own committed contracts and e2e suites, not
+`progressive-select-all`'s own scope (whose own dispatches were shown not to be the
+trigger for at least the confirmed Shift+ArrowDown mechanism). A real fix has real
+architectural weight either way: collapsing the transaction filter's two-step escalation
+into one combined transition risks the filter's existing, carefully-tested
+selection-escalation contract; suppressing the visual distinction during a single-tick
+gap touches the blur mechanism's own already-reviewed, multi-round-tested design (see
+this same file's "Live Preview raw-markdown reveal" entry above for how much manual
+back-and-forth that mechanism already took to land). Both deserve their own dedicated
+look with real-vault manual passes, matching this project's established practice for
+this class of change — not a reflexive fix bundled into an unrelated ladder feature.
+
+**For whoever picks this up**: start from the confirmed mechanism above (the transaction
+filter's `[tr, {selection: escalated}]` split) for the Shift+ArrowDown/general-
+raw-command case; the Mod-A-specific residual flash needs its own focused
+instrumented-listener investigation (the technique used here — real `focus`/`blur`
+listeners plus a `MutationObserver` on the block-selecting class, installed via
+`executeObsidian` before the keypress, not polling afterward — is fast and reliable in
+this harness even though this whole area is otherwise flagged as unlikely to test
+automatically) to determine whether it's `onDocumentKeyDown`, an Obsidian/Electron-level
+Cmd+A interaction, or something else.
+
 ## Track 1: Phase C (edit enforcement) inputs
 
 Threads that genuinely feed the edit-rewriting change:
