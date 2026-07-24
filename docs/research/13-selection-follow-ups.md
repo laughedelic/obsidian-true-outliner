@@ -273,6 +273,22 @@ throughout.
   WHILE `mouseDown` is still true (so the `update()` hook skips it), and nothing later
   re-triggers `update()` to catch it once the button is released.
 
+  **A follow-up bug in this same fix, found on user testing, then fixed**: typing over
+  a keyboard-escalated selection sometimes inserted text at an unexpected position
+  instead of replacing it — the user's own hunch was exactly right ("the cursor is in a
+  different place just before we switch to block-selection mode"). Root cause: the
+  `update()` hook was blurring SYNCHRONOUSLY, inside the same dispatch cycle as the
+  keystroke that just escalated the selection, racing CM6's own sync of its internal
+  `EditorState.selection` into the browser's native `Selection`/`Range` — blurring
+  before that sync completed froze the DOM's OWN selection at a stale, pre-escalation
+  position, later restored as-is on refocus and read by the browser's native
+  `beforeinput` handling for the typing keystroke. The mouse-drag path never hit this,
+  since a real drag continuously updates the DOM's native selection throughout the
+  gesture, not at one synchronous instant. Fixed by deferring the blur via
+  `setTimeout`, matching `onMouseUp`'s own already-validated pattern exactly. Confirmed
+  working by the user: keyboard-selecting then typing over now replaces correctly and
+  consistently, matching mouse-drag behavior.
+
 **A third, NOT fixed — a genuine hard limitation of the reactive-refocus approach
 itself**:
 - **IME composition (tested live: Chinese Pinyin input) is broken in a specific way**:

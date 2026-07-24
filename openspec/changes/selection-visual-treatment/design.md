@@ -472,6 +472,22 @@ block selection (Shift+Arrow, no mouse) originally never triggered the blur at a
 by also hooking `ViewUpdate.selectionSet`, guarded against firing mid-drag via a
 tracked `mouseDown` flag.
 
+**A third bug, found on testing that same keyboard-selection fix, then fixed**: typing
+over a keyboard-escalated selection sometimes inserted text at an unexpected position
+instead of replacing it — the user's own hunch was exactly right ("the cursor is in a
+different place just before we switch to block-selection mode"). Root cause: the
+`update()` hook was blurring SYNCHRONOUSLY, inside the same dispatch cycle as the
+keystroke that just escalated the selection, racing CM6's own sync of its internal
+`EditorState.selection` into the browser's native `Selection`/`Range` — blurring before
+that sync completed froze the DOM's OWN selection at a stale, pre-escalation position,
+later restored as-is on refocus and read by the browser's native `beforeinput` handling
+for the typing keystroke. The mouse-drag path never hit this, since a real drag
+continuously updates the DOM's native selection throughout the gesture, not at one
+synchronous instant. Fixed by deferring the blur via `setTimeout`, matching
+`onMouseUp`'s own already-validated pattern exactly. Confirmed working by the user:
+keyboard-selecting then typing over now replaces correctly and consistently, matching
+mouse-drag behavior.
+
 **One limitation found live and NOT fixed, a genuine hard limit of the reactive-refocus
 approach**: IME composition (tested: Chinese Pinyin) loses its first keystroke to literal
 Latin insertion before composition correctly engages from the second keystroke onward —

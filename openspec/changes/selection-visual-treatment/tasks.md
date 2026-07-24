@@ -389,3 +389,35 @@ reveal during block selection" section, not repeated here.
       regressions.
 - [x] 13.5 Updated design.md and docs/research/13-selection-follow-ups.md with both
       fixes and the IME limitation — this is the checkpoint to commit from.
+
+## 14. Final fix: keyboard-selection typing correctness, checkpoint
+
+- [x] 14.1 Fixed a real bug found on user testing of 13.2's keyboard-selection blur:
+      typing over a keyboard-escalated (Shift+Arrow) selection sometimes inserted
+      text at an unexpected position instead of replacing the selection — the
+      user's own hunch was correct ("the cursor is in a different place just before
+      we switch to block-selection mode"). Root cause: the `update()` hook was
+      blurring SYNCHRONOUSLY, inside the same dispatch cycle as the keystroke that
+      just escalated the selection, racing CM6's own DOM-selection sync (CM6 mirrors
+      its internal `EditorState.selection` into the browser's native
+      `Selection`/`Range`, but that sync isn't guaranteed complete the instant
+      `update()` fires) — blurring before it finished froze the DOM's OWN selection
+      at a stale, pre-escalation position, later restored as-is on refocus and read
+      by the browser's native `beforeinput` handling for the typing keystroke. The
+      mouse-drag path never hit this: a real drag continuously updates the DOM's
+      native selection throughout the gesture, not at one synchronous instant.
+      Fixed by deferring the blur via `setTimeout`, matching `onMouseUp`'s own
+      already-validated pattern exactly.
+- [x] 14.2 Confirmed working by the user: keyboard-selecting a paragraph then
+      typing over it now replaces the selection correctly and consistently,
+      matching mouse-drag behavior.
+- [x] 14.3 Re-ran full unit suite (287 passed), typecheck (main + e2e), lint, and
+      the full `63-selection-visual-treatment` e2e spec (19 passing) — no
+      regressions.
+- [x] 14.4 All prior open threads from this change are now either fixed and
+      confirmed (chrome geometry/color/native-selection-suppression, blockquote
+      border, code-block tint, Live Preview stays rendered including keyboard
+      parity and multi-pane correctness) or deliberately deferred with full
+      diagnosis recorded (IME composition; Tab/Shift-Tab/Cmd+Up-Down multi-node
+      structural behavior, filed in docs/research/13-selection-follow-ups.md's
+      Track 2 for its own future change). Ready to archive.

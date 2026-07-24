@@ -905,16 +905,32 @@ class SelectionDecorationPlugin implements PluginValue {
    * have committed WHILE `mouseDown` was still true (so this hook would
    * have skipped it) — nothing later re-triggers `update()` to catch it,
    * so `onMouseUp` still needs its own explicit re-check.
+   *
+   * Deferred via `setTimeout`, matching `onMouseUp`'s own pattern below —
+   * NOT optional here: a real bug found live, blurring SYNCHRONOUSLY inside
+   * `update()` (i.e. still inside the same dispatch cycle as the keystroke
+   * that just escalated the selection) raced CM6's own DOM-selection sync.
+   * CM6 keeps the browser's native `Selection`/`Range` mirroring its own
+   * internal `EditorState.selection`, but that sync apparently isn't
+   * guaranteed to have completed the instant `update()` fires — blurring
+   * before it does can freeze the DOM's OWN selection at a STALE, earlier
+   * position (confirmed by the user: typing over a keyboard-escalated
+   * selection sometimes inserted text somewhere unexpected instead of
+   * replacing it, consistent with the DOM's restored selection — read by
+   * the browser's native `beforeinput` handling once refocused for that
+   * keystroke — not matching CM6's own correct model at all). The
+   * mouse-drag path never hit this because a real user drag continuously
+   * updates the DOM's native selection as part of the browser's own
+   * mechanics throughout, not just at one synchronous instant.
    */
   update(update: ViewUpdate): void {
     this.decorations = this.compute();
-    if (
-      update.selectionSet &&
-      !this.mouseDown &&
-      this.isOutlineNote() &&
-      allRangesCovered(this.view.state)
-    ) {
-      this.view.contentDOM.blur();
+    if (update.selectionSet && !this.mouseDown) {
+      window.setTimeout(() => {
+        if (this.isOutlineNote() && allRangesCovered(this.view.state)) {
+          this.view.contentDOM.blur();
+        }
+      }, 0);
     }
   }
 
