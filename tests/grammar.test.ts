@@ -71,12 +71,38 @@ describe('grammar planner: Enter (split)', () => {
     expect(text).toBe('- alpha\n- \n');
   });
 
-  it('Enter on a heading opens an empty child line below', () => {
+  it('Enter mid-heading-text splits the title into the heading and a new paragraph child', () => {
     const outcome = plan('# Head\n\nBody.\n', { line: 0, ch: 3 }, 'split');
     if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
     const { text, cursor } = applyPlan('# Head\n\nBody.\n', outcome.plan);
-    expect(text).toBe('# Head\n\n\nBody.\n');
-    expect(cursor).toBe('# Head\n'.length);
+    expect(text).toBe('# H\n\nead\n\nBody.\n');
+    expect(cursor).toBe('# H\n\nead'.length - 'ead'.length);
+    const doc = parse(text);
+    expect(doc.children[0]!.lines[0]).toBe('# H');
+    expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['ead', 'Body.']);
+  });
+
+  it('Enter at the end of a heading widens the gap; typed text becomes a child paragraph', () => {
+    const outcome = plan('# Head\n\nBody.\n', { line: 0, ch: 6 }, 'split');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text } = applyPlan('# Head\n\nBody.\n', outcome.plan);
+    expect(text).toBe('# Head\n\n\n\nBody.\n');
+  });
+
+  it('Enter mid-title of a setext heading splits it, underline stays with the heading', () => {
+    const outcome = plan('Hello world\n====\n', { line: 0, ch: 6 }, 'split');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text, cursor } = applyPlan('Hello world\n====\n', outcome.plan);
+    expect(text).toBe('Hello \n====\nworld\n');
+    expect(cursor).toBe('Hello \n====\n'.length);
+    const doc = parse(text);
+    expect(doc.children[0]!.lines).toEqual(['Hello ', '====']);
+    expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['world']);
+  });
+
+  it('Enter on a setext heading\'s underline line shows the rejection cue, changes nothing', () => {
+    const outcome = plan('Head\n====\n', { line: 1, ch: 1 }, 'split');
+    expect(outcome && 'notice' in outcome && outcome.notice.length > 0).toBe(true);
   });
 
   it('declines inside an atom (stock newline)', () => {

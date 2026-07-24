@@ -76,8 +76,8 @@ function planFromOp(
   };
 }
 
-/** Insert `text` at a position, cursor at its end — for Enter-on-heading
- * and Shift+Enter, which are text-level (transient-state) edits. */
+/** Insert `text` at a position, cursor at its end — for Shift+Enter, which is
+ * a text-level (transient-state) edit. */
 function insertionPlan(
   lines: readonly string[],
   at: EditorPos,
@@ -142,23 +142,12 @@ export function planKey(
       return planFromOp(lines, moveUp(doc, node.id), 'move.structure');
     case 'move-down':
       return planFromOp(lines, moveDown(doc, node.id), 'move.structure');
-    case 'split': {
-      if (node.kind === 'heading') {
-        // Enter on a heading: empty paragraph child right below the line.
-        const line = lines[cursor.line] ?? '';
-        return insertionPlan(
-          lines,
-          { line: cursor.line, ch: line.length },
-          '\n',
-          'input.structure.split',
-        );
-      }
+    case 'split':
       return planFromOp(
         lines,
         splitNode(doc, node.id, cursor, fallbackIndentUnit),
         'input.structure.split',
       );
-    }
     case 'continue': {
       if (node.kind === 'list-item' && onFirstLine) {
         const match = LIST_CONT_RE.exec(node.lines[0] ?? '');

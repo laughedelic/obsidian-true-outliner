@@ -174,17 +174,41 @@ describe('keyboard grammar', function () {
     expect(texts).toContain('thought');
   });
 
-  it('Enter on a heading: empty line below; typed text becomes a child paragraph', async function () {
+  it('Enter mid-heading-text splits the title into the heading and a new paragraph child', async function () {
     await grammarNote('# Head\n\nBody.\n', 0, 3);
     await h.keys.enter();
-    expect(await h.getBuffer()).toBe('# Head\n\n\nBody.\n');
-    expect(await h.getCursor()).toEqual({ line: 1, ch: 0 });
+    expect(await h.getBuffer()).toBe('# H\n\nead\n\nBody.\n');
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 0 });
+
+    const doc = parse(await h.getBuffer());
+    const head = doc.children[0]!;
+    expect(head.lines[0]).toBe('# H');
+    expect(head.children.map((c) => c.lines[0])).toEqual(['ead', 'Body.']);
+  });
+
+  it('Enter at the end of a heading widens the gap; typed text becomes a child paragraph', async function () {
+    await grammarNote('# Head\n\nBody.\n', 0, 6);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('# Head\n\n\n\nBody.\n');
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 0 });
 
     await h.keys.type('note');
     const doc = parse(await h.getBuffer());
     const head = doc.children[0]!;
     expect(head.lines[0]).toBe('# Head');
     expect(head.children.some((c) => c.lines[0] === 'note')).toBe(true);
+  });
+
+  it('Enter mid-title of a setext heading splits it, underline stays with the heading', async function () {
+    await grammarNote('Hello world\n====\n', 0, 6);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('Hello \n====\nworld\n');
+
+    const doc = parse(await h.getBuffer());
+    const head = doc.children[0]!;
+    expect(head.setext).toBe(true);
+    expect(head.lines).toEqual(['Hello ', '====']);
+    expect(head.children.map((c) => c.lines[0])).toEqual(['world']);
   });
 
   it('Shift+Enter: aligned continuation, still one node under structural ops', async function () {
