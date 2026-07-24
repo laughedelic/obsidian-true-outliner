@@ -23,6 +23,7 @@ import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension } from './keymap';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
+import { structuralCursorRecorder } from './history-cursor';
 import { TransactionStats } from './stats';
 
 const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
@@ -106,6 +107,11 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
+    // Records each structural op's own resulting cursor into CM6's undo
+    // history, so redo restores it instead of a mechanically mapped position
+    // (structural-history-integration; docs/research/04 Q21). Covers both
+    // structural dispatch sites above through one shared trigger set.
+    this.registerEditorExtension(structuralCursorRecorder());
 
     this.addCommand({
       id: 'print-transaction-stats',
