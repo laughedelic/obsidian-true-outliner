@@ -506,18 +506,33 @@ export function splitNode(
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
-  if (node.kind !== 'paragraph' && node.kind !== 'list-item') return reject('cannot-split');
+  if (node.kind !== 'paragraph' && node.kind !== 'list-item' && node.kind !== 'heading') {
+    return reject('cannot-split');
+  }
 
   const startLine = startLineOf(doc, nodeId);
   const lineIndex = position.line - startLine;
   if (lineIndex < 0 || lineIndex >= node.lines.length) return reject('cannot-split');
+  // A setext heading's second line is its underline, not text — no split point.
+  if (node.kind === 'heading' && node.setext && lineIndex !== 0) return reject('cannot-split');
   const line = node.lines[lineIndex]!;
   // Never split inside indentation or a list marker.
   const ch = Math.min(Math.max(position.ch, contentColumnCh(line)), line.length);
 
-  const upperLines = [...node.lines.slice(0, lineIndex), line.slice(0, ch)];
+  // A setext heading's underline (its own line 1) is structural chrome, not a
+  // continuation line of the title — it must stay attached to the truncated
+  // heading (upper), never travel with the split-off remainder (lower). A
+  // plain `node.lines.slice(lineIndex + 1)` would otherwise sweep it into
+  // `lower`'s own lines, and re-parsing "<title-head>\n<title-tail>\n===="
+  // (no longer separated by a dedicated underline of its own) reinterprets
+  // the whole thing as ONE multi-line setext heading, silently undoing the
+  // split.
+  const isSetextHeading = node.kind === 'heading' && node.setext === true;
+  const upperLines = isSetextHeading
+    ? [line.slice(0, ch), node.lines[1]!]
+    : [...node.lines.slice(0, lineIndex), line.slice(0, ch)];
   const remainderFirst = line.slice(ch);
-  const lowerRest = node.lines.slice(lineIndex + 1);
+  const lowerRest = isSetextHeading ? [] : node.lines.slice(lineIndex + 1);
   const emptyRemainder = remainderFirst.trim() === '' && lowerRest.length === 0;
 
   const parentPath = path.slice(0, -1);
@@ -529,7 +544,10 @@ export function splitNode(
   // per the child scope's kind rules — instead of a sibling that visually
   // jumps over the whole subtree. Falls through to the sibling path for the
   // one child-kind shape with no empty encoding (see below).
-  if (node.children.length > 0) {
+  // Headings always take this branch, even with no children: a heading's only
+  // possible SIBLING is another heading, so a plain-text split has no sibling
+  // encoding to fall back to — the remainder can only ever be a child.
+  if (node.children.length > 0 || node.kind === 'heading') {
     const childKind = encodingKindAtDestination({
       parentKind: node.kind,
       precedingSiblings: [],
@@ -552,17 +570,37 @@ export function splitNode(
           lines: [firstLine, ...lowerRest.map((l) => `${contPad}${l.trimStart()}`)],
         });
       } else {
+        // If the next existing child is ALSO a paragraph, a blank separator
+        // is required — two adjacent non-blank lines re-parse as ONE
+        // paragraph (CommonMark), silently merging the split. List-item
+        // children self-delimit via their marker and need no separator; this
+        // shape is unreachable for non-heading parents today (their
+        // encoding rule never produces a paragraph-kind child next to
+        // another paragraph-kind child), but is the common case for headings.
+        const needsSeparator = node.children[0]?.kind === 'paragraph';
         lower = makeNode({
           kind: 'paragraph',
           lines: [
             `${indentText}${remainderFirst.trimStart()}`,
             ...lowerRest.map((l) => `${indentText}${l.trimStart()}`),
           ],
+          ...(needsSeparator ? { trailingGap: [''] } : {}),
         });
+      }
+      // A childless split node (only reachable for headings — the
+      // paragraph/list-item branch above requires children.length > 0) may
+      // have owned a trailing gap that was really the FILE's own terminal
+      // blank lines, not an interior gap before a child. `lower` is now the
+      // terminal node in `node`'s place, so that gap moves with it — mirrors
+      // the sibling-split path's subtreeFinalNode/stripFinalGap handling
+      // below for the same reason.
+      if (node.children.length === 0 && node.trailingGap.length > 0) {
+        lower = { ...lower, trailingGap: [...lower.trailingGap, ...node.trailingGap] };
       }
       const upper: OutlineNode = {
         ...node,
         lines: upperLines,
+        trailingGap: node.children.length === 0 ? [] : node.trailingGap,
         children: [lower, ...node.children],
       };
       const surgery = updateSiblings(doc, parentPath, (nodes) =>
@@ -572,11 +610,11 @@ export function splitNode(
     }
   }
 
-  if (node.kind === 'paragraph' && emptyRemainder) {
-    // End-of-paragraph split: no empty-paragraph encoding exists, so widen
-    // the gap and put the cursor on a line that is blank-separated on BOTH
-    // sides — typing there materializes the sibling instead of rejoining a
-    // neighbor.
+  if ((node.kind === 'paragraph' || node.kind === 'heading') && emptyRemainder) {
+    // End-of-paragraph (or end-of-heading) split: no empty-paragraph encoding
+    // exists, so widen the gap and put the cursor on a line that is
+    // blank-separated on BOTH sides — typing there materializes the sibling
+    // (or, for a heading, the first child) instead of rejoining a neighbor.
     const surgery = updateSiblings(doc, parentPath, (nodes) =>
       nodes.map((n, i) => (i === index ? { ...n, trailingGap: ['', '', ...n.trailingGap] } : n)),
     );
@@ -778,10 +816,27 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
     actualChildCol(second, referenceChild(second, false));
   const adopted = second.children.map((child) => shiftSubtree(child, childShift));
 
+  // The merged node's trailing gap is normally `second`'s (the boundary that
+  // survives is whatever followed the absorbed node — `first` and `second`
+  // are now one node, so "the gap between them" is genuinely gone). For a
+  // heading absorbing content, that reasoning breaks down: the gap AFTER a
+  // heading is the heading's own established separation from its content, not
+  // a property of whichever node happened to be first in line — losing it
+  // makes whatever now follows (a re-parented sibling, or a later Enter split
+  // back out) stick directly to the heading with no separator. Keep whichever
+  // side has MORE blank lines: this preserves the heading's own gap when it
+  // had one (the fix), while still preserving `second`'s gap when `second`
+  // was the document's own terminal node and `first` had none (no regression
+  // — `second`'s gap already wins in that case since it's the longer one).
+  const trailingGap =
+    first.kind === 'heading' && first.trailingGap.length > second.trailingGap.length
+      ? first.trailingGap
+      : second.trailingGap;
+
   const merged: OutlineNode = {
     ...first,
     lines: [...mergedLines],
-    trailingGap: second.trailingGap,
+    trailingGap,
     children: secondIsFirstChild
       ? [...adopted, ...first.children.slice(1)]
       : adopted,

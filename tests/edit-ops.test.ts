@@ -238,6 +238,36 @@ describe('mergeNodes', () => {
     if (!rejected.ok) expect(rejected.rejection.reason).toBe('merge-not-expressible');
   });
 
+  it('a heading absorbing its first child keeps its OWN gap, not the absorbed child\'s (2026-07-24 fix)', () => {
+    // Before the fix: the merged node took `second.trailingGap` unconditionally
+    // (correct for ordinary interior merges, where "the gap between them" is
+    // genuinely consumed by the merge) — but for a heading, the gap AFTER it
+    // is the heading's own established separation from its content, not a
+    // property of whichever node happened to be first. Losing it made
+    // whatever followed (here, "item2") stick directly to the heading with no
+    // separator, even though the heading originally had a real blank-line gap.
+    const md = '# Head\n\n- item1\n- item2\n';
+    const doc = parse(md);
+    const head = byLine(doc, '# Head');
+    const result = mergeNodes(doc, head.id);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('# Headitem1\n\n- item2\n');
+  });
+
+  it('a heading absorbing a TERMINAL child still keeps that child\'s trailing gap (no regression)', () => {
+    // The heading itself has NO gap here (`# Title` immediately followed by
+    // `Body.`, no blank line) — `second` (Body.) is the document's own last
+    // node, so its trailingGap carries the file's trailing-newline
+    // representation. The fix must not discard that: whichever side has MORE
+    // blank lines wins, and here that's still `second`'s.
+    const md = '# Title\nBody.\n';
+    const doc = parse(md);
+    const head = byLine(doc, '# Title');
+    const result = mergeNodes(doc, head.id);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('# TitleBody.\n');
+  });
+
   it('rejects at the end of the document (no following neighbor)', () => {
     const doc = parse('Only.\n');
     const only = byLine(doc, 'Only.');

@@ -482,9 +482,10 @@ scope.
 The third real-vault pass of `outline-edit-enforcement` surfaced one clean fix (D14,
 below) and two findings that trace back to operations that PREDATE this change
 entirely — `outdent` (mapping-core, Q2) and heading Enter-handling
-(outline-keyboard-grammar) — confirmed real via direct testing, not yet fixed pending
-an explicit decision (holding per the project's "measure twice" discipline for
-foundational, wide-blast-radius changes).
+(outline-keyboard-grammar) — confirmed real via direct testing. Both were held
+pending an explicit decision per the project's "measure twice" discipline for
+foundational, wide-blast-radius changes, and have since been fixed in their own
+dedicated changes (`fix-outdent-following-siblings`, `heading-enter-splits-paragraph`).
 
 - **Structural paste onto an empty anchor now replaces it (D14, implemented).** A
   freshly-created empty list item (e.g. right after Enter) used to sit stranded next
@@ -520,18 +521,42 @@ foundational, wide-blast-radius changes).
   for the full rationale and regression coverage
   (`tests/ops.test.ts`, `tests/closure.test.ts`).
 - **Heading Enter inserts a blank line rather than splitting into a new paragraph —
-  pre-existing, predates this change.** Confirmed via `grammar.ts`'s `'split'` case
-  for `node.kind === 'heading'`: Enter ANYWHERE in a heading's text (not just at its
-  end) ignores the cursor's actual position within the line and inserts one blank
-  line after the heading's own line, requiring a subsequent keystroke to materialize
-  a child paragraph — it does not split the heading's text at the cursor into a
-  genuine new paragraph node the way paragraphs/list-items do via `splitNode`. This
-  is the ORIGINAL outline-keyboard-grammar design (predates outline-edit-enforcement
-  entirely), not something D11 touched. Whether to change it — split heading text at
-  the cursor into a real paragraph node instead — is a foundational grammar decision
-  with its own trade-offs (the two-regime algebra's heading/content asymmetry is a
-  core, deliberate design choice from Q2). Holding for an explicit decision
-  (tasks.md 8.3).
+  pre-existing, predates this change. FIXED** (change `heading-enter-splits-paragraph`,
+  2026-07-24). Confirmed via `grammar.ts`'s `'split'` case for `node.kind === 'heading'`:
+  Enter ANYWHERE in a heading's text (not just at its end) ignored the cursor's actual
+  position within the line and inserted one blank line after the heading's own line,
+  requiring a subsequent keystroke to materialize a child paragraph — it did not split
+  the heading's text at the cursor into a genuine new paragraph node the way
+  paragraphs/list-items do via `splitNode`. This was the ORIGINAL outline-keyboard-grammar
+  design (predates outline-edit-enforcement entirely), not something D11 touched. Resolved
+  by extending `splitNode` to accept headings: mid-text Enter now truncates the heading
+  and lands the remainder as a new first-child paragraph (per the same content-adjacent
+  split rule paragraphs/list-items already use — a heading's only possible SIBLING is
+  another heading, so a plain-text split remainder can only ever be a child).
+  Cursor-at-end now reuses the shared gap-widen mechanism instead of a one-off insertion,
+  which adds one more blank line than before in that case — a deliberate, documented
+  trade-off (see the change's design.md D2) rather than a special-cased byte-for-byte
+  match. Implementation also surfaced and fixed two latent gaps in the shared
+  content-adjacent-split code the heading case was the first to reach: a missing
+  blank-line separator when the split-off remainder and an existing paragraph-kind child
+  would otherwise merge on re-parse, and a terminal-trailing-gap-ownership transfer for a
+  childless split node that was also the document's last node. The two-regime algebra's
+  heading/content asymmetry (Q2) is untouched — this only concerns Enter/split, not
+  Tab/Shift+Tab level-shift. See `openspec/changes/heading-enter-splits-paragraph/` for
+  full rationale and regression coverage (`tests/split.test.ts`, `tests/grammar.test.ts`,
+  `e2e/specs/30-keyboard-grammar.e2e.ts`). Two further findings from real testing of this
+  fix, both folded into the same change: (1) mid-title splitting of a SETEXT heading
+  (underlined `===`/`---`) was initially broken — the underline got swept into the
+  split-off remainder's own lines instead of staying with the truncated heading, so
+  re-parsing reinterpreted the whole result as one multi-line setext heading, silently
+  undoing the split; not caught by the property-test suite, since `arbTree()` never
+  generates setext headings. (2) `mergeNodes` was found to unconditionally discard a
+  heading's own trailing gap in favor of whatever the absorbed node's gap happened to be
+  — merging a list item into a heading and then splitting back out left the heading's
+  original blank-line gap gone, with whatever followed sticking directly to it. Root
+  cause predates this change (it's in `mergeNodes`, not in the new split logic) but was
+  only surfaced by testing this feature; fixed by preferring whichever of the two gaps is
+  longer when the absorbing node is a heading.
 - **Filed but explicitly NOT for near-term action** (per the user's own framing):
   whether heading `#` markers should get the same direct-edit-prohibition list
   markers now have (D13) — raised as a "think about it, don't act on it" idea. Not
