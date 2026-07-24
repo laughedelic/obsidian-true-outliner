@@ -596,7 +596,16 @@ foundational, wide-blast-radius changes).
   duplicate" (the first was D15's own detection-gate split between classify.ts
   and enforce.ts).
 - **Redo-cursor-after-merge — mechanism now understood precisely, but still not
-  reproduced.** Read the actual `@codemirror/commands` `history.ts` source (via
+  reproduced.** ⚠️ **The mechanism description below is WRONG — corrected in Q21.**
+  Specifically, the claim that the redo event's `startSelection` is "the selection
+  active at the moment the undo transaction was built" describes only the LAST
+  fallback in `HistoryState.pop()`'s expression; the branch that actually applies
+  maps the pre-edit cursor forward through the op's own changes. Reasoning from the
+  wrong premise led this entry to conclude our cursor "should" be restored and to
+  hunt for an external cause, and led Q20 to conclude the cause sat outside this
+  change's code entirely. Left in place unedited as the record of what was believed
+  at the time; read Q21 for what is actually true.
+  Read the actual `@codemirror/commands` `history.ts` source (via
   targeted fetches of the upstream file) to understand exactly how CM6 restores
   selection on redo, rather than continue guessing from behavior alone:
   - Undo pops the "done" stack's event and dispatches `changes: event.changes⁻¹`,
@@ -655,3 +664,97 @@ diagnosis for it. Q19's mechanism research (CM6 `history.ts` selection-restorati
 semantics, the empirical `programmatic`-counter proof) and its diagnostic asks
 (isolated vault, Obsidian version, non-default settings, mouse-vs-keyboard cursor
 placement) remain the starting point whenever that investigation picks up.
+
+**RESOLVED in Q21 (2026-07-25)** — root cause found, partially fixed. Q20's own
+instinct that "more than one wrong-landing shape" ruled out a narrow fix was right
+about the symptom and wrong about the conclusion: the shapes are one mechanism whose
+error scales with how much the op rewrote.
+
+## Q21. Redo-cursor root cause: a CM6 history regression meeting our whole-region rewrites ✅ ROOT-CAUSED, partially fixed (2026-07-25)
+
+Change: `fix-redo-cursor-after-structural-ops`.
+
+### The mechanism (corrects Q19)
+
+`@codemirror/commands`' `HistoryState.pop()` picks the cursor redo restores as:
+
+```js
+event.selectionsAfter[0] || event.startSelection.map(event.changes.invertedDesc, 1)
+```
+
+A document-changing transaction is recorded via `addChanges`, never `addSelection` —
+they are mutually exclusive in the history field — so **a structural op's own resulting
+cursor is never recorded**, `selectionsAfter` stays empty, and the mapping branch runs.
+Our dispatches are whole-region line replacements, so the pre-edit cursor sits INSIDE
+the replaced range, and such a position maps (assoc = 1) to the **end of the entire
+inserted block**. The error's magnitude therefore scales with the rewrite's scope —
+which is exactly why Q20 saw several different wrong landings and inferred several
+different causes.
+
+### It is an upstream regression, version-gated
+
+Bisected against the real package: **≤ 6.10.1 correct, ≥ 6.10.2 buggy**. 6.10.2's
+changelog: *"Move the selection to a less surprising place when undoing, moving the
+selection, redoing, then undoing again."* — a fix for a different scenario that added
+the mapping fallback and regressed ours.
+
+### Why three reports never reproduced in the harness
+
+Two independent maskers, either alone sufficient:
+
+1. **Any** selection-only transaction landing between the op and the undo populates
+   `selectionsAfter[0]` with the correct cursor. A single stray cursor touch (a
+   `setCursor`/focus helper in a test) hides it completely.
+2. The e2e harness ran the newest **stable** Obsidian (1.12.7), which bundles a CM6
+   older than 6.10.2 — the reporter was on a 1.13.3 Catalyst beta. Automated and
+   manual testing were running different editor cores. Confirmed by instrumenting
+   `EditorView.update` in the live app: exactly three transactions occur (op, undo,
+   redo), nothing intervenes, and redo still restored the correct cursor there.
+
+The harness now prefers `latest-beta` when available (`obsidianBetaAvailable()`,
+falling back to `latest`), so this class of skew stops being invisible.
+
+### What was fixed, and what was not
+
+**Fixed**: the first redo after any structural op restores that op's own cursor, by
+re-asserting the cursor in a following selection-only transaction so history records it
+(`src/plugin/history-cursor.ts`). Version-independent — `selectionsAfter[0]` is
+preferred by both the old and new `pop()`.
+
+**NOT fixed — known, accepted limitation**: `undo → redo → undo` still lands on a
+mapped position (the end of the rewritten region in the pre-op document). This is a
+structural limit, not an implementation gap: the event a second undo reads its restore
+position from is created on the history's **undone** branch, and `addSelection` only
+ever writes to the **done** branch, so no selection transaction can reach it. Pinned by
+tests in `tests/history-cursor.test.ts` so a future "the cursor still jumps" report is
+recognized as this known gap.
+
+### The real fix, deferred to its own change
+
+Stop emitting whole-region replacements. With **minimal, per-line character-level
+changes**, the mapped position IS the semantically correct one in both directions at
+any depth, and no recording mechanism is needed at all — verified standalone across
+undo/redo/undo/redo cycles for merge, indent, and outdent. It belongs against
+`editsToChanges` (`src/plugin/dispatch.ts`), shared by the grammar, the enforcement
+rewrites, and the palette commands. It also subsumes the cursor-placement complaint
+below.
+
+### Also found, not fixed here
+
+- **Structural ops reset the cursor to the node's content start** even with no
+  undo/redo involved (`ops.ts`'s `finalize` convention, surfaced by real-vault Tab
+  testing). With minimal ChangeSets, simply not setting an explicit cursor for
+  indent/outdent would preserve the user's column naturally — so this is best decided
+  as part of that change rather than separately.
+
+### Method note worth carrying forward
+
+The root cause was settled in minutes by a **plain unit test running a real
+`EditorState` with the real history extension** — no Obsidian, no WebDriver — after two
+rounds of e2e guessing failed. For any question that is purely about CM6 semantics,
+reach for that first. The same technique bisected the upstream version boundary.
+
+Equally important: the e2e tests for this fix were written, passed, and only THEN
+checked for whether they could fail at all. They could not. Always verify a regression
+test fails for the right reason before trusting it — this bug survived three reports on
+exactly that kind of false confidence.
