@@ -127,6 +127,13 @@ describe('progressive-select-all', function () {
   it('each range in a multi-range selection climbs its own ladder independently', async function () {
     const md = '# Head\n\nBody one.\n\nBody two.\n';
     await outlineNote(md);
+    // dispatchSelectOnlyRanges deliberately doesn't touch DOM focus (other
+    // callers rely on that no-side-effect behavior), so establish real
+    // editor focus first — a keyboard shortcut needs it, and unlike
+    // desktop (where opening a note happens to leave the editor focused),
+    // mobile Obsidian does not auto-focus a freshly opened note (avoids
+    // popping the virtual keyboard unprompted).
+    await h.setCursor(2, 2);
     await h.dispatchSelectOnlyRanges([
       { anchor: { line: 2, ch: 2 }, head: { line: 2, ch: 2 } }, // cursor in Body one
       { anchor: { line: 4, ch: 2 }, head: { line: 4, ch: 2 } }, // cursor in Body two
