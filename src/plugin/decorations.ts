@@ -60,14 +60,17 @@ import { RangeSetBuilder, type Extension, type EditorState, type Text } from '@c
 import {
   Decoration,
   EditorView,
+  runScopeHandlers,
   ViewPlugin,
   WidgetType,
   type DecorationSet,
   type PluginValue,
+  type ViewUpdate,
 } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
 import type { NodeKind } from '../model';
 import { parse } from '../parse';
+import { coveredSubtreeRoots, type LinePos, type LineRange } from '../escalate';
 import {
   computeLineGuides,
   decorate,
@@ -75,6 +78,7 @@ import {
   type LineGuideFact,
 } from './decorate';
 import type { ModeSource } from './keymap';
+import { parsedDoc } from './parsed-doc';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
 //
@@ -502,42 +506,52 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
   return builder.finish();
 }
 
+/**
+ * Own-shift expression (units of `--to-decor-unit`, plus the marker gutter
+ * where applicable): how far this line's own box has been shifted right by
+ * its own margin-left/padding-left — the exact compensation a leftward-
+ * reaching overlay (a guide, or escalated-selection chrome, below) needs to
+ * widen its box by to reach a shallower ancestor's column (see the doc
+ * comment above `guideLayer`). `'0px'` means the box isn't shifted at all
+ * (block lines: padding-left never moves the box). Static/formula-based —
+ * NOT the more precise, live-measured value `MarginCompensation` computes
+ * per widget atom (which additionally corrects for native padding); callers
+ * needing that precision use their own value instead of this one.
+ */
+function plainOwnShiftExpr(fact: LineDecorationFact): string {
+  if (fact.isListItem) {
+    // List items get no marker gutter (native bullet/number only).
+    return fact.supplementalDepth > 0 ? `calc(${fact.supplementalDepth} * ${UNIT})` : '0px';
+  }
+  if (fact.isAtom) {
+    // Every non-list line reserves the marker gutter, so the box is always
+    // shifted by at least the gutter, even at depth 0.
+    return `calc(${fact.depth} * ${UNIT} + var(--to-marker-gutter, 0px))`;
+  }
+  return '0px'; // padding-left never shifts a block line's own box
+}
+
 function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decoration {
   const styles: string[] = [];
   let cls: string;
-  // Own-shift expression (units of `--to-decor-unit`, plus the marker
-  // gutter where applicable) this line's own box has been shifted right by
-  // its own margin-left — the exact compensation the guide's pseudo needs
-  // to widen its box by, leftward, to reach a shallower ancestor's column
-  // (see the doc comment above `guideLayer`). `undefined` means the box
-  // isn't shifted at all (block lines: padding-left never moves the box).
-  let ownShiftExpr: string | undefined;
 
   if (fact.isListItem) {
     cls = 'to-decor-list';
     styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
-    // List items get no marker gutter (native bullet/number only).
-    ownShiftExpr = fact.supplementalDepth > 0 ? `calc(${fact.supplementalDepth} * ${UNIT})` : undefined;
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
     styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
-    // Every non-list line reserves the marker gutter, so the box is always
-    // shifted by at least the gutter, even at depth 0.
-    ownShiftExpr = `calc(${fact.depth} * ${UNIT} + var(--to-marker-gutter, 0px))`;
   } else {
     cls = 'to-decor-block';
     styles.push(`--to-depth: ${fact.depth}`);
     styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
-    ownShiftExpr = undefined; // padding-left never shifts a block line's own box
   }
 
   if (guide.guideDepths.length > 0) {
     cls += ' to-decor-guides';
     styles.push(`--to-guides: ${guideBackground(guide.guideDepths)}`);
-    if (ownShiftExpr) {
-      styles.push(`--to-own-shift: ${ownShiftExpr}`);
-    }
+    styles.push(`--to-own-shift: ${plainOwnShiftExpr(fact)}`);
   }
 
   return Decoration.line({ class: cls, attributes: { style: styles.join('; ') } });
@@ -578,6 +592,144 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const fact = factsByLine.get(guide.lineNumber);
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
     builder.add(from, from, lineDecoration(fact, guide));
+  }
+  return builder.finish();
+}
+
+// ---- Escalated-selection chrome (selection-visual-treatment) ---------------
+//
+// docs/research/13's "Escalated-selection visual treatment": when the
+// current selection covers a whole node/subtree (per escalate.ts's
+// `coveredSubtreeRoots` — a stateless, geometric query, not a flag threaded
+// from the transaction filter; see design.md), every line that cover spans
+// gets an additional class so it reads as "this whole node is selected,"
+// not just a wider character-level highlight. Purely additive: the class
+// composes with whatever `lineDecoration`/`gapLineDecoration` already put on
+// the same line (CM6 merges same-position line decorations across separate
+// providers), and this never touches the selection itself.
+export const SELECTED_NODE_CLASS = 'to-decor-node-selected';
+
+// Set on `view.dom` (the outer `.cm-editor`) whenever `allRangesCovered`
+// holds — styles.css uses it to suppress the native character-level
+// `::selection` highlight, so it doesn't visually compete with the chrome
+// above (a real finding from user review: showing both looked confusing).
+export const BLOCK_SELECTING_CLASS = 'to-decor-block-selecting';
+
+function offsetToLinePos(doc: Text, offset: number): LinePos {
+  const line = doc.lineAt(offset);
+  return { line: line.number - 1, ch: offset - line.from };
+}
+
+/**
+ * Every physical line (0-based) covered by an escalated-selection-cover
+ * range in the current selection, mapped to the CSS expression for that
+ * cover's ROOT column — shared by the plain-`.cm-line` path
+ * (`computeSelectionDecorations`, below) and the widget-atom DOM-patch path
+ * (`MarginCompensation.apply`), the same declarative/imperative split every
+ * other decoration in this module already uses. Not cached: unlike
+ * `docFacts` (keyed on the doc `Text` alone), this also depends on the
+ * current selection, which changes far more often than the document —
+ * caching it would need a compound key for no measured benefit (see
+ * design.md's Risks section).
+ *
+ * The root's column, not each line's own: a covered range's whole subtree
+ * should read as ONE rectangle bounded on the left by the covered ROOT's own
+ * column — e.g. selecting an H3 section highlights from that H3's own guide
+ * column all the way to the right edge, INCLUDING under any more-indented
+ * descendant (a nested list, a code fence, a table) — never each line's own
+ * (deeper) indentation, which would leave the space between the root's
+ * column and a descendant's own narrower box untinted (the "no block-
+ * selection background under the indentation" gap). The root's own fact is
+ * looked up at the cover's start line — exactly the root's own first line,
+ * by construction of `coveredSubtreeRoots`/`siblingRunCover`. A list-item
+ * root has no additive column of its own (list guides are deferred entirely
+ * to native rendering, same as `computeLineGuides`'s own precedent) — its
+ * target is just its own line's shift, i.e. the rectangle starts at the
+ * root's own box with no further leftward reach.
+ */
+function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string> {
+  const { doc } = parsedDoc(state.doc);
+  const { factsByLine } = docFacts(state);
+  const totalLines = state.doc.lines;
+  const targets = new Map<number, string>();
+  for (const selRange of state.selection.ranges) {
+    if (selRange.empty) continue; // cursors never get chrome
+    const lineRange: LineRange = {
+      anchor: offsetToLinePos(state.doc, selRange.anchor),
+      head: offsetToLinePos(state.doc, selRange.head),
+    };
+    if (!coveredSubtreeRoots(doc, lineRange)) continue;
+    const loLine = Math.min(lineRange.anchor.line, lineRange.head.line);
+    const hiLine = Math.min(Math.max(lineRange.anchor.line, lineRange.head.line), totalLines - 1);
+    const rootFact = factsByLine.get(loLine);
+    if (!rootFact) continue; // cover's start line always has a fact; defensive only
+    // One level further left than the root's own column — the PARENT's own
+    // guide column, not the root's — so the chrome clears the root's own
+    // marker icon (centered ON the root's column) instead of running
+    // through its middle. Matches Logseq's own block-selection convention
+    // (confirmed by user review): the highlighted rectangle is wider on the
+    // left than the block's own indentation, reaching the next level out.
+    // A top-level root (depth 0) has no shallower level to reach for the
+    // same reason a guide never renders at a negative depth — subtracting
+    // one full UNIT anyway keeps the same "one level out" amount uniform
+    // rather than clamping to 0 (which would put the edge right back at the
+    // root's own column, reintroducing the exact problem this fixes) and
+    // stays within the leftward-overflow margin the guide layer's own doc
+    // comment already confirmed is never clipped.
+    const rootTarget = rootFact.isListItem
+      ? `calc(${plainOwnShiftExpr(rootFact)} - ${UNIT})`
+      : `calc((${rootFact.depth} - 1) * ${UNIT})`;
+    for (let line = loLine; line <= hiLine; line++) targets.set(line, rootTarget);
+  }
+  return targets;
+}
+
+/**
+ * True when the current selection has at least one non-empty range and
+ * EVERY non-empty range is an escalated-selection cover — i.e. the whole
+ * selection reads as "block-selected," not a mix of block and character
+ * selection. Drives suppressing the native character-level highlight
+ * (styles.css), so the two don't visually overlap and compete. Per-range
+ * suppression isn't attempted: a genuinely mixed selection (one covered
+ * range, one plain-content range) can't arise through the real transaction
+ * filter — the uniform multi-range rule (node-selection-enforcement) forces
+ * every range to at least its own node's cover once any range escalates —
+ * so the only way to reach a mixed state is a raw, atypical programmatic
+ * dispatch bypassing the filter, which this all-or-nothing check simply
+ * doesn't suppress for (native highlight stays visible there, same as any
+ * non-covered selection).
+ */
+function allRangesCovered(state: EditorState): boolean {
+  const { doc } = parsedDoc(state.doc);
+  let sawNonEmpty = false;
+  for (const selRange of state.selection.ranges) {
+    if (selRange.empty) continue;
+    sawNonEmpty = true;
+    const lineRange: LineRange = {
+      anchor: offsetToLinePos(state.doc, selRange.anchor),
+      head: offsetToLinePos(state.doc, selRange.head),
+    };
+    if (!coveredSubtreeRoots(doc, lineRange)) return false;
+  }
+  return sawNonEmpty;
+}
+
+function computeSelectionDecorations(state: EditorState, modes: DecorationSource): DecorationSet {
+  const path = state.field(editorInfoField, false)?.file?.path;
+  if (!path || !modes.isOutline(path)) return Decoration.none;
+
+  const totalLines = state.doc.lines;
+  const { factsByLine } = docFacts(state);
+  const builder = new RangeSetBuilder<Decoration>();
+  const targets = Array.from(selectedLineRootTargets(state).entries()).sort((a, b) => a[0] - b[0]);
+  for (const [line, rootTarget] of targets) {
+    if (line >= totalLines) continue; // stale, defensive only
+    const from = state.doc.line(line + 1).from; // CM6 lines are 1-indexed
+    // A gap line has no fact (no shift of its own — a blank line is never
+    // margin/padding-shifted), same fallback `gapLineDecoration` relies on.
+    const ownShift = factsByLine.get(line) ? plainOwnShiftExpr(factsByLine.get(line)!) : '0px';
+    const style = `--to-selected-left: calc(${rootTarget} - (${ownShift}))`;
+    builder.add(from, from, Decoration.line({ class: SELECTED_NODE_CLASS, attributes: { style } }));
   }
   return builder.finish();
 }
@@ -714,6 +866,229 @@ class MarkersPlugin implements PluginValue {
   }
 }
 
+class SelectionDecorationPlugin implements PluginValue {
+  decorations: DecorationSet;
+  private mouseDown = false;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly modes: DecorationSource,
+  ) {
+    this.decorations = this.compute();
+    this.view.dom.addEventListener('mousedown', this.onMouseDown);
+    this.view.dom.addEventListener('mouseup', this.onMouseUp);
+    document.addEventListener('keydown', this.onDocumentKeyDown, { capture: true });
+  }
+
+  /**
+   * EXPERIMENTAL: keyboard-driven selection changes (Shift+Arrow escalating
+   * into a whole-block cover, with no mouse involved at all) get the SAME
+   * blur treatment as a completed mouse drag, for consistency — the user's
+   * own framing: a keyboard-only block selection is "a different mode of
+   * interaction" otherwise, still showing the old reveal-while-focused
+   * behavior `onMouseUp` already fixed for the mouse case.
+   *
+   * Hooked on `ViewUpdate.selectionSet` (any update where the selection
+   * actually changed, however it was caused) rather than a SEPARATE keymap
+   * binding: reuses the exact same `allRangesCovered` check already used
+   * everywhere else, no new state to keep in sync with the transaction
+   * filter's own escalation logic.
+   *
+   * Guarded on `!this.mouseDown`: an in-progress mouse drag also dispatches
+   * one transaction per pointer move (each its own `selectionSet` update),
+   * and may reach a covering shape WHILE THE BUTTON IS STILL HELD — blurring
+   * mid-drag would risk interrupting the browser's own native drag-select
+   * gesture, which relies on continuous focus/mousedown state on the
+   * target. `onMouseUp`'s own (still separate, still needed) deferred check
+   * covers the mouse-completion case instead: by the time a drag's mouseup
+   * fires, the LAST relevant selection-settling transaction may already
+   * have committed WHILE `mouseDown` was still true (so this hook would
+   * have skipped it) — nothing later re-triggers `update()` to catch it,
+   * so `onMouseUp` still needs its own explicit re-check.
+   *
+   * Deferred via `setTimeout`, matching `onMouseUp`'s own pattern below —
+   * NOT optional here: a real bug found live, blurring SYNCHRONOUSLY inside
+   * `update()` (i.e. still inside the same dispatch cycle as the keystroke
+   * that just escalated the selection) raced CM6's own DOM-selection sync.
+   * CM6 keeps the browser's native `Selection`/`Range` mirroring its own
+   * internal `EditorState.selection`, but that sync apparently isn't
+   * guaranteed to have completed the instant `update()` fires — blurring
+   * before it does can freeze the DOM's OWN selection at a STALE, earlier
+   * position (confirmed by the user: typing over a keyboard-escalated
+   * selection sometimes inserted text somewhere unexpected instead of
+   * replacing it, consistent with the DOM's restored selection — read by
+   * the browser's native `beforeinput` handling once refocused for that
+   * keystroke — not matching CM6's own correct model at all). The
+   * mouse-drag path never hit this because a real user drag continuously
+   * updates the DOM's native selection as part of the browser's own
+   * mechanics throughout, not just at one synchronous instant.
+   */
+  update(update: ViewUpdate): void {
+    this.decorations = this.compute();
+    if (update.selectionSet && !this.mouseDown) {
+      window.setTimeout(() => {
+        if (this.isOutlineNote() && allRangesCovered(this.view.state)) {
+          this.view.contentDOM.blur();
+        }
+      }, 0);
+    }
+  }
+
+  destroy(): void {
+    this.view.dom.classList.remove(BLOCK_SELECTING_CLASS);
+    this.view.dom.removeEventListener('mousedown', this.onMouseDown);
+    this.view.dom.removeEventListener('mouseup', this.onMouseUp);
+    document.removeEventListener('keydown', this.onDocumentKeyDown, { capture: true });
+  }
+
+  private isOutlineNote(): boolean {
+    const path = this.view.state.field(editorInfoField, false)?.file?.path;
+    return !isNestedEditor(this.view) && !!path && this.modes.isOutline(path);
+  }
+
+  /**
+   * True when THIS view is Obsidian's own notion of the currently active
+   * editor (`app.workspace.activeEditor`) — a real bug found live with two
+   * outline-mode panes open side by side, both blurred/block-selected at
+   * once: `document.activeElement === document.body` alone can't tell them
+   * apart (it's equally true for both), so `onDocumentKeyDown` always acted
+   * on whichever view's listener happened to be registered first,
+   * regardless of which pane the user had actually clicked into. Obsidian
+   * tracks "active editor" independently of raw DOM focus (updated on a
+   * real click/mousedown into a leaf, including the one that starts a NEW
+   * block-selection drag there) and keeps pointing at that leaf even after
+   * this same plugin's own blur call removes DOM focus from it — comparing
+   * against the SAME `MarkdownFileInfo` object `editorInfoField` already
+   * exposes (identity, not a path string) is exactly the signal needed.
+   */
+  private isActiveEditor(): boolean {
+    const info = this.view.state.field(editorInfoField, false);
+    return !!info && info.app.workspace.activeEditor === info;
+  }
+
+  /**
+   * EXPERIMENTAL, manual-testing-only hypothesis (docs/research/13's
+   * "Escalated-selection visual treatment" follow-ups): a real, manual
+   * "click outside the text area" after a block-covering selection already
+   * returns Live Preview to its fully native rendered form (confirmed by
+   * user report) — every raw-mark-hiding edge case a CSS-only approach
+   * chased individually (list bullets, task checkboxes, code-fence badges,
+   * callout widgets, wiki-link aliases) is just Obsidian's OWN correct
+   * rendering once unfocused, not something to re-derive piecemeal (see
+   * docs/research/13 for that abandoned approach's full history).
+   *
+   * This reproduces that SAME transition programmatically: right after a
+   * drag settles into a whole-block cover, blur the content DOM — the same
+   * DOM effect a manual click elsewhere already produces. Deferred via
+   * `setTimeout`: the drag's own selection-escalation transaction (and
+   * CM6's own internal mouseup handling) may not have committed yet at the
+   * exact moment this native event fires.
+   *
+   * Confirmed by the user in their real vault: stays fully rendered with no
+   * raw-markdown flash at all. Real, confirmed cost: blurring removes DOM
+   * focus, so typing/Backspace/Delete/arrow keys are silently ignored while
+   * unfocused (identical to manually clicking away) — `onDocumentKeyDown`
+   * below is the current attempt at recovering that.
+   */
+  private readonly onMouseDown = (): void => {
+    this.mouseDown = true;
+  };
+
+  private readonly onMouseUp = (): void => {
+    this.mouseDown = false;
+    window.setTimeout(() => {
+      if (this.isOutlineNote() && allRangesCovered(this.view.state)) {
+        this.view.contentDOM.blur();
+      }
+    }, 0);
+  };
+
+  /**
+   * EXPERIMENTAL, manual-testing-only: recovering keyboard interaction with
+   * a block-covering selection after `onMouseUp` above has blurred the
+   * editor. A blurred `contentDOM` never sees `keydown` at all (events
+   * target `document.activeElement`, typically `document.body` once
+   * blurred, and `contentDOM` isn't an ancestor of that) — so this listens
+   * on `document` itself instead, then does two things once it sees a key
+   * press meant for this view:
+   *
+   * 1. Refocuses `contentDOM`. This alone should be enough for ordinary
+   *    character typing: browsers insert typed text via a SEPARATE,
+   *    later `beforeinput`/`input` dispatch (not the current `keydown`
+   *    event continuing somehow), evaluated against whatever is focused AT
+   *    THAT time — so once refocused here, the browser's own native
+   *    insertion should land on the editor correctly.
+   * 2. Replays the SAME `KeyboardEvent` through `runScopeHandlers`
+   *    (`@codemirror/view`'s own public API for exactly this situation —
+   *    "run this view's installed keymap against an event that didn't
+   *    originate on its own DOM"). This matters for anything CM6 handles
+   *    via keydown-bound commands rather than beforeinput — Backspace,
+   *    Delete, arrow keys, Tab, Cmd+A, and this project's OWN layered
+   *    keymap (the structural-edit rewriting, marker-transparent cursor
+   *    placement, etc.) — refocusing alone would NOT reach those, since
+   *    THIS event's own propagation path is already fixed to
+   *    `document.body`'s ancestry, not `contentDOM`'s; CM6's real keymap
+   *    facet never sees it without this. Deliberately NOT reimplemented by
+   *    hand (e.g. calling `@codemirror/commands` functions directly) —
+   *    that would bypass this project's own higher-precedence keymap
+   *    entirely; `runScopeHandlers` runs the SAME real, fully-layered
+   *    keymap this editor already has installed.
+   *
+   * Guarded to only act when THIS view is the one currently blurred due to
+   * a covering selection AND nothing else has legitimately claimed focus
+   * since (`document.activeElement === document.body`) AND this view is
+   * Obsidian's own currently active editor (`isActiveEditor`, needed for
+   * the two-panes-both-blurred case — see its own doc comment) — otherwise
+   * this would steal keystrokes meant for a different pane, the search
+   * box, or any other UI element entirely.
+   *
+   * A real bug found on the first manual test round, once `runScopeHandlers`
+   * DID match and run a command (Backspace, Delete, Tab): the ORIGINAL
+   * event was never told it had been handled, so once the browser finished
+   * dispatching it, it ALSO applied its own native default action against
+   * whatever ended up focused — a SECOND, generic contentEditable deletion
+   * on top of the correct structural one (confirmed live: pressing Backspace
+   * once needed TWO undos to fully revert, and the surviving cursor position
+   * matched exactly what a second, redundant single-character deletion from
+   * the correctly-placed post-command cursor would produce), and, for Tab,
+   * the browser's own native "cycle focus to the next focusable element"
+   * behavior (stealing focus to a toolbar button) since Tab's native default
+   * outside a text field is focus-cycling. `preventDefault`/
+   * `stopPropagation` — but ONLY when a command actually matched — fixes
+   * both: an UNMATCHED key (plain character typing) must NOT be prevented
+   * here, since that default action (the browser's own native `beforeinput`
+   * insertion against the now-refocused editor) is exactly what makes
+   * ordinary typing work at all.
+   *
+   * Manual-testing-only by design: focus/blur timing interacting with real
+   * keyboard input is exactly the kind of thing unlikely to test reliably
+   * through the automated e2e harness.
+   */
+  private readonly onDocumentKeyDown = (event: KeyboardEvent): void => {
+    if (this.view.hasFocus) return;
+    if (document.activeElement !== document.body) return;
+    if (!this.isOutlineNote() || !this.isActiveEditor() || !allRangesCovered(this.view.state)) {
+      return;
+    }
+    this.view.contentDOM.focus();
+    const handled = runScopeHandlers(this.view, event, 'editor');
+    if (handled) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
+  private compute(): DecorationSet {
+    const isOutline = this.isOutlineNote();
+    this.view.dom.classList.toggle(
+      BLOCK_SELECTING_CLASS,
+      isOutline && allRangesCovered(this.view.state),
+    );
+    if (!isOutline) return Decoration.none;
+    return computeSelectionDecorations(this.view.state, this.modes);
+  }
+}
+
 class MarginCompensation implements PluginValue {
   constructor(
     private readonly view: EditorView,
@@ -755,6 +1130,30 @@ class MarginCompensation implements PluginValue {
       `.cm-line:not(.to-decor-atom):not(.to-decor-list):not(.hr)`,
     );
     return ref ? parseFloat(getComputedStyle(ref).marginLeft) || 0 : 0;
+  }
+
+  /**
+   * The right edge every plain, undecorated `.cm-line` actually renders at —
+   * used to pull the escalated-selection chrome's right edge in to match,
+   * for a widget atom whose own box is wider (see the call site's own doc
+   * comment). Deliberately NOT `contentDOM.getBoundingClientRect().right`
+   * (a real bug in the first version of this fix, found live): Obsidian's
+   * "readable line width" centers each `.cm-line` INDIVIDUALLY via its own
+   * `margin-inline: auto` under a `max-width` (see `nativeMarginBasePx`'s
+   * own doc comment) — `.cm-content` itself stays full-viewport-width
+   * regardless, so referencing it directly only happened to work in a
+   * narrow viewport (below the max-width threshold, where no line actually
+   * gets centered yet); at a wide enough viewport, every plain line's own
+   * right edge sits well short of `.cm-content`'s own, and the fix
+   * silently regressed to pulling the chrome in far MORE than intended.
+   * Same reference-line selector as `nativeMarginBasePx`, for the same
+   * "uncontaminated, not one of our own widget patches" reason.
+   */
+  private nativeContentRightPx(): number {
+    const ref = this.view.contentDOM.querySelector<HTMLElement>(
+      `.cm-line:not(.to-decor-atom):not(.to-decor-list):not(.hr)`,
+    );
+    return ref ? ref.getBoundingClientRect().right : this.view.contentDOM.getBoundingClientRect().right;
   }
 
   /**
@@ -819,6 +1218,36 @@ class MarginCompensation implements PluginValue {
     this.view.dom.setCssProps({ '--to-chevron-dead-right': deadRight });
   }
 
+  /**
+   * Resolves `--text-selection` to a CONCRETE color value (not a `var()`
+   * reference) and stores it as `--to-selected-bg` on `view.dom`, for the
+   * escalated-selection chrome (styles.css) to consume instead of
+   * referencing `--text-selection` directly. A real bug found live, not
+   * assumed: Obsidian's own native CSS sets
+   * `.cm-table-widget.is-selected { --text-selection: transparent; }`
+   * (avoiding a double-selection render inside table cells, which have
+   * their OWN native selection UI) — since a `var()` reference re-resolves
+   * against the referenced property's value AT THE ELEMENT WHERE IT'S
+   * USED (not "frozen" at whatever ancestor declared it), the chrome rule
+   * on a SELECTED table's own `::before` would inherit that SAME
+   * transparent override merely by referencing `--text-selection`,
+   * silently making the chrome invisible on any table currently under an
+   * escalated selection — confirmed live via `document.styleSheets`
+   * after the effect first showed up as chrome visibly stopping partway
+   * through a table in a manual visual pass. Reading the value once via
+   * `getComputedStyle` on `contentDOM` (never itself `.is-selected`) and
+   * writing it back as a literal breaks that inheritance chain: no
+   * property named `--to-selected-bg` is ever reset by that native rule,
+   * so it reaches the table unchanged. Re-measured every render (a theme
+   * switch corrects on the next one), same as `--to-marker-icon-size` and
+   * the chevron dead-space above.
+   */
+  private measureSelectionColor(): void {
+    const color = getComputedStyle(this.view.contentDOM).getPropertyValue('--text-selection');
+    if (!color) return;
+    this.view.dom.setCssProps({ '--to-selected-bg': color });
+  }
+
   private apply(): void {
     const path = this.view.state.field(editorInfoField, false)?.file?.path;
     // See isNestedEditor's own doc comment — a nested per-cell editor
@@ -837,15 +1266,41 @@ class MarginCompensation implements PluginValue {
     // so a theme switch mid-session corrects on the next update.
     this.view.dom.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
     this.measureChevron();
+    this.measureSelectionColor();
 
     const { factsByLine, guidesByLine } = docFacts(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
+    const selectedLineTargets = selectedLineRootTargets(this.view.state);
+    // The right edge every plain `.cm-line` naturally reaches — read live
+    // (not assumed to be `right: 0` relative to a widget's OWN box), since
+    // a widget atom's own box can be WIDER than that on the right (a table
+    // reserves extra space past its visible grid for the "+ column" button,
+    // confirmed live: same width regardless of whether the button is
+    // currently visible). Used below to pull the chrome's right edge back
+    // in to match every other line, rather than reaching as far as the
+    // widget's own wider box — a real "notch" found by user review
+    // (visibly poking out past the right edge of surrounding chrome, as
+    // tall as the whole widget). See `nativeContentRightPx`'s own doc
+    // comment for why this must be a reference LINE's own edge, not
+    // `contentDOM`'s.
+    const contentRightPx = this.nativeContentRightPx();
 
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
     );
     for (const el of widgets) {
       const lineNumber = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
+      // Same class the plain-`.cm-line` path applies via CM6 decoration
+      // (computeSelectionDecorations) — widgets need the imperative DOM
+      // patch instead, same reasoning as margin/marker below. Toggled
+      // unconditionally so it's cleared the moment the line leaves the
+      // covered set, on every render. `--to-selected-left` (the covered
+      // range's root-column target minus THIS widget's own, live-measured
+      // shift — more precise than the generic per-kind formula
+      // `selectedLineRootTargets` uses for plain lines) is set per branch
+      // below, wherever this widget's own `ownShiftExpr` is in scope.
+      const rootTarget = selectedLineTargets.get(lineNumber);
+      el.classList.toggle(SELECTED_NODE_CLASS, rootTarget !== undefined);
       const fact = factsByLine.get(lineNumber);
       if (fact?.isAtom) {
         // Some widgets (tables, for their row/column drag-handles) carry
@@ -896,11 +1351,44 @@ class MarginCompensation implements PluginValue {
           el.style.removeProperty('--to-guides');
           el.style.removeProperty('--to-own-shift');
         }
+
+        if (rootTarget !== undefined) {
+          el.style.setProperty('--to-selected-left', `calc(${rootTarget} - (${ownShiftExpr}))`);
+          // `right` resolves against the containing block's PADDING box,
+          // whose edge sits INSET FROM THE BORDER BOX BY THE BORDER WIDTH
+          // only (not by padding — a wrong assumption in an earlier version
+          // of this fix, corrected after re-deriving it from the CSS box
+          // model instead of assuming). This widget has no border
+          // (`border-width: 0`, confirmed live), so its padding box and
+          // border box coincide exactly — `getBoundingClientRect()` (the
+          // border box) is already the correct reference with no further
+          // adjustment. Read `borderRightWidth` live anyway rather than
+          // hardcoding the zero, in case a theme ever adds one.
+          const nativeBorderRight = parseFloat(getComputedStyle(el).borderRightWidth) || 0;
+          const paddingBoxRight = el.getBoundingClientRect().right - nativeBorderRight;
+          const rightOverhang = Math.max(0, paddingBoxRight - contentRightPx);
+          // POSITIVE, not negated: CSS `right` pushes an absolutely
+          // positioned box's own right edge INWARD (leftward) from its
+          // containing block's edge as the value increases — the opposite
+          // sign from `left` (where more negative reaches further outward).
+          // A real bug in an earlier version of this fix, found by forcing
+          // an extreme value (-300px) and seeing NO visual change from
+          // -16px: both were actually extending the edge outward, past an
+          // ancestor's real overflow-clipping boundary, and getting clipped
+          // to the same visible result either way — not, as first assumed,
+          // `right` having no effect at all.
+          el.style.setProperty('--to-selected-right', `${rightOverhang}px`);
+        } else {
+          el.style.removeProperty('--to-selected-left');
+          el.style.removeProperty('--to-selected-right');
+        }
       } else {
         el.style.removeProperty('margin-left');
         el.classList.remove('to-decor-guides');
         el.style.removeProperty('--to-guides');
         el.style.removeProperty('--to-own-shift');
+        el.style.removeProperty('--to-selected-left');
+        el.style.removeProperty('--to-selected-right');
         clearWidgetMarker(el);
       }
     }
@@ -981,6 +1469,7 @@ class MarginCompensation implements PluginValue {
   private clearAll(): void {
     this.view.dom.style.removeProperty('--to-marker-icon-size');
     this.view.dom.style.removeProperty('--to-chevron-dead-right');
+    this.view.dom.style.removeProperty('--to-selected-bg');
     this.lastDeadRight = '';
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
@@ -988,8 +1477,11 @@ class MarginCompensation implements PluginValue {
     for (const el of widgets) {
       el.style.removeProperty('margin-left');
       el.classList.remove('to-decor-guides');
+      el.classList.remove(SELECTED_NODE_CLASS);
       el.style.removeProperty('--to-guides');
       el.style.removeProperty('--to-own-shift');
+      el.style.removeProperty('--to-selected-left');
+      el.style.removeProperty('--to-selected-right');
       clearWidgetMarker(el);
     }
     const plainLines = Array.from(
@@ -1017,6 +1509,13 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // sidestepping any need to reason about Decoration.line/Decoration.
     // widget ordering at the same document position.
     ViewPlugin.define((view) => new MarkersPlugin(view, modes), {
+      decorations: (v) => v.decorations,
+    }),
+    // A fourth, independent plugin for escalated-selection chrome
+    // (selection-visual-treatment) — same reasoning as MarkersPlugin above:
+    // a separate DecorationSet CM6 merges with the others at the same line
+    // position, not extra branching inside DecorationsPlugin's own builder.
+    ViewPlugin.define((view) => new SelectionDecorationPlugin(view, modes), {
       decorations: (v) => v.decorations,
     }),
     ViewPlugin.define<MarginCompensation>((view) => new MarginCompensation(view, modes)),

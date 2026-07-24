@@ -193,16 +193,24 @@
  * which needs an ancestor), so this can't stay gated on `.to-decor-guides`
  * alone, or a depth-0 table/callout/hr/html with no ancestor would have its
  * marker silently clipped.
+ *
+ * `.to-decor-node-selected` (selection-visual-treatment) needs it too, for
+ * the same root cause: its own `::before` reaches leftward to the covered
+ * subtree's ROOT column (see that rule's own doc comment below), which for
+ * a widget nested several levels deep can be well outside the widget's own
+ * box — exactly the kind of escape `contain: paint` would otherwise clip.
  */
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides,
-.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-marker {
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-marker,
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-node-selected {
   position: relative;
   contain: none !important;
   overflow: visible !important;
 }
 
 .markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-guides .table-wrapper,
-.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-marker .table-wrapper {
+.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-marker .table-wrapper,
+.markdown-source-view.mod-cm6 .cm-content > .cm-table-widget.to-decor-node-selected .table-wrapper {
   overflow-x: auto !important;
   max-width: 100% !important;
 }
@@ -320,4 +328,220 @@
   margin-left: 0;
   align-items: center;
   justify-content: center;
+}
+
+/*
+ * Escalated-selection chrome (selection-visual-treatment): a block-level
+ * "this whole node is selected" indication for a selection that
+ * `coveredSubtreeRoots` (escalate.ts) recognizes as covering a whole node's
+ * subtree — distinct from CM6's own character-level selection highlight.
+ * See docs/research/13's "Escalated-selection visual treatment" and this
+ * change's design.md.
+ *
+ * A `::before` overlay, not `background-color` on the line itself: setting
+ * `background-color` directly would sit correctly behind the text, but a
+ * translucent tint needs `opacity` to stay subtle, and `opacity` on the
+ * line element itself would also fade its own text/child content — the
+ * same reason the guide-line layer above uses a pseudo-element rather than
+ * the line's own background. Uses `::before`, not `::after` (already
+ * spoken for by the guide-line layer on these same elements), so both can
+ * coexist without one replacing the other (an element has exactly one of
+ * each).
+ *
+ * `left` reaches one level further left than the COVERED ROOT's own column
+ * (`--to-selected-left`, computed by decorations.ts's
+ * `selectedLineRootTargets` — a per-line `calc(parentColumn -
+ * thisLine'sOwnShift)`, the same "widen a leftward-reaching pseudo by this
+ * line's own shift" technique the guide layer above already uses, just
+ * anchored to the covered subtree's PARENT depth instead of each
+ * ancestor's own). A real finding from user review of the first version of
+ * this rule (which used a flat `inset: 0`, confined to each line's own
+ * box): selecting a whole section left the chrome stair-stepping to match
+ * each descendant's own (deeper) indentation, with NO fill at all under a
+ * nested list/code-block/callout/table/blockquote's own indentation —
+ * exactly backwards from "the whole section is one rectangle." A second
+ * round of review then asked for the left edge to go one level further
+ * still (matching Logseq's own block-selection convention): anchoring
+ * exactly at the root's own column ran the edge straight through the
+ * middle of the root's own marker icon (the icon is CENTERED on that
+ * column, per Experiment 5a's own placement) — reaching the PARENT's
+ * column instead clears the marker entirely, the same way selecting a
+ * whole H3 section now visibly starts past H2's own guide, not H3's.
+ *
+ * `right` similarly is NOT a flat `0`: `--to-selected-right` (widget atoms
+ * only; plain lines keep `right: 0`, they never have this problem) pulls
+ * the edge in from a widget's own box to match the same right edge every
+ * plain line reaches — found by user review as a "notch" specifically on
+ * tables, which reserve extra box width past their own visible grid for
+ * the "+ column" button (present whether or not that button is currently
+ * visible), poking the table's own chrome out past every other line's.
+ * Read live (`MarginCompensation`, the same "never hardcode a native
+ * measurement" discipline as its padding/margin compensation elsewhere),
+ * not assumed to be table-specific in case another widget kind ever grows
+ * a similar reserved-but-invisible edge.
+ *
+ * Painted BEHIND both the guide layer (`::after`) and the line's own text:
+ * `z-index: -1` on the pseudo places it behind the line's normal-flow
+ * (auto-stacked) content — same reasoning the guide layer's own comment
+ * above already documents. This ONLY works if the line itself is the
+ * pseudo's stacking-context root — `position: relative` alone leaves
+ * `z-index: auto`, which does NOT establish one, so the `z-index: -1`
+ * pseudo would instead hoist to whatever ANCESTOR first establishes a
+ * stacking context and paint behind EVERYTHING there, at stack level -1 —
+ * including this same line's own background if it sets one directly
+ * (a code line does, opaquely; a heading/paragraph stays transparent so the
+ * bug was invisible on them). A real, confirmed-live regression from user
+ * review: a selected code fence showed no tint at all, while a selected
+ * callout (whose colored background lives on a NESTED child element, not
+ * this line/widget's own box, so it never competed with the hoisted pseudo)
+ * tinted correctly. `z-index: 0` alongside `position: relative` gives the
+ * line its own local stacking context, so the chrome resolves as "one layer
+ * behind just this line's own content," as the `-1` was always meant to.
+ *
+ * `width: auto` is NOT redundant, even though `left`+`right` alone already
+ * imply it for a normal absolutely-positioned box: Obsidian's own
+ * `.HyperMD-quote::before` (app.css, the blockquote's native colored side-
+ * bar — the exact landmine the guide layer's own doc comment already warns
+ * about for THIS pseudo on a blockquote line) sets `width: 1px`. This rule
+ * out-specifies it for every property they share, but `width` isn't one of
+ * them — left unset here, native's `1px` would leak straight through
+ * uncontested (no cascade conflict to win, since nothing here overrides
+ * it), silently shrinking the whole chrome box to an invisible 1px sliver
+ * on every blockquote line. A real, confirmed-live regression found in
+ * this change's own manual visual pass (a selected section's blockquote
+ * line rendered with NO chrome at all, sandwiched between tinted lines
+ * above and below) — `width: auto` closes it explicitly rather than
+ * relying on an absence of conflict.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-node-selected,
+.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-node-selected {
+  position: relative;
+  z-index: 0;
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-node-selected::before,
+.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-node-selected::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--to-selected-left, 0px);
+  right: var(--to-selected-right, 0px);
+  width: auto;
+  /* `--to-selected-bg` (decorations.ts's `measureSelectionColor`) — a
+   * live-resolved COPY of `--text-selection`, the SAME variable native
+   * character-level selection itself uses (confirmed live via
+   * document.styleSheets: Obsidian's own `.markdown-source-view.mod-cm6
+   * ::selection { background-color: var(--text-selection); }`), at full
+   * opacity rather than an extra reduction of our own. A real finding from
+   * user review: an accent tint at 0.08 opacity read as too faint/hard to
+   * see, and picking a DIFFERENT color independently of the theme risked
+   * being inconsistent across themes anyway. `--text-selection` already
+   * carries its own theme-appropriate alpha (themes design it to read
+   * clearly against their own text/background pair), so reusing it is the
+   * one choice guaranteed to match "the native selection style" the user
+   * asked for, in every theme, with no separate opacity tuning to get
+   * wrong — but NOT via a direct `var(--text-selection)` reference here:
+   * Obsidian's own `.cm-table-widget.is-selected { --text-selection:
+   * transparent; }` (avoiding a double selection render inside table
+   * cells) would silently make this chrome transparent on any table under
+   * an escalated selection too, since a `var()` reference re-resolves
+   * against whatever's inherited AT THE ELEMENT USING IT, not "frozen" at
+   * whichever ancestor last set it — see `measureSelectionColor`'s own
+   * doc comment for the full story (a real bug, found live).
+   */
+  /* `background-color`, NOT the `background` shorthand: the blockquote-
+   * specific rule below layers a `background-image` on this SAME pseudo,
+   * and the shorthand would reset it back to `none` if used here too. */
+  background-color: var(--to-selected-bg, var(--text-selection));
+  /* A blockquote's own native colored side-bar (`.HyperMD-quote::before`,
+   * see the `width: auto` doc comment above) is a `border-inline-start` ON
+   * THIS SAME pseudo-element — and a border always paints at the BOX's OWN
+   * edge, wherever `left`/`width` currently put it. Since this rule's own
+   * `left` reaches all the way to the covered subtree's shared column (not
+   * the blockquote's own native position), the native bar was being
+   * dragged along with it — a real bug found by user review: "the broader
+   * the selection, the further that [bar] gets pushed out." A real border
+   * can't stay at one edge while the box's own edge (which is *where* a
+   * border always paints) moves — so it's reset to `none` here (harmless
+   * everywhere else this rule applies, since nothing else declares one) and
+   * reproduced instead as a fixed-position background stripe, below.
+   */
+  border-inline-start: none;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/*
+ * Reproducing the blockquote's native side-bar at its own FIXED (unshifted)
+ * position, rather than just discarding it: a second round of user review
+ * on the `border-inline-start: none` fix above found it too blunt — the bar
+ * shouldn't just vanish while the blockquote is part of an escalated
+ * selection, it should stay exactly where it always renders.
+ *
+ * A `background-image`, unlike a `border`, can be positioned independently
+ * of the box's own edges via `background-position` — so this paints a
+ * solid-color stripe (a zero-to-zero `linear-gradient`, the standard trick
+ * for a flat fill via `background-image` rather than `background-color`,
+ * needed here since `background-color` is already spoken for by the tint
+ * above and an element has only one) sized to the native border's own
+ * thickness, then shifts it by the NEGATIVE of this rule's own `left` shift
+ * (`--to-selected-left`) to land back at the blockquote's native (unshifted)
+ * edge — wherever this box's own edge actually ends up, in absolute page
+ * terms the stripe cancels that shift out. Confirmed live that this target
+ * offset always falls inside the box's own (wider, leftward-reaching)
+ * bounds, so nothing here gets clipped.
+ *
+ * `--blockquote-border-color`/`--blockquote-border-thickness` are Obsidian's
+ * OWN theme variables — confirmed live via `document.styleSheets` that
+ * native's rule is `border-inline-start: var(--blockquote-border-thickness)
+ * solid var(--blockquote-border-color)` on this exact pseudo-element, so
+ * this reproduces the real native value for every theme with no separate
+ * live measurement needed (unlike `--to-selected-bg`/`--to-selected-right`
+ * elsewhere in this file, which DO need one — those read a property with no
+ * stable variable of its own to reference directly).
+ *
+ * Scoped to `.HyperMD-quote` specifically (not the shared rule above): the
+ * shared rule already resets `border-inline-start` for every kind, but only
+ * blockquote lines have a native bar to reproduce at all — sizing this
+ * stripe from the SAME two variables unconditionally on every kind would
+ * paint a stray sliver on headings/paragraphs/etc. too.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.HyperMD-quote.to-decor-node-selected::before {
+  background-image: linear-gradient(
+    var(--blockquote-border-color),
+    var(--blockquote-border-color)
+  );
+  background-repeat: no-repeat;
+  background-size: var(--blockquote-border-thickness) 100%;
+  background-position: calc(-1 * var(--to-selected-left, 0px)) 0;
+}
+
+/*
+ * Suppressing the native character-level highlight while block-selected: a
+ * real finding from user review — showing BOTH the chrome above AND CM6's
+ * own character-level selection at once read as confusing, competing cues
+ * for the same selection. `decorations.ts`'s `SelectionDecorationPlugin`
+ * toggles `.to-decor-block-selecting` on the editor root whenever EVERY
+ * non-empty range in the current selection is a cover (`allRangesCovered`)
+ * — an all-or-nothing check, not per-range (see that function's own doc
+ * comment for why a genuinely mixed selection can't arise through the real
+ * transaction filter).
+ *
+ * Confirmed live (via the e2e harness) that Obsidian's own selection
+ * rendering is the browser's NATIVE `::selection` pseudo-element, not CM6's
+ * optional `drawSelection()` background layer (`.cm-selectionBackground`
+ * never actually mounts here) — so the fix is a scoped `::selection`
+ * override, not a decoration-layer suppression. `color: inherit` alongside
+ * `background-color: transparent` restores ordinary text color — native
+ * `::selection` also overrides foreground color for contrast against its
+ * own background, which would otherwise look wrong once that background
+ * disappears. Scoped broadly (`.cm-content ::selection`, not per-kind) since
+ * `::selection` has no per-element specificity worth narrowing here — any
+ * text under the editor's content root should stop rendering the native
+ * highlight the same way while block-selected.
+ */
+.markdown-source-view.mod-cm6 .cm-editor.to-decor-block-selecting .cm-content ::selection {
+  background-color: transparent;
+  color: inherit;
 }

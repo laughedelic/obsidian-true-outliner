@@ -13,6 +13,12 @@
  * placement is deliberately untouched — see docs/research/13's "Gap-line
  * cursor transparency" entry for why that's a separate, larger, deferred
  * piece, not an oversight here.
+ *
+ * `coveredSubtreeRoots` (escalated-selection-decoration, docs/research/13)
+ * is the read-only counterpart: given a range that's already in place,
+ * which subtree(s), if any, does it exactly cover? Built from the same
+ * `siblingRunCover`/`subtreeCoverOf` geometry `escalateRange` uses to
+ * escalate a range in the first place — a membership test, not new math.
  */
 
 import type { NodePath, OutlineDoc, OutlineNode } from './model';
@@ -118,6 +124,47 @@ function subtreeCoverOf(doc: OutlineDoc, node: OutlineNode): Cover {
 }
 
 /**
+ * The minimal contiguous run of sibling subtrees (at the ends' deepest
+ * common ancestor scope) spanning two distinct nodes, plus its combined
+ * cover — the shared geometry both `escalateRange` (to compute the
+ * expand-only union) and `coveredSubtreeRoots` (to test an existing range
+ * against it) need. See `escalateRange`'s own doc comment for the "one node
+ * is an ancestor of the other" scope-resolution note; unchanged here, just
+ * extracted so both callers agree by construction rather than by
+ * duplicated logic.
+ */
+function siblingRunCover(
+  doc: OutlineDoc,
+  anchorNode: OutlineNode,
+  headNode: OutlineNode,
+): { readonly nodes: readonly OutlineNode[]; readonly cover: Cover } {
+  const anchorPath = findPath(doc, anchorNode.id)!;
+  const headPath = findPath(doc, headNode.id)!;
+
+  let k = 0;
+  while (k < anchorPath.length && k < headPath.length && anchorPath[k] === headPath[k]) k++;
+  const scopeLen = k < anchorPath.length && k < headPath.length ? k : k - 1;
+
+  const scopePath = anchorPath.slice(0, scopeLen);
+  const scopeChildren = childrenAtScope(doc, scopePath);
+  const anchorIndex = anchorPath[scopeLen]!;
+  const headIndex = headPath[scopeLen]!;
+  const loIndex = Math.min(anchorIndex, headIndex);
+  const hiIndex = Math.max(anchorIndex, headIndex);
+  const nodes = scopeChildren.slice(loIndex, hiIndex + 1);
+  const firstSubtree = nodes[0]!;
+  const lastSubtree = nodes[nodes.length - 1]!;
+
+  return {
+    nodes,
+    cover: {
+      start: { line: startLineOf(doc, firstSubtree), ch: 0 },
+      end: subtreeContentEnd(lastSubtree, startLineOf(doc, lastSubtree)),
+    },
+  };
+}
+
+/**
  * The expand-only invariant (D4 amendment): the escalated range is the
  * UNION of the computed cover and the original range — escalation only
  * ever moves ends outward, never pulls one back. Without this, an end the
@@ -166,31 +213,12 @@ export function escalateRange(doc: OutlineDoc, range: LineRange): LineRange {
     return expandToCover(range, subtreeCoverOf(doc, anchorNode));
   }
 
-  const anchorPath = findPath(doc, anchorNode.id)!;
-  const headPath = findPath(doc, headNode.id)!;
-
   // Deepest common ancestor scope: the longest shared index prefix of the
   // two paths. When one node is an ancestor of the other (paths differ in
   // length with no divergence — the "selection leaves a parent" case, D4),
   // the scope is one level ABOVE the shallower node, so its own sibling
-  // index is used as both endpoints' subtree index.
-  let k = 0;
-  while (k < anchorPath.length && k < headPath.length && anchorPath[k] === headPath[k]) k++;
-  const scopeLen = k < anchorPath.length && k < headPath.length ? k : k - 1;
-
-  const scopePath = anchorPath.slice(0, scopeLen);
-  const scopeChildren = childrenAtScope(doc, scopePath);
-  const anchorIndex = anchorPath[scopeLen]!;
-  const headIndex = headPath[scopeLen]!;
-  const loIndex = Math.min(anchorIndex, headIndex);
-  const hiIndex = Math.max(anchorIndex, headIndex);
-  const firstSubtree = scopeChildren[loIndex]!;
-  const lastSubtree = scopeChildren[hiIndex]!;
-
-  return expandToCover(range, {
-    start: { line: startLineOf(doc, firstSubtree), ch: 0 },
-    end: subtreeContentEnd(lastSubtree, startLineOf(doc, lastSubtree)),
-  });
+  // index is used as both endpoints' subtree index. (See `siblingRunCover`.)
+  return expandToCover(range, siblingRunCover(doc, anchorNode, headNode).cover);
 }
 
 /**
@@ -241,4 +269,49 @@ export function clampCursorToContent(doc: OutlineDoc, pos: LinePos): LinePos {
   if (lineIndex < 0 || lineIndex >= node.lines.length) return pos; // node's own trailing gap
   const boundary = contentColumnCh(node.lines[lineIndex] ?? '');
   return pos.ch >= boundary ? pos : { line: pos.line, ch: boundary };
+}
+
+/**
+ * The escalated-selection-decoration query (docs/research/13, "Escalated-
+ * selection visual treatment"): does `range`'s current bounds cover a
+ * single node's whole subtree, or the combined cover of a contiguous run of
+ * sibling subtrees? Returns the covered subtree roots (length 1 for a
+ * single-node cover) when so, `null` otherwise.
+ *
+ * The match is `lo` at the cover's exact start AND `hi` at-or-beyond the
+ * cover's end — NOT strict equality on both ends. Strict equality on `hi`
+ * would reject the single most common escalated shape: the gap-line
+ * trigger's own expand-only rule (`escalateRange`) pins `lo` to the cover's
+ * start but deliberately RETAINS `hi` wherever the user's drag actually
+ * ended, inside the node's trailing gap — past the cover's own content end,
+ * never pulled back. `!posBefore(hi, cover.end)` accepts that retained
+ * extension (hi can't stray past this node/run's own territory without
+ * `headNode` resolving to a different node and taking the other branch
+ * below), while still requiring `hi` to reach at least the full cover —
+ * this is also what makes an exact single-line leaf match (no gap touched
+ * at all, `hi` lands precisely on `cover.end`) qualify too, satisfying the
+ * "any exact cover, leaf included" decision in design.md with no separate
+ * case for it.
+ *
+ * Stateless and history-independent by design: this asks "does the CURRENT
+ * selection cover this subtree," not "was this selection produced by
+ * escalation" — a plain native selection that happens to match (e.g. Home
+ * then Shift+End on a single-line paragraph) is indistinguishable from an
+ * escalated one, and is meant to be: the same thing is selected either way.
+ */
+export function coveredSubtreeRoots(doc: OutlineDoc, range: LineRange): readonly OutlineNode[] | null {
+  if (isEmpty(range)) return null;
+
+  const lo = isBackward(range) ? range.head : range.anchor;
+  const hi = isBackward(range) ? range.anchor : range.head;
+  const anchorNode = nodeAtLine(doc, lo.line);
+  const headNode = nodeAtLine(doc, hi.line);
+  if (!anchorNode || !headNode) return null; // preamble jurisdiction
+
+  const { nodes, cover } =
+    anchorNode === headNode
+      ? { nodes: [anchorNode] as readonly OutlineNode[], cover: subtreeCoverOf(doc, anchorNode) }
+      : siblingRunCover(doc, anchorNode, headNode);
+
+  return posEqual(lo, cover.start) && !posBefore(hi, cover.end) ? nodes : null;
 }
