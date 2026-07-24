@@ -1,8 +1,40 @@
 import * as path from 'node:path';
 import * as url from 'node:url';
+import { obsidianBetaAvailable } from 'wdio-obsidian-service';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(e2eDir, '..');
+
+/**
+ * Prefer the current Obsidian BETA when it's available, else the latest
+ * stable.
+ *
+ * Why this matters, concretely (docs/research/04 Q21): a real
+ * user-reported redo-cursor bug could not be reproduced in this harness for
+ * three rounds, because the behavior that causes it entered
+ * `@codemirror/commands` in 6.10.2 and the newest STABLE Obsidian bundles an
+ * older CM6, while the reporter was on a 1.13.x beta that bundles a newer
+ * one. Automated tests and manual testing were silently running different
+ * editor cores — exactly the class of discrepancy that makes a bug look
+ * unreproducible rather than version-gated.
+ *
+ * `obsidianBetaAvailable()` is true only when there IS a current beta AND we
+ * can actually get it (Catalyst credentials in `OBSIDIAN_EMAIL`/
+ * `OBSIDIAN_PASSWORD`, or the build already sitting in the local cache). So
+ * this degrades cleanly to `latest` on CI and for contributors without an
+ * Insiders account, rather than failing to launch.
+ *
+ * To pre-download a beta WITHOUT disabling 2FA on your main account (the env
+ * vars require 2FA off), run once per beta:
+ *
+ *     npx obsidian-launcher download app -v latest-beta
+ *
+ * It prompts for password and 2FA and populates `.obsidian-cache/`, after
+ * which `obsidianBetaAvailable()` reports true from the cache alone.
+ */
+const browserVersion = (await obsidianBetaAvailable({ cacheDir: path.join(root, '.obsidian-cache') }))
+  ? 'latest-beta'
+  : 'latest';
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
@@ -14,7 +46,7 @@ export const config: WebdriverIO.Config = {
   capabilities: [
     {
       browserName: 'obsidian',
-      browserVersion: 'latest',
+      browserVersion,
       // Keep Electron rendering at full rate even when the test window is
       // occluded or the machine's display is asleep — without these,
       // Chromium throttles frame production for background windows, and
