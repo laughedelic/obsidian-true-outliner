@@ -242,11 +242,14 @@ describe('escalated-selection-decoration', function () {
     // "Second") — the point here is the CHROME that shape now renders.
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 0 });
-    expect(sel.head).toEqual({ line: 2, ch: 'Second paragraph.'.length });
+    // Line 3 is "Second paragraph."'s own trailing gap — included in the
+    // cover (escalate-include-owned-gap).
+    expect(sel.head).toEqual({ line: 3, ch: 0 });
 
     expect(await h.getLineClassList(0)).toContain(CLASS);
     expect(await h.getLineClassList(1)).toContain(CLASS); // the gap between
     expect(await h.getLineClassList(2)).toContain(CLASS);
+    expect(await h.getLineClassList(3)).toContain(CLASS); // "Second paragraph."'s own gap
   });
 
   it('a drag past a node\'s end onto its gap line gets chrome, but not the untouched sibling', async function () {
@@ -274,8 +277,10 @@ describe('escalated-selection-decoration', function () {
     // never touched by the enforcement filter (see
     // 61-selection-enforcement.e2e.ts's own programmatic-restore test) —
     // yet the chrome renders anyway, since detection is purely geometric,
-    // not "was this produced by escalation."
-    await h.setSelection({ line: 0, ch: 0 }, { line: 0, ch: 'First paragraph.'.length });
+    // not "was this produced by escalation." The node's bounds now include
+    // its own trailing gap (escalate-include-owned-gap), so the
+    // matching selection must reach it too, not just the content line.
+    await h.setSelection({ line: 0, ch: 0 }, { line: 1, ch: 0 });
     expect(await h.getLineClassList(0)).toContain(CLASS);
   });
 
@@ -333,11 +338,14 @@ describe('escalated-selection-decoration', function () {
     await h.mouseDragSelect({ line: 0, ch: 2 }, { line: 6, ch: 3 });
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 0 });
-    expect(sel.head).toEqual({ line: 6, ch: 'After.'.length });
+    // Line 7 is "After."'s own trailing gap — included in the cover
+    // (escalate-include-owned-gap).
+    expect(sel.head).toEqual({ line: 7, ch: 0 });
 
     // Plain-line path (declarative CM6 decoration).
     expect(await h.getLineClassList(0)).toContain(CLASS); // '# Head'
     expect(await classListAtLine(6)).toContain(CLASS); // 'After.' (after the table widget)
+    expect(await classListAtLine(7)).toContain(CLASS); // 'After.''s own trailing gap
 
     // Widget-atom path (direct DOM patch, MarginCompensation) — the table
     // renders as one opaque `.cm-embed-block.cm-table-widget`, not a
@@ -443,7 +451,9 @@ describe('escalated-selection-decoration: chrome anchors to the covered root\'s 
     await h.mouseDragSelect({ line: 4, ch: 6 }, { line: 15, ch: 3 });
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 4, ch: 0 });
-    expect(sel.head).toEqual({ line: 15, ch: '```'.length });
+    // Line 16 is the code fence's own trailing gap — included in the cover
+    // (escalate-include-owned-gap).
+    expect(sel.head).toEqual({ line: 16, ch: 0 });
 
     const rootX = await chromeLeftAbsoluteX(4); // '### Three' itself
     for (const line of [6, 8, 9, 11, 13]) {

@@ -40,26 +40,28 @@ describe('escalateRange: spec scenarios (design.md D4)', () => {
   it('drag from mid-paragraph into the next paragraph escalates to both subtrees in full', () => {
     const r = range(pos(2, 5), pos(4, 3));
     const result = escalateRange(doc, r);
-    expect(result).toEqual(range(pos(2, 0), pos(7, '  - child'.length)));
+    // "child" (line 7) is the deepest last descendant; line 8 is its own
+    // trailing gap (the document's final blank line), now part of the cover.
+    expect(result).toEqual(range(pos(2, 0), pos(8, 0)));
   });
 
   it('backward drag stays backward: head lands at the start side', () => {
     const r = range(pos(4, 3), pos(2, 5)); // anchor lower, head upper: backward
     const result = escalateRange(doc, r);
-    expect(result).toEqual(range(pos(7, '  - child'.length), pos(2, 0)));
+    expect(result).toEqual(range(pos(8, 0), pos(2, 0)));
   });
 
   it('selection leaving a parent covers the heading\'s entire subtree', () => {
     const r = range(pos(0, 2), pos(2, 3)); // starts in heading text, ends in Para one
     const result = escalateRange(doc, r);
-    expect(result).toEqual(range(pos(0, 0), pos(7, '  - child'.length)));
+    expect(result).toEqual(range(pos(0, 0), pos(8, 0)));
   });
 
   it('keyboard selection crossing a boundary (Shift+ArrowDown-style range) escalates', () => {
     // From end of "Para one." to start of "Para two." — still crosses.
     const r = range(pos(2, 'Para one.'.length), pos(4, 0));
     const result = escalateRange(doc, r);
-    expect(result).toEqual(range(pos(2, 0), pos(7, '  - child'.length)));
+    expect(result).toEqual(range(pos(2, 0), pos(8, 0)));
   });
 
   it('preamble jurisdiction: a range with either end in the preamble passes through', () => {
@@ -82,8 +84,8 @@ describe('escalateRange: gap-line trigger and expand-only (D4 amendments)', () =
 
   it('drag past a node\'s end onto its gap line escalates to that single node', () => {
     const result = escalateRange(doc, range(pos(0, 2), pos(1, 0)));
-    // Whole node from its first char, head retained where the user dragged
-    // (expand-only: the gap position is beyond the content cover and kept).
+    // Whole node from its first char through its own trailing gap
+    // (one blank line here, so the cover's end already lands here).
     expect(result).toEqual(range(pos(0, 0), pos(1, 0)));
   });
 
@@ -91,6 +93,15 @@ describe('escalateRange: gap-line trigger and expand-only (D4 amendments)', () =
     const r = range(pos(0, 2), pos(0, 5));
     expect(escalateRange(doc, r)).toEqual(r);
   });
+
+  it('drag onto only the first line of a multi-blank-line gap still includes the whole gap', () => {
+    const loose = parse('First.\n\n\nSecond.\n');
+    // 0 'First.' / 1 gap / 2 gap / 3 'Second.' / 4 final gap
+    // The drag only reaches the first of First.'s two owned blank lines.
+    const result = escalateRange(loose, range(pos(0, 2), pos(1, 0)));
+    expect(result).toEqual(range(pos(0, 0), pos(2, 0)));
+  });
+
 
   it('cursor placed on a gap line is never moved', () => {
     const r = range(pos(1, 0), pos(1, 0));
@@ -112,7 +123,8 @@ describe('escalateRange: gap-line trigger and expand-only (D4 amendments)', () =
     const sec = parse('# H\n\nBody one.\n\nBody two.\n');
     // 0 '# H' / 1 gap(H) / 2 'Body one.' / 3 gap / 4 'Body two.' / 5 gap
     const result = escalateRange(sec, range(pos(0, 1), pos(1, 0)));
-    expect(result).toEqual(range(pos(0, 0), pos(4, 'Body two.'.length)));
+    // Line 5 is "Body two."'s own trailing gap — included in the cover.
+    expect(result).toEqual(range(pos(0, 0), pos(5, 0)));
   });
 });
 
@@ -126,8 +138,10 @@ describe('escalateRanges: uniform multi-range escalation (D4 amendment)', () => 
       range(pos(0, 1), pos(0, 3)), // within "One."
       range(pos(4, 2), pos(6, 2)), // crosses Three./Four.
     ]);
-    expect(result[0]).toEqual(range(pos(0, 0), pos(0, 'One.'.length)));
-    expect(result[1]).toEqual(range(pos(4, 0), pos(6, 'Four.'.length)));
+    // Each node's own trailing gap (line 1 for "One.", line 7 for "Four.")
+    // is included in its cover.
+    expect(result[0]).toEqual(range(pos(0, 0), pos(1, 0)));
+    expect(result[1]).toEqual(range(pos(4, 0), pos(7, 0)));
   });
 
   it('all-within-node multi-range selections stay byte-for-byte native', () => {
@@ -143,17 +157,19 @@ describe('escalateRanges: uniform multi-range escalation (D4 amendment)', () => 
 
   it('preamble ranges stay untouched, even when another range escalates', () => {
     const withFm = parse('---\nk: 1\n---\n\nAlpha.\n\nBeta.\n');
-    // 0-2 frontmatter / 3 gap / 4 'Alpha.' / 5 gap / 6 'Beta.'
+    // 0-2 frontmatter / 3 gap / 4 'Alpha.' / 5 gap / 6 'Beta.' / 7 gap
     const inPreamble = range(pos(1, 0), pos(1, 3));
     const result = escalateRanges(withFm, [inPreamble, range(pos(4, 2), pos(6, 2))]);
     expect(result[0]).toEqual(inPreamble);
-    expect(result[1]).toEqual(range(pos(4, 0), pos(6, 'Beta.'.length)));
+    // Line 7 is "Beta."'s own trailing gap — included in the cover.
+    expect(result[1]).toEqual(range(pos(4, 0), pos(7, 0)));
   });
 
   it('orientation of a force-escalated range is preserved', () => {
     const backward = range(pos(0, 3), pos(0, 1)); // backward within "One."
     const result = escalateRanges(doc, [backward, range(pos(4, 2), pos(6, 2))]);
-    expect(result[0]).toEqual(range(pos(0, 'One.'.length), pos(0, 0)));
+    // Anchor lands at the cover's end (line 1, "One."'s own trailing gap).
+    expect(result[0]).toEqual(range(pos(1, 0), pos(0, 0)));
   });
 });
 
@@ -167,10 +183,25 @@ describe('escalateRange: multi-sibling scope resolution', () => {
   it('escalates to the contiguous run of whole top-level sections, not just the endpoints', () => {
     const r = range(pos(2, 3), pos(6, 2)); // Body one → Body two
     const result = escalateRange(doc, r);
-    // Must cover from section One's own start through section Two's end —
-    // section Two's own subtree end (its last line), not section Three's.
+    // Must cover from section One's own start through section Two's end,
+    // including section Two's own trailing gap (line 7) — section Two's
+    // own subtree end, not section Three's.
     expect(result.anchor).toEqual(pos(0, 0));
-    expect(result.head).toEqual(pos(6, 'Body two.'.length));
+    expect(result.head).toEqual(pos(7, 0));
+  });
+});
+
+describe('escalateRange: cross-node escalation includes the reached node\'s owned gap (escalate-include-owned-gap, docs/research/13)', () => {
+  it('reaching a node\'s content via a cross-node drag is enough, no second drag onto its gap needed', () => {
+    // A node's owned gap spans two blank lines; the drag stops mid-content
+    // in the second node, never touching its gap at all.
+    const md = 'paragraph A\n\n\nparagraph B\n\n\nparagraph C\n';
+    const doc = parse(md);
+    // 0 'paragraph A' / 1 gap / 2 gap / 3 'paragraph B' / 4 gap / 5 gap / 6 'paragraph C' / 7 gap
+    const result = escalateRange(doc, range(pos(0, 5), pos(3, 3)));
+    // Covers A + its gap + B + B's ENTIRE owned gap (lines 4-5), even though
+    // the drag only reached line 3.
+    expect(result).toEqual(range(pos(0, 0), pos(5, 0)));
   });
 });
 
@@ -433,9 +464,27 @@ describe('coveredSubtreeRoots: escalated-selection-decoration query (docs/resear
     expect(coveredSubtreeRoots(doc, range(pos(2, 0), pos(2, 5)))).toBeNull();
   });
 
-  it('an exact single-line leaf match matches, with no gap involved', () => {
+  it('a content-only range short of the node\'s own gap does not match', () => {
+    // paraOne owns a trailing gap (line 3); the cover now always includes
+    // it, so a range that stops at the content end alone is not a match.
     const r = range(pos(2, 0), pos(2, 'Para one.'.length));
+    expect(coveredSubtreeRoots(doc, r)).toBeNull();
+  });
+
+  it('an exact leaf match, content plus its own trailing gap', () => {
+    const r = range(pos(2, 0), pos(3, 0));
     expect(coveredSubtreeRoots(doc, r)).toEqual([paraOne]);
+  });
+
+  it('a whitespace-only gap line matches at ch 0, not the stored line\'s length', () => {
+    // parse.ts's isBlank treats a whitespace-only line as blank, but stores
+    // it verbatim in trailingGap. The cover end must resolve to ch 0
+    // regardless, so a range ending right at the gap line's start still
+    // matches — it must not require reaching past the incidental whitespace.
+    const whitespaceGap = parse('First.\n  \nSecond.\n');
+    const first = nodeAtLine(whitespaceGap, 0)!;
+    const r = range(pos(0, 0), pos(1, 0));
+    expect(coveredSubtreeRoots(whitespaceGap, r)).toEqual([first]);
   });
 
   it('a raw (pre-escalation) boundary-crossing range does not yet match', () => {
@@ -456,7 +505,7 @@ describe('coveredSubtreeRoots: escalated-selection-decoration query (docs/resear
     expect(coveredSubtreeRoots(withFm, range(pos(1, 0), pos(5, 2)))).toBeNull();
   });
 
-  describe('the gap-line trigger shape (expand-only retains hi past the cover end)', () => {
+  describe('the gap-line trigger shape (cover end is the node\'s own gap)', () => {
     const gapMd = 'First.\n\nSecond.\n';
     const gapDoc = parse(gapMd);
     // 0 'First.' / 1 gap / 2 'Second.' / 3 final gap
@@ -466,7 +515,8 @@ describe('coveredSubtreeRoots: escalated-selection-decoration query (docs/resear
     it('a drag past a node\'s end onto its gap line still matches, once escalated', () => {
       const escalated = escalateRange(gapDoc, range(pos(0, 2), pos(1, 0)));
       // Sanity: this is exactly the shape escalateRange's own gap-trigger
-      // test asserts (lo pinned to cover start, hi retained on the gap).
+      // test asserts (lo pinned to cover start, hi at the cover's gap-
+      // inclusive end).
       expect(escalated).toEqual(range(pos(0, 0), pos(1, 0)));
       expect(coveredSubtreeRoots(gapDoc, escalated)).toEqual([first]);
     });
