@@ -26,6 +26,10 @@
  * the parse model, so once a node is escalated into a selection — via the
  * gap-line trigger or by a boundary crossing reaching its content — its
  * whole gap comes with it, not just whatever the drag happened to reach.
+ *
+ * `subtreeCoverOf`/`Cover` are also exported for `select-all-ladder.ts`
+ * (progressive-select-all): the Mod-A ladder's rungs are built from the
+ * same subtree-cover geometry, not reimplemented.
  */
 
 import type { NodePath, OutlineDoc, OutlineNode } from './model';
@@ -130,12 +134,19 @@ function childrenAtScope(doc: OutlineDoc, scopePath: NodePath): readonly Outline
   return list;
 }
 
-interface Cover {
+/** A contiguous line-range cover, `start` inclusive through `end` inclusive
+ * (both `LinePos`). Exported for `select-all-ladder.ts` (progressive-
+ * select-all), which builds its rung sequence from the same subtree-cover
+ * geometry rather than recomputing it. */
+export interface Cover {
   readonly start: LinePos;
   readonly end: LinePos;
 }
 
-function subtreeCoverOf(doc: OutlineDoc, node: OutlineNode): Cover {
+/** A node's whole-subtree cover — its own lines through its deepest last
+ * descendant's content end, INCLUDING that leaf's own trailing gap in full
+ * (see `subtreeCoverEnd`). Exported for `select-all-ladder.ts`. */
+export function subtreeCoverOf(doc: OutlineDoc, node: OutlineNode): Cover {
   const start = startLineOf(doc, node);
   return { start: { line: start, ch: 0 }, end: subtreeCoverEnd(node, start) };
 }

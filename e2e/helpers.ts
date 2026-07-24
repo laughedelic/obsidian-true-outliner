@@ -161,6 +161,41 @@ export function getSelection(): Promise<{
   });
 }
 
+const SELECT_ALL_KEYS = [process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'a'];
+
+/** One Mod-A keypress. */
+export async function pressSelectAll(): Promise<void> {
+  await browser.keys(SELECT_ALL_KEYS);
+}
+
+/**
+ * Presses Mod-A repeatedly until the selection stops changing (progressive-
+ * select-all: repeated presses climb the ladder — content, subtree, each
+ * ancestor, whole outline body — before falling through to native Select
+ * All at the top). Returns the final, stable selection. Throws if it hasn't
+ * stabilized within `maxPresses`, so a broken ladder that never terminates
+ * fails the test loudly instead of silently comparing a mid-climb selection.
+ */
+export async function selectAllToStock(
+  maxPresses = 20,
+): Promise<{ anchor: { line: number; ch: number }; head: { line: number; ch: number } }> {
+  let prev = await getSelection();
+  for (let i = 0; i < maxPresses; i++) {
+    await pressSelectAll();
+    const sel = await getSelection();
+    if (
+      sel.anchor.line === prev.anchor.line &&
+      sel.anchor.ch === prev.anchor.ch &&
+      sel.head.line === prev.head.line &&
+      sel.head.ch === prev.head.ch
+    ) {
+      return sel;
+    }
+    prev = sel;
+  }
+  throw new Error(`Select All did not stabilize within ${maxPresses} presses`);
+}
+
 // ---- Real pointer input (mouse drag selection) -----------------------------
 
 interface Coords {

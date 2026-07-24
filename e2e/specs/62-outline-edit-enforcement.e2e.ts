@@ -15,7 +15,6 @@ import * as h from '../helpers.js';
 import { REJECTION_MESSAGES } from '../../src/plugin/messages';
 
 const NOTE = 'Scratch/enforcement.md';
-const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
@@ -100,7 +99,9 @@ describe('node-edit-enforcement: Phase C evidence', function () {
   it('deleting every node leaves a valid, functional empty note', async function () {
     await outlineNote('Alpha.\n\nBeta.\n');
     await h.setCursor(0, 0);
-    await browser.keys([PRIMARY_MOD, 'a']); // Select All (escalates to the whole doc)
+    // progressive-select-all climbs a node-aware ladder before its top rung
+    // reaches native "select everything" — ride it to the top here.
+    await h.selectAllToStock();
     await browser.keys(Key.Backspace);
     expect(await h.getBuffer()).toBe('');
     // The editor still accepts input afterward.

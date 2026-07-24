@@ -121,20 +121,22 @@ describe('node-selection-enforcement: Phase B', function () {
     }
   });
 
-  it('Select All with frontmatter is stock — spans preamble and all nodes, out of jurisdiction', async function () {
+  it('Select All with frontmatter eventually reaches stock — spans preamble and all nodes, out of jurisdiction', async function () {
     const md = '---\nkey: value\n---\n\n# Head\n\nBody.\n';
     const offNote = 'Scratch/select-all-off.md';
     await h.createNote(offNote, md);
     await h.setCursor(4, 0);
-    await browser.keys([process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'a']);
+    await h.pressSelectAll();
     const offSel = await h.getSelection();
 
     await outlineNote(md);
     await h.setCursor(4, 0);
-    await browser.keys([process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'a']);
-    const sel = await h.getSelection();
-    // Whatever stock (off-mode) Select All does with frontmatter present,
-    // outline mode must do exactly the same (D5: out of jurisdiction).
+    // progressive-select-all climbs a node-aware ladder first (content ->
+    // subtree -> ... -> whole outline body) before its top rung falls
+    // through to native Select All — so it takes several presses, not one,
+    // to reach the same place stock does. D5 (out of jurisdiction) still
+    // holds once it gets there: frontmatter is untouched by the ladder.
+    const sel = await h.selectAllToStock();
     expect(sel).toEqual(offSel);
   });
 
@@ -254,18 +256,19 @@ describe('node-selection-enforcement: Phase B', function () {
     expect(sel.head).toEqual({ line: 5, ch: 0 });
   });
 
-  it('Select All without frontmatter is byte-identical to stock (expand-only)', async function () {
+  it('Select All without frontmatter eventually reaches stock (expand-only)', async function () {
     const md = 'Alpha.\n\nBeta.\n';
     const offNote = 'Scratch/select-all-nofm-off.md';
     await h.createNote(offNote, md);
     await h.setCursor(0, 0);
-    await browser.keys([process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'a']);
+    await h.pressSelectAll();
     const offSel = await h.getSelection();
 
     await outlineNote(md);
     await h.setCursor(0, 0);
-    await browser.keys([process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'a']);
-    const sel = await h.getSelection();
+    // See the frontmatter variant above: several presses climb the ladder
+    // before the top rung falls through to native Select All.
+    const sel = await h.selectAllToStock();
     expect(sel).toEqual(offSel);
     // And concretely: the trailing newline stays selected (the head sits on
     // the document's final empty line, not pulled back to "Beta."'s end).
