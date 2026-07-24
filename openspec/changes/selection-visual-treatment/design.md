@@ -463,15 +463,31 @@ work stops firing too.
 keystroke, correct result, one undo), and copy/cut/paste all behave correctly with the
 selection staying fully rendered throughout.
 
-**Known, accepted limitations** (not chased further, none observed in practice): a
-multi-pane conflict if two outline-mode panes are both blurred/block-selected
-simultaneously; keyboard-only block selection (Shift+Arrow, no mouse) never triggers the
-blur at all, since it's wired to `mouseup` specifically; IME composition is untested. Full
-detail on all of these, and everything from attempt 1, is in
-docs/research/13-selection-follow-ups.md. No e2e coverage was added for either listener,
-deliberately: focus/blur timing interacting with real keyboard/drag input is exactly the
-kind of thing unlikely to test reliably through the automated harness — validation here
-was manual, in a real vault, by design, and it passed.
+**Two follow-up bugs, found live on a second manual round and fixed**: a multi-pane
+conflict (two outline-mode panes both blurred/block-selected simultaneously always routed
+typing to whichever view's listener registered first, not the pane the user actually
+clicked into) — fixed by additionally requiring `app.workspace.activeEditor` to identify
+this exact view, a signal Obsidian tracks independently of DOM focus. And keyboard-only
+block selection (Shift+Arrow, no mouse) originally never triggered the blur at all — fixed
+by also hooking `ViewUpdate.selectionSet`, guarded against firing mid-drag via a
+tracked `mouseDown` flag.
+
+**One limitation found live and NOT fixed, a genuine hard limit of the reactive-refocus
+approach**: IME composition (tested: Chinese Pinyin) loses its first keystroke to literal
+Latin insertion before composition correctly engages from the second keystroke onward —
+an input method's decision to compose is tied to focus state at the moment the OS
+delivers the keystroke, which our refocus (reacting to that SAME keydown) is
+structurally too late to influence. No earlier, reliable "about to type" signal exists to
+refocus on instead without defeating the point of staying blurred. Recorded as a known,
+accepted limitation rather than attempted, deliberately — speculative here means
+untestable across IMEs/platforms, the exact kind of fragile-workaround-chasing already
+backed off from once with the CSS approach (attempt 1 above).
+
+Full detail on all three findings is in docs/research/13-selection-follow-ups.md. No e2e
+coverage was added for any of this listener logic, deliberately: focus/blur timing
+interacting with real keyboard/drag input is exactly the kind of thing unlikely to test
+reliably through the automated harness — validation here was manual, in a real vault, by
+design, and it passed (except for the documented IME limitation).
 
 ### Tried and reverted: a border + corner-radius around the whole selection rectangle
 A third-round visual-polish request, explicitly gated by the user as "only if it's
@@ -507,12 +523,15 @@ own focused follow-up if wanted later, not as a corner of an already-large chang
   Backspace, Delete, arrows all silently ignored while unfocused) **— recovered via a
   `document`-level `keydown` listener that refocuses the editor and replays the event
   through CM6's own `runScopeHandlers`, confirmed working by the user for all of these.**
-  Known, accepted residual limitations (none observed in practice): a multi-pane
-  conflict if two outline-mode panes are both blurred/block-selected simultaneously;
-  keyboard-only block selection (no mouse) never triggers the blur at all; IME
-  composition is untested. See docs/research/13-selection-follow-ups.md for the full
-  investigation, including the abandoned CSS-based alternative this replaced and every
-  detail of the keyboard-recovery mechanism.
+  A second round of manual testing then found and fixed two more bugs (a multi-pane
+  conflict; keyboard-only block selection never triggering the blur) — see design.md's
+  own decision section above for both. **One limitation remains, not fixed, a genuine
+  hard limit of this approach**: IME composition (tested: Chinese Pinyin) loses its
+  first keystroke to literal Latin insertion, since an input method's decision to
+  compose is tied to focus state at the moment the OS delivers the keystroke — our
+  reactive refocus is structurally too late to influence that decision for the SAME
+  keystroke that triggered it. See docs/research/13-selection-follow-ups.md for the
+  full investigation, including the abandoned CSS-based alternative this replaced.
 - **[Risk] Recomputing cover-membership on every selection-only view update adds cost
   on very large/deep documents.** → Mitigation: the check is per-range (typically one or
   a handful of ranges) and reuses `escalate.ts`'s existing O(tree size) walks, the same

@@ -351,3 +351,41 @@ reveal during block selection" section, not repeated here.
       docs/research/13-selection-follow-ups.md to reflect the mechanism as confirmed
       working, not merely "kept, still being refined" — this is the checkpoint to
       commit from.
+
+## 13. Second round of manual testing: multi-pane, keyboard-selection, IME
+
+- [x] 13.1 Fixed the multi-pane conflict: with two outline-mode panes both blurred/
+      block-selected, typing always landed in whichever view's listener registered
+      first, regardless of which pane the user had clicked into (`document.
+      activeElement === document.body` is equally true for both once both are
+      blurred; `stopPropagation` doesn't stop OTHER listeners on the SAME node from
+      also running). Fixed by adding `isActiveEditor()`, requiring
+      `app.workspace.activeEditor` to identify THIS view's own `MarkdownFileInfo` —
+      Obsidian tracks this independently of raw DOM focus, correctly surviving this
+      plugin's own blur calls.
+- [x] 13.2 Made keyboard-driven block selection consistent with mouse-driven: a
+      block cover reached via Shift+Arrow (no mouse) previously never triggered the
+      blur at all. Hooked `ViewUpdate.selectionSet` in `update()` instead of adding a
+      new keymap binding — reuses `allRangesCovered`, guarded by a `mousedown`/
+      `mouseup`-tracked `mouseDown` flag so an in-progress mouse drag (which also
+      dispatches one `selectionSet` update per pointer move) can't get blurred
+      mid-drag, which would risk interrupting the browser's own native drag-select
+      gesture. `onMouseUp`'s own separate deferred check remains necessary for the
+      mouse-completion case (the last relevant transaction may commit while
+      `mouseDown` is still true, and nothing later re-triggers `update()`).
+- [x] 13.3 Investigated IME composition (tested live: Chinese Pinyin) — confirmed
+      broken: the first keystroke of a composition sequence is dispatched as a
+      literal Latin character, only engaging correct composition from the second
+      keystroke onward. Root cause: an input method's decision to compose is tied to
+      focus state at the moment the OS delivers the keystroke to its input
+      pipeline — our refocus, reacting to that SAME keydown, is structurally too
+      late to influence it. No earlier, reliable "about to type" signal exists to
+      preemptively refocus on without defeating the point of staying blurred (e.g.
+      hovering the mouse would refocus far too eagerly). NOT fixed — recorded as a
+      known, accepted limitation rather than attempting a speculative workaround
+      untestable across IMEs/platforms.
+- [x] 13.4 Re-ran full unit suite (287 passed), typecheck (main + e2e), lint, and the
+      full `63-selection-visual-treatment` e2e spec (19 passing) after 13.1/13.2 — no
+      regressions.
+- [x] 13.5 Updated design.md and docs/research/13-selection-follow-ups.md with both
+      fixes and the IME limitation — this is the checkpoint to commit from.

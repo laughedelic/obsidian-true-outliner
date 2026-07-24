@@ -244,33 +244,64 @@ Delete (single keystroke, correct result, one undo), and copy/cut/paste all
 behave correctly with the block-covering selection staying fully rendered
 throughout.
 
-**Known, accepted limitations, not chased further**:
-- **Multi-pane conflict**: if two outline-mode panes both happen to be in
-  the blurred/block-selected state simultaneously (both selected, neither
-  since typed in), both views' listeners would try to claim the same
-  keystroke — the guard (`document.activeElement === document.body`) can't
-  distinguish which pane the user actually means. Not hit in practice, not
-  fixed.
-- **Keyboard-only block selection never triggers this at all** — the blur is
-  wired to `mouseup` specifically, matching how the user originally framed
-  the ask ("click outside" mimicking mouse interaction). A block cover
-  reached via Shift+Arrow alone still shows the old reveal-while-focused
-  behavior.
-- **IME composition (Japanese/Chinese/Korean input) is untested.** Plausible
-  it works (composition keydowns shouldn't match any keybinding, so
-  wouldn't get `preventDefault`, letting native composition proceed against
-  the refocused editor) but not verified live.
-- **Tab/Shift-Tab's own multi-node behavior** (observed: indents only the
-  LAST of several selected nodes, not all of them) is a separate,
-  pre-existing gap, not introduced by this mechanism — see the new Track 2
-  entry below ("Structural keymap commands need selection-aware behavior").
+**Two of these were real bugs, found live and fixed on a second manual test round
+(2026-07-24)**:
+- **Multi-pane conflict, fixed.** With two outline-mode panes open side by side, both
+  block-selected, typing only ever reached the FIRST one (regardless of which pane the
+  user had actually clicked into), with the typed text landing somewhere other than the
+  selection. Root cause: `document.activeElement === document.body` is equally true for
+  BOTH panes once both are blurred — it can't tell them apart, so `onDocumentKeyDown`
+  always acted on whichever view's listener happened to be registered first (document
+  listeners run in registration order; `stopPropagation` doesn't stop OTHER listeners on
+  the SAME node from also running). Fixed by ALSO requiring `app.workspace.activeEditor
+  === (this view's own MarkdownFileInfo)` — Obsidian tracks "active editor" independently
+  of raw DOM focus (updated on a real click/mousedown into a leaf, including the one that
+  starts a new block-selection drag there) and keeps pointing at that leaf even after this
+  same plugin's own blur call removes DOM focus from it, correctly disambiguating which
+  pane a keystroke belongs to.
+- **Keyboard-only block selection now gets the same blur treatment, fixed.** The user's
+  own framing: a keyboard-reached block cover (Shift+Arrow, no mouse) still behaved as
+  "a different mode of interaction" than a mouse-drag one, and asked to make it
+  consistent. Hooked onto `ViewUpdate.selectionSet` (CM6's own per-transaction update
+  hook) instead of a new keymap binding — reuses the exact same `allRangesCovered` check
+  everywhere else already uses. Guarded on a `mousedown`/`mouseup`-tracked `mouseDown`
+  flag: an in-progress mouse drag also dispatches one transaction per pointer move, each
+  its own `selectionSet` update, and may reach a covering shape WHILE THE BUTTON IS STILL
+  HELD — blurring mid-drag would risk interrupting the browser's own native drag-select
+  gesture. `onMouseUp`'s own separate, still-needed deferred check remains for the
+  mouse-completion case: the last relevant selection-settling transaction may commit
+  WHILE `mouseDown` is still true (so the `update()` hook skips it), and nothing later
+  re-triggers `update()` to catch it once the button is released.
 
-**Current status**: kept as the shipped mechanism (`decorations.ts`), not
-reverted. No e2e coverage was added for either listener, deliberately —
-focus/blur timing interacting with real keyboard/drag input is exactly the
-kind of thing flagged as unlikely to test reliably through the automated
-harness; validation here was manual, in a real vault, by design, and it
-passed.
+**A third, NOT fixed — a genuine hard limitation of the reactive-refocus approach
+itself**:
+- **IME composition (tested live: Chinese Pinyin input) is broken in a specific way**:
+  the FIRST keystroke of a composition sequence is dispatched as a plain Latin
+  character (inserted literally, not composed), and only the SECOND keystroke onward
+  correctly engages IME composition. Root cause, as far as can be reasoned about
+  without deep OS/browser IME internals: an input method's decision to begin composing
+  is tied to which element already HAS focus at the moment the OS delivers a physical
+  keystroke to the input pipeline — a decision made independently of, and likely prior
+  to, the browser's own DOM event dispatch. Our refocus happens REACTIVELY, inside the
+  `keydown` handler for that SAME first keystroke — by the time we call `.focus()`,
+  the OS may have already decided (based on the PRE-refocus, unfocused state) that
+  this keystroke isn't a composable one, so it also can't retroactively be treated as
+  the start of a composition. There's no earlier, reliable "the user is about to type"
+  signal to refocus on instead (hovering the mouse over the editor, for instance, would
+  refocus far too eagerly, defeating the whole point of staying blurred while just
+  looking at a selection). Deliberately NOT attempted as a fix: any workaround here
+  would be speculative and hard to verify without testing across multiple IMEs/OSes,
+  exactly the kind of fragile-workaround-chasing this investigation already backed off
+  from once with the CSS approach. Recorded as a known, accepted limitation: non-Latin
+  IME input right after selecting a block will lose its first keystroke to literal
+  Latin insertion.
+
+**Current status**: kept as the shipped mechanism (`decorations.ts`), not reverted, now
+covering mouse AND keyboard-driven block selection consistently, correct across
+multiple panes. No e2e coverage was added for any of this, deliberately — focus/blur
+timing interacting with real keyboard/drag input is exactly the kind of thing flagged as
+unlikely to test reliably through the automated harness; validation here was manual, in
+a real vault, by design, and it passed (except for the documented IME limitation above).
 
 ## Known native limitation (not ours to fix)
 

@@ -65,6 +65,7 @@ import {
   WidgetType,
   type DecorationSet,
   type PluginValue,
+  type ViewUpdate,
 } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
 import type { NodeKind } from '../model';
@@ -867,22 +868,59 @@ class MarkersPlugin implements PluginValue {
 
 class SelectionDecorationPlugin implements PluginValue {
   decorations: DecorationSet;
+  private mouseDown = false;
 
   constructor(
     private readonly view: EditorView,
     private readonly modes: DecorationSource,
   ) {
     this.decorations = this.compute();
+    this.view.dom.addEventListener('mousedown', this.onMouseDown);
     this.view.dom.addEventListener('mouseup', this.onMouseUp);
     document.addEventListener('keydown', this.onDocumentKeyDown, { capture: true });
   }
 
-  update(): void {
+  /**
+   * EXPERIMENTAL: keyboard-driven selection changes (Shift+Arrow escalating
+   * into a whole-block cover, with no mouse involved at all) get the SAME
+   * blur treatment as a completed mouse drag, for consistency — the user's
+   * own framing: a keyboard-only block selection is "a different mode of
+   * interaction" otherwise, still showing the old reveal-while-focused
+   * behavior `onMouseUp` already fixed for the mouse case.
+   *
+   * Hooked on `ViewUpdate.selectionSet` (any update where the selection
+   * actually changed, however it was caused) rather than a SEPARATE keymap
+   * binding: reuses the exact same `allRangesCovered` check already used
+   * everywhere else, no new state to keep in sync with the transaction
+   * filter's own escalation logic.
+   *
+   * Guarded on `!this.mouseDown`: an in-progress mouse drag also dispatches
+   * one transaction per pointer move (each its own `selectionSet` update),
+   * and may reach a covering shape WHILE THE BUTTON IS STILL HELD — blurring
+   * mid-drag would risk interrupting the browser's own native drag-select
+   * gesture, which relies on continuous focus/mousedown state on the
+   * target. `onMouseUp`'s own (still separate, still needed) deferred check
+   * covers the mouse-completion case instead: by the time a drag's mouseup
+   * fires, the LAST relevant selection-settling transaction may already
+   * have committed WHILE `mouseDown` was still true (so this hook would
+   * have skipped it) — nothing later re-triggers `update()` to catch it,
+   * so `onMouseUp` still needs its own explicit re-check.
+   */
+  update(update: ViewUpdate): void {
     this.decorations = this.compute();
+    if (
+      update.selectionSet &&
+      !this.mouseDown &&
+      this.isOutlineNote() &&
+      allRangesCovered(this.view.state)
+    ) {
+      this.view.contentDOM.blur();
+    }
   }
 
   destroy(): void {
     this.view.dom.classList.remove(BLOCK_SELECTING_CLASS);
+    this.view.dom.removeEventListener('mousedown', this.onMouseDown);
     this.view.dom.removeEventListener('mouseup', this.onMouseUp);
     document.removeEventListener('keydown', this.onDocumentKeyDown, { capture: true });
   }
@@ -890,6 +928,26 @@ class SelectionDecorationPlugin implements PluginValue {
   private isOutlineNote(): boolean {
     const path = this.view.state.field(editorInfoField, false)?.file?.path;
     return !isNestedEditor(this.view) && !!path && this.modes.isOutline(path);
+  }
+
+  /**
+   * True when THIS view is Obsidian's own notion of the currently active
+   * editor (`app.workspace.activeEditor`) — a real bug found live with two
+   * outline-mode panes open side by side, both blurred/block-selected at
+   * once: `document.activeElement === document.body` alone can't tell them
+   * apart (it's equally true for both), so `onDocumentKeyDown` always acted
+   * on whichever view's listener happened to be registered first,
+   * regardless of which pane the user had actually clicked into. Obsidian
+   * tracks "active editor" independently of raw DOM focus (updated on a
+   * real click/mousedown into a leaf, including the one that starts a NEW
+   * block-selection drag there) and keeps pointing at that leaf even after
+   * this same plugin's own blur call removes DOM focus from it — comparing
+   * against the SAME `MarkdownFileInfo` object `editorInfoField` already
+   * exposes (identity, not a path string) is exactly the signal needed.
+   */
+  private isActiveEditor(): boolean {
+    const info = this.view.state.field(editorInfoField, false);
+    return !!info && info.app.workspace.activeEditor === info;
   }
 
   /**
@@ -916,7 +974,12 @@ class SelectionDecorationPlugin implements PluginValue {
    * unfocused (identical to manually clicking away) — `onDocumentKeyDown`
    * below is the current attempt at recovering that.
    */
+  private readonly onMouseDown = (): void => {
+    this.mouseDown = true;
+  };
+
   private readonly onMouseUp = (): void => {
+    this.mouseDown = false;
     window.setTimeout(() => {
       if (this.isOutlineNote() && allRangesCovered(this.view.state)) {
         this.view.contentDOM.blur();
@@ -956,10 +1019,12 @@ class SelectionDecorationPlugin implements PluginValue {
    *    keymap this editor already has installed.
    *
    * Guarded to only act when THIS view is the one currently blurred due to
-   * a covering selection (`BLOCK_SELECTING_CLASS`) AND nothing else has
-   * legitimately claimed focus since (`document.activeElement ===
-   * document.body`) — otherwise this would steal keystrokes meant for a
-   * different pane, the search box, or any other UI element entirely.
+   * a covering selection AND nothing else has legitimately claimed focus
+   * since (`document.activeElement === document.body`) AND this view is
+   * Obsidian's own currently active editor (`isActiveEditor`, needed for
+   * the two-panes-both-blurred case — see its own doc comment) — otherwise
+   * this would steal keystrokes meant for a different pane, the search
+   * box, or any other UI element entirely.
    *
    * A real bug found on the first manual test round, once `runScopeHandlers`
    * DID match and run a command (Backspace, Delete, Tab): the ORIGINAL
@@ -986,7 +1051,9 @@ class SelectionDecorationPlugin implements PluginValue {
   private readonly onDocumentKeyDown = (event: KeyboardEvent): void => {
     if (this.view.hasFocus) return;
     if (document.activeElement !== document.body) return;
-    if (!this.isOutlineNote() || !allRangesCovered(this.view.state)) return;
+    if (!this.isOutlineNote() || !this.isActiveEditor() || !allRangesCovered(this.view.state)) {
+      return;
+    }
     this.view.contentDOM.focus();
     const handled = runScopeHandlers(this.view, event, 'editor');
     if (handled) {
