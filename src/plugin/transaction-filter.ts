@@ -32,7 +32,7 @@ import type { OutlineDoc } from '../model';
 import { encodeLines } from '../encode';
 import { classify, type ChangedLineSpan, type TransactionFacts } from '../classify';
 import { clampCursorToContent, escalateRanges, rangesEqual, type LinePos, type LineRange } from '../escalate';
-import { computeVerdict, type EditFact, type RewriteVerdict } from '../enforce';
+import { computeVerdictForRanges, type EditFact, type RewriteVerdict } from '../enforce';
 import type { Edit, RejectionReason } from '../result';
 import { applyEdits } from '../result';
 import { editsToChanges } from './dispatch';
@@ -79,33 +79,32 @@ function collectChangedLineSpans(tr: Transaction): ChangedLineSpan[] {
       deletesLineBoundary,
       fromCh: fromA - fromLineObj.from,
       toCh: toA - toLineObj.from,
+      rangeEnd: offsetToLinePos(tr.startState.doc, toA),
     });
   });
   return spans;
 }
 
 /**
- * The transaction's single change, in old-document `LinePos` coordinates,
- * for the verdict layer (`EditFact`). `undefined` when the transaction has
- * zero or more-than-one change ranges — the verdict layer treats that as
- * `pass` (design.md D1's conservative bias: this phase models the
- * single-range shapes the spec scenarios describe, not multi-cursor edits).
+ * ALL of the transaction's changes, each in old-document `LinePos`
+ * coordinates, for the verdict layer (`EditFact`). `fix-orphan-gap-on-node-
+ * deletion` D2 lifts the original single-change-range restriction: every
+ * range is now collected, and `computeVerdictForRanges` decides per-range
+ * whether the shapes it sees are enforceable, falling back to `pass` for
+ * anything it doesn't model.
  */
-function collectEditFact(tr: Transaction): EditFact | undefined {
-  let fact: EditFact | undefined;
-  let count = 0;
+function collectEditFacts(tr: Transaction): EditFact[] {
+  const facts: EditFact[] = [];
   const cursorBefore = offsetToLinePos(tr.startState.doc, tr.startState.selection.main.head);
   tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-    count++;
-    if (count > 1) return;
-    fact = {
+    facts.push({
       from: offsetToLinePos(tr.startState.doc, fromA),
       to: offsetToLinePos(tr.startState.doc, toA),
       insert: tr.newDoc.sliceString(fromB, toB),
       cursorBefore,
-    };
+    });
   });
-  return count === 1 ? fact : undefined;
+  return facts;
 }
 
 /** `verdict.edits` (old-document line ranges) → a CM6 `ChangeSpec` against
@@ -216,12 +215,12 @@ export function transactionFilterExtension(
       const escalated = escalateSelection(outlineDoc, tr.startState.doc, tr);
       if (escalated) result = [tr, { selection: escalated }];
     } else if (cls === 'boundary-crossing-edit') {
-      const edit = collectEditFact(tr);
+      const edits = collectEditFacts(tr);
       // Public CM6 facet, same as keymap.ts's grammar path — Obsidian sets
       // it from "Indent using tabs", so a structural rewrite that has to
       // materialize brand-new indentation (paste/type-over with no
       // existing indented line to infer from) respects the same setting.
-      const verdict = computeVerdict(cls, outlineDoc, edit, tr.startState.facet(indentUnit));
+      const verdict = computeVerdictForRanges(cls, outlineDoc, edits, tr.startState.facet(indentUnit));
       verdictKind = verdict.kind;
       if (verdict.kind === 'rewrite') {
         result = buildRewriteSpec(tr, outlineDoc, verdict);

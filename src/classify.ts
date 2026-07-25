@@ -16,6 +16,7 @@ import type { OutlineDoc } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
 import { parse } from './parse';
 import { contentColumnCh } from './ops';
+import { coveredSubtreeRoots, type LinePos, type LineRange } from './escalate';
 
 export type TransactionClass =
   | 'programmatic'
@@ -66,6 +67,18 @@ export interface ChangedLineSpan {
    */
   readonly fromCh?: number;
   readonly toCh?: number;
+  /**
+   * The change's true OLD-document end position (`lineAt(toA)` directly) —
+   * unlike `toLine`/`toCh` above, which use the `Math.max(fromA, toA - 1)`
+   * convention and so read as the LAST TOUCHED line, not where the range
+   * actually ends (deliberately, for the boundary-INSENSITIVE cases that
+   * convention exists for). Needed for exactly one thing (node-edit-
+   * enforcement's exact-cover amendment): recognizing a deletion whose range
+   * exactly covers one or more whole subtrees, including the trailing gap's
+   * final newline — a check that must see the range's real end, which the
+   * `toA - 1` idiom is exactly blind to. Optional, like the facts above.
+   */
+  readonly rangeEnd?: LinePos;
 }
 
 /**
@@ -300,6 +313,22 @@ function crossesViaChromeDeletion(
 }
 
 /**
+ * A change whose range exactly covers one or more whole subtrees — including
+ * each covered subtree's owned trailing gap (`fix-orphan-gap-on-node-
+ * deletion` D1) — even though its raw line span (`spanCrossesBoundary`) falls
+ * inside a single node. Reuses `escalate.ts`'s exported `coveredSubtreeRoots`
+ * rather than a second cover computation (the duplication hazard recorded in
+ * docs/research/04 Q18/Q19). Needs `rangeEnd` (the untruncated end position);
+ * without it, this never matches — the conservative default for pre-Phase
+ * C-amendment callers.
+ */
+function isExactSubtreeCoverDeletion(doc: OutlineDoc, span: ChangedLineSpan): boolean {
+  if (span.fromCh === undefined || !span.rangeEnd) return false;
+  const range: LineRange = { anchor: { line: span.fromLine, ch: span.fromCh }, head: span.rangeEnd };
+  return coveredSubtreeRoots(doc, range) !== null;
+}
+
+/**
  * Classifies one transaction. Total and side-effect-free: every input
  * produces exactly one class, in the D2 order.
  */
@@ -315,7 +344,8 @@ export function classify(facts: TransactionFacts, doc: OutlineDoc): TransactionC
     (span) =>
       isMultiBlockInsertion(doc, span) ||
       crossesViaBoundaryDeletion(doc, span) ||
-      crossesViaChromeDeletion(doc, facts, span),
+      crossesViaChromeDeletion(doc, facts, span) ||
+      isExactSubtreeCoverDeletion(doc, span),
   );
   return other ? 'boundary-crossing-edit' : 'within-node-edit';
 }

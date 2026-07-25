@@ -669,16 +669,18 @@ function arraysEqual(a: readonly number[], b: readonly number[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
-/**
- * Subtree deletion (structural-operations delta): removes a contiguous run
- * of whole sibling subtrees, trailing gaps included — each removed node's
- * own `trailingGap` (and, for a subtree with children, its deepest last
- * descendant's) leaves with it, so the surviving neighbors' own lines and
- * gaps are untouched verbatim. `nodeIds` order doesn't matter; the set must
- * be exactly one contiguous run of siblings under one parent, or the whole
- * call is rejected (no partial application).
- */
-export function deleteSubtrees(doc: OutlineDoc, nodeIds: readonly number[]): OpResult<OpOutput> {
+interface ResolvedGroup {
+  readonly parentPath: NodePath;
+  readonly lo: number;
+  readonly hi: number;
+}
+
+/** Resolves `nodeIds` to one contiguous sibling run under one parent — the
+ * shared validation `deleteSubtrees` and `deleteSubtreeGroups` both need.
+ * `nodeIds` order doesn't matter; anything else (a missing id, siblings
+ * under different parents, a gap in the run) is rejected, no partial
+ * application. */
+function resolveContiguousGroup(doc: OutlineDoc, nodeIds: readonly number[]): OpResult<ResolvedGroup> {
   if (nodeIds.length === 0) return reject('empty-selection');
   const paths: NodePath[] = [];
   for (const id of nodeIds) {
@@ -694,20 +696,84 @@ export function deleteSubtrees(doc: OutlineDoc, nodeIds: readonly number[]): OpR
   for (let i = 1; i < indices.length; i++) {
     if (indices[i] !== indices[i - 1]! + 1) return reject('non-contiguous-subtrees');
   }
-  const lo = indices[0]!;
-  const hi = indices[indices.length - 1]!;
-  const siblings = childrenAt(doc, parentPath);
+  return accept({ parentPath, lo: indices[0]!, hi: indices[indices.length - 1]! });
+}
 
-  const survivorAfter = siblings[hi + 1];
-  const survivorBefore = lo > 0 ? siblings[lo - 1] : undefined;
+/**
+ * Subtree deletion (structural-operations delta): removes a contiguous run
+ * of whole sibling subtrees, trailing gaps included — each removed node's
+ * own `trailingGap` (and, for a subtree with children, its deepest last
+ * descendant's) leaves with it, so the surviving neighbors' own lines and
+ * gaps are untouched verbatim. `nodeIds` order doesn't matter; the set must
+ * be exactly one contiguous run of siblings under one parent, or the whole
+ * call is rejected (no partial application). The single-group case of
+ * `deleteSubtreeGroups`.
+ */
+export function deleteSubtrees(doc: OutlineDoc, nodeIds: readonly number[]): OpResult<OpOutput> {
+  return deleteSubtreeGroups(doc, [nodeIds]);
+}
+
+/**
+ * Multi-group subtree deletion (`fix-orphan-gap-on-node-deletion` D2): the
+ * general form `deleteSubtrees` delegates to — removes SEVERAL contiguous
+ * sibling runs (each independently subject to `resolveContiguousGroup`'s own
+ * contiguity rule) in one structural pass. Groups may sit under different
+ * parents, or be non-adjacent runs under the SAME parent; either way, all
+ * are resolved against the pristine `doc` and removed together, then
+ * `finalize`d ONCE — a single before/after diff, never one diff per group
+ * combined afterward. Combining independently-diffed single-group deletions
+ * was tried and measured unsafe (2026-07-25, this change's own property
+ * test): two such diffs can land on COINCIDENTALLY-OVERLAPPING regions when
+ * the deleted text shares lines with content that survives elsewhere (two
+ * code blocks with identical fence lines, for instance) — `diffLines`'s
+ * prefix/suffix trim has no way to know which matching line is the "real"
+ * boundary between two independently-computed diffs. One diff over the
+ * true combined result has no such ambiguity.
+ *
+ * `groups[0]` MUST be the topmost group in document order — its own
+ * before/after survivor becomes the op's cursor, the one group whose
+ * position is guaranteed unaffected by every OTHER (necessarily later)
+ * group's removal.
+ */
+export function deleteSubtreeGroups(
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+): OpResult<OpOutput> {
+  if (groups.length === 0) return reject('empty-selection');
+  const resolved: ResolvedGroup[] = [];
+  for (const ids of groups) {
+    const result = resolveContiguousGroup(doc, ids);
+    if (!result.ok) return result;
+    resolved.push(result.value);
+  }
+
+  // Same-parent groups must be removed in ONE filtering pass — a second
+  // `updateSiblings` call at the same path would see indices already
+  // shifted by the first.
+  const byParent = new Map<string, { parentPath: NodePath; ranges: { lo: number; hi: number }[] }>();
+  for (const g of resolved) {
+    const key = g.parentPath.join('/');
+    const entry = byParent.get(key) ?? { parentPath: g.parentPath, ranges: [] };
+    entry.ranges.push({ lo: g.lo, hi: g.hi });
+    byParent.set(key, entry);
+  }
+
+  let surgery = doc;
+  for (const { parentPath, ranges } of byParent.values()) {
+    surgery = updateSiblings(surgery, parentPath, (nodes) =>
+      renumberOrdered(nodes.filter((_, i) => !ranges.some((r) => i >= r.lo && i <= r.hi))),
+    );
+  }
+
+  const first = resolved[0]!;
+  const firstSiblings = childrenAt(doc, first.parentPath);
+  const survivorAfter = firstSiblings[first.hi + 1];
+  const survivorBefore = first.lo > 0 ? firstSiblings[first.lo - 1] : undefined;
   const subjectId =
     survivorAfter?.id ??
     survivorBefore?.id ??
-    (parentPath.length > 0 ? nodeAt(doc, parentPath)!.id : undefined);
+    (first.parentPath.length > 0 ? nodeAt(doc, first.parentPath)!.id : undefined);
 
-  const surgery = updateSiblings(doc, parentPath, (nodes) =>
-    renumberOrdered([...nodes.slice(0, lo), ...nodes.slice(hi + 1)]),
-  );
   return finalize(doc, surgery, subjectId);
 }
 

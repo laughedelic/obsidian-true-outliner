@@ -783,3 +783,98 @@ Equally important: the e2e tests for this fix were written, passed, and only THE
 checked for whether they could fail at all. They could not. Always verify a regression
 test fails for the right reason before trusting it — this bug survived three reports on
 exactly that kind of false confidence.
+
+## Q22. `fix-orphan-gap-on-node-deletion` D1: layer choice measured — classification, not geometry (2026-07-25)
+
+Change: `fix-orphan-gap-on-node-deletion`.
+
+Task 1's job was to measure, not prefer: design D1 asked whether Option B (move
+`subtreeCoverEnd`'s end past the owned gap, so an escalated cover naturally spans a
+boundary) is a one-position adjustment or a redefinition of the cover, by clearing the
+three collisions it names.
+
+1. **The `ch: 0` convention survives.** Moving the end to the NEXT line's start (`{line:
+   currentEnd.line + 1, ch: 0}`) keeps `ch: 0` — still independent of that next line's
+   stored content, for the same reason the current convention is: `ch` is 0 either way.
+   No collision here; this alone would have been a one-position adjustment.
+2. **`coveredSubtreeRoots`'s match does NOT survive untouched.** Its test is
+   `posEqual(lo, cover.start) && !posBefore(hi, cover.end)`. Moving `cover.end` moves
+   what counts as an exact cover for EVERY caller of `subtreeCoverOf`/`coveredSubtreeRoots`
+   — not just this change's new deletion check. That's the selection chrome's own bounds
+   (`escalated-selection-decoration`), `select-all-ladder.ts`'s rung geometry, and the
+   not-yet-built `selection-as-subtree-set`'s geometry, all keyed off the same function.
+   This is a redefinition, not a local adjustment: it changes what "the cover" means
+   everywhere, not just at the one call site this bug is in.
+3. **The document's last node genuinely has no next line to point at.** Confirmed
+   against the parse model directly (`model.ts`'s "segmentation is total" invariant,
+   `OutlineDoc.preamble` + node spans covering every line with nothing after): for the
+   doc's final node, `subtreeCoverEnd`'s current value already IS the document's last
+   line. Option B's "next line" doesn't exist there — it would need a real end-of-document
+   sentinel, a special case Option A never needs because it never moves the geometry.
+
+**Decision: Option A (classification) owns the fix.** Collision 2 alone is decisive —
+it's exactly the wide blast radius design.md's Option B risk section predicted
+(`node-selection-enforcement`'s committed scenarios, `tests/escalate.test.ts`, the
+selection chrome, and `selection-as-subtree-set`'s not-yet-written geometry), and
+collision 3 adds a real edge case Option B would have to invent a new convention for.
+Option A's own cost — "exactly covers a subtree" becoming a second place that computes
+cover geometry — is fully mitigated by calling `coveredSubtreeRoots` directly rather
+than re-deriving it (avoiding the Q18/Q19 duplication hazard by construction).
+
+Implementation: `classify.ts` gains a check that a change's true old-document range
+(not the `toA - 1`-blind `ChangedLineSpan.toLine`, which is exactly the mechanism this
+bug lives in — a new `rangeEnd` fact carries the untruncated end position) matches
+`coveredSubtreeRoots(doc, range)`, folded into the same `other`-shapes bucket as the
+existing chrome-boundary and multi-block-insertion checks. `escalate.ts` is untouched —
+no geometry moved, so `selection-as-subtree-set` starts from the same ground this
+change found it on.
+
+## Q23. `fix-orphan-gap-on-node-deletion` real-vault manual pass (2026-07-25)
+
+Change: `fix-orphan-gap-on-node-deletion`.
+
+Task 5's real-vault pass: exact-cover deletion of every node kind on real notes
+(`Notes/Edge Case Zoo.md`'s atoms and heading section, `Projects/Kitchen
+Renovation.md`'s nested list item), via a disposable scripted e2e pass (built,
+run, and removed — not kept as permanent regression coverage, since it's coupled
+to fixture content and duplicates what the permanent suite in
+`62-outline-edit-enforcement.e2e.ts` already covers structurally).
+
+**Clean on every kind tried:** a code fence, a table, a callout, a whole heading
+section containing all three as children, a nested nested-list item on a real
+project note, and a tight (no-gap) list item — every one of these, exactly
+selected and deleted, left no orphan blank line and no leftover structure. Two
+script bugs surfaced along the way (selecting one line too far, into the *next*
+node's own start instead of stopping at the exact cover's true end) and were
+corrected rather than being implementation bugs — both reproduced identically
+against a direct `computeVerdict` call, confirming the escalation math, not the
+fix, was what my test scripts got wrong.
+
+**Real finding, not a regression: ordered-list item deletion is unenforced
+whenever Obsidian's own live renumbering fires.** Deleting an ordered-list item
+that has FOLLOWING siblings triggers Obsidian's own built-in list-renumbering as
+a SEPARATE change within the SAME transaction — confirmed by intercepting
+`EditorView.dispatch` directly (not guesswork): deleting item 2 of "1. first / 2.
+second / 3. third" produces TWO change ranges in one transaction, `{delete "2.
+second"}` and `{"3. " → "2. "}` (the marker rewrite, `insert` non-empty). D3
+("do not widen beyond exact covers") and D2's multi-range rule ("require every
+range to be an exact cover for the structural path") both correctly decline this
+shape — one range isn't a pure deletion — so the WHOLE transaction passes
+natively, leaving a blank line where the deleted item's text used to be (native
+Backspace empties the line; it doesn't remove it). **This is unchanged from
+before this change**: the old `collectEditFact`'s single-range restriction
+rejected the same two-range transaction the same way, for the same reason.
+Deleting the LAST ordered item (nothing following to renumber, so Obsidian never
+fires the second range) already gets this fix's full benefit — confirmed
+directly, single range, `rewrite` verdict, clean result.
+
+**Follow-up worth carrying forward, not done here:** a multi-range rule that
+tolerates "one exact-cover pure-deletion range, plus any number of ranges that
+are ONLY an ordered-list marker's own number/delimiter changing" would close this
+gap without widening D3's "exact covers only" principle in spirit — the marker
+rewrite carries no content, just Obsidian's own renumbering side effect. Not
+attempted here: out of this change's scope (D3 draws the line at exact covers,
+and this shape is a different, adjacent one), and needs its own measurement of
+how reliably that marker-rewrite shape can be recognized (e.g., is it always
+exactly `digits+delimiter+space` with the same start offset as the old marker,
+across every list style this plugin supports).
