@@ -16,10 +16,6 @@ architecture question:
 - **Home pressed twice reaches inside the marker**, a position ArrowLeft and mouse clicks
   are both clamped out of. The shipped clamp's own spec claims it applies "regardless of the
   gesture that produced the position"; measurement says otherwise.
-- One Shift+ArrowDown from a subtree's last child selects the entire document, and every
-  further press does nothing.
-- With two cursors in adjacent siblings, one Shift+ArrowDown collapses to a single range
-  covering everything.
 
 The Home finding is the important one architecturally, and a review round root-caused it
 precisely (measured 2026-07-25 via the stats counters, the same technique Q19 used):
@@ -47,9 +43,9 @@ is not ours, is not documented, and can change in an Obsidian release. Correctin
 after the fact therefore has coverage we cannot state in advance; binding keys has coverage
 that is exactly the list of keys bound.
 
-Selection extension has a parallel history: it was never designed at all. It is a
-by-product of per-transaction escalation, and its granularity is an artifact of whether a
-blank line happens to sit between two nodes.
+Keyboard selection extension has a parallel history and was split into its own change
+(`node-selection-extension`), because its shape depends on `selection-as-subtree-set`'s
+escalation geometry while caret motion does not depend on either.
 
 ## Goals / Non-Goals
 
@@ -59,15 +55,13 @@ blank line happens to sit between two nodes.
   the document, not an emergent consequence of which commands reach the filter.
 - Complete chrome transparency from edits to the caret: gap lines and list-item marker
   prefixes stop being positions.
-- Give Shift+Arrow a designed meaning — one node per press, symmetric in both directions,
-  independent per range — replacing behavior that no one chose.
 - Change no file bytes, no parse model, and no off-mode behavior.
 
 **Non-Goals:**
 
-- Structural keys over multi-node selections (Tab indenting only the last node). Confirmed
-  again in this probe pass, but it is edit semantics, and it wants the operand definition
-  this change produces before it can be designed.
+- Keyboard selection extension (Shift+Arrow) — its own change, `node-selection-extension`.
+- Structural keys over multi-node selections (Tab indenting only the last node). Edit
+  semantics, and it wants a settled operand definition first.
 - The two-transaction escalation flash (docs/research/13). Its mechanism is understood and
   its fix touches two shipped contracts; it deserves its own pass.
 - Enter/Backspace edge cases, including Enter on an empty list item.
@@ -134,7 +128,7 @@ of `Bravo` and `→` at the end of `Alpha` to the same place, when they must lan
 sides of the gap. Conversely, motion cannot answer a click, which has no direction.
 
 *Consequence worth stating:* placement resolution is what makes Escape work without binding
-it (D8), and what keeps drag-release and pointer paths coherent for free.
+it (D6), and what keeps drag-release and pointer paths coherent for free.
 
 *Jurisdiction, stated rather than implied.* The resolver replaces `clampCursorToContent` at
 its existing call site and inherits its scope exactly: transactions classified
@@ -211,95 +205,7 @@ nothing, because for an unwrapped line the row and the line coincide and collaps
 For a list item's continuation line, the row's content boundary is its alignment column, not
 column 0 — continuation-line alignment whitespace is marker chrome like any other.
 
-### D6. Extension steps along an ordered sequence of covers
-
-For a given anchor node and direction, the reachable selections form an **ordered, strictly
-growing sequence of covers**: the anchor node's own subtree, then the cover produced by
-taking each successive node in content order in that direction, with any step that would
-leave the cover unchanged omitted. Each press moves one position along the sequence for the
-current direction; the opposite direction moves one position back. Stepping below the first
-element switches to the opposite direction's sequence.
-
-*Why a sequence of covers, and not "walk the head node":* an earlier formulation defined the
-state as (anchor node, head node) and called the two directions "exact inverses over the head
-node's walk." Review flagged that as ambiguous, and it is worse than ambiguous — it is not
-well defined. Two different head nodes can produce the identical cover: with the anchor on a
-parent, head = `child two` and head = `parent` both yield the parent's whole subtree. Head
-identity is not recoverable from the selection, so it cannot be the state. The cover is, and
-the range's orientation supplies the direction. Stating the model over covers also makes the
-property test express the right invariant: consecutive covers are strictly nested, and
-opposite presses are mutual inverses *over covers*, not over head identity.
-
-*The anchor node needs real state — statelessness does not transfer here.* A second review
-round found that the same non-recoverability argument applies to the ANCHOR node, which the
-sequence is defined in terms of. Worked through this change's own flagged example:
-
-```
-- parent
-	- child one
-	- child t|wo          ⇧↓ →  cover = child two's subtree, anchor at line 2 → child two ✓
-- next                    ⇧↓ →  cover = parent's subtree + next, anchor at line 0 → PARENT ✗
-                          ⇧↑ →  steps back in PARENT's sequence → parent's subtree
-```
-
-The third press should return the selection to `child two`'s subtree. Instead it produces
-`parent`'s subtree — a cover that never appeared on the way down — breaking both "Shift+Up
-undoes Shift+Down" and "shrinking bottoms out at the anchor node."
-
-There is no geometric escape. D7 requires the dispatched selection to BE the cover, which
-forces the range's anchor onto one of the cover's two edges; once an ancestor is pulled in,
-neither edge identifies the original node. The reason statelessness transferred cleanly to
-`progressive-select-all` is that its ladder is MONOTONE — Mod-A only ever widens, so every
-rung is identifiable from the cover alone. A bidirectional walk needs strictly more state
-than a monotone one.
-
-*Decision:* keep an **extension origin** — the document offset the current extension gesture
-started from — in a `StateField`, cleared by any document change and by any selection change
-this capability's own dispatches did not produce. The sequence is computed for
-`nodeAtLine(origin)`. With no origin recorded, a press starts a fresh gesture from the
-current selection. So the recomputed-every-press discipline is preserved for the sequence
-itself; the only retained state is where the gesture began, and it is discarded the moment
-anything else touches the selection.
-
-*Alternative considered:* accept the behavior and weaken the guarantee — shrink bottoms out
-at the current cover's own root, and ⇧↓/⇧↑ are inverses only while no ancestor has been
-pulled in. Rejected: it produces a cover the user never passed through, in exactly the
-document shape this change already flags as its riskiest (E4b), and it contradicts examples
-E5 and E6 as already reviewed and approved. The modal block-selection work filed in
-docs/research/13 needs an equivalent origin field regardless, so this is not a mechanism
-invented solely for this change.
-
-*Why steps that leave the cover unchanged are omitted:* without it, extending from a parent
-whose subtree is already covered would spend a press moving the head onto a child already
-inside the cover — a visibly dead keypress.
-
-*Why content order rather than ladder rungs:* an earlier draft had the head climb the Mod-A
-ladder's rungs, so that running out of siblings produced "the parent's subtree" as its own
-stop before reaching the parent's next sibling. Rejected on review: a directional key means
-"one more node, that way," and when the no-partial-subtrees invariant forces the parent in,
-that is a consequence of taking the next node, not a separate destination. Splitting it into
-two presses makes the user pay for an invariant they did not ask about. Selecting the
-parent's subtree alone remains reachable through the Mod-A ladder, which is the feature that
-answers "wider, from here."
-
-*Why this is not what motivated the ladder draft:* the multi-cursor collapse (two adjacent
-cursors, one press, whole document) is fixed by "first press selects the anchor node,"
-independent of how later presses walk. The ladder draft was solving an already-solved
-problem.
-
-*Accepted cost:* the first press loses the caret's exact offset, so the walk bottoms out at
-"anchor node, whole" rather than at the original caret. Workflowy and Logseq behave the same
-way.
-
-### D7. Extension does not touch escalation math
-
-Extension dispatches an exact cover. `escalateRanges` leaves exact covers unchanged — a
-property already established and tested by `progressive-select-all`, whose ladder rungs pass
-through the filter untouched for the same reason. So the expand-only invariant is not
-weakened by a shrinking extension: expand-only governs the filter's correction of
-*user-produced* ranges, and extension produces none.
-
-### D8. Escape stays native
+### D6. Escape stays native
 
 Native Escape collapses a selection to one of its edges. Under this change a cover's end is a
 gap-line position, so D2's placement resolution catches it and the caret lands at the owning
@@ -322,7 +228,7 @@ caret on chrome, and D2 has to catch that regardless. Binding Escape would not m
 two-press behavior better; it would only hide it. The oddity is recorded as a manual-pass
 item, not as a reason to take the key.
 
-### D9. Headings are ordinary nodes; their `#` stays addressable
+### D7. Headings are ordinary nodes; their `#` stays addressable
 
 Every rule here treats a heading as a paragraph that owns a section. Its `#` prefix is
 directly editable text, unlike a list marker — already the shipped position
@@ -330,14 +236,14 @@ directly editable text, unlike a list marker — already the shipped position
 specifies column 0 as a heading's content-start rung). Q17's "should headings get the same
 prohibition" stays parked.
 
-### D10. Atoms are content, not chrome
+### D8. Atoms are content, not chrome
 
 An atom's own lines — a fenced code block's body, a table's rows — are content lines and
 carry no marker prefix rule. Motion inside an atom is ordinary line motion; only the atom's
 trailing gap is skipped. This follows the existing model, where an atom is opaque to
 *structural* operations but is a normal node otherwise.
 
-### D11. Two shipped invariants are knowingly reversed
+### D9. Two shipped invariants are knowingly reversed
 
 - `node-selection-enforcement`'s "cursors are never moved by this layer, including on gap
   lines" is reversed for outline mode. It was signed up for in Phase B, backed by a property
@@ -348,7 +254,7 @@ trailing gap is skipped. This follows the existing model, where an atom is opaqu
   there. The escape hatch becomes the outline-mode toggle, exactly as docs/research/13
   anticipated.
 
-### D12. The preamble is out of jurisdiction, explicitly
+### D10. The preamble is out of jurisdiction, explicitly
 
 Frontmatter and any other content before the first node belong to no node. Everything in this
 change applies to node content only: in the preamble, motion, placement, and extension are
@@ -378,9 +284,6 @@ text.
 - **Losing the gap-editing escape hatch annoys someone with template spacing to maintain** →
   the mode toggle is the documented answer; a real complaint would be evidence for an
   in-mode exception, which this change deliberately does not invent up front.
-- **The E4b jump reads as a surprise** (a *down* key extending the selection upward when the
-  invariant pulls a parent in) → flagged as the primary manual-pass question; the alternative
-  costs an extra press on every such extension.
 - **Node kinds not covered by the fixtures** (callouts, tables, embeds, front-matter
   adjacency) behave unexpectedly → discover during implementation against real notes rather
   than guessing up front; D10 states the default.
@@ -403,5 +306,3 @@ key outside outline mode, so notes without the mode are unaffected at all times.
   Task 1's prototype answers this, and it may send D3 back for revision.
 - Should Home's first rung be the visual row or the logical line, on a genuinely wrapped
   paragraph? D5 recommends the row; only hands-on use decides.
-- Does E4b's jump read as sensible? If not, the ladder-walk alternative recorded in D6 is the
-  fallback, at the cost of one extra press per such extension.
