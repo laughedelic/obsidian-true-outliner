@@ -134,6 +134,29 @@ Alpha one.
 Bravo two.|
 ```
 
+### A5 — Down onto a marker line clamps, it does not skip *(unchanged)*
+
+```
+a paragraph| here
+- item
+```
+
+Press `↓`. The goal column falls inside the next line's `- ` marker. The caret clamps to
+that item's content start — it does **not** continue past the item looking for an
+addressable column:
+
+```
+a paragraph here
+- |item
+```
+
+This already works today, and is specified as
+`node-selection-enforcement`'s "Vertical motion onto a shorter marker line still lands on
+content". It is called out here because it is the case that distinguishes the two vertical
+corrections: a **blank line** has no content to land on, so motion continues past it; a
+**marker line** has content, so motion clamps within it. Collapsing both into "keep going
+until the position is addressable" would silently skip the whole item.
+
 ---
 
 ## B. Horizontal motion
@@ -558,25 +581,28 @@ Logseq behave the same way.
 
 Press `Esc`.
 
-**Today — unresolved, needs re-confirmation.** The probe measured the selection completely
-unchanged (`0:0→3:0` before and after). Hands-on use reports the native behavior instead:
-the selection collapses to a caret at one of its edges, depending on the direction the
-selection was made. Both can be true at once — `selection-visual-treatment` blurs the
-editor while block chrome is showing, and the probe pressed Escape into that blurred
-state, so the two reports may simply be measuring the focused and blurred cases.
+**Today — measured, and messier than either earlier account.** The FIRST Escape changes
+nothing. The SECOND collapses to the head edge — which is `3:0`, **a blank gap line**. On a
+backward selection the first Escape also changes nothing. So "Escape does nothing" and
+"Escape collapses to an edge" are both partly right. The two-press behavior is plausibly the
+blur-based chrome mechanism consuming the first press.
 
-**Intended** — collapse to the anchor node's content start, regardless of direction:
+**Intended — Escape is not bound.** Native collapse stays exactly as it is; the caret's
+landing is corrected by the placement rule, because a cover's end is a gap-line position:
 
 ```
-|Alpha one.
+Alpha one.
 
-Bravo two.
+Bravo two.|
 ```
 
-> **Decide after re-confirming.** If native edge-collapse already works with the editor
-> focused, this binding may not be worth adding at all: edge-collapse is a reasonable
-> answer, and not binding `Esc` leaves it free for the modal block-selection work that is
-> already filed as a separate future change.
+(The caret lands at the content end of the node owning that gap — `Bravo two.` owns line 3.)
+
+> **Manual-pass item, not a blocker.** Why the first Escape does nothing is worth
+> understanding, but it does not change the decision: whatever Escape does natively, it can
+> land the caret on chrome, and the placement rule has to catch that regardless. Binding
+> Escape would hide the two-press oddity rather than fix it, and would consume a key the
+> filed modal block-selection work wants.
 
 ### E8 — Two cursors in adjacent siblings
 
@@ -691,3 +717,59 @@ children (measured; unchanged by this proposal):
 ▌Body text.
 ▌
 ```
+
+---
+
+## G. Frontmatter and the preamble
+
+Nothing in this change applies here — the section exists to pin that "nothing" down, because
+the addressable-position rule is stated over node content spans and frontmatter belongs to no
+node. Read without the carve-out, that rule would clamp the caret out of the preamble.
+
+### G1 — the caret already cannot enter rendered frontmatter *(unchanged)*
+
+```
+---
+title: Note
+tags: [a]
+---
+|
+Alpha one.
+```
+
+Measured: with properties rendered in Live Preview, placing the caret on a frontmatter line
+lands it on the blank line below the closing `---` instead. `ArrowUp` from the first node
+stops there too, and `ArrowLeft` at the first node's start does the same. Obsidian is already
+keeping the caret out; the plugin adds nothing.
+
+That blank line is preamble — it belongs to no node, and no node owns it as a trailing gap.
+It stays addressable.
+
+### G2 — Source mode frontmatter is ordinary text *(unchanged)*
+
+```
+---
+tit|le: Note
+---
+
+Alpha one.
+```
+
+With the raw markdown showing, every position in the frontmatter is editable text and every
+motion key behaves exactly as it does with the plugin disabled. No clamping, no gap-skipping,
+no extension geometry.
+
+### G3 — extension from the first node does not reach into the preamble
+
+```
+---
+title: Note
+---
+
+Alpha o|ne.
+
+Bravo two.
+```
+
+`⇧↓` selects `Alpha one.`'s subtree, and repeated `⇧↑` bottoms out there rather than
+extending upward into the frontmatter — the preamble is not a node and has no cover.

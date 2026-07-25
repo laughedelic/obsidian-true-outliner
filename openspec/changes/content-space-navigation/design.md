@@ -21,11 +21,31 @@ architecture question:
 - With two cursors in adjacent siblings, one Shift+ArrowDown collapses to a single range
   covering everything.
 
-The Home finding is the important one architecturally. The clamp lives in the transaction
-filter, correcting positions *after* a command has produced them, and at least one ordinary
-cursor command evidently does not reach it. Post-hoc correction is leaky by construction:
-its coverage is a function of which transactions happen to flow through the funnel, which is
-not a property anyone can state, test, or maintain.
+The Home finding is the important one architecturally, and a review round root-caused it
+precisely (measured 2026-07-25 via the stats counters, the same technique Q19 used):
+
+| gesture | classification | clamped? |
+| --- | --- | --- |
+| ArrowLeft | `selection-only` | yes |
+| Home | `programmatic` | no |
+
+Obsidian's own Home command dispatches with no `userEvent`, so `isProgrammatic` returns true
+and the funnel passes it through **by design**. Nothing is leaking; the classifier is doing
+exactly what `node-selection-enforcement` specifies.
+
+That correction matters, and it does not weaken the case for moving motion out of the filter
+— it sharpens it. The clamp cannot be extended to cover Home without clamping `programmatic`
+transactions, and `programmatic` pass-through is a committed requirement with its own
+scenarios (workspace restore, sync reconciliation); the redo-cursor fix that landed in
+`efce9de` leans on the same pass-through discipline for its own re-assert transactions. So
+correction cannot reach this case at all without breaking something else that is load-bearing.
+
+The general form of the argument, stated accurately: the funnel's *classes* are well defined
+and enumerable, but the *mapping from a user gesture to a class* is decided by whether
+Obsidian implements that gesture itself and whether it annotates a `userEvent`. That mapping
+is not ours, is not documented, and can change in an Obsidian release. Correcting positions
+after the fact therefore has coverage we cannot state in advance; binding keys has coverage
+that is exactly the list of keys bound.
 
 Selection extension has a parallel history: it was never designed at all. It is a
 by-product of per-transaction escalation, and its granularity is an artifact of whether a
@@ -64,19 +84,21 @@ Bind motion keys in the existing high-precedence, per-keypress outline-mode-gate
 directly from the parsed tree and dispatches it. The transaction filter's
 `clampCursorToContent` is retired.
 
-*Why, concretely:* the measured Home inconsistency is not a bug to patch but the signature
-of the approach. A correction layer covers exactly the commands that route through it, and
-nothing guarantees which those are. A command layer covers exactly the keys it binds, which
-is enumerable and reviewable. This project rejected "enumerate the inputs" for *selection
-enforcement* — where the input space is unbounded (pointer, IME, sync, plugins, drag) — but
-caret motion is the opposite case: a small, closed set of keys, each of which must produce a
-specific position. The architectures fit different problems, and the manifest's objection
-does not transfer.
+*Why, concretely:* Home is classified `programmatic` and deliberately passed through
+(measured; see Context). A correction layer's coverage is therefore decided by Obsidian's
+own implementation choices per gesture, which are neither documented nor stable across
+releases. A command layer's coverage is the list of keys it binds. This project rejected
+"enumerate the inputs" for *selection enforcement* — where the input space really is
+unbounded (pointer, IME, sync, plugins, drag) — but caret motion is the opposite case: a
+small, closed set of keys, each of which must produce a specific position. The architectures
+fit different problems, and the manifest's objection does not transfer.
 
-*Alternative considered:* extend the filter's clamp to catch every cursor placement. Rejected
-— it cannot catch what does not reach it, which is precisely the observed failure, and it
-also cannot express *motion* (see D3: the correct target for `←` at a node start and for `→`
-at the previous node's end are different positions, though both are "skip the gap").
+*Alternative considered:* extend the filter's clamp to catch every cursor placement.
+Rejected on the measurement — reaching Home means clamping `programmatic` transactions,
+which breaks `node-selection-enforcement`'s own "Programmatic and remote transactions pass
+through untouched" requirement and the discipline `efce9de`'s redo-cursor fix depends on.
+It also cannot express *motion* (see D3: the correct target for `←` at a node start and for
+`→` at the previous node's end are different positions, though both are "skip the gap").
 
 ### D2. Two mechanisms, not one: motion and placement resolution
 
@@ -97,11 +119,40 @@ sides of the gap. Conversely, motion cannot answer a click, which has no directi
 *Consequence worth stating:* placement resolution is what makes Escape work without binding
 it (D8), and what keeps drag-release and pointer paths coherent for free.
 
-### D3. Vertical motion delegates to CM6 and continues past chrome
+*Jurisdiction, stated rather than implied.* The resolver replaces `clampCursorToContent` at
+its existing call site and inherits its scope exactly: transactions classified
+`selection-only` in an outline-mode editor. It SHALL NOT touch `programmatic`, `plugin-own`,
+or `composition` transactions. This is not a limitation to work around — it is the same
+pass-through discipline `node-selection-enforcement` already commits to, and `efce9de`'s
+`CURSOR_REASSERT_USER_EVENT` re-assert transactions are `plugin-own` precisely so they land
+byte-exactly; a resolver that moved them would reintroduce the redo-cursor bug Q21 just
+closed.
 
-`↑`/`↓` run the native vertical-motion command, then, if the landing position is not
-addressable, continue in the same direction until one is — reusing CM6's own goal column
-rather than recomputing a column from the snapped position.
+*Therefore the addressable-position invariant is scoped, not absolute.* It holds for
+positions produced by user gestures in outline mode. A `programmatic` placement — a search
+jump, link navigation, workspace restore — can still leave the caret on a non-addressable
+position, and the next user motion normalizes it. Claiming otherwise would repeat, at wider
+scope, exactly the over-claim this design faults the old clamp's spec for.
+
+### D3. Vertical motion delegates to CM6, then continues OR clamps — the two are different
+
+`↑`/`↓` run the native vertical-motion command. If the landing position is not addressable,
+the correction depends on *why*:
+
+- **The landing line has no content at all** (a gap line) → **continue** in the same
+  direction to the next line that does. There is nothing on this line to land on.
+- **The landing line has content, but the column is chrome** (a list item's marker prefix or
+  a continuation line's alignment whitespace) → **clamp within the line** to its content
+  column. The node is the right destination; only the column is wrong.
+
+An earlier draft of this decision said only "continue in the same direction until the
+position is addressable," which is wrong for the second case: applied to `↓` landing at
+column 1 of `- item`, it would skip the entire list item. It would also have silently dropped
+a shipped, specified behavior — `node-selection-enforcement`'s "Vertical motion onto a
+shorter marker line still lands on content." The distinction above preserves it.
+
+Both corrections reuse CM6's own goal column rather than recomputing a column from the
+corrected position.
 
 *Why:* docs/research/13's recorded risk is specifically that snapping recomputes the *next*
 move's goal column from the snapped position, drifting over consecutive presses. Two
@@ -137,17 +188,30 @@ nothing, because for an unwrapped line the row and the line coincide and collaps
 For a list item's continuation line, the row's content boundary is its alignment column, not
 column 0 — continuation-line alignment whitespace is marker chrome like any other.
 
-### D6. Extension walks content order and recomputes the cover
+### D6. Extension steps along an ordered sequence of covers
 
-The selection is understood as (anchor node, head node). The first press in either direction
-sets the head node to the anchor node, selecting that node's whole subtree. Each further
-press moves the head node to the next node in content order **that actually changes the
-cover**, then recomputes the cover through the existing subtree/sibling-run geometry.
-Reverse direction walks back the same way, bottoming out at the anchor node.
+For a given anchor node and direction, the reachable selections form an **ordered, strictly
+growing sequence of covers**: the anchor node's own subtree, then the cover produced by
+taking each successive node in content order in that direction, with any step that would
+leave the cover unchanged omitted. Each press moves one position along the sequence for the
+current direction; the opposite direction moves one position back. Stepping below the first
+element switches to the opposite direction's sequence.
 
-*Why "that actually changes the cover":* without it, extending from a parent whose subtree is
-already covered would spend a press moving the head onto a child already inside the cover — a
-visibly dead keypress.
+*Why a sequence of covers, and not "walk the head node":* an earlier formulation defined the
+state as (anchor node, head node) and called the two directions "exact inverses over the head
+node's walk." Review flagged that as ambiguous, and it is worse than ambiguous — it is not
+well defined. Two different head nodes can produce the identical cover: with the anchor on a
+parent, head = `child two` and head = `parent` both yield the parent's whole subtree. Since
+the model must be stateless — derived from the current selection, the same discipline
+`progressive-select-all` adopted — the head node is not recoverable from what is on screen,
+so it cannot be the state. The cover is, and the range's anchor/head orientation supplies the
+direction. Stating the model over covers also makes the property test express the right
+invariant: consecutive covers are strictly nested, and opposite presses are mutual inverses
+*over covers*, not over head identity.
+
+*Why steps that leave the cover unchanged are omitted:* without it, extending from a parent
+whose subtree is already covered would spend a press moving the head onto a child already
+inside the cover — a visibly dead keypress.
 
 *Why content order rather than ladder rungs:* an earlier draft had the head climb the Mod-A
 ladder's rungs, so that running out of siblings produced "the parent's subtree" as its own
@@ -177,17 +241,26 @@ weakened by a shrinking extension: expand-only governs the filter's correction o
 
 ### D8. Escape stays native
 
-Native Escape collapses a selection to one of its edges, direction-dependent. Under this
-change a cover's end is a gap-line position, so D2's placement resolution catches it and the
-caret lands at the owning node's content end. That is a good outcome, reached without a
-binding.
+Native Escape collapses a selection to one of its edges. Under this change a cover's end is a
+gap-line position, so D2's placement resolution catches it and the caret lands at the owning
+node's content end. That is a good outcome, reached without a binding.
 
 *Why not bind it:* the project's standing bias is to leave stock behavior alone wherever
 intervention is not needed, and `Esc` is wanted by the filed modal block-selection work.
 
-*Reversal note:* an earlier round chose to bind Escape, on the mistaken basis (a probe
-artifact — Escape was measured against a blurred editor) that it did nothing today. With the
-native behavior confirmed, the binding is unnecessary.
+*Measured, and messier than either earlier account.* On a forward two-node cover the FIRST
+Escape changes nothing and the SECOND collapses to the head edge — which lands on a gap line
+(`0:0→3:0` collapsing to caret `3:0`, a blank line). On a backward cover the first Escape
+also changes nothing. So the original probe reading ("Escape does nothing") and the hands-on
+report ("collapses to an edge, direction-dependent") are both partly right, and neither is the
+whole behavior. The two-press oddity is plausibly the blur-based chrome mechanism consuming
+the first Escape — the same mechanism `docs/research/13` records as hard to reason about, and
+which a fix on another branch (`4e6b0ef`, not on main) touches.
+
+*What this does not change:* the decision. Whatever Escape does natively, it can land the
+caret on chrome, and D2 has to catch that regardless. Binding Escape would not make the
+two-press behavior better; it would only hide it. The oddity is recorded as a manual-pass
+item, not as a reason to take the key.
 
 ### D9. Headings are ordinary nodes; their `#` stays addressable
 
@@ -214,6 +287,25 @@ trailing gap is skipped. This follows the existing model, where an atom is opaqu
   gap, editing it, stays native") becomes unreachable, because the caret can no longer be put
   there. The escape hatch becomes the outline-mode toggle, exactly as docs/research/13
   anticipated.
+
+### D12. The preamble is out of jurisdiction, explicitly
+
+Frontmatter and any other content before the first node belong to no node. Everything in this
+change applies to node content only: in the preamble, motion, placement, and extension are
+byte-for-byte stock, exactly as `node-selection-enforcement`'s "Preamble and
+out-of-jurisdiction selections pass through" already requires. The addressable-position rule
+must say so in its own text — read without the carve-out it makes frontmatter unreachable,
+since preamble lines are in no node's content span.
+
+*This is a carve-out, not a feature.* No frontmatter handling is wanted or needed: Obsidian
+provides its own Properties UI for editing frontmatter, and a note can always be taken out of
+outline mode for raw editing. Measurement backs that up — in Live Preview with properties
+rendered, the caret already cannot be placed inside frontmatter at all (a `setCursor` into a
+frontmatter line lands on the blank line below the closing `---`, and ArrowUp from the first
+node stops there too). The risk was never that we would under-serve frontmatter; it was that
+an unqualified addressable-position rule would clamp the caret out of a region Obsidian is
+already handling, and out of raw frontmatter in Source mode where it genuinely is editable
+text.
 
 ## Risks / Trade-offs
 

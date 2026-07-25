@@ -1,19 +1,42 @@
 ## ADDED Requirements
 
 ### Requirement: Only content positions are caret-addressable in outline mode
-In outline mode, the set of document positions the caret may occupy SHALL be the union of
-every node's own content spans. A blank gap line SHALL NOT be an addressable position. A
-list item's marker prefix — its leading indentation, marker character, and the single space
-after it, together the span `contentColumnCh` already identifies as non-content — SHALL NOT
-be addressable, on the item's first line or as alignment whitespace on a continuation line.
-A heading's `#` prefix and an atom's own lines ARE content and remain fully addressable. This
-property SHALL hold regardless of the gesture that produced the position, and SHALL be
-verified as a property over generated documents, not only for the enumerated key bindings.
+In outline mode, within the plugin's jurisdiction, the set of document positions the caret
+may occupy SHALL be the union of every node's own content spans, TOGETHER WITH the entire
+document preamble. A blank gap line SHALL NOT be an addressable position. A list item's
+marker prefix — its leading indentation, marker character, and the single space after it,
+together the span `contentColumnCh` already identifies as non-content — SHALL NOT be
+addressable, on the item's first line or as alignment whitespace on a continuation line. A
+heading's `#` prefix and an atom's own lines ARE content and remain fully addressable.
 
-#### Scenario: No gesture reaches a gap line
+**Jurisdiction.** This property SHALL hold for positions produced by user gestures in
+outline mode. It SHALL NOT be enforced against transactions classified `programmatic`,
+`plugin-own`, or `composition`, which continue to pass through untouched per
+`node-selection-enforcement`; a caret placed by such a transaction may rest on a
+non-addressable position until the next user gesture moves it. The preamble — frontmatter
+and any other content before the first node, where `nodeAtLine` resolves to nothing — is
+outside the plugin's jurisdiction entirely: motion, placement, and extension there SHALL be
+byte-for-byte stock.
+
+The property SHALL be verified over generated documents, not only for the enumerated key
+bindings.
+
+#### Scenario: No user gesture reaches a gap line
 - **WHEN** any arrow key, Home, End, mouse click, or selection collapse would place the
   caret on a blank gap line
 - **THEN** the caret occupies a content position instead
+
+#### Scenario: The preamble stays stock
+- **WHEN** the caret is in a note's frontmatter, or on a blank line between the frontmatter
+  and the first node, and the user presses any motion key
+- **THEN** the caret behaves exactly as it does with the plugin disabled — no position in
+  the preamble is made unreachable, and none is redirected
+
+#### Scenario: A programmatic placement is not corrected
+- **WHEN** a transaction with no `userEvent` places the caret on a gap line, for example a
+  workspace restore or a search-result jump
+- **THEN** the caret lands exactly where the transaction placed it, and the next user motion
+  moves it into content space
 
 #### Scenario: A heading's marker stays addressable
 - **WHEN** the caret is inside a heading's text and the user presses Home
@@ -49,13 +72,21 @@ mode every motion binding SHALL decline the key, so motion is byte-for-byte stoc
 
 ### Requirement: Vertical motion crosses gaps in one press and preserves the goal column
 `ArrowUp` and `ArrowDown` SHALL move the caret to the corresponding position in the nearest
-node above or below whose content lies in that direction, passing over any intervening gap
-lines without stopping on them. The goal column tracked across consecutive vertical presses
-SHALL be CodeMirror's own, carried through the skipped chrome rather than recomputed from an
-intermediate position, so a sequence of presses over nodes of differing lengths stays
-visually aligned. At the first or last node, vertical motion toward the document edge SHALL
-place the caret at that node's content start or content end respectively, and a further press
-SHALL do nothing.
+node above or below whose content lies in that direction. Where the resulting position is
+not addressable, the correction SHALL depend on the reason, and the two cases are distinct:
+
+- When the landing LINE carries no content at all — a blank gap line — motion SHALL CONTINUE
+  in the same direction to the next line that does.
+- When the landing line carries content but the landing COLUMN is chrome — a list item's
+  marker prefix, or a continuation line's alignment whitespace — motion SHALL CLAMP within
+  that line to its content column, and SHALL NOT skip the node.
+
+The goal column tracked across consecutive vertical presses SHALL be CodeMirror's own,
+carried through the correction rather than recomputed from the corrected position, so a
+sequence of presses over nodes of differing lengths stays visually aligned. At the first or
+last node, vertical motion toward the document edge SHALL place the caret at that node's
+content start or content end respectively, and a further press SHALL do nothing — except
+where a preamble lies above the first node, which motion enters as ordinary stock behavior.
 
 #### Scenario: One press crosses a blank line
 - **WHEN** the caret sits mid-text in a paragraph followed by a blank line and another
@@ -68,6 +99,11 @@ SHALL do nothing.
   over an intervening two-character node
 - **THEN** the caret lands at column 7 of the third node, having clamped to the short node's
   end only while passing through it
+
+#### Scenario: Vertical motion onto a marker line clamps, it does not skip
+- **WHEN** the caret moves vertically onto a list item whose marker prefix occupies the
+  goal column
+- **THEN** the caret lands at that item's content-start column — the item is not passed over
 
 #### Scenario: Downward motion at the last node
 - **WHEN** the caret is mid-text in the document's last node and the user presses ArrowDown
@@ -132,6 +168,13 @@ resolves to the content end of the node that owns that gap, which is the node ab
 position in a list item's marker prefix resolves to that line's content-start column. No
 pixel-proximity or nearest-position heuristic SHALL be used.
 
+Resolution SHALL apply only to transactions classified `selection-only` in an outline-mode
+editor — the same jurisdiction `clampCursorToContent` occupies today, which this mechanism
+replaces. Transactions classified `programmatic`, `plugin-own`, or `composition` SHALL pass
+through with their positions untouched, preserving `node-selection-enforcement`'s existing
+pass-through guarantees and the byte-exact cursor re-assertion that
+`structural-history-integration` depends on for correct redo.
+
 #### Scenario: Clicking a blank line lands on the node above
 - **WHEN** the user clicks on a blank line between two nodes
 - **THEN** the caret lands at the content end of the node above it, which owns that gap
@@ -144,3 +187,9 @@ pixel-proximity or nearest-position heuristic SHALL be used.
 - **WHEN** a selection covering a node and its trailing gap is collapsed toward its end by a
   native gesture such as Escape or ArrowRight
 - **THEN** the caret lands at the covered node's content end rather than on its gap line
+
+#### Scenario: A plugin-own cursor re-assertion is not resolved
+- **WHEN** the structural-history integration re-asserts a structural operation's own cursor
+  in a following selection-only transaction carrying a plugin-own `userEvent`
+- **THEN** that position is applied byte-exactly, so the history records the intended cursor
+  and redo restores it

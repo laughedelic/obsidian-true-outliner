@@ -2,16 +2,23 @@
 
 ### Requirement: Shift+Arrow extends by exactly one node per press
 In outline mode, `Shift+ArrowDown` and `Shift+ArrowUp` SHALL be intercepted before the
-native extension commands run. The selection SHALL be understood as an (anchor node, head
-node) pair, where the anchor node is the node the range's anchor resolves to. The FIRST press
-in either direction SHALL set the head node to the anchor node, producing that node's whole
-subtree cover — including its own trailing gap in full, per the existing gap-inclusive
-subtree-cover geometry. Each FURTHER press SHALL move the head node to the next node in
-content order, in the pressed direction, that changes the resulting cover, then replace the
-range with the cover of the anchor and head nodes. A step that would leave the cover
-unchanged SHALL be skipped rather than consuming the keypress, so no press is ever a
-visible no-op. When no further node exists in the pressed direction, the selection SHALL
-remain unchanged.
+native extension commands run.
+
+For an anchor node — the node the range's anchor resolves to — and a direction, the
+reachable selections SHALL form an ordered, strictly growing SEQUENCE OF COVERS: its first
+element is the anchor node's own whole subtree cover, including that node's trailing gap in
+full per the existing gap-inclusive subtree-cover geometry; each subsequent element is the
+cover obtained by additionally taking the next node in content order in that direction, with
+any step that would leave the cover unchanged omitted from the sequence. Each press SHALL
+move the selection one position along the sequence for the pressed direction. While a further
+element exists in that direction, a press SHALL always change the selection — no press is a
+visible no-op. When the sequence is exhausted, the selection SHALL remain unchanged.
+
+The sequence SHALL be recomputed from the document and the current selection on every press.
+No press-count, timer, or stored head-node state SHALL be used: the current cover together
+with the range's anchor/head orientation determines the position in the sequence, since the
+same cover can correspond to more than one head node and head identity is therefore not
+recoverable from the selection.
 
 #### Scenario: First press selects the anchor node alone
 - **WHEN** the caret is mid-text in a list item that has a following sibling on the very next
@@ -41,12 +48,18 @@ remain unchanged.
   item's does
 
 ### Requirement: Extension is symmetric and can shrink
-`Shift+ArrowUp` and `Shift+ArrowDown` SHALL be exact inverses over the head node's walk: the
-reverse direction moves the head node back along content order, shrinking the cover one node
-at a time, bottoming out at the anchor node's own whole subtree. Continuing past that point
-SHALL move the head node beyond the anchor in the opposite direction, so the selection begins
-growing again on the other side, with the range's anchor/head orientation reflecting that
-direction.
+`Shift+ArrowUp` and `Shift+ArrowDown` SHALL be exact inverses OVER COVERS: pressing the
+opposite direction SHALL restore precisely the cover that preceded the last press, moving one
+position back along the same sequence. Consecutive covers in a sequence SHALL be strictly
+nested, so a shrink is always a proper reduction. Shrinking SHALL bottom out at the
+sequence's first element, the anchor node's own whole subtree; pressing further SHALL switch
+to the opposite direction's sequence, so the selection begins growing on the other side, with
+the range's anchor/head orientation reflecting that direction.
+
+The inverse property is stated over covers rather than over head-node identity deliberately:
+different head nodes can produce the identical cover — with the anchor on a parent, a head on
+its last child and a head on the parent itself both yield the parent's whole subtree — so
+head identity is neither observable in the resulting selection nor a sound basis for a test.
 
 #### Scenario: Shift+Up undoes Shift+Down
 - **WHEN** the user presses Shift+ArrowDown twice and then Shift+ArrowUp once

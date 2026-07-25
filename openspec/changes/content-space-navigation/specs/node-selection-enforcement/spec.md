@@ -1,5 +1,54 @@
 ## MODIFIED Requirements
 
+### Requirement: Boundary-crossing selections escalate to whole sibling subtrees
+In outline mode, when a `selection-only` transaction contains a non-empty range whose
+anchor and head resolve to different nodes of the parsed tree, the filter SHALL replace
+that range with the minimal contiguous cover of whole sibling subtrees that also
+contains the original range: the run of children of the ends' deepest common ancestor
+scope that spans both ends, extended at least from the first subtree's first character
+to the last subtree's last character, INCLUDING the last subtree's own trailing
+gap in full. A node is never partially selected together with content outside it, and a
+covered node's owned trailing gap is never partially included — reaching any point of a
+node's own content by crossing into it is enough to pull its whole gap into the cover,
+with no separate drag onto the blank line required.
+
+This requirement governs ranges the filter RECEIVES: pointer drags, stale or
+programmatically restored ranges, and any other gesture that produces a raw
+boundary-crossing range. It no longer governs `Shift+ArrowUp`/`Shift+ArrowDown`, which
+`node-selection-extension` intercepts at the keymap and which dispatch exact covers this
+layer leaves unchanged — its keyboard scenario is re-pointed accordingly, so no scenario
+here attributes behavior to escalation that escalation no longer produces.
+
+#### Scenario: Drag from mid-paragraph into the next paragraph
+- **WHEN** the user drag-selects from the middle of one paragraph node into the middle
+  of the next sibling paragraph
+- **THEN** the selection becomes both paragraphs in full, including the second
+  paragraph's own trailing gap
+
+#### Scenario: Selection leaving a parent covers its subtree
+- **WHEN** a selection starts inside a heading's text and ends inside a paragraph
+  within that heading's section
+- **THEN** the selection covers the heading's entire subtree (the heading line and all
+  nodes in its section), including the section's last node's owned trailing gap
+
+#### Scenario: A raw crossing range from any other source still escalates
+- **WHEN** a `selection-only` transaction applies a range crossing from inside one node
+  into the next by some means other than the extension keymap — a pointer drag, or a
+  restored range that later becomes user-owned
+- **THEN** the resulting selection covers both nodes' subtrees in full, including the
+  second node's owned trailing gap
+
+#### Scenario: Reaching a node's content is enough, no second drag onto its gap needed
+- **WHEN** the user drag-selects from the middle of one node's text to the middle of
+  the next sibling node's text, stopping there without continuing further down onto
+  that sibling's blank trailing gap line
+- **THEN** the selection already includes the second node's whole owned trailing gap
+
+**Covered by**: `e2e/specs/61-selection-enforcement.e2e.ts` (forward/backward drags,
+heading-subtree); `tests/escalate.test.ts` (scope resolution, property tests,
+gap-inclusive cover). Keyboard extension is covered by `node-selection-extension`'s own
+suites instead.
+
 ### Requirement: Within-node content selections and cursors are untouched
 Selection ranges whose two ends both rest on a single node's own content lines SHALL
 pass through unmodified.

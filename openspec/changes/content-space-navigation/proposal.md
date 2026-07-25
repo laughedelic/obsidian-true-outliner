@@ -50,11 +50,15 @@ them up together, because they are the same question asked of the caret and of t
   lines from Shift+Enter, multi-line paragraphs), and it collapses to a single step when the
   node occupies one line — the same adjacent-identical-rung collapse `progressive-select-all`
   already specifies.
-- **Escape collapses a covering selection** to a caret at the anchor node's content start,
-  replacing native edge-collapse. *(Pending: the probe measured Escape leaving the selection
-  untouched while block chrome was showing, while hands-on use reports a native collapse to
-  an edge — see examples.md E7. If native edge-collapse holds with the editor focused, this
-  binding may be unnecessary.)*
+- **Escape is NOT bound.** Native collapse-to-edge stays; because a cover's end is a gap-line
+  position, the placement rule above already lands the caret on content. Leaving the key
+  unbound keeps it free for the filed modal block-selection work. (An earlier round chose to
+  bind it, on a probe reading since superseded — see design.md D8 and examples.md E7.)
+- **The preamble is out of jurisdiction, explicitly.** Frontmatter and anything before the
+  first node keep byte-for-byte stock motion and placement. No frontmatter handling is added:
+  Obsidian has its own Properties UI, and a note can be taken out of outline mode for raw
+  editing. The carve-out exists so the addressable-position rule — stated over node content
+  spans — cannot be read as clamping the caret out of a region that belongs to no node.
 - **BREAKING (in-mode behavior, not file format)**: positions the caret could previously
   occupy in outline mode become unreachable, and Shift+Arrow granularity changes in tight
   lists and in the upward direction. Files, the parse model, and off-mode behavior are
