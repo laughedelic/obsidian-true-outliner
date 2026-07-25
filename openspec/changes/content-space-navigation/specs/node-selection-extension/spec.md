@@ -14,11 +14,31 @@ move the selection one position along the sequence for the pressed direction. Wh
 element exists in that direction, a press SHALL always change the selection — no press is a
 visible no-op. When the sequence is exhausted, the selection SHALL remain unchanged.
 
-The sequence SHALL be recomputed from the document and the current selection on every press.
-No press-count, timer, or stored head-node state SHALL be used: the current cover together
-with the range's anchor/head orientation determines the position in the sequence, since the
-same cover can correspond to more than one head node and head identity is therefore not
-recoverable from the selection.
+The sequence itself SHALL be recomputed from the document on every press, and the selection's
+position within it SHALL be determined by the current cover together with the range's
+anchor/head orientation — never by a press count, a timer, or a stored head node, since the
+same cover can correspond to more than one head node.
+
+The ANCHOR NODE, however, SHALL be carried as explicit state: an **extension origin**
+recording the document position the current extension gesture started from. It SHALL be
+cleared by any document change and by any selection change this capability did not itself
+produce; when no origin is recorded, a press SHALL begin a fresh gesture from the current
+selection. Deriving the anchor node from the selection instead is not possible: once the
+cover grows to include an ancestor, the range's ends are that ancestor's bounds and the
+originating node is no longer identifiable. A monotone ladder such as
+`progressive-select-all`'s needs no such state; a bidirectional walk does.
+
+#### Scenario: The originating node survives an ancestor being pulled in
+- **WHEN** the caret is in a subtree's last child, the user presses Shift+ArrowDown twice —
+  the second press necessarily pulling in the parent — and then presses Shift+ArrowUp
+- **THEN** the selection returns to the last child's own subtree, the cover the first press
+  produced, and never to a cover that did not appear on the way down
+
+#### Scenario: An interruption starts a fresh gesture
+- **WHEN** the user extends a selection, then clicks elsewhere or edits the document, then
+  presses Shift+ArrowDown again
+- **THEN** the extension begins again from the current selection, with no stale origin from
+  the earlier gesture
 
 #### Scenario: First press selects the anchor node alone
 - **WHEN** the caret is mid-text in a list item that has a following sibling on the very next

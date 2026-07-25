@@ -514,6 +514,29 @@ invariant forces it:
 > selected together with content outside it. Only real use can say whether the jump reads as
 > sensible or as a surprise.
 
+### E4c — reversing the jump must return to the child, not the parent
+
+Same document, immediately after E4's second press. Press `⇧↑`.
+
+**Intended**:
+
+```
+ - parent
+ 	- child one
+▌	- child two
+ - next
+```
+
+The selection returns to `- child two`'s own subtree — the cover the first press produced.
+
+This example exists because it is the case that breaks a purely stateless implementation.
+Once the second press pulls `- parent` in, the selection's two ends are the parent's own
+bounds; nothing in the selection still identifies `- child two` as where the gesture began.
+An implementation that re-derives the originating node from the selection would step back
+into `- parent`'s own sequence and produce the parent's subtree without `- next` — a cover
+that never appeared on the way down. Hence the extension origin recorded in design D6.
+
+
 ### E5 — Shrinking back
 
 ```

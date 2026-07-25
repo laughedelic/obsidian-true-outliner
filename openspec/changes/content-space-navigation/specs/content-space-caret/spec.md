@@ -171,9 +171,9 @@ pixel-proximity or nearest-position heuristic SHALL be used.
 Resolution SHALL apply only to transactions classified `selection-only` in an outline-mode
 editor — the same jurisdiction `clampCursorToContent` occupies today, which this mechanism
 replaces. Transactions classified `programmatic`, `plugin-own`, or `composition` SHALL pass
-through with their positions untouched, preserving `node-selection-enforcement`'s existing
-pass-through guarantees and the byte-exact cursor re-assertion that
-`structural-history-integration` depends on for correct redo.
+through with their positions untouched, preserving `transaction-classification`'s
+"Programmatic and remote transactions pass through untouched" guarantee and keeping every
+plugin-own dispatch byte-exact.
 
 #### Scenario: Clicking a blank line lands on the node above
 - **WHEN** the user clicks on a blank line between two nodes
@@ -188,8 +188,8 @@ pass-through guarantees and the byte-exact cursor re-assertion that
   native gesture such as Escape or ArrowRight
 - **THEN** the caret lands at the covered node's content end rather than on its gap line
 
-#### Scenario: A plugin-own cursor re-assertion is not resolved
-- **WHEN** the structural-history integration re-asserts a structural operation's own cursor
-  in a following selection-only transaction carrying a plugin-own `userEvent`
-- **THEN** that position is applied byte-exactly, so the history records the intended cursor
-  and redo restores it
+#### Scenario: A plugin-own dispatch is not resolved
+- **WHEN** a transaction classified `plugin-own` — one of this plugin's own dispatches,
+  whatever its purpose — sets a caret position
+- **THEN** that position is applied byte-exactly, so plugin dispatches remain predictable
+  operands for history, decorations, and any later mechanism built on them

@@ -8,9 +8,19 @@ chrome that carries no content. A real-Obsidian probe pass (2026-07-25, recorded
 [examples.md](examples.md)) measured three concrete failures: ArrowLeft at a list item's
 content start is a permanent no-op at every depth, so the caret cannot leave an item
 backwards at all; Home pressed twice reaches inside the marker even though ArrowLeft and
-mouse clicks are clamped out of it, so the clamp's own "input-agnostic" claim does not hold;
-and a single Shift+ArrowDown from a subtree's last child selects the **entire document**,
-with every further press doing nothing.
+mouse clicks are clamped out of it; and a single Shift+ArrowDown from a subtree's last child
+selects the **entire document**, with every further press doing nothing.
+
+The Home case was then root-caused, and the answer is this change's most useful finding.
+ArrowLeft classifies `selection-only` and is clamped; Home classifies `programmatic` —
+Obsidian's own Home dispatches with no `userEvent` — and is passed through by design. The
+funnel behaves exactly as specified; the clamp simply never sees the key. That matters
+because the clamp cannot be extended to reach Home without clamping `programmatic`
+transactions, which breaks a committed pass-through requirement and the workspace-restore and
+sync-reconciliation scenarios under it. Correction cannot fix this case at all. Which gesture
+lands in which class is Obsidian's implementation choice, per gesture and per release — not
+something a correction layer can enumerate in advance, and the reason motion moves to bound
+keys instead (design.md D1).
 
 The second half of the problem is that Shift+Arrow extension was never designed — it is an
 emergent by-product of per-transaction selection escalation. Its granularity depends on
@@ -72,9 +82,9 @@ them up together, because they are the same question asked of the caret and of t
   positions are addressable at all, how vertical and horizontal motion traverse node
   contents, how Home/End and pointer clicks resolve, and the goal-column contract for
   repeated vertical motion.
-- `node-selection-extension`: keyboard selection extension as a directional walk over node
-  ladder rungs — one node per press, symmetric shrink, multi-range independence, and the
-  collapse-to-caret key.
+- `node-selection-extension`: keyboard selection extension as a directional step along an
+  ordered sequence of node covers — one node per press, symmetric shrink anchored to an
+  explicit extension origin, and per-range independence.
 
 ### Modified Capabilities
 
@@ -106,6 +116,18 @@ them up together, because they are the same question asked of the caret and of t
 - Manual verification is a gate, not a formality: the goal-column risk recorded in
   docs/research/13 needs hands-on testing against real navigation before the motion rules are
   settled.
+
+## Coordination with other active changes
+
+- `minimal-changesets-for-structural-ops` proposes retiring the cursor re-assertion
+  mechanism (`src/plugin/history-cursor.ts` and its `plugin-own` `userEvent`). This change
+  does not depend on that mechanism: its jurisdiction rule is written against the
+  `plugin-own` CLASS, which survives either outcome, since structural dispatches keep their
+  `input.structure.*` events regardless. **Either change may land first**; no sequencing is
+  required, and neither needs to wait on the other.
+- `structural-history-integration` is not yet in `openspec/specs/` — it exists only as a
+  delta inside the unarchived `fix-redo-cursor-after-structural-ops`. Nothing here takes a
+  normative dependency on it; it is referenced in design.md as motivation only.
 
 ## Out of scope
 

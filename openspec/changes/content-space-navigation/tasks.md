@@ -9,7 +9,15 @@ Done during the proposal round; listed so the reasoning behind D1/D2 is traceabl
       collapses to the head edge, which is a gap-line position
 - [x] 0.3 Measure caret behavior in frontmatter: Live Preview already keeps the caret out of
       rendered properties, landing it on the blank line below the closing `---`
-- [ ] 0.4 Re-run the measurement set against `latest-beta` — the probe ran on Obsidian 1.12.7,
+- [x] 0.4 Instrument the keydown path to check nothing consumes Home ahead of CodeMirror:
+      Home is unprevented at document-capture and prevented by the time it passes
+      `contentDOM`, the same profile as ArrowLeft, so no document-level scope handler takes
+      it first and research 13's `runScopeHandlers` double-fire mode does not apply
+- [ ] 0.5 Close the remaining inference directly, BEFORE retiring `clampCursorToContent`:
+      bind Home in the plugin's own `Prec.highest` keymap, press it once, and confirm the
+      handler fires exactly once and the caret does not also move from Obsidian's own
+      handler. This is the single assumption D1 rests on
+- [ ] 0.6 Re-run the measurement set against `latest-beta` — the probe ran on Obsidian 1.12.7,
       and Q21 showed automated and manual testing can sit on different CodeMirror cores, which
       hid a real bug through three reports
 
@@ -46,13 +54,19 @@ against real navigation rather than a code-review call.
 - [ ] 2.4 Add the Home/End rung planner: visual-row boundary, then node content boundary,
       with adjacent-identical-rung collapse
 - [ ] 2.5 Add the extension planner as an ordered SEQUENCE OF COVERS per (anchor node,
-      direction), omitting steps that leave the cover unchanged — derived from the current
-      cover plus the range's orientation, never from a stored head node, since one cover can
-      correspond to several head nodes
-- [ ] 2.6 Unit tests for each module, mirroring `tests/escalate.test.ts`'s style
-- [ ] 2.7 Property tests: every position a planner returns is addressable OR lies in the
+      direction), omitting steps that leave the cover unchanged — position within the
+      sequence derived from the current cover plus the range's orientation, never from a
+      stored head node
+- [ ] 2.6 Add the extension-origin `StateField`: records where the current gesture began,
+      cleared by any document change and by any selection change this capability did not
+      produce. Required because once a cover grows to include an ancestor, the range's ends
+      are that ancestor's bounds and the originating node is unrecoverable — see design D6
+- [ ] 2.7 Unit tests for each module, mirroring `tests/escalate.test.ts`'s style
+- [ ] 2.8 Property tests: every position a planner returns is addressable OR lies in the
       preamble; consecutive covers in a sequence are strictly nested; opposite presses are
-      mutual inverses **over covers**, not over head-node identity
+      mutual inverses **over covers**, not over head-node identity — including the case
+      where an intermediate press pulled an ancestor in, which is where a
+      derive-the-anchor-from-the-selection implementation fails
 
 ## 3. CM6 wiring
 
@@ -77,10 +91,12 @@ against real navigation rather than a code-review call.
 - [ ] 4.2 Confirm `node-edit-enforcement`'s merge and veto behavior is unchanged with the
       gap-line escape hatch unreachable — the merge path reads the cursor's node, which
       can no longer be a gap
-- [ ] 4.3 Confirm `structural-history-integration`'s redo behavior is intact: the
-      `CURSOR_REASSERT_USER_EVENT` transaction must land byte-exactly, so `selectionsAfter`
-      records the intended cursor. This is the specific way the resolver could reintroduce
-      the bug Q21 closed
+- [ ] 4.3 Confirm every `plugin-own` dispatch still lands byte-exactly through the resolver's
+      call site — the class-level guarantee, not any single mechanism. If
+      `fix-redo-cursor-after-structural-ops` is still unarchived at implementation time, its
+      cursor re-assertion is the concrete case to assert against; if
+      `minimal-changesets-for-structural-ops` has landed and retired it, assert against the
+      structural dispatches themselves
 - [ ] 4.4 Confirm `progressive-select-all`'s ladder is untouched, including its
       list-item content rung and multi-range independence
 - [ ] 4.5 Confirm block-selection chrome still renders for extension-produced covers
@@ -111,10 +127,12 @@ examples.md measured today's behavior, not the new behavior.
       and Home's first rung on a genuinely wrapped paragraph
 - [ ] 6.3 Exercise node kinds outside the fixtures — callouts, tables, code blocks,
       front-matter adjacency, embeds — and record what breaks rather than pre-guessing
-- [ ] 6.4 Investigate why the first Escape on a covering selection does nothing; likely the
+- [ ] 6.4 Feel out extension symmetry after an ancestor is pulled in (examples.md E4b then
+      Shift+Up): the origin field should return the selection to the child's own subtree
+- [ ] 6.5 Investigate why the first Escape on a covering selection does nothing; likely the
       blur-based chrome mechanism. Not a blocker — the placement rule handles the landing
       either way — but worth understanding before it is mistaken for a new bug
-- [ ] 6.5 Record findings in `docs/research/04`; fold clean fixes into this change, spin
+- [ ] 6.6 Record findings in `docs/research/04`; fold clean fixes into this change, spin
       out anything that changes a different capability's committed contract
 
 ## 7. Documentation

@@ -95,10 +95,27 @@ fit different problems, and the manifest's objection does not transfer.
 
 *Alternative considered:* extend the filter's clamp to catch every cursor placement.
 Rejected on the measurement — reaching Home means clamping `programmatic` transactions,
-which breaks `node-selection-enforcement`'s own "Programmatic and remote transactions pass
-through untouched" requirement and the discipline `efce9de`'s redo-cursor fix depends on.
-It also cannot express *motion* (see D3: the correct target for `←` at a node start and for
-`→` at the previous node's end are different positions, though both are "skip the gap").
+which breaks `transaction-classification`'s "Programmatic and remote transactions pass
+through untouched" requirement, the workspace-restore and sync-reconciliation scenarios that
+sit under it, and the byte-exact plugin dispatch discipline. It also cannot express *motion*
+(see D3: the correct target for `←` at a node start and for `→` at the previous node's end
+are different positions, though both are "skip the gap").
+
+*The assumption this rests on, and what was measured.* "Binding keys has coverage that is
+exactly the list of keys bound" only holds if the binding actually wins the key. Home's
+`programmatic` classification is evidence Obsidian is not routing it through a stock CM6
+command, which raises both "does our binding see it at all" and the double-fire mode
+docs/research/13 records (`runScopeHandlers` matching while the native default still ran).
+Measured 2026-07-25 by instrumenting the keydown path: Home is NOT prevented at
+document-capture and IS prevented by the time it passes `contentDOM` — a profile identical to
+ArrowLeft's, a known CM6 command. So nothing consumes Home ahead of the contentDOM stage, and
+the document-level scope-handler mode that produced the earlier double-fire does not apply.
+The coherent reading is that Obsidian binds Home in its own CM6 keymap whose handler
+dispatches without annotating a `userEvent`; a `Prec.highest` entry sits ahead of it.
+
+This is inference from stage and classification, not observation of our own binding winning.
+Task 0.5 closes it directly — bind Home, press it once, count the fires — and it is cheap
+enough that it runs before `clampCursorToContent` is retired.
 
 ### D2. Two mechanisms, not one: motion and placement resolution
 
@@ -123,10 +140,16 @@ it (D8), and what keeps drag-release and pointer paths coherent for free.
 its existing call site and inherits its scope exactly: transactions classified
 `selection-only` in an outline-mode editor. It SHALL NOT touch `programmatic`, `plugin-own`,
 or `composition` transactions. This is not a limitation to work around — it is the same
-pass-through discipline `node-selection-enforcement` already commits to, and `efce9de`'s
-`CURSOR_REASSERT_USER_EVENT` re-assert transactions are `plugin-own` precisely so they land
-byte-exactly; a resolver that moved them would reintroduce the redo-cursor bug Q21 just
-closed.
+pass-through discipline `transaction-classification` already commits to in "Programmatic and
+remote transactions pass through untouched", and which `node-selection-enforcement` scopes
+itself by in "Enforcement is scoped to outline mode and enforced classes only."
+
+The rule is about the CLASS, not any one mechanism. The plugin's own dispatches must land
+byte-exactly because that is what makes them predictable operands for history and
+decorations; `efce9de`'s cursor re-assertion is one current instance of that need, and
+`minimal-changesets-for-structural-ops` proposes retiring exactly that instance — which is
+why the requirement is written against `plugin-own` and not against
+`CURSOR_REASSERT_USER_EVENT`. Either way the class-level rule holds.
 
 *Therefore the addressable-position invariant is scoped, not absolute.* It holds for
 positions produced by user gestures in outline mode. A `programmatic` placement — a search
@@ -201,13 +224,50 @@ element switches to the opposite direction's sequence.
 state as (anchor node, head node) and called the two directions "exact inverses over the head
 node's walk." Review flagged that as ambiguous, and it is worse than ambiguous — it is not
 well defined. Two different head nodes can produce the identical cover: with the anchor on a
-parent, head = `child two` and head = `parent` both yield the parent's whole subtree. Since
-the model must be stateless — derived from the current selection, the same discipline
-`progressive-select-all` adopted — the head node is not recoverable from what is on screen,
-so it cannot be the state. The cover is, and the range's anchor/head orientation supplies the
-direction. Stating the model over covers also makes the property test express the right
-invariant: consecutive covers are strictly nested, and opposite presses are mutual inverses
-*over covers*, not over head identity.
+parent, head = `child two` and head = `parent` both yield the parent's whole subtree. Head
+identity is not recoverable from the selection, so it cannot be the state. The cover is, and
+the range's orientation supplies the direction. Stating the model over covers also makes the
+property test express the right invariant: consecutive covers are strictly nested, and
+opposite presses are mutual inverses *over covers*, not over head identity.
+
+*The anchor node needs real state — statelessness does not transfer here.* A second review
+round found that the same non-recoverability argument applies to the ANCHOR node, which the
+sequence is defined in terms of. Worked through this change's own flagged example:
+
+```
+- parent
+	- child one
+	- child t|wo          ⇧↓ →  cover = child two's subtree, anchor at line 2 → child two ✓
+- next                    ⇧↓ →  cover = parent's subtree + next, anchor at line 0 → PARENT ✗
+                          ⇧↑ →  steps back in PARENT's sequence → parent's subtree
+```
+
+The third press should return the selection to `child two`'s subtree. Instead it produces
+`parent`'s subtree — a cover that never appeared on the way down — breaking both "Shift+Up
+undoes Shift+Down" and "shrinking bottoms out at the anchor node."
+
+There is no geometric escape. D7 requires the dispatched selection to BE the cover, which
+forces the range's anchor onto one of the cover's two edges; once an ancestor is pulled in,
+neither edge identifies the original node. The reason statelessness transferred cleanly to
+`progressive-select-all` is that its ladder is MONOTONE — Mod-A only ever widens, so every
+rung is identifiable from the cover alone. A bidirectional walk needs strictly more state
+than a monotone one.
+
+*Decision:* keep an **extension origin** — the document offset the current extension gesture
+started from — in a `StateField`, cleared by any document change and by any selection change
+this capability's own dispatches did not produce. The sequence is computed for
+`nodeAtLine(origin)`. With no origin recorded, a press starts a fresh gesture from the
+current selection. So the recomputed-every-press discipline is preserved for the sequence
+itself; the only retained state is where the gesture began, and it is discarded the moment
+anything else touches the selection.
+
+*Alternative considered:* accept the behavior and weaken the guarantee — shrink bottoms out
+at the current cover's own root, and ⇧↓/⇧↑ are inverses only while no ancestor has been
+pulled in. Rejected: it produces a cover the user never passed through, in exactly the
+document shape this change already flags as its riskiest (E4b), and it contradicts examples
+E5 and E6 as already reviewed and approved. The modal block-selection work filed in
+docs/research/13 needs an equivalent origin field regardless, so this is not a mechanism
+invented solely for this change.
 
 *Why steps that leave the cover unchanged are omitted:* without it, extending from a parent
 whose subtree is already covered would spend a press moving the head onto a child already
