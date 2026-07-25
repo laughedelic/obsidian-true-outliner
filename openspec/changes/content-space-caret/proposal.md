@@ -68,6 +68,9 @@ prototype vertical motion first, do not decide from code review.
   untouched" is narrowed. Its guarantee that gap-line cursor placement stays native is reversed
   for outline mode, and its list-item marker clamp is superseded by the broader
   addressable-position rule in `content-space-caret`.
+- `transaction-classification`: the plugin-own requirement names "marker-transparent cursor
+  clamping" as one of the things a cursor re-assertion must not be run through. The guarantee
+  is unchanged; the mechanism's name is replaced by the placement resolver.
 - `node-edit-enforcement`: the "Editing semantics are chrome-transparent" requirement's
   deliberate escape hatch — an edit made with the caret placed ON a gap line stays native —
   becomes unreachable in outline mode. The escape hatch becomes the outline-mode toggle, as

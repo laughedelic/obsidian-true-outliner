@@ -78,6 +78,11 @@ navigation rather than a code-review call.
       call site — the class-level guarantee, not any single mechanism
 - [ ] 4.4 Confirm `progressive-select-all`'s ladder is untouched, including its list-item
       content rung
+- [ ] 4.5 Update `transaction-classification`'s plugin-own requirement, which now names the
+      mechanism this change retires: it says the cursor re-assertion "SHALL NOT be run through
+      selection escalation or marker-transparent cursor clamping". The guarantee is unchanged —
+      plugin-own dispatches land byte-exactly — but the clamp is replaced by the placement
+      resolver, so the wording needs a delta rather than being left stale
 
 ## 5. End-to-end verification
 

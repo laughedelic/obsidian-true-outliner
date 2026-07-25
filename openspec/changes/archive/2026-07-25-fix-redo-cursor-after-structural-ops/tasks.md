@@ -94,10 +94,11 @@
       cannot reach the second undo, see design.md D5), reproduced standalone, pinned by
       tests, and documented as an accepted limitation. The proper fix is scoped as its
       own change, `minimal-changesets-for-structural-ops`.
-- [ ] 5.3 Re-run the manual pass against the current build: confirm the first redo is
+- [x] 5.3 Re-run the manual pass against the current build: confirm the first redo is
       correct for outdent, move up/down, Enter split, and structural paste, and that no
       latency or cursor flicker was introduced on ordinary editing. (The
       `undo → redo → undo` jump is expected to remain — that is the documented gap.)
+      → Confirmed by the user: the change is fully implemented and manually tested.
 
 ## 6. Documentation
 
@@ -118,10 +119,12 @@
       `obsidianBetaAvailable()`, falling back to `latest` with no credentials/cache, so
       automated and manual testing stop running different CM6 versions. Documented in
       the config, including the 2FA-preserving `obsidian-launcher download` route.
-- [ ] 7.2 Pre-download the beta locally (`npx obsidian-launcher download app -v
+- [x] 7.2 Pre-download the beta locally (`npx obsidian-launcher download app -v
       latest-beta`) and re-run the e2e suite on it, to confirm the 64-* redo scenarios
       genuinely fail without the fix and pass with it on a CM6 >= 6.10.2. **Needs the
-      user's Catalyst credentials — cannot be done for them.**
+      user's Catalyst credentials — cannot be done for them.** → Run by the user; the
+      suite passes on the beta, so the fix is confirmed against a CM6 >= 6.10.2 rather
+      than only against the stable channel's older core.
 
 ## 8. Follow-up
 
