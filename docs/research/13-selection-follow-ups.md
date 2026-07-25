@@ -535,3 +535,59 @@ decoration work — independent of Phase C:
   - **Visual pairing**: docs/research/12's "Collapsing gap lines" idea is the
     decoration-layer half of the same eventual feature (hiding, not just
     non-navigating, the gap) — cross-referenced there.
+
+## The selection/cursor-UX track, planned as five changes (2026-07-25)
+
+Track 2 above was filed as "its own future change or changes". It is now planned, and the
+plan changed one thing this document had treated as settled: the escalation rule's
+whole-subtree invariant.
+
+### The pivot: downward closure, not upward
+
+Re-reading the originating rationale (`outline-selection-enforcement` design D4) against real
+Logseq use showed that the recorded justification — *a selection covering a heading but not
+its section, or a list item but not its children, has no valid structural meaning* — argues
+only for **downward closure**: a node is never selected without its whole subtree. The other
+half of the shipped rule, expanding a crossing range to the contiguous run of children of the
+deepest common ancestor scope, was never separately justified. It is what pulls an ancestor
+into a selection that merely crossed a scope boundary.
+
+Measured consequences (real Obsidian, 2026-07-25): one Shift+ArrowDown from a subtree's last
+child selects the entire document; two cursors in adjacent siblings plus one press collapse to
+a single whole-document range; and once an ancestor is in the cover, the node a gesture started
+from is unrecoverable from the selection.
+
+Every comparable outliner — Logseq, Workflowy, Roam, Notion, Dynalist, Tana — enforces
+downward closure and none enforces the upward half. This project had already conceded the point
+in writing: D4's own multi-range amendment calls a multi-range copy "a concatenation of complete
+subtrees — structurally valid by construction."
+
+The finding that makes the pivot small: **the cover stays a single contiguous range.** Node
+order is text order, so a document-order run of nodes closed under descendants already occupies
+contiguous text. Selecting a nested item and the following top-level item needs no ancestor to
+bridge them — the ancestor's own line sits above the span, not between its parts. The old rule
+reached for it because of the common-ancestor formulation, not because any text needed bridging.
+
+This resolves this document's own "Escalation math re-examination candidate" entry, and removes
+the need for stored extension-origin state in keyboard extension.
+
+### The five changes and their order
+
+1. `fix-orphan-gap-on-node-deletion` — deleting an exactly-selected node leaves its blank line
+   behind, and multi-range deletions are not enforced at all. First, because its choice of layer
+   decides whether a cover's end includes its owned gap's newline, which is geometry the pivot
+   builds on.
+2. `selection-as-subtree-set` — the pivot above.
+3. `node-selection-extension` — Shift+Arrow as one node per press, symmetric, stateless.
+   Depends on 2, and is materially simpler because of it.
+4. `content-space-caret` — gap lines and marker prefixes stop being caret-addressable.
+   Independent of all of the above.
+5. `paste-heading-section-reencoding` — a heading section pasted into a list mangles.
+   Independent; a re-encoding problem, not a selection one.
+
+### What this track still owns
+
+Modal block-selection state and the cherry-picking `Cmd`-click gesture remain unplanned.
+`node-selection-extension` deliberately uses the simplest discriminator that works — one range
+is a block selection, several are multi-cursor — and records its known edge for reassessment
+after real use rather than pre-solving it with a mode.
