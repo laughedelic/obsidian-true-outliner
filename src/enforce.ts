@@ -14,11 +14,12 @@
 import type { OutlineDoc, OutlineNode } from './model';
 import { findPath, nodeAt } from './model';
 import { nodeAtLine } from './locate';
-import { escalateRange, type LinePos, type LineRange } from './escalate';
+import { coveredSubtreeRoots, escalateRange, type LinePos, type LineRange } from './escalate';
 import { parse } from './parse';
 import { encode, encodeLines } from './encode';
 import {
   contentColumnCh,
+  deleteSubtreeGroups,
   deleteSubtrees,
   finalize,
   insertSubtrees,
@@ -32,10 +33,10 @@ import { isStructuralBlockSequence, type TransactionClass } from './classify';
 
 /** One change, in the OLD document's line/ch coordinates (`escalate.ts`'s
  * `LinePos`). `from === to` is a pure insertion; `insert === ''` is a pure
- * deletion. Transactions with more than one change range are not modeled
- * here — the caller passes `undefined` and gets `pass` (D1's conservative
- * bias: this phase enforces the single-range shapes the spec scenarios
- * describe, not multi-cursor edits). */
+ * deletion. A single `EditFact` models one change range; a transaction with
+ * several change ranges is evaluated by `computeVerdictForRanges`, one
+ * `EditFact` per range (`fix-orphan-gap-on-node-deletion` D2 — lifted from
+ * this module's original single-range restriction). */
 export interface EditFact {
   readonly from: LinePos;
   readonly to: LinePos;
@@ -483,4 +484,56 @@ export function computeVerdict(
   if (intent === 'native') return PASS;
   if (intent !== undefined) return computeMergeVerdict(doc, intent);
   return computeDeletionVerdict(doc, edit, fallbackIndentUnit);
+}
+
+/**
+ * Multi-range structural deletion (design.md D2): every range must be a pure
+ * deletion (`insert === ''`) whose range exactly covers one or more whole
+ * subtrees — the narrow shape this phase models for multi-cursor edits, per
+ * D3 ("do not widen beyond exact covers"). Any range outside that shape falls
+ * back to `PASS`, preserving today's conservative default for anything not
+ * modeled.
+ *
+ * Delegates the actual removal to `deleteSubtreeGroups` (ops.ts) — one group
+ * per range, resolved and removed together in a SINGLE structural pass, so
+ * there is exactly one before/after diff for the whole transaction (never
+ * one diff per range combined afterward; see that function's own comment
+ * for why the combined approach is unsafe). `edits` is sorted by document
+ * position first: `deleteSubtreeGroups` requires its first group to be the
+ * topmost, for the cursor.
+ */
+function computeMultiRangeDeletionVerdict(doc: OutlineDoc, edits: readonly EditFact[]): Verdict {
+  const order = edits.map((_, i) => i).sort((a, b) => edits[a]!.from.line - edits[b]!.from.line);
+  const groups: (readonly number[])[] = [];
+  for (const i of order) {
+    const edit = edits[i]!;
+    if (edit.insert !== '') return PASS;
+    const roots = coveredSubtreeRoots(doc, { anchor: edit.from, head: edit.to });
+    if (!roots) return PASS;
+    groups.push(roots.map((n) => n.id));
+  }
+
+  const deletion = deleteSubtreeGroups(doc, groups);
+  if (!deletion.ok) return vetoFrom(deletion);
+  return rewriteFrom(deletion.value, 'delete.structural');
+}
+
+/**
+ * The verdict for a transaction's FULL set of change ranges (design.md D2):
+ * a single range delegates to `computeVerdict` unchanged (every existing
+ * shape — merges, pastes, single-range deletions — keeps its exact
+ * behavior); several ranges are evaluated by `computeMultiRangeDeletionVerdict`,
+ * which only recognizes the narrower all-exact-cover-deletions shape and
+ * falls back to `pass` otherwise. Zero ranges (a selection-only transaction
+ * reaching this by mistake) also passes, defensively.
+ */
+export function computeVerdictForRanges(
+  cls: TransactionClass,
+  doc: OutlineDoc,
+  edits: readonly EditFact[],
+  fallbackIndentUnit?: string,
+): Verdict {
+  if (cls !== 'boundary-crossing-edit' || edits.length === 0) return PASS;
+  if (edits.length === 1) return computeVerdict(cls, doc, edits[0], fallbackIndentUnit);
+  return computeMultiRangeDeletionVerdict(doc, edits);
 }

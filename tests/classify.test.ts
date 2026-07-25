@@ -237,6 +237,105 @@ describe('classify: chrome-boundary deletion shapes (chrome-transparency amendme
   });
 });
 
+describe('classify: fix-orphan-gap-on-node-deletion exact-cover shapes (D1/Q22)', () => {
+  it('an exact single-node cover (with its owned gap) is boundary-crossing, though its raw span reads as one line', () => {
+    const doc = parse('Alpha one.\n\nBravo two.\n\nCharlie three.\n');
+    // 0 'Alpha one.' / 1 gap(Alpha) / 2 'Bravo two.' / 3 gap / 4 'Charlie three.' / 5 gap
+    // toA-1 (the old idiom) lands on line 1, still Alpha's own gap — same
+    // identity as fromLine, so this reads as within-node without `rangeEnd`.
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [
+            { fromLine: 0, toLine: 0, insertedText: '', fromCh: 0, rangeEnd: { line: 1, ch: 0 } },
+          ],
+        }),
+        doc,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('the same span without `rangeEnd` stays within-node (conservative default for pre-amendment callers)', () => {
+    const doc = parse('Alpha one.\n\nBravo two.\n\nCharlie three.\n');
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 0, toLine: 0, insertedText: '', fromCh: 0 }],
+        }),
+        doc,
+      ),
+    ).toBe('within-node-edit');
+  });
+
+  it('an exact single-node cover with NO trailing gap (tight list) is also boundary-crossing', () => {
+    const doc = parse('- alpha\n- beta\n');
+    // 0 '- alpha' (no gap) / 1 '- beta'. Alpha's own cover ends at its own
+    // content end, {0, 7} — not at the next node's start (line 1 belongs to
+    // beta itself, not a gap of alpha's).
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [
+            { fromLine: 0, toLine: 0, insertedText: '', fromCh: 0, rangeEnd: { line: 0, ch: '- alpha'.length } },
+          ],
+        }),
+        doc,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('an exact cover of a subtree with children is boundary-crossing', () => {
+    const doc = parse('- alpha\n  - child\n\n- beta\n');
+    // 0 '- alpha' / 1 '  - child' / 2 gap(child) / 3 '- beta' / 4 gap
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [
+            { fromLine: 0, toLine: 2, insertedText: '', fromCh: 0, rangeEnd: { line: 2, ch: 0 } },
+          ],
+        }),
+        doc,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('an exact cover of the document\'s LAST node is boundary-crossing (no next line to point at)', () => {
+    const doc = parse('Alpha one.\n\nBravo two.\n\nCharlie three.\n');
+    // Charlie is the last node; its own cover ends at the doc's own last
+    // line (5), which already exists — no past-the-end special case needed.
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [
+            { fromLine: 4, toLine: 4, insertedText: '', fromCh: 0, rangeEnd: { line: 5, ch: 0 } },
+          ],
+        }),
+        doc,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('a mid-node deletion (not an exact cover) stays within-node', () => {
+    const doc = parse('Alpha one.\n\nBravo two.\n');
+    expect(
+      classify(
+        facts({
+          userEvent: 'input.type',
+          changedLineSpans: [
+            { fromLine: 0, toLine: 0, insertedText: '', fromCh: 2, rangeEnd: { line: 0, ch: 5 } },
+          ],
+        }),
+        doc,
+      ),
+    ).toBe('within-node-edit');
+  });
+});
+
 describe('classify: preamble and gap-line edge cases', () => {
   const doc = parse('---\nk: 1\n---\n\n# H\n\nBody.\n');
   // Line map: 0 '---' 1 'k: 1' 2 '---' 3 gap  (preamble = lines 0-3)

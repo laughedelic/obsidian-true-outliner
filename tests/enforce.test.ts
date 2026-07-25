@@ -3,8 +3,9 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { applyEdits } from '../src/result';
-import { treesEqual, walkNodes, type OutlineDoc } from '../src/model';
-import { computeVerdict, type EditFact, type Verdict } from '../src/enforce';
+import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
+import { computeVerdict, computeVerdictForRanges, type EditFact, type Verdict } from '../src/enforce';
+import { subtreeCoverOf } from '../src/escalate';
 import type { TransactionClass } from '../src/classify';
 import { arbTree } from './generators';
 
@@ -270,6 +271,161 @@ describe('computeVerdict: boundary merges (D4)', () => {
     // newline entirely inside the gap, never touching real content.
     const edit: EditFact = { from: pos(1, 0), to: pos(2, 0), insert: '' };
     expect(computeVerdict('boundary-crossing-edit', doc, edit)).toEqual({ kind: 'pass' });
+  });
+});
+
+describe('computeVerdict: single exact-cover deletion (fix-orphan-gap-on-node-deletion)', () => {
+  it('deleting one exactly-selected node takes its owned gap, leaving no blank line behind', () => {
+    // The proposal's own measured repro: selecting Alpha's whole subtree
+    // (content + its owned gap) and deleting it used to leave an orphan
+    // blank line, because classify.ts never reached the verdict layer for
+    // this shape. Once classified boundary-crossing (classify.test.ts), the
+    // existing structural-deletion path already produces the clean result.
+    const md = 'Alpha one.\n\nBravo two.\n\nCharlie three.\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(0, 0), to: pos(1, 0), insert: '' };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(applyVerdict(md, verdict)).toBe('Bravo two.\n\nCharlie three.\n');
+  });
+
+  it('deleting an exactly-selected tight-list node (no gap) leaves no blank line either', () => {
+    const md = '- alpha\n- beta\n';
+    const doc = parse(md);
+    // No trailing gap to include — the exact cover ends at alpha's own
+    // content end, not at the next line.
+    const edit: EditFact = { from: pos(0, 0), to: pos(0, '- alpha'.length), insert: '' };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(applyVerdict(md, verdict)).toBe('- beta\n');
+  });
+
+  it('deleting the exactly-selected LAST node in the document takes its gap too', () => {
+    const md = 'Alpha one.\n\nBravo two.\n\nCharlie three.\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(4, 0), to: pos(5, 0), insert: '' };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(applyVerdict(md, verdict)).toBe('Alpha one.\n\nBravo two.\n');
+  });
+
+  it('typing over an exactly-selected node replaces it with the typed content', () => {
+    const md = 'Alpha one.\n\nBravo two.\n\nCharlie three.\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(0, 0), to: pos(1, 0), insert: 'Replaced.\n\n' };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(applyVerdict(md, verdict)).toBe('Replaced.\n\nBravo two.\n\nCharlie three.\n');
+  });
+});
+
+describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () => {
+  it('deletes two disjoint exact-cover ranges in one rewrite, taking each owned gap', () => {
+    const md = 'Alpha.\n\nBravo.\n\nCharlie.\n\nDelta.\n';
+    const doc = parse(md);
+    // 0 Alpha / 1 gap / 2 Bravo / 3 gap / 4 Charlie / 5 gap / 6 Delta / 7 gap
+    const edits: EditFact[] = [
+      { from: pos(0, 0), to: pos(1, 0), insert: '' },
+      { from: pos(4, 0), to: pos(5, 0), insert: '' },
+    ];
+    const verdict = computeVerdictForRanges('boundary-crossing-edit', doc, edits);
+    expect(applyVerdict(md, verdict)).toBe('Bravo.\n\nDelta.\n');
+  });
+
+  it('the order ranges appear in does not matter', () => {
+    const md = 'Alpha.\n\nBravo.\n\nCharlie.\n\nDelta.\n';
+    const doc = parse(md);
+    const edits: EditFact[] = [
+      { from: pos(4, 0), to: pos(5, 0), insert: '' }, // Charlie listed first
+      { from: pos(0, 0), to: pos(1, 0), insert: '' }, // Alpha listed second
+    ];
+    const verdict = computeVerdictForRanges('boundary-crossing-edit', doc, edits);
+    expect(applyVerdict(md, verdict)).toBe('Bravo.\n\nDelta.\n');
+  });
+
+  it('deletes three ranges leaving only the untouched middle siblings', () => {
+    const md = 'A.\n\nB.\n\nC.\n\nD.\n\nE.\n';
+    const doc = parse(md);
+    const edits: EditFact[] = [
+      { from: pos(0, 0), to: pos(1, 0), insert: '' }, // A
+      { from: pos(4, 0), to: pos(5, 0), insert: '' }, // C
+      { from: pos(8, 0), to: pos(9, 0), insert: '' }, // E
+    ];
+    const verdict = computeVerdictForRanges('boundary-crossing-edit', doc, edits);
+    expect(applyVerdict(md, verdict)).toBe('B.\n\nD.\n');
+  });
+
+  it('a single range delegates unchanged to computeVerdict', () => {
+    const md = 'First.\n\nSecond.\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(0, 0), to: pos(1, 0), insert: '' };
+    expect(computeVerdictForRanges('boundary-crossing-edit', doc, [edit])).toEqual(
+      computeVerdict('boundary-crossing-edit', doc, edit),
+    );
+  });
+
+  it('falls back to pass when any range is not an exact cover', () => {
+    const md = 'Alpha.\n\nBravo.\n\nCharlie.\n';
+    const doc = parse(md);
+    const edits: EditFact[] = [
+      { from: pos(0, 0), to: pos(1, 0), insert: '' }, // Alpha: exact cover
+      { from: pos(2, 2), to: pos(2, 4), insert: '' }, // Bravo: mid-node, not a cover
+    ];
+    expect(computeVerdictForRanges('boundary-crossing-edit', doc, edits)).toEqual({ kind: 'pass' });
+  });
+
+  it('falls back to pass when any range carries an insertion (type-over not modeled for multi-range)', () => {
+    const md = 'Alpha.\n\nBravo.\n\nCharlie.\n\nDelta.\n';
+    const doc = parse(md);
+    const edits: EditFact[] = [
+      { from: pos(0, 0), to: pos(1, 0), insert: 'X' },
+      { from: pos(4, 0), to: pos(5, 0), insert: '' },
+    ];
+    expect(computeVerdictForRanges('boundary-crossing-edit', doc, edits)).toEqual({ kind: 'pass' });
+  });
+
+  it('non-boundary-crossing classes and an empty range set always pass', () => {
+    const doc = parse('Alpha.\n');
+    expect(computeVerdictForRanges('within-node-edit', doc, [])).toEqual({ kind: 'pass' });
+    expect(computeVerdictForRanges('boundary-crossing-edit', doc, [])).toEqual({ kind: 'pass' });
+  });
+
+  it('property: deleting several disjoint top-level exact covers removes exactly their own lines, well-formed', () => {
+    // Deliberately does NOT assert the survivors keep their original nesting
+    // — two nodes becoming newly adjacent can legitimately re-parse into a
+    // parent/child relationship neither had before (markdown's own
+    // attachment rule, e.g. a list item right after a paragraph — a
+    // pre-existing `deleteSubtrees` behavior, reproduced even for a single
+    // deleted range, not something this change introduces). What must hold,
+    // per tasks.md 3.3, is: a valid, round-trip-stable tree, with EXACTLY
+    // the deleted subtrees' own lines gone — no more, no less (which is
+    // exactly "no orphaned nodes, no leftover gap lines" would show up as).
+    const subtreeLineCount = (node: OutlineNode): number =>
+      node.lines.length + node.trailingGap.length + node.children.reduce((sum, c) => sum + subtreeLineCount(c), 0);
+
+    fc.assert(
+      fc.property(arbTree(), fc.array(fc.nat(10), { minLength: 2, maxLength: 4 }), (tree, rawIndices) => {
+        const text = encode(tree);
+        const doc = parse(text);
+        fc.pre(doc.children.length >= 2);
+        const indices = [...new Set(rawIndices.map((n) => n % doc.children.length))];
+        fc.pre(indices.length >= 2);
+
+        const edits: EditFact[] = indices.map((i) => {
+          const cover = subtreeCoverOf(doc, doc.children[i]!);
+          return { from: cover.start, to: cover.end, insert: '' };
+        });
+        const verdict = computeVerdictForRanges('boundary-crossing-edit', doc, edits);
+        if (verdict.kind !== 'rewrite') return false;
+
+        const finalText = applyVerdict(text, verdict);
+        const finalDoc = parse(finalText);
+        const removedLines = indices.reduce((sum, i) => sum + subtreeLineCount(doc.children[i]!), 0);
+        const expectedLineCount = text.split('\n').length - removedLines;
+        // `''.split('\n')` is `['']` (length 1), not 0 — an empty final
+        // document has zero lines of actual content, so it's special-cased
+        // here rather than in the counting convention used everywhere else.
+        const actualLineCount = finalText === '' ? 0 : finalText.split('\n').length;
+        return encode(finalDoc) === finalText && actualLineCount === expectedLineCount;
+      }),
+      { numRuns: 200 },
+    );
   });
 });
 

@@ -79,6 +79,52 @@ adapter for exactly these shapes; an edit with the same bytes but a different cu
 - **THEN** the transaction is classified `within-node-edit` and applied unmodified
   (deliberate whitespace authoring)
 
+### Requirement: A change exactly covering whole subtrees is a boundary-crossing edit
+A user change whose range exactly covers one or more whole subtrees — including each
+covered subtree's owned trailing gap — SHALL be classified `boundary-crossing-edit`
+so that it reaches the verdict layer, even when the raw line span it touches falls
+inside a single node. Cover recognition SHALL reuse the exported cover computation
+rather than deriving subtree bounds a second time.
+
+*(Added 2026-07-25, `fix-orphan-gap-on-node-deletion`: the change span's OLD line-span
+convention is deliberately blind to a single trailing newline, so a deletion that
+exactly covers one node's content plus its own trailing gap read as within-node —
+never reaching the boundary-crossing class at all.)*
+
+#### Scenario: Deleting one exactly-selected node reaches the verdict layer
+- **WHEN** the user deletes a selection that exactly covers a single node's whole
+  subtree
+- **THEN** the transaction is classified `boundary-crossing-edit` and a verdict is
+  computed, rather than passing as a within-node edit
+
+#### Scenario: An ordinary within-node deletion is unaffected
+- **WHEN** the user deletes a few characters inside a node's text
+- **THEN** the transaction is still classified `within-node-edit` and passes
+  unmodified
+
+### Requirement: Multi-range user edits receive verdicts
+A user edit transaction with more than one change range SHALL NOT be excluded from
+verdict computation by construction. Each change range SHALL be evaluated, and the
+transaction SHALL receive a verdict derived from all of them. Where any range's shape
+is not one the verdict layer models, the transaction SHALL pass unmodified,
+preserving today's conservative default.
+
+*(Added 2026-07-25, `fix-orphan-gap-on-node-deletion`: the verdict layer previously
+declined any transaction with more than one change range unconditionally — a
+deliberate conservative bias from `outline-edit-enforcement` D1 that left escalated
+multi-range selections, reachable by ordinary multi-cursor gestures, unenforced.)*
+
+#### Scenario: Deleting a multi-range selection of exact covers is enforced
+- **WHEN** the user deletes a selection consisting of two ranges, each exactly
+  covering a whole subtree
+- **THEN** a verdict is computed and the result is a structural deletion of both
+  subtrees
+
+#### Scenario: An unmodelled multi-range edit still passes
+- **WHEN** a multi-range edit contains a range whose shape the verdict layer does not
+  model
+- **THEN** the transaction passes unmodified, as it does today
+
 ### Requirement: Programmatic and remote transactions pass through untouched
 Transactions carrying no `userEvent` annotation, carrying undo/redo history
 signatures, or carrying the `set` annotation Obsidian uses when reconciling an

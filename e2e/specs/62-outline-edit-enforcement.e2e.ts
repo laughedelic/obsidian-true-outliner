@@ -96,6 +96,79 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(await h.getBuffer()).toBe('# Two\n\nAfter.\n');
   });
 
+  // ---- fix-orphan-gap-on-node-deletion (4.1-4.4) --------------------------
+
+  it('a real gesture selecting exactly one node, then Backspace, leaves no orphan blank line', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: see IS_MOBILE_RUN
+    // The proposal's own measured repro table, reproduced live: dragging
+    // from a node's own start onto its trailing gap line escalates
+    // (same-node rule) to exactly this node's whole subtree.
+    await outlineNote('Alpha one.\n\nBravo two.\n\nCharlie three.\n');
+    await h.mouseDragSelect({ line: 0, ch: 0 }, { line: 1, ch: 0 });
+    const sel = await h.getSelection();
+    expect(sel.anchor).toEqual({ line: 0, ch: 0 });
+    expect(sel.head).toEqual({ line: 1, ch: 0 }); // Alpha's exact subtree cover
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('Bravo two.\n\nCharlie three.\n');
+    const snap = await h.getStats();
+    expect(snap.verdictCounts.rewrite).toBeGreaterThan(0);
+  });
+
+  it('a stale (never-escalated) exact-cover selection also deletes cleanly, no orphan blank line', async function () {
+    await outlineNote('Alpha one.\n\nBravo two.\n\nCharlie three.\n');
+    await h.setSelection({ line: 0, ch: 0 }, { line: 1, ch: 0 }); // programmatic, never escalated
+    await browser.keys(Key.Delete);
+    expect(await h.getBuffer()).toBe('Bravo two.\n\nCharlie three.\n');
+  });
+
+  it('an exactly-selected tight-list node (no owned gap) also leaves no blank line behind', async function () {
+    await outlineNote('- alpha\n- beta\n- gamma\n');
+    await h.setSelection({ line: 1, ch: 0 }, { line: 1, ch: '- beta'.length }); // beta's own content, no gap to include
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('- alpha\n- gamma\n');
+  });
+
+  it('multi-cursor selection of two exact covers deletes both in ONE keystroke, forming one undo step', async function () {
+    await outlineNote('Alpha.\n\nBravo.\n\nCharlie.\n\nDelta.\n');
+    // 0 Alpha / 1 gap / 2 Bravo / 3 gap / 4 Charlie / 5 gap / 6 Delta / 7 gap
+    await h.dispatchSelectOnlyRanges([
+      { anchor: { line: 0, ch: 0 }, head: { line: 1, ch: 0 } }, // Alpha's exact cover
+      { anchor: { line: 4, ch: 0 }, head: { line: 5, ch: 0 } }, // Charlie's exact cover
+    ]);
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('Bravo.\n\nDelta.\n');
+    const snap = await h.getStats();
+    expect(snap.verdictCounts.rewrite).toBeGreaterThan(0);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe('Alpha.\n\nBravo.\n\nCharlie.\n\nDelta.\n'); // one undo step
+  });
+
+  it('undo after a single exact-cover deletion restores the pre-edit buffer byte-identically, in one step', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: see IS_MOBILE_RUN
+    const original = 'Alpha one.\n\nBravo two.\n\nCharlie three.\n';
+    await outlineNote(original);
+    await h.mouseDragSelect({ line: 0, ch: 0 }, { line: 1, ch: 0 });
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).not.toBe(original);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(original);
+  });
+
+  it('off-mode: the SAME exact-cover range still leaves the orphan blank line natively — the fix is on-mode only', async function () {
+    // This is the proposal's own measured repro (proposal.md's table):
+    // stock CM6 does NOT delete a whole line's trailing newline when the
+    // selection's head sits at ch 0 of the FOLLOWING line — off-mode is
+    // plain markdown editing, deliberately unaffected by this change, and
+    // still shows the exact bug this change fixes on-mode. Contrast with
+    // the on-mode scenario just above, same input, no orphan line.
+    const offNote = 'Scratch/orphan-gap-off.md';
+    await h.createNote(offNote, 'Alpha one.\n\nBravo two.\n\nCharlie three.\n');
+    expect(await h.isOutlineMode(offNote)).toBe(false);
+    await h.setSelection({ line: 0, ch: 0 }, { line: 1, ch: 0 });
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('\nBravo two.\n\nCharlie three.\n');
+  });
+
   it('deleting every node leaves a valid, functional empty note', async function () {
     await outlineNote('Alpha.\n\nBeta.\n');
     await h.setCursor(0, 0);
@@ -472,6 +545,20 @@ describe('node-edit-enforcement: Phase C evidence', function () {
       for (let i = 0; i < 5; i++) {
         await h.setCursor(2, 5);
         await h.pasteText('Pasted one.\n\nPasted two.');
+        await h.keys.undo();
+      }
+      // Multi-range exact-cover deletions (fix-orphan-gap-on-node-deletion
+      // D2/3.4): two disjoint sections' own paragraph subtrees (each a leaf
+      // with its own trailing gap — a genuine exact cover, not just a
+      // heading's first line without its child) in one transaction.
+      for (let i = 0; i < 5; i++) {
+        const p1 = i * 4 + 2; // section i's own paragraph line
+        const p2 = (i + 200) * 4 + 2; // a distant section's paragraph line
+        await h.dispatchSelectOnlyRanges([
+          { anchor: { line: p1, ch: 0 }, head: { line: p1 + 1, ch: 0 } },
+          { anchor: { line: p2, ch: 0 }, head: { line: p2 + 1, ch: 0 } },
+        ]);
+        await browser.keys(Key.Backspace);
         await h.keys.undo();
       }
     }
