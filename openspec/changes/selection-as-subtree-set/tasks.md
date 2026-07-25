@@ -21,6 +21,12 @@
       order) — this is what keeps a block selection representable as one range
 - [ ] 2.3 Keep and re-run the unchanged properties: expand-only, orientation preservation,
       multi-range uniformity, preamble jurisdiction
+- [ ] 2.4 Confirm `progressive-select-all`'s ladder rungs remain FIXPOINTS of the rewritten
+      escalation: every rung is downward-closed and contiguous, so its forest span should be
+      itself, but the ladder is the one shipped feature that dispatches covers into this filter
+      and `select-all-ladder.ts` does not import the changed functions — nothing would fail
+      loudly if it broke. Assert rung-in equals rung-out for each rung, and re-run
+      `tests/select-all-ladder.test.ts` and `e2e/specs/64-progressive-select-all.e2e.ts`
 
 ## 3. Structural deletion over a forest
 

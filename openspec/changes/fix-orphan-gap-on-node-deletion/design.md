@@ -51,9 +51,31 @@ it moves every escalated selection's end by one position, rippling into
 `node-selection-enforcement`'s committed scenarios, `tests/escalate.test.ts`, the selection
 chrome's bounds, and `selection-as-subtree-set`'s geometry.
 
-*What to measure first:* whether an escalated cover's end is currently at the gap line's start
-or its end, for one-line and multi-line gaps, at the document end, and for a tight list with no
-gap at all. That tells us whether Option B is a one-position adjustment or a redefinition.
+*What is already known, from the code rather than a measurement:* `subtreeCoverEnd`
+([src/escalate.ts:106](../../../src/escalate.ts)) returns `{line: <last gap line>, ch: 0}` when
+the node has a trailing gap, and the end of the last content line when it has none. Both leave
+the final newline outside the range — which IS the orphan-blank-line mechanism. The offsets are
+not the unknown.
+
+*What actually needs measuring, therefore:* whether Option B collides with three things it
+would have to move past.
+
+1. The deliberate `ch: 0` convention. The comment at `subtreeCoverEnd` explains it: gap lines
+   are semantically blank even when they hold incidental whitespace, so the cover's end does not
+   depend on that whitespace. Ending at the NEXT line's start instead would reintroduce exactly
+   the dependence the convention avoids — or would not, if the next line's start is
+   whitespace-independent by construction. Determine which.
+2. `coveredSubtreeRoots`'s match, which is `posEqual(lo, cover.start) && !posBefore(hi,
+   cover.end)`. Moving `cover.end` changes what counts as an exact cover, and the selection
+   chrome keys off it.
+3. The document's last node, where there is no next line to point at.
+
+*A criterion the layer choice must satisfy, not discover later:* Option B makes consecutive
+covers TOUCH — one cover ending exactly where the next begins. Measured 2026-07-25: CodeMirror
+keeps touching non-empty ranges separate and merges only overlapping ones, so
+`node-selection-extension`'s "one range is a block selection, several are multi-cursor"
+discriminator survives either option. Recording it here because that change depends on a
+property this one can move, and the dependency is otherwise invisible from either side.
 
 *Why this is sequenced before `selection-as-subtree-set`:* Option B changes the geometry that
 change builds on. Deciding after would mean revising it.

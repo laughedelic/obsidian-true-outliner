@@ -57,10 +57,21 @@ For a crossing range with ends resolving to `firstNode` and `lastNode` in docume
 
 - If one is an ancestor of the other, the cover is the ANCESTOR's whole subtree. (Unchanged —
   selecting a parent takes its children.)
-- Otherwise the cover runs from the start of the outermost subtree fully containing `firstNode`
-  and beginning at-or-after it, to the end of the outermost subtree fully containing `lastNode`.
-  Equivalently: take the document-order run of nodes from `firstNode` to `lastNode`, close it
-  under descendants, and the selection roots are the members whose parent is not a member.
+- Otherwise the cover runs from the start of `firstNode`'s OWN subtree cover to the end of
+  `lastNode`'s OWN subtree cover.
+
+Equivalently, and this is the form the covered ROOTS come from: take the document-order run of
+nodes from `firstNode` to `lastNode`, close it under descendants, and the roots are the members
+whose parent is not a member. The two forms agree because when neither end's node is an ancestor
+of the other, their subtrees are disjoint, so the run's outermost members are exactly the ends'
+own subtrees.
+
+*A wording trap worth recording, since the first draft fell into it:* stating the bound as "the
+outermost subtree that fully contains the end" reinstates the very expansion this change
+removes — the outermost subtree containing a middle child is its PARENT, whose end reaches past
+the parent's later children. Qualifying only the start ("...and begins at or after it") makes
+the two ends asymmetric and silently swallows later siblings at the end. The ends' own subtrees
+are what is meant, and saying so directly avoids the trap.
 
 **This is a single contiguous text range.** Node order is text order and subtree covers tile
 the document, so a document-order run closed under descendants occupies contiguous text. In the

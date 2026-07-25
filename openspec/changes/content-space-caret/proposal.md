@@ -93,6 +93,12 @@ Independent of every other change in this series. It touches caret placement onl
 escalation geometry, not extension, not edit verdicts — so it can land before, after, or
 alongside `selection-as-subtree-set`.
 
+One soft dependency worth naming rather than leaving silent: design D6's argument for leaving
+Escape unbound reasons from "a cover's end is a gap-line position", which
+`fix-orphan-gap-on-node-deletion` could change if it moves the cover's end past the gap's
+newline. The conclusion is unaffected either way — the placement resolver lands the caret on
+content whichever position the collapse produces — but the sentence would need rewording.
+
 ## Out of scope
 
 - Keyboard selection extension (Shift+Arrow) — `node-selection-extension`.

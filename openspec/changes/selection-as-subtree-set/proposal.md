@@ -34,9 +34,10 @@ without contiguity.
 ## What Changes
 
 - **The escalation cover stops expanding to a common-ancestor sibling run.** A boundary-
-  crossing range escalates to exactly the span from the first end's outermost fully-contained
-  subtree start to the last end's outermost fully-contained subtree end. Ancestors above that
-  span are not pulled in.
+  crossing range escalates to exactly the span from the FIRST end's own subtree start to the
+  LAST end's own subtree end — unless one end's node is an ancestor of the other's, in which
+  case the ancestor's whole subtree is the cover, as today. Ancestors above the span are not
+  pulled in, and neither are the ends' own later siblings.
 - **The invariant is restated, not abandoned.** *No node is ever selected without its whole
   subtree* (downward closure) replaces *no node is ever partially selected together with
   content outside it* (which silently implied upward closure too). A selection remains a
@@ -65,9 +66,9 @@ selection is several.
 
 ### Modified Capabilities
 
-- `node-selection-enforcement`: the escalation cover requirement is rewritten — subtree-set
-  span instead of common-ancestor sibling run — and the whole-subtree invariant is restated as
-  downward closure. The gap-line trigger, expand-only, orientation, multi-range and
+- `node-selection-enforcement`: the escalation cover requirement is REPLACED — its name asserts
+  the sibling-run mechanism this change removes, so it is retired and a forest-span requirement
+  added in its place, with the whole-subtree invariant restated as downward closure. The gap-line trigger, expand-only, orientation, multi-range and
   jurisdiction requirements are unchanged.
 - `structural-operations`: subtree insertion gains the root-normalization rule for a payload
   whose roots came from different depths.

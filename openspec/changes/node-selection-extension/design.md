@@ -77,12 +77,23 @@ growing block selection never fragments into several ranges. Had the pivot intro
 set-of-ranges representation, block and multi-cursor selections would have been
 indistinguishable and this would have needed a mode.
 
-*Known edge, accepted deliberately:* two independently-extended cursors can grow until their
-ranges become adjacent and normalization merges them into one, at which point the next press
-switches to block semantics. It requires the cursors to meet exactly, and the result — one
-selection now extending as a block — is defensible rather than wrong. Chosen over a mode flag
-because the simplest thing that works should be measured in real use before complexity is added;
-revisit after the manual pass.
+*Known edge, measured rather than assumed.* CodeMirror's `EditorSelection` requires ranges not
+to overlap but explicitly permits them to TOUCH. Verified directly (2026-07-25): two touching
+non-empty ranges stay two ranges, both in outline mode and off; two overlapping ranges merge
+into one. So the edge is not adjacency and it is not "two cursors meeting exactly" — it is
+overlap, which two cursors N nodes apart reach after roughly N presses in the same direction.
+That is an ordinary sequence, not a rare one.
+
+What happens when it is reached: the merged range is the union of the two, which is itself a
+coherent block selection, and the next press extends it as a block. The behavior is defensible.
+What changes is the ACCEPTANCE ARGUMENT — this edge is accepted because its outcome is right,
+not because it is unlikely to occur. An earlier draft of this decision claimed adjacency merged
+ranges and leaned on rarity; both were wrong, and the measurement is recorded here so the
+argument is not re-derived from the same mistake.
+
+*Revisit trigger:* if the transition from per-cursor to block semantics reads as abrupt in real
+use, the fix is a mode flag, which is the modal block-selection work docs/research/13 already
+files. Not pre-solved here.
 
 ### D5. Extension dispatches exact covers
 

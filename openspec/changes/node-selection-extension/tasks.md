@@ -38,15 +38,20 @@
       reversing returns to the child
 - [ ] 4.3 Multi-cursor scenario: two cursors extend independently and do not collapse into one
       whole-document range
-- [ ] 4.4 Off-mode reference assertions
-- [ ] 4.5 Mobile-emulation run
+- [ ] 4.4 Multi-cursor overlap scenario: two cursors ONE node apart, extended three times in the
+      same direction — press 1 leaves two touching ranges (which do not merge), press 2 makes
+      them overlap and merge, press 3 must then extend the merged range as a single block. This
+      is design D4's edge, and one press is not enough to reach it
+- [ ] 4.5 Off-mode reference assertions
+- [ ] 4.6 Mobile-emulation run
 
 ## 5. Real-vault manual pass
 
 - [ ] 5.1 Extend and shrink across real notes, especially deeply nested lists and heading
       sections
-- [ ] 5.2 Try to reach D4's merge edge — two cursors extended until their ranges meet — and
-      judge whether the switch to block semantics reads as wrong
+- [ ] 5.2 Reach D4's merge edge deliberately — two cursors a couple of nodes apart, extended
+      until their ranges OVERLAP rather than merely touch — and judge whether the switch to
+      block semantics reads as abrupt
 - [ ] 5.3 Judge whether losing the caret's exact offset on the first press is felt
 - [ ] 5.4 Record findings in `docs/research/04`
 

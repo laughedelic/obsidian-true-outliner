@@ -1,11 +1,17 @@
 ## 1. Decide the layer (gate for everything else)
 
-- [ ] 1.1 Measure what an escalated cover's end actually is: one-line gap, multi-line gap, tight
-      list with no gap, and the document's last node. Record the offsets
+- [ ] 1.1 Do NOT re-derive the cover's end offsets — `subtreeCoverEnd` (src/escalate.ts:106)
+      already gives them. Measure instead the three collisions Option B would have to clear,
+      per design D1: the deliberate `ch: 0` blank-line convention, `coveredSubtreeRoots`'s
+      `!posBefore(hi, cover.end)` match, and the document's last node where there is no next
+      line to point at
 - [ ] 1.2 From that, judge whether design D1's Option B is a one-position adjustment or a
       redefinition of the cover, and choose the layer
 - [ ] 1.3 Record the decision and its evidence in `docs/research/04` as a numbered finding,
       since `selection-as-subtree-set` builds on the outcome
+- [ ] 1.4 If Option B is chosen, confirm consecutive covers that now TOUCH still present as
+      separate ranges — CodeMirror merges only overlapping ranges, measured 2026-07-25, and
+      `node-selection-extension`'s block-vs-multi-cursor discriminator depends on it
 
 ## 2. Single-range exact-cover deletion
 
