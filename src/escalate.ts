@@ -6,13 +6,17 @@
  * offsets and handles multi-range selections (each range escalates
  * independently, per D4 — that iteration lives in the adapter, not here).
  *
- * Cursors (empty ranges) were originally never touched by this layer at
- * all. D13 (node-edit-enforcement, second manual pass, 2026-07-21) narrows
- * that for LIST-ITEM MARKERS only: `clampCursorToContent` redirects a
- * cursor landing in a marker's prefix to its content start. Gap-line cursor
- * placement is deliberately untouched — see docs/research/13's "Gap-line
- * cursor transparency" entry for why that's a separate, larger, deferred
- * piece, not an oversight here.
+ * Cursors (empty ranges) are never touched by this layer — `escalateRange`/
+ * `escalateRanges` leave them exactly as received. Cursor PLACEMENT (marker
+ * prefixes, and — as of content-space-caret — gap lines too) is a separate,
+ * broader mechanism: `./caret.ts`'s `resolvePlacement`, wired in at the
+ * same `transaction-filter.ts` call site this module's escalation runs
+ * through. Originally that mechanism was list-item-marker-only
+ * (`clampCursorToContent`, design.md D13, node-edit-enforcement's second
+ * manual pass, 2026-07-21); content-space-caret retired it in favor of the
+ * general addressable-position rule, which subsumes the marker case and
+ * extends it to gap lines (docs/research/13, "Gap-line cursor
+ * transparency").
  *
  * `coveredSubtreeRoots` (escalated-selection-decoration, docs/research/13)
  * is the read-only counterpart: given a range that's already in place,
@@ -35,7 +39,6 @@
 import type { NodePath, OutlineDoc, OutlineNode } from './model';
 import { findPath } from './model';
 import { nodeAtLine } from './locate';
-import { contentColumnCh } from './ops';
 
 export interface LinePos {
   readonly line: number;
@@ -269,7 +272,7 @@ export function escalateRanges(doc: OutlineDoc, ranges: readonly LineRange[]): L
 
   return escalated.map((range, i) => {
     if (!rangesEqual(range, ranges[i]!)) return range; // already escalated
-    if (isEmpty(range)) return range; // cursors never move (this function's own scope — see clampCursorToContent for the separate marker mechanism)
+    if (isEmpty(range)) return range; // cursors never move (this function's own scope — see ./caret.ts's resolvePlacement for cursor placement)
     const anchorNode = nodeAtLine(doc, range.anchor.line);
     const headNode = nodeAtLine(doc, range.head.line);
     if (!anchorNode || !headNode) return range; // preamble jurisdiction
@@ -278,28 +281,6 @@ export function escalateRanges(doc: OutlineDoc, ranges: readonly LineRange[]): L
     // makes the already-exact-cover case a clean no-op.)
     return expandToCover(range, subtreeCoverOf(doc, anchorNode));
   });
-}
-
-/**
- * Marker-transparent cursor placement (design.md D13): redirects a cursor
- * that would land inside a list item's marker prefix — its leading
- * indentation, marker character, and the single space after it on the
- * marker's own first line, or the equivalent alignment whitespace on a
- * continuation line — to that line's content-start column instead
- * (`contentColumnCh`, the same boundary the structural ops already use).
- * Input-agnostic: applies uniformly whether the position came from Left,
- * Home, a mouse click, or vertical motion. Non-list-item lines (including
- * headings, whose own `#` marker IS conventionally direct-edit text) and
- * gap lines are untouched — this is deliberately narrower than "no chrome
- * cursor position anywhere" (see the module doc comment).
- */
-export function clampCursorToContent(doc: OutlineDoc, pos: LinePos): LinePos {
-  const node = nodeAtLine(doc, pos.line);
-  if (!node || node.kind !== 'list-item') return pos;
-  const lineIndex = pos.line - startLineOf(doc, node);
-  if (lineIndex < 0 || lineIndex >= node.lines.length) return pos; // node's own trailing gap
-  const boundary = contentColumnCh(node.lines[lineIndex] ?? '');
-  return pos.ch >= boundary ? pos : { line: pos.line, ch: boundary };
 }
 
 /**

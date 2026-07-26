@@ -20,7 +20,9 @@ import { nodeAtLine } from './locate';
 import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
-import { grammarExtension } from './keymap';
+import { grammarExtension, setMotionProbe } from './keymap';
+import { nestedEditorExtension } from './nested-editor';
+import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
 import { structuralCursorRecorder } from './history-cursor';
@@ -56,7 +58,27 @@ export default class TrueOutlinerPlugin extends Plugin {
    * way it already reads `isOutline` (design.md D8). */
   readonly stats = new TransactionStats();
 
+  /**
+   * Per-key keymap-liveness counters, same "public for the harness" rationale
+   * as `stats`. Populated only in dev builds (see `showDevBuildStamp`).
+   *
+   * These exist so e2e can assert the MECHANISM and not only the outcome. A
+   * caret can land in the right place without our keymap ever running — the
+   * transaction filter corrects native motion after the fact — so an
+   * outcome-only test passes identically whether our handler fired or never
+   * existed. That blind spot hid a real defect through three rewrites of the
+   * Home/End logic (docs/research/04 Q27).
+   */
+  readonly motionCounts: Record<string, { invoked: number; consumed: number }> = {};
+
+  /** The stamp compiled into THIS bundle. Public so the dev hot-reload plugin
+   * can name the build it just loaded: `manifest.json` is copied verbatim and
+   * cached by Obsidian anyway, so it only ever reports the base package
+   * version. */
+  readonly buildStamp = BUILD_STAMP;
+
   override async onload(): Promise<void> {
+    this.showDevBuildStamp();
     this.data = { ...DEFAULT_DATA, ...((await this.loadData()) as Partial<PluginData> | null) };
     this.registry = new OutlineModeRegistry(async (paths) => {
       this.data.outlinePaths = paths;
@@ -104,6 +126,10 @@ export default class TrueOutlinerPlugin extends Plugin {
       }),
     );
 
+    // Must precede the filter and decorations: both ask whether they are
+    // running inside a nested per-cell editor, and only a view-level plugin can
+    // answer that from the DOM.
+    this.registerEditorExtension(nestedEditorExtension());
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
@@ -218,6 +244,66 @@ export default class TrueOutlinerPlugin extends Plugin {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (view?.file?.path !== path) return;
     view.editor.setCursor(view.editor.getCursor());
+  }
+
+  /**
+   * Dev-build-only status bar item: which build is loaded, and what time it
+   * loaded. Runs FIRST in onload so it appears even if something later in
+   * startup throws.
+   *
+   * Gated on `BUILD_STAMP.dev`, a constant compiled into the bundle. That flag
+   * is OPT-IN via esbuild's `--dev` argument (passed by `dev`, `vault:install`
+   * and the e2e runner), so a plain `npm run build:plugin` — what the release
+   * pipeline runs, through an external reusable workflow this repo does not
+   * control — cannot ship this UI even if someone forgets the flag. Two earlier
+   * revisions of this gate are worth not repeating: the manifest version carrying
+   * a `+`, which broke once `install-to-vault` copied the manifest verbatim, and
+   * an `OBSIDIAN_DEV_BUILD` environment variable, which was replaced by the argv
+   * flag because `VAR=1 ...` is POSIX-only.
+   *
+   * Why persistent rather than a Notice: a toast that vanishes after 1.5s
+   * cannot answer "is the code I just built actually running?" — you have to
+   * be looking at the right moment, and if you miss it you cannot tell a
+   * successful reload from one that never happened. This sits in the status
+   * bar indefinitely and states the loaded build's own timestamp, so the
+   * question is answerable at any time and by looking, not by remembering.
+   * That distinction cost real debugging time: three consecutive
+   * behavior changes were reported as "nothing changed", and neither of us
+   * could confirm from the app which build was live (docs/research/04 Q27).
+   */
+  private showDevBuildStamp(): void {
+    if (!BUILD_STAMP.dev) return; // release build (production, no --dev): no dev UI
+
+    const now = new Date();
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const loadedAt = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const base = `⟳ ${loadedAt} · ${BUILD_STAMP.buildId} (built ${BUILD_STAMP.clock})`;
+
+    const item = this.addStatusBarItem();
+    item.addClass('true-outliner-dev-stamp');
+    item.setText(base);
+    item.setAttribute(
+      'aria-label',
+      `True Outliner\nloaded ${loadedAt} · built ${BUILD_STAMP.clock} · ${BUILD_STAMP.buildId}\n${BUILD_STAMP.subject}\nchanged: ${BUILD_STAMP.changedSummary}`,
+    );
+
+    // Live keymap readout: does CM6 actually route each bound key to this
+    // plugin's keymap, and do we consume it? Shown rather than assumed because
+    // "our handler ran and computed the wrong target" and "our handler was
+    // never invoked" look identical from outside — both are just wrong caret
+    // behavior. A key absent from this readout was never routed here at all,
+    // which is what Home turned out to be (docs/research/04 Q27).
+    setMotionProbe((key, consumed) => {
+      const tally = this.motionCounts[key] ?? { invoked: 0, consumed: 0 };
+      tally.invoked += 1;
+      if (consumed) tally.consumed += 1;
+      this.motionCounts[key] = tally;
+      const summary = Object.entries(this.motionCounts)
+        .map(([k, t]) => `${k} ${t.consumed}/${t.invoked}`)
+        .join(' ');
+      item.setText(`${base} · ${summary}`);
+    });
+    this.register(() => setMotionProbe(undefined));
   }
 
   private addStructuralCommand(id: string, name: string, op: StructuralOp): void {
