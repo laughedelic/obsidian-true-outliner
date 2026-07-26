@@ -469,6 +469,18 @@ decoration work — independent of Phase C:
   selection simultaneously. This is a modal-behavior design (when to enter/leave the
   mode, how it interacts with the reversible drag-back behavior the manual pass
   praised) — spec it deliberately, not as a patch on the current rule.
+  - **Escape is left unbound, on purpose, for this — recorded here so this thread
+    finds it (`content-space-caret` D6, 2026-07-25).** That change deliberately does
+    NOT bind Escape, specifically so it stays free for whatever "leave block-selection
+    mode" gesture this work settles on. Measured behavior to build on: native Escape
+    on a covering selection is messier than either of two earlier readings — on a
+    forward two-node cover the FIRST press changes nothing and the SECOND collapses to
+    the head edge, landing on what is (post `content-space-caret`) a gap-line position;
+    that placement resolver now redirects it to the covered node's content end
+    automatically, so whatever a future Escape-adjacent binding does, it inherits a
+    caret that's already on content, never on chrome. The two-press oddity itself
+    (plausibly the blur-based chrome mechanism consuming the first Escape) is still
+    unexplained and worth understanding before this work binds the key for anything.
 - **Structural keymap commands need selection-aware behavior for multi-node/subtree
   selections — filed 2026-07-24, selection-visual-treatment's keyboard-recovery
   testing.** With a covering selection spanning SEVERAL sibling subtrees, Tab
@@ -535,6 +547,18 @@ decoration work — independent of Phase C:
   - **Visual pairing**: docs/research/12's "Collapsing gap lines" idea is the
     decoration-layer half of the same eventual feature (hiding, not just
     non-navigating, the gap) — cross-referenced there.
+  - **✅ RESOLVED by `content-space-caret` (2026-07-25).** The vertical-motion
+    prototype this entry called for ran (docs/research/04 Q24): the goal-column drift
+    risk is real but small (a one-character discrepancy, only when a chase bounces off
+    a node shorter than the goal column, under a non-monospace font — the direct,
+    no-bounce cases land pixel-exact) and does not change the direction this entry
+    already argued for. The mouse-click ambiguity resolved cleanly too: gap ownership
+    (already established, all-or-nothing, for the escalation trigger) answers it with
+    no heuristic — a gap always belongs to the node above it. Cursor placement now
+    skips gap lines and list-item markers uniformly (`src/caret.ts`), the invariant
+    reversal is made explicit in `node-selection-enforcement`'s own spec, and the
+    escape hatch is exactly the mode toggle this entry predicted, not an in-mode
+    exception.
 
 ## The selection/cursor-UX track, planned as five changes (2026-07-25)
 
@@ -591,3 +615,104 @@ Modal block-selection state and the cherry-picking `Cmd`-click gesture remain un
 `node-selection-extension` deliberately uses the simplest discriminator that works — one range
 is a block selection, several are multi-cursor — and records its known edge for reassessment
 after real use rather than pre-solving it with a mode.
+
+## Parked: exiting a table's nested editor lands the caret on a gap line (found 2026-07-26, `content-space-caret` real-vault pass)
+
+Vertical motion INTO a table is correct — the gap is skipped, Obsidian's table widget takes the
+caret into a cell. Coming back OUT is not: the first press off the top (or bottom) row parks the
+caret on the surrounding gap line, and only the NEXT press moves it onto real content. A one-press
+lag, symmetric before and after the table.
+
+Measured, with a `cm.dispatch` monkey-patch recording a stack trace per call (pressing ArrowUp
+repeatedly from inside a table):
+
+```
+up#1  t.dispatchUpdate    → {4,2}   Obsidian, still inside the table
+up#2  t.dispatchUpdate    → {2,2}   Obsidian, still inside the table
+up#3  t.placeCursorAround → {1,0}   Obsidian — THE GAP LINE
+up#4  PLUGIN              → {0,0}   us, correcting only on the following press
+```
+
+The keypress never reaches our keymap: a table cell runs its own nested CM6 editor, which consumes
+the arrow and, on the way out, calls Obsidian's own `placeCursorAround` to hand focus back to the
+outer editor. Our handler only sees the press AFTER that, which is why the correction is late
+rather than absent.
+
+**Why the obvious fix is not available.** The filter does see that dispatch, and could rewrite it.
+It doesn't, because `resolveForeignCursors` (`transaction-filter.ts`, Q25) is deliberately scoped
+to the MARKER half of placement resolution and never the gap half — D2 scopes gap-line resolution
+to real user gestures, and `62-outline-edit-enforcement` asserts it directly ("a PROGRAMMATIC
+gap-line placement is untouched"). That same narrowing is what lets the checkbox fix coexist with
+five other tests. Widening it to gaps was tried and reverted: it broke those five across four spec
+files.
+
+**What picking this up would involve.** D2's exemption was written with a plugin calling
+`Editor.setSelection` in mind. `placeCursorAround` is a different animal: Obsidian moving the caret
+while servicing a keypress the user actually made. Distinguishing "another plugin placed this
+cursor" from "Obsidian moved it while servicing a user gesture" is the real question, and it means
+reopening a decided design point rather than patching a call site. Note also that a state-level
+`transactionFilter` cannot detect a nested editor at all — `isNestedEditor` needs DOM ancestry, and
+`editorInfoField` resolves to the same outer `MarkdownView` for both — so any rule here has to hold
+without knowing whether it is running in a cell.
+
+Related, and probably the same root: entering a table from a heading shows a brief caret flash on
+the gap line before the caret settles into the first cell.
+
+## Follow-up: "jump to block start/end" wants its own binding (opened 2026-07-26, `content-space-caret` close)
+
+`content-space-caret` shipped Home/End as a single step within the caret's own raw line, after three
+attempts at an escalating ladder (visual row → node, and a variant with the raw line between) were
+each retired following real-vault use. The full account is `docs/research/04` Q26; the short version
+is that an escalating Home makes one keypress mean different things depending on state the user
+cannot see — where the previous press left the caret, and where the renderer chose to wrap the text.
+
+Moving the caret to a multi-line block's own start or end is still worth having. It should be its
+own motion with its own binding, not a second meaning layered onto Home. As a separate command it
+is discoverable, it can be rebound, it does not make the most-pressed key in the editor
+state-dependent, and it can be defined over the node tree — where "the block" is unambiguous —
+rather than over rendered rows.
+
+Worth deciding at the same time whether it belongs to the same family as the `progressive-select-all`
+ladder (which climbs the tree by design, and where escalation IS the feature because the selection
+it produces is visible). A caret has no such feedback, which is most of why the ladder failed here.
+
+## Follow-up: a dev-mode raw-keydown readout (opened 2026-07-26, `content-space-caret` close)
+
+The keymap-liveness probe (`setMotionProbe`, dev builds only) reports every key this plugin BINDS:
+what CM6 routed to us and what we consumed. It is blind to the failure that actually cost this change
+several sessions — the user pressing a key we do not bind at all. On macOS, cmd+Left is
+`Mod-ArrowLeft` and fn+Left is `Home`; the reporter had always assumed cmd+Left was Home. Every
+report described cmd+Left's native ladder while every fix landed on `Home`. The decisive clue was
+cmd+Left's ABSENCE from the readout, which only surfaced because they happened to try both keys.
+
+A raw-keydown log in dev builds — `key`, `code`, modifiers, `defaultPrevented`, and whether any bound
+handler claimed it — would have answered "you pressed Mod-ArrowLeft, we bind Home" on the first
+press. Small, and it closes a whole class of cross-purposes debugging.
+
+Related, deliberately NOT done (see `docs/research/04` Q27): binding `Mod-ArrowLeft`/`Mod-ArrowRight`
+to the same content-space motion as Home/End. cmd+Left already cannot land on chrome — the
+transaction filter clamps its column-0 rung off the marker — so there is no invariant to gain, and
+overriding a native ladder users may prefer is a real cost. Revisit only if the native ladder turns
+out to violate something the filter cannot catch.
+
+## Follow-up: bidi-correct BOUNDARY crossings (opened 2026-07-26, `content-space-caret` review)
+
+Within-line horizontal motion is now native and bidi-correct: the adapter asks CM6's
+`moveByChar`, flipping `forward` by `textDirectionAt` exactly as CM6's own `cursorCharLeft`/
+`cursorCharRight` do. Measured — in an RTL run ArrowRight moves to a LOWER offset, and LTR lines are
+unaffected. Note the flip lives in the COMMAND, not in `moveByChar`, which returns logical offsets
+regardless of direction; a first attempt that delegated without the flip changed nothing at all, and
+the test written for it passed with the delegation disabled.
+
+What is NOT handled: `planHorizontal` decides WHETHER a press crosses a boundary using LOGICAL
+position — "at or before the content boundary" for left, "at the line's end" for right. In an RTL run
+those two fire at the logically-first and logically-last positions, which are the visually LAST and
+FIRST. So a caret at the visual right edge of an RTL line does not cross to the next node on
+ArrowRight the way it would in LTR text.
+
+Fixing it means deciding what "the next content position" means for mixed-direction text — whether
+node order follows logical document order (it does, structurally) while motion within a line follows
+visual order, and what happens at the seam. That is a design question about the content-space model,
+not a patch, which is why it is filed rather than fixed in a review round. Anyone picking it up should
+start from CM6's `bidiSpans`/`Direction` and from what native Obsidian does at an RTL line's edges,
+since matching native behavior has been the right default everywhere else in this change.
