@@ -1,40 +1,34 @@
 import * as path from 'node:path';
 import * as url from 'node:url';
-import { obsidianBetaAvailable } from 'wdio-obsidian-service';
+import { resolveObsidianTarget } from './obsidian-target.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(e2eDir, '..');
 
 /**
- * Prefer the current Obsidian BETA when it's available, else the latest
- * stable.
+ * Which Obsidian to run, and where it is cached — resolved by
+ * `./obsidian-target.mts`, shared with the mobile config so the two cannot
+ * drift apart again.
  *
- * Why this matters, concretely (docs/research/04 Q21): a real
- * user-reported redo-cursor bug could not be reproduced in this harness for
- * three rounds, because the behavior that causes it entered
- * `@codemirror/commands` in 6.10.2 and the newest STABLE Obsidian bundles an
- * older CM6, while the reporter was on a 1.13.x beta that bundles a newer
- * one. Automated tests and manual testing were silently running different
- * editor cores — exactly the class of discrepancy that makes a bug look
- * unreproducible rather than version-gated.
+ * Why the version matters (docs/research/04 Q21, Q27): a user-reported
+ * redo-cursor bug went unreproducible for three rounds because the behavior
+ * causing it entered `@codemirror/commands` 6.10.2 and the newest STABLE
+ * Obsidian bundles an older CM6 while the reporter was on a 1.13.x beta. Later,
+ * a keymap investigation cost several more sessions with the harness on 1.12.7
+ * and the reporter on 1.13.3. Both times the harness was internally consistent
+ * and green.
  *
- * `obsidianBetaAvailable()` is true only when there IS a current beta AND we
- * can actually get it (Catalyst credentials in `OBSIDIAN_EMAIL`/
- * `OBSIDIAN_PASSWORD`, or the build already sitting in the local cache). So
- * this degrades cleanly to `latest` on CI and for contributors without an
- * Insiders account, rather than failing to launch.
+ * To pre-download a beta WITHOUT disabling 2FA (the env vars require 2FA off):
  *
- * To pre-download a beta WITHOUT disabling 2FA on your main account (the env
- * vars require 2FA off), run once per beta:
+ *     npm run obsidian:fetch -- -v 1.13.3
  *
- *     npx obsidian-launcher download app -v latest-beta
- *
- * It prompts for password and 2FA and populates `.obsidian-cache/`, after
- * which `obsidianBetaAvailable()` reports true from the cache alone.
+ * Use that script rather than `npx obsidian-launcher download` directly: the
+ * CLI defaults to `~/.obsidian-cache` while this harness has its own, so a bare
+ * CLI download lands where the harness never looks and then fails as "Insiders
+ * account is required" — a download that SUCCEEDED, reported as a credentials
+ * problem.
  */
-const browserVersion = (await obsidianBetaAvailable({ cacheDir: path.join(root, '.obsidian-cache') }))
-  ? 'latest-beta'
-  : 'latest';
+const { browserVersion, cacheDir } = await resolveObsidianTarget(root, '');
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
@@ -79,7 +73,7 @@ export const config: WebdriverIO.Config = {
   services: ['obsidian'],
   reporters: ['obsidian'],
 
-  cacheDir: path.join(root, '.obsidian-cache'),
+  cacheDir,
   mochaOpts: {
     ui: 'bdd',
     timeout: 60_000,

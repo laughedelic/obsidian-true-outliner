@@ -54,8 +54,7 @@ describe('outline decorations: contracts (nested editors, non-mutation)', functi
     await browser.pause(150);
 
     // Click into a cell to make Obsidian mount its nested editor.
-    await browser.$('.markdown-source-view .cm-table-widget td').click();
-    await h.waitForContentChildCount('.cm-embed-block .cm-editor', 1);
+    await h.clickTableCell();
 
     const nested = await browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;

@@ -298,6 +298,24 @@ export async function mouseDragSelect(
   await action.perform();
 }
 
+/** A real single mouse click (down+up, no movement) at a document position —
+ * places the caret exactly as a real click would, unlike `Editor.setCursor`.
+ * Distinct from `mouseDragSelect`'s W3C pointer-move sequence so it isn't
+ * caught by IS_MOBILE_RUN's drag-only skip: a plain tap works the same
+ * under Chrome's mobile emulation (only a drag's move phase misbehaves
+ * there). */
+export async function clickAt(line: number, ch: number): Promise<void> {
+  const coords = await posToCoords(line, ch);
+  const x = Math.round(coords.left);
+  const y = Math.round((coords.top + coords.bottom) / 2);
+  await browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x, y, origin: 'viewport' })
+    .down({ button: 0 })
+    .up({ button: 0 })
+    .perform();
+}
+
 /** A real double-click at a document position (word selection). */
 export async function doubleClickAt(line: number, ch: number): Promise<void> {
   const coords = await posToCoords(line, ch);
@@ -456,6 +474,68 @@ export interface StatsSnapshot {
   recent: { cls: string; userEvent: string | undefined; ms: number; timestamp: number }[];
   verdictCounts: Record<string, number>;
   verdictTiming: Record<string, StatsTiming>;
+}
+
+/** Per-key keymap-liveness counters (`consumed/invoked`), from the plugin's
+ * dev-build probe. Lets a test assert the MECHANISM rather than only the
+ * outcome: a caret can land correctly without our keymap ever running, because
+ * the transaction filter corrects native motion after the fact, so an
+ * outcome-only assertion passes identically whether our handler fired or never
+ * existed at all. See docs/research/04 Q27 — that blind spot hid a real defect
+ * (Home never routed to our keymap) through three rewrites of the Home/End
+ * logic, all of which the outcome-only tests happily passed. */
+/**
+ * Clicks into a table cell to make Obsidian mount its per-cell nested CM6
+ * editor, targeting the cell's own TEXT element rather than the `<td>`.
+ *
+ * Scoped to `.workspace-leaf.mod-active`, which is the whole point. An
+ * unscoped `.markdown-source-view .cm-table-widget td` matches the FIRST table
+ * cell in the document — which may belong to a different, inactive leaf left
+ * open by an earlier test, and an element in a hidden pane is never
+ * interactable. That produced a reproducible "element not interactable" whose
+ * error text gave it away: the cell it had found contained text from an
+ * entirely different fixture note than the one the test had just created.
+ * Diagnosed for a while as flake, because whether it failed depended on
+ * leftover workspace layout rather than on anything the test did.
+ *
+ * Targets the wrapper INSIDE a `td` — `td .table-cell-wrapper`, the cell's own
+ * text element. Two constraints meet here: the `<td>` itself is a poor click
+ * target because Obsidian overlays a `.table-row-drag-handle` inside it, which
+ * on a one-character column covers most of the box; but `.table-cell-wrapper`
+ * alone also matches `<th>`, so dropping the `td` clicks the HEADER row. That
+ * one is silent rather than loud — the nested editor mounts fine and the test
+ * goes on to type into the wrong cell — so the `td` is load-bearing.
+ *
+ * Mounting the nested editor is a PRECONDITION in these tests, never the
+ * assertion, so making it deterministic weakens nothing.
+ */
+export async function clickTableCell(): Promise<void> {
+  const wrapper = browser.$(
+    '.workspace-leaf.mod-active .markdown-source-view .cm-table-widget td .table-cell-wrapper',
+  );
+  await wrapper.waitForExist({ timeout: 5000 });
+  await wrapper.waitForClickable({ timeout: 5000 });
+  await wrapper.click();
+  await waitForContentChildCount('.cm-embed-block .cm-editor', 1);
+}
+
+export function getMotionCounts(): Promise<Record<string, { invoked: number; consumed: number }>> {
+  return browser.executeObsidian(
+    ({ plugins }) =>
+      (plugins.trueOutliner as any).motionCounts as Record<
+        string,
+        { invoked: number; consumed: number }
+      >,
+  );
+}
+
+/** Zeroes the keymap-liveness counters so a test can attribute what follows to
+ * its own keypresses. */
+export function resetMotionCounts(): Promise<void> {
+  return browser.executeObsidian(({ plugins }) => {
+    const counts = (plugins.trueOutliner as any).motionCounts as Record<string, unknown>;
+    for (const key of Object.keys(counts)) delete counts[key];
+  });
 }
 
 export function getStats(): Promise<StatsSnapshot> {
@@ -752,6 +832,12 @@ export const keys = {
   altDown: () => browser.keys([Key.Alt, Key.ArrowDown]),
   undo: () => browser.keys([PRIMARY_MOD, 'z']),
   type: (text: string) => browser.keys([...text]),
+  left: () => browser.keys(Key.ArrowLeft),
+  right: () => browser.keys(Key.ArrowRight),
+  up: () => browser.keys(Key.ArrowUp),
+  down: () => browser.keys(Key.ArrowDown),
+  home: () => browser.keys(Key.Home),
+  end: () => browser.keys(Key.End),
 };
 
 /** A real clipboard paste (Ctrl/Cmd+V after writing to the OS clipboard) —

@@ -1,15 +1,15 @@
 import * as path from 'node:path';
 import * as url from 'node:url';
-import { obsidianBetaAvailable } from 'wdio-obsidian-service';
+import { resolveObsidianTarget } from './obsidian-target.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(e2eDir, '..');
 
-/** Same beta-preferring resolution as wdio.conf.mts — see its own comment
- * for why running the same Obsidian/CM6 as manual testing matters. */
-const browserVersion = (await obsidianBetaAvailable({ cacheDir: path.join(root, '.obsidian-cache') }))
-  ? 'latest-beta'
-  : 'latest';
+/** Shared with wdio.conf.mts — see `./obsidian-target.mts`. Previously this
+ * file had its own copy, which honored neither `OBSIDIAN_VERSION` nor a
+ * configurable cache, so pinning a version silently applied to the desktop
+ * suite only. */
+const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile');
 
 /**
  * Mobile-emulation variant of wdio.conf.mts: identical plugin/vault/specs,
@@ -58,7 +58,7 @@ export const config: WebdriverIO.Config = {
   services: ['obsidian'],
   reporters: ['obsidian'],
 
-  cacheDir: path.join(root, '.obsidian-cache'),
+  cacheDir,
   mochaOpts: {
     ui: 'bdd',
     timeout: 60_000,

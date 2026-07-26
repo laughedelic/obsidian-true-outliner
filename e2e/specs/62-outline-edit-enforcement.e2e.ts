@@ -284,13 +284,23 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(await h.getBuffer()).toBe('# TitleBody.\n');
   });
 
-  // ---- 4.7 Marker-transparent cursor placement (D13) ----------------------
+  // ---- 4.7 Marker-transparent cursor placement (superseded by
+  // content-space-caret's general addressable-position rule; see
+  // e2e/specs/65-content-space-caret.e2e.ts for that capability's own
+  // suite — these regression guards stay here too since node-edit-
+  // enforcement's own scenarios named them) ---------------------------------
 
-  it('Left arrow from a list item\'s content start jumps into the marker prefix, redirected to content start', async function () {
+  it("Left arrow from a list item's content start escapes to the previous node's content end (content-space-caret D4 supersedes the old in-place marker clamp)", async function () {
+    // Originally (D13/clampCursorToContent) ArrowLeft was a permanent no-op
+    // here, redirected back to THIS line's own content start whenever it
+    // would have landed inside the marker. content-space-caret's horizontal-
+    // motion planner (src/caret.ts's `planHorizontal`) supersedes that: the
+    // caret now crosses backward to the previous node, mirroring ArrowRight
+    // — examples.md B1's exact scenario.
     await outlineNote('- alpha\n- beta\n');
     await h.setCursor(1, 2); // content start of "- beta"
     await browser.keys(Key.ArrowLeft);
-    expect(await h.getCursor()).toEqual({ line: 1, ch: 2 }); // NOT {1, 1} or {1, 0}
+    expect(await h.getCursor()).toEqual({ line: 0, ch: '- alpha'.length });
   });
 
   it('Home on a list item lands at content start, not column 0', async function () {
@@ -332,7 +342,12 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(await h.getCursor()).toEqual({ line: 0, ch: 0 }); // stock: Home goes to column 0
   });
 
-  it('cursor placement on a gap line is unaffected (deliberately deferred)', async function () {
+  it('a PROGRAMMATIC gap-line placement is untouched — content-space-caret only resolves real user gestures', async function () {
+    // `Editor.setSelection` dispatches with no `userEvent` (classified
+    // `programmatic`), outside content-space-caret's resolver jurisdiction
+    // by design (D2) — a real click or keypress landing on this same gap
+    // line WOULD be redirected (see e2e/specs/65-content-space-caret.e2e.ts
+    // D1, and the vertical/Home tests below).
     await outlineNote('First.\n\nSecond.\n');
     await h.setSelection({ line: 1, ch: 0 }, { line: 1, ch: 0 });
     expect(await h.getCursor()).toEqual({ line: 1, ch: 0 });

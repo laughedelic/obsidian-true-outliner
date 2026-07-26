@@ -4,6 +4,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Run the e2e suites against a specific Obsidian build on demand. Only works
+  # for versions the runner can actually download: every 1.13.x is currently
+  # insider-only (isBeta, no public GitHub asset), and this workflow
+  # deliberately holds no Catalyst credentials — see the README's "Testing
+  # against a beta" note. Once a version goes public, `latest` picks it up on
+  # its own and this input is only needed for pinning an OLDER one.
+  workflow_dispatch:
+    inputs:
+      obsidian-version:
+        description: "Obsidian version for the e2e suites (e.g. 1.12.7). Blank = latest public."
+        required: false
+        default: ""
 
 env:
   node-version: "26"
@@ -39,6 +51,14 @@ jobs:
 
   e2e-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Add versions here to test more than one — the cache key and the job
+        # name both key off this, so entries never clobber each other. Only
+        # publicly-downloadable versions work; see the workflow_dispatch note.
+        obsidian: ["${{ inputs.obsidian-version || 'latest' }}"]
+    name: e2e-test (${{ matrix.obsidian }})
     steps:
       - uses: actions/checkout@v7
 
@@ -49,19 +69,43 @@ jobs:
 
       - run: npm ci
 
-      # Caches the downloaded Obsidian installer(s) used by wdio-obsidian-service
+      # Caches the downloaded Obsidian app+installer used by
+      # wdio-obsidian-service. The key includes the requested version so two
+      # matrix entries keep separate caches. `latest` is a moving target, so it
+      # also carries the week: on a hit actions/cache does not save, meaning a
+      # newly-released Obsidian would be re-downloaded on every run forever
+      # without something to roll the key over. restore-keys still gives a warm
+      # start from the previous week's cache.
+      - id: cache-key
+        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: .obsidian-cache
-          key: obsidian-cache-${{ runner.os }}-earliest-latest
+          key: obsidian-cache-${{ runner.os }}-${{ matrix.obsidian }}-${{ steps.cache-key.outputs.week }}
+          restore-keys: |
+            obsidian-cache-${{ runner.os }}-${{ matrix.obsidian }}-
 
       - run: npm run build:plugin
 
-      # Obsidian is an Electron app and needs a display even "headless" in CI
+      # Obsidian is an Electron app and needs a display even "headless" in CI.
+      # OBSIDIAN_VERSION is read by e2e/wdio.conf.mts, which also prints the
+      # resolved target and fails fast if a pinned version is not in the cache.
       - run: xvfb-run --auto-servernum npm run test:e2e
+        env:
+          # matrix.obsidian, NOT inputs.obsidian-version: the matrix value is
+          # what names the job and keys the cache, so passing the raw input
+          # would make every expanded entry run the same version under different
+          # names and caches. The single default entry already resolves to the
+          # input (or 'latest').
+          OBSIDIAN_VERSION: ${{ matrix.obsidian }}
 
   e2e-test-mobile:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        obsidian: ["${{ inputs.obsidian-version || 'latest' }}"]
+    name: e2e-test-mobile (${{ matrix.obsidian }})
     steps:
       - uses: actions/checkout@v7
 
@@ -72,14 +116,19 @@ jobs:
 
       - run: npm ci
 
-      # Caches the downloaded Obsidian installer(s) used by wdio-obsidian-service
+      - id: cache-key
+        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: .obsidian-cache
-          key: obsidian-cache-${{ runner.os }}-earliest-latest
+          key: obsidian-cache-${{ runner.os }}-${{ matrix.obsidian }}-${{ steps.cache-key.outputs.week }}
+          restore-keys: |
+            obsidian-cache-${{ runner.os }}-${{ matrix.obsidian }}-
 
       - run: npm run build:plugin
 
       # Same suite, run under Obsidian's mobile emulation (still Electron;
       # see README's "Mobile testing" section).
       - run: xvfb-run --auto-servernum npm run test:e2e:mobile
+        env:
+          OBSIDIAN_VERSION: ${{ matrix.obsidian }}
