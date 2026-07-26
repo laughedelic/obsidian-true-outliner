@@ -56,10 +56,15 @@ function containsBounds(cover: Cover, lo: LinePos, hi: LinePos): boolean {
 /**
  * A node's own content cover (rung 1): its own lines only, excluding
  * descendants and its trailing gap. A list item's cover starts after its
- * marker (`contentColumnCh`, the same content-start boundary
- * `clampCursorToContent`/`splitNode` already use) — headings and
+ * marker (`contentColumnCh`, the same boundary `splitNode` uses) — headings and
  * paragraphs have no marker to exclude (design.md D4), so their content
  * starts at column 0 of their first line.
+ *
+ * NOT `./caret.ts`'s `contentBoundaryCh`, which deliberately answers a
+ * different question: it leaves an ATX prefix inside a list item addressable and
+ * covers a marker with no trailing space. The two agree on ordinary items and
+ * differ on `- # title` and a bare `-`; this ladder keeps `contentColumnCh`'s
+ * semantics, unchanged by the caret work.
  */
 function ownContentCover(doc: OutlineDoc, node: OutlineNode): Cover {
   const start = nodeStartLine(doc, node.id);

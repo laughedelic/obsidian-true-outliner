@@ -140,9 +140,10 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   // The cursor re-assertion that follows every structural op
   // (structural-history-integration D4, src/plugin/history-cursor.ts). It is
   // selection-only, so without this entry it would classify `selection-only`
-  // and be run through escalation + marker-transparent cursor clamping —
-  // either of which could move the very cursor it exists to record in
-  // history. Classifying it `plugin-own` passes it through untouched.
+  // and be run through escalation + the content-space-caret placement
+  // resolver (`./caret.ts`'s `resolvePlacement`) — either of which could
+  // move the very cursor it exists to record in history. Classifying it
+  // `plugin-own` passes it through untouched.
   CURSOR_REASSERT_USER_EVENT,
 ];
 

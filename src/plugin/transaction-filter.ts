@@ -31,7 +31,8 @@ import { editorInfoField, Notice } from 'obsidian';
 import type { OutlineDoc } from '../model';
 import { encodeLines } from '../encode';
 import { classify, type ChangedLineSpan, type TransactionFacts } from '../classify';
-import { clampCursorToContent, escalateRanges, rangesEqual, type LinePos, type LineRange } from '../escalate';
+import { escalateRanges, rangesEqual, type LinePos, type LineRange } from '../escalate';
+import { resolvePlacement, resolveMarkerPlacement } from '../caret';
 import { computeVerdictForRanges, type EditFact, type RewriteVerdict } from '../enforce';
 import type { Edit, RejectionReason } from '../result';
 import { applyEdits } from '../result';
@@ -39,6 +40,7 @@ import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import type { ModeSource } from './keymap';
 import { parsedDoc } from './parsed-doc';
+import { isNestedTransaction } from './nested-editor';
 import type { TransactionStats } from './stats';
 
 export interface ClassificationSource extends ModeSource {
@@ -138,9 +140,12 @@ function toLineRange(doc: Text, range: SelectionRange): LineRange {
  * pure `escalateRanges`, which applies both the per-range rules and the
  * uniform multi-range rule (D4 as amended). A cursor (empty range) that
  * `escalateRanges` leaves untouched by design is additionally run through
- * `clampCursorToContent` (D13) — a separate, narrower mechanism for list-
- * item marker prefixes only. Returns `undefined` if no range actually
- * changed, so the caller can skip wrapping the transaction.
+ * `resolvePlacement` (content-space-caret D2) — the general content-space
+ * placement resolver, which supersedes the old marker-only
+ * `clampCursorToContent` by also catching gap lines (D9's reversal: a
+ * cursor can no longer rest on one in outline mode). Returns `undefined` if
+ * no range actually changed, so the caller can skip wrapping the
+ * transaction.
  */
 function escalateSelection(
   outlineDoc: OutlineDoc,
@@ -151,8 +156,8 @@ function escalateSelection(
   const escalated = escalateRanges(outlineDoc, before);
   const after = escalated.map((range) => {
     if (range.anchor.line !== range.head.line || range.anchor.ch !== range.head.ch) return range;
-    const clamped = clampCursorToContent(outlineDoc, range.anchor);
-    return clamped === range.anchor ? range : { anchor: clamped, head: clamped };
+    const resolved = resolvePlacement(outlineDoc, range.anchor);
+    return resolved === range.anchor ? range : { anchor: resolved, head: resolved };
   });
   let changed = false;
   const ranges = tr.newSelection.ranges.map((original, i) => {
@@ -161,6 +166,68 @@ function escalateSelection(
     const anchor = linePosToOffset(doc, after[i]!.anchor);
     const head = linePosToOffset(doc, after[i]!.head);
     return EditorSelection.range(anchor, head);
+  });
+  if (!changed) return undefined;
+  return EditorSelection.create(ranges, tr.newSelection.mainIndex);
+}
+
+/**
+ * Cursor placement resolution for a FOREIGN selection-only dispatch that
+ * classifies `programmatic` (no `userEvent` at all, no changes).
+ *
+ * Measured (docs/research/04 Q25): pressing Home on a checkbox list item
+ * lands our own dispatch correctly on content start, and Obsidian core then
+ * issues a SEPARATE, later selection-only dispatch that moves the caret back
+ * to column 0 — onto the `- ` marker, the exact position this change makes
+ * non-addressable. Captured with a `cm.dispatch` monkey-patch recording
+ * stack traces: the second dispatch originates in `app://obsidian.md/app.js`
+ * (Obsidian's own checkbox-widget mount), carries no annotations, and is
+ * not ours. Because `isProgrammatic` claims every `userEvent`-less
+ * transaction BEFORE the `selection-only` test (src/classify.ts), it
+ * bypassed placement resolution entirely — the caret invariant had a hole
+ * exactly where any foreign, unannotated cursor move lands.
+ *
+ * Deliberately narrower than `escalateSelection` in TWO ways.
+ *
+ * Only EMPTY ranges are touched: a non-empty programmatic selection stays
+ * exempt, preserving node-selection-enforcement's own accepted
+ * `programmatic` case (a workspace restore, a nested editor's focus
+ * hand-off) which must not be escalated.
+ *
+ * And only the MARKER half of placement resolution applies
+ * (`resolveMarkerPlacement`), never the gap half. D2 deliberately scopes
+ * gap-line resolution to real user gestures, and 62-outline-enforcement
+ * asserts it directly ("a PROGRAMMATIC gap-line placement is untouched").
+ * The marker clamp has no such limit — it predates this change as
+ * node-edit-enforcement's `clampCursorToContent` (D13) and always applied
+ * to any cursor from any source.
+ *
+ * Nested per-cell table editors are handled EARLIER, by the
+ * `isNestedTransaction` gate at the top of the filter — not by anything about
+ * this branch. An earlier version of this comment claimed a cell was safe
+ * because its tiny document is plain text with no marker to clamp; that is
+ * false. A cell whose text starts with `- ` parses as a list item, and this
+ * branch did clamp stock motion inside it until the gate existed. The gate is
+ * the reason, and it has its own regression test.
+ *
+ * Idempotent, and so self-terminating: `resolveMarkerPlacement` maps an
+ * already-addressable position to itself, so the appended correction
+ * reports no change on re-entry and appends nothing further — the same
+ * property the `selection-only` branch above already relies on.
+ */
+function resolveForeignCursors(
+  outlineDoc: OutlineDoc,
+  doc: Text,
+  tr: Transaction,
+): EditorSelection | undefined {
+  let changed = false;
+  const ranges = tr.newSelection.ranges.map((original) => {
+    if (!original.empty) return original; // selections keep the programmatic exemption
+    const pos = offsetToLinePos(doc, original.head);
+    const resolved = resolveMarkerPlacement(outlineDoc, pos);
+    if (resolved.line === pos.line && resolved.ch === pos.ch) return original;
+    changed = true;
+    return EditorSelection.cursor(linePosToOffset(doc, resolved));
   });
   if (!changed) return undefined;
   return EditorSelection.create(ranges, tr.newSelection.mainIndex);
@@ -195,6 +262,14 @@ export function transactionFilterExtension(
     const path = tr.startState.field(editorInfoField, false)?.file?.path;
     if (!path || !source.isOutline(path)) return tr; // off-mode: byte-for-byte stock, nothing recorded
 
+    // A nested per-cell table editor resolves to the SAME host file, so without
+    // this it would be enforced as if its tiny document were the outline. See
+    // nested-editor.ts: a cell whose text starts with `- ` parses as a list
+    // item, and stock motion inside it was being clamped off the "marker".
+    // `isNestedTransaction` also covers the flag's own startup window, where the
+    // setting dispatch's `startState` still reads false.
+    if (isNestedTransaction(tr)) return tr;
+
     const start = performance.now();
     const userEvent = tr.annotation(Transaction.userEvent);
     const isComposition = tr.isUserEvent('input.type.compose');
@@ -214,6 +289,10 @@ export function transactionFilterExtension(
     if (cls === 'selection-only') {
       const escalated = escalateSelection(outlineDoc, tr.startState.doc, tr);
       if (escalated) result = [tr, { selection: escalated }];
+    } else if (cls === 'programmatic' && userEvent === undefined && changedLineSpans.length === 0) {
+      // A foreign, unannotated cursor move (see resolveForeignCursors).
+      const placed = resolveForeignCursors(outlineDoc, tr.startState.doc, tr);
+      if (placed) result = [tr, { selection: placed }];
     } else if (cls === 'boundary-crossing-edit') {
       const edits = collectEditFacts(tr);
       // Public CM6 facet, same as keymap.ts's grammar path — Obsidian sets

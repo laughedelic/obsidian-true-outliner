@@ -79,6 +79,7 @@ import {
 } from './decorate';
 import type { ModeSource } from './keymap';
 import { parsedDoc } from './parsed-doc';
+import { isNestedEditor } from './nested-editor';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
 //
@@ -802,29 +803,6 @@ function clearWidgetMarker(el: HTMLElement): void {
   delete el.dataset.markerDepth;
 }
 
-/**
- * True when `view` is NOT the real, top-level note editor but a separate,
- * nested CM6 instance Obsidian mounts inside another widget's own DOM — the
- * only case found so far: a table cell currently being edited in Live
- * Preview renders as its own tiny, independent `EditorView` embedded inside
- * `.cm-embed-block.cm-table-widget` (confirmed live by walking the DOM
- * ancestry of a stray marker up to the table widget). `registerEditorExtension`
- * (main.ts) applies this whole extension to EVERY CM6 instance app-wide,
- * this nested one included, and its own "document" is just the cell's raw
- * text — a bare line with no special syntax reads as a plain paragraph to
- * decorate()/parse(), so without this guard it picks up a marker AND
- * depth-based padding/margin exactly like a real top-level paragraph,
- * visibly corrupting the cell being edited. A real top-level note's own
- * `.cm-editor` is never itself nested inside a `.cm-embed-block` (those are
- * its own descendants, not its ancestors), so this only ever fires for a
- * genuinely embedded editor — confirmed also via `editorInfoField`, which
- * resolves to the SAME outer `MarkdownView` for both, so state alone can't
- * tell them apart; only the DOM ancestry can, which is why this check lives
- * here (view-level) rather than in the state-only decoration builders.
- */
-function isNestedEditor(view: EditorView): boolean {
-  return view.dom.closest('.cm-embed-block') !== null;
-}
 
 class DecorationsPlugin implements PluginValue {
   decorations: DecorationSet;
