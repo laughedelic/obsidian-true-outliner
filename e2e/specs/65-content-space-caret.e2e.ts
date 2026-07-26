@@ -15,6 +15,7 @@
  */
 
 import { browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 
@@ -397,16 +398,27 @@ describe('content-space-caret', function () {
       // result — it does not: a native collapse carries no `userEvent`, so it
       // classifies `programmatic` and gets marker resolution only, never the gap
       // half. Measured before the fix: the caret sat on line 3, a blank line.
+      //
+      // Built with Shift+ArrowDown rather than a drag. A drag reaches the same
+      // shape but only on desktop — under Chrome's mobile emulation a drag's move
+      // phase misbehaves, which is why the drag tests in
+      // 63-selection-visual-treatment skip on mobile. Keyboard extension
+      // escalates identically (measured: anchor 0:0, head 3:0), so this covers
+      // both runs and cannot pick up drag flake.
       await outlineNote('First paragraph.\n\nSecond paragraph.\n');
+      await h.setCursor(0, 6);
+      await browser.keys([Key.Shift, Key.ArrowDown]);
+      await browser.keys([Key.Shift, Key.ArrowDown]);
 
-      await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 });
       const escalated = await h.getSelection();
       expect(escalated.head).toEqual({ line: 3, ch: 0 }); // the trailing gap
 
       await h.keys.home();
       expect(await h.getCursor()).toEqual({ line: 2, ch: 0 }); // resolved onto content
 
-      await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 });
+      await h.setCursor(0, 6);
+      await browser.keys([Key.Shift, Key.ArrowDown]);
+      await browser.keys([Key.Shift, Key.ArrowDown]);
       await h.keys.end();
       expect(await h.getCursor()).toEqual({ line: 2, ch: 'Second paragraph.'.length });
     });
