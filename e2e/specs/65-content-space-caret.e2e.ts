@@ -389,6 +389,28 @@ describe('content-space-caret', function () {
       expect(await h.getCursor()).toEqual({ line: 4, ch: 2 });
     });
 
+    it('Home/End collapsing an escalated selection never leave the caret on its trailing gap', async function () {
+      // An escalated boundary-crossing cover ENDS on the last node's trailing gap
+      // by design (escalate-include-owned-gap), so a collapse to the head lands
+      // there. Home/End used to decline on a non-empty selection and let native
+      // motion collapse, on the assumption that the filter would resolve the
+      // result — it does not: a native collapse carries no `userEvent`, so it
+      // classifies `programmatic` and gets marker resolution only, never the gap
+      // half. Measured before the fix: the caret sat on line 3, a blank line.
+      await outlineNote('First paragraph.\n\nSecond paragraph.\n');
+
+      await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 });
+      const escalated = await h.getSelection();
+      expect(escalated.head).toEqual({ line: 3, ch: 0 }); // the trailing gap
+
+      await h.keys.home();
+      expect(await h.getCursor()).toEqual({ line: 2, ch: 0 }); // resolved onto content
+
+      await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 });
+      await h.keys.end();
+      expect(await h.getCursor()).toEqual({ line: 2, ch: 'Second paragraph.'.length });
+    });
+
     it('Home on a PROGRAMMATIC gap-line caret moves it onto content instead of consuming the key', async function () {
       // A programmatic placement is deliberately left on a gap (D2 scopes gap
       // resolution to real user gestures). Home used to read that gap as an

@@ -11,10 +11,13 @@
  * And the content-space-caret motion handlers (content-space-caret change,
  * design.md D1/D3-D5): ArrowLeft/Right/Up/Down/Home/End, computing their
  * target directly from the parsed tree (`../caret.ts`) rather than
- * correcting a position after a stock command produced it. Each handler
- * declines (returns `false`) on a non-empty selection — native collapse
- * runs instead, and the resulting cursor is caught by
- * `transaction-filter.ts`'s placement resolution (D2) — and dispatches with
+ * correcting a position after a stock command produced it. The ARROW handlers
+ * decline (returns `false`) on a non-empty selection, letting native collapse
+ * run — measured, that lands on content, and it is NOT rescued by the filter
+ * afterward as an earlier version of this comment claimed: a native collapse
+ * carries no `userEvent` and so gets marker resolution only. Home/End cannot
+ * decline for exactly that reason; see `makeHomeEndHandler`. Handlers also
+ * decline — and dispatches with
  * no explicit `userEvent`, the same convention `makeSelectAllHandler`
  * already uses for its own selection-only dispatch: `classify.ts` treats an
  * annotation-less transaction as `programmatic` (D2's "absence is the
@@ -569,8 +572,21 @@ function makeVerticalHandler(modes: ModeSource, forward: boolean) {
 function makeHomeEndHandler(modes: ModeSource, forward: boolean) {
   return (view: EditorView): boolean => {
     if (!outlinePathOf(modes, view)) return false;
-    const sel = soleCursor(view);
-    if (!sel) return false;
+    // Handles a NON-EMPTY single range too, unlike the other motion handlers,
+    // because declining left the caret on a non-addressable position. Measured:
+    // on an escalated boundary-crossing selection, whose head is the last node's
+    // trailing gap line by design, native Home/End collapse to that gap and STAY
+    // there — and the resulting transaction carries no `userEvent`, so it
+    // classifies `programmatic` and `resolveForeignCursors` gives it marker
+    // resolution only, never the gap half. The invariant was broken by the one
+    // path that assumed the filter would cover it.
+    //
+    // Arrows are fine and still decline: measured on the same selection, their
+    // native collapse lands on content (the cover's own start, or the previous
+    // node's content end), never on a gap.
+    const selection = view.state.selection;
+    if (selection.ranges.length !== 1) return false; // multi-cursor: see soleCursor
+    const sel = selection.main;
 
     const doc = view.state.doc;
     const { doc: outlineDoc } = parsedDoc(doc);
@@ -594,7 +610,9 @@ function makeHomeEndHandler(modes: ModeSource, forward: boolean) {
       ? { line: pos.line, ch: line.length }
       : { line: pos.line, ch: contentBoundaryCh(node, line) };
 
-    if (target.line !== raw.line || target.ch !== raw.ch) {
+    // A non-empty range must always be dispatched, even when the computed target
+    // equals the head: the dispatch is what collapses it.
+    if (!sel.empty || target.line !== raw.line || target.ch !== raw.ch) {
       dispatchCursor(view, linePosToOffset(doc, target));
     }
     return true; // consume either way — a further press at the outer rung does nothing
