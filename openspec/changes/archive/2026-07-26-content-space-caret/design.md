@@ -191,19 +191,36 @@ self-evident and needs no cue, unlike a structural rejection whose reason is inv
 Forward motion already behaves this way today (measured: `→` at the end of `- alpha` lands on
 `- |bravo`, skipping the marker). This decision makes backward motion its mirror.
 
-### D5. Home and End escalate, with adjacent-rung collapse
+### D5. Home and End move within the caret's own line — one step, no escalation
 
-First press moves to the current visual row's own content boundary; second press to the whole
-node's content boundary. When those coincide — a single-line, unwrapped node — the two rungs
-collapse into one step, the same adjacent-identical-rung collapse `progressive-select-all`
-already specifies for its ladder.
+Home moves to the content start of the raw line the caret is already on; End to that line's end.
+A further press does nothing. Neither key crosses a line break, and neither consults rendered
+geometry — the target comes from the parsed line, so soft wrapping is irrelevant to it.
 
-*Why visual row rather than logical line as the first rung:* Obsidian wraps by default, and
-row-start is where the native behavior earns its keep on long paragraphs. Keeping it costs
-nothing, because for an unwrapped line the row and the line coincide and collapse.
+For a list item's continuation line the content start is its alignment column, not column 0 —
+continuation-line alignment whitespace is marker chrome like any other.
 
-For a list item's continuation line, the row's content boundary is its alignment column, not
-column 0 — continuation-line alignment whitespace is marker chrome like any other.
+*Revised twice, both times after real-vault use (see `docs/research/04` Q25 and Q26).* This
+decision originally read "escalate, with adjacent-rung collapse": first press the current visual
+row's boundary, second the whole node's. A third rung (the raw line's own boundary) was then
+added to serve a continuation line that itself wraps, then removed again for costing an extra
+press to reach the block. What finally retired escalation entirely was the report it kept
+producing: Home "gets stuck mid-paragraph". Every escalating variant makes a single keypress
+mean different things depending on state the user cannot see — where the previous press left the
+caret, and where the renderer chose to wrap the text. That is precisely the guessing this change
+exists to remove from caret motion, so ranking rungs more cleverly was never going to fix it.
+
+*What this gives up, deliberately.* Home no longer reaches a multi-line block's own start. That
+is a real convenience lost, and it can come back later as its own motion with its own binding,
+where it is a discoverable command rather than a second hidden meaning for Home. It is not worth
+making the most-pressed key in the editor unpredictable.
+
+*Why not the visual row as the single target.* Considered — it is closer to native behavior on
+long paragraphs. Rejected because it reintroduces the dependency on wrap geometry: the same
+keypress on the same character lands differently depending on window width, the "readable line
+length" setting, and the Obsidian version's own `moveToLineBoundary` handling. Q26 closed with a
+report of exactly that class of divergence, reproducible on the user's build and not on the
+harness's. A rule with no geometry in it cannot diverge that way.
 
 ### D6. Escape stays native
 
@@ -278,7 +295,8 @@ text.
 - **Goal-column drift over consecutive vertical presses** → D3 delegates to CM6's own goal
   column instead of recomputing; task 1 is a hands-on prototype before the spec language is
   fixed. This is the risk the research note singled out.
-- **Wrapped lines make "the line" ambiguous for Home/End** → D5 pins the first rung to the
+- **Wrapped lines make "the line" ambiguous for Home/End** → D5 (as revised) answers this by
+  ignoring wrapping entirely: the target is the raw line. Originally it pinned the first rung to the
   visual row, matching native, with collapse making it a non-issue for unwrapped content.
   Still wants a manual pass on a long wrapped paragraph.
 - **Losing the gap-editing escape hatch annoys someone with template spacing to maintain** →
@@ -304,5 +322,8 @@ key outside outline mode, so notes without the mode are unaffected at all times.
 
 - Does vertical motion feel right with the goal column delegated rather than recomputed?
   Task 1's prototype answers this, and it may send D3 back for revision.
-- Should Home's first rung be the visual row or the logical line, on a genuinely wrapped
-  paragraph? D5 recommends the row; only hands-on use decides.
+- ~~Should Home's first rung be the visual row or the logical line, on a genuinely wrapped
+  paragraph? D5 recommends the row; only hands-on use decides.~~ **ANSWERED by hands-on use, and
+  it dissolved the question: neither, because there are no rungs.** The logical (raw) line is the
+  single target, and Home does not escalate at all — see D5 as revised, and `docs/research/04`
+  Q26. Reaching a block's own start is deferred to its own future binding.

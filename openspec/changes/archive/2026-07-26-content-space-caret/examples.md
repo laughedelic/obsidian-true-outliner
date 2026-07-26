@@ -95,6 +95,12 @@ line today:
 > implementing motion as commands rather than as post-hoc correction, which this change
 > already chose for an independent reason (see C2's Home inconsistency). It remains
 > something to feel out in real navigation, not to settle from reasoning.
+>
+> **Post-implementation update (2026-07-25, see H5 and docs/research/04 Q24).** Felt
+> out in real navigation as promised: the reservation was right to carry. The frames
+> above hold exactly for a direct one-gap crossing; chasing the goal column through a
+> node SHORTER than it (this frame's own `Hi`) can land one character off on the far
+> side, under a non-monospace font. Accepted as measured, not chased further.
 
 ### A3 — Up across a gap
 
@@ -304,16 +310,21 @@ paragraph. The line and the node are then different things.
 - next item
 ```
 
-**Intended** — first press takes the line, second takes the node:
+**Intended** — the caret's own line, and it stays there:
 
 ```
-1st →  - first line of the item      2nd →  - |first line of the item
-       |second line of the item             	second line of the item
+1st →  - first line of the item      2nd →  - first line of the item
+         |second line of the item             |second line of the item
        - next item                          - next item
 ```
 
-The first press lands at the continuation line's own content column, not at column 0 —
+The press lands at the continuation line's own content column, not at column 0 —
 alignment whitespace is marker chrome like any other.
+
+> **Revised after real-vault use (2026-07-26, `docs/research/04` Q26).** This example
+> originally showed the second press climbing to the node's own start on line 1. Home no
+> longer escalates at all; see C6's note. Reaching a block's start is deferred to its own
+> future binding.
 
 ### C5 — End in a multiline node
 
@@ -323,31 +334,35 @@ alignment whitespace is marker chrome like any other.
 - next item
 ```
 
-**Intended**:
+**Intended** — symmetrically, the caret's own line's end, and it stays:
 
 ```
-1st →  - first line of the item|     2nd →  - first line of the item
-         second line of the item              second line of the item|
+1st →  - first line of the item|     2nd →  - first line of the item|
+         second line of the item              second line of the item
        - next item                          - next item
 ```
 
-### C6 — the single-line collapse
+### C6 — a single-line node
 
 ```
 Alpha o|ne.
 ```
 
-For a node that occupies one line, the line boundary and the node boundary are the same
-position, so the two rungs collapse into one: `Home` reaches content start and a second
-press does nothing. This is the same adjacent-identical-rung collapse the Mod-A ladder
-already specifies.
+`Home` reaches content start and a second press does nothing — which is true of every
+node, not just this one: Home and End are a single step within the caret's own raw line.
 
-> **Open detail for the manual pass.** Obsidian wraps long lines by default, so a single
-> logical line can occupy several visual rows. Native `Home` goes to the *visual* row's
-> start. The recommendation is to keep that as the first rung — long wrapped paragraphs
-> are exactly where it earns its keep — making the full sequence: visual row → node
-> content. That is still two presses in every case that matters, since for an unwrapped
-> line the visual row and the logical line coincide and collapse.
+> **Revised after real-vault use (2026-07-26, `docs/research/04` Q26).** This example
+> originally described a two-rung ladder (line boundary, then node boundary) that
+> "collapsed" for single-line nodes, and an open detail recommending the *visual* row as
+> the first rung so long wrapped paragraphs would behave natively.
+>
+> Both are gone. Home/End take the caret's own RAW line's content start/end in one step,
+> ignore soft wrapping entirely, and never cross a line break. Three escalating variants
+> were tried and each was retired after hands-on use: the ladder made a single keypress
+> mean different things depending on state the user cannot see — where the previous press
+> left the caret, and where the renderer happened to wrap the text. Dropping the visual
+> row also drops a dependency on rendered geometry that measurably diverged across
+> Obsidian versions and the "readable line length" setting.
 
 ---
 
@@ -503,3 +518,83 @@ Bravo two.
 
 `⇧↓` selects `Alpha one.`'s subtree, and repeated `⇧↑` bottoms out there rather than
 extending upward into the frontmatter — the preamble is not a node and has no cover.
+
+---
+
+## H. Atoms (measured post-implementation, real-vault manual pass 2026-07-25)
+
+Every frame below was measured against the shipped implementation, not derived from
+reading the code — the manual pass tasks.md 6.3 called for, over node kinds the
+earlier probe's fixtures didn't cover.
+
+### H1 — a fenced code block is ordinary content (D8)
+
+```
+Before.
+
+```js
+line one
+line two
+```
+
+After.
+```
+
+Vertical and horizontal motion treat every line of the fence — including its opener —
+as ordinary content, column 0 through the line's own end; only the fence's trailing gap
+is skipped, the same as any other node's. No marker-prefix rule applies inside it.
+
+### H2 — a callout's `>` prefix is content, not chrome (D8)
+
+```
+> [!note] Title
+> Body line.
+```
+
+`Home` on the body line goes to column 0 (native, unclamped) — the leading `> ` is
+ordinary text here, unlike a list item's marker. Vertical motion between the callout's
+own lines behaves like any multi-line node.
+
+### H3 — a horizontal rule's own line is addressable content
+
+```
+Before.
+
+---
+
+After.
+```
+
+The `---` line itself is a real, addressable content position (its own single-line
+node) — motion never treats it as chrome, and never lands on the gap lines around it
+instead.
+
+### H4 — a table row is NOT ordinary content: it is its own nested editor (measured quirk, pre-existing, not introduced by this change)
+
+```
+| a | b |
+|---|---|
+| 1 | 2 |
+```
+
+Obsidian's Live Preview renders a table as an interactive widget, and each row runs its
+own nested CM6 editor instance (matching this project's existing "nested per-cell table
+editor" finding for typing/selection). `Home`/`End`/`←` inside a table row do NOT
+behave like a plain text line — confirmed **byte-identical between on-mode and
+off-mode**, i.e. this is 100% stock Obsidian behavior the plugin does not (and, given
+the nested-editor boundary design.md already commits to, should not) change. Motion
+crossing INTO or OUT OF the table from an adjacent ordinary node still works normally
+(the table's own first/last row is just another node boundary for that purpose) — it's
+only navigation *within* a row that's exempt.
+
+### H5 — the vertical goal column: exact on a direct crossing, approximate through a shorter node
+
+Section A's frames (A1–A5) all measured exactly as shown, including through
+implementation. The one place a small, accepted discrepancy shows up: chasing the goal
+column through a node SHORTER than it (A2's `Hi`) can land a character off on the far
+side, under a non-monospace font — the goal column is a pixel offset, not a character
+count, re-derived on a line whose glyphs render at a very slightly different average
+width. Direct single-gap crossings, document-edge landings, and marker clamps all land
+pixel-exact. See docs/research/04 Q24 for the full account, including a coordinate-space
+bug this same testing caught and fixed (`view.lineBlockAt`'s document-relative
+coordinates were briefly mixed with `posAtCoords`'s viewport-relative ones).
