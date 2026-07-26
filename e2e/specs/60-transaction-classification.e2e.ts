@@ -174,7 +174,7 @@ describe('transaction classification: Phase A evidence', function () {
     await browser.pause(150);
     await h.resetStats();
 
-    await browser.$('.markdown-source-view .cm-table-widget td').click();
+    await h.clickTableCell();
     await h.waitForContentChildCount('.cm-embed-block .cm-editor', 1);
 
     // Type inside the cell — must not disturb the outer note's structure,
