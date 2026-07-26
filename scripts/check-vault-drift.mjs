@@ -80,7 +80,12 @@ function dirtyEntries() {
     const code = field.slice(0, 2);
     entries.push({ path: field.slice(3), code, untracked: code === '??' });
     // A rename or copy emits its ORIGINAL path as a separate following field.
-    if (code.startsWith('R') || code.startsWith('C')) i += 1;
+    // Either COLUMN can carry it, so test both: with `startsWith` an unstaged
+    // ` R` slipped through and the original-path field was then parsed as if it
+    // were another status entry, putting a truncated bogus path into the snapshot
+    // and cleanup sets. (`includes('D')` below already tests both columns —
+    // this was inconsistent with its own neighbour.)
+    if (code.includes('R') || code.includes('C')) i += 1;
   }
   return entries;
 }
