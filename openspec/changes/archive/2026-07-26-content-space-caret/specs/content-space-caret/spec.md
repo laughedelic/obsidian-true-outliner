@@ -135,30 +135,44 @@ a rejection cue — a document boundary needs no explanation, unlike a structura
   presses ArrowLeft
 - **THEN** nothing changes and no rejection cue appears
 
-### Requirement: Home and End escalate from the row to the node
-`Home` SHALL move the caret to the current visual row's own content boundary on its first
-press and to the node's content start on its second; `End` SHALL do the same toward the row's
-end and then the node's content end. For a list item's first line the row's content boundary
-is the content-start column; for a continuation line it is that line's alignment column.
-Where the two rungs denote the same position — a single-line node not subject to wrapping —
-they SHALL collapse into one step, so a further press changes nothing.
+### Requirement: Home and End move within the caret's own line, in one step
+`Home` SHALL move the caret to the content start of the raw line it is already on, and `End` to
+that same line's end. A further press SHALL change nothing. Neither key SHALL cross a line
+break, and neither SHALL depend on where the text is soft-wrapped: the target is computed from
+the parsed line, not from rendered geometry.
+
+For a list item's first line the content start is the content-start column, after the marker;
+for a continuation line it is that line's alignment column. `End` needs no such correction —
+chrome is always a line PREFIX, never a suffix.
+
+This supersedes two earlier escalating designs (visual row → node, and before that visual row →
+raw line → node), both retired after real-vault use; see `docs/research/04` Q26. Escalation made
+one keypress mean different things depending on state the user cannot see — where the previous
+press left the caret, and where the renderer chose to wrap — which is the class of guessing this
+change exists to remove. Reaching a block's own start or end is a separate motion, not a second
+meaning for Home.
 
 #### Scenario: Home reaches content start, never the marker
-- **WHEN** the caret is mid-text in a single-line list item and the user presses Home twice
+- **WHEN** the caret is mid-text in a list item and the user presses Home twice
 - **THEN** the caret rests at the item's content-start column both times, never inside the
   marker prefix
 
-#### Scenario: Home escalates in a multiline node
-- **WHEN** the caret is mid-text on the second line of a two-line list item and the user
-  presses Home twice
-- **THEN** the first press lands at that continuation line's alignment column and the second
-  at the item's own content start on its first line
+#### Scenario: Home does not cross a hard line break
+- **WHEN** the caret is mid-text on the second raw line of a two-line node and the user presses
+  Home repeatedly
+- **THEN** the first press lands at that line's own content start and every further press
+  changes nothing — the caret never moves to the node's first line
 
-#### Scenario: End escalates in a multiline node
-- **WHEN** the caret is mid-text on the first line of a two-line paragraph and the user
-  presses End twice
-- **THEN** the first press lands at that line's end and the second at the node's content end
-  on its last line
+#### Scenario: Home ignores soft wrapping
+- **WHEN** the caret is on a later visual row of a raw line long enough to soft-wrap, and the
+  user presses Home
+- **THEN** the caret lands at that raw line's own content start in a single press, not at the
+  start of the visual row it was on
+
+#### Scenario: End stays on the caret's own line
+- **WHEN** the caret is mid-text on the first raw line of a two-line node and the user presses
+  End repeatedly
+- **THEN** the first press lands at that line's end and every further press changes nothing
 
 ### Requirement: Non-motion placements resolve through gap ownership
 A caret position produced by anything other than a motion command — a mouse click, a

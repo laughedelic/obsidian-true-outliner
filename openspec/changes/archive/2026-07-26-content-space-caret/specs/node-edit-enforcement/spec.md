@@ -33,10 +33,15 @@ exception's precondition.)*
 - **THEN** the outcome is identical in all three cases — the merge (or its veto)
   behaves as if the gap did not exist, and an accepted merge consumes the gap whole
 
-#### Scenario: Gap editing happens with outline mode off
-- **WHEN** the user wants to change the number of blank lines between two nodes
-- **THEN** toggling outline mode off makes every gap line an ordinary editable position
-  again, with all enforcement disabled for that note
+#### Scenario: Editing the gap itself stays native
+- **WHEN** the user places the cursor on a blank gap line and presses Backspace or
+  Delete to shrink the gap, with outline mode OFF for that note
+- **THEN** the edit applies exactly as stock — deliberate whitespace authoring is
+  never rewritten
+- **AND** in outline mode this precondition cannot occur at all: the caret cannot rest
+  on a gap line, so there is no in-mode gap edit left to exempt. Toggling outline mode
+  off is the escape hatch for deliberate whitespace authoring, which is how this plugin
+  already offers raw character-level editing.
 
 #### Scenario: Marker internals never change editing semantics
 - **WHEN** the user presses Backspace at a list item's content start, whatever the

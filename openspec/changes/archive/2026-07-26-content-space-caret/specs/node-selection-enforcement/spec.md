@@ -38,6 +38,12 @@ here attributes behavior to escalation that escalation no longer produces.
 - **THEN** the resulting selection covers both nodes' subtrees in full, including the
   second node's owned trailing gap
 
+#### Scenario: Keyboard selection crossing a boundary
+- **WHEN** the user extends a selection with Shift+ArrowDown from inside one node into
+  the next node
+- **THEN** the resulting selection covers both nodes' subtrees in full, including the
+  second node's owned trailing gap
+
 #### Scenario: Reaching a node's content is enough, no second drag onto its gap needed
 - **WHEN** the user drag-selects from the middle of one node's text to the middle of
   the next sibling node's text, stopping there without continuing further down onto
@@ -77,11 +83,35 @@ Outside outline mode, cursor placement remains byte-for-byte stock, as it always
 - **WHEN** the user drag-selects between two points on the same node's content lines
 - **THEN** the native character-level selection is applied unmodified
 
+#### Scenario: Cursor placement is never escalated
+- **WHEN** the user clicks to place the cursor anywhere, on a gap line or otherwise
+- **THEN** ESCALATION never moves it — this layer only ever widens non-empty ranges, and
+  an empty range passes through `escalateRanges` untouched, exactly as before
+- **AND** where that cursor may REST is now `content-space-caret`'s rule rather than this
+  layer's: in outline mode a gap-line click resolves to the owning node's content end.
+  The two mechanisms are separate, and only the second one changed.
+
 #### Scenario: Cursor placement is governed by the caret capability
 - **WHEN** any gesture would place the cursor on a gap line or inside a list item's
   marker prefix in outline mode
 - **THEN** the resulting position is determined by `content-space-caret`, not by this
   layer, which no longer moves empty ranges at all
+
+#### Scenario: Left arrow at a list item's content start jumps into the marker prefix, redirected to content start
+- **WHEN** the cursor sits at a list item's content-start column and the user presses Left
+- **THEN** SUPERSEDED by `content-space-caret`: the marker prefix is not an addressable
+  position, so Left does not land inside it and is no longer *redirected out* of it —
+  it crosses to the previous node's content end instead, since the content-space
+  neighbour of a node's first content character is the previous node, not column 0 of
+  its own line. Home is likewise specified there, and no longer shares this scenario's
+  outcome: see that capability's own Home/End requirement.
+
+#### Scenario: Vertical motion onto a shorter marker line still lands on content
+- **WHEN** the user moves the cursor vertically from a longer line onto a list item whose
+  marker column would otherwise place the cursor before its content
+- **THEN** the cursor lands at that item's content-start column — unchanged in outcome,
+  but now specified and implemented by `content-space-caret`'s addressable-position rule
+  rather than by this layer's marker clamp
 
 #### Scenario: Off-mode cursor placement is untouched
 - **WHEN** the user clicks on a blank line between nodes in a note without outline mode

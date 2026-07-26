@@ -13,7 +13,6 @@ change's design.md (D9–D16 for the chrome-transparency, merge, cursor-placemen
 paste-re-indentation amendments from five real-vault manual passes); deferred
 threads: docs/research/04 (Q17 outdent-in-place and heading-Enter-split, Q20 the
 redo-cursor investigation), docs/research/12–13 (gap-line visual/cursor UX).
-
 ## Requirements
 ### Requirement: User edit transactions receive a verdict
 Every transaction classified `boundary-crossing-edit` in an outline-mode editor SHALL
@@ -100,14 +99,27 @@ Gap lines and structural markers are encoding chrome: no user-facing editing
 semantic SHALL depend on gap width, gap ownership, or marker internals. An edit
 expressing a content-level intent SHALL be interpreted in content space — the space
 of node contents and the boundaries between them — with the chrome maintained by the
-system. Exception (the deliberate authoring escape hatch): an edit made with the
-cursor placed ON a gap line, operating on the gap itself, SHALL stay native.
+system.
+
+The former exception — an edit made with the cursor placed ON a gap line, operating on
+the gap itself, stays native — is REMOVED as an in-mode escape hatch, because
+`content-space-caret` makes gap lines unreachable by the caret in outline mode: the
+precondition can no longer occur. Deliberate whitespace authoring remains fully
+available by toggling outline mode off for the note, which is already how this plugin
+offers raw character-level editing. This was the resolution anticipated when the gap
+escape hatch was first written (`docs/research/13`, "Gap-line cursor transparency": *the
+escape hatch stays the mode toggle, not an in-outline-mode exception*).
+
+Off-mode notes are unaffected in every respect: gap lines are ordinary text there, and
+no enforcement applies.
 
 *(Amendment 2026-07-21, real-vault manual pass: the original single-separator merge
 rule made every merge require first manually deleting the gap, one newline per
 keystroke, with confusing intermediate states — gap ownership leaking into editing
 semantics. This requirement pins the general principle; the merge requirement below
-is its first application.)*
+is its first application. Amendment 2026-07-25, `content-space-caret`: the
+principle is extended from edits to caret placement, which removes the gap-line
+exception's precondition.)*
 
 #### Scenario: Gap width never changes merge behavior
 - **WHEN** the user presses Backspace at a node's first content character, with zero,
@@ -117,9 +129,19 @@ is its first application.)*
 
 #### Scenario: Editing the gap itself stays native
 - **WHEN** the user places the cursor on a blank gap line and presses Backspace or
-  Delete to shrink the gap
+  Delete to shrink the gap, with outline mode OFF for that note
 - **THEN** the edit applies exactly as stock — deliberate whitespace authoring is
   never rewritten
+- **AND** in outline mode this precondition cannot occur at all: the caret cannot rest
+  on a gap line, so there is no in-mode gap edit left to exempt. Toggling outline mode
+  off is the escape hatch for deliberate whitespace authoring, which is how this plugin
+  already offers raw character-level editing.
+
+#### Scenario: Marker internals never change editing semantics
+- **WHEN** the user presses Backspace at a list item's content start, whatever the
+  item's marker character or indentation width
+- **THEN** the edit is recognized as a merge intent, never as a deletion of the
+  marker's trailing space
 
 ### Requirement: Content-adjacent deletions become merges or vetoes
 A deletion expressing "join this node with its content-space neighbor" SHALL be

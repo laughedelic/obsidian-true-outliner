@@ -158,8 +158,14 @@ passed through unmodified — they are valid by construction and MUST NOT be re-
 This includes the cursor re-assertion transaction that follows a structural operation
 (see `structural-history-integration`): it is selection-only and carries a plugin-own
 `userEvent`, so it SHALL be classified `plugin-own` rather than `selection-only`, and
-therefore SHALL NOT be run through selection escalation or marker-transparent cursor
-clamping — either of which could move the cursor it exists to record.
+therefore SHALL NOT be run through selection escalation or through the caret placement
+resolution that `content-space-caret` defines — either of which could move the cursor it
+exists to record.
+
+*(Amendment 2026-07-25, `content-space-caret`: this requirement previously named
+"marker-transparent cursor clamping", the `clampCursorToContent` mechanism that change
+retires. The guarantee is unchanged — plugin-own dispatches land byte-exactly — only the
+name of what they are exempt from.)*
 
 #### Scenario: Tab indent is not reclassified
 - **WHEN** Tab indents a node via the outline keyboard grammar
@@ -169,10 +175,9 @@ clamping — either of which could move the cursor it exists to record.
 #### Scenario: The cursor re-assertion is not reclassified
 - **WHEN** a structural operation's cursor re-assertion transaction is dispatched
 - **THEN** it is classified `plugin-own` and applied with its selection untouched,
-  rather than being classified `selection-only` and escalated or clamped
+  rather than being classified `selection-only` and escalated or resolved
 
 **Covered by**: `e2e/specs/60-transaction-classification.e2e.ts`
-("grammar/structural-command transactions are plugin-own…")
 
 ### Requirement: IME composition is never interfered with
 Transactions that are part of an active IME composition SHALL be classified
