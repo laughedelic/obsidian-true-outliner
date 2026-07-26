@@ -15,6 +15,7 @@ const DEBOUNCE_MS = 300;
 
 module.exports = class HotReloadPlugin extends Plugin {
   timers = new Map();
+  lastNotice = null;
 
   async onload() {
     const marker = await this.app.vault.adapter.exists('.hotreload');
@@ -34,6 +35,8 @@ module.exports = class HotReloadPlugin extends Plugin {
   onunload() {
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
+    this.lastNotice?.hide();
+    this.lastNotice = null;
   }
 
   scheduleReload(pluginId) {
@@ -53,6 +56,30 @@ module.exports = class HotReloadPlugin extends Plugin {
     if (!plugins.enabledPlugins.has(pluginId)) return; // don't force-enable a disabled plugin
     await plugins.disablePlugin(pluginId);
     await plugins.enablePlugin(pluginId);
-    new Notice(`Hot-reloaded: ${pluginId}`, 1500);
+
+    // PERSISTENT (timeout 0 — dismissed by clicking), not a 1.5s toast. A
+    // toast you have to be looking at cannot answer "did my rebuild actually
+    // reach the app?": miss it and a successful reload is indistinguishable
+    // from one that never happened. The reloaded plugin's status bar stamp is
+    // the always-visible counterpart; this is the event.
+    //
+    // Reads the stamp BAKED INTO the reloaded bundle, not
+    // `plugins.manifests[id].version`: manifest.json is copied verbatim into
+    // the vault and cached by Obsidian at plugin-scan time, so it only ever
+    // reports the base package version and would name every build identically.
+    const pad = (n) => String(n).padStart(2, '0');
+    const now = new Date();
+    const at = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const stamp = plugins.plugins?.[pluginId]?.buildStamp;
+    const built = stamp ? `${stamp.buildId} (built ${stamp.clock})` : '';
+    // Replace rather than stack. A timeout of 0 never auto-dismisses, so without
+    // this a watch session accumulates one permanent notice per save and buries
+    // the UI. Only the latest reload is worth showing — that is the whole point
+    // of it being persistent.
+    this.lastNotice?.hide();
+    this.lastNotice = new Notice(
+      `Hot-reloaded ${pluginId} at ${at}\n${built}\n(click to dismiss)`.replace(/\n\n/, '\n'),
+      0,
+    );
   }
 };

@@ -1,7 +1,7 @@
 {
   "name": "obsidian-true-outliner",
   "version": "0.0.1",
-  "description": "A true outliner for Obsidian — mapping core library",
+  "description": "A true outliner for Obsidian \u2014 mapping core library",
   "main": "src/index.ts",
   "directories": {
     "doc": "docs"
@@ -13,10 +13,11 @@
     "lint": "eslint src tests",
     "dev": "node esbuild.config.mjs",
     "build:plugin": "node esbuild.config.mjs production",
-    "vault:install": "npm run build:plugin && mkdir -p test-vault/.obsidian/plugins/true-outliner && ln -sf ../../../../main.js ../../../../styles.css test-vault/.obsidian/plugins/true-outliner/ && node scripts/stamp-vault-manifest.mjs",
+    "vault:install": "node esbuild.config.mjs production --dev",
     "vault:reset": "git checkout -- test-vault",
-    "test:e2e": "npm run build:plugin && wdio run e2e/wdio.conf.mts",
-    "test:e2e:mobile": "npm run build:plugin && OBSIDIAN_E2E_MOBILE=1 wdio run e2e/wdio.mobile-emulation.conf.mts",
+    "obsidian:fetch": "node scripts/obsidian-fetch.mjs",
+    "test:e2e": "node scripts/run-e2e.mjs desktop",
+    "test:e2e:mobile": "node scripts/run-e2e.mjs mobile",
     "build:e2e": "tsc --noEmit -p e2e"
   },
   "license": "MIT",
