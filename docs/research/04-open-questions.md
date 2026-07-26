@@ -878,3 +878,732 @@ and this shape is a different, adjacent one), and needs its own measurement of
 how reliably that marker-rewrite shape can be recognized (e.g., is it always
 exactly `digits+delimiter+space` with the same start offset as the old marker,
 across every list style this plugin supports).
+
+## Q24. `content-space-caret` implementation findings (2026-07-25)
+
+Change: `content-space-caret`. Tasks 0.5/0.6/1/6 measured against real Obsidian
+(1.12.7 desktop, via the e2e harness's WebDriver session — no beta was cached and no
+Catalyst credentials were available in this environment, so task 0.6's "re-run against
+`latest-beta`" degraded to the harness's own documented `latest`-stable fallback;
+whoever next has beta access should re-run `e2e/specs/65-content-space-caret.e2e.ts`
+and `66-content-space-caret-manual-pass.e2e.ts` against it once available, per Q21's own
+lesson about editor-core skew).
+
+### 0.5: Home's `Prec.highest` binding wins the key cleanly — with one unrelated artifact to not mistake for it
+
+Binding Home and pressing it once lands the caret exactly at content start, and it
+holds after a settle delay. One thing very nearly reads as a double-fire but isn't:
+**any** real-keyboard-driven selection change in this Obsidian version is followed
+roughly 10ms later by a second, unrelated `programmatic` transaction (confirmed
+independent of this change — reproduced with a key our handler *declines*, letting 100%
+stock CM6 handle it, and it still shows up). It never moves the caret. Counting
+`stats.recent` entries is therefore the WRONG test for "did Home only fire once" (it
+will always read 2, before or after this change); checking the caret's final, settled
+position is the right one.
+
+### 1: the vertical-motion prototype surfaced a real coordinate-space bug, then a real (small, environment-dependent) drift
+
+Two rounds of building the "continue past a gap" mechanism, both instructive:
+
+1. **First attempt** (chaining `view.moveVertically` off its own previous result to
+   skip further blank lines) drifted a column when the chase bounced off a node shorter
+   than the goal column. Root cause, isolated with a plain in-app script rather than
+   guessed: an explicit `SelectionRange.goalColumn` does **not** survive a real
+   `view.dispatch()` — it reads back `undefined` immediately after, even though the
+   field exists and is documented as exactly this kind of persistent hint. Native arrow
+   keys avoid this because `@codemirror/commands`' own cursor commands track
+   continuation through a separate, view-scoped mechanism outside CM6 state — since
+   this handler intercepts the key itself instead of delegating to those commands, it
+   needed the same kind of memory itself (`keymap.ts`'s `verticalGoalColumn` WeakMap,
+   keyed by view and by the exact head it last dispatched, so an interruption — a
+   click, typing, anything else — is correctly treated as a fresh press).
+2. **Second attempt** (multiplying `view.defaultLineHeight` by a line count to jump N
+   lines in one `moveVertically` call) measured wrong the moment a target line rendered
+   TALLER than a plain paragraph line — a fenced code block's or table's row is not the
+   same height as `defaultLineHeight` in Live Preview, so a flat per-line pixel jump
+   over- or under-shoots past it. Fixed by not guessing distance at all: which raw
+   document LINE is next is already known exactly from the parsed tree (skip lines that
+   resolve to a node's own trailing gap, stop at the first that doesn't), so only the
+   FINAL column resolution needs real coordinates, and only for that one line's own
+   actual rendered block (`view.lineBlockAt`) — which is correct regardless of any
+   other line's height.
+   - This surfaced a second, sharper bug on the way: `view.lineBlockAt`'s `top`/`height`
+     are DOCUMENT-relative ("relative to the top of the document" per its own doc
+     comment), while `coordsAtPos`/`posAtCoords` are viewport-relative — mixing them
+     directly resolves to a Y coordinate far outside the actual line, landing wherever
+     the viewport's own top happened to be (this is what produced the earlier "lands at
+     column 0 inside a code fence" symptom). `view.documentTop` is the conversion CM6
+     itself documents for this exact pairing; the fix is one line
+     (`y = view.documentTop + block.top + block.height / 2`).
+3. **The remaining, accepted drift**: even with the above fixed, chasing a goal column
+   through a node SHORTER than that column (A2's "Hi" scenario) can still land one
+   character off on the far side, under this test environment's font. The goal column
+   is a pixel offset, not a character count, and re-deriving a character position from
+   that SAME pixel offset on a DIFFERENT line — after the short node forced a
+   character-boundary landing partway through — can disagree by a character when the
+   two lines' glyphs don't render at quite the same average width (a non-monospace
+   font, or subtle per-character metric differences). The direct, no-bounce cases
+   (crossing exactly one gap, landing at a document edge, clamping onto a marker line)
+   all land pixel-exact; only the bounce-through-a-shorter-node case carries this
+   reservation — examples.md's own A2 entry already flagged exactly this risk before
+   implementation, "carried on precedent... not from a felt problem." Recorded as
+   measured, not fixed further: reaching for pixel-perfect precision here would mean
+   replicating `@codemirror/commands`' own internal (unexported) column-tracking state,
+   which is out of proportion to how rarely a goal column both exceeds a node's own
+   width AND needs to survive past it.
+
+### 6: node kinds outside the fixtures — two genuine (pre-existing, not introduced) Obsidian quirks, both handled correctly by declining
+
+- **A table row is its own nested CM6 editor** in Live Preview (matches
+  `60-transaction-classification.e2e.ts`'s existing "nested per-cell table editor"
+  coverage): `moveToLineBoundary` inside one resolves to the WIDGET's own boundary
+  rather than the specific raw markdown line the cursor sits on, and this is true
+  **off-mode too** — 100% native, nothing to do with this plugin. Confirmed on-mode
+  behavior matches off-mode exactly for Home, End, and ArrowLeft on a table row; no
+  code change was needed, only test assertions that check PARITY with off-mode rather
+  than assuming plain-line semantics for a widget-rendered node.
+- Fenced code blocks, callouts (blockquotes), and horizontal rules all behave as
+  ordinary content per D8 with no special-casing needed: motion moves line to line at
+  column 0 (or crosses at the node boundary the same as any other node pair), and only
+  each node's own trailing gap is skipped.
+
+### Escape (6.4), re-measured against this implementation
+
+D6's measurement reproduces: on a forward two-node cover the first Escape changes
+nothing and the second collapses to the head edge, landing on a gap-line position —
+which the placement resolver (`resolvePlacement`) now redirects to the covered node's
+content end, exactly as D2 predicted it would without needing Escape bound at all.
+
+## Q25. `content-space-caret` real-user manual pass: four real regressions found and fixed (2026-07-26)
+
+The user ran the shipped implementation by hand in their own real vault (not this
+project's own e2e fixtures) and found four problems Q24's own testing had missed. All
+four are now fixed, with regression coverage added; this entry records what was
+actually wrong and why Q22's own "measured" pass didn't catch it.
+
+### 1. Vertical motion: wrap-awareness was broken by the SAME fix that fixed it
+
+The user's own report: column tracking felt "inconsistent," and specifically, a
+soft-wrapped row (under "readable line length") sometimes jumped to the node above
+instead of moving within the node. Root cause: `makeVerticalHandler`'s design (Q22
+already fixed one bug here — a document-relative/viewport-relative coordinate mixup)
+still computed the target LINE by raw document line-number arithmetic, which is
+correct for gap-skipping but wrong for staying within a soft-wrapped logical line —
+a wrapped paragraph is ONE raw line spanning several visual rows, and raw-line
+arithmetic always jumps a whole line, skipping the wrap entirely. Q22's own
+fixtures never exercised a genuinely long, wrapping paragraph, so this shipped
+unnoticed.
+
+**Fix**: trust `view.moveVertically`'s own single default-distance step ONLY when it
+stays on the SAME raw line (the wrap case, where its geometry is authoritative);
+when it crosses to a different raw line, don't trust ITS OWN landing line at all —
+walk raw lines deterministically from the line adjacent to the ORIGINAL position
+instead (measured separately: `moveVertically`'s single step can overshoot multiple
+rows of a widget-rendered multi-row block like a table, so trusting its cross-line
+jump distance is unsound generally, not just for wraps).
+
+### 2. Home/End: a continuation line that itself wraps needs a THIRD rung
+
+Q22's own C4/C5 tests used SHORT continuation lines (Shift+Enter, no further
+wrapping) and passed. A continuation line long enough to ALSO soft-wrap on its own
+revealed that `view.moveToLineBoundary(sel, forward, true)` (the wrap-aware row
+boundary) does not itself escalate through MULTIPLE wrap points on repeated calls
+from an already-at-boundary position — it returns the SAME position again. The
+two-rung ladder (row, then node) silently skipped the continuation line's own true
+start when the "row" rung got stuck mid-wrap.
+
+**Fix**: `nextHomeEndRung` (`src/caret.ts`) generalized from two fixed rungs to an
+ORDERED LIST, searching for where the current position sits in the list (not just
+"first rung not equal to current") and advancing to the next distinct one. The
+adapter now computes THREE rungs: visual row (`includeWrap: true`), the raw line's
+own true boundary (`includeWrap: false`), then the node boundary — the middle rung
+collapses away for free (via the same dedup) whenever the raw line doesn't itself
+wrap, which is why the common case was never affected.
+
+### 3. Table gap reachability: confirmed as the already-documented accepted case, not a new bug
+
+Exiting a table's own nested CM6 editor via arrow keys triggers Obsidian's own
+focus hand-off back to the outer editor, which dispatches with no `userEvent`
+(`programmatic`, confirmed via `stats.recent`) — this is the EXACT scenario D2's own
+"a programmatic placement is not corrected... the next user motion normalizes it"
+already names, just triggered by a source (nested-editor exit) the original
+examples.md didn't happen to enumerate. Verified the self-correction holds. No code
+change; added regression coverage.
+
+### 4. Checkbox list items: content-boundary decision, plus a real double-dispatch bug
+
+Asked the user whether `- [ ] text`'s checkbox+brackets should be treated as chrome
+(matching native Obsidian's own task-list Home, which skips to column 6) or as
+ordinary content (matching this project's existing `contentColumnCh`, which only
+ever recognized the bare `- ` marker). Decided: **treat checkboxes as ordinary list
+items, unchanged** — no new chrome category, no special-casing in editing or
+structural ops; explicitly out of scope for this change. `contentColumnCh` needed
+no change.
+
+What DID need a fix: our own dispatch lands correctly on content start, and
+Obsidian core then moves the caret back to column 0 — onto the `- ` marker, the
+exact position this change makes non-addressable. Affects every motion handler
+that can land on a list item's content start (Home, and any node-boundary
+crossing), not just Home specifically.
+
+**Root cause, captured with a `cm.dispatch` monkey-patch that recorded a STACK
+TRACE per call** (the earlier round of this investigation recorded only that a
+second dispatch existed, which is what sent it down a blind alley):
+
+```
+#1 ours:      head 10 → 2   scrollIntoView, no userEvent   at dispatchCursor (plugin:true-outliner)
+#2 Obsidian:  head 2 → 0    no annotations, selection-only  at app://obsidian.md/app.js:1:2836482
+```
+
+The second dispatch is Obsidian's own checkbox-widget mount. It carries **no
+`userEvent` at all**, and `isProgrammatic` (`src/classify.ts`) claims every
+`userEvent`-less transaction *before* the `selection-only` test — so the
+transaction filter, the one layer that sees every selection change regardless of
+origin, waved it straight through. The addressable-position invariant had a hole
+exactly where any foreign, unannotated cursor move lands.
+
+**Fix**: `resolveForeignCursors` (`src/plugin/transaction-filter.ts`) — a new
+filter branch for `programmatic` + no `userEvent` + no changes. Narrow in two
+deliberate ways, both load-bearing:
+
+- **Empty ranges only.** A non-empty programmatic selection stays exempt,
+  preserving node-selection-enforcement's accepted `programmatic` case (workspace
+  restore, a nested editor's focus hand-off).
+- **The marker half of placement resolution only** (`resolveMarkerPlacement`,
+  `src/caret.ts`), never the gap half. D2 deliberately scopes gap-line resolution
+  to real user gestures, and `62-outline-edit-enforcement` asserts it directly ("a
+  PROGRAMMATIC gap-line placement is untouched"). The marker clamp carries no such
+  limit — it predates this change as node-edit-enforcement's `clampCursorToContent`
+  (D13) and has always applied to any cursor from any source. Applying the FULL
+  resolver here broke five tests across four spec files; the marker/gap split is
+  what makes the fix correct rather than merely passing.
+
+That split is also what keeps the branch safe inside a nested per-cell table
+editor. `transactionFilter` is state-level and therefore **cannot** run
+decorations.ts's `isNestedEditor` DOM-ancestry check — `editorInfoField` resolves
+to the same outer `MarkdownView` for both, so state alone cannot tell them apart.
+A cell's own tiny document is plain text with no marker to clamp, so marker-only
+resolution is inert there by construction rather than by a guard we can't write.
+
+Verified idempotent (`resolveMarkerPlacement` maps an already-addressable position
+to itself), so the appended correction reports no change on re-entry and the filter
+self-terminates. Measured after the fix: Obsidian still dispatches its `head → 0`,
+and the filter rewrites it in flight (`headBefore: 2 → headAfter: 2`) — one
+correction, no loop, no fight.
+
+**Method note — the blind alley this replaced.** The first attempt at this bug was
+`dispatchCursorRobust`: dispatch, then re-assert the position on a later animation
+frame. It went through three timing variants (one frame → ten → back to one) and
+never worked. Widened, it silently reverted a genuinely later *real user click*
+back to the stale keyboard target; narrowed, it did not reliably win at all. The
+lesson is not about the frame count: re-asserting a position after the fact is a
+race against an unknown writer, and the fact that it needed tuning at all was the
+signal to go find the writer instead. One stack trace ended an hour of tuning.
+Deleted; `dispatchCursor` is now a plain dispatch.
+
+### A fifth thing, found while chasing the above, worth naming on its own
+
+Entering a table via vertical motion (crossing from outside) does not reliably land
+on the SPECIFIC row this plugin computes and dispatches — Obsidian's table widget
+claims the position through the same nested-editor hand-off as finding 3 and can
+re-map it to a different row of the same table (measured: consistently the data
+row, regardless of whether the dispatched target was the header row). This is
+outside the plugin's jurisdiction for the same reason finding 3 is (design.md:
+"Motion commands must not fire in nested editors" — entering one is this boundary
+from the other side). The guarantee this feature actually owns — never landing on
+the surrounding GAP — still holds and is what the regression tests check; which row
+of the table's own nested editor Obsidian chooses to focus does not.
+
+### Method note: this session's own test harness usage corrupted its shared fixture vault
+
+While chasing finding 1, an ad hoc debug script set `readableLineLength: true` via
+`app.vault.setConfig` directly against the live test instance — and it persisted to
+the git-tracked `test-vault/.obsidian/app.json` on disk, silently active for every
+subsequent run until noticed and reverted (`git checkout -- test-vault/`).
+`obsidianPage.resetVault()` does not revert `.obsidian/` config, only vault
+content. One real fixture note (`Projects/Aurora Dashboard.md`) also got its table
+reformatted by Obsidian's own live-preview auto-alignment as a side effect of some
+interaction, and `test-vault/.obsidian/plugins/true-outliner/data.json`'s
+`outlinePaths` had accumulated entries from unrelated sessions. Worth remembering
+for whoever next reaches for `app.vault.setConfig` in a throwaway debug script
+against this harness: it isn't as throwaway as it looks.
+
+## Q26. `content-space-caret` second real-vault pass: the Home ladder had a rung too many (2026-07-26)
+
+Change: `content-space-caret`. The user ran the rebased build by hand. Most motion behaved as
+specified; the checkbox fix (Q25) held. Two things did not.
+
+### Home/End: the third rung came out, and it was never asked for
+
+Reported: on a multi-line block, the second Home stays on the line instead of reaching the block's
+start. Q25's own round had "fixed" a neighboring case by adding a THIRD rung to the ladder — visual
+row, then the RAW LINE's own start, then the node — on the strength of a measurement of one shape:
+a continuation line long enough to wrap on its own, where the second press otherwise jumped
+straight past that line's start.
+
+That rung was an inference, not a request. The original report only ever asked for row → node.
+Measured cost of keeping it, with a probe that logged the resolved rungs at every press:
+
+```
+paragraph, 2 real lines, 2nd wraps, caret mid last visual row
+  3-rung: 1:182 → 1:161 → 1:0 → 0:0     three presses to reach the block
+  2-rung: 1:182 → 1:161 → 0:0           two
+```
+
+Both ladders are correct; the three-rung one just costs an extra press to reach the block, for a
+stop that is not structural — a raw line boundary inside a node is an artifact of where the text
+happens to be hard-wrapped. Removed, on the user's call.
+
+**A correction worth recording, because it nearly went into the code as fact.** The first draft of
+this removal justified itself with a stronger claim: that on a SINGLE-line node the raw-line and
+node rungs dedup together, so the three-rung ladder ended at the raw line and stranded the caret,
+never reaching the block. That is wrong. Replaying `nextHomeEndRung`'s dedup-and-advance directly
+against both rung lists shows the single-line case behaving identically under both:
+
+```
+single-line node whose one line wraps (node start == raw line start)
+  3-rung: 0:90 → 0:64 → 0:0 → noop
+  2-rung: 0:90 → 0:64 → 0:0 → noop
+```
+
+The comments and tests asserting the stranding mechanism were rewritten before landing. The reason
+to remove the rung is the press count, nothing more.
+
+**What the "third Home stays there" report most likely is.** For a one-line node, the node boundary
+IS that line's own start, so the ladder legitimately ends after two steps — there is no block start
+above to climb to. "It won't go to the beginning of the block" and "it is already at the beginning
+of the block" are the same observable state. A genuine two-line node reaches its block start
+correctly, measured above, both before and after this change. If the report survives the two-rung
+build, the next thing to capture is the exact note content, since the parse shape — one two-line
+node vs. two one-line nodes — is what decides the expected behavior.
+
+### Table exit: parked, see docs/research/13
+
+Exiting a table's nested editor lands on the surrounding gap for one press. Root-caused to
+Obsidian's own `placeCursorAround` hand-off, which our keymap never sees; the filter could rewrite
+it but is deliberately scoped away from programmatic gap placements (Q25's narrowing, which five
+tests depend on). Full trace and what picking it up would involve: docs/research/13, "Parked:
+exiting a table's nested editor lands the caret on a gap line".
+
+### Method note: a full e2e run still dirties the fixture vault
+
+Q25 recorded one instance of this (a debug script's `app.vault.setConfig` persisting to
+`test-vault/.obsidian/app.json`, plus Obsidian's own table auto-alignment reformatting a fixture
+note). It is not a one-off. A single clean full-suite run, starting from a verified-clean
+`test-vault/`, produced:
+
+- `.obsidian/app.json` gaining `"readableLineLength": false` — benign in value (it is the default)
+  but still drift, and the same key an earlier session accidentally left set to `true`, silently
+  changing what every subsequent run measured.
+- `.obsidian/community-plugins.json` and the plugin's own `data.json` (`outlinePaths` accumulating).
+- **`Journal/2026-07-07.md` gaining two hard line breaks mid-paragraph.** No spec references this
+  note by name; it is reached through restored workspace state, so a keypress intended for a test's
+  own scratch note landed in a real fixture. This is the dangerous one: it silently changes the
+  parse shape (one paragraph becomes a two-line node) of a file other tests read.
+
+`obsidianPage.resetVault()` restores vault CONTENT but not `.obsidian/` config, and does not help
+at all for drift that happens mid-run. Until something enforces this, `git status test-vault/`
+after every e2e run is not optional — and a `git diff --exit-code test-vault/` gate after the e2e
+job would turn a silent measurement corruption into a build failure.
+
+### Follow-up on the same report: verified fixed, plus the parse shape that mimics it
+
+The user re-reported after the two-rung change with an exact reproduction: a node of two raw lines
+where the second soft-wraps, caret on the last visual row. Home should walk visual row → block
+start; it was walking visual row → raw line start → nothing.
+
+Re-measured against the two-rung build, driving real keys and logging the resolved rungs at every
+press, with Obsidian's "readable line length" both ON and OFF (the one environment difference not
+previously covered — the fixture vault is resettable, so setting it is fine):
+
+```
+PARA readable=on   1:143 → 1:77 (visual row) → 0:0 (block start) → stays
+LIST readable=on   1:143 → 1:79             → 0:2               → stays
+End  readable=on   0:0   → 0:14 (line end)  → 1:149 (block end) → stays
+PARA readable=off  identical
+```
+
+Correct in every case, and the readable-line-length setting makes no difference. Note that the
+reported "second press lands on the raw line start" is the *signature of the three-rung ladder* —
+the two-rung build cannot produce it — so that report was against the pre-removal build.
+
+**But there is a real shape that produces the same symptom on any build, and it is a parse
+question, not a caret one.** A list item whose continuation line is NOT indented parses as two
+separate single-line nodes:
+
+```
+'- paragraph text' + '  second line here'   → ONE node   (two lines)
+'- paragraph text' + 'second line here'     → TWO nodes  (one line each)
+```
+
+For a caret on the second one, its own line start IS its block start, so Home stopping there is
+correct — there is nothing above to climb to. "Home won't cross the hard break" and "these are two
+blocks, not one" are the same observation. Both shapes are now pinned as e2e C9/C10 so the
+distinction stays visible. Whether an unindented lazy continuation *should* parse as one node is a
+separate question for the parser, not for this change.
+
+### UNRESOLVED: the multiline Home report persists on Obsidian 1.13, not reproducible on 1.12.7
+
+Closing state, recorded rather than fixed, at the user's call.
+
+The user re-tested the two-rung build on **Obsidian 1.13** and sees no change: Home still stops at
+the raw line's start and never reaches the block. The e2e harness runs **1.12.7** (`browserVersion`
+resolves to `latest`, and `latest-beta` needs Catalyst credentials this environment does not have —
+see the same limitation recorded for task 0.6), and on 1.12.7 the scenario is correct, verified with
+real keys, readable line length both on and off. So this is a genuine version gap the harness cannot
+currently close, and it must not be recorded as fixed.
+
+**What the user's own observations rule out.** The obvious hypothesis — that our `Prec.highest` Home
+binding stops winning the key on 1.13, leaving pure native behavior (visual row → raw line → stop,
+which is exactly what native CM6 does) — is contradicted by their checkbox result in the same
+session: first Home to column 6, second to column 2. Column 2 is OUR content boundary for `- [ ] `
+(this change treats checkbox syntax as content, Q25); native Obsidian's task-aware Home stops at 6
+and has no reason to continue to 2. So our handler IS running on 1.13, and it is producing rung 1 =
+6, rung 2 = 2. The ladder works there.
+
+**What that leaves.** If our handler runs and the second press lands on the RAW LINE start, then
+`nodeContentStart` is returning that line — which means the node begins on that line, i.e. the
+user's two lines parse as TWO nodes rather than one. That is the C10 shape, and it is the one
+explanation consistent with every observation in this thread, including "same happens in a multiline
+list element" and the symmetric End behavior. It also explains why nothing changed when the rung
+came out: with two nodes both ladders stop in the same place, correctly.
+
+**The cheap diagnostic, for whoever picks this up.** The plugin already renders a block marker per
+node. Count the markers on the offending block: two markers means two nodes and the caret behavior
+is correct-by-parse, and the real question moves to the parser (should an unindented lazy
+continuation join the preceding node?). One marker means a genuine 1.13 regression in the ladder,
+and the next step is `moveToLineBoundary(sel, false, true)`'s return value on 1.13 — the probe in
+this session logged exactly that per press and can be re-run once 1.13 is installable.
+
+**Harness follow-up.** Re-run `e2e/specs/65-content-space-caret.e2e.ts` (C9 and C10 specifically)
+against 1.13 as soon as it is reachable. Those two tests were written to make this exact
+distinction visible, and they are the ones that would fail if the ladder is genuinely broken there.
+
+### RESOLVED, by simplifying the design rather than debugging it: Home/End became one rung
+
+The user re-confirmed on 1.13 that the ladder still sticks mid-paragraph on the second press, and
+called it: *"maybe a more intuitive UX would be to have a single Home press go straight to the
+beginning of the raw line and just stay there. 1 rung, no smartness. predictable and clear to the
+user."* Implemented as stated.
+
+`Home` now moves to the content start of the raw line the caret is already on, `End` to that line's
+end, and a further press does nothing. Neither crosses a line break. Neither consults rendered
+geometry — `view.moveToLineBoundary` is gone from the handler, and the target is computed from the
+parsed line alone.
+
+**Why this is the right close, not a retreat.** The ladder was revised three times in this change
+(row→node, then row→raw-line→node, then row→node again) and each revision fixed the shape it was
+measured against while breaking or annoying another. The reason is structural, not a matter of
+picking better rungs: an escalating Home makes one keypress mean different things depending on
+state the user cannot see — where the previous press left the caret, and where the renderer chose
+to wrap. That is the same class of hidden-state guessing this whole change exists to remove from
+caret motion, so it was never going to come out right by ranking rungs more cleverly.
+
+It also retires the 1.13 divergence recorded above as a class of bug rather than an instance. The
+one-rung rule has no geometry in it, so it cannot resolve differently across Obsidian versions,
+window widths, or the "readable line length" setting. The unresolved entry above stands as the
+record of what was observed, but there is nothing left for it to affect.
+
+**What this gives up, on purpose.** Home no longer reaches a multi-line block's own start. That is
+a genuine convenience lost. It should return as its OWN motion with its own binding, where it is a
+discoverable command rather than a second hidden meaning for the most-pressed key in the editor.
+Recorded as a follow-up in `docs/research/13`.
+
+`nextHomeEndRung` and its tests were deleted with the ladder — it had no other caller. Spec, design
+D5, and its own "Open Questions" entry are updated; e2e C4/C5/C7/C9 rewritten to pin one-rung
+behavior (including explicitly that Home does NOT stop at a visual row start, the thing the ladder
+used to do first).
+
+## Q27. The Home/End rabbit hole: three rewrites of code that was never running (2026-07-26)
+
+Change: `content-space-caret`. Recorded at length because the failure was not in the caret logic at
+all — it was in the loop used to evaluate it, and it cost several sessions.
+
+### What was actually wrong
+
+Home and End were **never routed to this plugin's keymap** on the reporter's Obsidian (1.13.3).
+Left/Right/Up/Down and Tab all arrive and are consumed — measured, `N/N` on every one — while Home
+never appears at all. Something upstream claims it before CM6 dispatches to our `Prec.highest`
+keymap. On the 1.12.7 the harness runs, our binding wins the key and 31 e2e tests pass.
+
+So every Home/End implementation in this change — three rungs, two rungs, one rung — was dead code
+from the reporter's point of view. What they were watching throughout was stock CodeMirror:
+visual row, then raw line, then stop. It never changed because nothing we changed was reachable.
+
+### Why it took so long to see, which is the part worth keeping
+
+**The invariance was the evidence, and it was read as noise.** Three mutually incompatible
+implementations cannot produce identical behavior. The first "no change" report was already proof
+that the code path was not live. It was instead treated as proof the logic was subtly wrong, and
+the logic was rewritten. Twice more.
+
+**Every hypothesis fit, which should itself have been the alarm.** Parse shape (two nodes vs one),
+an Obsidian 1.13 difference in `moveToLineBoundary`, the "readable line length" setting — each was
+coherent and each was consistent with every observation. They were consistent because *"the code
+is not running"* is consistent with everything. When successive hypotheses all fit and none
+predicts anything new, the premise is wrong, not the details.
+
+**Correct-looking outcomes were miscounted as evidence.** The checkbox result (first Home to column
+6, second to column 2) was used to rule out the keybinding hypothesis, on the reasoning that column
+2 is our content boundary and native Home has no reason to go there. Wrong: native Home goes to 6,
+a second native press goes to 0, and the transaction filter then clamps 0 to 2 because the marker is
+not addressable. The same applies to every other behavior reported as working — gap lines
+unreachable, markers unreachable, arrows skipping gaps. **All of it is reproducible by native motion
+plus the filter correcting afterward.** None of it was evidence the keymap ran.
+
+**And the harness could not have caught it.** Measured directly, by unbinding Home entirely and
+re-running the suite: **five of eight Home outcome tests still passed** — C1, C2, C4, C6, C10,
+including the most basic ones — because the filter reproduces those caret positions on its own. The
+tests asserted where the caret ended up, and where the caret ends up is not evidence about which
+mechanism put it there.
+
+### What was changed so this class of bug is visible next time
+
+- **Keymap liveness is now asserted, not assumed.** A dev-build probe counts, per key, what CM6
+  routed to us (`invoked`) and what we consumed, exposed on the plugin for e2e and shown live in the
+  dev status bar. Two new tests in `65-content-space-caret.e2e.ts` assert the mechanism. Verified by
+  negative control: with Home unbound they fail while the outcome tests pass.
+- **The probe wraps handlers OUTSIDE the outline-mode gate**, so "invoked but declined" stays
+  distinguishable from "never invoked". Those need different fixes.
+- **Tab is probed alongside the motion keys** as the control: it shares the keymap, so it separates
+  "this keymap is dead" from "this one key is intercepted". That distinction is what finally located
+  the bug.
+- **The build stamp is baked into the bundle** (`virtual:build-stamp`), not written into
+  manifest.json. Obsidian caches the manifest at plugin-scan time and never re-reads it on reload,
+  so a manifest-borne stamp froze on a days-old commit while the code kept changing — a stamp that
+  lies is worse than none. A constant compiled into the bundle cannot disagree with the bundle.
+- **The dev loop actually delivers.** `vault:install` symlinked into the vault, and Obsidian's
+  watcher only sees paths inside it, so a rebuild produced no vault-visible change and hot reload
+  could never fire (measured: the symlink's own mtime does not move when its target is rewritten).
+  Install now copies, and every esbuild watch rebuild installs, so editing a file reaches the
+  running app unattended.
+- **The Obsidian version is announced loudly, and the fallback names itself as a fallback.**
+  `OBSIDIAN_VERSION` pins an exact build. Q21 lost three rounds to a silent version mismatch and
+  this lost several more; a buried one-line "Running: obsidian vX" was not enough to make anyone
+  check.
+- **Fixture drift is reported and reset after every e2e run** (`scripts/check-vault-drift.mjs`). A
+  full suite reliably mutates `test-vault/`, including a Journal note gaining hard line breaks —
+  which changes that fixture's parse shape, so later tests measure something different with nothing
+  failing.
+
+### Still open
+
+Why 1.13 does not route Home/End to a `Prec.highest` CM6 keymap, and how to claim the key there
+(an Obsidian command with a default hotkey is the most idiomatic candidate; a capture-phase DOM
+handler the blunt one). Reproducing it needs 1.13 in the harness, which needs Catalyst credentials
+since every 1.13.x is insider-only — verified against upstream `obsidian-versions.json`, not just
+the local cache. The caret logic itself is not implicated: it is pure, unit-tested, and correct on
+the version the harness can reach.
+
+### Q27 follow-up: the harness now runs 1.13.3, and it moves the Home diagnosis
+
+Two caches were in play, which is why the first attempt failed. `obsidian-launcher`'s CLI defaults
+to `~/.obsidian-cache`; this harness hardcoded a repo-local `.obsidian-cache`. So a download that
+SUCCEEDED landed where the harness never looks, and the service then tried to fetch the version
+itself, hit the insider-only gate, and reported "Obsidian Insiders account is required" — a cache
+path problem presented as a credentials problem. Fixed three ways: one resolved `cacheDir` shared by
+the availability probe, the service and a new `obsidian:fetch` script; `OBSIDIAN_CACHE` honored so a
+machine-wide cache works; and `assertCached` fails fast naming the real cause, including "it IS
+cached at <the launcher's default>" when that is the actual mistake.
+
+**With 1.13.3 actually running, the keymap liveness tests PASS.** Home is routed to this plugin's
+keymap and consumed, on the same version where the reporter sees it never arrive. So the
+interception is NOT a 1.13 platform change, which was the standing hypothesis. It is specific to the
+reporter's environment or to how the keypress itself is produced.
+
+### RESOLVED: they were two different keys the whole time
+
+The reporter checked which physical keys they had actually been pressing, and that ended it:
+
+- **fn+Left IS `Home`.** It appears in the probe, our handler runs, and it goes straight to the raw
+  line's content start. That is the one-rung implementation behaving exactly as specified.
+- **cmd+Left is NOT `Home`.** It is `Mod-ArrowLeft`, a key this plugin does not bind at all, so it
+  never appears in the probe and never reaches our keymap. Its behavior — visible line start, then
+  content start, then absolute line start — is native macOS/CodeMirror, which this change never
+  touched.
+
+Every escalating ladder reported through this whole investigation was **cmd+Left's native ladder**.
+The reporter had always assumed cmd+Left was Home and had never pressed fn+Left. So all three of our
+implementations were simultaneously correct and irrelevant: correct on the key they were bound to,
+irrelevant to the key being pressed.
+
+This is also the one detail that never fit any of our hypotheses. The report was consistently
+"first the visual line start, then the raw line start, then it stops" — a shape our two-rung ladder
+could produce but our one-rung one could not, and which persisted verbatim across builds that had no
+rungs left at all. It was never ours to produce.
+
+**Correcting this document's own earlier speculation:** the paragraph previously here blamed "the
+input path", guessing that macOS might deliver fn+Left as a native text-editing command rather than
+a plain `Home` keydown. That was wrong, and it was another instance of the pattern this entry is
+about — a plausible mechanism invented to explain evidence, in place of a measurement. The
+measurement was one keypress and the reporter made it.
+
+**And running 1.13.3 immediately earned its keep**, independent of Home: two tests fail there and
+pass on 1.12.7 — `F2` (motion across a heading's gap, off by one column) and `D8` (a horizontal
+rule's own line). Both are real behavioral differences in the version users are actually on, and
+both were invisible for as long as the harness could only reach stable. A third, `C5`, failed once
+with a caret column past the end of its own document (ch 81 on a 24-char line) and passed on
+re-run — the shape of content bleeding between tests, worth its own look.
+
+### What cmd+Left tells us about the architecture (and why NOT to "fix" it)
+
+Worth recording, because it looked like a loose end and is actually a validation.
+
+cmd+Left never lands on chrome, even though nothing binds it. Native cmd+Left's final rung IS
+column 0 — inside a `- ` marker — but it arrives as an ordinary selection change, classifies
+`selection-only`, and `resolvePlacement` clamps it off the marker. That is precisely the job D2
+exists to do. Measured on a checkbox item, the two keys expose the two layers cleanly:
+
+| key | path | result |
+|---|---|---|
+| cmd+Left | native → col 6 (Obsidian's task-aware stop); native → col 0; **filter rewrites 0 → 2** | 6, then 2 |
+| fn+Left (`Home`) | our keymap handler → `contentBoundaryCh` | 2, one press |
+
+So the two layers do genuinely different jobs, and both work:
+
+- **The transaction filter guarantees the INVARIANT** — no caret rests on chrome, whatever moved it,
+  including keys we never bound and never will.
+- **The keymap provides INTENTIONAL motion** for the keys it binds, computing content-space targets
+  directly instead of correcting afterward.
+
+The decision (reporter's call) is to leave cmd+Left alone: it is not broken, it is being corrected,
+and binding `Mod-ArrowLeft` would override a native ladder some users prefer for no invariant gain.
+The consequence to keep in mind is that the plugin's headline caret guarantee reaches the common
+macOS keystroke through the filter rather than through designed motion — which is a fine outcome, but
+it means the Home/End design work governs a key many Mac users never press.
+
+### Harness lessons this adds
+
+- **The probe only reports keys we bind**, so it is blind to the actual failure here: "you are
+  pressing a key we do not bind." cmd+Left's ABSENCE from the readout was the decisive clue and was
+  visible only because the reporter thought to try both keys. A dev-mode raw-keydown log (`key`,
+  `code`, modifiers, `defaultPrevented`) would have said "you pressed Mod-ArrowLeft, we bind Home" on
+  the first press. Filed as a follow-up.
+- **`browser.keys()` can only exercise keys someone thought to send.** The suite never pressed
+  cmd+Left, so it had nothing to say about the behavior actually being reported. Coverage of a
+  keymap is bounded by imagination, not by the keymap.
+- **Ask which physical key, first.** Several sessions turned on an unstated assumption about what
+  "Home" meant. The cheapest possible question — "which keys are you pressing?" — was never asked.
+
+### Postscript: the "flaky" table-cell tests were never flaky
+
+Two nested-editor tests (`53-decoration-contracts`, `60-transaction-classification`) failed
+intermittently across this whole change and were repeatedly written off as flake — including by
+explicit test: making an unrelated code change inert and reproducing the failure, which correctly
+showed the failure was not caused by that change, and was then over-read as "therefore
+environmental".
+
+They were deterministic all along. Both clicked `.markdown-source-view .cm-table-widget td`, which is
+NOT scoped to the active editor, so it matched the first table cell in the document — potentially in
+a different, inactive workspace leaf left open by an earlier test. An element in a hidden pane is
+never interactable, so whether the test passed depended on leftover workspace layout, which looks
+exactly like flake from the outside. The error message had been saying so the entire time: the cell it
+found contained text from a different fixture note than the test had just created (`Tab inside`,
+`timestamp-first (current)`, `Option`), which nobody read closely because the failure was already
+filed as noise.
+
+Fixed with a `clickTableCell()` helper scoped to `.workspace-leaf.mod-active`, targeting
+`td .table-cell-wrapper`. Both constraints in that selector are load-bearing and were found by
+getting them wrong first: the bare `<td>` is a poor click target because Obsidian overlays a
+`.table-row-drag-handle` inside it (on a one-character column it covers most of the box), while
+`.table-cell-wrapper` without the `td` also matches `<th>` and silently clicks the HEADER row — the
+nested editor mounts fine and the test then types into the wrong cell, which surfaced as
+`expected "word!" received "a!"`. Verified across three consecutive runs of the pair and two full
+suites.
+
+The lesson is the same one this entry keeps producing: "intermittent" is a hypothesis, not a
+diagnosis. Ruling out one cause is not the same as establishing the cause, and an error message
+describing content from the wrong note was concrete evidence available from the first failure.
+
+### CI postscript: two assertions encoded font metrics as contract
+
+PR #31's first CI run failed on one test, on both desktop and mobile emulation, while the same
+commit was green locally. `F2` ("motion across a heading's gap behaves like any other node pair")
+asserted an exact landing column of `ch: 5` after ArrowDown from inside an `# h1` into body text.
+
+Vertical motion preserves the caret's horizontal PIXEL position, as native CM6 does. Crossing from a
+large font into a small one therefore lands at whatever CHARACTER column happens to sit under that
+x — which is a font metric, not a behavior. Same code, three answers:
+
+```
+ch 5  macOS   1.12.7
+ch 6  macOS   1.13.3
+ch 7  linux   1.12.7   (CI, desktop and mobile emulation alike)
+```
+
+The assertion had quietly promoted one machine's font rendering to the contract. `D8`'s horizontal
+rule test had the same shape: `---` is three characters, the line renders as a widget rather than
+text, and the preserved x resolved to `ch 0` on 1.12.7 and `ch 3` on 1.13.3 — both perfectly valid
+positions on that line.
+
+Both now assert what their names claim — that the GAP is skipped and the caret lands on the right
+LINE — with the column bounded to the line rather than pinned to a number, and the measured
+per-platform values recorded in the test so nobody "tightens" them back later.
+
+The general rule this yields: **after motion that preserves a pixel position, assert the line and a
+column RANGE, never an exact column, whenever the source and target render in different fonts or one
+of them is widget-rendered.** Exact columns remain right for same-font motion, which is why the
+whole A-series (paragraph to paragraph) is unaffected and stayed green everywhere.
+
+Worth noting what caught this: not local runs, which were green on two Obsidian versions, but a
+different OS. The version axis had been the focus all session; the platform axis was the one that
+mattered here.
+
+## Q28. What eight rounds of automated review found in `content-space-caret` (2026-07-26)
+
+Recorded because most of these defects existed only in commit messages, and the branch's
+history was condensed for merge. Kept short: one line of mechanism per finding, grouped by what
+they teach rather than by round.
+
+### Defects in shipped behavior
+
+- **Motion handlers fired inside nested per-cell table editors.** `registerEditorExtension`
+  installs the keymap in every CM6 instance and `editorInfoField` resolves a cell to the same
+  host file, so the outline-mode gate accepted it. Measured with the keymap probe: Home, Right
+  and ArrowDown all `1/1` with focus inside `.cm-embed-block`. The **transaction filter** had
+  the same hole, and a cell reading `word` could not expose it — a cell whose text starts with
+  `- ` parses as a list item, and stock motion inside it was clamped off that "marker".
+- **Horizontal motion stepped into the middle of a grapheme.** `ch ± 1` is a UTF-16 code UNIT:
+  on `a😀b`, Right from after `a` landed between the surrogate halves.
+- **And ignored bidi.** Logical order is not visual order; in an RTL run ArrowRight moved the
+  wrong way. Note the LTR/RTL flip lives in CM6's COMMANDS, not in `moveByChar` — delegating
+  without the flip changed nothing at all.
+- **Any bound motion key destroyed a multi-cursor selection.** Handlers planned from
+  `selection.main` while the dispatch replaced the whole selection: every non-main range
+  vanished, with no undo entry, since a selection change is not a document change.
+- **Home/End consumed the key and did nothing on a programmatic gap-line caret**, which D2
+  deliberately leaves in place. `planHorizontal` declined there too, and native motion on the
+  first line of a multi-line gap moved the caret OPPOSITE the key pressed once the filter
+  resolved it back.
+- **A document-edge press relied on the filter.** Declining looked like a no-op but stepped onto
+  the trailing gap line for the filter to undo — the post-hoc correction this change exists to
+  remove. A `'noop'` sentinel the handler consumes replaced it; the preamble case must still
+  decline, which is a distinction easy to flatten.
+
+### Defects in the tooling built to support it
+
+- **Release builds shipped the dev status bar and keymap probe.** The gate was opt-OUT via a
+  flag nothing set — and could not set, since releases run through an external reusable
+  workflow. Inverted to opt-in.
+- **Release builds also wrote into the dev vault**, and could fail merely because `test-vault`
+  was absent, once one-shot install failures started failing the build.
+- **The drift checker could destroy uncommitted fixture work** (it reverted every dirty path),
+  then — snapshot-based — still lost pre-existing DELETIONS, and passed untracked paths to
+  `git checkout`, which cannot restore them and exits non-zero. It also read C-quoted porcelain
+  paths, so a non-ASCII fixture this repo ships (`Notes/Reading – …`) produced an escaped name
+  and broke cleanup.
+- **Two stamps per build**, so the reported clock never matched the bundle's; and the manifest
+  stamp froze because Obsidian caches manifests at plugin-scan time.
+- **The wrong-cache diagnostic skipped itself** in the situation it was written for.
+
+### The pattern worth keeping
+
+Three consecutive rounds caught the same shape: a condition widened to admit an edge case
+silently admitted something else. Whitespace-after-marker made optional swallowed continuation
+punctuation; a one-frame re-assert widened to ten frames reverted a real click; `'noop'` for
+"no previous node" broke entry into the preamble.
+
+And three tests written to prove a fix could not fail — a liveness loop asserting `invoked` but
+not `consumed`, a nested-editor test using a cell that could not reach the bug, an RTL test
+asserting only that two keys disagreed. Every time the negative control was run it found
+something; every vacuous test was one where it was skipped.
