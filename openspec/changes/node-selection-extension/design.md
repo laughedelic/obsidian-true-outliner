@@ -110,6 +110,32 @@ by other gestures, and extension produces none of those.
 - **The merge edge in D4** → recorded, measured in real use, revisited rather than pre-solved.
 - **Someone relied on `⇧↓` grabbing two tight-list items in one press** → that was an artifact,
   not a feature; one press per node is the point of the change.
+- **A selection restored by undo or redo need not be a cover at all, which D3's stateless walk
+  assumes it is.** Found during `minimal-changesets-for-structural-ops` (docs/research/04 Q29
+  and its follow-on). `@codemirror/commands` dispatches history transactions with
+  `filter: false`, and CM6's `resolveTransaction` honours that by skipping `filterTransaction`
+  entirely — so **the escalation filter provably never observes an undo or a redo**. What
+  history restores is the pre-operation selection MAPPED FORWARD through the operation's
+  changes, which for an edit inside or adjacent to the covered span is no longer an exact
+  cover. Observed in a real vault: redoing an indent of a block-selected paragraph brought
+  back a range covering "just the content within that new list node" rather than the block.
+
+  This matters here specifically because D3's statelessness rests on "the cover's start edge
+  identifies the anchor node, so the walk is a plain function of the current selection." That
+  holds for every selection the filter produced, and undo/redo produce selections the filter
+  never saw. D4 compounds it: a mapped-forward range is still ONE range, so the discriminator
+  reads it as a block selection and extends from an anchor derived from an edge that no longer
+  sits on a node boundary.
+
+  → Not a reason to add the `StateField` back: the failure is a malformed INPUT, not an
+  unrecoverable anchor, and stored state would be equally stale after the same undo. Two cheap
+  options: have the walk normalize its input (escalate the current selection to the nearest
+  cover before stepping, which is idempotent for every selection the filter already produced),
+  or have something re-normalize restored selections at the point history bypasses the filter.
+  The second belongs to `caret-placement-policy`, which owns the caret half of this same
+  `filter: false` fact and is sequenced before this change partly for that reason. Normalizing
+  in the walk is self-contained and needs no agreement with it — worth settling before the walk
+  is written rather than after.
 
 ## Migration Plan
 
@@ -118,6 +144,10 @@ are byte-for-byte stock.
 
 ## Open Questions
 
+- Should the walk normalize its input selection to the nearest cover before stepping, so a
+  selection restored by undo/redo (which the escalation filter provably never sees — see
+  Risks) has defined behavior? Idempotent for every selection the filter already produced, so
+  the cost is one escalation call per press.
 - Does the D4 merge edge ever occur in practice, and does it read as wrong when it does?
 - Should extension have any relationship to the Mod-A ladder's rungs — for instance, should
   `⇧↑` from a whole-subtree cover ever climb rather than grow sideways? Deliberately not
