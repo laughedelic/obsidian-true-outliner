@@ -35,7 +35,9 @@ describe('structural commands', function () {
 
     await h.runCommand('indent-node');
     expect(await h.getBuffer()).toBe('First.\n\n- Second.\n');
-    expect(await h.getCursor()).toEqual({ line: 2, ch: 2 }); // after "- "
+    // minimal-changesets-for-structural-ops: the cursor preserves the user's
+    // column (3 chars into "Second.") rather than resetting to content start.
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 5 });
 
     await h.runCommand('outdent-node');
     expect(await h.getBuffer()).toBe(original);

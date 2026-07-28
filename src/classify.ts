@@ -107,18 +107,6 @@ export interface TransactionFacts {
   readonly cursorBefore?: { readonly line: number; readonly ch: number };
 }
 
-/**
- * The `userEvent` carried by the selection-only transaction that re-asserts a
- * structural op's own resulting cursor, so CodeMirror's history records it
- * (`structural-history-integration`; see src/plugin/history-cursor.ts for the
- * mechanism and docs/research/04 Q21 for the bug it fixes).
- *
- * Declared HERE rather than alongside the mechanism because this module owns
- * the userEvent taxonomy and must stay CM6-import-free — history-cursor.ts
- * imports it from here, not the other way round.
- */
-export const CURSOR_REASSERT_USER_EVENT = 'select.structural';
-
 /** This plugin's own grammar/command userEvent values (grammar.ts) —D2
  * class 3, "already valid by construction." `move.structure` and the
  * `input.structure.*` family; Shift+Enter's continuation insert
@@ -137,15 +125,34 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   // the change it carries.
   'delete.structural',
   'input.paste.structural',
-  // The cursor re-assertion that follows every structural op
-  // (structural-history-integration D4, src/plugin/history-cursor.ts). It is
-  // selection-only, so without this entry it would classify `selection-only`
-  // and be run through escalation + the content-space-caret placement
-  // resolver (`./caret.ts`'s `resolvePlacement`) — either of which could
-  // move the very cursor it exists to record in history. Classifying it
-  // `plugin-own` passes it through untouched.
-  CURSOR_REASSERT_USER_EVENT,
 ];
+
+/**
+ * The subset of the above whose resulting cursor is a CHOICE rather than a
+ * function of the pre-operation caret: a merge's join point, a split point, a
+ * moved node's new location, the survivor after a deletion.
+ *
+ * The distinction is what decides whether CodeMirror's history can reproduce
+ * the cursor on its own. Indent and outdent are excluded because they derive
+ * their cursor by mapping the pre-operation caret forward
+ * (`minimal-change-dispatch`), which is exactly what history recomputes on
+ * redo — so the two agree by construction and recording would only add the
+ * cost. Everything here disagrees, most visibly a move: reordering two
+ * siblings maps a caret that was inside the moved node into whatever now
+ * occupies its old lines, i.e. the OTHER node. That position is perfectly
+ * addressable, so nothing downstream can detect it as wrong.
+ *
+ * Exported for `src/plugin/history-caret.ts`'s recorder, which keys off this
+ * set rather than keeping a second list that could drift from it.
+ */
+export const SEMANTIC_CURSOR_USER_EVENTS: readonly string[] = PLUGIN_OWN_USER_EVENTS.filter(
+  (event) => event !== 'input.structure.indent' && event !== 'input.structure.outdent',
+);
+
+/** Whether this operation chooses its own cursor (see above). */
+export function hasSemanticCursor(userEvent: string | undefined): boolean {
+  return SEMANTIC_CURSOR_USER_EVENTS.some((prefix) => matchesEvent(userEvent, prefix));
+}
 
 /** CM6's own `Transaction.isUserEvent` semantics, reimplemented on plain
  * strings (dot-namespaced prefix match) so this module stays CM6-import-
@@ -188,12 +195,7 @@ function isProgrammatic(facts: TransactionFacts): boolean {
 
 /**
  * Whether a `userEvent` identifies a transaction this plugin dispatched
- * itself. Exported so the structural-history recorder
- * (src/plugin/history-cursor.ts) triggers off the SAME set that drives
- * classification, rather than keeping a second, parallel list of "our own
- * structural events" that could drift out of sync with this one
- * (structural-history-integration D2 — this project has shipped that class of
- * bug twice already, see docs/research/04 Q19).
+ * itself.
  */
 export function isPluginOwnUserEvent(userEvent: string | undefined): boolean {
   return PLUGIN_OWN_USER_EVENTS.some((prefix) => matchesEvent(userEvent, prefix));

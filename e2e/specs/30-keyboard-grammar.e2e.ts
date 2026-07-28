@@ -94,11 +94,13 @@ describe('keyboard grammar', function () {
     const alpha = parse(indented).children[0]!;
     expect(alpha.children.length).toBe(1);
     expect(alpha.children[0]!.lines[0]!.trim()).toBe('- beta');
-    // Cursor sits at content start of the moved node.
+    // minimal-changesets-for-structural-ops: cursor preserves the user's
+    // column (2 chars into "beta", from ch 4 = 2 chars past "- ") rather
+    // than resetting to the moved node's content start.
     const cursor = await h.getCursor();
     const betaLine = indented.split('\n')[1]!;
     expect(cursor.line).toBe(1);
-    expect(betaLine.slice(cursor.ch)).toBe('beta');
+    expect(betaLine.slice(cursor.ch)).toBe('ta');
 
     await h.keys.shiftTab();
     expect(await h.getBuffer()).toBe('- alpha\n- beta\n');

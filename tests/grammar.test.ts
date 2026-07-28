@@ -26,14 +26,67 @@ function plan(text: string, cursor: { line: number; ch: number }, key: GrammarKe
 }
 
 describe('grammar planner: structural keys', () => {
-  it('Tab plans the indent op', () => {
+  it('Tab plans the indent op, preserving the user’s column', () => {
     const outcome = plan('First.\n\nSecond.\n', { line: 2, ch: 3 }, 'indent');
     expect(outcome && 'plan' in outcome).toBe(true);
     if (outcome && 'plan' in outcome) {
       const { text, cursor } = applyPlan('First.\n\nSecond.\n', outcome.plan);
       expect(text).toBe('First.\n\n- Second.\n');
-      expect(text.slice(cursor - 2, cursor)).toBe('- ');
+      // Cursor preserves the user's column within "Second." (3 chars in)
+      // rather than resetting to the node's content start.
+      expect(text.slice(cursor - 3, cursor)).toBe('Sec');
       expect(outcome.plan.userEvent).toBe('input.structure.indent');
+    }
+  });
+
+  it('Tab at a line’s very start still preserves the column (assoc boundary case)', () => {
+    // Regression case: the cursor sits EXACTLY where the new marker gets
+    // inserted (prefix=0). CM6's own default live-mapping assoc (-1) would
+    // leave the cursor before the whole inserted marker; `mapCursorForward`
+    // (assoc=1, matching history's own redo convention) must land it right
+    // before "Second." instead, matching indent's semantic content-start
+    // convention and staying consistent with what a later redo computes.
+    const outcome = plan('First.\n\nSecond.\n', { line: 2, ch: 0 }, 'indent');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan('First.\n\nSecond.\n', outcome.plan);
+      expect(text).toBe('First.\n\n- Second.\n');
+      expect(text.slice(cursor, cursor + 7)).toBe('Second.');
+    }
+  });
+
+  it('Shift+Tab plans the outdent op, preserving the user’s column', () => {
+    const outcome = plan('- parent\n\t- child\n', { line: 1, ch: 7 }, 'outdent');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text, cursor } = applyPlan('- parent\n\t- child\n', outcome.plan);
+      expect(text).toBe('- parent\n- child\n');
+      // "\t- child": content starts at ch 3, 4 chars in ("chil|d").
+      expect(text.slice(cursor - 4, cursor)).toBe('chil');
+      expect(outcome.plan.userEvent).toBe('input.structure.outdent');
+    }
+  });
+
+  /**
+   * The mapped position is the editor's main selection HEAD, which is a caret
+   * only when the selection is empty. With a block selection the head is the
+   * cover's end, and a subtree cover ends on the trailing gap line it owns —
+   * so mapping it forward yielded a caret on a gap line, which
+   * `content-space-caret` forbids. Reported from a real vault after the
+   * column-preserving mapping landed.
+   */
+  it('Tab from a block cover’s head falls back to the op’s own cursor, not a gap line', () => {
+    const text = 'First.\n\nSecond.\n';
+    // Line 3 is the trailing gap "Second."'s subtree cover includes.
+    const outcome = plan(text, { line: 3, ch: 0 }, 'indent');
+    expect(outcome && 'plan' in outcome).toBe(true);
+    if (outcome && 'plan' in outcome) {
+      const { text: after, cursor } = applyPlan(text, outcome.plan);
+      expect(after).toBe('First.\n\n- Second.\n');
+      // Content start of the new list item — the op's own choice — and NOT
+      // offset 18, the mapped gap-line position the unguarded mapping gave.
+      expect(cursor).toBe('First.\n\n- '.length);
+      expect(after.slice(cursor)).toBe('Second.\n');
     }
   });
 
