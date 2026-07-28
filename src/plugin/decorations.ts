@@ -616,6 +616,42 @@ export const SELECTED_NODE_CLASS = 'to-decor-node-selected';
 // above (a real finding from user review: showing both looked confusing).
 export const BLOCK_SELECTING_CLASS = 'to-decor-block-selecting';
 
+/**
+ * Keys that produce a `keydown` on their own but cannot do anything on their
+ * own — pressing and holding Cmd, or tapping Shift, is not an attempt to act
+ * on the selection.
+ *
+ * `onDocumentKeyDown` refocuses the editor before it knows whether a key
+ * matched anything, because ordinary typing needs the editor focused for the
+ * browser's own later `beforeinput` to land there. For a bare modifier that
+ * refocus is pure loss: it undoes the blur that keeps a block selection
+ * looking like a block selection, so the caret reappears — on the covered
+ * subtree's own trailing gap line, since that is where a cover ends — and
+ * Live Preview reveals raw markdown again, with nothing to put it back (the
+ * blur in `update()` only re-fires when the SELECTION changes, and holding a
+ * modifier changes nothing). Reported from a real vault: "press any modifier
+ * key, the block selection stays but a blinking caret appears at the last
+ * line of the selection, plus the raw formatting shows".
+ *
+ * Bailing here does not cost the combinations those modifiers exist for:
+ * Cmd+A sends its own `keydown` for `a` with `metaKey` set, which is not in
+ * this set and so refocuses and replays exactly as before.
+ */
+const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
+  'Shift',
+  'Control',
+  'Alt',
+  'Meta',
+  'AltGraph',
+  'CapsLock',
+  'NumLock',
+  'ScrollLock',
+  'Fn',
+  'FnLock',
+  'Hyper',
+  'Super',
+]);
+
 function offsetToLinePos(doc: Text, offset: number): LinePos {
   const line = doc.lineAt(offset);
   return { line: line.number - 1, ch: offset - line.from };
@@ -1044,6 +1080,7 @@ class SelectionDecorationPlugin implements PluginValue {
    */
   private readonly onDocumentKeyDown = (event: KeyboardEvent): void => {
     if (this.view.hasFocus) return;
+    if (MODIFIER_ONLY_KEYS.has(event.key)) return;
     if (document.activeElement !== document.body) return;
     if (!this.isOutlineNote() || !this.isActiveEditor() || !allRangesCovered(this.view.state)) {
       return;
