@@ -28,14 +28,50 @@ lines outside the edit ranges are touched.
 - **WHEN** a structural command succeeds and undo is invoked once
 - **THEN** the document returns byte-identically to its pre-command state
 
-### Requirement: Cursor follows the moved node
-After an accepted operation the cursor SHALL be placed on the moved node's first line at
-its first content column (after any list marker), as located in the operation's result
-tree.
+### Requirement: Cursor follows the operation's result
+After an accepted operation the cursor SHALL be placed by the same rule the keyboard
+grammar uses for that operation, so the two entry points cannot diverge.
 
-#### Scenario: Cursor lands on the re-encoded node
-- **WHEN** a paragraph is indented and becomes `- Second thought.`
-- **THEN** the cursor sits immediately after the `- ` marker of that line
+For MOVE, that is the moved node's first line at its first content column (after any
+list marker), as located in the operation's result tree — its position is a choice no
+mapping can reproduce.
+
+For INDENT and OUTDENT, it is the pre-command caret mapped forward through the
+operation's change set, preserving the column the user was at rather than resetting to
+the node's content start, and falling back to the operation's own cursor when the mapped
+position would not be caret-addressable. See `minimal-change-dispatch`, which owns that
+rule.
+
+*(Amendment 2026-07-28, `minimal-changesets-for-structural-ops`: this requirement
+previously mandated the content-column placement for EVERY command, which the
+column-preserving indent/outdent behaviour supersedes.)*
+
+**Why a palette command uses two transactions.** It applies its change and its cursor
+separately, because a selection-only transaction between two commands is what keeps them
+as separate undo steps — `Editor.transaction` carries no `userEvent`, and CodeMirror joins
+adjacent `userEvent`-less changes into one history event otherwise.
+
+That separate cursor transaction does record the cursor into history. For indent and
+outdent this is unobservable: the value recorded is the mapped cursor, which is exactly
+what the history would recompute, so undo and redo behave identically to the keyboard
+path at every depth (measured). It therefore does NOT bring the second-undo cost that
+`structural-history-integration`'s "Known limitation" describes for cursor-choosing
+operations.
+
+#### Scenario: Cursor preserves the column on indent
+- **WHEN** a paragraph is indented via the command and becomes `- Second thought.`, with
+  the caret partway through its text
+- **THEN** the caret stays at the same relative column within that text, not at the
+  node's content start
+
+#### Scenario: Cursor lands on the moved node
+- **WHEN** a node is moved up or down via the command
+- **THEN** the cursor sits at that node's first content column in its new position
+
+#### Scenario: Both entry points agree
+- **WHEN** the same operation is invoked from the command palette and from its key
+  binding, with the same document and caret
+- **THEN** the resulting caret is the same
 
 ### Requirement: Rejection feedback without document changes
 A rejected operation SHALL leave the document, selection, and undo history untouched, and

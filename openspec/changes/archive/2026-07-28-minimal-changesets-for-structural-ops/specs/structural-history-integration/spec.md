@@ -1,34 +1,4 @@
-# structural-history-integration Specification
-
-## Purpose
-Defines how structural operations integrate with CodeMirror's undo history so that redo
-restores the cursor the operation itself produced — the merge join point, the split point,
-a moved node's new location, the column an indent preserved — rather than a mechanical
-mapping that lands somewhere else.
-
-Two mechanisms cover it, and which applies depends on whether an operation's cursor is a
-FUNCTION of the pre-operation caret or a CHOICE:
-
-- **Indent and outdent** derive their cursor by mapping (`minimal-change-dispatch`), which
-  is exactly what history recomputes on redo, so the two agree by construction and nothing
-  is recorded. Minimal change sets are what make that mapping meaningful.
-- **Every other structural operation** chooses a cursor no mapping can reproduce — redo
-  replays a `ChangeSet`, not the operation, and a text splice carries no notion of which
-  content is which — so its cursor is recorded into history by a following selection-only
-  transaction. That is the only channel CodeMirror offers.
-
-Also covers what neither mechanism can fix: a second undo does not restore the
-pre-operation cursor, for two distinct reasons documented below. Related and worth knowing
-beyond this capability: CodeMirror dispatches history transactions with transaction
-filtering disabled, so the enforcement funnel provably never observes an undo or a redo.
-
-Architecture and rationale: the `fix-redo-cursor-after-structural-ops` and
-`minimal-changesets-for-structural-ops` design.md files; evidence and findings:
-`docs/research/04-open-questions.md` Q18–Q21 and Q29. Where the caret should go in the
-first place — as opposed to how it survives history — is being consolidated by the
-`caret-placement-policy` change.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Redo restores a structural operation's own cursor at any depth
 
@@ -203,18 +173,31 @@ that cursor position for user gestures; its own scope still passes through
   a future report of "the cursor is one character off after two undos" is recognized as
   this known gap rather than investigated as a new bug
 
-### Requirement: Undo behavior and undo granularity are unchanged
+## REMOVED Requirements
 
-Recording the resulting cursor SHALL NOT change what undo does. One structural
-operation SHALL remain exactly one undo step, and undo SHALL continue to restore both
-the pre-operation document and the pre-operation cursor.
+### Requirement: A structural operation's resulting cursor is recorded in history
+**Reason**: Narrowed, not removed. Recording is still required — it is the only channel
+CodeMirror offers for a cursor redo cannot recompute — but only for the operations that
+CHOOSE a cursor. Indent and outdent no longer need it: they derive their cursor by
+mapping (`minimal-change-dispatch`), which is exactly what history recomputes, so the two
+agree at any depth. The narrowed requirement is "An operation that chooses its own cursor
+has it recorded in history" above.
+**Migration**: None. The mechanism is unchanged for the operations still covered; it
+simply no longer applies to indent and outdent.
 
-#### Scenario: One undo step per structural operation
-- **WHEN** a structural operation is performed and undo is pressed once
-- **THEN** the document is restored to its exact pre-operation state, with no second
-  undo press required
+### Requirement: The cursor re-assertion is treated as plugin-own
+**Reason**: The re-assertion still exists, for the operations that choose their cursor,
+but it is no longer CLASSIFIED: it dispatches with `filter: false`, so the enforcement
+funnel never observes it. That achieves what the plugin-own entry existed to achieve —
+the funnel cannot move the very cursor being recorded — without a `userEvent` in the
+taxonomy, so `select.structural` is retired.
+**Migration**: None.
 
-#### Scenario: Undo restores the pre-operation cursor
-- **WHEN** a structural operation is undone
-- **THEN** the cursor is restored to where it was before the operation was performed
-
+### Requirement: Structural dispatch sites share one recording mechanism
+**Reason**: Superseded by the narrowed requirement above, which states the sharing in
+terms of WHICH operations are recorded rather than which dispatch sites produced them —
+the recorder keys off a `userEvent` set derived from the classifier's own plugin-own
+list, so it covers every dispatch site by construction and the two lists cannot drift.
+Recording no longer applies to every structural dispatch, which is what this
+requirement's wording asserted.
+**Migration**: None.
