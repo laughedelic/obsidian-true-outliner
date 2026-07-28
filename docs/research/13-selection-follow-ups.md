@@ -716,3 +716,114 @@ visual order, and what happens at the seam. That is a design question about the 
 not a patch, which is why it is filed rather than fixed in a review round. Anyone picking it up should
 start from CM6's `bidiSpans`/`Direction` and from what native Obsidian does at an RTL line's edges,
 since matching native behavior has been the right default everywhere else in this change.
+
+## Follow-up: the deletion caret alternates next/previous, and disagrees with placement resolution (opened 2026-07-27, `minimal-changesets-for-structural-ops` real-vault pass)
+
+`deleteSubtreeGroups` (`src/ops.ts`) picks the post-delete subject as
+`survivorAfter ?? survivorBefore ?? parent`, and `finalize` places the caret at that
+subject's content START. So the caret lands on the FOLLOWING node when one survives and on
+the PRECEDING one when none does — deliberate, and it reads as arbitrary in use.
+
+It also disagrees with what `resolvePlacement` computes for the same seam, which is the
+sign that two rules exist where one should: placement resolution takes a gap line to its
+OWNER's content END (the node above), while the delete chooses the survivor's content
+START. Measured on `# Heading` / blank / `last paragraph`: the delete gives `{0,2}`,
+ownership would give `{0,9}`.
+
+*(Historical note: for one iteration a caret resolver applied the ownership rule to
+undo/redo-restored carets, so the position visibly shifted across undo→redo. That
+resolver has since been dropped — the recorder makes redo restore the delete's own cursor
+— so the two rules no longer contradict each other at runtime. The disagreement about
+which rule is RIGHT is what remains, and is what the change below owns.)*
+
+**Now owned by the `caret-placement-policy` change proposal** (2026-07-28), together with
+the table entry below — see its proposal.md for why these two and the palette/keyboard
+duplication are one problem rather than three.
+
+Closing it means picking one convention and making both paths use it. The candidate:
+delete places the caret at the PRECEDING node's content end, matching gap ownership and
+matching where a user would resume typing. That is a user-visible behaviour change with
+its own specs and e2e assertions (`20-structural-commands`, `62-outline-edit-enforcement`),
+which is why it was not folded into the minimal-changesets change.
+
+## Parked: deleting a node that follows a table strands undo inside the table (found 2026-07-27, `minimal-changesets-for-structural-ops` real-vault pass)
+
+Same root as the entry above, with a worse consequence. When the surviving neighbour is a
+TABLE, the delete's caret convention puts the caret at the table's content start — its
+first source line, i.e. inside the table. In Live Preview that mounts the nested per-cell
+editor and moves focus into it.
+
+From there undo is effectively lost: Cmd+Z goes to the cell's own nested editor, whose
+history is empty, so nothing happens; and moving the caret out does not help, because the
+host's own history event still restores a selection inside the table, which re-mounts the
+cell editor and re-captures focus. The document cannot be reverted without leaving and
+re-entering the note.
+
+Measured (delete the paragraph after a three-line table): the op's caret is `{0,0}` —
+inside the table — and after undo→redo the mapped position `{3,0}` resolves to `{2,9}`,
+the table's content end, still inside it. Both routes end in the table.
+
+`ops.ts` is untouched by `minimal-changesets-for-structural-ops`, so this reproduces on
+`main`. The nested-editor-captures-undo half is reasoned from Obsidian's behaviour rather
+than instrumented; confirming it wants a `cm.dispatch` trace like the one in the
+"exiting a table's nested editor" entry above, which is the same territory.
+
+**Also owned by `caret-placement-policy`.** Whatever fixes the caret convention above
+should also answer "never land the caret inside an atom that renders as a widget," which
+is the part specific to this entry: an atom's
+interior IS addressable by spec (`content-space-caret` says so explicitly), so the rule
+cannot come from addressability alone.
+
+## Fixed: a bare modifier key defeated the block-selection blur (found 2026-07-27, real-vault pass)
+
+Reported: with a block selection active, pressing any modifier key left the selection in
+place but brought back a blinking caret — on the last line of the selection, usually a gap
+line — and Live Preview reverted to showing raw markdown. It then stayed that way.
+
+`onDocumentKeyDown` (`decorations.ts`) exists to recover keyboard interaction after the
+cover blur, and it has to refocus BEFORE it knows whether the key matched anything:
+ordinary typing works by the browser's own later `beforeinput` landing on whatever is
+focused at that time, so deferring the focus until after `runScopeHandlers` would break
+plain typing. The listener had no notion of a key that cannot act at all, so a bare `Meta`
+or `Shift` keydown took the same path — refocus, run handlers, match nothing.
+
+Refocusing is exactly what the blur exists to prevent, and nothing puts it back: the blur
+in `update()` only re-fires on a `selectionSet` update, and holding a modifier changes no
+selection. Hence "it stays there".
+
+Fixed by bailing on modifier-only keydowns before the refocus (`MODIFIER_ONLY_KEYS`). This
+costs nothing real: a combination like Cmd+A still sends its own `keydown` for `a` with
+`metaKey` set, which is not modifier-only and refocuses and replays as before.
+
+Worth noting for anything built on this listener: "refocus first, ask questions later" is
+load-bearing for typing, so the guard has to be a property of the KEY, not of whether a
+command matched. Other keys that cannot act on a block selection (Escape, function keys)
+have the same shape and are not covered here — they were not reported, and each wants its
+own answer rather than a blanket "only refocus for printable keys", which would break the
+replay path for Backspace, Delete, Tab and the arrows.
+
+### Follow-up: the modifier-key guard has no automated regression net (opened 2026-07-28, PR #32 review)
+
+Raised by automated review, and correct: the fix above is a one-line early return with nothing
+asserting it. Someone deleting that line reintroduces the bug silently.
+
+Not closed in the same PR, for reasons worth stating rather than leaving as an omission:
+
+- **No e2e in this repo asserts focus or blur at all** (`grep activeElement|hasFocus|blur e2e/`
+  is empty). This mechanism's own design note already says why — "focus/blur timing interacting
+  with real keyboard input is exactly the kind of thing unlikely to test reliably through the
+  automated e2e harness" — and the blur is additionally deferred through `setTimeout(0)`, with
+  the refocus happening on a `keydown` the harness would have to synthesise.
+- **A test that cannot be negative-controlled is worse than none here.** Q28 records three tests
+  in this project written to prove a fix that could not fail, every one of them a case where the
+  negative control was skipped. An e2e added blind, verifiable only by pushing to CI, is that
+  same shape.
+- **A unit test would guard the wrong thing.** The rule is a `Set` membership check; the real
+  regression risk is the early return being removed, which set-membership assertions cannot see.
+  `decorations.ts` imports `obsidian`, so the listener itself is not unit-testable without a DOM
+  environment the project does not have.
+
+What would actually close it: a DOM-level test environment (jsdom) for the view-plugin layer,
+which would also unlock `history-caret.ts`'s ViewPlugin wiring, `MarginCompensation`, and the
+`onDocumentKeyDown` replay path — all currently tested only through their pure cores. That is a
+harness change worth doing deliberately, not a test to bolt onto this PR.

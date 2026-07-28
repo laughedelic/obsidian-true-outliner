@@ -695,7 +695,7 @@ instinct that "more than one wrong-landing shape" ruled out a narrow fix was rig
 about the symptom and wrong about the conclusion: the shapes are one mechanism whose
 error scales with how much the op rewrote.
 
-## Q21. Redo-cursor root cause: a CM6 history regression meeting our whole-region rewrites ✅ ROOT-CAUSED, partially fixed (2026-07-25)
+## Q21. Redo-cursor root cause: a CM6 history regression meeting our whole-region rewrites ✅ ROOT-CAUSED; minimal changesets close it except one narrow, CM6-inherent residual (2026-07-26)
 
 Change: `fix-redo-cursor-after-structural-ops`.
 
@@ -771,6 +771,40 @@ below.
   testing). With minimal ChangeSets, simply not setting an explicit cursor for
   indent/outdent would preserve the user's column naturally — so this is best decided
   as part of that change rather than separately.
+
+### Update: `minimal-changesets-for-structural-ops` implemented — the "at any depth" claim above was too strong
+
+Implementing the deferred fix (`minimal-changesets-for-structural-ops`) confirmed most
+of the above but found the "at any depth, no recording needed" claim overstated in one
+case, caught by property-testing against a real `EditorState` + real
+`@codemirror/commands` `history()` (`tests/minimal-change-history.test.ts`):
+
+- **Indent** is a pure insertion and is exactly correct at any undo/redo depth, fully
+  confirmed. Also: relying on CM6's own *default* selection mapping (no explicit
+  `selection` at all) turned out to be insufficient even for indent's first redo — CM6's
+  live-dispatch default assoc (`-1`) disagrees with the assoc `1` its history redo
+  restore hardcodes, whenever the cursor sits exactly at an insertion boundary (e.g. Tab
+  at a line's very start). The fix computes that same assoc-`1` mapping explicitly
+  (`dispatch.ts`'s `mapCursorForward`) and states it, rather than omitting it.
+- **Outdent** (the only op whose cursor is DERIVED BY MAPPING and whose change set also
+  deletes — merge and subtree deletion delete too, but choose their cursor rather than
+  mapping it) is correct at any depth *except* when the pre-op cursor sat at or inside
+  the specific span being deleted (the removed marker/indentation — never the node's real content). CodeMirror
+  itself collapses such a position to the deleted span's start when computing the live
+  result, and a later undo-of-a-redo can only reconstruct from that already-collapsed
+  value — CM6's own hardcoded restore formula for that case lands one character off,
+  regardless of what this plugin dispatches. This is the SAME class of structural limit
+  the "NOT fixed" section above described (an event only the history's undone branch
+  holds, unreachable by anything we can record or map), now narrowed to one specific
+  cursor position rather than every structural op.
+- Before `content-space-caret` landed, the practical path to that residual was Home
+  placing the cursor at absolute line start before Shift+Tab. The now-landed,
+  independent change closes that gesture path by making the marker prefix
+  unaddressable. A narrower window remains for positions its published jurisdiction
+  deliberately passes through, including `plugin-own`/`composition` transactions.
+
+Pinned as an executable "known residual" test (not just this note) in
+`tests/minimal-change-history.test.ts`, per this file's own convention.
 
 ### Method note worth carrying forward
 
@@ -1607,3 +1641,204 @@ And three tests written to prove a fix could not fail — a liveness loop assert
 not `consumed`, a nested-editor test using a cell that could not reach the bug, an RTL test
 asserting only that two keys disagreed. Every time the negative control was run it found
 something; every vacuous test was one where it was skipped.
+
+## Q29. Undo/redo is the one transaction the enforcement funnel cannot reach (2026-07-27, `minimal-changesets-for-structural-ops` real-vault pass)
+
+A real-vault pass on the rebased branch found the caret parked on a gap line after
+undo→redo of a block deletion. Three reports, one root cause, plus two pre-existing
+issues surfaced alongside it.
+
+### `filter: false` — measured, not inferred
+
+`@codemirror/commands`' `HistoryState.pop()` dispatches with `filter: false`, and CM6's
+own `resolveTransaction` honours that by skipping `filterTransaction` entirely. **No
+`EditorState.transactionFilter` observes an undo or a redo** — ours included. Every other
+caret-placement path (click, collapse, foreign unannotated dispatch) funnels through
+`transaction-filter.ts`; history provably cannot, so it needs a view-level observer of its
+own. This is worth carrying forward as a general fact about the funnel, not a detail of
+this fix: any invariant enforced only in the filter has a hole exactly the shape of
+undo/redo.
+
+### Why the caret needed resolving at all
+
+A document-changing transaction's own selection is never recorded in CM6 history
+(`addChanges` and `addSelection` are mutually exclusive), so redo does not replay the
+cursor an operation chose — it recomputes one by mapping the pre-operation selection
+forward. For an INSERTION that mapping is the right answer, which is why indent/outdent
+need nothing here: `dispatch.ts`'s `mapCursorForward` deliberately computes the same
+assoc-1 mapping history will, so the two agree by construction (Q21's update).
+
+For a DELETION it is not, and cannot be. Every position inside the deleted span collapses
+to the seam, and the seam between two nodes is a gap line — non-addressable under
+`content-space-caret`. Measured on `# Heading` / blank / `last paragraph`, deleting the
+paragraph:
+
+```
+after delete : {line 0, ch 2}  addressable
+after undo   : {line 3, ch 0}  (selection restore — a cover's head sits on the gap it owns)
+after redo   : {line 1, ch 0}  NOT addressable   <- the blank line
+```
+
+Stable at every depth. This change's own premise — "minimal changes make the mapped
+position semantically correct" — holds for insertions and is false for deletions, where
+there is no correct mapping because the cursor is a *choice*. The design said exactly that
+about deletions (D4) and then removed the mechanism carrying the choice through redo
+anyway.
+
+### Fix: resolve, don't record
+
+`src/plugin/history-caret.ts` observes undo/redo at the view level and runs the caret
+through `resolvePlacement` — the mechanism this codebase already names for "a position
+produced by something with no direction," which an undo-restored caret is by construction.
+
+Resolution over recording, deliberately. Recording is what `structural-history-integration`
+did originally and it fixes only the FIRST redo (Q21); resolution is depth-independent
+because it reads only the caret and the document it landed in. Measured across four
+undo/redo cycles: addressable every time, same position every time, no drift.
+
+Only EMPTY ranges. Undo restoring a real selection is restoring the selection the user
+had, and a subtree cover legitimately ends on the gap line it owns — collapsing that would
+corrupt the range the user is about to act on.
+
+The correction carries `addToHistory: false`: placement resolution is not a user selection
+action, and recording it would push a selection step onto the undo stack, so a second
+Cmd+Z would undo the correction instead of the edit below it.
+
+### Two pre-existing issues surfaced by the same pass
+
+Both trace to `ops.ts`'s deletion cursor, which this change never touched, so both
+reproduce on `main`. Parked in `docs/research/13`.
+
+- **The caret's landing after a delete alternates between the next node and the previous
+  one.** `deleteSubtreeGroups` picks `survivorAfter ?? survivorBefore ?? parent` and
+  `finalize` puts the caret at that survivor's content START. Deliberate, but it reads as
+  arbitrary, and it disagrees with what placement resolution computes for the same seam
+  (the gap owner's content END) — so the caret still shifts once across undo→redo even
+  with the resolver in place.
+- **Deleting a node that follows a table lands the caret inside the table**, because the
+  survivor IS the table and its content start is the table's first source line. Obsidian
+  mounts the nested per-cell editor and takes focus; Cmd+Z then hits the cell's own empty
+  history while the host's event still points back inside the table, so undo appears dead
+  and moving the caret out does not help.
+
+### Follow-on: the mapped position is a selection HEAD, not necessarily a caret (2026-07-27)
+
+A second real-vault pass, after Q29's resolver landed, found Tab on a BLOCK-SELECTED
+paragraph dispatching a caret onto a gap line. The column-preserving mapping this change
+introduced maps `selection.main.head` forward, and that head is a caret only when the
+selection is empty. With a block selection it is the cover's END — and a subtree cover ends
+on the trailing gap line it owns, so mapping it forward faithfully produced another gap
+position.
+
+Fixed in `grammar.ts`'s `planFromOp`: use the mapped position only when it is
+caret-addressable, else fall back to the operation's own cursor (the pre-change behaviour).
+
+Testing the RESULT's addressability rather than the INPUT's emptiness was deliberate, and
+is the more useful shape: it states the invariant that actually matters ("never dispatch a
+caret onto a non-addressable position"), needs nothing threaded from the CM6 adapter, and
+also catches a genuine caret that a programmatic placement had already parked somewhere
+non-addressable — which an emptiness test would miss.
+
+Worth generalising from Q29 plus this: **every position this plugin dispatches as a caret
+needs to be addressable, and the places that produce one are not all obvious.** So far:
+the grammar's mapped cursor (here), the enforcement rewrites' `verdict.cursor`, the ops'
+own `finalize` convention, and whatever CM6 history recomputes (Q29). The invariant is
+cheap to assert at each dispatch site and expensive to discover from a real vault.
+
+### The same hole, for SELECTIONS rather than carets
+
+`filter: false` is not specific to the caret. Undo and redo restore the pre-operation
+SELECTION mapped forward through the operation's changes, and the escalation filter never
+sees that either — so a restored block selection need not still be a forest of whole
+subtrees. Observed in the same pass: redoing an indent of a block-selected paragraph
+restored a range covering only the content within the new list item, which correctly loses
+its block chrome because it genuinely is not a cover any more.
+
+Left unfixed deliberately. `history-caret.ts` resolves carets only; collapsing or reshaping
+a restored SELECTION would change the range the user is about to act on, and the right
+answer depends on decisions two open changes own. Cross-referenced into both rather than
+settled here: `selection-as-subtree-set` (its downward-closure invariant holds for every
+selection the FILTER produced, which is not every selection that can exist) and
+`node-selection-extension` (whose stateless walk derives its anchor from the assumption
+that the current selection is a cover — the sharper stake, and where the question is
+filed).
+
+### Follow-on: addressability is not enough — reordering needs the recorder back (2026-07-28, PR #32 review)
+
+Automated review caught what the real-vault passes had not: **redo after a MOVE put the
+caret on the wrong node**, every time, at every depth. Measured on `- a` / `- b`, moving
+`- b` up with the caret inside it:
+
+```
+no recorder:   op="- b"  u1="- b"  r1="- a"  u2="- b"  r2="- a"   <- redo always wrong
+with recorder: op="- b"  u1="- b"  r1="- b"  u2="- a"  r2="- b"   <- redo always right
+```
+
+The resolver could never have caught this. It asks "may the caret be here?", and after a
+reorder the mapped position is a real content position in the sibling that swapped in —
+perfectly legal, entirely wrong. Q29's fix addressed carets landing somewhere ILLEGAL;
+this is a caret landing somewhere legal but not where the operation put it.
+
+So `SemanticCursorRecorder` reinstates the mechanism `fix-redo-cursor-after-structural-ops`
+introduced and this change had removed wholesale — but scoped, which is the part worth
+carrying forward. The dividing line is whether an operation's cursor is a FUNCTION of the
+pre-operation caret or a CHOICE:
+
+- **Function** (indent, outdent): the cursor IS `mapCursorForward`'s result, which is what
+  history recomputes on redo. They agree by construction, need no recording, and are
+  correct at any depth — the property test still shows that.
+- **Choice** (move, split, merge, paste, structural delete): mapping cannot reproduce a
+  join point or a moved node's new home. These need the recording.
+
+D5's reasoning was right about indent/outdent and over-generalised from them. The
+correction is the scope, not the mechanism.
+
+The Q21 trade-off returns for the recorded operations only, and was re-measured rather
+than assumed: recording fixes redo at EVERY depth, and costs the second undo, which
+restores the recorded cursor instead of the pre-operation one (the event a second undo
+reads from lives on history's undone branch, which `addSelection` never reaches). A redo
+landing on the wrong node every single time is the worse of the two, so the trade is
+taken deliberately. Note this also corrects Q21's own framing: recording does not "fix
+only the first redo" — it fixes all of them; what it cannot fix is the second undo.
+
+Both halves coexisted in `src/plugin/history-caret.ts` for one iteration — the recorder
+making the caret the RIGHT one for our own operations, the resolver making it a LEGAL one
+for everything else.
+
+**The resolver was then removed** (2026-07-28). Once the recorder was back it had nothing
+left to do: measured across delete (last and middle node), move, merge and split, every
+undo/redo at every depth already left an addressable caret before it ran. It had been
+built to fix a symptom caused by deleting the recorder in the first place, and no
+reachable case was ever found that needed it. Keeping unproven machinery in the part of
+the codebase with the most owners of caret placement was the worse trade; if such a case
+appears it is cheap to reinstate, with the test that finds it.
+
+So there is no view-level addressability correction for foreign undo/redo today. That is
+consistent with `content-space-caret`'s own jurisdiction rule, which passes
+`programmatic`-class placements through until the next user gesture.
+
+### Follow-on: the guarantee had to be restated, not just the mechanism (2026-07-28, PR #32 review)
+
+Reinstating the recorder changed what can be promised, and the specs kept claiming the
+stronger version for a round. Corrected to say it precisely, because the shape is
+genuinely two-sided now:
+
+- **Redo is exact at any depth**, for every structural operation — by construction for
+  the mapping-derived ones, by recording for the rest.
+- **The second undo is not exact**, in two different ways: recorded operations restore
+  the recorded cursor rather than the pre-operation one, and mapping-derived operations
+  can land a character off when the caret sat inside a deleted span.
+
+Worth carrying forward: when a fix swaps one mechanism for two, the guarantee usually
+stops being expressible as a single sentence, and the honest version names which
+mechanism covers which case. The requirement is now organised that way — "Redo restores
+… at any depth" states the split explicitly, and "Known limitation" has a paragraph per
+cause instead of one blended claim.
+
+Also from the same round: `hasSemanticCursor` had no direct test. The move and delete
+history tests build the re-assertion themselves from a boolean, so they would have
+stayed green if the predicate had dropped `move.structure` or started including
+indent/outdent — the exact "test that cannot fail for the right reason" shape Q28
+catalogues. Now covered directly, including prefix matching and a set-membership
+assertion that fails if the two userEvent lists drift apart; negative-controlled in both
+directions.
