@@ -15,9 +15,11 @@ import { parse } from '../parse';
 import { indent, moveDown, moveUp, outdent } from '../ops';
 import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
+import { applyEdits } from '../result';
 import { OutlineModeRegistry, DEFAULT_DATA, type PluginData } from './mode-registry';
 import { nodeAtLine } from './locate';
-import { editsToChanges } from './dispatch';
+import { isAddressable } from '../caret';
+import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension, setMotionProbe } from './keymap';
@@ -25,7 +27,7 @@ import { nestedEditorExtension } from './nested-editor';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
-import { structuralCursorRecorder } from './history-cursor';
+import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 
 const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
@@ -48,6 +50,47 @@ const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
  * limited to the command-palette / custom-hotkey entry point.
  */
 type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
+
+/**
+ * The cursor a palette-invoked structural command should end on, in the SAME
+ * terms `grammar.ts`'s `planFromOp` uses for the keyboard path: when
+ * `mapFrom` is given (indent/outdent), the pre-op caret mapped forward
+ * through the change set, but ONLY if that lands somewhere a caret may
+ * actually go — otherwise the operation's own cursor.
+ *
+ * The guard is not optional here just because the palette has no Tab key: a
+ * command can equally be invoked with a whole-block cover selected, whose
+ * head sits on the trailing gap line the cover owns, and mapping that forward
+ * yields another gap position. The keyboard path would fall back; without
+ * this the palette path would not, and its follow-up placement is a
+ * `programmatic` transaction, which `transaction-filter.ts` deliberately
+ * exempts from gap resolution — so nothing downstream would catch it.
+ */
+function resultCursor(
+  lines: readonly string[],
+  newLines: readonly string[],
+  changes: readonly EditorChange[],
+  opCursor: { line: number; ch: number },
+  mapFrom?: { line: number; ch: number },
+): { line: number; ch: number } {
+  if (mapFrom !== undefined) {
+    const mapped = offsetToPos(newLines, mapCursorForward(lines, changes, mapFrom));
+    if (isAddressable(parse(newLines.join('\n')), mapped)) return mapped;
+  }
+  return opCursor;
+}
+
+/** Flat character offset (as `mapCursorForward` returns) → `{line, ch}`, for
+ * Obsidian's public `Editor.setCursor`. */
+function offsetToPos(lines: readonly string[], offset: number): { line: number; ch: number } {
+  let acc = 0;
+  for (let line = 0; line < lines.length; line++) {
+    const len = lines[line]?.length ?? 0;
+    if (offset <= acc + len) return { line, ch: offset - acc };
+    acc += len + 1;
+  }
+  return { line: Math.max(0, lines.length - 1), ch: lines[lines.length - 1]?.length ?? 0 };
+}
 
 const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
@@ -97,8 +140,8 @@ export default class TrueOutlinerPlugin extends Plugin {
       },
     });
 
-    this.addStructuralCommand('indent-node', 'Indent node', indent);
-    this.addStructuralCommand('outdent-node', 'Outdent node', outdent);
+    this.addStructuralCommand('indent-node', 'Indent node', indent, true);
+    this.addStructuralCommand('outdent-node', 'Outdent node', outdent, true);
     this.addStructuralCommand('move-node-up', 'Move node up', moveUp);
     this.addStructuralCommand('move-node-down', 'Move node down', moveDown);
 
@@ -133,11 +176,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
-    // Records each structural op's own resulting cursor into CM6's undo
-    // history, so redo restores it instead of a mechanically mapped position
-    // (structural-history-integration; docs/research/04 Q21). Covers both
-    // structural dispatch sites above through one shared trigger set.
-    this.registerEditorExtension(structuralCursorRecorder());
+    // Re-asserts the cursor of operations that CHOOSE one (move, split, merge,
+    // paste, structural delete) so redo restores it — history recomputes a
+    // cursor by mapping, which cannot reproduce a choice (history-caret.ts).
+    this.registerEditorExtension(historyCaretExtension(this));
 
     this.addCommand({
       id: 'print-transaction-stats',
@@ -306,26 +348,44 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.register(() => setMotionProbe(undefined));
   }
 
-  private addStructuralCommand(id: string, name: string, op: StructuralOp): void {
+  private addStructuralCommand(
+    id: string,
+    name: string,
+    op: StructuralOp,
+    useMappedCursor = false,
+  ): void {
     this.addCommand({
       id,
       name,
       editorCheckCallback: (checking, editor, ctx) => {
         const path = ctx.file?.path;
         if (!path || !this.registry.isOutline(path)) return false;
-        if (!checking) this.runOp(editor, ctx, op);
+        if (!checking) this.runOp(editor, ctx, op, useMappedCursor);
         return true;
       },
     });
   }
 
-  private runOp(editor: Editor, ctx: MarkdownView | MarkdownFileInfo, op: StructuralOp): void {
+  /**
+   * `useMappedCursor` true for indent/outdent (`minimal-change-dispatch`):
+   * the pre-op cursor, mapped forward through the (minimal) change set with
+   * assoc=1, rather than the op's own semantic cursor choice — see
+   * `dispatch.ts`'s `mapCursorForward` for why assoc=1 specifically (it's
+   * what keeps a live dispatch and its eventual redo in agreement).
+   */
+  private runOp(
+    editor: Editor,
+    ctx: MarkdownView | MarkdownFileInfo,
+    op: StructuralOp,
+    useMappedCursor = false,
+  ): void {
     // Fresh-tree guarantee: always parse the current buffer at invocation.
     const text = editor.getValue();
     const doc = parse(text);
     if (this.data.debugCrossCheck && ctx.file) this.crossCheck(doc, ctx.file);
 
-    const node: OutlineNode | undefined = nodeAtLine(doc, editor.getCursor().line);
+    const cursorBefore = editor.getCursor();
+    const node: OutlineNode | undefined = nodeAtLine(doc, cursorBefore.line);
     if (!node) {
       new Notice(REJECTION_MESSAGES['node-not-found'], 1500);
       return;
@@ -337,8 +397,35 @@ export default class TrueOutlinerPlugin extends Plugin {
     }
     const lines = text === '' ? [] : text.split('\n');
     const changes = editsToChanges(lines, result.value.edits);
+    const newLines = applyEdits(lines, result.value.edits);
+    const cursor = resultCursor(lines, newLines, changes, result.value.cursor, useMappedCursor
+      ? cursorBefore
+      : undefined);
+
+    // TWO transactions, deliberately: the change, then the cursor. Combining
+    // them into one `editor.transaction({changes, selection})` looks tidier and
+    // silently breaks undo granularity — measured, and caught by
+    // 20-structural-commands' "one undo step each way".
+    //
+    // `Editor.transaction` dispatches with no `userEvent`, and CM6's
+    // `HistoryState.addChanges` joins a new change into the previous event when
+    // (among other things) `!userEvent` and the previous event has no
+    // `selectionsAfter`. Two palette commands run back-to-back — indent then
+    // outdent — are adjacent and inside `newGroupDelay`, so with nothing
+    // between them they merge into ONE undo step and a single Cmd+Z reverts
+    // both. The separate `setCursor` is what prevents that: a selection-only
+    // transaction populates the preceding event's `selectionsAfter`, which
+    // blocks the join. The keyboard path needs no such trick because its
+    // `input.structure.*` userEvent already fails CM6's `joinableUserEvent`
+    // test. Guarded by a unit test on that CM6 behaviour in
+    // tests/minimal-change-history.test.ts.
+    //
+    // Splitting them costs nothing in cursor correctness: `setCursor` writes an
+    // absolute position computed from the PRE-op buffer, so it overwrites
+    // rather than builds on the change transaction's own default mapping, and
+    // the resulting `selectionsAfter[0]` is what redo prefers — our cursor.
     if (changes.length > 0) editor.transaction({ changes });
-    editor.setCursor(result.value.cursor);
+    editor.setCursor(cursor);
   }
 
   private crossCheck(doc: OutlineDoc, file: TFile): void {

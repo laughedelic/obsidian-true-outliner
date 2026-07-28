@@ -13,7 +13,8 @@ import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits } from '../result';
 import { nodeAtLine } from './locate';
-import { editsToChanges, type EditorChange, type EditorPos } from './dispatch';
+import { isAddressable } from '../caret';
+import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 
 export type GrammarKey =
@@ -26,7 +27,26 @@ export type GrammarKey =
 
 export interface TxPlan {
   changes: EditorChange[];
-  /** Cursor position in the NEW document, as a character offset. */
+  /**
+   * Cursor position in the NEW document, as a character offset. For
+   * indent/outdent (`minimal-change-dispatch`) this is the pre-op cursor
+   * mapped forward through the (minimal) change set with assoc=1 — not the
+   * op's own semantic cursor choice, and deliberately NOT left to the
+   * editor's implicit default mapping either: CM6's own default assoc (-1)
+   * disagrees with what `@codemirror/commands`' history redo later computes
+   * (hardcoded assoc=1) whenever the cursor sits exactly at a change
+   * boundary, which is common for Tab (see `dispatch.ts`'s
+   * `mapCursorForward`). Computing that same assoc=1 mapping here and
+   * stating it explicitly keeps a live dispatch and its eventual redo
+   * mathematically identical, with no recording mechanism needed. Every
+   * other structural operation's resulting cursor is a deliberate choice (a
+   * join point, a moved node's new location) that mapping cannot recover at
+   * all, so those state the op's own cursor instead.
+   *
+   * Indent/outdent fall back to the op's own cursor when the mapped position
+   * would not be caret-addressable — see `planFromOp`, which is where that
+   * decision and its reasons live.
+   */
   selection: number;
   userEvent: string;
 }
@@ -59,20 +79,62 @@ function startLine(doc: OutlineDoc, target: OutlineNode): number {
 
 const LIST_CONT_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)/;
 
+/** Offset → `{line, ch}` within an already-built lines array. */
+function posInLines(lines: readonly string[], offset: number): EditorPos {
+  let acc = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const len = lines[i]?.length ?? 0;
+    if (offset <= acc + len) return { line: i, ch: offset - acc };
+    acc += len + 1;
+  }
+  const last = Math.max(0, lines.length - 1);
+  return { line: last, ch: lines[last]?.length ?? 0 };
+}
+
+/**
+ * `mapCursorFrom`, when given, means "this op's own cursor is not the
+ * semantic result — map this pre-op position forward through the change set
+ * instead" (indent/outdent). Omitted, the op's own `OpOutput.cursor` is used
+ * (every other structural op: its cursor is a deliberate choice, not
+ * recoverable by mapping).
+ *
+ * Mapping is used only if it lands somewhere a caret may actually go, and
+ * falls back to the operation's own cursor otherwise. The position being
+ * mapped is the editor's main selection HEAD, which is a caret only when the
+ * selection is empty: with a BLOCK SELECTION active it is the cover's end,
+ * and a subtree cover ends on the trailing gap line it owns. Mapping a gap
+ * position forward faithfully yields another gap position, so Tab on a
+ * block-selected paragraph dispatched a caret onto a gap line — reported from
+ * a real vault, and a regression this change introduced by preferring the
+ * mapped position unconditionally.
+ *
+ * Testing addressability of the RESULT rather than emptiness of the input is
+ * deliberate: it is the invariant that actually matters ("never dispatch a
+ * caret onto a non-addressable position"), it needs no extra parameter
+ * threaded from the CM6 adapter, and it also covers a genuine caret that was
+ * already parked somewhere non-addressable by a programmatic placement, which
+ * an emptiness test would miss. Column preservation is unaffected: a real
+ * caret on content always maps to content.
+ */
 function planFromOp(
   lines: readonly string[],
   result: OpResult<OpOutput>,
   userEvent: string,
+  mapCursorFrom?: EditorPos,
 ): GrammarOutcome {
   if (!result.ok) return { notice: REJECTION_MESSAGES[result.rejection.reason] };
   const changes = editsToChanges(lines, result.value.edits);
   const newLines = applyEdits(lines, result.value.edits);
+
+  if (mapCursorFrom !== undefined) {
+    const mapped = mapCursorForward(lines, changes, mapCursorFrom);
+    const newDoc = parse(newLines.join('\n'));
+    if (isAddressable(newDoc, posInLines(newLines, mapped))) {
+      return { plan: { changes, selection: mapped, userEvent } };
+    }
+  }
   return {
-    plan: {
-      changes,
-      selection: offsetInNewText(newLines, result.value.cursor),
-      userEvent,
-    },
+    plan: { changes, selection: offsetInNewText(newLines, result.value.cursor), userEvent },
   };
 }
 
@@ -135,9 +197,19 @@ export function planKey(
 
   switch (key) {
     case 'indent':
-      return planFromOp(lines, indent(doc, node.id, fallbackIndentUnit), 'input.structure.indent');
+      return planFromOp(
+        lines,
+        indent(doc, node.id, fallbackIndentUnit),
+        'input.structure.indent',
+        cursor,
+      );
     case 'outdent':
-      return planFromOp(lines, outdent(doc, node.id, fallbackIndentUnit), 'input.structure.outdent');
+      return planFromOp(
+        lines,
+        outdent(doc, node.id, fallbackIndentUnit),
+        'input.structure.outdent',
+        cursor,
+      );
     case 'move-up':
       return planFromOp(lines, moveUp(doc, node.id), 'move.structure');
     case 'move-down':
