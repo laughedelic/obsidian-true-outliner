@@ -3,8 +3,17 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { walkNodes } from '../src/model';
-import { indent, moveDown, moveUp, outdent } from '../src/ops';
-import { applyEdits } from '../src/result';
+import {
+  contentColumnCh,
+  deleteSubtrees,
+  indent,
+  mergeNodes,
+  moveDown,
+  moveUp,
+  outdent,
+  splitNode,
+} from '../src/ops';
+import { applyEdits, type Edit } from '../src/result';
 import { OutlineModeRegistry } from '../src/plugin/mode-registry';
 import { nodeAtLine } from '../src/plugin/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
@@ -125,6 +134,35 @@ describe('edit dispatch: line edits → editor changes', () => {
     );
   });
 
+  it('reproduces the op encoding exactly for line-count-changing ops (merge, split, delete)', () => {
+    // Unlike indent/outdent/move (same line count before and after), these
+    // change how many lines the edit spans — exercising dispatch.ts's
+    // whole-region-trim branch rather than its per-line branch
+    // (minimal-change-dispatch design.md D2).
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(2), (tree, n, opIndex) => {
+        const text = encode(tree);
+        const doc = parse(text);
+        const all = [...walkNodes(doc)];
+        if (all.length === 0) return true;
+        const node = all[n % all.length]!;
+        const lines = text === '' ? [] : text.split('\n');
+        const startLine = lines.findIndex((_, i) => nodeAtLine(doc, i) === node);
+        const result =
+          opIndex === 0
+            ? mergeNodes(doc, node.id)
+            : opIndex === 1
+              ? splitNode(doc, node.id, { line: startLine, ch: contentColumnCh(lines[startLine] ?? '') })
+              : deleteSubtrees(doc, [node.id]);
+        if (!result.ok) return true;
+        const viaChanges = applyChanges(text, editsToChanges(lines, result.value.edits));
+        const viaEdits = applyEdits(lines, result.value.edits).join('\n');
+        return viaChanges === viaEdits && viaChanges === encode(result.value.doc);
+      }),
+      { numRuns: 1500 },
+    );
+  });
+
   it('cursor lands on the moved node content (spec scenario)', () => {
     const doc = parse('First thought.\n\nSecond thought.\n');
     const node = [...walkNodes(doc)].find((n) => n.lines[0] === 'Second thought.')!;
@@ -134,6 +172,136 @@ describe('edit dispatch: line edits → editor changes', () => {
       // '- Second thought.' — content starts after the marker.
       expect(result.value.cursor).toEqual({ line: 2, ch: 2 });
     }
+  });
+
+  /**
+   * A pure APPEND past the last line — `diffLines` emits `[n, n) -> [...]`
+   * for an edit that only adds lines at the end, and `splitNode` produces
+   * exactly that when Enter is pressed at the end of a document's final
+   * paragraph. There is no line `n` to anchor at, and the CM6 adapter
+   * converts a change with `doc.line(from.line + 1)`, which throws.
+   *
+   * Every position a change carries must be a real position in the OLD
+   * document, and `from` must not come after `to` — asserted directly here
+   * rather than only through the resulting text, because the old shape
+   * produced the correct text via `applyEdits` while still being
+   * undispatchable.
+   */
+  describe('an edit that appends past the last line stays dispatchable', () => {
+    const cases = [
+      ['trailing newline', 'a\n\nb\n'],
+      ['no trailing newline', 'a\n\nb'],
+      ['heading and paragraph', '# H\n\nlast para\n'],
+    ] as const;
+
+    for (const [name, text] of cases) {
+      it(`${name}: positions are in range and ordered`, () => {
+        const lines = text.split('\n');
+        const doc = parse(text);
+        const last = [...walkNodes(doc)].at(-1)!;
+        const startLine = lines.findIndex((_, i) => nodeAtLine(doc, i) === last);
+        const result = splitNode(doc, last.id, {
+          line: startLine,
+          ch: (lines[startLine] ?? '').length,
+        });
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        // Confirms this case still exercises the append shape.
+        expect(result.value.edits[0]!.fromLine).toBe(lines.length);
+
+        const changes = editsToChanges(lines, result.value.edits);
+        for (const c of changes) {
+          expect(c.from.line).toBeLessThan(lines.length);
+          expect(c.to.line).toBeLessThan(lines.length);
+          const ordered =
+            c.from.line < c.to.line || (c.from.line === c.to.line && c.from.ch <= c.to.ch);
+          expect(ordered).toBe(true);
+        }
+        // …and still produces the same document as applying the edits.
+        expect(applyChanges(text, changes)).toBe(applyEdits(lines, result.value.edits).join('\n'));
+      });
+    }
+  });
+
+  /**
+   * The append branch's own edge: an EMPTY buffer, which every caller spells
+   * as `[]` (`text === '' ? [] : text.split('\n')`). It takes the same
+   * `fromLine >= lines.length` path, but has no current last line to be
+   * separated from — prepending the separator newline anyway inserted a
+   * leading blank line the edit never asked for.
+   *
+   * Driven straight off `Edit` values rather than through an operation: the
+   * ops all reject on an empty document, so nothing reaches this shape through
+   * them today, and a test that went via an op would silently stop covering
+   * the branch. `applyEdits` is the oracle, as it is for the property test.
+   */
+  describe('an append into an empty buffer adds no leading separator', () => {
+    const cases: [string, Edit][] = [
+      ['one line', { fromLine: 0, toLine: 0, insert: ['text'] }],
+      ['two lines', { fromLine: 0, toLine: 0, insert: ['a', 'b'] }],
+      ['a blank line', { fromLine: 0, toLine: 0, insert: [''] }],
+    ];
+    for (const [name, edit] of cases) {
+      it(`${name}`, () => {
+        expect(applyChanges('', editsToChanges([], [edit]))).toBe(applyEdits([], [edit]).join('\n'));
+      });
+    }
+
+    it('still separates when there IS a preceding line', () => {
+      const edit: Edit = { fromLine: 1, toLine: 1, insert: ['y'] };
+      expect(applyChanges('x', editsToChanges(['x'], [edit]))).toBe('x\ny');
+    });
+  });
+
+  // Pins the three worked shapes from the proposal's table (design.md D2):
+  // exact minimal EditorChange[] output, not just the resulting text.
+  describe('minimal change sets match the worked shapes exactly', () => {
+    it('merging two paragraphs deletes only the line-break span', () => {
+      const text = 'paragraph A\n\nparagraph B\n';
+      const doc = parse(text);
+      const first = [...walkNodes(doc)].find((n) => n.lines[0] === 'paragraph A')!;
+      const result = mergeNodes(doc, first.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      expect(editsToChanges(lines, result.value.edits)).toEqual([
+        { from: { line: 0, ch: 11 }, to: { line: 2, ch: 0 }, text: '' },
+      ]);
+    });
+
+    it('indenting a node with a child inserts one minimal change per changed line', () => {
+      // The node's own line gets a real tab (destinationIndent); its child's
+      // shift comes from shiftLine's own numeric-delta path (unrelated to
+      // this change — see 64-structural-history-cursor.e2e.ts's comment on
+      // the same fixture), so the two lines' insertions differ in text but
+      // each is still a single minimal per-line change, not a whole-region
+      // replacement.
+      const text = '- alpha\n- beta\n\t- beta child\n- gamma\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- beta')!;
+      const result = indent(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      expect(editsToChanges(lines, result.value.edits)).toEqual([
+        { from: { line: 1, ch: 0 }, to: { line: 1, ch: 0 }, text: '\t' },
+        { from: { line: 2, ch: 1 }, to: { line: 2, ch: 1 }, text: '    ' },
+      ]);
+    });
+
+    it('outdenting a node with a child deletes two single tabs', () => {
+      const text = '- alpha\n\t- beta\n\t\t- beta child\n- gamma\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === '\t- beta')!;
+      const result = outdent(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      expect(editsToChanges(lines, result.value.edits)).toEqual([
+        { from: { line: 1, ch: 0 }, to: { line: 1, ch: 1 }, text: '' },
+        { from: { line: 2, ch: 1 }, to: { line: 2, ch: 2 }, text: '' },
+      ]);
+    });
   });
 });
 
