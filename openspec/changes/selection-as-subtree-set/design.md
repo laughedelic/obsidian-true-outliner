@@ -140,6 +140,27 @@ formulation — they operate on whatever cover the geometry produces.
   same style.
 - **Someone relied on the old behavior to select a whole section quickly** → the Mod-A ladder
   is the gesture for widening to an ancestor, and it is unchanged.
+- **The downward-closure invariant is enforced by the transaction filter, and undo/redo bypass
+  the filter entirely.** Found during `minimal-changesets-for-structural-ops`
+  (docs/research/04 Q29 and its follow-on): `@codemirror/commands` dispatches history
+  transactions with `filter: false`, and CM6's `resolveTransaction` honours that by skipping
+  `filterTransaction` — verified against the installed package, not inferred. What undo/redo
+  restore is the pre-operation selection MAPPED FORWARD through the operation's changes, and
+  for an edit inside or adjacent to the covered span that is no longer a forest of whole
+  subtrees. Observed in a real vault: redoing an indent of a block-selected paragraph restored
+  a range covering only the content within the new list item.
+  → This does not change any decision here — the geometry is unaffected, and D1 is still the
+  right invariant. It bounds where the invariant is claimed to HOLD: "every selection the
+  filter produced", not "every selection that can exist". Two consequences worth carrying into
+  implementation. The property tests should say so, or they will eventually be read as
+  promising more than the mechanism can deliver. And D4's exact-cover recognition
+  (`coveredSubtreeRoots`) will correctly report "not a cover" for these, so the block chrome
+  drops and the selection renders as an ordinary one — which is the observable symptom, and
+  is arguably the honest rendering of a selection that genuinely is not a cover.
+  Re-normalizing restored selections is possible but belongs to whoever owns the history-side
+  gap. `caret-placement-policy` owns the caret half of this same `filter: false` fact, and
+  `node-selection-extension` has the sharper stake in the selection half, since its stateless
+  walk assumes its input is a cover; the question is filed in both.
 
 ## Migration Plan
 
