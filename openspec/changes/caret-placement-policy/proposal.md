@@ -1,16 +1,22 @@
 ## Why
 
-Where the caret goes after a structural operation is currently decided in six places, and
-they disagree.
+Where the caret goes after a structural operation is currently decided in seven places,
+and they disagree.
 
 | Where | What it decides |
 |---|---|
-| `src/ops.ts` `finalize` | every op's own cursor — `survivorAfter ?? survivorBefore ?? parent`, at content START |
-| `src/plugin/grammar.ts` `planFromOp` | overrides that for indent/outdent (mapped caret), with an addressability fallback |
+| `src/ops.ts` `finalize` | every op's own cursor — the subject's line, at `contentColumnCh`'s content START |
+| `src/ops.ts` `deleteSubtreeGroups` | which node that subject is after a delete — `survivorAfter ?? survivorBefore ?? parent` |
+| `src/enforce.ts` | the rewrite path's cursor: a merge's join point, `endOfInsertedRun` for a paste |
+| `src/plugin/grammar.ts` `planFromOp` | overrides the op's cursor for indent/outdent (mapped caret), with an addressability fallback |
 | `src/plugin/main.ts` `resultCursor` | re-implements that same rule for the palette |
-| `src/plugin/transaction-filter.ts` | placement resolution for gestures the funnel sees |
-| `src/plugin/history-caret.ts` | re-records the cursor for ops history cannot recompute |
-| `src/caret.ts` | what positions are addressable at all |
+| `src/plugin/transaction-filter.ts` | applies the rewrite cursor, AND resolves placement for gestures the funnel sees — two different questions in one module |
+| `src/plugin/history-caret.ts` | re-records the cursor for ops history cannot recompute, keyed on a hand-derived `userEvent` list |
+
+`src/caret.ts` is deliberately not in that list: it answers which positions are
+addressable, not which one an operation picks. The four specs that state a placement
+rule — `editor-structural-commands`, `outline-keyboard-grammar`,
+`minimal-change-dispatch`, `node-edit-enforcement` — carry their own copies of it.
 
 Nothing owns the question, so every answer is local and the seams leak. Measured
 consequences, all from real-vault use during `minimal-changesets-for-structural-ops`
@@ -38,8 +44,30 @@ consequences, all from real-vault use during `minimal-changesets-for-structural-
   on the gap line. Measured, on both dispatch paths. It is the cleanest available evidence
   that keying "record or not" on WHICH OPERATION RAN is the wrong axis — see below.
 
+Two more, found while working this proposal out against the code (2026-07-29, measured
+with a throwaway unit probe over `src/ops.ts` and `src/caret.ts`):
+
+- **"A node's content start" has three definitions, and the operations use the one the
+  caret spec contradicts.** `ops.ts`'s `contentColumnCh` swallows an ATX heading prefix;
+  `caret.ts`'s `contentBoundaryCh` deliberately does not, because `content-space-caret`
+  says a heading's `#` is ordinary content; `select-all-ladder.ts` uses a third hybrid
+  and documents that it is keeping `contentColumnCh`'s semantics on purpose. Measured:
+  moving `## Alpha` leaves the caret at `{line, ch 3}` — past the `## ` — where Home on
+  the same line goes to `ch 0`. On `- # title` the two answer 4 and 2. The
+  `editor-structural-commands` spec says the caret lands at "its first content column
+  (after any list marker)", which for a heading is column 0; the code has never done
+  that.
+- **The deletion cursor is load-bearing as a node IDENTITY carrier, not only as a
+  caret.** `enforce.ts`'s `deleteAndSplice` locates the surviving neighbour in the
+  post-deletion tree by reading `deletion.value.cursor.line`, because `finalize`
+  re-parses and every node id changes across an operation. So changing the caret
+  convention silently changes which node a type-over or paste splices against. That
+  coupling is invisible from any of the seven places above, and is the concrete reason
+  "where the caret goes" and "where the operation's result is" have to become two
+  separate outputs rather than one field read two ways.
+
 The pattern across four review rounds was consistently *an inconsistency between two of
-those six places*, not a wrong decision inside any one of them. That is the signal this
+those places*, not a wrong decision inside any one of them. That is the signal this
 wants a single owner rather than another local fix.
 
 ## What Changes
@@ -61,13 +89,25 @@ wants a single owner rather than another local fix.
   closes the fallback case for free. See `history-caret.ts`'s module comment for why the
   underlying distinction is real, and why recording is the only channel for the cases that
   need it.
+- **An operation's structural result and its caret become two outputs, not one.**
+  `OpOutput.cursor` is a fact about where the operation's subject landed, which composing
+  code (`deleteAndSplice`) reads as identity across a re-parse; the caret is a decision.
+  Conflating them is what makes the deletion convention un-changeable today.
 - **The deletion cursor gets a stated convention** instead of an emergent one, replacing
   `survivorAfter ?? survivorBefore ?? parent`. The candidate is the PRECEDING node's
   content end — it matches gap ownership (what `resolvePlacement` already computes for the
   seam), matches where a user resumes typing, and removes the next/previous alternation.
+  It is also the convention this codebase has ALREADY shipped and specified for the
+  adjacent case: `node-edit-enforcement` requires a merge to land the caret at the join
+  point, "immediately after the surviving node's own original last line of content." A
+  deletion and a merge leave the caret at the same seam; only one of them currently says
+  so.
 - **Landing the caret inside a widget-rendered atom becomes a stated concern.** An atom's
   interior IS addressable by `content-space-caret`, so the rule cannot come from
-  addressability; it needs its own answer, and it is what strands undo near tables.
+  addressability; it needs its own answer, and it is what strands undo near tables. Note
+  the preceding-node convention does NOT fix this on its own — measured, deleting the
+  paragraph after a three-line table gives `{0,0}` today and `{2,9}` under the new
+  convention, and both are inside the table.
 - **One rule, one implementation, applied at every dispatch site** — keyboard grammar,
   palette commands, enforcement rewrites — so the palette cannot drift from the keyboard
   again.
@@ -81,24 +121,32 @@ wants a single owner rather than another local fix.
 
 ### Modified Capabilities
 
-- `structural-operations`: `finalize`'s cursor convention moves out of the op layer, or is
-  restated there as policy input rather than as the answer.
+- `structural-operations`: `finalize`'s cursor becomes a stated structural ANCHOR — where
+  the operation's subject landed — rather than the caret answer.
 - `editor-structural-commands`: its per-operation cursor rules and the palette/keyboard
   difference are restated in terms of the policy rather than duplicated.
 - `outline-keyboard-grammar`: same, for the keyboard half.
-- `structural-history-integration`: the recorded set is derived from the policy's own
-  classification instead of a hand-maintained `userEvent` list.
+- `minimal-change-dispatch`: its mapped-cursor-with-addressability-fallback rule is
+  restated as the policy's derived-caret case rather than a rule of its own.
+- `node-edit-enforcement`: the rewrite path's caret (deletion survivor, merge join point,
+  paste landing) comes from the policy; the merge join point is unchanged and becomes the
+  general rule rather than a special case.
+- `structural-history-integration`: the recorded set is derived per dispatch instead of
+  from a hand-maintained `userEvent` list.
 
 ## Impact
 
-- `src/ops.ts`, `src/plugin/grammar.ts`, `src/plugin/main.ts`, `src/plugin/history-caret.ts`,
-  `src/classify.ts`; new pure policy module; `src/caret.ts` unchanged (it answers a
-  different question — which positions are legal, not which one is chosen).
+- `src/ops.ts`, `src/enforce.ts`, `src/plugin/grammar.ts`, `src/plugin/main.ts`,
+  `src/plugin/transaction-filter.ts`, `src/plugin/history-caret.ts`, `src/classify.ts`;
+  new pure policy module; `src/caret.ts` unchanged (it answers a different question —
+  which positions are legal, not which one is chosen).
 - E2E cursor expectations in `20-structural-commands`, `30-keyboard-grammar`,
-  `62-outline-edit-enforcement` if the deletion convention changes.
-- **BREAKING (in-mode behaviour)**: the caret after a delete moves to the preceding node's
-  content end rather than the following node's content start. Files and off-mode are
-  untouched.
+  `62-outline-edit-enforcement`, `64-structural-history-cursor`.
+- **BREAKING (in-mode behaviour)**, three user-visible changes: the caret after a delete
+  moves to the preceding node's content end rather than the following node's content
+  start; a heading's caret after a structural operation lands at column 0 rather than
+  after its `#` prefix; and a caret that would land inside a table lands outside it
+  instead. Files and off-mode are untouched.
 
 ## Context for whoever picks this up
 
