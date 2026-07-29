@@ -21,7 +21,7 @@ import { EditorSelection, EditorState, Transaction } from '@codemirror/state';
 import { history, redo, undo } from '@codemirror/commands';
 import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
-import { indent, moveUp } from '../src/ops';
+import { indent, moveDown, moveUp } from '../src/ops';
 import { applyEdits } from '../src/result';
 import { editsToChanges } from '../src/plugin/dispatch';
 import { planKey } from '../src/plugin/grammar';
@@ -62,24 +62,34 @@ function caretOf(state: EditorState): { line: number; ch: number } {
 
 /**
  * The case history's own mapping provably cannot cover.
-
  *
  * Moving a node maps a caret that was inside it into whatever now occupies its
- * old lines — the OTHER node.
-
- * The only channel that overrides history's own mapping is `selectionsAfter`,
- * written by a separate selection-only transaction, which is what the recorder
- * dispatches.
+ * old lines — the OTHER node. The only channel that overrides history's own
+ * mapping is `selectionsAfter`, written by a separate selection-only
+ * transaction, which is what the recorder dispatches.
+ *
+ * A swap has two equally true descriptions — "this node moved down" and "that
+ * node moved up" — and `dispatch.ts`'s line alignment picks one of them by a
+ * tie-break, not by which node the user acted on. When it happens to pick the
+ * user's node as the one that STAYS, the caret sits in text no change touches
+ * and mapping gets the right answer by luck; when it picks the other way the
+ * caret is inside a relocated run and mapping cannot follow. Move-down of the
+ * first sibling is the second case, which is why the negative control below
+ * uses it: it is the direction that genuinely exercises the mapping branch.
+ * The recorder is what makes the answer the same either way — and, since the
+ * decision to record is now derived per dispatch rather than per operation,
+ * it is also what makes `needsRecording` answer differently for the two
+ * directions without anyone having to enumerate them.
  */
 describe('a moved node keeps its cursor across undo/redo', () => {
   const DOC = '- a\n- b\n';
 
-  /** Move `- b` above `- a`, with the caret in `- b`, as keymap.ts dispatches. */
-  function moveB(recorderEnabled: boolean) {
+  /** Move a node past its sibling, caret inside it, as keymap.ts dispatches. */
+  function moveNode(recorderEnabled: boolean, target: '- a' | '- b' = '- b') {
     const lines = DOC.split('\n');
     const doc = parse(DOC);
-    const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- b')!;
-    const result = moveUp(doc, node.id);
+    const node = [...walkNodes(doc)].find((n) => n.lines[0] === target)!;
+    const result = target === '- b' ? moveUp(doc, node.id) : moveDown(doc, node.id);
     if (!result.ok) throw new Error('move rejected');
     const changes = editsToChanges(lines, result.value.edits);
     const newLines = applyEdits(lines, result.value.edits);
@@ -87,7 +97,7 @@ describe('a moved node keeps its cursor across undo/redo', () => {
 
     let state = EditorState.create({
       doc: DOC,
-      selection: EditorSelection.cursor(offsetOf(lines, 1, 2)), // inside "- b"
+      selection: EditorSelection.cursor(offsetOf(lines, lines.indexOf(target), 2)),
       extensions: [history()],
     });
     state = state.update({
@@ -110,17 +120,38 @@ describe('a moved node keeps its cursor across undo/redo', () => {
   const lineAt = (state: EditorState) =>
     state.doc.toString().split('\n')[caretOf(state).line];
 
-  it('redo puts the caret back on the moved node', () => {
-    const view = moveB(true);
-    expect(lineAt(view.state)).toBe('- b');
-    undo(view);
-    expect(lineAt(view.state)).toBe('- b'); // undo restores the pre-op caret
-    redo(view);
-    expect(lineAt(view.state)).toBe('- b'); // …and redo the moved node, not '- a'
-  });
+  /**
+   * Both directions of the guarantee, each paired with what happens WITHOUT
+   * the recorder — because those differ, and stating only the guarantee would
+   * hide that one of the two rows is satisfied by the alignment's tie-break
+   * rather than by anything this file is testing. Deleting the recorder would
+   * still fail the move-down row, and only that row.
+   */
+  it.each([
+    { target: '- a', direction: 'down', withoutRecorder: '- b' },
+    { target: '- b', direction: 'up', withoutRecorder: '- b' },
+  ] as const)(
+    'redo puts the caret back on $target, the node moved $direction',
+    ({ target, withoutRecorder }) => {
+      const view = moveNode(true, target);
+      expect(lineAt(view.state)).toBe(target);
+      undo(view);
+      expect(lineAt(view.state)).toBe(target); // undo restores the pre-op caret
+      redo(view);
+      expect(lineAt(view.state)).toBe(target); // …and redo the moved node, not its sibling
+
+      // The contrast, stated per direction: mapping alone recovers the caret
+      // for move-up (the aligner anchored the moved node, so the caret sat in
+      // text no change touched) and lands on the wrong node for move-down.
+      const bare = moveNode(false, target);
+      undo(bare);
+      redo(bare);
+      expect(lineAt(bare.state)).toBe(withoutRecorder);
+    },
+  );
 
   it('and keeps doing so on repeated redos', () => {
-    const view = moveB(true);
+    const view = moveNode(true);
     for (let i = 0; i < 3; i++) {
       undo(view);
       redo(view);
@@ -131,13 +162,14 @@ describe('a moved node keeps its cursor across undo/redo', () => {
   /**
    * The negative control, and the regression itself: without the recorder the
    * caret lands on the node that swapped in. Pinning the exact wrong node
-   * proves this scenario really does exercise history's mapping branch.
+   * proves this scenario really does exercise history's mapping branch — see
+   * this block's docstring for why it has to be the move-DOWN direction.
    */
   it('WITHOUT the recorder, redo lands on the node that swapped in', () => {
-    const view = moveB(false);
+    const view = moveNode(false, '- a');
     undo(view);
     redo(view);
-    expect(lineAt(view.state)).toBe('- a');
+    expect(lineAt(view.state)).toBe('- b');
   });
 });
 

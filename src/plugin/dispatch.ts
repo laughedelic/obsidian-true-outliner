@@ -4,13 +4,27 @@
  * library's own applyEdits (`minimal-change-dispatch`).
  *
  * Each `Edit` (a whole line-range replacement) is narrowed to the smallest
- * set of character-level ranges that produce the same resulting document:
- * unchanged leading/trailing lines are dropped, and the remaining lines are
- * diffed either per-line (when the edit doesn't change how many lines there
- * are — indent, outdent) or as one trimmed character span (when it does —
- * merge, split, delete). See design.md D2 for why both branches are needed:
- * a whole-region trim alone is minimal enough for a merge but not for an
- * indent, which changes several lines' leading whitespace independently.
+ * set of character-level ranges that produce the same resulting document.
+ * The narrowing is a line-level ALIGNMENT first: lines the edit keeps —
+ * wherever they end up — are matched and excluded, leaving a set of changed
+ * runs. Each run is then diffed either per-line (when it has the same
+ * number of lines on both sides — indent, outdent) or as one trimmed
+ * character span (when it doesn't — merge, split, delete). See design.md D2
+ * for why both per-run branches are needed: a whole-region trim alone is
+ * minimal enough for a merge but not for an indent, which changes several
+ * lines' leading whitespace independently.
+ *
+ * The alignment is what makes a REORDER expressible. `diffLines` describes
+ * every operation as one contiguous line-range replacement, and a swap
+ * preserves line count, so without alignment a move takes the per-line
+ * branch and is narrowed into "every line in the region was edited in
+ * place" — including partial character edits INSIDE lines the move never
+ * touched. That is not merely unminimal, it is a false description of what
+ * happened, and Obsidian's live table widget corrupts its own document when
+ * it reconciles against it (a sibling moving past a table split the table's
+ * header from its body). Aligned, the same move becomes what it is: the
+ * moved lines deleted from one side and inserted on the other, with the
+ * passed-over block's characters in no change range at all.
  */
 
 import type { Edit } from '../result';
@@ -40,23 +54,119 @@ function commonSuffixLen(a: string, b: string, max: number): number {
   return i;
 }
 
-/** How many lines match at the start and end of `oldLines`/`newLines`, without overlap. */
-function trimCommonEnds(
-  oldLines: readonly string[],
-  newLines: readonly string[],
-): { leading: number; trailing: number } {
-  const maxLeading = Math.min(oldLines.length, newLines.length);
+/**
+ * A run of lines the edit actually changes: old lines
+ * [oldStart, oldEnd) become new lines [newStart, newEnd). Either side may
+ * be empty — a pure insertion or a pure deletion.
+ */
+interface ChangedRun {
+  oldStart: number;
+  oldEnd: number;
+  newStart: number;
+  newEnd: number;
+}
+
+/**
+ * Lines occurring EXACTLY ONCE on both sides, paired by content and reduced
+ * to the longest chain of pairs increasing on both sides — the anchoring
+ * rule from patience diff.
+ *
+ * Uniqueness is the whole point. Matching any equal line would anchor on
+ * blank lines and repeated markers, fragmenting a relocated block into
+ * spurious runs; matching only lines that are unambiguous on both sides
+ * keeps a moved block whole, and ambiguous lines simply fall into a changed
+ * run, where the character-level narrowing still trims them. Anchors need
+ * not be recovered exhaustively: missing one costs minimality, never
+ * correctness.
+ */
+function uniqueAnchors(a: readonly string[], b: readonly string[]): Array<[number, number]> {
+  const indexUnique = (lines: readonly string[]): Map<string, number> => {
+    const seen = new Map<string, number>();
+    lines.forEach((line, i) => seen.set(line, seen.has(line) ? -1 : i));
+    return seen;
+  };
+  const inA = indexUnique(a);
+  const inB = indexUnique(b);
+
+  const pairs: Array<[number, number]> = [];
+  for (const [line, i] of inA) {
+    if (i === -1) continue;
+    const j = inB.get(line);
+    if (j === undefined || j === -1) continue;
+    pairs.push([i, j]);
+  }
+  pairs.sort((x, y) => x[0] - y[0]);
+
+  // Longest increasing subsequence on the second coordinate.
+  const tails: number[] = [];
+  const previous = new Array<number>(pairs.length).fill(-1);
+  for (let p = 0; p < pairs.length; p++) {
+    let lo = 0;
+    let hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pairs[tails[mid]!]![1] < pairs[p]![1]) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo > 0) previous[p] = tails[lo - 1]!;
+    tails[lo] = p;
+  }
+  const chain: Array<[number, number]> = [];
+  for (let p = tails.length > 0 ? tails[tails.length - 1]! : -1; p !== -1; p = previous[p]!) {
+    chain.push(pairs[p]!);
+  }
+  return chain.reverse();
+}
+
+/**
+ * Align `a` against `b` at the line level, appending the runs that differ
+ * to `out` in ascending order. Common leading and trailing lines are
+ * dropped, unique anchors split what remains, and each gap between anchors
+ * is aligned the same way — so a block that merely moved is matched at its
+ * new position and never appears in a run.
+ */
+function alignLines(
+  a: readonly string[],
+  b: readonly string[],
+  aOffset: number,
+  bOffset: number,
+  out: ChangedRun[],
+): void {
+  const maxLeading = Math.min(a.length, b.length);
   let leading = 0;
-  while (leading < maxLeading && oldLines[leading] === newLines[leading]) leading++;
+  while (leading < maxLeading && a[leading] === b[leading]) leading++;
   const maxTrailing = maxLeading - leading;
   let trailing = 0;
-  while (
-    trailing < maxTrailing &&
-    oldLines[oldLines.length - 1 - trailing] === newLines[newLines.length - 1 - trailing]
-  ) {
+  while (trailing < maxTrailing && a[a.length - 1 - trailing] === b[b.length - 1 - trailing]) {
     trailing++;
   }
-  return { leading, trailing };
+
+  const aMid = a.slice(leading, a.length - trailing);
+  const bMid = b.slice(leading, b.length - trailing);
+  if (aMid.length === 0 && bMid.length === 0) return;
+
+  const aMidOffset = aOffset + leading;
+  const bMidOffset = bOffset + leading;
+  const anchors = aMid.length > 0 && bMid.length > 0 ? uniqueAnchors(aMid, bMid) : [];
+
+  if (anchors.length === 0) {
+    out.push({
+      oldStart: aMidOffset,
+      oldEnd: aMidOffset + aMid.length,
+      newStart: bMidOffset,
+      newEnd: bMidOffset + bMid.length,
+    });
+    return;
+  }
+
+  let ai = 0;
+  let bi = 0;
+  for (const [x, y] of anchors) {
+    alignLines(aMid.slice(ai, x), bMid.slice(bi, y), aMidOffset + ai, bMidOffset + bi, out);
+    ai = x + 1;
+    bi = y + 1;
+  }
+  alignLines(aMid.slice(ai), bMid.slice(bi), aMidOffset + ai, bMidOffset + bi, out);
 }
 
 /** Walk `pos` forward by `n` characters through `lines`, crossing newlines as single characters. */
@@ -222,15 +332,16 @@ function wholeRegionChange(
  */
 export function editToChanges(lines: readonly string[], edit: Edit): EditorChange[] {
   const { fromLine, toLine, insert } = edit;
-  const oldRegion = lines.slice(fromLine, toLine);
-  const { leading, trailing } = trimCommonEnds(oldRegion, insert);
-  const oldMid = oldRegion.slice(leading, oldRegion.length - trailing);
-  const newMid = insert.slice(leading, insert.length - trailing);
-  if (oldMid.length === 0 && newMid.length === 0) return [];
+  const runs: ChangedRun[] = [];
+  alignLines(lines.slice(fromLine, toLine), insert, fromLine, 0, runs);
 
-  const midFromLine = fromLine + leading;
-  if (oldMid.length === newMid.length) return perLineChanges(midFromLine, oldMid, newMid);
-  return wholeRegionChange(lines, midFromLine, toLine - trailing, newMid);
+  return runs.flatMap((run) => {
+    const oldCount = run.oldEnd - run.oldStart;
+    const newCount = run.newEnd - run.newStart;
+    const newMid = insert.slice(run.newStart, run.newEnd);
+    if (oldCount === newCount) return perLineChanges(run.oldStart, lines.slice(run.oldStart, run.oldEnd), newMid);
+    return wholeRegionChange(lines, run.oldStart, run.oldEnd, newMid);
+  });
 }
 
 export function editsToChanges(lines: readonly string[], edits: readonly Edit[]): EditorChange[] {

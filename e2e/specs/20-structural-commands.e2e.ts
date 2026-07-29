@@ -136,6 +136,17 @@ describe('structural commands', function () {
     expect(await h.getBuffer()).toBe('1. one\n2. two\n3. three\n');
   });
 
+  it('move up command moves a list item past a live table without splitting its rows', async function () {
+    const table = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
+    await outlineNote(`${table}\n\n- Mover\n`, 4, 3);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
+
+    await h.runCommand('move-node-up');
+    await browser.pause(150);
+
+    expect(await h.getBuffer()).toBe(`- Mover\n\n${table}\n`);
+  });
+
   it('each rejection cue fires with the right message; document untouched', async function () {
     const cases: { name: string; content: string; line: number; command: string; message: string }[] = [
       {

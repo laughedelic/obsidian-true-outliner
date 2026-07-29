@@ -199,6 +199,14 @@ describe('keyboard grammar', function () {
     const after = await h.getBuffer();
     expect(after.startsWith('|')).toBe(true); // table is now the first node
     expect(after.trimEnd().endsWith('para')).toBe(true);
+    // ...and it is still a TABLE. Where it landed is this spec's concern; that
+    // its rows survived the trip is `minimal-change-dispatch`'s. This is the
+    // liveliest the table widget ever gets — a mounted per-cell EditorView —
+    // while a structural transaction rewrites the very lines it owns, so the
+    // integrity claim belongs on this test rather than a near-duplicate of it.
+    const lines = after.split('\n');
+    const rows = lines.slice(0, lines.findIndex((l) => !l.startsWith('|')));
+    expect(rows.length).toBe(3); // header, separator, body — contiguous
   });
 
   it('the move-node default hotkey moves nodes with their children; ordered runs renumber', async function () {
@@ -211,6 +219,19 @@ describe('keyboard grammar', function () {
     await grammarNote('1. one\n2. two\n3. three\n', 1, 3);
     await h.keys.moveNodeUp();
     expect(await h.getBuffer()).toBe('1. two\n2. one\n3. three\n');
+  });
+
+  it('the move hotkey moves a paragraph past a live table without splitting its rows', async function () {
+    const table = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
+    await grammarNote(`Mover.\n\n${table}\n`, 0, 3);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
+
+    await h.keys.moveNodeDown();
+    await browser.pause(150); // allow any live-table write-back to settle
+
+    expect(await h.getBuffer()).toBe(`${table}\n\nMover.\n`);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(`Mover.\n\n${table}\n`);
   });
 
   it('Enter mid-item splits into two items (childless)', async function () {

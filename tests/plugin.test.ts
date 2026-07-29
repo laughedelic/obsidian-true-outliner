@@ -303,6 +303,102 @@ describe('edit dispatch: line edits → editor changes', () => {
       ]);
     });
   });
+
+  /**
+   * The property a REORDER needs and the per-line narrowing alone could not
+   * express: a move relocates lines, so it must be described as lines
+   * removed from one side and inserted on the other — never as an in-place
+   * rewrite of everything in between.
+   *
+   * This is not a style preference. Obsidian's live table widget re-derives
+   * its own document from the change set, and an in-place rewrite of a table
+   * row it still owns made it split the table — the header severed from the
+   * body by a blank line — when any sibling moved past it. The guarantee
+   * that fixes it is stated here, at the choke point, for every atom kind
+   * and at any nesting depth, rather than as a table-shaped special case at
+   * the dispatch sites.
+   */
+  describe('a move never edits inside the block it passes over', () => {
+    const TABLE = ['| a   | b   |', '| --- | --- |', '| 1   | 2   |'];
+
+    const scenarios = [
+      {
+        name: 'paragraph moving down past a table',
+        text: `Mover.\n\n${TABLE.join('\n')}\n`,
+        target: 'Mover.',
+        op: moveDown,
+      },
+      {
+        name: 'paragraph moving up past a table',
+        text: `${TABLE.join('\n')}\n\nMover.\n`,
+        target: 'Mover.',
+        op: moveUp,
+      },
+      {
+        name: 'list item moving down past a table',
+        text: `- Mover\n\n${TABLE.join('\n')}\n`,
+        target: '- Mover',
+        op: moveDown,
+      },
+      {
+        // The shape the earlier, table-shaped fix missed: the sibling being
+        // passed over is a LIST ITEM, and the table is its child.
+        name: 'list item moving down past a sibling whose child is a table',
+        text: `- Mover\n- Sibling\n\n${TABLE.map((l) => `\t${l}`).join('\n')}\n`,
+        target: '- Mover',
+        op: moveDown,
+      },
+    ] as const;
+
+    it.each(scenarios)('$name', ({ text, target, op }) => {
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === target)!;
+      const result = op(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+
+      const tableLines = lines
+        .map((line, i) => (line.trimStart().startsWith('|') ? i : -1))
+        .filter((i) => i >= 0);
+      expect(tableLines.length).toBe(TABLE.length);
+
+      for (const change of changes) {
+        for (const line of tableLines) {
+          // A change may SPAN a table line only by covering it whole from a
+          // line boundary — i.e. relocating it — never by starting or ending
+          // partway into one, which is what makes the widget rewrite itself.
+          const startsInside = change.from.line === line && change.from.ch > 0;
+          const endsInside = change.to.line === line && change.to.ch > 0;
+          expect({ change, line, startsInside, endsInside }).toMatchObject({
+            startsInside: false,
+            endsInside: false,
+          });
+        }
+      }
+
+      // …and in these scenarios the table is not relocated at all, so its
+      // characters are outside every change range.
+      const spans = changes.map((c) => [c.from.line, c.to.line] as const);
+      for (const line of tableLines) {
+        expect(spans.some(([from, to]) => from <= line && line < to)).toBe(false);
+      }
+    });
+
+    it('states a move as one deletion plus one insertion', () => {
+      const text = `Mover.\n\n${TABLE.join('\n')}\n`;
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === 'Mover.')!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(editsToChanges(text.split('\n'), result.value.edits)).toEqual([
+        { from: { line: 0, ch: 0 }, to: { line: 2, ch: 0 }, text: '' },
+        { from: { line: 5, ch: 0 }, to: { line: 5, ch: 0 }, text: '\nMover.\n' },
+      ]);
+    });
+  });
 });
 
 describe('rejection messages', () => {
