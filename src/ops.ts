@@ -40,11 +40,27 @@ export interface OpOutput {
   readonly doc: OutlineDoc;
   readonly edits: readonly Edit[];
   /**
-   * Where the operated-on node landed: its first line (0-based, in the new
-   * text) and the character offset of its content start (after indentation
-   * and any list/heading marker) — ready to become an editor cursor.
+   * Where this operation's SUBJECT landed — its first line (0-based, in the
+   * new text) and the character offset of its content start (after
+   * indentation and any list/heading marker) — or, for the operations with an
+   * interior landing, that exact position: a merge's join point, a split
+   * point, an insertion's first block. For a deletion it is the surviving
+   * neighbour the operation selects.
+   *
+   * A structural FACT, not the caret. Where the caret goes is decided by
+   * `caret-policy.ts` from this and the surrounding document; the two need not
+   * coincide, and after a deletion they deliberately do not.
+   *
+   * The distinction is load-bearing beyond caret placement. `finalize`
+   * re-parses, so node ids do not survive an operation, and composing code
+   * that has to locate a node across that boundary — `enforce.ts`'s
+   * `deleteAndSplice`, which needs the surviving neighbour in the
+   * post-deletion tree — locates it by this line. Reading the caret for that
+   * purpose is what made the deletion convention unchangeable: altering it
+   * would have silently changed which node a paste or type-over splices
+   * against.
    */
-  readonly cursor: { readonly line: number; readonly ch: number };
+  readonly anchor: { readonly line: number; readonly ch: number };
 }
 
 const isContent = (node: OutlineNode): boolean =>
@@ -80,7 +96,7 @@ function startLineOf(doc: OutlineDoc, id: number): number {
 /**
  * `subjectId` is `undefined` only when a delete op consumes every node in
  * scope (deleteSubtrees's empty-document / empty-scope edge case) — the
- * cursor then lands at the scope's own start rather than on any node.
+ * anchor then lands at the scope's own start rather than on any node.
  */
 export function finalize(
   oldDoc: OutlineDoc,
@@ -95,7 +111,7 @@ export function finalize(
   return accept({
     doc: parse(text),
     edits: diffLines(encodeLines(oldDoc), lines),
-    cursor: { line: subjectLine, ch: contentColumnCh(lines[subjectLine] ?? '') },
+    anchor: { line: subjectLine, ch: contentColumnCh(lines[subjectLine] ?? '') },
   });
 }
 
@@ -622,7 +638,7 @@ export function splitNode(
     if (!result.ok) return result;
     return accept({
       ...result.value,
-      cursor: { line: startLine + node.lines.length + 1, ch: 0 },
+      anchor: { line: startLine + node.lines.length + 1, ch: 0 },
     });
   }
 
@@ -731,9 +747,11 @@ export function deleteSubtrees(doc: OutlineDoc, nodeIds: readonly number[]): OpR
  * true combined result has no such ambiguity.
  *
  * `groups[0]` MUST be the topmost group in document order — its own
- * before/after survivor becomes the op's cursor, the one group whose
+ * before/after survivor becomes the op's ANCHOR, the one group whose
  * position is guaranteed unaffected by every OTHER (necessarily later)
- * group's removal.
+ * group's removal. That survivor choice (`survivorAfter ?? survivorBefore ??
+ * parent`) is deliberately unchanged by `caret-placement-policy`: it is what
+ * `enforce.ts` splices against, and it is no longer where the caret goes.
  */
 export function deleteSubtreeGroups(
   doc: OutlineDoc,
@@ -937,15 +955,17 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
 
   const result = finalize(doc, surgery, merged.id);
   if (!result.ok) return result;
-  // Cursor at the JOIN point, not the merged node's start (finalize's
+  // Anchor at the JOIN point, not the merged node's start (finalize's
   // generic convention, right for indent/outdent/split but not a merge):
   // the join line is `first`'s own last (or, for a setext heading, first)
   // line — still findable post-reparse since it's a fixed offset from the
-  // already-correct start-of-node line `finalize` computed.
+  // already-correct start-of-node line `finalize` computed. This is one of
+  // the interior landings `OpOutput.anchor` documents: its `ch` is meaningful
+  // and the caret policy uses it verbatim rather than re-deriving a column.
   const joinLineOffset = first.kind === 'heading' && first.setext ? 0 : first.lines.length - 1;
-  const joinLine = result.value.cursor.line + joinLineOffset;
+  const joinLine = result.value.anchor.line + joinLineOffset;
   const joinCh = (first.lines[joinLineOffset] ?? '').length;
-  return accept({ ...result.value, cursor: { line: joinLine, ch: joinCh } });
+  return accept({ ...result.value, anchor: { line: joinLine, ch: joinCh } });
 }
 
 /**

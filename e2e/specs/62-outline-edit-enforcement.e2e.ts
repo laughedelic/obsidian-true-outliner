@@ -652,6 +652,85 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(ariaLabels.some((l) => (l ?? '').toLowerCase().includes('regex'))).toBe(false);
   });
 
+  // ---- 4.8 Post-deletion caret placement (caret-placement-policy) --------
+
+  it('a block deletion leaves the caret at the PRECEDING node\'s content end, not the following node\'s start', async function () {
+    await outlineNote('# Heading\n\nmiddle\n\nlast paragraph\n');
+    // Select `middle` exactly, then delete it.
+    await h.setSelection({ line: 2, ch: 0 }, { line: 3, ch: 0 });
+    await browser.keys(Key.Backspace);
+    await browser.pause(200);
+
+    expect(await h.getBuffer()).toBe('# Heading\n\nlast paragraph\n');
+    // Was `{2,0}` — the FOLLOWING node's content start — before
+    // `caret-placement-policy`. The convention now matches gap ownership and
+    // the merge join point.
+    expect(await h.getCursor()).toEqual({ line: 0, ch: '# Heading'.length });
+  });
+
+  /*
+   * NOT covered here: "deleting the LAST node uses the same rule". Attempted
+   * and removed rather than left red — it kept failing for a reason unrelated
+   * to the caret rule it was meant to check. Selecting a document-final node
+   * plus its owned trailing gap and pressing Backspace removed the node's TEXT
+   * but left its blank lines, with the caret on one of them, i.e. the edit was
+   * not rewritten as a structural deletion at all. That reproduces
+   * independently of `caret-placement-policy` and looks like a gap in exact-
+   * cover recognition for a node at the end of the document; it is worth its
+   * own investigation, with a fixture that is not also exercising the caret
+   * convention.
+   *
+   * The rule itself is covered at the same dispatch layer by
+   * tests/caret-placement.test.ts ("deleting the LAST node uses the same rule,
+   * not the opposite one"), which drives the identical `computeVerdict` path.
+   */
+
+  /**
+   * The user-visible defect the whole change exists to fix (docs/research/13,
+   * "deleting a node that follows a table strands undo").
+   *
+   * Asserting the caret's coordinates alone would be an outcome test that
+   * passes for the wrong reason — the point is that UNDO still reaches the
+   * note's own history. When the caret lands inside a table, Live Preview
+   * mounts the nested per-cell editor and takes focus, and Cmd+Z then hits
+   * that cell's empty history instead. So this asserts the mechanism: no
+   * nested editor is mounted, and undo actually restores the document.
+   */
+  it('deleting the node after a table keeps the caret out of it, so undo still works', async function () {
+    const TABLE = '| a | b |\n| - | - |\n| 1 | 2 |';
+    const doc = `${TABLE}\n\nmid\n\ntail\n`;
+    await outlineNote(doc);
+    const before = await h.getBuffer();
+
+    // Opening a note whose first block is a table leaves focus inside the
+    // widget's nested per-cell editor, which swallows the keystroke. A real
+    // click on ordinary content releases it — the same hand-off a user makes.
+    await h.clickAt(6, 0);
+    await browser.pause(200);
+    await h.setSelection({ line: 4, ch: 0 }, { line: 5, ch: 0 });
+    await browser.pause(200);
+    await browser.keys(Key.Backspace);
+    await browser.pause(300);
+
+    const cursor = await h.getCursor();
+    const lineText = (await h.getBuffer()).split('\n')[cursor.line] ?? '';
+    // Outside the table: the atom guard steps past it to `tail`.
+    expect(lineText.startsWith('|')).toBe(false);
+    expect(lineText).toBe('tail');
+
+    // Mechanism: focus never entered a nested cell editor.
+    const nested = await browser.execute(
+      () =>
+        document.querySelectorAll('.workspace-leaf.mod-active .cm-embed-block .cm-editor').length,
+    );
+    expect(nested).toBe(0);
+
+    // …and undo reaches the host's own history.
+    await h.keys.undo();
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(before);
+  });
+
   it('automation-gap retry: HTML5 drag-drop into a rendered position remains infeasible in this harness (native limitation, carried as a manual scenario)', async function () {
     // Renewed attempt per node-edit-enforcement's "Enforcement is
     // observable and hard-to-automate paths are still verified"

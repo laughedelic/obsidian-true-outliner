@@ -13,7 +13,7 @@ import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits } from '../result';
 import { nodeAtLine } from './locate';
-import { isAddressable } from '../caret';
+import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 
@@ -28,24 +28,26 @@ export type GrammarKey =
 export interface TxPlan {
   changes: EditorChange[];
   /**
-   * Cursor position in the NEW document, as a character offset. For
-   * indent/outdent (`minimal-change-dispatch`) this is the pre-op cursor
-   * mapped forward through the (minimal) change set with assoc=1 — not the
-   * op's own semantic cursor choice, and deliberately NOT left to the
+   * Cursor position in the NEW document, as a character offset, decided by
+   * `caret-policy.ts` — see `planFromOp`, which supplies the facts.
+   *
+   * For indent/outdent (`minimal-change-dispatch`) the policy's answer is the
+   * pre-op cursor mapped forward through the (minimal) change set with
+   * assoc=1 — not the op's own cursor, and deliberately NOT left to the
    * editor's implicit default mapping either: CM6's own default assoc (-1)
    * disagrees with what `@codemirror/commands`' history redo later computes
    * (hardcoded assoc=1) whenever the cursor sits exactly at a change
    * boundary, which is common for Tab (see `dispatch.ts`'s
-   * `mapCursorForward`). Computing that same assoc=1 mapping here and
-   * stating it explicitly keeps a live dispatch and its eventual redo
-   * mathematically identical, with no recording mechanism needed. Every
-   * other structural operation's resulting cursor is a deliberate choice (a
-   * join point, a moved node's new location) that mapping cannot recover at
-   * all, so those state the op's own cursor instead.
+   * `mapCursorForward`). Computing that same assoc=1 mapping and stating it
+   * explicitly keeps a live dispatch and its eventual redo mathematically
+   * identical, so nothing needs recording. Every other structural operation's
+   * resulting cursor is a deliberate choice (a join point, a moved node's new
+   * location, the seam after a deletion) that mapping cannot recover at all.
    *
    * Indent/outdent fall back to the op's own cursor when the mapped position
-   * would not be caret-addressable — see `planFromOp`, which is where that
-   * decision and its reasons live.
+   * would not be caret-addressable. That fallback IS recorded — it is a
+   * dispatch whose cursor differs from the mapping, which is the axis
+   * `record-decision.ts` keys on.
    */
   selection: number;
   userEvent: string;
@@ -115,26 +117,36 @@ function posInLines(lines: readonly string[], offset: number): EditorPos {
  * already parked somewhere non-addressable by a programmatic placement, which
  * an emptiness test would miss. Column preservation is unaffected: a real
  * caret on content always maps to content.
+ *
+ * Amended by `caret-placement-policy`: that rule, and every other placement
+ * rule, now lives in `caret-policy.ts`. This function supplies FACTS — the
+ * before/after trees, the operation's anchor, and the mapped position when
+ * the caller asked for one — plus which of the policy's four cases the
+ * operation falls into. It holds no placement rule of its own, which is what
+ * keeps the keyboard path from drifting away from the palette's.
  */
 function planFromOp(
   lines: readonly string[],
   result: OpResult<OpOutput>,
   userEvent: string,
+  op: CaretOp,
+  before: OutlineDoc,
   mapCursorFrom?: EditorPos,
 ): GrammarOutcome {
   if (!result.ok) return { notice: REJECTION_MESSAGES[result.rejection.reason] };
   const changes = editsToChanges(lines, result.value.edits);
   const newLines = applyEdits(lines, result.value.edits);
+  const after = parse(newLines.join('\n'));
 
-  if (mapCursorFrom !== undefined) {
-    const mapped = mapCursorForward(lines, changes, mapCursorFrom);
-    const newDoc = parse(newLines.join('\n'));
-    if (isAddressable(newDoc, posInLines(newLines, mapped))) {
-      return { plan: { changes, selection: mapped, userEvent } };
-    }
-  }
+  const mapped =
+    mapCursorFrom === undefined
+      ? undefined
+      : posInLines(newLines, mapCursorForward(lines, changes, mapCursorFrom));
+
+  const { caret } = planCaret(op, { before, after, anchor: result.value.anchor, mapped });
+
   return {
-    plan: { changes, selection: offsetInNewText(newLines, result.value.cursor), userEvent },
+    plan: { changes, selection: offsetInNewText(newLines, caret), userEvent },
   };
 }
 
@@ -201,6 +213,8 @@ export function planKey(
         lines,
         indent(doc, node.id, fallbackIndentUnit),
         'input.structure.indent',
+        { kind: 'derived' },
+        doc,
         cursor,
       );
     case 'outdent':
@@ -208,17 +222,21 @@ export function planKey(
         lines,
         outdent(doc, node.id, fallbackIndentUnit),
         'input.structure.outdent',
+        { kind: 'derived' },
+        doc,
         cursor,
       );
     case 'move-up':
-      return planFromOp(lines, moveUp(doc, node.id), 'move.structure');
+      return planFromOp(lines, moveUp(doc, node.id), 'move.structure', { kind: 'subject' }, doc);
     case 'move-down':
-      return planFromOp(lines, moveDown(doc, node.id), 'move.structure');
+      return planFromOp(lines, moveDown(doc, node.id), 'move.structure', { kind: 'subject' }, doc);
     case 'split':
       return planFromOp(
         lines,
         splitNode(doc, node.id, cursor, fallbackIndentUnit),
         'input.structure.split',
+        { kind: 'exact' },
+        doc,
       );
     case 'continue': {
       if (node.kind === 'list-item' && onFirstLine) {

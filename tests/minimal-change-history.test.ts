@@ -261,3 +261,60 @@ describe('known residual: outdent cursor drift when the cursor sits inside the r
     expect(view.state.selection.main.head).not.toBe(preOffset);
   });
 });
+
+/**
+ * The equality `caret-placement-policy`'s recording decision rests on.
+ *
+ * `record-decision.ts` asks "is the dispatched selection what redo would
+ * recompute?" by comparing against CM6's own `map(changes, 1)`. That is only
+ * the right question if `mapCursorForward` — which the grammar and the palette
+ * use to COMPUTE the dispatched selection — is the same function. This file's
+ * own docstring asserts that in prose; here it is executable.
+ *
+ * If the two ever diverge the failure is conservative — an ordinary indent
+ * starts being recorded, costing it the second-undo precision it has today,
+ * rather than producing a wrong caret — but it would be silent, and this is
+ * what makes it loud.
+ */
+describe('mapCursorForward agrees with CM6’s own forward mapping at assoc 1', () => {
+  it('over generated trees and both mapping-derived operations', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.boolean(), fc.nat(), (tree, n, useIndent, chSeed) => {
+        const text = encode(tree);
+        const doc = parse(text);
+        const all = [...walkNodes(doc)];
+        if (all.length === 0) return true;
+        const node = all[n % all.length]!;
+        const lines = text.split('\n');
+        const startLine = lines.findIndex((_, i) => nodeAtLine(doc, i) === node);
+        if (startLine === -1) return true;
+        const lineText = lines[startLine] ?? '';
+        // Same start-of-line bias as the property above: the assoc boundary is
+        // where the two mappings could differ at all.
+        const preCh = chSeed % 3 === 0 ? 0 : lineText.length === 0 ? 0 : chSeed % (lineText.length + 1);
+        const cursorBefore = { line: startLine, ch: preCh };
+
+        const result = useIndent ? indent(doc, node.id) : outdent(doc, node.id);
+        if (!result.ok) return true;
+        const changes = editsToChanges(lines, result.value.edits);
+        if (changes.length === 0) return true;
+
+        const ours = mapCursorForward(lines, changes, cursorBefore);
+
+        const state = EditorState.create({ doc: text });
+        const tr = state.update({
+          changes: changes.map((c) => ({
+            from: state.doc.line(c.from.line + 1).from + c.from.ch,
+            to: state.doc.line(c.to.line + 1).from + c.to.ch,
+            insert: c.text,
+          })),
+        });
+        const preOffset = offsetOf(lines, cursorBefore.line, cursorBefore.ch);
+        const theirs = tr.changes.mapPos(preOffset, 1);
+
+        return ours === theirs;
+      }),
+      { numRuns: 1000 },
+    );
+  });
+});

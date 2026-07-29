@@ -736,9 +736,13 @@ resolver has since been dropped — the recorder makes redo restore the delete's
 — so the two rules no longer contradict each other at runtime. The disagreement about
 which rule is RIGHT is what remains, and is what the change below owns.)*
 
-**Now owned by the `caret-placement-policy` change proposal** (2026-07-28), together with
-the table entry below — see its proposal.md for why these two and the palette/keyboard
-duplication are one problem rather than three.
+**FIXED by `caret-placement-policy`** (2026-07-29). The convention is now the PRECEDING
+node's content end, decided in one place (`src/caret-policy.ts`) and used by the keyboard
+grammar, the command palette and the enforcement rewrite path alike. It agrees with what
+`resolvePlacement` computes for the same seam and with the join point a merge already
+lands on — a deletion and a merge act on the same boundary, and only the merge said so.
+Pinned at the dispatch layer in `tests/caret-placement.test.ts` (including a test that
+asserts the two gestures agree) and end-to-end in `62-outline-edit-enforcement`.
 
 Closing it means picking one convention and making both paths use it. The candidate:
 delete places the caret at the PRECEDING node's content end, matching gap ownership and
@@ -768,11 +772,15 @@ the table's content end, still inside it. Both routes end in the table.
 than instrumented; confirming it wants a `cm.dispatch` trace like the one in the
 "exiting a table's nested editor" entry above, which is the same territory.
 
-**Also owned by `caret-placement-policy`.** Whatever fixes the caret convention above
-should also answer "never land the caret inside an atom that renders as a widget," which
-is the part specific to this entry: an atom's
-interior IS addressable by spec (`content-space-caret` says so explicitly), so the rule
-cannot come from addressability alone.
+**FIXED by `caret-placement-policy`** (2026-07-29), and confirmed as a separate rule
+rather than a consequence of the convention above. Measured both ways: deleting the
+paragraph after a three-line table gave `{0,0}` under the old rule and `{2,9}` under the
+new one — BOTH inside the table. So the policy carries an explicit focus-capturing-kind
+guard: a caret it places on a node the user did not act on never lands inside one, and
+steps to the following node's content start, then backward, then forward. The set is
+`{ table }`, measured across all six atom kinds (see the 2026-07-29 entry at the end of
+this file). The e2e asserts the MECHANISM — no nested cell editor mounted, and undo
+actually restores the document — not just the caret's coordinates.
 
 ## Fixed: a bare modifier key defeated the block-selection blur (found 2026-07-27, real-vault pass)
 
@@ -827,3 +835,75 @@ What would actually close it: a DOM-level test environment (jsdom) for the view-
 which would also unlock `history-caret.ts`'s ViewPlugin wiring, `MarginCompensation`, and the
 `onDocumentKeyDown` replay path — all currently tested only through their pure cores. That is a
 harness change worth doing deliberately, not a test to bolt onto this PR.
+
+## Measured: only `table` captures focus, and structural keys are not gated against it (2026-07-29, `caret-placement-policy` task 1.3/1.4)
+
+Two questions the `caret-placement-policy` design left as measurement tasks, answered together
+with a throwaway e2e spec on Obsidian 1.12.7. The second answer was not the one the design
+predicted, and it relocates the problem.
+
+### 1.4: the focus-capturing set is exactly `{ table }`
+
+Caret placed on each atom kind's own lines, counting `.cm-embed-block .cm-editor` in the active
+leaf and asking `document.activeElement.closest('.cm-embed-block')` — the same ancestry test
+`isNestedEditor` uses:
+
+| kind | nested focus | nested editors | embed blocks |
+|---|---|---|---|
+| `table` | **true** | 1 | 1 |
+| `code` | false | 0 | 0 |
+| `callout` | false | 0 | 0 |
+| `quote` | false | 0 | 0 |
+| `html` | false | 0 | 0 |
+| `hr` | false | 0 | 0 |
+
+So `nested-editor.ts`'s "the only case found so far" holds under a deliberate sweep, not just
+incidentally. The design's stated set needs no widening.
+
+Also measured, and worth knowing for any fixture: placing the caret on a table REWRITES its
+source — `| a | b |` becomes `| a   | b   |` and `| - | - |` becomes `| --- | --- |`. Obsidian's
+table widget normalizes padding on mount, so a table fixture is not byte-stable across a caret
+placement.
+
+### 1.3: the two keyboard paths disagree, and only one of them is broken
+
+The design predicted that moving a table would place the caret inside it, mount the cell
+editor, and thereby break a repeat press. What is actually there is a split between the
+plugin's two entry points, confirmed both in the harness and in real-vault use (2026-07-29):
+
+| Path | Binding | Result on a table |
+|---|---|---|
+| CM6 keymap (`makeHandler`) | Alt+ArrowUp/Down | rejected — toast "Nothing above to move past." |
+| Command (`runOp`) | any hotkey bound to "Move node up/down" | moves the whole table correctly |
+
+**Why they differ.** `makeHandler` (`src/plugin/keymap.ts`) gates only on
+`modes.isOutline(path)`. Unlike the motion handlers it never calls `outlinePathOf`, which
+is what carries the `isNestedEditor` check. `editorInfoField` resolves to the same outer
+note inside a cell (`nested-editor.ts` says so explicitly), so the gate passes and
+`planKey(view.state.doc.toString(), ...)` runs against the CELL's document. The cell's text
+`a` parses as one paragraph with no previous sibling, which is where the rejection comes
+from — our own message, for a document the user never sees.
+
+The command path is immune by construction: `runOp` reads `editor.getValue()` through
+Obsidian's public `Editor` API, which always resolves to the host note regardless of where
+focus sits. That is why a bound hotkey works while the arrow binding does not.
+
+The decisive probe for the keymap path: with the caret on a table line,
+`activeElement.closest('.cm-embed-block')` is non-null and the focused element's whole text
+is `"a"` — a single cell. Focus is in the nested per-cell editor from the moment the caret
+arrives, not after a later press.
+
+This affects every key routed through `makeHandler` — Tab, Shift+Tab, Alt+Arrow, Enter —
+and it is quiet rather than loud, because it produces a plausible outline rejection instead
+of an error.
+
+*(An earlier version of this entry claimed "a table cannot be moved by keyboard at all
+today." That was too strong: it was measured only through the Alt+Arrow binding, and the
+exposed commands were never tried. Corrected after a real-vault report.)*
+
+**What this means for `caret-placement-policy`.** Its D5 open question — what to do when an
+operation's own SUBJECT is a focus-capturing atom — is downstream of this gate and cannot be
+reached until the gate exists. The change's own scope (bystander landings: the survivor after a
+deletion) is unaffected and still correct, since that caret is placed by a dispatch the user made
+from OUTSIDE the table. The subject-landing question should be reopened only after the gating
+defect is fixed, at which point it becomes answerable for the first time.

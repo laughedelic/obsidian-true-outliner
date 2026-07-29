@@ -27,13 +27,13 @@ describe('splitNode', () => {
   it('splits a list item mid-text; cursor after the new marker', () => {
     const { text, result } = splitOk('- alpha beta\n', '- alpha beta', { line: 0, ch: 8 });
     expect(text).toBe('- alpha \n- beta\n');
-    expect(result.cursor).toEqual({ line: 1, ch: 2 });
+    expect(result.anchor).toEqual({ line: 1, ch: 2 });
   });
 
   it('end-of-item split creates an empty item node', () => {
     const { text, result } = splitOk('- alpha\n- omega\n', '- alpha', { line: 0, ch: 7 });
     expect(text).toBe('- alpha\n- \n- omega\n');
-    expect(result.cursor).toEqual({ line: 1, ch: 2 });
+    expect(result.anchor).toEqual({ line: 1, ch: 2 });
   });
 
   it('a parent with children puts the remainder as its new FIRST CHILD (amendment 2026-07-21)', () => {
@@ -46,7 +46,7 @@ describe('splitNode', () => {
     expect(text).toBe('- parent \n\t- text\n\t- child\n');
     const doc = parse(text);
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['\t- text', '\t- child']);
-    expect(result.cursor).toEqual({ line: 1, ch: 3 });
+    expect(result.anchor).toEqual({ line: 1, ch: 3 });
   });
 
   it('a paragraph with a child list splits its remainder into a first child list item', () => {
@@ -59,13 +59,13 @@ describe('splitNode', () => {
   it('end-of-node split of a parent creates an empty first child item', () => {
     const { text, result } = splitOk('- parent\n\t- child\n', '- parent', { line: 0, ch: 8 });
     expect(text).toBe('- parent\n\t- \n\t- child\n');
-    expect(result.cursor).toEqual({ line: 1, ch: 3 });
+    expect(result.anchor).toEqual({ line: 1, ch: 3 });
   });
 
   it('splits a paragraph mid-text with blank separation', () => {
     const { text, result } = splitOk('one two\n\nafter\n', 'one two', { line: 0, ch: 4 });
     expect(text).toBe('one \n\ntwo\n\nafter\n');
-    expect(result.cursor).toEqual({ line: 2, ch: 0 });
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
   });
 
   it('end-of-paragraph split yields a gap and cursor, no phantom node', () => {
@@ -74,7 +74,7 @@ describe('splitNode', () => {
     // Two blanks: the cursor line is blank-separated on both sides, so
     // typing there creates a sibling instead of rejoining a neighbor.
     expect(text).toBe('thought\n\n\n\nnext\n');
-    expect(result.cursor).toEqual({ line: 2, ch: 0 });
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
     // Same node count — the sibling materializes when the user types.
     expect([...walkNodes(result.doc)].length).toBe([...walkNodes(parse(md))].length);
   });
@@ -114,7 +114,7 @@ describe('splitNode', () => {
     const doc = parse(text);
     expect(doc.children[0]!.lines[0]).toBe('# Hello ');
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['world']);
-    expect(result.cursor).toEqual({ line: 1, ch: 0 });
+    expect(result.anchor).toEqual({ line: 1, ch: 0 });
   });
 
   it('splits a heading with an existing paragraph child, separated by a blank line', () => {
@@ -139,7 +139,7 @@ describe('splitNode', () => {
     // "blank-separated on both sides" guarantee paragraphs already get.
     const { text, result } = splitOk('# Head\n\nBody.\n', '# Head', { line: 0, ch: 6 });
     expect(text).toBe('# Head\n\n\n\nBody.\n');
-    expect(result.cursor).toEqual({ line: 2, ch: 0 });
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
   });
 
   it('rejects a split on a setext heading\'s underline line', () => {
@@ -169,7 +169,7 @@ describe('splitNode', () => {
     expect(head.setext).toBe(true);
     expect(head.lines).toEqual(['Hello ', '====']);
     expect(head.children.map((n) => n.lines[0])).toEqual(['world']);
-    expect(result.cursor).toEqual({ line: 2, ch: 0 });
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
   });
 
   it('splits a setext heading with an existing paragraph child, underline stays attached, separator inserted', () => {
@@ -194,7 +194,7 @@ describe('splitNode', () => {
     expect(text).toBe('Head\n====\n\n\n\nBody.\n');
     const doc = parse(text);
     expect(doc.children[0]!.lines).toEqual(['Head', '====']);
-    expect(result.cursor).toEqual({ line: 3, ch: 0 });
+    expect(result.anchor).toEqual({ line: 3, ch: 0 });
   });
 
   it('merging a list item into a heading then splitting back out preserves the heading\'s original gap (2026-07-24 regression)', () => {
@@ -216,8 +216,8 @@ describe('splitNode', () => {
     expect(encode(merged.value.doc)).toBe('# Headitem1\n\n- item2\n');
 
     const freshDoc = parse(encode(merged.value.doc));
-    const nodeAtCursor = nodeAtLine(freshDoc, merged.value.cursor.line)!;
-    const split = splitNode(freshDoc, nodeAtCursor.id, merged.value.cursor);
+    const nodeAtCursor = nodeAtLine(freshDoc, merged.value.anchor.line)!;
+    const split = splitNode(freshDoc, nodeAtCursor.id, merged.value.anchor);
     if (!split.ok) throw new Error(`split rejected: ${split.rejection.reason}`);
     expect(encode(split.value.doc)).toBe('# Head\n\n- item1\n- item2\n');
   });

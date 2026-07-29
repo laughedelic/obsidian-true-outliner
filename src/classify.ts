@@ -127,32 +127,23 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   'input.paste.structural',
 ];
 
-/**
- * The subset of the above whose resulting cursor is a CHOICE rather than a
- * function of the pre-operation caret: a merge's join point, a split point, a
- * moved node's new location, the survivor after a deletion.
+/*
+ * `SEMANTIC_CURSOR_USER_EVENTS` / `hasSemanticCursor` lived here until
+ * `caret-placement-policy`: the subset of the above whose resulting cursor was
+ * a CHOICE rather than a function of the pre-operation caret, used to decide
+ * what the history recorder had to re-assert.
  *
- * The distinction is what decides whether CodeMirror's history can reproduce
- * the cursor on its own. Indent and outdent are excluded because they derive
- * their cursor by mapping the pre-operation caret forward
- * (`minimal-change-dispatch`), which is exactly what history recomputes on
- * redo — so the two agree by construction and recording would only add the
- * cost. Everything here disagrees, most visibly a move: reordering two
- * siblings maps a caret that was inside the moved node into whatever now
- * occupies its old lines, i.e. the OTHER node. That position is perfectly
- * addressable, so nothing downstream can detect it as wrong.
+ * Removed because the distinction is not a property of the OPERATION. Indent
+ * and outdent derive their cursor by mapping — except when the mapped position
+ * would not be addressable, where they fall back to the operation's own cursor
+ * and are choosing one after all. A list keyed on the operation left that
+ * dispatch unrecorded, and a redo put the caret back on a gap line.
  *
- * Exported for `src/plugin/history-caret.ts`'s recorder, which keys off this
- * set rather than keeping a second list that could drift from it.
+ * `history-caret.ts`'s `needsRecording` now asks the transaction directly,
+ * comparing the dispatched selection against CM6's own forward mapping at the
+ * association its redo restore uses. That subsumes this set exactly and cannot
+ * drift from the dispatch sites, because there is no list to maintain.
  */
-export const SEMANTIC_CURSOR_USER_EVENTS: readonly string[] = PLUGIN_OWN_USER_EVENTS.filter(
-  (event) => event !== 'input.structure.indent' && event !== 'input.structure.outdent',
-);
-
-/** Whether this operation chooses its own cursor (see above). */
-export function hasSemanticCursor(userEvent: string | undefined): boolean {
-  return SEMANTIC_CURSOR_USER_EVENTS.some((prefix) => matchesEvent(userEvent, prefix));
-}
 
 /** CM6's own `Transaction.isUserEvent` semantics, reimplemented on plain
  * strings (dot-namespaced prefix match) so this module stays CM6-import-

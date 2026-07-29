@@ -21,9 +21,12 @@ import { EditorSelection, EditorState, Transaction } from '@codemirror/state';
 import { history, redo, undo } from '@codemirror/commands';
 import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
-import { moveUp } from '../src/ops';
+import { indent, moveUp } from '../src/ops';
 import { applyEdits } from '../src/result';
 import { editsToChanges } from '../src/plugin/dispatch';
+import { planKey } from '../src/plugin/grammar';
+import { isAddressable } from '../src/caret';
+import { needsRecording } from '../src/plugin/record-decision';
 
 function offsetOf(lines: readonly string[], line: number, ch: number): number {
   let acc = 0;
@@ -80,7 +83,7 @@ describe('a moved node keeps its cursor across undo/redo', () => {
     if (!result.ok) throw new Error('move rejected');
     const changes = editsToChanges(lines, result.value.edits);
     const newLines = applyEdits(lines, result.value.edits);
-    const opCursor = offsetOf(newLines, result.value.cursor.line, result.value.cursor.ch);
+    const opCursor = offsetOf(newLines, result.value.anchor.line, result.value.anchor.ch);
 
     let state = EditorState.create({
       doc: DOC,
@@ -135,5 +138,180 @@ describe('a moved node keeps its cursor across undo/redo', () => {
     undo(view);
     redo(view);
     expect(lineAt(view.state)).toBe('- a');
+  });
+});
+
+/**
+ * The recording decision itself (`needsRecording`), tested directly.
+ *
+ * This replaces `hasSemanticCursor`'s string-level tests in
+ * tests/classify.test.ts. Testing it directly matters for the reason that
+ * file already recorded: the history tests below build the re-assertion
+ * themselves, so they stay green whether or not the predicate selects the
+ * right dispatches. Getting it wrong is silent in both directions — missing a
+ * move reinstates a redo that lands on the wrong node, and recording an
+ * ordinary indent subjects an operation that is currently exact at any depth
+ * to the second-undo limitation.
+ */
+describe('needsRecording: which DISPATCHES have their cursor recorded', () => {
+  const doc = '- a\n- b\n';
+
+  /** A transaction dispatching `selection` alongside `changes`. */
+  function dispatch(
+    changes: { from: number; to?: number; insert: string },
+    selection: number,
+    userEvent: string | undefined,
+    startSelection = 0,
+  ): Transaction {
+    const state = EditorState.create({
+      doc,
+      selection: EditorSelection.cursor(startSelection),
+    });
+    return state.update({
+      changes,
+      selection: EditorSelection.cursor(selection),
+      ...(userEvent === undefined ? {} : { userEvent }),
+    });
+  }
+
+  it('records a dispatch whose cursor is NOT what mapping would produce', () => {
+    // Caret inside `- b` (offset 6), dispatched back to `- a`'s content — a
+    // move's "follow that node", which mapping cannot reproduce.
+    const tr = dispatch({ from: 0, to: 7, insert: '- b\n- a' }, 2, 'move.structure', 6);
+    expect(needsRecording(tr)).toBe(true);
+  });
+
+  it('does NOT record a dispatch whose cursor IS the mapped position', () => {
+    // An indent: pure insertion before the caret, cursor mapped forward.
+    const state = EditorState.create({ doc, selection: EditorSelection.cursor(6) });
+    const changes = { from: 4, to: 4, insert: '  ' };
+    const mapped = state.update({ changes }).changes.mapPos(6, 1);
+    const tr = state.update({
+      changes,
+      selection: EditorSelection.cursor(mapped),
+      userEvent: 'input.structure.indent',
+    });
+    expect(needsRecording(tr)).toBe(false);
+  });
+
+  it('DOES record an indent that falls back — the gap this change closes', () => {
+    // Same operation, but the dispatched cursor is the op's own rather than
+    // the mapped one. Keyed per operation this was invisible; keyed per
+    // dispatch it is recorded.
+    const state = EditorState.create({ doc, selection: EditorSelection.cursor(6) });
+    const changes = { from: 4, to: 4, insert: '  ' };
+    const mapped = state.update({ changes }).changes.mapPos(6, 1);
+    const tr = state.update({
+      changes,
+      selection: EditorSelection.cursor(mapped === 2 ? 4 : 2),
+      userEvent: 'input.structure.indent',
+    });
+    expect(needsRecording(tr)).toBe(true);
+  });
+
+  it('subsumes the old per-operation set: every chooser still records', () => {
+    for (const event of [
+      'move.structure',
+      'input.structure.split',
+      'delete.structural',
+      'delete.structural.merge',
+      'input.paste.structural',
+    ]) {
+      const tr = dispatch({ from: 0, to: 7, insert: '- b\n- a' }, 2, event, 6);
+      expect(needsRecording(tr), event).toBe(true);
+    }
+  });
+
+  it('ignores foreign, history and ordinary editing dispatches entirely', () => {
+    for (const event of ['undo', 'redo', 'input.type', 'select', undefined]) {
+      const tr = dispatch({ from: 0, to: 7, insert: '- b\n- a' }, 2, event, 6);
+      expect(needsRecording(tr), String(event)).toBe(false);
+    }
+  });
+
+  it('ignores a selection-only transaction, however it is annotated', () => {
+    const state = EditorState.create({ doc, selection: EditorSelection.cursor(0) });
+    const tr = state.update({
+      selection: EditorSelection.cursor(6),
+      userEvent: 'move.structure',
+    });
+    expect(needsRecording(tr)).toBe(false);
+  });
+
+  it('matches dot-namespaced suffixes, as CM6 userEvent semantics require', () => {
+    expect(needsRecording(dispatch({ from: 0, to: 7, insert: '- b\n- a' }, 2, 'move.structure.up', 6))).toBe(true);
+    // …but not a different event that merely shares a prefix string.
+    expect(needsRecording(dispatch({ from: 0, to: 7, insert: '- b\n- a' }, 2, 'move.structureXYZ', 6))).toBe(false);
+  });
+});
+
+/**
+ * The gap `caret-placement-policy` closes (`structural-history-integration`'s
+ * former "Known limitation" second paragraph).
+ *
+ * Indent and outdent fall back to the operation's own cursor when the mapped
+ * position would not be caret-addressable — reachable by invoking them with a
+ * whole-block cover selected, whose head sits on the trailing gap line the
+ * cover owns. Keyed on the OPERATION, that fallback went unrecorded, so redo
+ * recomputed the mapped position and put the caret back on the gap line.
+ * Keyed on the DISPATCH, it is recorded like any other chosen cursor.
+ */
+describe('an indent whose addressability fallback fires survives redo', () => {
+  // A cover of `para` and its owned gap line: the head sits on line 1, which
+  // is a gap and therefore not caret-addressable.
+  const TEXT = 'first\n\npara\n\nlast\n';
+
+  function indentWithCoverHead() {
+    const lines = TEXT.split('\n');
+    const doc = parse(TEXT);
+    const node = [...walkNodes(doc)].find((n) => n.lines[0] === 'para')!;
+    // The head a block cover would leave behind: the gap line it owns.
+    const coverHead = { line: 3, ch: 0 };
+
+    const outcome = planKey(TEXT, coverHead, 'indent');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    const op = indent(doc, node.id);
+    if (!op.ok) throw new Error('indent rejected');
+    const newLines = applyEdits(lines, op.value.edits);
+
+    const preOffset = offsetOf(lines, coverHead.line, coverHead.ch);
+    let state = EditorState.create({
+      doc: TEXT,
+      selection: EditorSelection.cursor(preOffset),
+      extensions: [history()],
+    });
+    const tr = state.update({
+      changes: outcome.plan.changes.map((c) => ({
+        from: offsetOf(lines, c.from.line, c.from.ch),
+        to: offsetOf(lines, c.to.line, c.to.ch),
+        insert: c.text,
+      })),
+      selection: EditorSelection.cursor(outcome.plan.selection),
+      userEvent: outcome.plan.userEvent,
+      annotations: Transaction.addToHistory.of(true),
+    });
+    return { tr, dispatched: outcome.plan.selection, newLines, state: tr.state };
+  }
+
+  it('the dispatched caret is addressable, not the mapped gap position', () => {
+    const { dispatched, newLines } = indentWithCoverHead();
+    const pos = posOf(newLines, dispatched);
+    expect(isAddressable(parse(newLines.join('\n')), pos)).toBe(true);
+  });
+
+  it('that dispatch IS recorded, where the per-operation rule left it unrecorded', () => {
+    const { tr } = indentWithCoverHead();
+    expect(tr.annotation(Transaction.userEvent)).toBe('input.structure.indent');
+    expect(needsRecording(tr)).toBe(true);
+  });
+
+  it('so redo restores the fallback position rather than recomputing the mapped one', () => {
+    const { dispatched, state } = indentWithCoverHead();
+    // What the recorder dispatches for a transaction needing it.
+    const recorded = state.update({ selection: state.selection }).state;
+    const view = makeView(recorded);
+    undo(view);
+    redo(view);
+    expect(view.state.selection.main.head).toBe(dispatched);
   });
 });
