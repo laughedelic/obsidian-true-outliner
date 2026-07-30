@@ -130,14 +130,23 @@ rule; the per-line and whole-span branches are stated as before, just scoped per
 
 Interactions checked rather than assumed:
 
-- **Cursor mapping** (`mapCursorForward`, indent/outdent only). Their change sets are
-  unaffected — an indent region has no unique unchanged lines to anchor on, so it stays one
-  run and the per-line branch produces byte-identical output. The `minimal-change-history`
-  property tests over generated trees pass unchanged.
+- **Cursor mapping** (`mapCursorForward`, indent/outdent only). Usually an indent region has
+  no unique unchanged lines to anchor on, so it stays one run and the per-line branch produces
+  byte-identical output. Not always, though: shift a subtree whose lines repeat and each line's
+  new text IS the next line's old text, so the middle lines come out unique on BOTH sides and
+  the region does anchor. That is what the relocation evidence and the whole-run cost fallback
+  are for — see the risks below — and what `plugin.test.ts`' repeated-chain regression and the
+  property that generalises it cover. The `minimal-change-history` property tests over
+  generated trees pass unchanged.
 - **Ordering and non-overlap.** Runs are produced in ascending order by construction and never
   overlap, which the existing requirement demands and `mapCursorForward` relies on.
-- **Undo granularity.** One transaction, unchanged. The palette's deliberate two-transaction
-  shape is untouched.
+- **Undo granularity.** One transaction on the keyboard path, unchanged. The palette's shape
+  DID have to change: its change and its cursor now travel together, with the selection-only
+  transaction kept afterwards purely for the undo grouping it was always there to provide.
+  Leaving the cursor alone in its own transaction stopped being safe once a move no longer
+  rewrites the table it passes — the widget survives, so the window between the two
+  transactions became a window in which something reads a new cursor against an old document.
+  See `editor-structural-commands`' amendment.
 - **Selection and enforcement.** The enforcement rewrite path shares this choke point and
   simply gets better-shaped change sets; its e2e specs pass unchanged.
 

@@ -609,7 +609,10 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
       candidate.flatMap((run) => changesForRun(lines, edit.insert, run, asExplanation)),
     );
 
-  return explains([wholeRun]) < explains(runs)
+  // A tie goes to the in-place reading. The alignment is only worth adopting
+  // for what it saves, and on equal characters it saves nothing while claiming
+  // a different shape for the same edit.
+  return explains([wholeRun]) <= explains(runs)
     ? changesForRun(lines, edit.insert, wholeRun, sides)
     : runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
 }
@@ -628,8 +631,10 @@ function offsetOf(lines: readonly string[], pos: EditorPos): number {
  * Map `oldPos` (a position in the pre-op buffer `lines`) forward through
  * `changes` (as produced by `editsToChanges` — ascending, non-overlapping)
  * to its corresponding flat character offset in the resulting text, using
- * assoc=1: a position sitting exactly at a change's boundary lands AFTER
- * that change's inserted text, never before it.
+ * assoc=1: a position sitting exactly at a change's boundary lands AFTER that
+ * change's inserted text, never before it — with one exception CM6 itself
+ * makes, at the START of a REPLACEMENT, where the position stays put. See the
+ * boundary case below.
  *
  * This is not an arbitrary choice — it is the ONLY assoc that keeps a live
  * dispatch and a later redo of the same transaction in agreement.
