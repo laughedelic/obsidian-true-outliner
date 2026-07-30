@@ -1,7 +1,11 @@
 /**
  * The caret placement policy (`caret-placement-policy`): each of the four
- * cases, the deletion convention's fallbacks, every rung of the atom ladder,
- * and the recording predicate.
+ * cases, the deletion convention's fallbacks, and every rung of the atom
+ * ladder.
+ *
+ * NOT the recording predicate — that moved to `tests/history-caret.test.ts`,
+ * because deciding it needs a real `Transaction` and whole selections, which
+ * this module deliberately does not see.
  *
  * These test the PURE decision. The dispatch-level consequences — what the
  * grammar and the enforcement layer actually send to the editor — live in
@@ -80,6 +84,41 @@ describe('planCaret: the deletion convention', () => {
       { before, after: result.value.doc, anchor: result.value.anchor },
     );
     expect(plan.caret).toEqual({ line: 0, ch: 0 });
+  });
+
+  it('emptying a note whose frontmatter has NO trailing blank lands at the document end', () => {
+    // Review (PR #33, round 2): `{lastLine, ch: 0}` here is the START of the
+    // closing `---`, where typing corrupts the delimiter. The scope start when
+    // nothing remains is the END of what is left.
+    const before = parse('---\nt: 1\n---\nbody\n');
+    const ids = [...walkNodes(before)].map((n) => n.id);
+    const result = deleteSubtrees(before, ids);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const lines = encode(result.value.doc).split('\n');
+
+    // The op's ANCHOR must also be a real position — it is a public structural
+    // coordinate, and it used to be one line past the end.
+    expect(result.value.anchor.line).toBeLessThan(lines.length);
+
+    const plan = planCaret(
+      { kind: 'deletion', removed: ids },
+      { before, after: result.value.doc, anchor: result.value.anchor },
+    );
+    expect(plan.caret).toEqual({ line: 2, ch: '---'.length });
+    expect(lines[plan.caret.line]).toBe('---');
+  });
+
+  it('the usual frontmatter (with a trailing blank) still lands on that blank line', () => {
+    const before = parse('---\nt: 1\n---\n\nbody\n');
+    const ids = [...walkNodes(before)].map((n) => n.id);
+    const result = deleteSubtrees(before, ids);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const plan = planCaret(
+      { kind: 'deletion', removed: ids },
+      { before, after: result.value.doc, anchor: result.value.anchor },
+    );
+    // Same rule — "the end of what remains" — which here is the blank line at 0.
+    expect(plan.caret).toEqual({ line: 3, ch: 0 });
   });
 
   it('with no predecessor it does NOT read the anchor, which a later group can invalidate', () => {
@@ -264,17 +303,26 @@ describe('the deletion convention answers positionally across a re-parse', () =>
  * spliced in at a top-level boundary and, half the time, frontmatter on top.
  */
 const TABLE_LINES = ['| a | b |', '| - | - |', '| 1 | 2 |', ''];
-const PREAMBLE_LINES = ['---', 'title: x', '---', ''];
+// Two frontmatter shapes. The no-separator variant matters: with it, the last
+// line of a preamble-only result is the non-empty closing delimiter, so
+// "scope start" is not `{lastLine, 0}` — review found the earlier fix clamped
+// the line but left the column at 0, i.e. the START of `---`.
+const PREAMBLE_VARIANTS = [
+  ['---', 'title: x', '---', ''],
+  ['---', 'title: x', '---'],
+] as const;
 
 const arbTreeWithTable = (): fc.Arbitrary<OutlineDoc> =>
-  fc.tuple(arbTree(), fc.nat(), fc.boolean()).map(([tree, at, withPreamble]) => {
+  fc.tuple(arbTree(), fc.nat(), fc.nat()).map(([tree, at, preambleSeed]) => {
     const text = encode(tree);
     const lines = text === '' ? [] : text.split('\n');
     const doc = parse(text);
     const starts = doc.children.map((n) => nodeStartLine(doc, n.id)).filter((l) => l >= 0);
     const insertAt = starts.length === 0 ? 0 : starts[at % starts.length]!;
     const withTable = [...lines.slice(0, insertAt), ...TABLE_LINES, ...lines.slice(insertAt)];
-    return parse([...(withPreamble ? PREAMBLE_LINES : []), ...withTable].join('\n'));
+    const variant = preambleSeed % 3; // 0 = none, 1 = with blank, 2 = no blank
+    const pre = variant === 0 ? [] : PREAMBLE_VARIANTS[variant - 1]!;
+    return parse([...pre, ...withTable].join('\n'));
   });
 
 /** Is `pos` a real position in `doc`'s own text? */

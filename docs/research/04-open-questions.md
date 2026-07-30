@@ -1860,9 +1860,17 @@ tr.startState.selection.map(tr.changes, 1).eq(tr.newSelection)   // → no recor
 
 `assoc = 1` is not a preference — it is the association `@codemirror/commands` hardcodes in
 its redo restore, so this asks CM6's own mapping the exact question that matters: *is the
-dispatched selection what redo would recompute?* It subsumes the old set exactly (a chosen
-cursor never equals the mapped one; a derived cursor always does), closes the fallback case,
-and cannot drift from the dispatch sites because there is no list to maintain.
+dispatched selection what redo would recompute?* It preserves the guarantee the old set
+existed for — redo is exact wherever the list made it exact — closes the fallback case, and
+cannot drift from the dispatch sites because there is no list to maintain.
+
+Worth stating precisely, because the first version of this note got it wrong: the new rule
+is not set-equal to the old one, it records strictly FEWER transactions. A chosen position
+sometimes coincides with the mapped one — splitting `- alpha beta` before `beta` inserts
+`\n- ` at the caret, and assoc=1 maps that caret onto the new item's content start, the
+split's own anchor (measured: both offset 11). The name-based list recorded that anyway;
+recording it buys nothing and costs second-undo precision, so skipping it is the rule
+working, not a regression.
 
 Two things this depends on, both now executable rather than prose:
 

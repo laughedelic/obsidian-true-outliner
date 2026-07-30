@@ -43,7 +43,16 @@ import {
 export type CaretOp =
   /** indent, outdent — the pre-op position mapped forward. */
   | { readonly kind: 'derived' }
-  /** move up/down, heading level shift — the subject node's content start. */
+  /**
+   * move up/down — the subject node's content start; also the fallback for a
+   * `derived` dispatch whose mapped position is not addressable.
+   *
+   * NOT heading level shifts, despite the obvious reading: a heading's Tab and
+   * Shift+Tab go through `indent`/`outdent`, and both adapters classify those
+   * as `derived` unconditionally, so the heading keeps its column like any
+   * other indent. Listing it here (as an earlier draft did) advertised
+   * behaviour no dispatch site produces.
+   */
   | { readonly kind: 'subject' }
   /** split, merge, structural paste — an interior position only the op knows. */
   | { readonly kind: 'exact' }
@@ -212,25 +221,20 @@ function deletionCaret(facts: PlacementFacts, removed: readonly number[]): LineP
   if (following) return nodeContentStart(facts.after, following);
 
   // Neither exists — the deletion consumed every node, leaving an empty or
-  // preamble-only document. The scope start is the first position after the
-  // preamble, but on a preamble-only result that is one line PAST the end:
-  // frontmatter carries its own trailing blank, so `preamble.length` equals the
-  // line count. Clamp to the last real line. (Found by the property test in
-  // tests/caret-policy.test.ts once it was extended to generate frontmatter —
-  // the earlier version only ever deleted from documents without a preamble.)
-  const lineCount = countLines(facts.after);
-  return { line: Math.min(facts.after.preamble.length, Math.max(lineCount - 1, 0)), ch: 0 };
-}
-
-/** Lines in `doc`'s own encoding, without building the text. */
-function countLines(doc: OutlineDoc): number {
-  let count = doc.preamble.length;
-  const walk = (node: OutlineNode): void => {
-    count += node.lines.length + node.trailingGap.length;
-    node.children.forEach(walk);
-  };
-  doc.children.forEach(walk);
-  return count;
+  // preamble-only document. The honest position is the very END of what
+  // remains, which for the usual frontmatter (its own trailing blank line) is
+  // that blank line at column 0, and for frontmatter written with no blank
+  // separator is the end of the closing `---`.
+  //
+  // Both halves were wrong before: the line was `preamble.length`, one PAST the
+  // last line when the preamble has no trailing blank, and the column was a
+  // flat 0, which put the caret at the START of the closing delimiter where
+  // typing would corrupt it. Found by review after an earlier fix clamped the
+  // line but left the column (docs/research/13); the generator could not catch
+  // it because it only ever produced frontmatter WITH a trailing blank.
+  const pre = facts.after.preamble;
+  if (pre.length === 0) return { line: 0, ch: 0 };
+  return { line: pre.length - 1, ch: (pre[pre.length - 1] ?? '').length };
 }
 
 /** The removed node that comes first in document order. */

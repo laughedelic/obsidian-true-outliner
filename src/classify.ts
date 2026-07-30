@@ -141,8 +141,12 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
  *
  * `history-caret.ts`'s `needsRecording` now asks the transaction directly,
  * comparing the dispatched selection against CM6's own forward mapping at the
- * association its redo restore uses. That subsumes this set exactly and cannot
- * drift from the dispatch sites, because there is no list to maintain.
+ * association its redo restore uses. That preserves what this set existed for —
+ * redo restores the dispatched cursor — while recording strictly fewer
+ * transactions: an operation on this list whose chosen position happens to
+ * equal the mapped one (a split inserting its marker at the caret) no longer
+ * pays for a recording that would change nothing. And it cannot drift from the
+ * dispatch sites, because there is no list to maintain.
  */
 
 /** CM6's own `Transaction.isUserEvent` semantics, reimplemented on plain

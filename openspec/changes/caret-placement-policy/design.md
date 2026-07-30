@@ -66,8 +66,12 @@ the table, which is why atom avoidance is a separate rule rather than a conseque
 **Goals:**
 
 - One module answers "given an operation, the document before and after, and the
-  pre-operation selection: where does the caret go, and can redo recompute it or must it
-  be recorded?" Every dispatch site calls it; none re-implements it.
+  pre-operation selection mapped forward: where does the caret go?" Every dispatch site
+  calls it; none re-implements it.
+- Whether that caret must be RECORDED has its own single owner, at the transaction level.
+  Review found these cannot be the same module: recording compares whole SELECTIONS, and
+  the placement policy only ever sees one caret and the position it was mapped from, so a
+  non-empty pre-operation selection makes the two comparisons disagree.
 - The deletion caret gets a stated convention that agrees with merge, with gap ownership,
   and with `resolvePlacement` — and stops alternating between the next and previous node.
 - A structural operation stops leaving the caret somewhere that transfers focus out of the
@@ -103,7 +107,7 @@ unit-testable, with the CM6 adapters reduced to offset arithmetic and fact-gathe
 ```ts
 export type CaretOp =
   | { kind: 'derived' }                                   // indent, outdent
-  | { kind: 'subject' }                                   // move, heading level shift
+  | { kind: 'subject' }                                   // move (also the derived fallback)
   | { kind: 'exact' }                                     // split, merge, paste
   | { kind: 'deletion'; removed: readonly number[] };     // structural delete
 
@@ -116,8 +120,8 @@ export interface PlacementFacts {
 
 export interface CaretPlan {
   readonly caret: LinePos;
-  /** True iff `caret` differs from `mapped` — see D6. */
-  readonly record: boolean;
+  // No `record` flag: see D6 — the recording decision needs whole selections,
+  // which this module does not have, so it lives at the transaction level.
 }
 
 export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan;
@@ -133,7 +137,8 @@ rather than something inferred from a `userEvent` string. The four cases are:
   point, a split point, the end of an inserted run) that only it knows.
 - `deletion` — D3.
 
-Every branch then passes through D5's atom guard and D6's recording test.
+A `deletion` landing then passes through D5's atom guard; the other three do not, since
+they land on the node the user acted on rather than on a bystander.
 
 **Alternative considered: fold the policy into `ops.ts`.** Rejected — `ops.ts` has no
 access to the pre-operation selection or the mapped position, which two of the four cases
@@ -221,7 +226,8 @@ reverted without leaving the note.
 **Rule.** The policy takes a set of FOCUS-CAPTURING node kinds — kinds whose interior the
 host renders as a widget with its own editor. Today that set is `{ table }`, on the
 evidence in `nested-editor.ts`; it is a stated policy input so a second kind can be added
-with its own measurement rather than by guesswork. When a `deletion` or `subject` landing
+with its own measurement rather than by guesswork. When a BYSTANDER landing (today, the
+`deletion` case — the scope note below explains why `subject` is excluded)
 computed above falls inside a focus-capturing node, the policy tries, in order: the
 following node's content start, then the nearest non-capturing node walking backward in
 document order, then the nearest walking forward. If every candidate is capturing, the
@@ -244,13 +250,22 @@ rendering, and there is no public API to decline it.
 ### D6: Recording is decided per dispatch, and derived rather than declared
 
 **Rule.** Record the dispatched cursor into history whenever it is NOT what mapping would
-produce. `CaretPlan.record` states it for the pure layer; `history-caret.ts` decides it
-from the transaction itself.
+produce. `record-decision.ts`'s `needsRecording(tr)` is the sole owner, deciding from the
+transaction itself. The pure policy deliberately does NOT restate it: a caret-vs-mapped
+comparison is not equivalent to a selection-vs-selection one for a non-empty pre-operation
+selection, and two answers to one question is what this change exists to remove.
 
-This subsumes today's `SEMANTIC_CURSOR_USER_EVENTS` exactly — a chosen cursor never equals
-the mapped one, a derived cursor always does — and closes the open gap for free: when
-indent's addressability fallback fires, that dispatch is choosing a cursor, and gets
-recorded even though its operation is on the "derived" side.
+This preserves what `SEMANTIC_CURSOR_USER_EVENTS` existed for — redo is exact wherever the
+list made it exact — and closes the open gap for free: when indent's addressability
+fallback fires, that dispatch is choosing a cursor, and gets recorded even though its
+operation is on the "derived" side.
+
+It is NOT set-equal to the old list, and should not be described as such. It records
+strictly fewer transactions, because a chosen position sometimes coincides with the mapped
+one: splitting `- alpha beta` before `beta` inserts `\n- ` at the caret, and assoc=1 maps
+that caret onto the new item's content start — the split's own anchor (measured, both
+offset 11). The list recorded that anyway; recording it changes nothing and costs
+second-undo precision, so skipping it is the rule working.
 
 **Mechanism: derive it, do not thread it.** `SemanticCursorRecorder` already observes every
 update. For a plugin-own, document-changing transaction it can ask CodeMirror the question
@@ -309,7 +324,8 @@ jurisdiction as a side effect, which was tried during `content-space-caret` and 
 Three layers, in the project's established style:
 
 1. **Pure unit tests for `caret-policy.ts`**: each branch, the deletion convention's
-   fallbacks, the atom guard's candidate ladder, and the `record` predicate.
+   fallbacks, and the atom guard's candidate ladder. The recording predicate is tested
+   separately in `tests/history-caret.test.ts`, against a real `Transaction`.
 2. **A property test over generated trees**: every caret this plugin dispatches is
    addressable, and no dispatched caret lies inside a focus-capturing node when the
    landing is a bystander. This generalises the invariant docs/research/04 Q29 says is

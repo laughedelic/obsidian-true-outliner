@@ -24,9 +24,11 @@ whether the DISPATCHED cursor is what mapping would produce:
   The command-palette path records as a side effect of keeping consecutive commands in
   separate undo steps, but records the same value mapping would give, so the two paths
   behave identically (see `editor-structural-commands`).
-- **Every other dispatch** carries a cursor no mapping can reproduce, so it is recorded —
-  see "An operation that chooses its own cursor has it recorded in history" below, whose
-  rule is now stated per dispatch rather than per operation.
+- **A dispatch whose cursor mapping cannot reproduce** is recorded — see "An operation that
+  chooses its own cursor has it recorded in history" below, whose rule is now stated per
+  dispatch rather than per operation. Which operations that covers is not fixed in advance:
+  a split, merge or deletion whose position happens to coincide with the mapped one needs
+  no recording and gets none.
 
 UNDO is guaranteed only for the FIRST undo following an operation. Both mechanisms have
 a documented cost at greater depth, stated in "Known limitation" below; neither is
@@ -83,10 +85,13 @@ list of operation names. A per-operation list is insufficient in a measurable wa
 operation can dispatch a derived cursor most of the time and a chosen one when its
 addressability fallback fires, and a list leaves the second case unrecorded.
 
-The derived rule SHALL subsume the previous per-operation set exactly. A merge's join
-point, a split point, a moved node's new location and the seam after a deletion are never
-what mapping produces, so they are recorded as before; an ordinary indent or outdent
-always is, so it is still not recorded and keeps its exactness in both directions.
+The derived rule SHALL preserve the previous set's BEHAVIOUR rather than its membership.
+Every dispatch mapping cannot reproduce is recorded, so redo stays exact wherever the list
+made it exact. It may record fewer transactions: a merge join point, a moved node's new
+location and the seam after a deletion are not what mapping produces and are recorded as
+before, but a split point CAN coincide with the mapped position (a mid-item split inserts
+its marker at the caret, which assoc=1 maps onto the new item's content start), and such a
+dispatch is correctly left unrecorded — redo already reproduces it.
 
 Recording is required because no rule applied AFTER the fact can recover the position. A
 reordering maps a caret that was inside the moved node into whatever now occupies its old
@@ -122,8 +127,10 @@ reachable by any selection this plugin can dispatch: the event a second undo rea
 position from is created on CodeMirror history's *undone* branch, and the only channel
 for recording a selection writes to the *done* branch.
 
-**Recorded dispatches** (move, split, merge, paste, structural delete, and an indent or
-outdent whose addressability fallback fired). The second undo restores the RECORDED
+**Recorded dispatches** — those whose dispatched selection differs from the mapped one,
+which in practice covers moves, most merges, pastes and structural deletes, an indent or
+outdent whose addressability fallback fired, and those splits whose point does not coincide
+with mapping. The second undo restores the RECORDED
 cursor, i.e. where the operation left the caret, rather than where the caret was before
 the operation. This is the accepted cost of recording, taken deliberately: without it,
 redo lands on the wrong node every single time for a reordering, which is the worse of

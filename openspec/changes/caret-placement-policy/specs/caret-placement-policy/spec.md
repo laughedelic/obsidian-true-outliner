@@ -24,8 +24,8 @@ The procedure SHALL distinguish four cases, and nothing else:
 
 - **Derived** (indent, outdent): the pre-operation position mapped forward, used only when
   it is caret-addressable, otherwise the subject rule below.
-- **Subject** (move up/down, heading level shift): the operation's subject node, at its
-  content start.
+- **Subject** (move up/down): the operation's subject node, at its content start. Also the
+  fallback for a derived dispatch whose mapped position is not addressable.
 - **Exact** (split, merge, structural paste): the position the operation itself computed —
   a join point, a split point, the end of an inserted run — which only the operation
   knows.
@@ -144,9 +144,13 @@ measurable: when indent or outdent falls back to the operation's own cursor beca
 mapped position would not be addressable, that particular dispatch is choosing a cursor,
 and a per-operation list leaves it unrecorded.
 
-The rule SHALL subsume the previous per-operation set exactly — a chosen caret never
-equals the mapped one, a derived caret always does — so no operation that is recorded
-today stops being recorded.
+The rule SHALL preserve the BEHAVIOUR the previous per-operation set existed for — every
+dispatch whose cursor mapping cannot reproduce is recorded, so redo is exact wherever that
+list made it exact — rather than reproducing its membership. It MAY record strictly fewer
+transactions, and doing so is correct: an operation on the old list whose chosen position
+happens to equal the mapped one (a split that inserts its marker at the caret maps onto its
+own anchor) gains nothing from recording and would only take on the second-undo cost. What
+it SHALL NOT do is leave unrecorded any dispatch mapping cannot reproduce.
 
 #### Scenario: A move is recorded
 - **WHEN** a node is moved and the dispatched caret follows it, which mapping cannot
@@ -156,6 +160,12 @@ today stops being recorded.
 #### Scenario: An ordinary indent is not recorded
 - **WHEN** Tab indents a node and the dispatched caret is the mapped position
 - **THEN** nothing is recorded, and redo recomputes the same position by mapping
+
+#### Scenario: A chosen position that coincides with mapping is not recorded either
+- **WHEN** an operation from the old per-operation set dispatches a position that happens to
+  equal what mapping produces — a mid-item split inserting its marker at the caret
+- **THEN** nothing is recorded, because redo already recomputes that position, and the
+  recording would only add the second-undo cost
 
 #### Scenario: An indent that falls back IS recorded
 - **WHEN** Tab or Shift+Tab acts with a whole-block cover selected, so the mapped position

@@ -209,7 +209,12 @@ describe('needsRecording: which DISPATCHES have their cursor recorded', () => {
     expect(needsRecording(tr)).toBe(true);
   });
 
-  it('subsumes the old per-operation set: every chooser still records', () => {
+  // Named for what it actually checks. It reuses ONE synthetic reorder
+  // transaction for every event string, so it establishes the plugin-own
+  // userEvent gate — not that each real operation records. It cannot establish
+  // that: a real split can dispatch exactly the mapped position and is then
+  // correctly NOT recorded, which is the rule working rather than a gap.
+  it('the plugin-own gate admits every old-set event for comparison', () => {
     for (const event of [
       'move.structure',
       'input.structure.split',

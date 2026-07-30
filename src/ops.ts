@@ -112,11 +112,23 @@ export function finalize(
   // Degrade to the same scope start `subjectId === undefined` produces, so an
   // absent subject is never mistaken for a located one.
   const located = subjectId === undefined ? -1 : startLineOf(normalized, subjectId);
-  const subjectLine = located === -1 ? normalized.preamble.length : located;
+  if (located === -1) {
+    // No subject at all: the scope start. `preamble.length` is one PAST the
+    // last line whenever the preamble has no trailing blank (frontmatter
+    // written with no separator before the body), and `anchor` is a public
+    // structural position, so a direct consumer would receive a coordinate
+    // outside the document. Anchor at the end of what remains instead.
+    const lastLine = Math.max(lines.length - 1, 0);
+    return accept({
+      doc: parse(text),
+      edits: diffLines(encodeLines(oldDoc), lines),
+      anchor: { line: lastLine, ch: (lines[lastLine] ?? '').length },
+    });
+  }
   return accept({
     doc: parse(text),
     edits: diffLines(encodeLines(oldDoc), lines),
-    anchor: { line: subjectLine, ch: contentColumnCh(lines[subjectLine] ?? '') },
+    anchor: { line: located, ch: contentColumnCh(lines[located] ?? '') },
   });
 }
 
@@ -754,9 +766,12 @@ export function deleteSubtrees(doc: OutlineDoc, nodeIds: readonly number[]): OpR
  * `groups[0]` MUST be the topmost group in document order — its own
  * before/after survivor becomes the op's ANCHOR, the one group whose
  * position is guaranteed unaffected by every OTHER (necessarily later)
- * group's removal. That survivor choice (`survivorAfter ?? survivorBefore ??
- * parent`) is deliberately unchanged by `caret-placement-policy`: it is what
- * `enforce.ts` splices against, and it is no longer where the caret goes.
+ * group's removal. The PREFERENCE ORDER is unchanged by `caret-placement-policy`
+ * — following sibling, then preceding, then ancestor — and it is still what
+ * `enforce.ts` splices against rather than where the caret goes. What changed is
+ * that each candidate must actually survive the combined removal: the naive
+ * `survivorAfter` is exactly what an adjacent later group deletes, and the
+ * anchor then pointed at line 0.
  */
 export function deleteSubtreeGroups(
   doc: OutlineDoc,

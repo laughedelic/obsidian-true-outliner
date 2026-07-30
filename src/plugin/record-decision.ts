@@ -35,9 +35,18 @@ import { isPluginOwnUserEvent } from '../classify';
  * unrecorded — so redo recomputed the mapped position and put the caret back
  * on a gap line.
  *
- * The derived rule subsumes the old set exactly (a chosen cursor never equals
- * the mapped one; a derived cursor always does) and cannot drift from the
- * dispatch sites, because there is no list to keep in sync.
+ * What the derived rule guarantees is BEHAVIOURAL equivalence, not identical
+ * membership: every dispatch mapping cannot reproduce is recorded, so redo is
+ * exact wherever the old list made it exact. It can record strictly FEWER
+ * transactions, and that is a feature. A chosen position sometimes coincides
+ * with the mapped one — splitting `- alpha beta` before `beta` inserts `\n- `
+ * at the caret, and assoc=1 maps that caret onto the new item's content start,
+ * which is exactly the split's own anchor (measured: both offset 11). The old
+ * name-based list recorded it anyway; recording it buys nothing and costs the
+ * second-undo precision, so the derived rule correctly skips it.
+ *
+ * And it cannot drift from the dispatch sites, because there is no list to keep
+ * in sync.
  *
  * The `userEvent` gate keeps foreign and ordinary-typing transactions out of
  * the comparison entirely: only this plugin's own structural dispatches are
