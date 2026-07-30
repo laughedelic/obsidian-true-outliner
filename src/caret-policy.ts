@@ -65,16 +65,22 @@ export interface PlacementFacts {
 
 export interface CaretPlan {
   readonly caret: LinePos;
-  /**
-   * True when `caret` is not what mapping would produce, so CodeMirror's
-   * history cannot recompute it on redo and it must be recorded.
-   *
-   * The pure layer states it; `history-caret.ts` decides the live case by
-   * comparing against CM6's own mapping, which cannot drift from the dispatch
-   * sites the way a list of operation names can.
-   */
-  readonly record: boolean;
 }
+
+/*
+ * `CaretPlan` deliberately does NOT carry a `record` flag.
+ *
+ * An earlier version did, stating "the caret differs from the mapped position"
+ * as the pure form of the recording rule. It was not equivalent to the live
+ * decision and could not be: `record-decision.ts` compares whole SELECTIONS
+ * (the pre-op selection mapped forward against the dispatched one), while this
+ * module only ever sees a single caret and the single position it was mapped
+ * from. For a non-empty pre-operation selection — Tab with a block cover
+ * active — the recorder correctly records because a mapped range differs from a
+ * collapsed cursor, while a caret-only comparison could answer "no". Two
+ * answers to one question is the exact failure this change exists to remove, so
+ * the question has one owner: the transaction.
+ */
 
 /**
  * Node kinds whose interior the host renders as a widget carrying its OWN
@@ -92,10 +98,6 @@ export interface CaretPlan {
  * here wants the same measurement.
  */
 export const FOCUS_CAPTURING_KINDS: ReadonlySet<string> = new Set(['table']);
-
-function samePos(a: LinePos, b: LinePos): boolean {
-  return a.line === b.line && a.ch === b.ch;
-}
 
 function isCapturing(doc: OutlineDoc, pos: LinePos): boolean {
   const node = nodeAtLine(doc, pos.line);
@@ -196,12 +198,39 @@ function deletionCaret(facts: PlacementFacts, removed: readonly number[]): LineP
     const previous = previousNodeInOrder(facts.before, topmost);
     if (previous) return nodeContentEnd(facts.before, previous);
   }
-  // Nothing precedes the deleted region: the node that now follows it starts
-  // exactly where the deletion left off, which is the anchor's own line.
-  const following = nodeAtLine(facts.after, facts.anchor.line);
+  // Nothing precedes the deleted region, so the deletion started at the very
+  // beginning of node space and what follows it is simply the first node of the
+  // result.
+  //
+  // Deliberately NOT read off `facts.anchor`: the anchor names a surviving
+  // neighbour, and with several removal groups the node it named can itself
+  // have been removed by a later group. Measured before this was fixed — on a
+  // note with frontmatter, removing the first two nodes as separate groups left
+  // the anchor at line 0 (inside the preamble), and resolving from it put the
+  // caret at a list item's column 0, inside its marker.
+  const following = facts.after.children[0];
   if (following) return nodeContentStart(facts.after, following);
-  // Neither exists — the document is empty or preamble-only.
-  return { line: facts.after.preamble.length, ch: 0 };
+
+  // Neither exists — the deletion consumed every node, leaving an empty or
+  // preamble-only document. The scope start is the first position after the
+  // preamble, but on a preamble-only result that is one line PAST the end:
+  // frontmatter carries its own trailing blank, so `preamble.length` equals the
+  // line count. Clamp to the last real line. (Found by the property test in
+  // tests/caret-policy.test.ts once it was extended to generate frontmatter —
+  // the earlier version only ever deleted from documents without a preamble.)
+  const lineCount = countLines(facts.after);
+  return { line: Math.min(facts.after.preamble.length, Math.max(lineCount - 1, 0)), ch: 0 };
+}
+
+/** Lines in `doc`'s own encoding, without building the text. */
+function countLines(doc: OutlineDoc): number {
+  let count = doc.preamble.length;
+  const walk = (node: OutlineNode): void => {
+    count += node.lines.length + node.trailingGap.length;
+    node.children.forEach(walk);
+  };
+  doc.children.forEach(walk);
+  return count;
 }
 
 /** The removed node that comes first in document order. */
@@ -263,15 +292,21 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
       break;
   }
 
-  // The atom guard applies to BYSTANDER landings — a node the user did not
-  // act on. A subject landing into a focus-capturing node is a different and
-  // currently unreachable question (docs/research/13: structural keys are not
-  // gated against the nested cell editor, so a table cannot be moved by
-  // keyboard at all), left to its own change.
+  // The atom guard applies to BYSTANDER landings — a node the user did not act
+  // on. A SUBJECT landing into a focus-capturing node (moving a table) is left
+  // alone, and that case IS reachable: a hotkey bound to the exposed "Move node
+  // up/down" commands moves a table and routes the result here as `subject`
+  // (only the Alt+Arrow keymap binding is blocked, by a missing nested-editor
+  // gate — docs/research/13).
+  //
+  // Scoped out deliberately, not by accident. A bystander landing is a position
+  // the user never asked for; a subject landing is the node they just acted on,
+  // where "the caret follows the moved node" and "never enter a nested editor"
+  // are in direct conflict. Real-vault use reports moving a table this way works
+  // acceptably today. Resolving the conflict properly likely needs node identity
+  // to live somewhere other than the caret, which is the modal block-selection
+  // state the selection track parks — so it is filed, not pre-decided here.
   if (bystander) caret = avoidCapturing(facts.after, caret);
 
-  return {
-    caret,
-    record: facts.mapped === undefined || !samePos(caret, facts.mapped),
-  };
+  return { caret };
 }

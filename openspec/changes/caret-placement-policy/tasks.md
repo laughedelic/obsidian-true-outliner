@@ -40,9 +40,13 @@
       `isNestedEditor` check; `editorInfoField` resolves to the same outer note inside a
       cell, so `planKey` runs against the CELL's document. Confirmed:
       `activeElement.closest('.cm-embed-block')` is non-null and the focused text is `"a"`,
-      one cell. So D5's subject-landing question is unreachable until that gate exists.
-      Written up in `docs/research/13` and spawned as its own task; NOT fixed here. This
-      change's bystander-landing scope is unaffected.
+      one cell. Written up in `docs/research/13` and spawned as its own task; NOT fixed here.
+
+      D5's subject-landing question is therefore REACHABLE after all — through the command
+      path, which moves a table and routes it to the policy as a `subject` placement. The
+      guard still deliberately does not cover subject landings, but on their merits (the
+      user acted on that node) rather than because the case cannot occur. Corrected after
+      PR review caught the overreach.
 - [x] 1.4 Confirm the focus-capturing set: check whether any atom kind other than `table`
       mounts a nested `EditorView` in Live Preview, using the DOM-ancestry check
       `nested-editor.ts` documents. The set in code follows this measurement.
@@ -67,8 +71,10 @@
 ## 3. The pure policy module
 
 - [x] 3.1 Add `src/caret-policy.ts` with `planCaret(op, facts)` per design.md D1: the four
-      cases (`derived`, `subject`, `exact`, `deletion`), returning `{ caret, record }`.
-      No CodeMirror imports.
+      cases (`derived`, `subject`, `exact`, `deletion`), returning the caret. No
+      CodeMirror imports. (`record` was dropped from the return after review: it could not
+      be equivalent to the live decision, which compares whole selections — see
+      `caret-policy.ts`'s note.)
 - [x] 3.2 Implement the `subject` case using `caret.ts`'s `nodeContentStart` (design.md
       D4), so a heading's caret is column 0. Leave `ops.ts`'s `contentColumnCh` and its
       four other callers untouched.

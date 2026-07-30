@@ -90,7 +90,7 @@ function startLineOf(doc: OutlineDoc, id: number): number {
     node.children.forEach(walk);
   };
   doc.children.forEach(walk);
-  return found === -1 ? 0 : found;
+  return found; // -1 when absent; callers decide, rather than a silent line 0
 }
 
 /**
@@ -106,8 +106,13 @@ export function finalize(
   const normalized = normalizeBoundaries(surgery);
   const text = encode(normalized);
   const lines = text === '' ? [] : text.split('\n');
-  const subjectLine =
-    subjectId === undefined ? normalized.preamble.length : startLineOf(normalized, subjectId);
+  // A subject that is not in `normalized` is a caller bug, not a position: it
+  // used to degrade to line 0, which reads as a legitimate anchor and pointed
+  // at whatever occupied that line (in a note with frontmatter, the preamble).
+  // Degrade to the same scope start `subjectId === undefined` produces, so an
+  // absent subject is never mistaken for a located one.
+  const located = subjectId === undefined ? -1 : startLineOf(normalized, subjectId);
+  const subjectLine = located === -1 ? normalized.preamble.length : located;
   return accept({
     doc: parse(text),
     edits: diffLines(encodeLines(oldDoc), lines),
@@ -783,16 +788,35 @@ export function deleteSubtreeGroups(
     );
   }
 
+  // The anchor must name a node that SURVIVES the combined removal, which the
+  // naive `firstSiblings[hi + 1]` does not: with two adjacent groups under one
+  // parent, group 0's following sibling is exactly what a later group removes.
+  // `startLineOf` then could not find it and silently reported line 0 — a
+  // position pointing at whatever happens to be there, or into the preamble.
+  // Asking `surgery` (the post-removal tree) is exact and needs no bookkeeping
+  // of which ranges took what.
+  const survives = (node: OutlineNode | undefined): boolean =>
+    node !== undefined && findPath(surgery, node.id) !== undefined;
+
   const first = resolved[0]!;
   const firstSiblings = childrenAt(doc, first.parentPath);
-  const survivorAfter = firstSiblings[first.hi + 1];
-  const survivorBefore = first.lo > 0 ? firstSiblings[first.lo - 1] : undefined;
-  const subjectId =
-    survivorAfter?.id ??
-    survivorBefore?.id ??
-    (first.parentPath.length > 0 ? nodeAt(doc, first.parentPath)!.id : undefined);
+  let subject: OutlineNode | undefined;
+  for (let i = first.hi + 1; i < firstSiblings.length && !subject; i++) {
+    if (survives(firstSiblings[i])) subject = firstSiblings[i];
+  }
+  for (let i = first.lo - 1; i >= 0 && !subject; i--) {
+    if (survives(firstSiblings[i])) subject = firstSiblings[i];
+  }
+  // Then the nearest surviving ancestor — a group at a higher level can remove
+  // the immediate parent too.
+  for (let path = first.parentPath; path.length > 0 && !subject; path = path.slice(0, -1)) {
+    const ancestor = nodeAt(doc, path);
+    if (survives(ancestor)) subject = ancestor;
+  }
 
-  return finalize(doc, surgery, subjectId);
+  // `undefined` is the honest answer when nothing in scope survived: `finalize`
+  // anchors at the scope's own start rather than inventing a node.
+  return finalize(doc, surgery, subject?.id);
 }
 
 /**

@@ -60,11 +60,15 @@ avoidable from within this plugin.
 
 #### Scenario: Cursor correctness survives repeated undo/redo cycles
 - **WHEN** INDENT or OUTDENT is followed by undo, redo, undo, redo — repeated any number
-  of times, with no intervening cursor movement, and the cursor was not at or inside a
-  span the operation deletes
+  of times, with no intervening cursor movement, the cursor was not at or inside a span the
+  operation deletes, AND the dispatch actually used the mapped position rather than falling
+  back to the operation's own cursor
 - **THEN** the cursor is correct after every step, in BOTH directions — these are the
   mapping-derived dispatches, which record nothing and so carry neither of the
   second-undo costs in "Known limitation" below
+- **AND** an indent or outdent whose addressability fallback DID fire is excluded: it is a
+  recorded dispatch and carries the recorded-dispatch cost below, despite being the same
+  operation
 
 ### Requirement: An operation that chooses its own cursor has it recorded in history
 A structural DISPATCH whose cursor is not the position mapping would produce SHALL make
@@ -100,7 +104,8 @@ not present in what the history retains.
 - **THEN** every redo puts the cursor back on the moved node
 
 #### Scenario: Indent is not recorded and stays correct anyway
-- **WHEN** Tab indents a node and the user undoes and redoes any number of times
+- **WHEN** Tab indents a node with a plain caret, so the dispatch uses the mapped position,
+  and the user undoes and redoes any number of times
 - **THEN** the cursor is correct at every depth, from mapping alone, and nothing was
   recorded
 
@@ -169,11 +174,13 @@ that cursor position for user gestures; its own scope still passes through
   may land one character into the node's content instead — and this is a known,
   documented gap, not a regression
 
-#### Scenario: Indent is never affected
+#### Scenario: Indent is never affected by the COLLAPSED-SPAN cause
 - **WHEN** indent is undone and redone any number of times, regardless of where the
   cursor sat
-- **THEN** the cursor is always exactly correct — indent's change set only inserts
-  characters, so no cursor position is ever collapsed
+- **THEN** no cursor position is ever collapsed, because indent's change set only inserts
+  characters — so this cause never applies to it. An indent whose addressability fallback
+  fired is still subject to the RECORDED-dispatch cause above; the two causes are
+  independent
 
 #### Scenario: The limitation is recorded, not silently shipped
 - **WHEN** this capability is implemented

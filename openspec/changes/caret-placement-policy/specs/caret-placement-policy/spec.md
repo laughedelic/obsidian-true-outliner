@@ -3,8 +3,15 @@
 ### Requirement: One decision procedure places every structural operation's caret
 A single pure decision procedure SHALL answer, for every structural operation: given the
 operation, the document before and after it, the operation's own structural anchor, and
-the pre-operation selection — where the caret goes, and whether that position is
-recoverable by mapping or must be recorded in history.
+the pre-operation selection mapped forward — where the caret goes.
+
+Whether that caret must be RECORDED is a separate question with its own owner, stated
+below: it is decided from the transaction, not from this procedure's inputs. The two are
+deliberately not answered in one place — this procedure sees a single caret and the single
+position it was mapped from, while the recording decision compares whole SELECTIONS, and a
+non-empty pre-operation selection makes those two comparisons disagree. Restating the rule
+here in weaker terms would reintroduce exactly the two-answers-to-one-question problem this
+capability exists to remove.
 
 Every dispatch site SHALL obtain its caret from that procedure and SHALL NOT re-derive
 it: the outline keyboard grammar, the command-palette commands, and the edit-enforcement
@@ -160,24 +167,50 @@ today stops being recorded.
 - **WHEN** a dispatch site changes which caret it dispatches
 - **THEN** the recording decision follows automatically, with no list to update
 
-### Requirement: Every caret this plugin dispatches is addressable
+### Requirement: Every caret this plugin dispatches is addressable, with one stated exception
 Every caret position dispatched by a structural operation, from any dispatch site, SHALL
-be caret-addressable per `content-space-caret`. This SHALL be verified over generated
-documents and operation sequences, not only for enumerated cases.
+be caret-addressable per `content-space-caret`, EXCEPT the split-materialization position
+described below. This SHALL be verified over generated documents and operation sequences,
+not only for enumerated cases, and the verification SHALL cover every placement case the
+procedure has — a property stated over one case does not establish the requirement.
 
 The property is stated here rather than only in `content-space-caret` because the places
 that PRODUCE a caret are not all obvious — the mapped cursor, the enforcement rewrites'
 cursor, the operations' own anchors, and whatever the history recomputes — and each has
 introduced a violation of it at least once.
 
+**The exception.** An end-of-paragraph or end-of-heading split has no empty-node encoding
+to produce, so `structural-operations` specifies that it widens the node's trailing gap and
+leaves the cursor on the resulting blank line; typing there materializes the new node. That
+position is a gap line and is therefore not addressable. The behaviour is deliberate,
+predates this capability, and is permitted by `content-space-caret`'s own jurisdiction rule,
+which passes `plugin-own` dispatches through untouched. It SHALL be pinned by its own test
+so the exception stays explicit rather than becoming an unexamined gap.
+
+*(Amendment 2026-07-30: this requirement was originally stated as an unconditional
+universal, which the split contract already falsified. Caught in review, not by the
+property test, which only exercised the deletion case.)*
+
 #### Scenario: Generated documents and operations
-- **WHEN** structural operations are applied to generated trees at arbitrary depths
-- **THEN** no dispatched caret falls on a gap line or inside a list item's marker prefix
+- **WHEN** structural operations are applied to generated trees at arbitrary depths, with
+  and without frontmatter, and including documents containing a table
+- **THEN** no dispatched caret falls on a gap line or inside a list item's marker prefix,
+  and none falls outside the resulting document's own text
+
+#### Scenario: Every placement case is covered, not just one
+- **WHEN** the property is evaluated
+- **THEN** it exercises the deletion, subject and derived cases, so a regression in any of
+  them fails it — a property covering only one case does not satisfy this requirement
 
 #### Scenario: A block cover as the operand
 - **WHEN** an operation is invoked while a whole-subtree cover is selected, whose head
   sits on the trailing gap line the cover owns
 - **THEN** the dispatched caret is still addressable
+
+#### Scenario: The split exception is explicit
+- **WHEN** Enter splits a paragraph or heading at its very end
+- **THEN** the caret sits on the newly widened blank line, which is deliberately not
+  addressable, and this case is pinned by a test naming it as the exception
 
 ### Requirement: A caret's content start has one definition
 Where the procedure places a caret at a node's content start, it SHALL use

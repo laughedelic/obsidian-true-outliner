@@ -902,8 +902,16 @@ today." That was too strong: it was measured only through the Alt+Arrow binding,
 exposed commands were never tried. Corrected after a real-vault report.)*
 
 **What this means for `caret-placement-policy`.** Its D5 open question — what to do when an
-operation's own SUBJECT is a focus-capturing atom — is downstream of this gate and cannot be
-reached until the gate exists. The change's own scope (bystander landings: the survivor after a
-deletion) is unaffected and still correct, since that caret is placed by a dispatch the user made
-from OUTSIDE the table. The subject-landing question should be reopened only after the gating
-defect is fixed, at which point it becomes answerable for the first time.
+operation's own SUBJECT is a focus-capturing atom — is REACHABLE today, via the command path:
+`runOp` moves a table and routes the result to the policy as a `subject` placement, which the
+atom guard deliberately does not cover. Only the Alt+Arrow binding is blocked by the gate above.
+
+That scoping stands, but on its merits rather than on unreachability. A bystander landing is a
+position the user never asked for; a subject landing is the node they just acted on, where
+"the caret follows the moved node" and "never enter a nested editor" are in direct conflict.
+Real-vault use reports moving a table by bound hotkey works acceptably. Resolving the conflict
+properly likely needs node identity to live somewhere other than the caret — the modal
+block-selection state this track parks — so it stays filed rather than pre-decided.
+
+*(An earlier version of this paragraph called the subject case unreachable, reasoning only
+about the keymap path. Corrected in the same review round that corrected the claim above.)*
