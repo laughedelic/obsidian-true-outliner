@@ -163,7 +163,8 @@ describe('a moved node keeps its cursor across undo/redo', () => {
    * The negative control, and the regression itself: without the recorder the
    * caret lands on the node that swapped in. Pinning the exact wrong node
    * proves this scenario really does exercise history's mapping branch — see
-   * this block's docstring for why it has to be the move-DOWN direction.
+   * this block's docstring for why it has to be the move-DOWN direction, and
+   * the parametrised test above for the move-up row it does NOT hold for.
    */
   it('WITHOUT the recorder, redo lands on the node that swapped in', () => {
     const view = moveNode(false, '- a');

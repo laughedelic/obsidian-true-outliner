@@ -13,7 +13,7 @@ import {
   outdent,
   splitNode,
 } from '../src/ops';
-import { applyEdits, type Edit } from '../src/result';
+import { applyEdits, diffLines, type Edit } from '../src/result';
 import { OutlineModeRegistry } from '../src/plugin/mode-registry';
 import { nodeAtLine } from '../src/plugin/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
@@ -113,6 +113,65 @@ describe('edit dispatch: line edits → editor changes', () => {
     }
     return out;
   }
+
+  /**
+   * The ordering guarantee `minimal-change-dispatch` states, asserted rather
+   * than assumed. It is not free: runs are ascending and disjoint in LINE
+   * space, but `lineRangeEnvelope` has to anchor a run with no line to sit on
+   * somewhere real — an insertion past the last line becomes an insertion AT
+   * the document's end — and that can coincide with the run in front of it.
+   *
+   * The consequences are quiet, which is why this is worth pinning. Applied
+   * in emission order the document is still right, because CodeMirror keeps
+   * equal-`from` specs in the order given; it is every POSITION-based
+   * consumer that breaks — `applyChanges` above (which sorts, as any
+   * reference implementation would) and `mapCursorForward`, which stops at
+   * the first of two changes sharing a position.
+   */
+  describe('changes are strictly ascending and non-overlapping', () => {
+    const toOffset = (lines: readonly string[], pos: { line: number; ch: number }): number => {
+      let acc = 0;
+      for (let i = 0; i < pos.line; i++) acc += (lines[i]?.length ?? 0) + 1;
+      return acc + pos.ch;
+    };
+
+    /** Ascending with no two ranges touching or overlapping. */
+    function ordering(lines: readonly string[], changes: readonly EditorChange[]) {
+      const bounds = changes.map((c) => [toOffset(lines, c.from), toOffset(lines, c.to)] as const);
+      return bounds.every(([from, to], i) => from <= to && (i === 0 || from > bounds[i - 1]![1]));
+    }
+
+    it('for the shape that first broke it: an anchor on the empty last line', () => {
+      // Appending a list under a paragraph in a file that ends with a newline.
+      // The alignment anchors on the trailing empty line, leaving an insertion
+      // run on either side of it — and the second one has no line to sit on,
+      // so it lands at the document end, exactly where the first one is.
+      const before = ['para', ''];
+      const changes = editsToChanges(before, diffLines(before, ['para', '- a', '', '- b']));
+      expect(ordering(before, changes)).toBe(true);
+      expect(applyChanges(before.join('\n'), changes)).toBe('para\n- a\n\n- b');
+    });
+
+    it('for any before/after line pair the enforcement rewrite path can produce', () => {
+      // `enforce.ts` feeds arbitrary before/after documents through the same
+      // `diffLines`, so this is not a hypothetical input space. The vocabulary
+      // repeats deliberately: duplicate and empty lines are what defeat the
+      // alignment's unique-line anchoring and produce the awkward runs.
+      const arbLines = fc.array(
+        fc.constantFrom('', 'para', '- a', '- b', '\t- a', '# h', '| a | b |', '\t'),
+        { maxLength: 8 },
+      );
+      fc.assert(
+        fc.property(arbLines, arbLines, (before, after) => {
+          const changes = editsToChanges(before, diffLines(before, after));
+          if (!ordering(before, changes)) return false;
+          // Position-ordered application must agree with the edits themselves.
+          return applyChanges(before.join('\n'), changes) === after.join('\n');
+        }),
+        { numRuns: 20000 },
+      );
+    });
+  });
 
   it('reproduces the op encoding exactly for any generated op', () => {
     const OPS = [indent, outdent, moveUp, moveDown];

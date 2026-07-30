@@ -327,21 +327,71 @@ function wholeRegionChange(
 }
 
 /**
+ * Narrow one aligned run into character-level changes: per-line when the run
+ * has the same number of lines on both sides (indent, outdent, and the
+ * changed lines of any in-place rewrite), one trimmed character span when it
+ * does not (merge, split, an insertion, a deletion).
+ */
+function changesForRun(
+  lines: readonly string[],
+  insert: readonly string[],
+  run: ChangedRun,
+): EditorChange[] {
+  const newMid = insert.slice(run.newStart, run.newEnd);
+  if (run.oldEnd - run.oldStart === run.newEnd - run.newStart) {
+    return perLineChanges(run.oldStart, lines.slice(run.oldStart, run.oldEnd), newMid);
+  }
+  return wholeRegionChange(lines, run.oldStart, run.oldEnd, newMid);
+}
+
+/**
  * Narrow one line-range `Edit` into the smallest set of character-level
  * changes that produce the same result (`minimal-change-dispatch`).
  */
 export function editToChanges(lines: readonly string[], edit: Edit): EditorChange[] {
-  const { fromLine, toLine, insert } = edit;
   const runs: ChangedRun[] = [];
-  alignLines(lines.slice(fromLine, toLine), insert, fromLine, 0, runs);
+  alignLines(lines.slice(edit.fromLine, edit.toLine), edit.insert, edit.fromLine, 0, runs);
 
-  return runs.flatMap((run) => {
-    const oldCount = run.oldEnd - run.oldStart;
-    const newCount = run.newEnd - run.newStart;
-    const newMid = insert.slice(run.newStart, run.newEnd);
-    if (oldCount === newCount) return perLineChanges(run.oldStart, lines.slice(run.oldStart, run.oldEnd), newMid);
-    return wholeRegionChange(lines, run.oldStart, run.oldEnd, newMid);
-  });
+  // Runs are ascending and disjoint in LINE space, but two of them can still
+  // narrow to the same character POSITION, because `lineRangeEnvelope` has to
+  // anchor a run with no line to sit on somewhere real: an insertion past the
+  // last line becomes an insertion AT the end of the document, and a deletion
+  // through the end borrows the newline BEFORE it. Either can coincide with
+  // the run in front of it — reachable whenever an alignment anchors on the
+  // empty last line of a document that ends in a newline, e.g.
+  // `["para", ""]` → `["para", "- a", "", "- b"]`, which narrowed to two
+  // insertions both at {line 1, ch 0}.
+  //
+  // Applied in emission order that is still the right document (CodeMirror
+  // keeps equal-`from` specs in the order given), but it breaks the ordering
+  // this capability requires, and every position-based consumer with it:
+  // `mapCursorForward` below stops at the first of the two, and a change set
+  // re-sorted by position produces different text.
+  //
+  // Merging the two runs restores the invariant and stays correct by
+  // construction: what separates consecutive runs is matched lines, identical
+  // and equally many on both sides, so a merged run spans the same text.
+  for (let i = 1; i < runs.length; ) {
+    const before = changesForRun(lines, edit.insert, runs[i - 1]!).at(-1);
+    const after = changesForRun(lines, edit.insert, runs[i]!)[0];
+    if (
+      before &&
+      after &&
+      offsetOf(lines, after.from) <= offsetOf(lines, before.to)
+    ) {
+      runs.splice(i - 1, 2, {
+        oldStart: runs[i - 1]!.oldStart,
+        oldEnd: runs[i]!.oldEnd,
+        newStart: runs[i - 1]!.newStart,
+        newEnd: runs[i]!.newEnd,
+      });
+      if (i > 1) i -= 1; // the merged run may now collide with the one before it
+    } else {
+      i += 1;
+    }
+  }
+
+  return runs.flatMap((run) => changesForRun(lines, edit.insert, run));
 }
 
 export function editsToChanges(lines: readonly string[], edits: readonly Edit[]): EditorChange[] {
