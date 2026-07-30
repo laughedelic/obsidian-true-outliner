@@ -327,6 +327,16 @@ function wholeRegionChange(
 }
 
 /**
+ * Whether `a` is strictly after `b` in the document. Both are valid positions
+ * in the same line space, so this is lexicographic — deliberately NOT via
+ * `offsetOf`, which walks the document from line 0 and would make its caller
+ * quadratic in the document's length.
+ */
+function isAfter(a: EditorPos, b: EditorPos): boolean {
+  return a.line > b.line || (a.line === b.line && a.ch > b.ch);
+}
+
+/**
  * Narrow one aligned run into character-level changes: per-line when the run
  * has the same number of lines on both sides (indent, outdent, and the
  * changed lines of any in-place rewrite), one trimmed character span when it
@@ -374,11 +384,7 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
   for (let i = 1; i < runs.length; ) {
     const before = changesForRun(lines, edit.insert, runs[i - 1]!).at(-1);
     const after = changesForRun(lines, edit.insert, runs[i]!)[0];
-    if (
-      before &&
-      after &&
-      offsetOf(lines, after.from) <= offsetOf(lines, before.to)
-    ) {
+    if (before && after && !isAfter(after.from, before.to)) {
       runs.splice(i - 1, 2, {
         oldStart: runs[i - 1]!.oldStart,
         oldEnd: runs[i]!.oldEnd,
