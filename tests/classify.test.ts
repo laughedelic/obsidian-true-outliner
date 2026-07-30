@@ -3,9 +3,6 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import {
   classify,
-  hasSemanticCursor,
-  isPluginOwnUserEvent,
-  SEMANTIC_CURSOR_USER_EVENTS,
   type ChangedLineSpan,
   type TransactionClass,
   type TransactionFacts,
@@ -403,60 +400,10 @@ describe('classify: totality and default-permit (property)', () => {
   });
 });
 
-/**
- * The recorder's trigger taxonomy (`src/plugin/history-caret.ts`'s
- * `SemanticCursorRecorder`). Tested directly rather than only through the
- * history tests: those construct the re-assertion themselves from a boolean,
- * so they stay green whether or not this predicate actually selects the right
- * operations. Getting it wrong is silent in both directions — dropping
- * `move.structure` reinstates a redo that lands on the wrong node, and adding
- * indent/outdent subjects operations that are currently exact at any depth to
- * the second-undo limitation.
+/*
+ * The recorder's trigger taxonomy moved to `tests/history-caret.test.ts`
+ * with `caret-placement-policy`. It is no longer a predicate over `userEvent`
+ * strings — recording is decided per DISPATCH, by comparing the dispatched
+ * selection against CM6's own forward mapping — so it needs a real
+ * `Transaction` to test and cannot live in this module's string-level suite.
  */
-describe('hasSemanticCursor: which operations have their cursor recorded', () => {
-  it('includes every operation that CHOOSES its cursor', () => {
-    expect(hasSemanticCursor('move.structure')).toBe(true);
-    expect(hasSemanticCursor('input.structure.split')).toBe(true);
-    expect(hasSemanticCursor('delete.structural')).toBe(true);
-    expect(hasSemanticCursor('input.paste.structural')).toBe(true);
-  });
-
-  it('EXCLUDES the mapping-derived operations', () => {
-    // Their cursor is `mapCursorForward`'s result, which is what history
-    // recomputes on redo — recording would only add the second-undo cost.
-    expect(hasSemanticCursor('input.structure.indent')).toBe(false);
-    expect(hasSemanticCursor('input.structure.outdent')).toBe(false);
-  });
-
-  it('matches dot-namespaced suffixes, as CM6 userEvent semantics require', () => {
-    expect(hasSemanticCursor('delete.structural.merge')).toBe(true);
-    expect(hasSemanticCursor('move.structure.up')).toBe(true);
-    // …but not a different event that merely shares a prefix string.
-    expect(hasSemanticCursor('move.structureXYZ')).toBe(false);
-    expect(hasSemanticCursor('input.structure.indentation')).toBe(false);
-  });
-
-  it('excludes foreign, history and ordinary editing events', () => {
-    expect(hasSemanticCursor('undo')).toBe(false);
-    expect(hasSemanticCursor('redo')).toBe(false);
-    expect(hasSemanticCursor('input.type')).toBe(false);
-    expect(hasSemanticCursor('select')).toBe(false);
-    expect(hasSemanticCursor(undefined)).toBe(false);
-  });
-
-  /**
-   * The sets must not drift: the recorder only ever fires for transactions the
-   * classifier already treats as ours, so anything it records is by definition
-   * plugin-own. Derived from `PLUGIN_OWN_USER_EVENTS` in the source; asserted
-   * here so a future hand-edit of either list is caught.
-   */
-  it('is a strict subset of the plugin-own set, minus indent/outdent', () => {
-    for (const event of SEMANTIC_CURSOR_USER_EVENTS) {
-      expect(isPluginOwnUserEvent(event)).toBe(true);
-      expect(hasSemanticCursor(event)).toBe(true);
-    }
-    expect([...SEMANTIC_CURSOR_USER_EVENTS].sort()).toEqual(
-      ['delete.structural', 'input.paste.structural', 'input.structure.split', 'move.structure'],
-    );
-  });
-});

@@ -170,7 +170,7 @@ describe('edit dispatch: line edits → editor changes', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       // '- Second thought.' — content starts after the marker.
-      expect(result.value.cursor).toEqual({ line: 2, ch: 2 });
+      expect(result.value.anchor).toEqual({ line: 2, ch: 2 });
     }
   });
 

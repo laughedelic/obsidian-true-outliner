@@ -1842,3 +1842,52 @@ indent/outdent — the exact "test that cannot fail for the right reason" shape 
 catalogues. Now covered directly, including prefix matching and a set-membership
 assertion that fails if the two userEvent lists drift apart; negative-controlled in both
 directions.
+
+### Follow-on: recording became a property of the DISPATCH (2026-07-29, `caret-placement-policy`)
+
+The scoping above — `SEMANTIC_CURSOR_USER_EVENTS`, the plugin-own set minus indent/outdent
+— was right about which OPERATIONS choose a cursor and wrong about the axis. One operation
+can do both: indent dispatches the mapped position most of the time, and its own cursor
+when the mapped one would not be addressable. Keyed per operation, that second dispatch went
+unrecorded, so a redo recomputed the mapped position and put the caret back on a gap line.
+Documented as a known limitation at the time; closed now.
+
+The rule is now derived rather than declared (`src/plugin/record-decision.ts`):
+
+```js
+tr.startState.selection.map(tr.changes, 1).eq(tr.newSelection)   // → no recording needed
+```
+
+`assoc = 1` is not a preference — it is the association `@codemirror/commands` hardcodes in
+its redo restore, so this asks CM6's own mapping the exact question that matters: *is the
+dispatched selection what redo would recompute?* It preserves the guarantee the old set
+existed for — redo is exact wherever the list made it exact — closes the fallback case, and
+cannot drift from the dispatch sites because there is no list to maintain.
+
+Worth stating precisely, because the first version of this note got it wrong: the new rule
+is not set-equal to the old one, it records strictly FEWER transactions. A chosen position
+sometimes coincides with the mapped one — splitting `- alpha beta` before `beta` inserts
+`\n- ` at the caret, and assoc=1 maps that caret onto the new item's content start, the
+split's own anchor (measured: both offset 11). The name-based list recorded that anyway;
+recording it buys nothing and costs second-undo precision, so skipping it is the rule
+working, not a regression.
+
+Two things this depends on, both now executable rather than prose:
+
+- **`mapCursorForward` equals CM6's `mapPos(_, 1)`.** The dispatch sites COMPUTE the caret
+  with the former while the recorder compares against the latter; if they diverged, ordinary
+  indents would start being recorded and silently inherit the second-undo cost. Property-tested
+  over generated trees in `tests/minimal-change-history.test.ts`; negative-controlled by
+  flipping the assoc to -1, which fails it.
+- **The predicate itself.** Previously the history tests built the re-assertion from a
+  boolean, so they stayed green whether or not the predicate selected the right dispatches —
+  the Q28 shape. Now tested directly in `tests/history-caret.test.ts`. The sharpest negative
+  control: reinstating the old per-operation rule fails exactly ONE test, the indent-fallback
+  case, which is precisely the gap the new rule closes.
+
+Method note worth carrying forward, from the same session: a property test written over
+`arbTree()` to assert "no caret lands inside a focus-capturing node" PASSED with the guard
+deliberately disabled — `arbTree()` generates no tables, so that half of the property was
+vacuous. Q28's catalogue gains another entry: a property test can be vacuous in one CONJUNCT
+while the others carry it, and the only way to see it is to disable each mechanism separately
+rather than the feature as a whole. Fixed by splicing a table into the generated document.

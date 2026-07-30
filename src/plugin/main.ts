@@ -18,7 +18,7 @@ import type { OpResult } from '../result';
 import { applyEdits } from '../result';
 import { OutlineModeRegistry, DEFAULT_DATA, type PluginData } from './mode-registry';
 import { nodeAtLine } from './locate';
-import { isAddressable } from '../caret';
+import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
@@ -52,32 +52,31 @@ const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
 type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
 
 /**
- * The cursor a palette-invoked structural command should end on, in the SAME
- * terms `grammar.ts`'s `planFromOp` uses for the keyboard path: when
- * `mapFrom` is given (indent/outdent), the pre-op caret mapped forward
- * through the change set, but ONLY if that lands somewhere a caret may
- * actually go — otherwise the operation's own cursor.
+ * The cursor a palette-invoked structural command should end on: decided by
+ * `caret-policy.ts`, the same procedure `grammar.ts` uses for the keyboard
+ * path, so the two entry points cannot diverge.
  *
- * The guard is not optional here just because the palette has no Tab key: a
- * command can equally be invoked with a whole-block cover selected, whose
- * head sits on the trailing gap line the cover owns, and mapping that forward
- * yields another gap position. The keyboard path would fall back; without
- * this the palette path would not, and its follow-up placement is a
- * `programmatic` transaction, which `transaction-filter.ts` deliberately
- * exempts from gap resolution — so nothing downstream would catch it.
+ * This function is now purely an adapter — it converts Obsidian's `{line,
+ * ch}` world into the policy's facts and back. It holds no rule of its own;
+ * the previous version re-implemented the mapped-with-addressability-fallback
+ * rule here, and had already drifted once (the palette missed the
+ * addressability guard entirely until review caught it).
  */
 function resultCursor(
   lines: readonly string[],
   newLines: readonly string[],
   changes: readonly EditorChange[],
-  opCursor: { line: number; ch: number },
+  before: OutlineDoc,
+  op: CaretOp,
+  anchor: { line: number; ch: number },
   mapFrom?: { line: number; ch: number },
 ): { line: number; ch: number } {
-  if (mapFrom !== undefined) {
-    const mapped = offsetToPos(newLines, mapCursorForward(lines, changes, mapFrom));
-    if (isAddressable(parse(newLines.join('\n')), mapped)) return mapped;
-  }
-  return opCursor;
+  const after = parse(newLines.join('\n'));
+  const mapped =
+    mapFrom === undefined
+      ? undefined
+      : offsetToPos(newLines, mapCursorForward(lines, changes, mapFrom));
+  return planCaret(op, { before, after, anchor, mapped }).caret;
 }
 
 /** Flat character offset (as `mapCursorForward` returns) → `{line, ch}`, for
@@ -398,9 +397,15 @@ export default class TrueOutlinerPlugin extends Plugin {
     const lines = text === '' ? [] : text.split('\n');
     const changes = editsToChanges(lines, result.value.edits);
     const newLines = applyEdits(lines, result.value.edits);
-    const cursor = resultCursor(lines, newLines, changes, result.value.cursor, useMappedCursor
-      ? cursorBefore
-      : undefined);
+    const cursor = resultCursor(
+      lines,
+      newLines,
+      changes,
+      doc,
+      useMappedCursor ? { kind: 'derived' } : { kind: 'subject' },
+      result.value.anchor,
+      useMappedCursor ? cursorBefore : undefined,
+    );
 
     // TWO transactions, deliberately: the change, then the cursor. Combining
     // them into one `editor.transaction({changes, selection})` looks tidier and

@@ -60,11 +60,21 @@ When the deletion's selection consists of SEVERAL ranges, each exactly covering
 whole subtrees, every covered subtree SHALL be removed with its owned trailing gap
 in the same transaction, forming one undo step.
 
+The rewritten transaction's caret SHALL come from `caret-placement-policy`: the content
+end of the node preceding the deleted region in document order, never inside a
+focus-capturing node. The enforcement layer SHALL NOT compute a caret of its own, and
+SHALL NOT read the caret as a node identity — it locates the surviving neighbour it
+splices against by the deletion result's structural ANCHOR (`structural-operations`), so
+the caret convention and the splice target are independent.
+
 *(Amendment 2026-07-25, `fix-orphan-gap-on-node-deletion`: deleting one
 exactly-selected node left its blank line behind, because the change span read as
 within-node and never reached this requirement at all. Multi-range deletions passed
 unenforced for the same structural reason — the verdict layer declined any
-transaction with more than one change range.)*
+transaction with more than one change range. Amendment 2026-07-29,
+`caret-placement-policy`: the caret after a deletion moves from the surviving node's
+content start to the preceding node's content end, which is where this capability already
+places a merge's caret.)*
 
 #### Scenario: Deleting one exactly-selected node takes its gap
 - **WHEN** the user selects exactly one node's whole subtree and deletes it
@@ -93,6 +103,21 @@ transaction with more than one change range.)*
 - **WHEN** the user deletes a selection covering all nodes of the document
 - **THEN** the resulting document (empty or preamble-only) is valid and the editor
   remains fully functional
+
+#### Scenario: The caret lands where typing resumes
+- **WHEN** a block deletion completes
+- **THEN** the caret is at the content end of the node above the removed region — the
+  same seam a merge lands on — and typing continues there
+
+#### Scenario: A deletion next to a table does not strand undo
+- **WHEN** the node immediately after a table is deleted
+- **THEN** the caret lands outside the table, so undo applies to the note's own history
+  rather than a nested cell editor's
+
+#### Scenario: A type-over splices against the same node as before
+- **WHEN** the user types over a whole-subtree selection, replacing it with text
+- **THEN** the replacement is spliced against the same surviving neighbour as before this
+  change, because the splice target is the deletion's anchor and not its caret
 
 ### Requirement: Editing semantics are chrome-transparent
 Gap lines and structural markers are encoding chrome: no user-facing editing

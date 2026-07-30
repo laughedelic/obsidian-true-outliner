@@ -1,5 +1,6 @@
 /**
- * Making a structural operation's own cursor survive redo.
+ * Making a structural operation's own cursor survive redo, for the dispatches
+ * where redo could not otherwise reproduce it.
  *
  * ## Why redo cannot just recompute it
  *
@@ -32,12 +33,16 @@
  * CodeMirror offers for it (`selectionsAfter`, written by a separate
  * selection-only transaction).
  *
- * ## Scope, and why it is narrow
+ * ## Scope: a property of the DISPATCH, not of the operation
  *
- * `SEMANTIC_CURSOR_USER_EVENTS` — move, split, merge, paste, structural
- * delete. Indent and outdent are excluded because their cursor IS the mapping,
- * so recording would buy nothing and would cost them the limitation below,
- * which they currently do not have.
+ * `record-decision.ts`'s `needsRecording` owns that question and carries its
+ * reasoning. In short: record whenever the dispatched selection is not what
+ * CM6's own forward mapping would produce, which subsumes the hand-derived
+ * `SEMANTIC_CURSOR_USER_EVENTS` list this replaces and closes the case that
+ * list could not express — an indent whose addressability fallback fires is
+ * choosing a cursor, even though its operation is on the "derived" side.
+ *
+ * This module is the trigger and the dispatch; it holds no rule.
  *
  * ## The cost, taken deliberately
  *
@@ -50,10 +55,10 @@
  * time, which is plainly worse than a less-precise second undo.
  */
 
-import { Transaction, type Extension } from '@codemirror/state';
+import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type PluginValue, type ViewUpdate } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
-import { hasSemanticCursor } from '../classify';
+import { needsRecording } from './record-decision';
 import { isNestedEditor } from './nested-editor';
 import type { ModeSource } from './keymap';
 
@@ -69,9 +74,7 @@ class SemanticCursorRecorder implements PluginValue {
 
   update(update: ViewUpdate): void {
     if (!update.docChanged) return;
-    const relevant = update.transactions.some(
-      (tr) => tr.docChanged && hasSemanticCursor(tr.annotation(Transaction.userEvent)),
-    );
+    const relevant = update.transactions.some((tr) => needsRecording(tr));
     if (!relevant) return;
 
     const path = update.state.field(editorInfoField, false)?.file?.path;

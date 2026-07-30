@@ -54,7 +54,7 @@ describe('deleteSubtrees', () => {
     if (!result.ok) throw new Error(result.rejection.reason);
     expect(encode(result.value.doc)).toBe('');
     expect(result.value.doc.children).toEqual([]);
-    expect(result.value.cursor).toEqual({ line: 0, ch: 0 });
+    expect(result.value.anchor).toEqual({ line: 0, ch: 0 });
   });
 
   it('deleting two adjacent top-level subtrees removes both plus the gap between', () => {
@@ -113,7 +113,7 @@ describe('mergeNodes', () => {
     expect(result.value.doc.children.length).toBe(1);
     // Cursor at the JOIN point (regression: was landing at the merged
     // node's start, i.e. {0,0}) — right after "First.", before "Second.".
-    expect(result.value.cursor).toEqual({ line: 0, ch: 'First.'.length });
+    expect(result.value.anchor).toEqual({ line: 0, ch: 'First.'.length });
   });
 
   it('joins two adjacent bullet list items, stripping the second marker', () => {
@@ -123,7 +123,7 @@ describe('mergeNodes', () => {
     const result = mergeNodes(doc, alpha.id);
     if (!result.ok) throw new Error(result.rejection.reason);
     expect(encode(result.value.doc)).toBe('- alphabeta\n');
-    expect(result.value.cursor).toEqual({ line: 0, ch: '- alpha'.length });
+    expect(result.value.anchor).toEqual({ line: 0, ch: '- alpha'.length });
   });
 
   it('merge cursor lands at the join point even when `first` spans multiple lines', () => {
@@ -133,7 +133,7 @@ describe('mergeNodes', () => {
     const result = mergeNodes(doc, alpha.id);
     if (!result.ok) throw new Error(result.rejection.reason);
     expect(encode(result.value.doc)).toBe('- alpha\n  morebeta\n');
-    expect(result.value.cursor).toEqual({ line: 1, ch: '  more'.length });
+    expect(result.value.anchor).toEqual({ line: 1, ch: '  more'.length });
   });
 
   it('rejects absorbing a heading (its section anchor would be destroyed)', () => {

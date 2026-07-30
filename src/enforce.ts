@@ -30,6 +30,7 @@ import {
 import type { Edit, OpResult, RejectionReason } from './result';
 import { diffLines } from './result';
 import { isStructuralBlockSequence, type TransactionClass } from './classify';
+import { planCaret, type CaretOp } from './caret-policy';
 
 /** One change, in the OLD document's line/ch coordinates (`escalate.ts`'s
  * `LinePos`). `from === to` is a pure insertion; `insert === ''` is a pure
@@ -66,8 +67,30 @@ export type Verdict =
 
 const PASS: Verdict = { kind: 'pass' };
 
-function rewriteFrom(result: OpOutput, userEvent: string): Verdict {
-  return { kind: 'rewrite', edits: result.edits, cursor: result.cursor, userEvent };
+/**
+ * A rewrite verdict, with its caret decided by `caret-policy.ts` — the same
+ * procedure the keyboard grammar and the command palette use. This layer
+ * states which of the policy's cases the operation falls into and supplies
+ * the facts; it computes no caret of its own.
+ *
+ * Note the asymmetry this makes explicit: the verdict's CARET comes from the
+ * policy, while `deleteAndSplice` locates the node it splices against from
+ * the operation's ANCHOR. They were the same field until
+ * `caret-placement-policy`, which is what made the deletion convention
+ * unchangeable.
+ */
+function rewriteFrom(
+  before: OutlineDoc,
+  result: OpOutput,
+  op: CaretOp,
+  userEvent: string,
+): Verdict {
+  const { caret } = planCaret(op, {
+    before,
+    after: result.doc,
+    anchor: result.anchor,
+  });
+  return { kind: 'rewrite', edits: result.edits, cursor: caret, userEvent };
 }
 
 function vetoFrom(result: OpResult<OpOutput>): Verdict {
@@ -232,7 +255,7 @@ function computeMergeVerdict(
     if (result.rejection.reason === 'no-following-neighbor') return PASS;
     return vetoFrom(result);
   }
-  return rewriteFrom(result.value, 'delete.structural.merge');
+  return rewriteFrom(doc, result.value, { kind: 'exact' }, 'delete.structural.merge');
 }
 
 /** The whole-subtree cover of a (possibly stale, never-escalated) range —
@@ -312,8 +335,8 @@ function endOfSubtree(doc: OutlineDoc, node: OutlineNode): { line: number; ch: n
 
 /**
  * End position of the LAST of `blockCount` contiguous top-level blocks that
- * were just inserted starting at `firstBlockCursor` (the FIRST block's own
- * content-start — `insertSubtrees`/`finalize`'s cursor convention) — the
+ * were just inserted starting at `firstBlockAnchor` (the FIRST block's own
+ * content-start — `insertSubtrees`/`finalize`'s anchor convention) — the
  * cursor spot that makes continued typing (or a follow-up single-key
  * type-over keystroke) land AFTER the just-inserted content instead of
  * before it. `doc` is the op's returned tree, which `finalize` always
@@ -322,11 +345,11 @@ function endOfSubtree(doc: OutlineDoc, node: OutlineNode): { line: number; ch: n
  */
 function endOfInsertedRun(
   doc: OutlineDoc,
-  firstBlockCursor: { line: number; ch: number },
+  firstBlockAnchor: { line: number; ch: number },
   blockCount: number,
 ): { line: number; ch: number } {
-  const firstNode = nodeAtLine(doc, firstBlockCursor.line);
-  if (!firstNode) return firstBlockCursor; // defensive: shouldn't happen
+  const firstNode = nodeAtLine(doc, firstBlockAnchor.line);
+  if (!firstNode) return firstBlockAnchor; // defensive: shouldn't happen
   const path = findPath(doc, firstNode.id)!;
   const siblings = childrenAtScope(doc, path.slice(0, -1));
   const lastNode = siblings[path[path.length - 1]! + blockCount - 1] ?? firstNode;
@@ -352,7 +375,7 @@ function deleteAndSplice(
   if (!deletion.ok) return vetoFrom(deletion);
 
   if (parsedBlocks.length === 0) {
-    return rewriteFrom(deletion.value, 'delete.structural');
+    return rewriteFrom(doc, deletion.value, { kind: 'deletion', removed: ids }, 'delete.structural');
   }
 
   const { parentPath, before, after } = survivorsOf(doc, ids);
@@ -360,8 +383,13 @@ function deleteAndSplice(
   // `before`/`after` carry ids from the PRE-deletion `doc` — `deleteSubtrees`
   // (like every op) returns a tree from a FRESH `finalize` reparse, which
   // assigns all-new ids. The survivor's identity only survives the crossing
-  // as a LINE position: `deletion.value.cursor` was placed exactly on it.
-  const survivorInDoc2 = before || after ? nodeAtLine(doc2, deletion.value.cursor.line) : undefined;
+  // as a LINE position: the deletion's ANCHOR was placed exactly on it.
+  //
+  // Reading the anchor rather than the caret is what lets `caret-placement-
+  // policy` change where the caret lands after a deletion without changing
+  // which node this splices against. The two were the same field until that
+  // change; they are now deliberately different values.
+  const survivorInDoc2 = before || after ? nodeAtLine(doc2, deletion.value.anchor.line) : undefined;
 
   let inserted: OpResult<OpOutput>;
   if (after && survivorInDoc2) {
@@ -376,8 +404,12 @@ function deleteAndSplice(
   const finalText = encode(inserted.value.doc);
   const finalLines = finalText === '' ? [] : finalText.split('\n');
   const finalEdits = diffLines(encodeLines(doc), finalLines);
-  const cursor = endOfInsertedRun(inserted.value.doc, inserted.value.cursor, parsedBlocks.length);
-  return { kind: 'rewrite', edits: finalEdits, cursor, userEvent: 'input.paste.structural' };
+  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
+  const { caret } = planCaret(
+    { kind: 'exact' },
+    { before: doc, after: inserted.value.doc, anchor: runEnd },
+  );
+  return { kind: 'rewrite', edits: finalEdits, cursor: caret, userEvent: 'input.paste.structural' };
 }
 
 function composeTypeOver(
@@ -410,7 +442,7 @@ function computeDeletionVerdict(
   if (edit.insert === '') {
     const deletion = deleteSubtrees(doc, ids);
     if (!deletion.ok) return vetoFrom(deletion);
-    return rewriteFrom(deletion.value, 'delete.structural');
+    return rewriteFrom(doc, deletion.value, { kind: 'deletion', removed: ids }, 'delete.structural');
   }
   return composeTypeOver(doc, ids, edit.insert, fallbackIndentUnit);
 }
@@ -447,8 +479,12 @@ function computePasteVerdict(
 
   const inserted = insertSubtrees(doc, node.id, parsedBlocks, 'after', fallbackIndentUnit);
   if (!inserted.ok) return PASS;
-  const cursor = endOfInsertedRun(inserted.value.doc, inserted.value.cursor, parsedBlocks.length);
-  return { kind: 'rewrite', edits: inserted.value.edits, cursor, userEvent: 'input.paste.structural' };
+  const runEnd = endOfInsertedRun(inserted.value.doc, inserted.value.anchor, parsedBlocks.length);
+  const { caret } = planCaret(
+    { kind: 'exact' },
+    { before: doc, after: inserted.value.doc, anchor: runEnd },
+  );
+  return { kind: 'rewrite', edits: inserted.value.edits, cursor: caret, userEvent: 'input.paste.structural' };
 }
 
 /**
@@ -515,7 +551,7 @@ function computeMultiRangeDeletionVerdict(doc: OutlineDoc, edits: readonly EditF
 
   const deletion = deleteSubtreeGroups(doc, groups);
   if (!deletion.ok) return vetoFrom(deletion);
-  return rewriteFrom(deletion.value, 'delete.structural');
+  return rewriteFrom(doc, deletion.value, { kind: 'deletion', removed: groups.flat() }, 'delete.structural');
 }
 
 /**

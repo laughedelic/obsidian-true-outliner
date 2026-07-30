@@ -31,11 +31,13 @@ export const IS_MOBILE_RUN = process.env.OBSIDIAN_E2E_MOBILE === '1';
 // ---- Notes and editor buffer -------------------------------------------
 
 export async function openNote(notePath: string): Promise<void> {
+  await armNoticeRecorder();
   await obsidianPage.openFile(notePath);
 }
 
 /** Create (or overwrite) a note and open it. */
 export async function createNote(notePath: string, content: string): Promise<void> {
+  await armNoticeRecorder();
   await browser.executeObsidian(
     async ({ app }, p, c) => {
       const existing = app.vault.getAbstractFileByPath(p);
@@ -561,6 +563,9 @@ export function isOutlineMode(notePath: string): Promise<boolean> {
 
 /** Toggle outline mode for the active note via the real command. */
 export async function toggleOutlineMode(): Promise<void> {
+  // Armed BEFORE the toggle: the notice this produces lives ~1500ms, which a
+  // slow poll can miss entirely if recording only starts once someone waits.
+  await armNoticeRecorder();
   await runCommand('toggle-outline-mode');
 }
 
@@ -777,9 +782,65 @@ export async function noticeTexts(): Promise<string[]> {
   return notices.map((n) => n.getText());
 }
 
+/**
+ * Start recording notices in the page, so a notice that appears and
+ * auto-dismisses between two polls is still observable afterwards.
+ *
+ * Why this exists (CI, 2026-07-30). `waitForNotice` used to poll the live DOM
+ * only. A notice is shown for 1500–2000ms, and one poll costs several
+ * WebDriver round-trips (`$$('.notice')` plus a `getText()` each) — on a loaded
+ * CI runner that is slow enough for a whole notice lifetime to fall BETWEEN two
+ * polls. The wait then spun to its timeout and reported "did not appear" for a
+ * notice that had appeared and gone.
+ *
+ * The signature was a giveaway that it was timing, not behaviour: different
+ * tests failed on each run, always with the same message, and re-running an
+ * UNCHANGED commit that had previously passed reproduced it. The full suite
+ * passes locally, where a run takes ~3 minutes against CI's ~10.
+ *
+ * Idempotent, and safe across an app restart: the flag lives on `window`, so a
+ * reload drops both the flag and the observer and the next call re-arms.
+ *
+ * Armed from the wdio `before` hook so it is live before ANY spec acts, and
+ * again from `openNote`/`createNote`/`toggleOutlineMode` to cover the window
+ * being replaced by a reload. Arming only inside `waitForNotice` is too late by
+ * construction — review found a real path, `40-shell.e2e.ts`'s
+ * `enablePlugin` → `waitForNotice('obsidian-outliner')`, where the notice is
+ * produced by the action itself and nothing had armed the recorder when that
+ * spec runs alone.
+ */
+export async function armNoticeRecorder(): Promise<void> {
+  await browser.execute(() => {
+    const w = window as unknown as { __toNoticeLog?: string[]; __toNoticeArmed?: boolean };
+    if (w.__toNoticeArmed) return;
+    if (!document.body) return; // too early; a later call re-arms
+    w.__toNoticeArmed = true;
+    w.__toNoticeLog = [];
+    const record = (): void => {
+      for (const el of Array.from(document.querySelectorAll('.notice'))) {
+        const text = el.textContent ?? '';
+        if (text && !w.__toNoticeLog!.includes(text)) w.__toNoticeLog!.push(text);
+      }
+    };
+    new MutationObserver(record).observe(document.body, { childList: true, subtree: true });
+    record(); // anything already on screen
+  });
+}
+
+/** Notices recorded since arming, whether or not they are still on screen. */
+export async function recordedNoticeTexts(): Promise<string[]> {
+  return browser.execute(
+    () => (window as unknown as { __toNoticeLog?: string[] }).__toNoticeLog ?? [],
+  );
+}
+
 export async function waitForNotice(text: string): Promise<void> {
+  await armNoticeRecorder();
   await browser.waitUntil(
-    async () => (await noticeTexts()).some((t) => t.includes(text)),
+    async () => {
+      if ((await recordedNoticeTexts()).some((t) => t.includes(text))) return true;
+      return (await noticeTexts()).some((t) => t.includes(text));
+    },
     { timeout: 4000, timeoutMsg: `notice containing "${text}" did not appear` },
   );
 }
@@ -816,6 +877,11 @@ export async function waitForContentChildCount(
 export async function dismissNotices(): Promise<void> {
   await browser.execute(() => {
     document.querySelectorAll('.notice').forEach((n) => n.remove());
+    // Clear the recorder too, so a notice from an earlier step can never
+    // satisfy a later `waitForNotice`. Tests call this between steps precisely
+    // to draw that line.
+    const w = window as unknown as { __toNoticeLog?: string[] };
+    if (w.__toNoticeLog) w.__toNoticeLog.length = 0;
   });
 }
 

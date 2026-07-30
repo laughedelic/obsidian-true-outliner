@@ -40,11 +40,27 @@ export interface OpOutput {
   readonly doc: OutlineDoc;
   readonly edits: readonly Edit[];
   /**
-   * Where the operated-on node landed: its first line (0-based, in the new
-   * text) and the character offset of its content start (after indentation
-   * and any list/heading marker) — ready to become an editor cursor.
+   * Where this operation's SUBJECT landed — its first line (0-based, in the
+   * new text) and the character offset of its content start (after
+   * indentation and any list/heading marker) — or, for the operations with an
+   * interior landing, that exact position: a merge's join point, a split
+   * point, an insertion's first block. For a deletion it is the surviving
+   * neighbour the operation selects.
+   *
+   * A structural FACT, not the caret. Where the caret goes is decided by
+   * `caret-policy.ts` from this and the surrounding document; the two need not
+   * coincide, and after a deletion they deliberately do not.
+   *
+   * The distinction is load-bearing beyond caret placement. `finalize`
+   * re-parses, so node ids do not survive an operation, and composing code
+   * that has to locate a node across that boundary — `enforce.ts`'s
+   * `deleteAndSplice`, which needs the surviving neighbour in the
+   * post-deletion tree — locates it by this line. Reading the caret for that
+   * purpose is what made the deletion convention unchangeable: altering it
+   * would have silently changed which node a paste or type-over splices
+   * against.
    */
-  readonly cursor: { readonly line: number; readonly ch: number };
+  readonly anchor: { readonly line: number; readonly ch: number };
 }
 
 const isContent = (node: OutlineNode): boolean =>
@@ -74,13 +90,13 @@ function startLineOf(doc: OutlineDoc, id: number): number {
     node.children.forEach(walk);
   };
   doc.children.forEach(walk);
-  return found === -1 ? 0 : found;
+  return found; // -1 when absent; callers decide, rather than a silent line 0
 }
 
 /**
  * `subjectId` is `undefined` only when a delete op consumes every node in
  * scope (deleteSubtrees's empty-document / empty-scope edge case) — the
- * cursor then lands at the scope's own start rather than on any node.
+ * anchor then lands at the scope's own start rather than on any node.
  */
 export function finalize(
   oldDoc: OutlineDoc,
@@ -90,12 +106,29 @@ export function finalize(
   const normalized = normalizeBoundaries(surgery);
   const text = encode(normalized);
   const lines = text === '' ? [] : text.split('\n');
-  const subjectLine =
-    subjectId === undefined ? normalized.preamble.length : startLineOf(normalized, subjectId);
+  // A subject that is not in `normalized` is a caller bug, not a position: it
+  // used to degrade to line 0, which reads as a legitimate anchor and pointed
+  // at whatever occupied that line (in a note with frontmatter, the preamble).
+  // Degrade to the same scope start `subjectId === undefined` produces, so an
+  // absent subject is never mistaken for a located one.
+  const located = subjectId === undefined ? -1 : startLineOf(normalized, subjectId);
+  if (located === -1) {
+    // No subject at all: the scope start. `preamble.length` is one PAST the
+    // last line whenever the preamble has no trailing blank (frontmatter
+    // written with no separator before the body), and `anchor` is a public
+    // structural position, so a direct consumer would receive a coordinate
+    // outside the document. Anchor at the end of what remains instead.
+    const lastLine = Math.max(lines.length - 1, 0);
+    return accept({
+      doc: parse(text),
+      edits: diffLines(encodeLines(oldDoc), lines),
+      anchor: { line: lastLine, ch: (lines[lastLine] ?? '').length },
+    });
+  }
   return accept({
     doc: parse(text),
     edits: diffLines(encodeLines(oldDoc), lines),
-    cursor: { line: subjectLine, ch: contentColumnCh(lines[subjectLine] ?? '') },
+    anchor: { line: located, ch: contentColumnCh(lines[located] ?? '') },
   });
 }
 
@@ -622,7 +655,7 @@ export function splitNode(
     if (!result.ok) return result;
     return accept({
       ...result.value,
-      cursor: { line: startLine + node.lines.length + 1, ch: 0 },
+      anchor: { line: startLine + node.lines.length + 1, ch: 0 },
     });
   }
 
@@ -731,9 +764,14 @@ export function deleteSubtrees(doc: OutlineDoc, nodeIds: readonly number[]): OpR
  * true combined result has no such ambiguity.
  *
  * `groups[0]` MUST be the topmost group in document order — its own
- * before/after survivor becomes the op's cursor, the one group whose
+ * before/after survivor becomes the op's ANCHOR, the one group whose
  * position is guaranteed unaffected by every OTHER (necessarily later)
- * group's removal.
+ * group's removal. The PREFERENCE ORDER is unchanged by `caret-placement-policy`
+ * — following sibling, then preceding, then ancestor — and it is still what
+ * `enforce.ts` splices against rather than where the caret goes. What changed is
+ * that each candidate must actually survive the combined removal: the naive
+ * `survivorAfter` is exactly what an adjacent later group deletes, and the
+ * anchor then pointed at line 0.
  */
 export function deleteSubtreeGroups(
   doc: OutlineDoc,
@@ -765,16 +803,35 @@ export function deleteSubtreeGroups(
     );
   }
 
+  // The anchor must name a node that SURVIVES the combined removal, which the
+  // naive `firstSiblings[hi + 1]` does not: with two adjacent groups under one
+  // parent, group 0's following sibling is exactly what a later group removes.
+  // `startLineOf` then could not find it and silently reported line 0 — a
+  // position pointing at whatever happens to be there, or into the preamble.
+  // Asking `surgery` (the post-removal tree) is exact and needs no bookkeeping
+  // of which ranges took what.
+  const survives = (node: OutlineNode | undefined): boolean =>
+    node !== undefined && findPath(surgery, node.id) !== undefined;
+
   const first = resolved[0]!;
   const firstSiblings = childrenAt(doc, first.parentPath);
-  const survivorAfter = firstSiblings[first.hi + 1];
-  const survivorBefore = first.lo > 0 ? firstSiblings[first.lo - 1] : undefined;
-  const subjectId =
-    survivorAfter?.id ??
-    survivorBefore?.id ??
-    (first.parentPath.length > 0 ? nodeAt(doc, first.parentPath)!.id : undefined);
+  let subject: OutlineNode | undefined;
+  for (let i = first.hi + 1; i < firstSiblings.length && !subject; i++) {
+    if (survives(firstSiblings[i])) subject = firstSiblings[i];
+  }
+  for (let i = first.lo - 1; i >= 0 && !subject; i--) {
+    if (survives(firstSiblings[i])) subject = firstSiblings[i];
+  }
+  // Then the nearest surviving ancestor — a group at a higher level can remove
+  // the immediate parent too.
+  for (let path = first.parentPath; path.length > 0 && !subject; path = path.slice(0, -1)) {
+    const ancestor = nodeAt(doc, path);
+    if (survives(ancestor)) subject = ancestor;
+  }
 
-  return finalize(doc, surgery, subjectId);
+  // `undefined` is the honest answer when nothing in scope survived: `finalize`
+  // anchors at the scope's own start rather than inventing a node.
+  return finalize(doc, surgery, subject?.id);
 }
 
 /**
@@ -937,15 +994,17 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
 
   const result = finalize(doc, surgery, merged.id);
   if (!result.ok) return result;
-  // Cursor at the JOIN point, not the merged node's start (finalize's
+  // Anchor at the JOIN point, not the merged node's start (finalize's
   // generic convention, right for indent/outdent/split but not a merge):
   // the join line is `first`'s own last (or, for a setext heading, first)
   // line — still findable post-reparse since it's a fixed offset from the
-  // already-correct start-of-node line `finalize` computed.
+  // already-correct start-of-node line `finalize` computed. This is one of
+  // the interior landings `OpOutput.anchor` documents: its `ch` is meaningful
+  // and the caret policy uses it verbatim rather than re-deriving a column.
   const joinLineOffset = first.kind === 'heading' && first.setext ? 0 : first.lines.length - 1;
-  const joinLine = result.value.cursor.line + joinLineOffset;
+  const joinLine = result.value.anchor.line + joinLineOffset;
   const joinCh = (first.lines[joinLineOffset] ?? '').length;
-  return accept({ ...result.value, cursor: { line: joinLine, ch: joinCh } });
+  return accept({ ...result.value, anchor: { line: joinLine, ch: joinCh } });
 }
 
 /**

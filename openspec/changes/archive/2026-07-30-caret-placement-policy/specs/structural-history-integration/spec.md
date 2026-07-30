@@ -1,33 +1,5 @@
-# structural-history-integration Specification
+## MODIFIED Requirements
 
-## Purpose
-Defines how structural operations integrate with CodeMirror's undo history so that redo
-restores the cursor the operation itself produced — the merge join point, the split point,
-a moved node's new location, the column an indent preserved — rather than a mechanical
-mapping that lands somewhere else.
-
-Two mechanisms cover it, and which applies depends on whether an operation's cursor is a
-FUNCTION of the pre-operation caret or a CHOICE:
-
-- **Indent and outdent** derive their cursor by mapping (`minimal-change-dispatch`), which
-  is exactly what history recomputes on redo, so the two agree by construction and nothing
-  is recorded. Minimal change sets are what make that mapping meaningful.
-- **Every other structural operation** chooses a cursor no mapping can reproduce — redo
-  replays a `ChangeSet`, not the operation, and a text splice carries no notion of which
-  content is which — so its cursor is recorded into history by a following selection-only
-  transaction. That is the only channel CodeMirror offers.
-
-Also covers what neither mechanism can fix: a second undo does not restore the
-pre-operation cursor, for two distinct reasons documented below. Related and worth knowing
-beyond this capability: CodeMirror dispatches history transactions with transaction
-filtering disabled, so the enforcement funnel provably never observes an undo or a redo.
-
-Architecture and rationale: the `fix-redo-cursor-after-structural-ops` and
-`minimal-changesets-for-structural-ops` design.md files; evidence and findings:
-`docs/research/04-open-questions.md` Q18–Q21 and Q29. Where the caret should go in the
-first place — as opposed to how it survives history — is being consolidated by the
-`caret-placement-policy` change.
-## Requirements
 ### Requirement: Redo restores a structural operation's own cursor at any depth
 
 When a structural operation is undone and REDONE, the cursor SHALL be restored to the
@@ -223,19 +195,3 @@ that cursor position for user gestures; its own scope still passes through
 - **THEN** the limitation is pinned as an executable test (not only described here), so
   a future report of "the cursor is one character off after two undos" is recognized as
   this known gap rather than investigated as a new bug
-
-### Requirement: Undo behavior and undo granularity are unchanged
-
-Recording the resulting cursor SHALL NOT change what undo does. One structural
-operation SHALL remain exactly one undo step, and undo SHALL continue to restore both
-the pre-operation document and the pre-operation cursor.
-
-#### Scenario: One undo step per structural operation
-- **WHEN** a structural operation is performed and undo is pressed once
-- **THEN** the document is restored to its exact pre-operation state, with no second
-  undo press required
-
-#### Scenario: Undo restores the pre-operation cursor
-- **WHEN** a structural operation is undone
-- **THEN** the cursor is restored to where it was before the operation was performed
-
