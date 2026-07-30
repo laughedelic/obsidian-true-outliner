@@ -180,17 +180,30 @@ describe('keyboard grammar', function () {
 
   it('Alt+Arrow is not claimed by the plugin (move ships as a command hotkey)', async function () {
     // Locks in the decision to drop the hardcoded `Alt-ArrowUp/Down` CM6
-    // bindings. If someone re-adds them, this buffer WILL change and this
-    // fails. Stock Obsidian leaves Alt+Arrow unbound — measured on 1.13.3 it
+    // bindings. Stock Obsidian leaves Alt+Arrow unbound — measured on 1.13, it
     // only moves the caret — so an unchanged buffer means the key is ours to
     // leave alone, not ours to claim.
-    await grammarNote('- a\n\t- a1\n- b\n', 2, 2);
+    //
+    // Each direction is exercised from a position where that move WOULD
+    // succeed, with the fixture (and the caret) reset in between. Doing both
+    // presses from one starting position cannot fail for the second one: the
+    // first, unbound press still moves the caret natively, landing it on `a1` —
+    // an only child, where a restored move-down binding could only reject, so
+    // the buffer would be unchanged and the control would pass while the
+    // binding was back (caught in review; docs/research/04 Q28).
+    const fixture = '- a\n\t- a1\n- b\n';
+
+    // On the last node: a restored move-up would swap it above `- a`.
+    await grammarNote(fixture, 2, 2);
     await h.keys.altUp();
     await browser.pause(50);
-    expect(await h.getBuffer()).toBe('- a\n\t- a1\n- b\n');
+    expect(await h.getBuffer()).toBe(fixture);
+
+    // On the first node: a restored move-down would swap it below `- b`.
+    await grammarNote(fixture, 0, 2);
     await h.keys.altDown();
     await browser.pause(50);
-    expect(await h.getBuffer()).toBe('- a\n\t- a1\n- b\n');
+    expect(await h.getBuffer()).toBe(fixture);
   });
 
   it('the move-node hotkey acts on the HOST node even from inside a table cell', async function () {
