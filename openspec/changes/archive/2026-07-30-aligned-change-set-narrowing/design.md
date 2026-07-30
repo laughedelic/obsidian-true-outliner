@@ -116,7 +116,8 @@ block whole and degrades safely: a line that cannot be matched simply falls into
 run, where the existing character-level narrowing still trims it. Missing an anchor costs
 minimality, never correctness, and the `applyEdits` property test bounds that.
 
-Cost is O(n·m) only in the LIS, over the lines of one edit region; regions are node-sized.
+Cost is O(k log k) in the LIS, where k is the number of candidate pairs — lines unique on
+both sides — and k is bounded by the lines of one edit region; regions are node-sized.
 
 ### D3. Minimality is tightened, not traded away
 
@@ -140,20 +141,18 @@ Interactions checked rather than assumed:
 - **Selection and enforcement.** The enforcement rewrite path shares this choke point and
   simply gets better-shaped change sets; its e2e specs pass unchanged.
 
-### D4. The history-caret negative control is stated for both directions
+### D4. The history-caret negative control moves to the direction that still tests it
 
-One existing test asserted that WITHOUT the semantic cursor recorder, redo lands on the
-sibling that swapped in. Anchoring briefly made that stop happening in one direction — the
-aligner matched the moved node, so the caret sat in text no change touched and mapping got
-the right answer by luck, leaving the control vacuous in that row.
+One existing test changed meaning rather than breaking: it asserted that WITHOUT the semantic
+cursor recorder, redo lands on the sibling that swapped in. With aligned change sets it now
+lands correctly — because for THAT direction the alignment called the user's node the one
+that MOVED, so the caret rode the relocated run and mapping followed it.
 
-Choosing between alignment and an in-place reading by which one claims fewer characters
-settles this too: a swap of two lines differing by a character is cheaper to describe in
-place, so it is, in both directions. The caret is inside a change either way, mapping fails
-either way, and the control is non-vacuous in both rows — the value this test pinned before
-the alignment existed. The change set for the smallest swap is therefore unchanged from
-before this capability, which is the strongest statement available that the choice rule did
-not buy its correctness with a behavioural regression elsewhere.
+This is a coincidence, not a new guarantee. A swap has two equally true descriptions and the
+alignment picks one from line content alone. Move-DOWN of the first sibling picks the other
+way, and there mapping still cannot follow — measured. The control now uses that direction,
+so it exercises the branch it claims to, and the spec delta records the reasoning so the
+requirement is not read as "mapping works for moves now".
 
 ## Risks / Trade-offs
 
@@ -172,17 +171,21 @@ not buy its correctness with a behavioural regression elsewhere.
   → Uniqueness on both sides is evidence a line survived, not proof: when an indent shifts a
   subtree whose lines repeat, each line's new text IS the next line's old text, so the middle
   lines come out unique on both sides and the alignment reads an in-place indent as a deletion
-  plus an insertion — carrying the caret off the character it was on. Resolved by adopting an
-  alignment only where it explains the edit in fewer characters than describing the region in
-  place, compared before the relocation clamp widens either reading. This also subsumes the
-  swap tie-break: a two-line swap is now described in place in both directions, so neither
-  direction recovers its caret by mapping alone and both rest on recording (D4).
+  plus an insertion — carrying the caret off the character it was on. Resolved by asking the
+  alignment for the evidence a relocation always leaves: a move PUTS BACK WHAT IT TAKES, so
+  the lines the reading removes are the lines it inserts, all of them. One line in common is
+  not enough — a chain shifted far enough makes its deepest line reappear at the depth above
+  — and requiring the whole set to balance is what separates coincidence from a block that
+  really went somewhere. An indent balances nothing, so its alignment is not adopted unless it
+  also claims fewer characters than editing the region in place. Which
+  node a swap calls "moved" remains a choice made from line content, not from the gesture —
+  see D4; recording is what makes that immaterial.
 - **The host's exact trigger is still uncharacterised.** → The guarantee adopted here is
   strictly stronger than any behaviour we observed needing: the passed-over block's characters
   are in no change range, so no reconciliation of ours can be misread. Covered live by e2e
   regressions against a real Obsidian with a mounted table widget.
 - **Performance on very large moved subtrees.** → The alignment is over one edit region's
-  lines; the LIS is O(n log n) on candidate pairs. Subdivision re-scans each gap, so the
+  lines; the LIS is O(k log k) on the k candidate pairs. Subdivision re-scans each gap, so the
   concern is depth rather than any single pass: measured work per line is flat from 25 to
   40,000 lines under adversarial search, because an anchor at a segment's edge leaves the gap
   beside it empty and a gap that loses no line to its neighbour cannot make an ambiguous line

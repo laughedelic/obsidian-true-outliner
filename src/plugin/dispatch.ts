@@ -465,6 +465,20 @@ function changesForRun(
   return wholeRegionChange(lines, run.oldStart, run.oldEnd, newMid, sides);
 }
 
+/** Do these two line lists hold the same lines, in any order? */
+function sameLines(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const counts = new Map<string, number>();
+  for (const line of a) counts.set(line, (counts.get(line) ?? 0) + 1);
+  for (const line of b) {
+    const n = counts.get(line);
+    if (n === undefined) return false;
+    if (n === 1) counts.delete(line);
+    else counts.set(line, n - 1);
+  }
+  return counts.size === 0;
+}
+
 /** How much of the document a change set claims: characters removed plus inserted. */
 function charsTouched(lines: readonly string[], changes: readonly EditorChange[]): number {
   let total = 0;
@@ -537,21 +551,43 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
   // `['- a', '  - a', '    - a']` becomes `['  - a', '    - a', '      - a']`,
   // where `  - a` and `    - a` are each unique on BOTH sides, so anchoring
   // pairs them across the shift and reads an in-place indent as "the first
-  // line vanished and a deeper one appeared". `relocates` cannot save this:
-  // anchored lines never reach a run, so nothing downstream ever sees them.
+  // line vanished and a deeper one appeared" — carrying the caret off the
+  // character it was on. `relocates` cannot save this: anchored lines never
+  // reach a run, so nothing downstream ever sees them.
   //
-  // Text cannot settle it — both readings explain the same two documents — so
-  // settle it on how well each one EXPLAINS the text: how many characters it
-  // has to claim to get from one side to the other. Characters outside every
-  // change range are what a live widget keeps, what a caret maps through
-  // unmoved, and what undo replays as one gesture, so a reading that claims
-  // more of the document than another buys nothing for it. Take the in-place
-  // reading whenever it claims strictly less, and the alignment keeps its win
-  // exactly where it earns one. That is not a tiebreak bolted on beside the
-  // relocation guarantee, it implies it: describing a move in place rewrites
-  // the block it passed over as well as the block that moved, while the
-  // alignment rewrites only the block that moved — strictly less, for as long
-  // as anything is being passed over at all.
+  // So ask the alignment for evidence, the way `relocates` asks a line for it.
+  // A relocation PUTS BACK WHAT IT TAKES: the lines it removes from one place
+  // are the lines it inserts in another, every one of them, because moving a
+  // block is the one edit that changes no line at all. An indent puts nothing
+  // back — `- a` is gone and `      - a` is new — so a reading that describes
+  // it as a removal and an insertion is describing a move that never happened.
+  //
+  // All of them, not one of them: a single line in common is the same
+  // coincidence in new clothes. Indenting `- b` over `  - b` / `  - a` /
+  // `  - a` / `    - a` shifts a subtree whose deepest line reappears at the
+  // depth above it, so one line does turn up on both sides of the reading
+  // while the other three are plainly rewritten. Requiring the whole set to
+  // balance is what separates that from a block that genuinely went somewhere.
+  //
+  // It is the TEXT that decides, not the operation: no dispatch site learns
+  // what it is dispatching, and the guarantee covers every op that relocates
+  // lines, including ones not written yet.
+  const removed: string[] = [];
+  const inserted: string[] = [];
+  for (const run of runs) {
+    for (let i = run.oldStart; i < run.oldEnd; i++) removed.push(lines[i]!);
+    for (let i = run.newStart; i < run.newEnd; i++) inserted.push(edit.insert[i]!);
+  }
+  if (removed.length > 0 && sameLines(removed, inserted)) {
+    return runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
+  }
+
+  // Nothing moved, so the alignment is one reading of an in-place edit among
+  // others and has to earn being chosen. Judge it the way we judge any
+  // description here: by how much of the document it has to claim. Characters
+  // outside every change range are what a live widget keeps, what a caret maps
+  // through unmoved, and what undo replays as one gesture, so a reading that
+  // claims more buys nothing for it.
   //
   // Measured WITHOUT the relocation clamp, on purpose. The clamp widens a
   // change to whole lines when it cannot tell a rewrite from a move; that is a
@@ -559,7 +595,7 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
   // which reading is true, and letting it vote here inverts the answer — in
   // the indent above it widens the in-place reading from 6 characters to 16
   // and hands the comparison to the very alignment it was meant to guard
-  // against. So: the text picks the alignment, the clamp then emits it.
+  // against. So: the text picks the reading, the clamp then emits it.
   const asExplanation = { before: new Set<string>(), after: new Set<string>() };
   const wholeRun = {
     oldStart: edit.fromLine,
@@ -567,10 +603,10 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
     newStart: 0,
     newEnd: edit.insert.length,
   };
-  const explains = (runsToCost: readonly ChangedRun[]): number =>
+  const explains = (candidate: readonly ChangedRun[]): number =>
     charsTouched(
       lines,
-      runsToCost.flatMap((run) => changesForRun(lines, edit.insert, run, asExplanation)),
+      candidate.flatMap((run) => changesForRun(lines, edit.insert, run, asExplanation)),
     );
 
   return explains([wholeRun]) < explains(runs)

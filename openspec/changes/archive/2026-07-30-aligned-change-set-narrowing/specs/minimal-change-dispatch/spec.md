@@ -21,12 +21,20 @@ never anchors an alignment it does not unambiguously determine. Failing to match
 could have been matched costs minimality only, never correctness.
 
 Uniqueness on both sides is evidence that a line survived, not proof of it, so an alignment
-SHALL be adopted only where it explains the edit more economically than describing the same
-region in place. The two readings SHALL be compared by how many characters each must claim
-to get from one side to the other, measured BEFORE any widening the relocation requirement
-imposes — that widening is a decision about how conservatively to emit a reading, not
-evidence about which reading is true — and the in-place reading SHALL be preferred when it
-claims strictly fewer.
+SHALL be adopted on the same evidence a relocation is recognised by elsewhere in this
+capability: a relocation PUTS BACK WHAT IT TAKES, so the lines the alignment removes are the
+lines it inserts — all of them, in some order, since moving a block changes no line. Where
+its runs show that, the alignment SHALL be adopted, and the relocation requirement below is
+thereby satisfied by construction rather than by inspection. A partial correspondence SHALL
+NOT count: text that repeats down a shifted chain puts SOME line back without anything having
+moved, which is the same coincidence this capability rejects at line granularity.
+
+Where the correspondence fails — something was destroyed or created, so nothing merely
+moved — the alignment is one reading of
+an in-place edit among others, and SHALL be adopted only where it claims fewer characters
+than describing the same region in place. That comparison SHALL be made BEFORE any widening
+the relocation requirement imposes, since the widening is a decision about how conservatively
+to emit a reading, not evidence about which reading is true.
 
 This narrowing SHALL happen at the single choke point shared by every structural
 dispatch site — the outline keyboard grammar, the edit-enforcement rewrite path, and the
@@ -120,6 +128,7 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
   line's OLD text — indenting a node whose nested descendants all repeat its text, so that
   the middle lines of the edit come out unique on BOTH sides
 - **THEN** every dispatched change stays on the line it belongs to, and the caret keeps the
-  character it was on, as it does when the same shape is spelled with distinct text; the
-  alignment is not adopted, because pairing those lines across the shift claims more of the
-  document than editing them where they are
+  character it was on, as it does when the same shape is spelled with distinct text — the
+  alignment is not adopted, because it does not put back what it takes: the lines it removes
+  are not the lines it inserts, so something was rewritten rather than moved — not even when
+  the shift makes one of those lines coincide on both sides

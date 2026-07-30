@@ -612,6 +612,30 @@ describe('edit dispatch: line edits → editor changes', () => {
      * and under the deletion reading it stops following the character it was
      * on and slides back a column.
      */
+    /**
+     * The cheapest description of a swap is not always the truthful one. Two
+     * lines that differ by a character can be rewritten in place for less than
+     * it costs to move one past the other, and a reader of that change set --
+     * a widget, a decoration, the caret -- is told both lines were edited when
+     * in fact neither was. Nothing here is a table, but this is the shape the
+     * table bug wore: a line the operation only passed over, reported as
+     * changed. The alignment puts back every line it takes, so it is believed.
+     */
+    it('a swap is a swap even when rewriting both lines would be cheaper', () => {
+      const text = '- a\n- b\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- a')!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // '- b' is passed over, so it is in no change range at all -- not even
+      // the two-character rewrite that would describe this document for less.
+      expect(editsToChanges(text.split('\n'), result.value.edits)).toEqual([
+        { from: { line: 0, ch: 0 }, to: { line: 1, ch: 0 }, text: '' },
+        { from: { line: 2, ch: 0 }, to: { line: 2, ch: 0 }, text: '- a\n' },
+      ]);
+    });
+
     it('an indent stays minimal when the lines it touches repeat DOWN a chain', () => {
       const text = '- x\n- a\n  - a\n    - a\n';
       const doc = parse(text);
@@ -700,6 +724,71 @@ describe('edit dispatch: line edits → editor changes', () => {
       const narrowing = performance.now() - started;
       expect(applyChanges(before.join('\n'), changes)).toBe(after.join('\n'));
       expect(narrowing).toBeLessThan(2_000);
+    });
+
+    /**
+     * The invariant the shifted chain broke, stated the way a user would: what
+     * the caret does when you indent must not depend on what the lines SAY.
+     *
+     * Two documents with the same structure and the same line lengths, one
+     * whose contents repeat and one whose contents are all distinct, are the
+     * same outline as far as any structural operation is concerned. So indent
+     * must land the caret at the same offset in both, and must describe the
+     * edit with the same per-line shape in both. How WIDE each change is may
+     * differ — the clamp widens a change when repetition makes a rewrite
+     * indistinguishable from a move, and that degradation is documented — but
+     * which lines it touches may not, because that is the difference between
+     * editing three lines in place and deleting one line to insert another.
+     *
+     * Stated as a property rather than as the one chain that was reported,
+     * because the coincidence has a whole family: any shift where a line's new
+     * text is some other line's old text will do, at any depth and any width.
+     */
+    it('what indent does to the caret does not depend on what the lines say', () => {
+      const render = (depths: readonly number[], content: (i: number) => string) =>
+        depths.map((d, i) => `${'  '.repeat(d)}- ${content(i)}`).join('\n') + '\n';
+
+      const shapes = fc
+        .array(fc.integer({ min: 0, max: 3 }), { minLength: 2, maxLength: 7 })
+        .map((raw) => {
+          // Legalise: a node may go one level deeper than its predecessor.
+          const depths: number[] = [];
+          for (const d of raw) depths.push(Math.min(d, (depths.at(-1) ?? -1) + 1));
+          return depths;
+        });
+
+      fc.assert(
+        fc.property(shapes, fc.array(fc.constantFrom('a', 'b'), { minLength: 7 }), (depths, pick) => {
+          // Same shape, same line lengths, different amounts of repetition.
+          const repeated = render(depths, (i) => pick[i % pick.length]!);
+          const distinct = render(depths, (i) => String.fromCharCode(97 + i));
+
+          const spansOf = (text: string, id: number) => {
+            const doc = parse(text);
+            const node = [...walkNodes(doc)][id];
+            if (!node) return null;
+            const result = indent(doc, node.id);
+            if (!result.ok) return null;
+            return editsToChanges(text.split('\n'), result.value.edits).map((c) => [
+              c.from.line,
+              c.to.line,
+            ]);
+          };
+
+          for (let id = 0; id < depths.length; id++) {
+            expect(spansOf(repeated, id)).toEqual(spansOf(distinct, id));
+          }
+          const caretAfterIndent = (text: string, line: number, ch: number) => {
+            const planned = planKey(text, { line, ch }, 'indent');
+            return planned && 'plan' in planned ? planned.plan.selection : null;
+          };
+          for (let line = 0; line < depths.length; line++) {
+            const ch = 2 * depths[line]! + 3; // just after the content character
+            expect(caretAfterIndent(repeated, line, ch)).toBe(caretAfterIndent(distinct, line, ch));
+          }
+        }),
+        { numRuns: 400 },
+      );
     });
 
     /**

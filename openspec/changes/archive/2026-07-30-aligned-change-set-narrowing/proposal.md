@@ -32,9 +32,10 @@ half: the shape must also be TRUE.
 - No dispatch site learns which operation it is dispatching. An earlier table-shaped fix that
   threaded a move direction into both dispatch sites is removed.
 - `structural-history-integration`'s rationale for recording a move's cursor is corrected: a
-  swap has two equally true descriptions and nothing in the text says which node the user
-  acted on, so mapping cannot recover the caret in either direction. Recording is still
-  required — it is what makes the answer right at all.
+  swap has two equally true descriptions, the alignment picks one from line content rather
+  than from which node the user acted on, so mapping fails in one direction and happens to
+  succeed in the other. Recording is still required — it is what makes the answer the same
+  either way.
 
 ## Capabilities
 
