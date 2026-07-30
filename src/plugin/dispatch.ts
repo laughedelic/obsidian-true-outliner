@@ -196,6 +196,33 @@ function retreat(lines: readonly string[], pos: EditorPos, n: number): EditorPos
   return { line, ch };
 }
 
+/** The set of distinct lines on each side of one edit. */
+interface EditSides {
+  readonly before: ReadonlySet<string>;
+  readonly after: ReadonlySet<string>;
+}
+
+/**
+ * Whether pairing these two lines describes a RELOCATION rather than an edit.
+ *
+ * The per-line branch trims a pair down to the characters that differ, which
+ * is only truthful when old line `i` and new line `i` are the same line, edited
+ * — the alignment above establishes that for every run it can anchor. When a
+ * region repeats its lines the alignment can run out of unique anchors, and a
+ * leftover run then pairs lines that merely swapped places. Character trimming
+ * on such a pair finds an accidental common prefix and suffix — table rows
+ * share `| ` and ` |`, so `| a   | b   |` against `| --- | --- |` narrows to a
+ * change starting partway INTO a row the operation actually left alone, which
+ * is exactly the description that makes the live table widget split its table.
+ *
+ * A line that still exists on the other side of the edit was not rewritten; it
+ * moved. Pairs like that keep whole-line bounds, so the change spans the line
+ * from one boundary to another instead of cutting into it.
+ */
+function relocates(oldLine: string, newLine: string, sides: EditSides): boolean {
+  return sides.after.has(oldLine) || sides.before.has(newLine);
+}
+
 /**
  * Same line count on both sides (indent, outdent, and any op that changes
  * lines' content without changing how many there are): diff each line pair
@@ -206,14 +233,18 @@ function perLineChanges(
   startLine: number,
   oldMid: readonly string[],
   newMid: readonly string[],
+  sides: EditSides,
 ): EditorChange[] {
   const changes: EditorChange[] = [];
   for (let i = 0; i < oldMid.length; i++) {
     const oldLine = oldMid[i]!;
     const newLine = newMid[i]!;
     if (oldLine === newLine) continue;
-    const prefix = commonPrefixLen(oldLine, newLine);
-    const suffix = commonSuffixLen(oldLine, newLine, Math.min(oldLine.length, newLine.length) - prefix);
+    const moved = relocates(oldLine, newLine, sides);
+    const prefix = moved ? 0 : commonPrefixLen(oldLine, newLine);
+    const suffix = moved
+      ? 0
+      : commonSuffixLen(oldLine, newLine, Math.min(oldLine.length, newLine.length) - prefix);
     const line = startLine + i;
     changes.push({
       from: { line, ch: prefix },
@@ -311,19 +342,46 @@ function wholeRegionChange(
   fromLine: number,
   toLine: number,
   newMid: readonly string[],
+  sides: EditSides,
 ): EditorChange[] {
   const envelope = lineRangeEnvelope(lines, fromLine, toLine, newMid);
-  const prefix = commonPrefixLen(envelope.oldSpanText, envelope.text);
-  const suffix = commonSuffixLen(
+  let prefix = commonPrefixLen(envelope.oldSpanText, envelope.text);
+  let suffix = commonSuffixLen(
     envelope.oldSpanText,
     envelope.text,
     Math.min(envelope.oldSpanText.length, envelope.text.length) - prefix,
   );
-  const from = advance(lines, envelope.from, prefix);
-  const to = retreat(lines, envelope.to, suffix);
+
+  // The trim runs over the span's text as a whole, so it can stop in the
+  // middle of a line — which is right for a split or a join, where that line
+  // really is being edited, and wrong for a line that only relocated: two
+  // table rows share `| ` and ` |`, and trimming those would start the change
+  // partway into a row the operation left alone. Give those characters back.
+  let from = advance(lines, envelope.from, prefix);
+  const overshoot = lineStartOvershoot(lines, from, sides);
+  if (overshoot > 0) from = advance(lines, envelope.from, (prefix -= overshoot));
+
+  let to = retreat(lines, envelope.to, suffix);
+  const undershoot = lineEndUndershoot(lines, to, sides);
+  if (undershoot > 0) to = retreat(lines, envelope.to, (suffix -= undershoot));
+
   const text = envelope.text.slice(prefix, envelope.text.length - suffix);
   if (text === '' && from.line === to.line && from.ch === to.ch) return [];
   return [{ from, to, text }];
+}
+
+/** How far `pos` sits past the start of a relocated line — 0 if trimming to it was fine. */
+function lineStartOvershoot(lines: readonly string[], pos: EditorPos, sides: EditSides): number {
+  const line = lines[pos.line];
+  if (line === undefined || pos.ch === 0 || pos.ch === line.length) return 0;
+  return sides.after.has(line) ? pos.ch : 0;
+}
+
+/** How far `pos` sits short of the end of a relocated line — 0 if trimming to it was fine. */
+function lineEndUndershoot(lines: readonly string[], pos: EditorPos, sides: EditSides): number {
+  const line = lines[pos.line];
+  if (line === undefined || pos.ch === 0 || pos.ch === line.length) return 0;
+  return sides.after.has(line) ? line.length - pos.ch : 0;
 }
 
 /**
@@ -346,12 +404,13 @@ function changesForRun(
   lines: readonly string[],
   insert: readonly string[],
   run: ChangedRun,
+  sides: EditSides,
 ): EditorChange[] {
   const newMid = insert.slice(run.newStart, run.newEnd);
   if (run.oldEnd - run.oldStart === run.newEnd - run.newStart) {
-    return perLineChanges(run.oldStart, lines.slice(run.oldStart, run.oldEnd), newMid);
+    return perLineChanges(run.oldStart, lines.slice(run.oldStart, run.oldEnd), newMid, sides);
   }
-  return wholeRegionChange(lines, run.oldStart, run.oldEnd, newMid);
+  return wholeRegionChange(lines, run.oldStart, run.oldEnd, newMid, sides);
 }
 
 /**
@@ -361,6 +420,13 @@ function changesForRun(
 export function editToChanges(lines: readonly string[], edit: Edit): EditorChange[] {
   const runs: ChangedRun[] = [];
   alignLines(lines.slice(edit.fromLine, edit.toLine), edit.insert, edit.fromLine, 0, runs);
+
+  // Which lines exist on each side of this edit, so the narrowing below can
+  // tell a line that was rewritten from one that only moved.
+  const sides: EditSides = {
+    before: new Set(lines.slice(edit.fromLine, edit.toLine)),
+    after: new Set(edit.insert),
+  };
 
   // Runs are ascending and disjoint in LINE space, but two of them can still
   // narrow to the same character POSITION, because `lineRangeEnvelope` has to
@@ -382,8 +448,8 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
   // construction: what separates consecutive runs is matched lines, identical
   // and equally many on both sides, so a merged run spans the same text.
   for (let i = 1; i < runs.length; ) {
-    const before = changesForRun(lines, edit.insert, runs[i - 1]!).at(-1);
-    const after = changesForRun(lines, edit.insert, runs[i]!)[0];
+    const before = changesForRun(lines, edit.insert, runs[i - 1]!, sides).at(-1);
+    const after = changesForRun(lines, edit.insert, runs[i]!, sides)[0];
     if (before && after && !isAfter(after.from, before.to)) {
       runs.splice(i - 1, 2, {
         oldStart: runs[i - 1]!.oldStart,
@@ -397,7 +463,7 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
     }
   }
 
-  return runs.flatMap((run) => changesForRun(lines, edit.insert, run));
+  return runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
 }
 
 export function editsToChanges(lines: readonly string[], edits: readonly Edit[]): EditorChange[] {

@@ -457,6 +457,110 @@ describe('edit dispatch: line edits → editor changes', () => {
         { from: { line: 5, ch: 0 }, to: { line: 5, ch: 0 }, text: '\nMover.\n' },
       ]);
     });
+
+    /**
+     * Every position a change may name in a line that SURVIVES the edit — a
+     * line whose content still exists afterwards was not rewritten, it moved,
+     * so a change may cover it whole but must never cut into it.
+     */
+    const cutsIntoSurvivingLine = (
+      lines: readonly string[],
+      changes: readonly EditorChange[],
+      surviving: ReadonlySet<string>,
+    ) =>
+      changes.flatMap((change) =>
+        [change.from, change.to]
+          .filter((pos) => {
+            const line = lines[pos.line];
+            return (
+              line !== undefined && pos.ch > 0 && pos.ch < line.length && surviving.has(line)
+            );
+          })
+          .map((pos) => ({ pos, line: lines[pos.line] })),
+      );
+
+    it('relocates the table itself without cutting into either node', () => {
+      const text = `${TABLE.join('\n')}\n\nMover.\n`;
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === TABLE[0])!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+      expect(changes).toEqual([
+        { from: { line: 0, ch: 0 }, to: { line: 0, ch: 0 }, text: 'Mover.\n\n' },
+        { from: { line: 3, ch: 0 }, to: { line: 5, ch: 0 }, text: '' },
+      ]);
+      expect(cutsIntoSurvivingLine(lines, changes, new Set(result.value.edits.flatMap((edit) => edit.insert)))).toEqual(
+        [],
+      );
+    });
+
+    /**
+     * The alignment anchors on lines that are unique to both sides, so a
+     * region that REPEATS its lines can leave it with nothing to anchor a
+     * relocated block on. What is left over then pairs lines that merely
+     * swapped places, and character-level trimming on such a pair finds the
+     * accidental `| ` prefix and ` |` suffix two table rows share — a change
+     * starting partway into a row the move left alone, which is the exact
+     * shape that splits the table. Losing an anchor may cost minimality; it
+     * must never cost the guarantee.
+     */
+    it('never cuts into a line it could not anchor, only describes it more coarsely', () => {
+      const text = 'Dup\n| a   | b   |\n\nDup\n| --- | --- |\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === 'Dup')!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+      expect(changes).toEqual([
+        { from: { line: 1, ch: 0 }, to: { line: 1, ch: 13 }, text: '| --- | --- |' },
+        { from: { line: 4, ch: 0 }, to: { line: 4, ch: 13 }, text: '| a   | b   |' },
+      ]);
+    });
+
+    it('never cuts into a surviving line, anywhere in that family', () => {
+      // Documents whose siblings SHARE lines, which is what starves the
+      // alignment of unique anchors; the rows differ only in their cells, so
+      // whatever the alignment fails to match, character trimming is left
+      // with the `| ` and ` |` every row has in common to align on.
+      const marker = fc.constantFrom('Dup', '- dup');
+      const row = fc.constantFrom(
+        '| a   | b   |',
+        '| --- | --- |',
+        '| 1   | 2   |',
+        '| x   | y   |',
+      );
+      const block = fc.tuple(marker, fc.array(row, { minLength: 1, maxLength: 2 }));
+      fc.assert(
+        fc.property(fc.array(block, { minLength: 2, maxLength: 3 }), (blocks) => {
+          const text =
+            blocks.map(([head, rows]) => [head, ...rows].join('\n')).join('\n\n') + '\n';
+          const lines = text.split('\n');
+          const doc = parse(text);
+          // Every op on every node, so a document that reaches the shape is
+          // never wasted on an op that cannot expose it.
+          for (const op of [moveDown, moveUp, indent, outdent]) {
+            for (const node of walkNodes(doc)) {
+              const result = op(doc, node.id);
+              if (!result.ok) continue;
+              const changes = editsToChanges(lines, result.value.edits);
+              expect(
+                cutsIntoSurvivingLine(lines, changes, new Set(result.value.edits.flatMap((edit) => edit.insert))),
+              ).toEqual([]);
+              // …while still describing the same document.
+              expect(applyChanges(text, changes)).toBe(
+                applyEdits(lines, result.value.edits).join('\n'),
+              );
+            }
+          }
+        }),
+        { numRuns: 5000 },
+      );
+    });
   });
 });
 

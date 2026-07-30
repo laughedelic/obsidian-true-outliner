@@ -217,3 +217,10 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
 - **THEN** the change set relocates whole lines and no change begins or ends partway into a
   line either node leaves unchanged
 
+#### Scenario: A region whose lines repeat degrades in minimality, not in the guarantee
+- **WHEN** the lines of the region an operation touches repeat, so that a relocated block
+  cannot be matched to its new position
+- **THEN** the affected lines are described with whole-line bounds rather than trimmed to the
+  characters that differ, because a line whose content still exists after the operation was
+  relocated rather than rewritten and a change must not cut into it
+
