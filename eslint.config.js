@@ -42,6 +42,36 @@ export default tseslint.config(
     },
   },
   {
+    // `no-default-hotkeys` is switched off for exactly one file, deliberately.
+    //
+    // The rule warns that a default hotkey "might conflict with other hotkeys
+    // the user has already set". That is a documented *recommendation*, not a
+    // submission requirement: the Obsidian plugin guidelines page states its
+    // contents are recommendations, `hotkeys?: Hotkey[]` is `@public` and not
+    // deprecated, and a user-assigned hotkey always takes priority over a
+    // plugin default.
+    //
+    // We take the warning knowingly for `move-node-up`/`move-node-down`
+    // (Mod+Shift+Arrow) because the thing it would push us back to is worse.
+    // Those ops previously shipped as hardcoded `Alt-ArrowUp/Down` entries in
+    // our CM6 keymap, which claims a key just as hard while being invisible in
+    // Settings > Hotkeys, not rebindable and not removable — and which this
+    // rule cannot even see, since it only inspects `addCommand`. A default
+    // hotkey is the version of this a user can actually override.
+    //
+    // Mod+Shift+Arrow collides with no Obsidian core command and is the
+    // dominant convention (obsidian-outliner, obsidian-bullet, Logseq).
+    //
+    // Scoped to main.ts so no other file can pick up default hotkeys silently.
+    // NOTE: Tab/Shift+Tab/Enter/Shift+Enter stay in the CM6 keymap on purpose —
+    // they must beat stock Obsidian behavior at Prec.highest, which a command
+    // hotkey cannot do reliably.
+    files: ['src/plugin/main.ts'],
+    rules: {
+      'obsidianmd/commands/no-default-hotkeys': 'off',
+    },
+  },
+  {
     languageOptions: {
       parserOptions: {
         projectService: true,

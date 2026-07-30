@@ -104,7 +104,8 @@ rejection shows its message while leaving the document byte-identical.
 ### Requirement: Keyboard grammar e2e verification
 
 The harness SHALL verify the outline keyboard grammar with real key events:
-Tab/Shift+Tab indent/outdent at the cursor node, Alt+Up/Down move nodes,
+Tab/Shift+Tab indent/outdent at the cursor node, the move-node default
+hotkey (Mod+Shift+Up/Down) moves nodes,
 Enter splits per node kind, Shift+Enter continues an item as one node, atom
 interiors behave stock, keys behave stock when mode is off, and a mode
 toggle takes effect on the very next keypress. Each accepted grammar
@@ -113,7 +114,7 @@ show its cue.
 
 #### Scenario: Off-mode keys are stock
 
-- **WHEN** Tab, Enter, Shift+Enter, and Alt+arrows are pressed in a list in
+- **WHEN** Tab, Enter, and Shift+Enter are pressed in a list in
   a non-outline note
 - **THEN** the buffer changes match stock Obsidian behavior (no grammar
   transforms, no notices)
@@ -126,7 +127,7 @@ show its cue.
 
 #### Scenario: Tab family and moves
 
-- **WHEN** Tab / Shift+Tab / Alt+Up / Alt+Down are pressed at a node
+- **WHEN** Tab / Shift+Tab / Mod+Shift+Up / Mod+Shift+Down are pressed at a node
 - **THEN** the node indents/outdents/moves per the grammar, the cursor lands
   at content start (for indents), and ordered runs renumber
 

@@ -4,7 +4,6 @@
 Defines outline mode: a per-note, UI-only toggle that gates access to structural editing
 commands without ever modifying note content or metadata, persisted per file path in
 plugin data across restarts and renames.
-
 ## Requirements
 ### Requirement: Per-note outline mode toggle
 The plugin SHALL provide a command (and editor menu entry) that toggles outline mode for
@@ -42,6 +41,7 @@ grammar key binding declining, leaving stock editor behavior byte-for-byte.
 - **THEN** the structural commands are not offered for that note
 
 #### Scenario: Keyboard grammar inactive outside outline mode
-- **WHEN** any grammar-bound key (Tab, Shift+Tab, Enter, Shift+Enter, Alt+Arrows) is
+- **WHEN** any grammar-bound key (Tab, Shift+Tab, Enter, Shift+Enter) is
   pressed in a note without outline mode
 - **THEN** the editor behaves exactly as stock Obsidian
+

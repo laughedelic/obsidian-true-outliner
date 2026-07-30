@@ -9,9 +9,7 @@ Stateless, keymap-level (not the transaction funnel), built on
 `subtreeCoverOf`, gap-inclusive per `escalate-include-owned-gap`). Architecture and
 rationale: the `progressive-select-all` change's design.md; originating discussion:
 `docs/research/13`'s "Progressive Select All (the selection ladder)".
-
 ## Requirements
-
 ### Requirement: Repeated Mod-A climbs a node-aware selection ladder
 In outline mode, pressing Mod-A (Select All) SHALL be intercepted before CM6's/
 Obsidian's native Select All runs. For each range in the current selection, the
@@ -137,3 +135,16 @@ not forced to a common or uniform rung as part of this ladder progression.
 **Covered by**: `tests/select-all-ladder.test.ts`; `e2e/specs/64-progressive-
 select-all.e2e.ts` ("each range in a multi-range selection climbs its own
 ladder independently").
+
+### Requirement: The ladder declines inside a nested editor
+Mod-A SHALL decline when the view is a nested editor (a table cell's own `EditorView`),
+leaving native select-all to act on the cell. The check SHALL be DOM ancestry, not file
+resolution, for the reason given in `outline-keyboard-grammar`: `editorInfoField` resolves a
+nested cell to the same outline-mode host file.
+
+#### Scenario: Mod-A in a table cell is native
+- **WHEN** the caret is inside a table cell whose text is `- word` and Mod-A is pressed
+- **THEN** the selection is the cell's entire text including the literal `- `, not the
+  ladder's content rung — the cell's text is never parsed as outline structure, so a
+  leading `- ` the user typed is content, not a marker
+

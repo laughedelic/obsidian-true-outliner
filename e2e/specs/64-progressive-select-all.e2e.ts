@@ -199,6 +199,41 @@ describe('progressive-select-all', function () {
     expect(classes).toContain(SELECTED_CLASS);
   });
 
+  it('inside a nested table-cell editor, Mod-A is untouched native behavior (the ladder must not treat the cell as an outline)', async function () {
+    // Same shared gate the structural keys use (`outlinePathOf` in keymap.ts).
+    // `editorInfoField` resolves to the outline-mode HOST note inside a cell,
+    // so without the DOM-ancestry check this handler ran the ladder over the
+    // cell's own tiny document. Measured before the fix: a cell reading
+    // `- word` selected only `word` — the ladder's "content" rung, treating
+    // the user's literal text as a list marker — where stock Mod-A selects the
+    // whole `- word`.
+    //
+    // The cell text must parse as a LIST ITEM for this to discriminate at all:
+    // for a plain `word` the first rung and native select-all are identical,
+    // and the test could not fail. Asserted through the DOM selection, since
+    // `h.getSelection()` reads the outer editor, not the focused cell.
+    await outlineNote('# S\n\n| a | b |\n| --- | --- |\n| word | 2 |\n');
+    await h.clickTableCell();
+    await h.keys.home();
+    await h.keys.type('- ');
+    await browser.pause(200);
+
+    await h.pressSelectAll();
+    await browser.pause(200);
+
+    const cell = await browser.execute(() => {
+      const embed = document.activeElement?.closest('.cm-embed-block');
+      return {
+        nested: embed !== null,
+        text: embed?.querySelector('.cm-content')?.textContent ?? null,
+        selected: window.getSelection()?.toString() ?? null,
+      };
+    });
+    expect(cell.nested).toBe(true);
+    expect(cell.text).toBe('- word'); // the discriminating fixture actually took
+    expect(cell.selected).toBe('- word'); // stock: the marker is the user's text here
+  });
+
   it('outside outline mode, Mod-A is untouched native behavior', async function () {
     const md = '# Head\n\nBody.\n';
     await h.createNote(NOTE, md);

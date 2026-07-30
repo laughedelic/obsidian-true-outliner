@@ -298,10 +298,11 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
 
   // The atom guard applies to BYSTANDER landings — a node the user did not act
   // on. A SUBJECT landing into a focus-capturing node (moving a table) is left
-  // alone, and that case IS reachable: a hotkey bound to the exposed "Move node
-  // up/down" commands moves a table and routes the result here as `subject`
-  // (only the Alt+Arrow keymap binding is blocked, by a missing nested-editor
-  // gate — docs/research/13).
+  // alone, and that case IS reachable: the "Move node up/down" commands move a
+  // table and route the result here as `subject`. That is now the ONLY path —
+  // those commands carry the Mod+Shift+Arrow default hotkey, and the keymap
+  // binding that used to bypass them was removed (its nested-editor gate is
+  // also fixed, so the keymap declines in a cell rather than mis-firing).
   //
   // Scoped out deliberately, not by accident. A bystander landing is a position
   // the user never asked for; a subject landing is the node they just acted on,

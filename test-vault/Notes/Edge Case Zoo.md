@@ -34,4 +34,4 @@ Only paragraph in its section — Shift+Tab here should reject (heading scope is
 
 1. first
 2. second
-3. third — Alt+Up twice, watch the renumbering
+3. third — Mod+Shift+Up twice, watch the renumbering

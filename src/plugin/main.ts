@@ -8,6 +8,7 @@ import {
   PluginSettingTab,
   Setting,
   TFile,
+  type Hotkey,
   type SettingDefinitionItem,
 } from 'obsidian';
 import type { OutlineDoc, OutlineNode } from '../model';
@@ -141,8 +142,17 @@ export default class TrueOutlinerPlugin extends Plugin {
 
     this.addStructuralCommand('indent-node', 'Indent node', indent, true);
     this.addStructuralCommand('outdent-node', 'Outdent node', outdent, true);
-    this.addStructuralCommand('move-node-up', 'Move node up', moveUp);
-    this.addStructuralCommand('move-node-down', 'Move node down', moveDown);
+    // Mod+Shift+Arrow is the dominant move-node convention: obsidian-outliner
+    // and obsidian-bullet ship exactly these as command defaults, and Logseq
+    // binds mod+shift+up/down on macOS. It collides with no Obsidian core
+    // command. See `addStructuralCommand` for why a default hotkey is used at
+    // all despite the guideline.
+    this.addStructuralCommand('move-node-up', 'Move node up', moveUp, false, [
+      { modifiers: ['Mod', 'Shift'], key: 'ArrowUp' },
+    ]);
+    this.addStructuralCommand('move-node-down', 'Move node down', moveDown, false, [
+      { modifiers: ['Mod', 'Shift'], key: 'ArrowDown' },
+    ]);
 
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {
@@ -347,15 +357,28 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.register(() => setMotionProbe(undefined));
   }
 
+  /**
+   * `hotkeys` is normally discouraged — `obsidianmd/commands/no-default-hotkeys`
+   * warns that defaults "might conflict with other hotkeys the user has already
+   * set". It is a recommendation, not a submission requirement (the guidelines
+   * page calls its contents recommendations; `hotkeys?: Hotkey[]` is `@public`
+   * and not deprecated; a user's own binding always wins). We accept the warning
+   * for move up/down because the alternative we shipped before was strictly
+   * worse: a hardcoded CM6 keymap entry, which claims the key just as hard while
+   * being invisible in Settings > Hotkeys and impossible for a user to rebind or
+   * remove. A default hotkey is the version of this the user can actually undo.
+   */
   private addStructuralCommand(
     id: string,
     name: string,
     op: StructuralOp,
     useMappedCursor = false,
+    hotkeys?: Hotkey[],
   ): void {
     this.addCommand({
       id,
       name,
+      ...(hotkeys ? { hotkeys } : {}),
       editorCheckCallback: (checking, editor, ctx) => {
         const path = ctx.file?.path;
         if (!path || !this.registry.isOutline(path)) return false;
