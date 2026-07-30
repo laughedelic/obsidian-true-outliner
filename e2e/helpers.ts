@@ -896,6 +896,11 @@ export const keys = {
   shiftEnter: () => browser.keys([Key.Shift, Key.Enter]),
   altUp: () => browser.keys([Key.Alt, Key.ArrowUp]),
   altDown: () => browser.keys([Key.Alt, Key.ArrowDown]),
+  /** The default hotkey for the `move-node-up`/`move-node-down` commands.
+   * These go through Obsidian's command/hotkey layer, NOT our CM6 keymap —
+   * see `addStructuralCommand` in src/plugin/main.ts. */
+  moveNodeUp: () => browser.keys([PRIMARY_MOD, Key.Shift, Key.ArrowUp]),
+  moveNodeDown: () => browser.keys([PRIMARY_MOD, Key.Shift, Key.ArrowDown]),
   undo: () => browser.keys([PRIMARY_MOD, 'z']),
   type: (text: string) => browser.keys([...text]),
   left: () => browser.keys(Key.ArrowLeft),

@@ -1,22 +1,4 @@
 {
-  "true-outliner:move-node-down": [
-    {
-      "modifiers": [
-        "Mod",
-        "Shift"
-      ],
-      "key": "ArrowDown"
-    }
-  ],
-  "true-outliner:move-node-up": [
-    {
-      "modifiers": [
-        "Mod",
-        "Shift"
-      ],
-      "key": "ArrowUp"
-    }
-  ],
   "true-outliner:toggle-outline-mode": [
     {
       "modifiers": [

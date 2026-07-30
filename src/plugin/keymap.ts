@@ -60,9 +60,7 @@ export interface ModeSource {
 
 function makeHandler(modes: ModeSource, key: GrammarKey) {
   return (view: EditorView): boolean => {
-    const info = view.state.field(editorInfoField, false);
-    const path = info?.file?.path;
-    if (!path || !modes.isOutline(path)) return false;
+    if (!outlinePathOf(modes, view)) return false;
 
     const head = view.state.selection.main.head;
     const line = view.state.doc.lineAt(head);
@@ -130,9 +128,7 @@ function toLineRange(doc: Text, range: SelectionRange): LineRange {
  */
 function makeSelectAllHandler(modes: ModeSource) {
   return (view: EditorView): boolean => {
-    const info = view.state.field(editorInfoField, false);
-    const path = info?.file?.path;
-    if (!path || !modes.isOutline(path)) return false;
+    if (!outlinePathOf(modes, view)) return false;
 
     const doc = view.state.doc;
     const { doc: outlineDoc } = parsedDoc(doc);
@@ -164,11 +160,17 @@ function makeSelectAllHandler(modes: ModeSource) {
  * Excludes NESTED editors. Obsidian mounts a table cell being edited as its own
  * tiny `EditorView`, `registerEditorExtension` installs this keymap there too,
  * and `editorInfoField` resolves to the same outer note — so without the
- * DOM-ancestry check the motion handlers fire inside a cell and move the caret
- * by outline rules through a document that is only the cell's raw text.
- * Measured before this guard: Home, Right and ArrowDown all reported invoked
- * AND consumed with focus inside `.cm-embed-block`. design.md is explicit that
- * motion must not fire in nested editors; this is what enforces it.
+ * DOM-ancestry check a handler applies outline rules to a document that is only
+ * the cell's raw text.
+ *
+ * EVERY binding in `grammarExtension` must gate through this, not just the
+ * motion ones. That was the original defect and it has now bitten twice: the
+ * structural keys (Tab/Shift-Tab/Alt-Arrow/Enter) and Mod-A each kept a private
+ * `editorInfoField` + `isOutline` check that looked equivalent and was not.
+ * Measured inside `.cm-embed-block`: Alt-ArrowUp raised the "Nothing above to
+ * move past." outline rejection; Mod-A on a cell reading `- word` selected only
+ * `word`, treating the user's literal text as a list marker; Home, Right and
+ * ArrowDown all reported invoked AND consumed.
  */
 function outlinePathOf(
   modes: ModeSource,
@@ -626,8 +628,15 @@ export function grammarExtension(modes: ModeSource): Extension {
       keymap.of([
         { key: "Tab", run: probed("Tab", makeHandler(modes, "indent")) },
         { key: "Shift-Tab", run: makeHandler(modes, "outdent") },
-        { key: "Alt-ArrowUp", run: makeHandler(modes, "move-up") },
-        { key: "Alt-ArrowDown", run: makeHandler(modes, "move-down") },
+        // Move up/down are deliberately NOT bound here. Tab/Enter must live in
+        // this keymap because they have to beat stock Obsidian behavior
+        // (list indent, list continuation) at `Prec.highest`. Move has no stock
+        // behavior to beat — measured on 1.13.3, Alt+Arrow is unbound in
+        // Obsidian and does nothing — so binding it here bought nothing and
+        // cost everything a CM6 keymap costs: invisible in Settings > Hotkeys,
+        // not rebindable, not removable. It now ships as a default hotkey on
+        // the `move-node-up`/`move-node-down` commands instead (see main.ts),
+        // which is also what obsidian-outliner and Logseq use (Mod+Shift+Arrow).
         { key: "Enter", run: makeHandler(modes, "split") },
         { key: "Shift-Enter", run: makeHandler(modes, "continue") },
         { key: "Mod-a", run: makeSelectAllHandler(modes) },

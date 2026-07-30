@@ -4,7 +4,7 @@
  * assertions reuse the plugin's own pure parser on the buffer text.
  */
 
-import { expect } from '@wdio/globals';
+import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import { REJECTION_MESSAGES } from '../../src/plugin/messages';
@@ -83,6 +83,56 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('Only.\n');
   });
 
+  it('structural key bindings decline inside a nested table-cell editor', async function () {
+    await grammarNote('# Section\n\n| a | b |\n| --- | --- |\n| word | 2 |\n', 0, 0);
+    await h.clickTableCell();
+
+    const focusedCell = await browser.execute(() => {
+      const embed = document.activeElement?.closest('.cm-embed-block');
+      return {
+        nested: embed !== null,
+        text: embed?.querySelector('.cm-content')?.textContent ?? null,
+      };
+    });
+    expect(focusedCell).toEqual({ nested: true, text: 'word' });
+    const beforeKey = await h.getBuffer();
+
+    // Draw the line before the keypress: `grammarNote` only dismisses notices
+    // when it had to toggle the mode, and an earlier test in this file
+    // legitimately produces this very message. Clearing resets the recorder as
+    // well as the DOM, so anything `recordedNoticeTexts` reports below was
+    // produced by our Tab and nothing else.
+    await h.dismissNotices();
+
+    await h.keys.tab();
+    await browser.pause(100);
+
+    // The nested editor owns the key. If makeHandler sees the cell's tiny
+    // document as the outline, it consumes Tab and emits this exact toast
+    // (the cell text `word` parses as one paragraph with no previous sibling).
+    //
+    // Tab is used here rather than the originally-reported Alt+Up because
+    // Alt+Arrow is no longer bound in our keymap at all — move up/down now ship
+    // as a default hotkey on the commands, whose `editorCheckCallback` reads
+    // the host note through the public Editor API and so was never affected.
+    // Tab exercises the same shared `outlinePathOf` gate that Alt+Up did.
+    //
+    // `recordedNoticeTexts` rather than `noticeTexts`: a notice lives ~1500ms,
+    // so polling the live DOM can miss one entirely and turn this negative
+    // assertion into a false pass. The recorder catches it however briefly it
+    // showed.
+    //
+    // CAVEAT — this remains a symptom-documenting test, NOT the regression net.
+    // The load-bearing guard for this shared gate is the Mod-A test in
+    // 64-progressive-select-all.e2e.ts, whose negative control fails on the
+    // 1.13 base (docs/research/04 Q28: a test that cannot fail is worse than
+    // no test).
+    expect(await h.recordedNoticeTexts()).not.toContain(
+      REJECTION_MESSAGES['no-previous-sibling'],
+    );
+    expect(await h.getBuffer()).toBe(beforeKey);
+  });
+
   it('Tab/Shift+Tab indent and outdent the node at the cursor', async function () {
     await grammarNote('- alpha\n- beta\n', 1, 4);
 
@@ -128,15 +178,53 @@ describe('keyboard grammar', function () {
     }
   });
 
-  it('Alt+Up/Down move nodes with their children; ordered runs renumber', async function () {
-    await grammarNote('- a\n\t- a1\n- b\n', 0, 2);
-    await h.keys.altDown();
-    expect(await h.getBuffer()).toBe('- b\n- a\n\t- a1\n');
+  it('Alt+Arrow is not claimed by the plugin (move ships as a command hotkey)', async function () {
+    // Locks in the decision to drop the hardcoded `Alt-ArrowUp/Down` CM6
+    // bindings. If someone re-adds them, this buffer WILL change and this
+    // fails. Stock Obsidian leaves Alt+Arrow unbound — measured on 1.13.3 it
+    // only moves the caret — so an unchanged buffer means the key is ours to
+    // leave alone, not ours to claim.
+    await grammarNote('- a\n\t- a1\n- b\n', 2, 2);
     await h.keys.altUp();
+    await browser.pause(50);
+    expect(await h.getBuffer()).toBe('- a\n\t- a1\n- b\n');
+    await h.keys.altDown();
+    await browser.pause(50);
+    expect(await h.getBuffer()).toBe('- a\n\t- a1\n- b\n');
+  });
+
+  it('the move-node hotkey acts on the HOST node even from inside a table cell', async function () {
+    // The other half of the nested-editor story, and the resolution of the
+    // design question the gate fix raised: our CM6 keymap DECLINES in a nested
+    // cell, but move now ships on the command path, whose editorCheckCallback
+    // resolves `ctx.file` and whose runOp reads `editor.getValue()` through the
+    // public Editor API — both of which resolve to the HOST note regardless of
+    // where focus is. So the move hotkey keeps working while editing a cell,
+    // and moves the whole table as one node.
+    await grammarNote('para\n\n| a | b |\n| --- | --- |\n| word | 2 |\n', 0, 0);
+    await h.clickTableCell();
+    const nested = await browser.execute(
+      () => document.activeElement?.closest('.cm-embed-block') !== null,
+    );
+    expect(nested).toBe(true);
+
+    await h.keys.moveNodeUp();
+    await browser.pause(100);
+
+    const after = await h.getBuffer();
+    expect(after.startsWith('|')).toBe(true); // table is now the first node
+    expect(after.trimEnd().endsWith('para')).toBe(true);
+  });
+
+  it('the move-node default hotkey moves nodes with their children; ordered runs renumber', async function () {
+    await grammarNote('- a\n\t- a1\n- b\n', 0, 2);
+    await h.keys.moveNodeDown();
+    expect(await h.getBuffer()).toBe('- b\n- a\n\t- a1\n');
+    await h.keys.moveNodeUp();
     expect(await h.getBuffer()).toBe('- a\n\t- a1\n- b\n');
 
     await grammarNote('1. one\n2. two\n3. three\n', 1, 3);
-    await h.keys.altUp();
+    await h.keys.moveNodeUp();
     expect(await h.getBuffer()).toBe('1. two\n2. one\n3. three\n');
   });
 
@@ -222,7 +310,7 @@ describe('keyboard grammar', function () {
 
     // A structural op treats item + continuation as one node.
     await h.setCursor(0, 2);
-    await h.keys.altDown();
+    await h.keys.moveNodeDown();
     expect(await h.getBuffer()).toBe('- z\n- note\n   text\n');
   });
 

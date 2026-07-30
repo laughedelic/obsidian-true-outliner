@@ -42,6 +42,6 @@ grammar key binding declining, leaving stock editor behavior byte-for-byte.
 - **THEN** the structural commands are not offered for that note
 
 #### Scenario: Keyboard grammar inactive outside outline mode
-- **WHEN** any grammar-bound key (Tab, Shift+Tab, Enter, Shift+Enter, Alt+Arrows) is
+- **WHEN** any grammar-bound key (Tab, Shift+Tab, Enter, Shift+Enter) is
   pressed in a note without outline mode
 - **THEN** the editor behaves exactly as stock Obsidian
