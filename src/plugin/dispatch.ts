@@ -124,7 +124,24 @@ function uniqueAnchors(a: readonly string[], b: readonly string[]): Array<[numbe
  * dropped, unique anchors split what remains, and each gap between anchors
  * is aligned the same way — so a block that merely moved is matched at its
  * new position and never appears in a run.
+ *
+ * Iterative rather than recursive. Uniqueness is decided per segment, so a
+ * line that was ambiguous in the whole region can become an anchor once the
+ * region is narrowed — which means the number of times this can subdivide is
+ * bounded by the line count, not by anything smaller, and a deep enough chain
+ * of such narrowings would exhaust the call stack. That would take a
+ * pathological document to reach and none was found, but "narrowing a change
+ * set must not be able to throw" is cheaper to guarantee than to argue: the
+ * segments live on an explicit stack instead. They are pushed in reverse so
+ * they pop in document order, which is what keeps `out` ascending.
  */
+interface AlignSegment {
+  readonly a: readonly string[];
+  readonly b: readonly string[];
+  readonly aOffset: number;
+  readonly bOffset: number;
+}
+
 function alignLines(
   a: readonly string[],
   b: readonly string[],
@@ -132,41 +149,63 @@ function alignLines(
   bOffset: number,
   out: ChangedRun[],
 ): void {
-  const maxLeading = Math.min(a.length, b.length);
-  let leading = 0;
-  while (leading < maxLeading && a[leading] === b[leading]) leading++;
-  const maxTrailing = maxLeading - leading;
-  let trailing = 0;
-  while (trailing < maxTrailing && a[a.length - 1 - trailing] === b[b.length - 1 - trailing]) {
-    trailing++;
-  }
+  const pending: AlignSegment[] = [{ a, b, aOffset, bOffset }];
 
-  const aMid = a.slice(leading, a.length - trailing);
-  const bMid = b.slice(leading, b.length - trailing);
-  if (aMid.length === 0 && bMid.length === 0) return;
+  while (pending.length > 0) {
+    const segment = pending.pop()!;
+    const { a: segA, b: segB } = segment;
 
-  const aMidOffset = aOffset + leading;
-  const bMidOffset = bOffset + leading;
-  const anchors = aMid.length > 0 && bMid.length > 0 ? uniqueAnchors(aMid, bMid) : [];
+    const maxLeading = Math.min(segA.length, segB.length);
+    let leading = 0;
+    while (leading < maxLeading && segA[leading] === segB[leading]) leading++;
+    const maxTrailing = maxLeading - leading;
+    let trailing = 0;
+    while (
+      trailing < maxTrailing &&
+      segA[segA.length - 1 - trailing] === segB[segB.length - 1 - trailing]
+    ) {
+      trailing++;
+    }
 
-  if (anchors.length === 0) {
-    out.push({
-      oldStart: aMidOffset,
-      oldEnd: aMidOffset + aMid.length,
-      newStart: bMidOffset,
-      newEnd: bMidOffset + bMid.length,
+    const aMid = segA.slice(leading, segA.length - trailing);
+    const bMid = segB.slice(leading, segB.length - trailing);
+    if (aMid.length === 0 && bMid.length === 0) continue;
+
+    const aMidOffset = segment.aOffset + leading;
+    const bMidOffset = segment.bOffset + leading;
+    const anchors = aMid.length > 0 && bMid.length > 0 ? uniqueAnchors(aMid, bMid) : [];
+
+    if (anchors.length === 0) {
+      out.push({
+        oldStart: aMidOffset,
+        oldEnd: aMidOffset + aMid.length,
+        newStart: bMidOffset,
+        newEnd: bMidOffset + bMid.length,
+      });
+      continue;
+    }
+
+    const gaps: AlignSegment[] = [];
+    let ai = 0;
+    let bi = 0;
+    for (const [x, y] of anchors) {
+      gaps.push({
+        a: aMid.slice(ai, x),
+        b: bMid.slice(bi, y),
+        aOffset: aMidOffset + ai,
+        bOffset: bMidOffset + bi,
+      });
+      ai = x + 1;
+      bi = y + 1;
+    }
+    gaps.push({
+      a: aMid.slice(ai),
+      b: bMid.slice(bi),
+      aOffset: aMidOffset + ai,
+      bOffset: bMidOffset + bi,
     });
-    return;
+    for (let i = gaps.length - 1; i >= 0; i--) pending.push(gaps[i]!);
   }
-
-  let ai = 0;
-  let bi = 0;
-  for (const [x, y] of anchors) {
-    alignLines(aMid.slice(ai, x), bMid.slice(bi, y), aMidOffset + ai, bMidOffset + bi, out);
-    ai = x + 1;
-    bi = y + 1;
-  }
-  alignLines(aMid.slice(ai), bMid.slice(bi), aMidOffset + ai, bMidOffset + bi, out);
 }
 
 /** Walk `pos` forward by `n` characters through `lines`, crossing newlines as single characters. */
@@ -196,7 +235,13 @@ function retreat(lines: readonly string[], pos: EditorPos, n: number): EditorPos
   return { line, ch };
 }
 
-/** The set of distinct lines on each side of one edit. */
+/**
+ * The distinct lines on each side of one edit. Edit-wide, not run-wide: a
+ * relocated line and the line that took its place usually end up in DIFFERENT
+ * runs, separated by whatever the alignment did manage to anchor, so a run on
+ * its own cannot see that its lines went somewhere rather than being
+ * rewritten.
+ */
 interface EditSides {
   readonly before: ReadonlySet<string>;
   readonly after: ReadonlySet<string>;
@@ -215,12 +260,19 @@ interface EditSides {
  * change starting partway INTO a row the operation actually left alone, which
  * is exactly the description that makes the live table widget split its table.
  *
- * A line that still exists on the other side of the edit was not rewritten; it
- * moved. Pairs like that keep whole-line bounds, so the change spans the line
- * from one boundary to another instead of cutting into it.
+ * Evidence of a shuffle has to point BOTH ways: the old line reappears among
+ * the edit's new lines *and* the new line was already among its old ones. One
+ * direction alone is not evidence, only coincidence — indenting `- a` whose
+ * children are two identical `  - a` lines produces `  - a` as the parent's
+ * new text, so the old child matches the new parent and every line of an
+ * ordinary indent looks relocated. That cost the indent its minimal change
+ * set and, because `planCaret` maps the caret through it, moved the caret to
+ * the end of the line instead of keeping its column. Requiring both
+ * directions keeps the coincidence out while still catching a real swap,
+ * where each side genuinely holds the other's lines.
  */
 function relocates(oldLine: string, newLine: string, sides: EditSides): boolean {
-  return sides.after.has(oldLine) || sides.before.has(newLine);
+  return sides.after.has(oldLine) && sides.before.has(newLine);
 }
 
 /**

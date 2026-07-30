@@ -17,6 +17,7 @@ import { applyEdits, diffLines, type Edit } from '../src/result';
 import { OutlineModeRegistry } from '../src/plugin/mode-registry';
 import { nodeAtLine } from '../src/plugin/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
+import { planKey } from '../src/plugin/grammar';
 import { REJECTION_MESSAGES } from '../src/plugin/messages';
 import { compareWithSections, topLevelSpans } from '../src/plugin/crosscheck';
 import { arbTree } from './generators';
@@ -559,6 +560,127 @@ describe('edit dispatch: line edits → editor changes', () => {
           }
         }),
         { numRuns: 5000 },
+      );
+    });
+
+    /**
+     * …and the converse, which the guarantee above cannot state on its own:
+     * coarsening is only ever allowed where a line actually relocated.
+     *
+     * Whether two lines were swapped or rewritten is decided from the text on
+     * each side of the edit, so a document whose lines merely REPEAT can make
+     * an ordinary in-place edit look like a swap. Indenting `- a` whose two
+     * children are both `  - a` produces `  - a` as the parent's new text —
+     * the old child's text — and keying on that one coincidence turned three
+     * two-character insertions into three whole-line replacements. The caret
+     * is mapped through those changes, so it stopped keeping its column and
+     * jumped to the end of the line.
+     */
+    it('an indent stays minimal when the lines it touches happen to repeat', () => {
+      const text = '- x\n- a\n  - a\n  - a\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- a')!;
+      const result = indent(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const changes = editsToChanges(text.split('\n'), result.value.edits);
+      expect(changes).toEqual([
+        { from: { line: 1, ch: 0 }, to: { line: 1, ch: 0 }, text: '  ' },
+        { from: { line: 2, ch: 2 }, to: { line: 2, ch: 2 }, text: '  ' },
+        { from: { line: 3, ch: 2 }, to: { line: 3, ch: 2 }, text: '  ' },
+      ]);
+      // What the user sees: the caret keeps its column instead of being
+      // carried to the end of a whole-line replacement.
+      expect(planKey(text, { line: 1, ch: 2 }, 'indent')).toMatchObject({
+        plan: { selection: 8 },
+      });
+    });
+
+    /**
+     * Narrowing a change set must not be able to throw. Alignment decides
+     * uniqueness per segment, so a segment can always subdivide again, and the
+     * subdivision used to be a recursive call — bounded only by the line count.
+     * A whole-document rewrite of repeated lines is the cheapest way to ask for
+     * a lot of subdividing at once.
+     */
+    it('narrows a large, heavily repeated document without exhausting anything', () => {
+      const before = Array.from({ length: 40_000 }, (_, i) => `- item ${i % 3}`);
+      const after = [...before].reverse();
+      const changes = editsToChanges(before, [
+        { fromLine: 0, toLine: before.length, insert: after },
+      ]);
+      expect(applyChanges(before.join('\n'), changes)).toBe(after.join('\n'));
+    });
+
+    /**
+     * The converse guarantee, stated as a property because the failure needs a
+     * coincidence and coincidences are what a list of cases forgets.
+     *
+     * Whether two lines were swapped or rewritten is read off the text on each
+     * side of the edit, so a document whose lines REPEAT can make an ordinary
+     * in-place edit look like a swap and be coarsened for no reason. Losing an
+     * anchor is allowed to cost a MOVE its minimality — that is the documented
+     * price of anchoring on unique lines — but an indent relocates nothing, so
+     * every change it emits must still be trimmed to the characters that
+     * actually differ. A change whose removed and inserted text share a prefix
+     * or a suffix is the coarsening misfiring: that is exactly what turned a
+     * two-character insertion into a whole-line replacement, and with it moved
+     * the caret to the end of the line.
+     */
+    it('an indent stays trimmed to what differs, however much the lines repeat', () => {
+      const offsetIn = (ls: readonly string[], pos: { line: number; ch: number }) => {
+        let acc = 0;
+        for (let i = 0; i < pos.line; i++) acc += ls[i]!.length + 1;
+        return acc + pos.ch;
+      };
+      const sharedPrefix = (a: string, b: string) => {
+        let i = 0;
+        while (i < a.length && i < b.length && a[i] === b[i]) i++;
+        return i;
+      };
+      const sharedSuffix = (a: string, b: string) => {
+        let i = 0;
+        while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++;
+        return i;
+      };
+      const marker = fc.constantFrom('- dup', 'dup..');
+      const row = fc.constantFrom('| a   | b   |', '| --- | --- |', '| 1   | 2   |');
+      // `  - dup` is what a `- dup` BECOMES when indented, so a document
+      // holding both makes the coincidence the bug needed: the new text of a
+      // line edited in place already exists elsewhere in the old document.
+      const kid = fc.constantFrom('  - a', '  - b', '  - dup');
+      const block = fc.tuple(
+        marker,
+        fc.array(row, { minLength: 0, maxLength: 2 }),
+        fc.array(kid, { minLength: 0, maxLength: 2 }),
+      );
+
+      fc.assert(
+        fc.property(fc.array(block, { minLength: 2, maxLength: 3 }), (blocks) => {
+          const text =
+            blocks.map(([head, rows, kids]) => [head, ...rows, ...kids].join('\n')).join('\n\n') +
+            '\n';
+          const lines = text.split('\n');
+          const doc = parse(text);
+
+          for (const op of [indent, outdent]) {
+            for (const node of walkNodes(doc)) {
+              const result = op(doc, node.id);
+              if (!result.ok) continue;
+              for (const change of editsToChanges(lines, result.value.edits)) {
+                const removed = text.slice(offsetIn(lines, change.from), offsetIn(lines, change.to));
+                // Reported as a triple so a failure names the pair it found.
+                expect([
+                  removed,
+                  change.text,
+                  sharedPrefix(removed, change.text),
+                  sharedSuffix(removed, change.text),
+                ]).toEqual([removed, change.text, 0, 0]);
+              }
+            }
+          }
+        }),
+        { numRuns: 3000 },
       );
     });
   });

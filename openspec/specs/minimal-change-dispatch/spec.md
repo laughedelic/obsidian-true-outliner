@@ -221,6 +221,15 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
 - **WHEN** the lines of the region an operation touches repeat, so that a relocated block
   cannot be matched to its new position
 - **THEN** the affected lines are described with whole-line bounds rather than trimmed to the
-  characters that differ, because a line whose content still exists after the operation was
-  relocated rather than rewritten and a change must not cut into it
+  characters that differ, because a line that both survives the operation and stands where
+  another of its lines used to stand was relocated rather than rewritten, and a change must
+  not cut into it
+
+#### Scenario: A line that merely reads like another is still edited in place
+- **WHEN** an operation rewrites lines in place and the new text of an edited line happens to
+  match some other line of the document — indenting a node whose children already carry the
+  indented form of its own text, for example
+- **THEN** the change set stays trimmed to the characters that actually differ, and the caret
+  keeps its column, because a coincidence of text in one direction is not evidence that
+  anything moved
 
