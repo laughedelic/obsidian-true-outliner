@@ -510,6 +510,14 @@ export function mapCursorForward(
     const from = offsetOf(lines, change.from);
     const to = offsetOf(lines, change.to);
     if (target < from) break;
+    // At the START of a REPLACEMENT, CM6 leaves the position where it is; only
+    // an insertion (`from === to`) carries it past the inserted text. Measured
+    // against `ChangeDesc.mapPos(pos, 1)` — replacing [3,6) with "XY" maps 3 to
+    // 3, while inserting "XY" at 3 maps 3 to 5. Treating both alike put the
+    // caret after the replacement instead, which the line alignment made
+    // reachable: a run can now begin exactly on the caret's own line start,
+    // where the single trimmed region it replaced never did.
+    if (target === from && from < to) return target + delta;
     if (target <= to) return from + delta + change.text.length;
     delta += change.text.length - (to - from);
   }

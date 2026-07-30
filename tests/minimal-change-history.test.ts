@@ -317,4 +317,38 @@ describe('mapCursorForward agrees with CM6’s own forward mapping at assoc 1', 
       { numRuns: 1000 },
     );
   });
+  /**
+   * The boundary the property above only reaches by luck — measured at about
+   * one generated case in thirty thousand, which is a flake rather than a
+   * regression test. Pinned deterministically because it is the one place the
+   * two mappings can disagree at all: at a change's `from`, CM6 carries the
+   * position past the inserted text only for an INSERTION, and leaves it where
+   * it is for a REPLACEMENT.
+   *
+   * Line alignment made this reachable. Before it, a line-count-changing edit
+   * produced a single region whose common prefix was trimmed away, so the
+   * change began after whatever the caret shared with the new text; now a run
+   * can begin exactly on the caret's own line start.
+   */
+  it('agrees at a replacement that begins exactly on the cursor', () => {
+    const text = 'alpha\nbeta\n';
+    const lines = text.split('\n');
+    const cursorBefore = { line: 0, ch: 0 };
+    const changes: EditorChange[] = [
+      { from: { line: 0, ch: 0 }, to: { line: 1, ch: 0 }, text: 'gamma\n' },
+    ];
+
+    const state = EditorState.create({ doc: text });
+    const tr = state.update({
+      changes: changes.map((c) => ({
+        from: state.doc.line(c.from.line + 1).from + c.from.ch,
+        to: state.doc.line(c.to.line + 1).from + c.to.ch,
+        insert: c.text,
+      })),
+    });
+    const theirs = tr.changes.mapPos(offsetOf(lines, cursorBefore.line, cursorBefore.ch), 1);
+
+    expect(theirs).toBe(0); // CM6 leaves it at the replacement's start…
+    expect(mapCursorForward(lines, changes, cursorBefore)).toBe(theirs);
+  });
 });
