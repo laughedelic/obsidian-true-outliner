@@ -136,6 +136,27 @@ describe('structural commands', function () {
     expect(await h.getBuffer()).toBe('1. one\n2. two\n3. three\n');
   });
 
+  /**
+   * The one shape the narrowing cannot describe as a relocation: two tables
+   * whose header and separator rows are identical leave it no unique line to
+   * anchor either block on, so the change set says each body row was replaced
+   * by the other even though both survive. The spec permits that, on the
+   * strength of this measurement -- both tables come through whole.
+   */
+  it('swaps two tables sharing a header without disturbing either widget', async function () {
+    const head = '| h1  | h2  |\n| --- | --- |';
+    const first = `${head}\n| 1   | 2   |`;
+    const second = `${head}\n| 3   | 4   |`;
+    await outlineNote(`${first}\n\n${second}\n`, 4, 1);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 2);
+
+    await h.runCommand('move-node-up');
+    await browser.pause(150);
+
+    expect(await h.getBuffer()).toBe(`${second}\n\n${first}\n`);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 2);
+  });
+
   it('move up command moves a list item past a live table without splitting its rows', async function () {
     const table = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
     await outlineNote(`${table}\n\n- Mover\n`, 4, 3);

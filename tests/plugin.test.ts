@@ -540,25 +540,81 @@ describe('edit dispatch: line edits → editor changes', () => {
      * the result was MOVED, and a description that says it was rewritten is
      * telling every consumer -- widget, decoration, caret, folding -- something
      * that did not happen.
+     *
+     * Scoped, deliberately, to documents whose lines are DISTINCT. That is the
+     * condition under which the alignment has anchors to work with, and round 8
+     * stated it without the condition -- which reads as a guarantee the
+     * narrowing cannot keep. Where lines repeat it degrades, on purpose and
+     * measurably; the next two tests pin that, and the unconditional half of
+     * the guarantee (no change ever cuts INTO a surviving line) is asserted
+     * over the repeating family below.
      */
     it('never overwrites a whole line that survives the edit, for any op', () => {
       fc.assert(
         fc.property(arbTree(), (tree) => {
-          const text = encode(parse(encode(tree)));
-          const doc = parse(text);
+          // Give every content line its own identity. The generator's small
+          // alphabet repeats lines constantly, and merely FILTERING for a
+          // distinct-line document leaves a handful of tiny trees that exercise
+          // almost no ops -- a property that cannot fail. Constructing the
+          // condition instead keeps the shapes and the op coverage.
+          const text = encode(parse(encode(tree)))
+            .split('\n')
+            .map((line, i) => (line.trim() === '' ? line : `${line} u${i}`))
+            .join('\n');
           const lines = text.split('\n');
+          const content = lines.filter((line) => line !== '');
+          fc.pre(new Set(content).size === content.length);
+          const doc = parse(text);
           for (const op of [indent, outdent, moveUp, moveDown]) {
             for (const node of walkNodes(doc)) {
               const applied = op(doc, node.id);
               if (!applied.ok) continue;
               const changes = editsToChanges(lines, applied.value.edits);
               const after = new Set(applyEdits(lines, applied.value.edits));
-              expect(overwrittenSurvivors(lines, changes, after)).toEqual([]);
+              // Blank lines are the one thing that always repeats: they are
+              // separators, not content, and the alignment never anchors them.
+              expect(
+                overwrittenSurvivors(lines, changes, after).filter((line) => line !== ''),
+              ).toEqual([]);
             }
           }
         }),
         { numRuns: 300 },
       );
+    });
+
+    /**
+     * …and here is the degradation, pinned rather than papered over.
+     *
+     * Two sibling tables sharing a header and a separator row -- an entirely
+     * ordinary document. Those shared lines are not unique, so they anchor
+     * nothing, and the two body rows are left as each other's only candidates.
+     * The change set says "row one became row three, row three became row one"
+     * even though both survive. There is no better description available: a
+     * deletion followed by an insertion deletes exactly the same range, so no
+     * consumer can tell the two encodings apart. Measured against the live
+     * widget, both tables come through intact (e2e, 20-structural-commands).
+     *
+     * What still holds is the half that matters: neither change starts or ends
+     * partway into a row.
+     */
+    it('describes a swap of two rows it cannot anchor as a swap of whole rows', () => {
+      const head = ['| h1  | h2  |', '| --- | --- |'];
+      const text = `${head.join('\n')}\n| 1   | 2   |\n\n${head.join('\n')}\n| 3   | 4   |\n`;
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[2] === '| 3   | 4   |')!;
+      const result = moveUp(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+      expect(changes).toEqual([
+        { from: { line: 2, ch: 0 }, to: { line: 2, ch: 13 }, text: '| 3   | 4   |' },
+        { from: { line: 6, ch: 0 }, to: { line: 6, ch: 13 }, text: '| 1   | 2   |' },
+      ]);
+      const after = new Set(applyEdits(lines, result.value.edits));
+      // Whole rows, both of them -- no character-level cut into either.
+      expect(cutsIntoSurvivingLine(lines, changes, after)).toEqual([]);
     });
 
     it('states a move as one deletion plus one insertion', () => {

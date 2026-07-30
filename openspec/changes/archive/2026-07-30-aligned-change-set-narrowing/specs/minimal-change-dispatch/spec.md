@@ -75,14 +75,28 @@ kind, or direction it is dispatching.
 
 ### Requirement: A relocation is dispatched as a relocation
 An operation that MOVES lines rather than rewriting them in place SHALL be dispatched as the
-removal of those lines from their old position and their insertion at the new one. It SHALL
-NOT be dispatched as an in-place rewrite of any line it rearranges.
+removal of those lines from their old position and their insertion at the new one, wherever the
+narrowing can tell the rearranged blocks apart.
 
-Two things follow, and both are required. First, no dispatched change SHALL begin or end
-partway into a line the operation leaves unchanged; a change MAY span such a line whole, from
-one line boundary to another, when the operation genuinely relocates it. Second, no dispatched
-change SHALL overwrite a whole line that is still standing somewhere in the resulting
-document. A change may destroy text freely — only text that the operation actually destroys.
+Two things follow, and they hold to different strengths. First, unconditionally: no dispatched
+change SHALL begin or end partway into a line the operation leaves unchanged. A change MAY span
+such a line whole, from one line boundary to another, but never cut into it. Second, wherever
+the region's content lines are distinct enough for the narrowing to match the two blocks
+against each other, no dispatched change SHALL overwrite a whole line that is still standing
+somewhere in the resulting document: a change may destroy text freely, but only text the
+operation actually destroys.
+
+The second guarantee is conditional because it has to be. Matching blocks against each other
+means recognising lines, and where a region REPEATS its lines there can be nothing left to
+recognise them by. Two sibling tables sharing a header and a separator row — an ordinary
+document — leave their body rows as each other's only candidates, and the change set then says
+each row became the other, though both survive. Where that happens the description SHALL still
+respect the first guarantee, spanning whole lines rather than cutting into them, and the
+resulting document SHALL still be correct. It is a loss of precision in the description, not of
+safety: measured against the host's live table widget, both tables come through intact, and the
+host's change representation offers no encoding that would say it better — a replacement and a
+deletion followed by an insertion delete exactly the same range, so no consumer can tell them
+apart. What is NOT permitted is rewriting a line the narrowing could have left alone.
 
 A relocation rearranges TWO blocks: the one the gesture moved and the one it passed. The
 change set describes exactly one of them as having moved, and WHICH one is a minimality
@@ -114,6 +128,13 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
   block is overwritten while still standing elsewhere, and the live widget leaves the document
   intact — the guarantee holds from this side too, without the change set being told which
   sibling the gesture moved
+
+#### Scenario: Two tables sharing a header leave the narrowing nothing to anchor
+- **WHEN** two sibling tables with the same header and separator rows are swapped, so that the
+  only lines telling them apart are the body rows that traded places
+- **THEN** the change set MAY describe each body row as having been replaced by the other, but
+  each such change SHALL span whole rows rather than cut into them, the resulting document
+  SHALL be correct, and both tables SHALL remain intact under the host's live table widget
 
 #### Scenario: The passed-over node's own kind does not matter
 - **WHEN** a node is moved past a sibling whose subtree CONTAINS a table, rather than past a
