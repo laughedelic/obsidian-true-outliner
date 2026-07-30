@@ -66,6 +66,30 @@ placement when the mapped position would not be caret-addressable.
 - **THEN** the caret is at column 0 of the heading's line, before the `#` characters,
   matching where Home lands on that line
 
+### Requirement: Bindings decline inside a nested editor
+Every key this capability binds SHALL decline when the view is a nested editor (a table
+cell's own `EditorView`), leaving the key to stock behaviour. The check SHALL be DOM
+ancestry, applied through the one shared gate all bindings route through — NOT file
+resolution: `editorInfoField` resolves a nested cell to the SAME outline-mode host file, so
+resolving the file is what would ENABLE these handlers there. Only the cell's position in
+the DOM distinguishes it.
+
+Declining is the behaviour because Tab, Enter and the arrow keys all have meaning in
+Obsidian's own table editor; acting on the host node would mean Enter splits the table the
+user is typing into. Acting on the host node from a cell remains available through the
+structural COMMANDS, which read the host note through the public `Editor` API.
+
+#### Scenario: A structural key in a table cell is stock
+- **WHEN** the caret is inside a table cell's nested editor in an outline-mode note and
+  Tab, Shift+Tab, Enter or Shift+Enter is pressed
+- **THEN** the key behaves exactly as stock, the host document is unchanged, and no
+  rejection cue appears — in particular the cell's own text is never parsed as the outline
+
+#### Scenario: The move command still acts on the host node from inside a cell
+- **WHEN** the caret is inside a table cell's nested editor and the move node up command
+  runs
+- **THEN** the whole table moves as one node in the host document
+
 ### Requirement: Enter splits the node
 In outline mode, Enter SHALL split the node at the cursor. For a node WITH
 children, the remainder becomes the node's new FIRST CHILD — content-adjacent to
