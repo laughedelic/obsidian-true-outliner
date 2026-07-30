@@ -27,9 +27,7 @@ Architecture and rationale: the `fix-redo-cursor-after-structural-ops` and
 `docs/research/04-open-questions.md` Q18–Q21 and Q29. Where the caret should go in the
 first place — as opposed to how it survives history — is being consolidated by the
 `caret-placement-policy` change.
-
 ## Requirements
-
 ### Requirement: Redo restores a structural operation's own cursor at any depth
 
 When a structural operation is undone and REDONE, the cursor SHALL be restored to the
@@ -37,26 +35,28 @@ position that operation itself produced — the same position the operation left
 cursor at when first performed — and SHALL do so at any undo/redo depth, not only the
 first redo.
 
-One exception, stated here rather than only in "Known limitation" below so this
-requirement is not read as unconditional: when indent or outdent falls back to the
-operation's own cursor because the mapped position would not be caret-addressable, that
-fallback is not what redo recomputes, and the caret returns to the non-addressable
-position. Nothing in this capability restores it.
+This is now unconditional. The former exception — indent and outdent falling back to the
+operation's own cursor when the mapped position would not be caret-addressable, with the
+fallback going unrecorded — is closed by deciding recording per DISPATCH rather than per
+operation (`caret-placement-policy`): a fallback dispatch differs from the mapping, so it
+is recorded like any other chosen cursor.
 
 This applies to every structural operation regardless of which dispatch site produced
 it: the outline keyboard grammar (indent, outdent, move up, move down, split) and the
 edit-enforcement rewrite path (boundary deletions and merges, structural paste,
 type-over). It is met by two different mechanisms, and which one applies is decided by
-whether the operation's cursor is a FUNCTION of the pre-operation caret or a CHOICE:
+whether the DISPATCHED cursor is what mapping would produce:
 
-- **Indent and outdent** derive their cursor by mapping (`minimal-change-dispatch`),
-  which is what the history recomputes on redo, so the two agree by construction. The
-  keyboard path records nothing; the command-palette path records as a side effect of
-  keeping consecutive commands in separate undo steps, but records the same value mapping
-  would give, so the two paths behave identically (see `editor-structural-commands`).
-- **Every other structural operation** chooses its cursor, which no mapping can
-  reproduce, so it is recorded — see "An operation that chooses its own cursor has it
-  recorded in history" below.
+- **A dispatch whose cursor IS the mapped position** — an ordinary indent or outdent —
+  agrees with what the history recomputes on redo, by construction. Nothing is recorded.
+  The command-palette path records as a side effect of keeping consecutive commands in
+  separate undo steps, but records the same value mapping would give, so the two paths
+  behave identically (see `editor-structural-commands`).
+- **A dispatch whose cursor mapping cannot reproduce** is recorded — see "An operation that
+  chooses its own cursor has it recorded in history" below, whose rule is now stated per
+  dispatch rather than per operation. Which operations that covers is not fixed in advance:
+  a split, merge or deletion whose position happens to coincide with the mapped one needs
+  no recording and gets none.
 
 UNDO is guaranteed only for the FIRST undo following an operation. Both mechanisms have
 a documented cost at greater depth, stated in "Known limitation" below; neither is
@@ -75,6 +75,13 @@ avoidable from within this plugin.
   position the indent itself produced — and not at the start of the node following the
   rewritten subtree, nor reset to the node's content start
 
+#### Scenario: Redo after an indent that fell back
+- **WHEN** Tab acts with a whole-block cover selected, so the mapped position would not be
+  addressable and the operation's own cursor is dispatched, and the user then undoes and
+  redoes
+- **THEN** the caret returns to that fallback position, not to the non-addressable mapped
+  one
+
 #### Scenario: No intervening selection is required
 - **WHEN** a structural operation is followed immediately by undo and redo, with no
   cursor movement, click, or any other selection-changing event in between
@@ -83,24 +90,36 @@ avoidable from within this plugin.
 
 #### Scenario: Cursor correctness survives repeated undo/redo cycles
 - **WHEN** INDENT or OUTDENT is followed by undo, redo, undo, redo — repeated any number
-  of times, with no intervening cursor movement, and the cursor was not at or inside a
-  span the operation deletes
+  of times, with no intervening cursor movement, the cursor was not at or inside a span the
+  operation deletes, AND the dispatch actually used the mapped position rather than falling
+  back to the operation's own cursor
 - **THEN** the cursor is correct after every step, in BOTH directions — these are the
-  mapping-derived operations, which record nothing and so carry neither of the
+  mapping-derived dispatches, which record nothing and so carry neither of the
   second-undo costs in "Known limitation" below
+- **AND** an indent or outdent whose addressability fallback DID fire is excluded: it is a
+  recorded dispatch and carries the recorded-dispatch cost below, despite being the same
+  operation
 
 ### Requirement: An operation that chooses its own cursor has it recorded in history
-A structural operation whose resulting cursor is a CHOICE rather than a function of the
-pre-operation caret — a merge's join point, a split point, a moved node's new location,
-the survivor after a deletion — SHALL make that cursor known to the editor's undo
-history, by re-asserting it in a following selection-only transaction. Recording SHALL
-happen before any subsequent user input can be processed, so an undo issued immediately
-after the operation still finds it recorded.
+A structural DISPATCH whose cursor is not the position mapping would produce SHALL make
+that cursor known to the editor's undo history, by re-asserting it in a following
+selection-only transaction. Recording SHALL happen before any subsequent user input can be
+processed, so an undo issued immediately after the operation still finds it recorded.
 
-Indent and outdent SHALL NOT be recorded. Their cursor is derived by mapping the
-pre-operation caret forward (`minimal-change-dispatch`), which is what the history
-recomputes on redo, so the two already agree at any depth; recording them would only
-subject them to the limitation below.
+The decision SHALL be derived from the transaction itself — comparing the dispatched
+selection against the pre-operation selection mapped forward through the change set, at
+the same association CodeMirror's own redo restore uses — and SHALL NOT be read from a
+list of operation names. A per-operation list is insufficient in a measurable way: one
+operation can dispatch a derived cursor most of the time and a chosen one when its
+addressability fallback fires, and a list leaves the second case unrecorded.
+
+The derived rule SHALL preserve the previous set's BEHAVIOUR rather than its membership.
+Every dispatch mapping cannot reproduce is recorded, so redo stays exact wherever the list
+made it exact. It may record fewer transactions: a merge join point, a moved node's new
+location and the seam after a deletion are not what mapping produces and are recorded as
+before, but a split point CAN coincide with the mapped position (a mid-item split inserts
+its marker at the caret, which assoc=1 maps onto the new item's content start), and such a
+dispatch is correctly left unrecorded — redo already reproduces it.
 
 Recording is required because no rule applied AFTER the fact can recover the position. A
 reordering maps a caret that was inside the moved node into whatever now occupies its old
@@ -118,8 +137,15 @@ not present in what the history retains.
 - **THEN** every redo puts the cursor back on the moved node
 
 #### Scenario: Indent is not recorded and stays correct anyway
-- **WHEN** Tab indents a node and the user undoes and redoes any number of times
-- **THEN** the cursor is correct at every depth, from mapping alone
+- **WHEN** Tab indents a node with a plain caret, so the dispatch uses the mapped position,
+  and the user undoes and redoes any number of times
+- **THEN** the cursor is correct at every depth, from mapping alone, and nothing was
+  recorded
+
+#### Scenario: The same operation records only when it chooses
+- **WHEN** indent is invoked twice — once with a plain caret, once with a whole-block
+  cover whose mapped position would not be addressable
+- **THEN** the first dispatch is not recorded and the second is, from the same operation
 
 ### Requirement: Known limitation — a second undo does not restore the pre-operation cursor
 
@@ -129,25 +155,17 @@ reachable by any selection this plugin can dispatch: the event a second undo rea
 position from is created on CodeMirror history's *undone* branch, and the only channel
 for recording a selection writes to the *done* branch.
 
-**Recorded operations** (move, split, merge, paste, structural delete — those that
-choose their cursor). The second undo restores the RECORDED cursor, i.e. where the
-operation left the caret, rather than where the caret was before the operation. This is
-the accepted cost of recording, taken deliberately: without it, redo lands on the wrong
-node every single time for a reordering, which is the worse of the two failures.
+**Recorded dispatches** — those whose dispatched selection differs from the mapped one,
+which in practice covers moves, most merges, pastes and structural deletes, an indent or
+outdent whose addressability fallback fired, and those splits whose point does not coincide
+with mapping. The second undo restores the RECORDED
+cursor, i.e. where the operation left the caret, rather than where the caret was before
+the operation. This is the accepted cost of recording, taken deliberately: without it,
+redo lands on the wrong node every single time for a reordering, which is the worse of
+the two failures. The fallback case newly joins this list, trading a redo that returned
+the caret to a non-addressable position for a second undo that is one step less precise.
 
-**Mapping-derived operations when the caret started somewhere non-addressable.** Indent
-and outdent fall back to the operation's own cursor when the mapped position would not be
-caret-addressable (`minimal-change-dispatch`) — reachable by invoking them with a whole-
-block cover selected, whose head sits on the trailing gap line the cover owns. That
-fallback is not recorded, so a redo recomputes the mapped position and puts the caret back
-on the gap line. Measured; both dispatch paths behave the same way.
-
-The rule that would close it — record whenever the dispatched cursor is not what mapping
-would produce, rather than keying on which operation ran — generalises the
-recorded-vs-derived split this capability states, and is owned by the
-`caret-placement-policy` change rather than patched here.
-
-**Mapping-derived operations** (indent, outdent) when the pre-operation cursor sat at or
+**Mapping-derived dispatches** (indent, outdent) when the pre-operation cursor sat at or
 inside a character span the change set DELETES. The second undo can land one position off
 from where it actually started — still on the same line, unlike the prior
 whole-document-scale gap this replaces, but not exact.
@@ -194,8 +212,11 @@ that cursor position for user gestures; its own scope still passes through
 #### Scenario: Indent is never affected
 - **WHEN** indent is undone and redone any number of times, regardless of where the
   cursor sat
-- **THEN** the cursor is always exactly correct — indent's change set only inserts
-  characters, so no cursor position is ever collapsed
+- **THEN** no cursor position is ever collapsed, because indent's change set only inserts
+  characters — so THIS cause never applies to it
+- **AND** that is specific to the collapsed-span cause: an indent whose addressability
+  fallback fired is still subject to the RECORDED-dispatch cause above, the two being
+  independent
 
 #### Scenario: The limitation is recorded, not silently shipped
 - **WHEN** this capability is implemented

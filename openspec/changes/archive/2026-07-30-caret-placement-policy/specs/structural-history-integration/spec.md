@@ -181,12 +181,13 @@ that cursor position for user gestures; its own scope still passes through
   may land one character into the node's content instead — and this is a known,
   documented gap, not a regression
 
-#### Scenario: Indent is never affected by the COLLAPSED-SPAN cause
+#### Scenario: Indent is never affected
 - **WHEN** indent is undone and redone any number of times, regardless of where the
   cursor sat
 - **THEN** no cursor position is ever collapsed, because indent's change set only inserts
-  characters — so this cause never applies to it. An indent whose addressability fallback
-  fired is still subject to the RECORDED-dispatch cause above; the two causes are
+  characters — so THIS cause never applies to it
+- **AND** that is specific to the collapsed-span cause: an indent whose addressability
+  fallback fired is still subject to the RECORDED-dispatch cause above, the two being
   independent
 
 #### Scenario: The limitation is recorded, not silently shipped

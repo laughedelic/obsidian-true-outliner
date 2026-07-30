@@ -194,8 +194,19 @@
       superseded one.
 - [x] 9.3 Update the module comments that carry the old rule: `history-caret.ts`'s scope
       section, `grammar.ts`'s `TxPlan.selection` comment, and `classify.ts`'s removed set.
-- [ ] 9.4 Real-vault pass over the changed gestures: delete a middle node, delete a last
+- [x] 9.4 Real-vault pass over the changed gestures: delete a middle node, delete a last
       node, delete next to a table, move a heading, indent with a block cover selected —
       each followed by undo and redo.
-- [ ] 9.5 Run `openspec sync-specs` (or archive) so the main specs carry the amended
+
+      Done by the maintainer, not by this agent, and it earned its place: the report was
+      "everything seems pretty solid" PLUS two findings no automated check had. Moving a
+      table by a bound hotkey works, which corrected an overstated research note claiming
+      tables could not be moved by keyboard at all — only the Alt+Arrow binding is broken,
+      because it runs against the cell's own document. And moving a sibling paragraph or
+      list item PAST a table split the table, which turned out to be a `dispatch.ts`
+      narrowing defect (fixed separately on `fix/table-split-on-sibling-move`), NOT the
+      widget interaction this agent had concluded from too few fixtures.
+- [x] 9.5 Run `openspec sync-specs` (or archive) so the main specs carry the amended
       requirements, and confirm no capability still states a placement rule of its own.
+
+      Done via `openspec archive`, which updates the main specs as part of archiving.
