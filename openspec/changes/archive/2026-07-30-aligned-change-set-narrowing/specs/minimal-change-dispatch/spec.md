@@ -3,7 +3,10 @@
 ### Requirement: Structural operations dispatch minimal character-level change sets
 A structural operation's line-range edits SHALL be narrowed, before dispatch, into the
 narrowest set of character-level `EditorChange` ranges that produce the same resulting
-document as applying the edits wholesale.
+document as applying the edits wholesale — narrowest among the sets that also satisfy
+"A relocation is dispatched as a relocation" below. Where the two pull apart, that
+requirement wins and the change is widened: a change set describes what happened, and a
+narrower description that misdescribes it is not the better one.
 
 Narrowing SHALL begin by ALIGNING the edit's old lines against its new lines. Any line the
 edit keeps SHALL be excluded from the change set wherever it occurs — not only when it sits
@@ -16,6 +19,14 @@ Alignment SHALL match a line only when its content is unique on both sides, so t
 repeated line — a blank gap line, an identical list marker, an identical table separator —
 never anchors an alignment it does not unambiguously determine. Failing to match a line that
 could have been matched costs minimality only, never correctness.
+
+Uniqueness on both sides is evidence that a line survived, not proof of it, so an alignment
+SHALL be adopted only where it explains the edit more economically than describing the same
+region in place. The two readings SHALL be compared by how many characters each must claim
+to get from one side to the other, measured BEFORE any widening the relocation requirement
+imposes — that widening is a decision about how conservatively to emit a reading, not
+evidence about which reading is true — and the in-place reading SHALL be preferred when it
+claims strictly fewer.
 
 This narrowing SHALL happen at the single choke point shared by every structural
 dispatch site — the outline keyboard grammar, the edit-enforcement rewrite path, and the
@@ -87,3 +98,28 @@ kind at any nesting depth, rather than as a special case at any dispatch site.
 - **WHEN** a table is the node being moved, past an ordinary sibling
 - **THEN** the change set relocates whole lines and no change begins or ends partway into a
   line either node leaves unchanged
+
+#### Scenario: A region whose lines repeat degrades in minimality, not in the guarantee
+- **WHEN** the lines of the region an operation touches repeat, so that a relocated block
+  cannot be matched to its new position
+- **THEN** the affected lines are described with whole-line bounds rather than trimmed to the
+  characters that differ, because a line that both survives the operation and stands where
+  another of its lines used to stand was relocated rather than rewritten, and a change must
+  not cut into it
+
+#### Scenario: A line that merely reads like another is still edited in place
+- **WHEN** an operation rewrites lines in place and the new text of an edited line happens to
+  match some other line of the document — indenting a node whose children already carry the
+  indented form of its own text, for example
+- **THEN** the change set stays trimmed to the characters that actually differ, and the caret
+  keeps its column, because a coincidence of text in one direction is not evidence that
+  anything moved
+
+#### Scenario: A shifted chain of repeated lines is still edited in place
+- **WHEN** an operation shifts a run of lines so that each line's NEW text equals the next
+  line's OLD text — indenting a node whose nested descendants all repeat its text, so that
+  the middle lines of the edit come out unique on BOTH sides
+- **THEN** every dispatched change stays on the line it belongs to, and the caret keeps the
+  character it was on, as it does when the same shape is spelled with distinct text; the
+  alignment is not adopted, because pairing those lines across the shift claims more of the
+  document than editing them where they are

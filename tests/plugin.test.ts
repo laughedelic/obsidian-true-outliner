@@ -597,6 +597,47 @@ describe('edit dispatch: line edits → editor changes', () => {
     });
 
     /**
+     * The same coincidence one level up, where the clamp above cannot reach it.
+     *
+     * A repeated chain nests rather than repeats flatly: indenting `- a` over
+     * children `  - a` / `    - a` shifts every line down one level, and
+     * because each line's NEW text is the next line's OLD text, the middle
+     * lines come out unique on both sides of the edit. Alignment reads that as
+     * "these two lines survived, one above vanished and a deeper one
+     * appeared", and emits a whole-line deletion plus an insertion instead of
+     * three two-character insertions. `relocates` cannot catch it: anchored
+     * lines are matched, so they never land in a run to be clamped.
+     *
+     * The caret is what the user feels — it is mapped through these changes,
+     * and under the deletion reading it stops following the character it was
+     * on and slides back a column.
+     */
+    it('an indent stays minimal when the lines it touches repeat DOWN a chain', () => {
+      const text = '- x\n- a\n  - a\n    - a\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- a')!;
+      const result = indent(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const changes = editsToChanges(text.split('\n'), result.value.edits);
+      // Every change stays on the line it belongs to: no line is deleted and
+      // re-inserted elsewhere, whatever the clamp does to their widths.
+      expect(changes.map((c) => [c.from.line, c.to.line])).toEqual([
+        [1, 1],
+        [2, 2],
+        [3, 3],
+      ]);
+      // The caret keeps the character it was on, as it does when the same
+      // chain is spelled with distinct text.
+      expect(planKey(text, { line: 1, ch: 3 }, 'indent')).toMatchObject({
+        plan: { selection: 9 },
+      });
+      expect(planKey('- x\n- a\n  - b\n    - c\n', { line: 1, ch: 3 }, 'indent')).toMatchObject({
+        plan: { selection: 9 },
+      });
+    });
+
+    /**
      * Narrowing a change set must not be able to throw. Alignment decides
      * uniqueness per segment, so a segment can always subdivide again, and the
      * subdivision used to be a recursive call — bounded only by the line count.
@@ -610,6 +651,55 @@ describe('edit dispatch: line edits → editor changes', () => {
         { fromLine: 0, toLine: before.length, insert: after },
       ]);
       expect(applyChanges(before.join('\n'), changes)).toBe(after.join('\n'));
+    });
+
+    /**
+     * The other end of that same worry, and the one repetition does NOT cover:
+     * repeated lines yield no anchors at all, so they subdivide once and stop.
+     * Work grows with how much the alignment SUCCEEDS — every anchor splits a
+     * segment, and each resulting gap is re-scanned for anchors of its own,
+     * so a document that keeps revealing new ones is what makes the subdivision
+     * do the most work per line.
+     *
+     * These three ask for that in the ways available: wholesale reversal of
+     * distinct lines (one anchor per pass, maximally lopsided gaps), pairwise
+     * transposition (an anchor between every pair, maximal gap COUNT), and a
+     * mix that leaves ambiguous lines behind in every gap. Measured work per
+     * line stays flat as the document grows rather than rising with it — an
+     * anchor at the edge of a segment leaves the gap beside it empty, and a
+     * gap that loses no line to its neighbour cannot make an ambiguous line
+     * unique, so single-anchor passes cannot chain. The wall-clock bound is
+     * deliberately loose: it is here to catch a change of ORDER, not to police
+     * milliseconds on a shared CI box.
+     */
+    it.each([
+      {
+        shape: 'reversed',
+        rewrite: (lines: string[]) => [...lines].reverse(),
+      },
+      {
+        shape: 'pairwise transpositions',
+        rewrite: (lines: string[]) => {
+          const out = [...lines];
+          for (let i = 0; i + 1 < out.length; i += 2) [out[i], out[i + 1]] = [out[i + 1]!, out[i]!];
+          return out;
+        },
+      },
+      {
+        shape: 'unique lines interleaved with ambiguous ones',
+        rewrite: (lines: string[]) =>
+          [...lines.map((l, i) => (i % 2 === 0 ? l : `- dup ${i % 7}`))].reverse(),
+      },
+    ])('narrows a large document that keeps finding anchors: $shape', ({ rewrite }) => {
+      const before = Array.from({ length: 40_000 }, (_, i) => `- item ${i}`);
+      const after = rewrite(before);
+      const started = performance.now();
+      const changes = editsToChanges(before, [
+        { fromLine: 0, toLine: before.length, insert: after },
+      ]);
+      const narrowing = performance.now() - started;
+      expect(applyChanges(before.join('\n'), changes)).toBe(after.join('\n'));
+      expect(narrowing).toBeLessThan(2_000);
     });
 
     /**

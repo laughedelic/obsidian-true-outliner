@@ -140,38 +140,54 @@ Interactions checked rather than assumed:
 - **Selection and enforcement.** The enforcement rewrite path shares this choke point and
   simply gets better-shaped change sets; its e2e specs pass unchanged.
 
-### D4. The history-caret negative control moves to the direction that still tests it
+### D4. The history-caret negative control is stated for both directions
 
-One existing test changed meaning rather than breaking: it asserted that WITHOUT the semantic
-cursor recorder, redo lands on the sibling that swapped in. With aligned change sets it now
-lands correctly — because for THAT direction the aligner happened to anchor the moved node, so
-the caret sat in text no change touched.
+One existing test asserted that WITHOUT the semantic cursor recorder, redo lands on the
+sibling that swapped in. Anchoring briefly made that stop happening in one direction — the
+aligner matched the moved node, so the caret sat in text no change touched and mapping got
+the right answer by luck, leaving the control vacuous in that row.
 
-This is a coincidence, not a new guarantee. A swap has two equally true descriptions and the
-aligner picks one by tie-break, from line content alone. Move-DOWN of the first sibling picks
-the other way, and there mapping still cannot follow — measured. The control now uses that
-direction, so it exercises the branch it claims to, and the spec delta records the reasoning
-so the requirement is not read as "mapping works for moves now".
+Choosing between alignment and an in-place reading by which one claims fewer characters
+settles this too: a swap of two lines differing by a character is cheaper to describe in
+place, so it is, in both directions. The caret is inside a change either way, mapping fails
+either way, and the control is non-vacuous in both rows — the value this test pinned before
+the alignment existed. The change set for the smallest swap is therefore unchanged from
+before this capability, which is the strongest statement available that the choice rule did
+not buy its correctness with a behavioural regression elsewhere.
 
 ## Risks / Trade-offs
 
 - **A pathological document with no unique lines in the region falls back to the old shape.**
-  → Correctness is unaffected (the `applyEdits` property test bounds it); only minimality and,
-  in principle, the relocation guarantee degrade. Requires every line in the moved and
-  passed-over spans to be duplicated within the same region.
+  → Minimality degrades; the relocation guarantee does NOT. Losing every anchor was the one
+  case where this shape could still cut into a relocated line, so the guarantee no longer
+  rests on anchoring at all: the trimming clamps a change to whole-line bounds whenever the
+  line it would cut into both survives the operation and stands where another of the edit's
+  lines used to stand. Correctness is bounded independently by the `applyEdits` property test.
+  Requires every line in the moved and passed-over spans to be duplicated within the region.
 - **A run whose two sides have unequal line counts is now emitted as one trimmed span where the
   whole region previously went per-line.** → Measured on the existing suites as an improvement
   or a wash; the property tests and the pinned worked shapes for indent, outdent, and merge all
   hold unchanged.
-- **Which node an aligned swap calls "moved" is a tie-break, not a semantic choice.** → It has
-  no effect on the document or on the dispatched cursor, and redo is covered by recording
-  (D4). Documented in the `structural-history-integration` delta rather than engineered away.
+- **Anchoring can pair lines across a shift instead of reading it as an edit in place.**
+  → Uniqueness on both sides is evidence a line survived, not proof: when an indent shifts a
+  subtree whose lines repeat, each line's new text IS the next line's old text, so the middle
+  lines come out unique on both sides and the alignment reads an in-place indent as a deletion
+  plus an insertion — carrying the caret off the character it was on. Resolved by adopting an
+  alignment only where it explains the edit in fewer characters than describing the region in
+  place, compared before the relocation clamp widens either reading. This also subsumes the
+  swap tie-break: a two-line swap is now described in place in both directions, so neither
+  direction recovers its caret by mapping alone and both rest on recording (D4).
 - **The host's exact trigger is still uncharacterised.** → The guarantee adopted here is
   strictly stronger than any behaviour we observed needing: the passed-over block's characters
   are in no change range, so no reconciliation of ours can be misread. Covered live by e2e
   regressions against a real Obsidian with a mounted table widget.
 - **Performance on very large moved subtrees.** → The alignment is over one edit region's
-  lines; the LIS is O(n log n) on candidate pairs. No measurable change in the suites.
+  lines; the LIS is O(n log n) on candidate pairs. Subdivision re-scans each gap, so the
+  concern is depth rather than any single pass: measured work per line is flat from 25 to
+  40,000 lines under adversarial search, because an anchor at a segment's edge leaves the gap
+  beside it empty and a gap that loses no line to its neighbour cannot make an ambiguous line
+  unique — single-anchor passes cannot chain. Whole-document rewrites of 40,000 lines narrow
+  in tens of milliseconds for repeated, reversed, transposed, and mixed shapes alike.
 
 ## Migration Plan
 

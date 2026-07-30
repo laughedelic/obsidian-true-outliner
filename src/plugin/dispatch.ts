@@ -465,6 +465,22 @@ function changesForRun(
   return wholeRegionChange(lines, run.oldStart, run.oldEnd, newMid, sides);
 }
 
+/** How much of the document a change set claims: characters removed plus inserted. */
+function charsTouched(lines: readonly string[], changes: readonly EditorChange[]): number {
+  let total = 0;
+  for (const { from, to, text } of changes) {
+    total += text.length;
+    if (from.line === to.line) {
+      total += to.ch - from.ch;
+      continue;
+    }
+    total += (lines[from.line]?.length ?? 0) - from.ch + 1;
+    for (let i = from.line + 1; i < to.line; i++) total += (lines[i]?.length ?? 0) + 1;
+    total += to.ch;
+  }
+  return total;
+}
+
 /**
  * Narrow one line-range `Edit` into the smallest set of character-level
  * changes that produce the same result (`minimal-change-dispatch`).
@@ -515,7 +531,51 @@ export function editToChanges(lines: readonly string[], edit: Edit): EditorChang
     }
   }
 
-  return runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
+  // An anchor is a claim that a line SURVIVED — and text identity is only
+  // evidence for that claim, never proof, the same lesson `relocates` learned
+  // one level down. An indent walks a repeated subtree down one level:
+  // `['- a', '  - a', '    - a']` becomes `['  - a', '    - a', '      - a']`,
+  // where `  - a` and `    - a` are each unique on BOTH sides, so anchoring
+  // pairs them across the shift and reads an in-place indent as "the first
+  // line vanished and a deeper one appeared". `relocates` cannot save this:
+  // anchored lines never reach a run, so nothing downstream ever sees them.
+  //
+  // Text cannot settle it — both readings explain the same two documents — so
+  // settle it on how well each one EXPLAINS the text: how many characters it
+  // has to claim to get from one side to the other. Characters outside every
+  // change range are what a live widget keeps, what a caret maps through
+  // unmoved, and what undo replays as one gesture, so a reading that claims
+  // more of the document than another buys nothing for it. Take the in-place
+  // reading whenever it claims strictly less, and the alignment keeps its win
+  // exactly where it earns one. That is not a tiebreak bolted on beside the
+  // relocation guarantee, it implies it: describing a move in place rewrites
+  // the block it passed over as well as the block that moved, while the
+  // alignment rewrites only the block that moved — strictly less, for as long
+  // as anything is being passed over at all.
+  //
+  // Measured WITHOUT the relocation clamp, on purpose. The clamp widens a
+  // change to whole lines when it cannot tell a rewrite from a move; that is a
+  // decision about how conservatively to emit a reading, not evidence about
+  // which reading is true, and letting it vote here inverts the answer — in
+  // the indent above it widens the in-place reading from 6 characters to 16
+  // and hands the comparison to the very alignment it was meant to guard
+  // against. So: the text picks the alignment, the clamp then emits it.
+  const asExplanation = { before: new Set<string>(), after: new Set<string>() };
+  const wholeRun = {
+    oldStart: edit.fromLine,
+    oldEnd: edit.toLine,
+    newStart: 0,
+    newEnd: edit.insert.length,
+  };
+  const explains = (runsToCost: readonly ChangedRun[]): number =>
+    charsTouched(
+      lines,
+      runsToCost.flatMap((run) => changesForRun(lines, edit.insert, run, asExplanation)),
+    );
+
+  return explains([wholeRun]) < explains(runs)
+    ? changesForRun(lines, edit.insert, wholeRun, sides)
+    : runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
 }
 
 export function editsToChanges(lines: readonly string[], edits: readonly Edit[]): EditorChange[] {

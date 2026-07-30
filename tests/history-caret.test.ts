@@ -68,18 +68,14 @@ function caretOf(state: EditorState): { line: number; ch: number } {
  * mapping is `selectionsAfter`, written by a separate selection-only
  * transaction, which is what the recorder dispatches.
  *
- * A swap has two equally true descriptions — "this node moved down" and "that
- * node moved up" — and `dispatch.ts`'s line alignment picks one of them by a
- * tie-break, not by which node the user acted on. When it happens to pick the
- * user's node as the one that STAYS, the caret sits in text no change touches
- * and mapping gets the right answer by luck; when it picks the other way the
- * caret is inside a relocated run and mapping cannot follow. Move-down of the
- * first sibling is the second case, which is why the negative control below
- * uses it: it is the direction that genuinely exercises the mapping branch.
- * The recorder is what makes the answer the same either way — and, since the
- * decision to record is now derived per dispatch rather than per operation,
- * it is also what makes `needsRecording` answer differently for the two
- * directions without anyone having to enumerate them.
+ * A swap of two one-line siblings is described in place — swapping two lines
+ * that differ by a character costs less than relocating either of them, so
+ * `dispatch.ts` reads it as a rewrite of both lines rather than as a move of
+ * one. Both carets are therefore inside a change, in both directions, and
+ * mapping alone cannot follow either of them. The recorder is what makes the
+ * answer right anyway — and, since the decision to record is now derived per
+ * dispatch rather than per operation, it is also what lets `needsRecording`
+ * reach that conclusion without anyone having to enumerate directions.
  */
 describe('a moved node keeps its cursor across undo/redo', () => {
   const DOC = '- a\n- b\n';
@@ -122,14 +118,13 @@ describe('a moved node keeps its cursor across undo/redo', () => {
 
   /**
    * Both directions of the guarantee, each paired with what happens WITHOUT
-   * the recorder — because those differ, and stating only the guarantee would
-   * hide that one of the two rows is satisfied by the alignment's tie-break
-   * rather than by anything this file is testing. Deleting the recorder would
-   * still fail the move-down row, and only that row.
+   * the recorder: the caret lands on the node that swapped in. Pinning the
+   * exact wrong node is what proves each row reaches history's mapping branch
+   * at all — deleting the recorder fails both rows, not just one.
    */
   it.each([
     { target: '- a', direction: 'down', withoutRecorder: '- b' },
-    { target: '- b', direction: 'up', withoutRecorder: '- b' },
+    { target: '- b', direction: 'up', withoutRecorder: '- a' },
   ] as const)(
     'redo puts the caret back on $target, the node moved $direction',
     ({ target, withoutRecorder }) => {
@@ -140,9 +135,7 @@ describe('a moved node keeps its cursor across undo/redo', () => {
       redo(view);
       expect(lineAt(view.state)).toBe(target); // …and redo the moved node, not its sibling
 
-      // The contrast, stated per direction: mapping alone recovers the caret
-      // for move-up (the aligner anchored the moved node, so the caret sat in
-      // text no change touched) and lands on the wrong node for move-down.
+      // The contrast: mapping alone lands on the node that swapped in.
       const bare = moveNode(false, target);
       undo(bare);
       redo(bare);
