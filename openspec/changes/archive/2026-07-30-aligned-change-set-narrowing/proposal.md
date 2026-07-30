@@ -23,8 +23,10 @@ half: the shape must also be TRUE.
   longest increasing subsequence, recurse between anchors.
 - The two existing narrowing branches (per-line for equal line counts, one trimmed character
   span otherwise) are unchanged. They now apply per changed run instead of per whole region.
-- A move is consequently dispatched as one deletion plus one insertion, with the passed-over
-  block's characters in no change range at all — for every atom kind, at any nesting depth.
+- A move is consequently dispatched as one deletion plus one insertion, with one of the two
+  rearranged blocks in no change range at all — for every atom kind, at any nesting depth.
+  Which block is spared is a minimality decision (the alignment anchors the larger one), and
+  the safety property is that neither is ever rewritten in place.
 - The requirement gains an explicit guarantee about relocation: an operation that MOVES lines
   SHALL NOT be expressed as an in-place rewrite of the lines it passes over.
 - Change sets get strictly smaller for reorders (measured: 2 changes / 16 characters, against 5

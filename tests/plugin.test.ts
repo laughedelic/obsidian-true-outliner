@@ -446,6 +446,121 @@ describe('edit dispatch: line edits → editor changes', () => {
       }
     });
 
+    /**
+     * Whole old lines a change overwrites while putting something else in their
+     * place. This is the corruption's actual signature, and it is worth being
+     * precise about, because two more obvious signatures are NOT it. The
+     * pre-fix change set for a FOUR-line mover past this table cut into no line
+     * at all -- every boundary sat on a line edge -- and split the paragraph
+     * anyway; what it did do was replace the table's first row with the mover's
+     * second line while that row still existed further down the document. A
+     * change may overwrite text freely, but only text that is actually gone.
+     */
+    const overwrittenSurvivors = (
+      lines: readonly string[],
+      changes: readonly EditorChange[],
+      result: ReadonlySet<string>,
+    ) =>
+      changes.flatMap((change) => {
+        if (change.text === '') return [];
+        const inserted = new Set(change.text.split('\n'));
+        const gone: string[] = [];
+        for (let i = change.from.line; i <= change.to.line; i++) {
+          const whole =
+            (i > change.from.line || change.from.ch === 0) &&
+            (i < change.to.line || change.to.ch === (lines[i] ?? '').length);
+          const line = lines[i];
+          if (whole && line !== undefined && !inserted.has(line) && result.has(line)) {
+            gone.push(line);
+          }
+        }
+        return gone;
+      });
+
+    /**
+     * The alignment anchors whichever block it can chain the longest, so a mover
+     * with more lines than the table wins and the TABLE becomes the block the
+     * description says moved. That is not a defect and it is not what protects
+     * the table: whichever block moves, it is removed and re-inserted whole
+     * rather than rewritten in place, and measured against the live widget both
+     * shapes leave the table intact. What the guarantee cannot be is a claim
+     * about WHICH sibling stays put -- the change set alone does not know which
+     * one the user gestured at, and it does not need to.
+     */
+    it('names the larger block as the one that stayed, and moves the other whole', () => {
+      const mover = ['L1', 'L2', 'L3', 'L4'];
+      const text = `${mover.join('\n')}\n\n${TABLE.join('\n')}\n`;
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === 'L1')!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+
+      // The four-line mover out-anchors the three-row table, so the table is
+      // what the change set describes as having moved -- whole, in one piece.
+      expect(changes).toEqual([
+        {
+          from: { line: 0, ch: 0 },
+          to: { line: 0, ch: 0 },
+          text: `${TABLE.join('\n')}\n\n`,
+        },
+        { from: { line: 4, ch: 0 }, to: { line: 8, ch: 0 }, text: '' },
+      ]);
+
+      // ...and nothing is rewritten in place, which is the property that
+      // actually keeps the widget whole.
+      const after = new Set(applyEdits(lines, result.value.edits));
+      expect(overwrittenSurvivors(lines, changes, after)).toEqual([]);
+
+      // The predicate is not vacuous: this is the change set this same document
+      // produced BEFORE the alignment landed (measured), and it is caught.
+      const preFix: EditorChange[] = [
+        { from: { line: 0, ch: 0 }, to: { line: 0, ch: 2 }, text: '| a   | b   |' },
+        { from: { line: 1, ch: 0 }, to: { line: 1, ch: 2 }, text: '| --- | --- |' },
+        { from: { line: 2, ch: 0 }, to: { line: 2, ch: 2 }, text: '| 1   | 2   |' },
+        { from: { line: 3, ch: 0 }, to: { line: 3, ch: 2 }, text: '' },
+        { from: { line: 4, ch: 0 }, to: { line: 4, ch: 0 }, text: 'L1' },
+        { from: { line: 5, ch: 0 }, to: { line: 5, ch: 13 }, text: 'L2' },
+        { from: { line: 6, ch: 0 }, to: { line: 6, ch: 13 }, text: 'L3' },
+        { from: { line: 7, ch: 0 }, to: { line: 7, ch: 13 }, text: 'L4' },
+      ];
+      expect(cutsIntoSurvivingLine(lines, preFix, after)).toEqual([]); // cuts nothing
+      // ...yet rewrites every one of the table's rows, and the mover's lines too,
+      // while all of them are still standing somewhere in the result.
+      expect(overwrittenSurvivors(lines, preFix, after)).toEqual(
+        expect.arrayContaining(TABLE),
+      );
+    });
+
+    /**
+     * The general form, over generated trees: a change may overwrite text, but
+     * only text the edit actually destroys. Anything still standing elsewhere in
+     * the result was MOVED, and a description that says it was rewritten is
+     * telling every consumer -- widget, decoration, caret, folding -- something
+     * that did not happen.
+     */
+    it('never overwrites a whole line that survives the edit, for any op', () => {
+      fc.assert(
+        fc.property(arbTree(), (tree) => {
+          const text = encode(parse(encode(tree)));
+          const doc = parse(text);
+          const lines = text.split('\n');
+          for (const op of [indent, outdent, moveUp, moveDown]) {
+            for (const node of walkNodes(doc)) {
+              const applied = op(doc, node.id);
+              if (!applied.ok) continue;
+              const changes = editsToChanges(lines, applied.value.edits);
+              const after = new Set(applyEdits(lines, applied.value.edits));
+              expect(overwrittenSurvivors(lines, changes, after)).toEqual([]);
+            }
+          }
+        }),
+        { numRuns: 300 },
+      );
+    });
+
     it('states a move as one deletion plus one insertion', () => {
       const text = `Mover.\n\n${TABLE.join('\n')}\n`;
       const doc = parse(text);

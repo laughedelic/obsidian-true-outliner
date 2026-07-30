@@ -205,11 +205,21 @@ not something recoverable by mapping the old position through the change set.
 ### Requirement: A relocation is dispatched as a relocation
 An operation that MOVES lines rather than rewriting them in place SHALL be dispatched as the
 removal of those lines from their old position and their insertion at the new one. It SHALL
-NOT be dispatched as an in-place rewrite of the lines it passes over.
+NOT be dispatched as an in-place rewrite of any line it rearranges.
 
-Specifically, no dispatched change SHALL begin or end partway into a line the operation
-leaves unchanged. A change MAY span such a line whole, from one line boundary to another,
-when the operation genuinely relocates it.
+Two things follow, and both are required. First, no dispatched change SHALL begin or end
+partway into a line the operation leaves unchanged; a change MAY span such a line whole, from
+one line boundary to another, when the operation genuinely relocates it. Second, no dispatched
+change SHALL overwrite a whole line that is still standing somewhere in the resulting
+document. A change may destroy text freely — only text that the operation actually destroys.
+
+A relocation rearranges TWO blocks: the one the gesture moved and the one it passed. The
+change set describes exactly one of them as having moved, and WHICH one is a minimality
+decision, not a safety one — the narrowing anchors whichever block it can match the furthest,
+so a mover with more lines than the block it passes will be the one left standing. This
+requirement SHALL NOT be read as naming the passed-over block: a change set cannot know which
+sibling a user gestured at, and does not need to. Whichever block the description says moved
+is removed and re-inserted whole, and that is what protects it.
 
 This is not a preference between two equally minimal forms. A change set is a description of
 what happened, and consumers act on that description rather than on the resulting text alone
@@ -219,17 +229,26 @@ the body. The guarantee therefore belongs at the narrowing choke point, stated f
 kind at any nesting depth, rather than as a special case at any dispatch site.
 
 #### Scenario: A sibling moving past a table leaves the table's characters untouched
-- **WHEN** a paragraph or list item is moved up or down past a sibling table, in a document
-  where the table is rendered by the host's live table widget
+- **WHEN** a paragraph or list item shorter than the table is moved up or down past it, in a
+  document where the table is rendered by the host's live table widget
 - **THEN** the dispatched change set contains one deletion of the moved node's lines and one
   insertion of them on the other side, no change range covers or enters any of the table's
   lines, and the table's header, separator, and body rows remain contiguous in the resulting
   document
 
+#### Scenario: A mover longer than the table makes the table the block that moves
+- **WHEN** the moved node has MORE lines than the table it passes, so the narrowing anchors
+  the mover and describes the table as the block that relocated
+- **THEN** the table's rows are removed and re-inserted whole, in one piece, no line of either
+  block is overwritten while still standing elsewhere, and the live widget leaves the document
+  intact — the guarantee holds from this side too, without the change set being told which
+  sibling the gesture moved
+
 #### Scenario: The passed-over node's own kind does not matter
 - **WHEN** a node is moved past a sibling whose subtree CONTAINS a table, rather than past a
   table itself
-- **THEN** the table's lines are still outside every dispatched change range
+- **THEN** the table's lines are still never rewritten in place — whole, contiguous, and
+  either outside every change range or relocated in one piece
 
 #### Scenario: Moving the atom itself is still a relocation
 - **WHEN** a table is the node being moved, past an ordinary sibling

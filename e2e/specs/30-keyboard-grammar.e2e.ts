@@ -234,6 +234,32 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe(`Mover.\n\n${table}\n`);
   });
 
+  /**
+   * The other way round. Line alignment anchors whichever block it can chain
+   * the longest, so a mover with MORE lines than the table wins and the table
+   * becomes the block the change set describes as having moved. Nothing about
+   * the gesture changed, and the guarantee cannot be "the table is never in a
+   * change range" -- a change set does not know which sibling the user pointed
+   * at. What it can promise is that neither block is rewritten in place, and
+   * this is that promise measured against the live widget from the side the
+   * shorter fixtures never exercise. (Before the alignment landed, this
+   * document corrupted too: measured, the PARAGRAPH came back as `L1`, a blank
+   * line, then `L2 L3 L4` -- split into two nodes.)
+   */
+  it('a mover longer than the table survives, though the table is what moves in the change set', async function () {
+    const table = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
+    const mover = 'L1\nL2\nL3\nL4';
+    await grammarNote(`${mover}\n\n${table}\n`, 0, 1);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
+
+    await h.keys.moveNodeDown();
+    await browser.pause(150); // allow any live-table write-back to settle
+
+    expect(await h.getBuffer()).toBe(`${table}\n\n${mover}\n`);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(`${mover}\n\n${table}\n`);
+  });
+
   it('Enter mid-item splits into two items (childless)', async function () {
     await grammarNote('- alpha beta\n', 0, 8);
     await h.keys.enter();

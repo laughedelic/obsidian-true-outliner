@@ -78,9 +78,15 @@ A move consequently comes out as what it is:
 [5,0]-[5,0] := "\nMover.\n"
 ```
 
-The passed-over block's characters are in no change range at all. Measured, this holds for
-paragraph and list item past a table in both directions, for a table moving past a paragraph,
-and for the nested shape the superseded fix missed.
+One of the two rearranged blocks is in no change range at all. Which one is the alignment's
+choice, not the gesture's: it anchors whichever block it can chain the furthest, so the block
+left standing is the LARGER one. Above, the table out-anchors a one-line mover; give the mover
+four lines and the roles swap, and the change set describes the table as what moved. That is
+not a defect and it is not what keeps the table whole — whichever block moves, it is removed
+and re-inserted whole rather than rewritten in place, and that is the property the widget
+needs. Measured both ways against a live widget, plus the nested shape the superseded fix
+missed. A change set cannot know which sibling a user gestured at, so a guarantee phrased
+about the passed-over block would be one it cannot keep.
 
 *Alternatives considered.*
 
@@ -190,9 +196,16 @@ requirement is not read as "mapping works for moves now".
   node a swap calls "moved" remains a choice made from line content, not from the gesture —
   see D4; recording is what makes that immaterial.
 - **The host's exact trigger is still uncharacterised.** → The guarantee adopted here is
-  strictly stronger than any behaviour we observed needing: the passed-over block's characters
-  are in no change range, so no reconciliation of ours can be misread. Covered live by e2e
-  regressions against a real Obsidian with a mounted table widget.
+  phrased about the SHAPE of the description rather than about which block is spared, because
+  measurement ruled out the two more obvious phrasings. The pre-fix change set for a four-line
+  mover past a three-row table cut into no line at all — every boundary sat on a line edge —
+  and still corrupted the document; what it did was replace the table's first row with the
+  mover's second line while that row still stood further down. So neither "the passed-over
+  block is untouched" (unkeepable — the alignment may anchor the mover instead) nor "no change
+  cuts into a surviving line" (insufficient — that change set cuts into none) is the property.
+  What is: no change overwrites a whole line that is still standing in the result. Covered by a
+  property test over generated trees, and live by e2e regressions from BOTH sides against a
+  real Obsidian with a mounted table widget.
 - **Performance on very large moved subtrees.** → The alignment is over one edit region's
   lines; the LIS is O(k log k) on the k candidate pairs. Subdivision re-scans each gap, so the
   concern is depth rather than any single pass: measured work per line is flat from 25 to
