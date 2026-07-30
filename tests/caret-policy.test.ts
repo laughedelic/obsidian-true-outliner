@@ -127,13 +127,12 @@ describe('planCaret: the deletion convention', () => {
     // reports the scope start, and on a note with FRONTMATTER resolving from
     // that anchor put the caret at a list item's column 0 — inside its marker.
     //
-    // NOTE for anyone negative-controlling this: THREE independent fixes each
-    // prevent it, so disabling any one (or any two) leaves this green.
-    // (1) `deleteSubtreeGroups` now picks a subject that survives the combined
-    // removal; (2) `finalize` degrades an unlocatable subject to the scope
-    // start instead of a silent line 0; (3) this policy no longer reads the
-    // anchor on the no-predecessor path. Disable all three to see it fail —
-    // it then reports `{line: 4, ch: 0}`, inside the marker.
+    // THREE independent fixes each prevent the caret symptom, so the caret
+    // assertion alone stays green if any one is reverted. The ANCHOR assertion
+    // below is what pins the ops-layer fix specifically: `OpOutput.anchor` is a
+    // public structural position that `enforce.ts` splices against, so it has
+    // to name a node that actually survived — reverting the survivor scan in
+    // `deleteSubtreeGroups` fails that assertion on its own.
     const before = parse('---\ntitle: x\n---\n\n- alpha\n\n- beta\n\n- gamma\n');
     const kids = before.children;
     const removed = [kids[0]!.id, kids[1]!.id];
@@ -143,6 +142,12 @@ describe('planCaret: the deletion convention', () => {
       { kind: 'deletion', removed },
       { before, after: result.value.doc, anchor: result.value.anchor },
     );
+    // The ANCHOR must identify the surviving `- gamma`, not a removed node and
+    // not a degraded line 0 — this is the identity contract `deleteAndSplice`
+    // relies on, and it is what the survivor scan exists for.
+    const afterLines = encode(result.value.doc).split('\n');
+    expect(afterLines[result.value.anchor.line]).toBe('- gamma');
+
     // `- gamma`'s content start, past its marker — not column 0.
     expect(plan.caret).toEqual({ line: 4, ch: 2 });
     expect(isAddressable(result.value.doc, plan.caret)).toBe(true);

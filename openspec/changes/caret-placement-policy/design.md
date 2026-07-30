@@ -152,9 +152,11 @@ in sync with an enum is the drift this proposal exists to close.
 ### D2: `OpOutput.cursor` becomes `OpOutput.anchor`, a structural fact
 
 The rename is the load-bearing part, not cosmetics. `anchor` means "where this operation's
-subject (or its surviving neighbour) landed in the result tree", and it stays exactly what
-`finalize` computes today, including `deleteSubtreeGroups`'s `survivorAfter ??
-survivorBefore ?? parent` choice. That keeps `enforce.ts`'s `deleteAndSplice` and
+subject (or its surviving neighbour) landed in the result tree", and it stays what
+`finalize` computes today, with one correction review forced: `deleteSubtreeGroups` keeps
+the `survivorAfter ?? survivorBefore ?? parent` PREFERENCE ORDER but skips any candidate
+that a later removal group also deletes, because the naive choice named exactly that node
+and the anchor then degraded to line 0. That keeps `enforce.ts`'s `deleteAndSplice` and
 `endOfInsertedRun` working unchanged — they read a structural position across a re-parse,
 not a caret — while the caret becomes the policy's answer and is free to differ.
 
@@ -296,8 +298,9 @@ the original mistake in a new spelling.
 
 ### D7: The palette keeps two transactions; only the RULE is shared
 
-`main.ts`'s `resultCursor` is deleted and the palette calls the policy, but the palette
-keeps applying its change and its cursor as two `Editor` calls. That structure is not
+`main.ts`'s `resultCursor` LOSES its placement rule and becomes a rule-free adapter that
+builds the policy's facts and calls it; the function itself remains. The palette keeps
+applying its change and its cursor as two `Editor` calls. That structure is not
 duplication — it is what keeps consecutive palette commands as separate undo steps, since
 `Editor.transaction` carries no `userEvent` and CodeMirror joins adjacent `userEvent`-less
 changes into one history event. It cost two review rounds to establish as harmless
@@ -384,7 +387,8 @@ alternative (landing in a table) is the measured undo-stranding defect. The resi
 where every candidate is capturing is documented rather than silently handled.
 
 **One more module in the area of the codebase with the most owners of caret placement.**
-→ Net negative count: `resultCursor` is deleted, `planFromOp`'s branch collapses,
+→ Net negative count: `resultCursor` keeps only its adapter shell, `planFromOp`'s branch
+collapses,
 `hasSemanticCursor`/`SEMANTIC_CURSOR_USER_EVENTS` are removed, and `deleteSubtreeGroups`
 stops choosing a caret. The precedent for keeping unproven machinery out of this area is
 the caret resolver dropped in `minimal-changesets-for-structural-ops` (D5a).

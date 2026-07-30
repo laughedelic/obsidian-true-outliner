@@ -800,11 +800,20 @@ export async function noticeTexts(): Promise<string[]> {
  *
  * Idempotent, and safe across an app restart: the flag lives on `window`, so a
  * reload drops both the flag and the observer and the next call re-arms.
+ *
+ * Armed from the wdio `before` hook so it is live before ANY spec acts, and
+ * again from `openNote`/`createNote`/`toggleOutlineMode` to cover the window
+ * being replaced by a reload. Arming only inside `waitForNotice` is too late by
+ * construction — review found a real path, `40-shell.e2e.ts`'s
+ * `enablePlugin` → `waitForNotice('obsidian-outliner')`, where the notice is
+ * produced by the action itself and nothing had armed the recorder when that
+ * spec runs alone.
  */
 export async function armNoticeRecorder(): Promise<void> {
   await browser.execute(() => {
     const w = window as unknown as { __toNoticeLog?: string[]; __toNoticeArmed?: boolean };
     if (w.__toNoticeArmed) return;
+    if (!document.body) return; // too early; a later call re-arms
     w.__toNoticeArmed = true;
     w.__toNoticeLog = [];
     const record = (): void => {

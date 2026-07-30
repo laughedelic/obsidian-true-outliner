@@ -29,6 +29,36 @@ describe('structural commands', function () {
     await h.dismissNotices();
   });
 
+  /**
+   * The PALETTE path's own caret, for the `subject` case.
+   *
+   * `caret-placement-policy` routes the palette through the same procedure as
+   * the keyboard, but only the keyboard side was asserted — `planKey` in
+   * tests/caret-placement.test.ts. A miswired `runOp` adapter (passing the
+   * wrong `CaretOp`, or dropping the policy call) would leave every grammar
+   * test green while the user-visible column changed. Review (PR #33) called
+   * that gap; this closes it at the entry point that has no unit-level
+   * equivalent.
+   */
+  it('move via the palette lands a HEADING caret at column 0, matching the keyboard path', async function () {
+    await outlineNote('## Alpha\n\n## Beta\n', 0, 0);
+    await h.runCommand('move-node-down');
+    expect(await h.getBuffer()).toBe('## Beta\n\n## Alpha\n');
+    // Column 0, before the `#` — `content-space-caret` calls the prefix
+    // ordinary content, and this is where Home lands on the same line. It was
+    // ch 3 (past `## `) before this change.
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 0 });
+  });
+
+  it('move via the palette lands a LIST ITEM caret after its marker', async function () {
+    await outlineNote('- alpha\n- beta\n', 0, 2);
+    await h.runCommand('move-node-down');
+    expect(await h.getBuffer()).toBe('- beta\n- alpha\n');
+    // Control: the two content-start definitions agree here, so this must not
+    // have moved.
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+  });
+
   it('indent paragraph under paragraph → list item; outdent restores; one undo step each', async function () {
     const original = 'First.\n\nSecond.\n';
     await outlineNote(original, 2, 3);

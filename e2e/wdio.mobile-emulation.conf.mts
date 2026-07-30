@@ -55,6 +55,18 @@ export const config: WebdriverIO.Config = {
     },
   ],
 
+  /**
+   * Arm the notice recorder before any spec acts. Notices live ~1500ms and
+   * `waitForNotice` polls over WebDriver, so a notice produced by the very
+   * action a spec is waiting on can vanish between polls; recording from
+   * session start removes that race even for specs that produce a notice
+   * before touching any note helper (see `armNoticeRecorder`).
+   */
+  before: async function () {
+    const { armNoticeRecorder } = await import('./helpers.js');
+    await armNoticeRecorder();
+  },
+
   services: ['obsidian'],
   reporters: ['obsidian'],
 

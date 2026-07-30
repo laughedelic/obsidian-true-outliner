@@ -96,8 +96,12 @@
 - [x] 4.1 `src/plugin/grammar.ts`: `planFromOp` calls `planCaret` instead of implementing
       the mapped-with-fallback rule; keep the caller-supplied `mapCursorFrom` as the
       `mapped` fact.
-- [x] 4.2 `src/plugin/main.ts`: delete `resultCursor`, call `planCaret`. The two-transaction
-      structure stays (design.md D7).
+- [x] 4.2 `src/plugin/main.ts`: strip `resultCursor`'s own placement rule and have it call
+      `planCaret`. The two-transaction structure stays (design.md D7).
+
+      The function itself remains, as the adapter that builds the policy's facts and
+      converts back to Obsidian's `{line, ch}` — an earlier wording here and in design.md
+      said it was "deleted", which review corrected.
 - [x] 4.3 `src/plugin/transaction-filter.ts`: `buildRewriteSpec`'s cursor comes from the
       policy. Leave `escalateSelection` and `resolveForeignCursors` alone — they answer
       `content-space-caret`'s question, not this one (design.md D8).
@@ -139,7 +143,11 @@
 ## 6. Adopt the deletion convention
 
 - [x] 6.1 Switch the policy's `deletion` case on, replacing the held-over behaviour from
-      task 4.5. `deleteSubtreeGroups` keeps choosing its ANCHOR exactly as today.
+      task 4.5. `deleteSubtreeGroups` keeps its ANCHOR preference order.
+
+      Amended after review: the preference order (following sibling, preceding, ancestor)
+      is preserved, but candidates removed by a LATER group are now skipped — the naive
+      choice named exactly such a node, and the anchor degraded to line 0.
 - [x] 6.2 Update the characterization tests from 1.2 to the new expectations, and add the
       "deletion and merge agree at the same seam" test the spec calls for.
 - [x] 6.3 Update e2e cursor expectations in `20-structural-commands`,
