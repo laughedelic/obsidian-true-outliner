@@ -70,7 +70,13 @@ import {
 import { editorInfoField } from 'obsidian';
 import type { NodeKind } from '../model';
 import { parse } from '../parse';
-import { coveredSubtreeRoots, type LinePos, type LineRange } from '../escalate';
+import {
+  coveredSubtreeRoots,
+  subtreeCoverOf,
+  type LinePos,
+  type LineRange,
+} from '../escalate';
+import { nodeStartLine } from '../locate';
 import {
   computeLineGuides,
   decorate,
@@ -695,28 +701,41 @@ function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string
       anchor: offsetToLinePos(state.doc, selRange.anchor),
       head: offsetToLinePos(state.doc, selRange.head),
     };
-    if (!coveredSubtreeRoots(doc, lineRange)) continue;
-    const loLine = Math.min(lineRange.anchor.line, lineRange.head.line);
+    const roots = coveredSubtreeRoots(doc, lineRange);
+    if (!roots) continue;
     const hiLine = Math.min(Math.max(lineRange.anchor.line, lineRange.head.line), totalLines - 1);
-    const rootFact = factsByLine.get(loLine);
-    if (!rootFact) continue; // cover's start line always has a fact; defensive only
-    // One level further left than the root's own column — the PARENT's own
-    // guide column, not the root's — so the chrome clears the root's own
-    // marker icon (centered ON the root's column) instead of running
-    // through its middle. Matches Logseq's own block-selection convention
-    // (confirmed by user review): the highlighted rectangle is wider on the
-    // left than the block's own indentation, reaching the next level out.
-    // A top-level root (depth 0) has no shallower level to reach for the
-    // same reason a guide never renders at a negative depth — subtracting
-    // one full UNIT anyway keeps the same "one level out" amount uniform
-    // rather than clamping to 0 (which would put the edge right back at the
-    // root's own column, reintroducing the exact problem this fixes) and
-    // stays within the leftward-overflow margin the guide layer's own doc
-    // comment already confirmed is never clipped.
-    const rootTarget = rootFact.isListItem
-      ? `calc(${plainOwnShiftExpr(rootFact)} - ${UNIT})`
-      : `calc((${rootFact.depth} - 1) * ${UNIT})`;
-    for (let line = loLine; line <= hiLine; line++) targets.set(line, rootTarget);
+
+    // PER ROOT, not once for the whole range (`selection-as-subtree-set`): a
+    // cover's roots may sit at different depths, and they run DEEPEST-FIRST
+    // (each root is the subtree successor of the last, which only ever moves
+    // outward). Anchoring every line at the cover's start line — the old
+    // behavior — would therefore have pinned a whole mixed-depth selection
+    // to its deepest root's column, indenting the shallower subtrees below
+    // it. Roots tile the span contiguously, so walking them covers every
+    // line exactly once with no gaps.
+    for (const root of roots) {
+      const rootLine = nodeStartLine(doc, root.id);
+      const rootFact = factsByLine.get(rootLine);
+      if (!rootFact) continue; // a root's own first line always has a fact; defensive only
+      // One level further left than the root's own column — the PARENT's own
+      // guide column, not the root's — so the chrome clears the root's own
+      // marker icon (centered ON the root's column) instead of running
+      // through its middle. Matches Logseq's own block-selection convention
+      // (confirmed by user review): the highlighted rectangle is wider on the
+      // left than the block's own indentation, reaching the next level out.
+      // A top-level root (depth 0) has no shallower level to reach for the
+      // same reason a guide never renders at a negative depth — subtracting
+      // one full UNIT anyway keeps the same "one level out" amount uniform
+      // rather than clamping to 0 (which would put the edge right back at the
+      // root's own column, reintroducing the exact problem this fixes) and
+      // stays within the leftward-overflow margin the guide layer's own doc
+      // comment already confirmed is never clipped.
+      const rootTarget = rootFact.isListItem
+        ? `calc(${plainOwnShiftExpr(rootFact)} - ${UNIT})`
+        : `calc((${rootFact.depth} - 1) * ${UNIT})`;
+      const rootEnd = Math.min(subtreeCoverOf(doc, root).end.line, hiLine);
+      for (let line = rootLine; line <= rootEnd; line++) targets.set(line, rootTarget);
+    }
   }
   return targets;
 }

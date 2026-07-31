@@ -71,43 +71,49 @@
       to fail when raised past the observed 452, because a filter this narrow passes just as
       happily when it excludes everything. An earlier version reached its assertion once in 302
       cases
-- [ ] 3b.3 Re-run `tests/classify.test.ts` and
+- [x] 3b.3 Re-run `tests/classify.test.ts` and
       `e2e/specs/60-transaction-classification.e2e.ts` in full; the within-node-deletion
       scenarios are the ones that must NOT move
 
 ## 4. Payload root normalization
 
-- [ ] 4.1 Extend `reencodeBlocksForDestination` in `src/ops.ts` so a payload whose roots came
-      from different depths lands with its roots as siblings at the destination depth, each
-      root's internal relative structure preserved verbatim
-- [ ] 4.2 Unit tests: mixed-depth roots, single root (unchanged behavior), and a root whose
+- [x] 4.1 NO CODE CHANGE NEEDED — measured. `reencodeBlocksForDestination` maps each block
+      through `reindentSubtreeVerbatim`, which swaps that block's OWN top-level whitespace for
+      the destination indent independently, so roots from different source depths already land
+      as siblings with their internals intact. Roots always run deepest-first (each is the
+      subtree successor of the last, which only moves outward), so the clipboard slice's first
+      block is over-indented and parses as a root rather than nesting under anything
+- [x] 4.2 Unit tests: mixed-depth roots, single root (unchanged behavior), and a root whose
       own descendants are deeper than the destination
 
 ## 5. Selection chrome
 
-- [ ] 5.1 Render chrome per covered root for a mixed-depth forest, anchored to each root's
-      own column rather than the shallowest root's. Both `decorations.ts` call sites gate on
-      `coveredSubtreeRoots`; today a mixed-depth cover would fail that gate and drop to
-      character-level highlight
-- [ ] 5.2 Visual check against the existing decoration e2e suite; the chrome mechanism itself
+- [x] 5.1 Render chrome per covered root for a mixed-depth forest, anchored to each root's
+      own column. `selectedLineRootTargets` took the fact at the cover's START line and applied
+      it to every line; since roots run DEEPEST-FIRST that would have pinned a whole mixed-depth
+      selection to its deepest root's column. Now walks the roots, each contributing its own
+      subtree's lines. `decorations.ts` has no unit coverage (it imports `obsidian`), so this
+      is e2e- and eyeball-verified only
+- [x] 5.2 Visual check against the existing decoration e2e suite; the chrome mechanism itself
       (blur, live-preview reveal) is untouched. `63-selection-visual-treatment.e2e.ts` asserts
       against `coveredSubtreeRoots` directly and must be re-read after 1.3
 
 ## 6. End-to-end verification
 
-- [ ] 6.1 Update `61-selection-enforcement.e2e.ts`'s crossing scenarios to the new covers,
-      including the cross-scope case that no longer includes the parent. Its
-      `Shift+ArrowDown crossing a boundary` case is on `node-selection-extension`'s move-out
-      list — leave it where it is and re-expect it here, rather than moving it early
-- [ ] 6.2 New scenario: two cursors in adjacent siblings extended once no longer collapse to
+- [x] 6.1 MEASURED: no existing scenario needed re-expecting. Every crossing scenario in
+      `61-selection-enforcement.e2e.ts` is a SAME-PARENT crossing, which the forest span and the
+      sibling run answer identically. Added the cases that actually differ instead (below).
+      `Shift+ArrowDown crossing a boundary` left in place per `node-selection-extension`'s
+      move-out list
+- [x] 6.2 New scenario: two cursors in adjacent siblings extended once no longer collapse to
       a whole-document range
-- [ ] 6.2b New scenario: deleting a mixed-depth cover — the observable end of the 3b gate
+- [x] 6.2b New scenario: deleting a mixed-depth cover — the observable end of the 3b gate
       widening, and the one path that exercises geometry, classification, and multi-group
       deletion together
-- [ ] 6.3 Copy/paste round-trip for a mixed-depth selection: roots land as siblings, internal
+- [x] 6.3 Copy/paste round-trip for a mixed-depth selection: roots land as siblings, internal
       structure intact
-- [ ] 6.4 Off-mode reference assertions unchanged
-- [ ] 6.5 Mobile-emulation run
+- [x] 6.4 Off-mode reference assertions unchanged
+- [x] 6.5 Mobile-emulation run
 
 ## 7. Real-vault manual pass
 
