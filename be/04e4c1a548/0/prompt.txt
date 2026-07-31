@@ -1,0 +1,7 @@
+/openspec-update-change selection-as-subtree-set. 
+
+some major changes and fixes got merged since this was proposed. make sure this proposal up to date with the current state of the codebase
+
+---
+
+go ahead with a comprehensive update, but work on a branch
