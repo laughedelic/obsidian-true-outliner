@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "6e70f3dcfb1d",
+  "strategy": "manual-commit",
+  "branch": "docs/update-selection-as-subtree-set",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/escalate.ts",
+    "tests/escalate.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6e/70f3dcfb1d/0/metadata.json",
+      "transcript": "/6e/70f3dcfb1d/0/full.jsonl",
+      "compact_transcript": "/6e/70f3dcfb1d/0/transcript.jsonl",
+      "content_hash": "/6e/70f3dcfb1d/0/content_hash.txt",
+      "prompt": "/6e/70f3dcfb1d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 200235,
+    "cache_read_tokens": 8553011,
+    "output_tokens": 32946,
+    "api_call_count": 45
+  }
+}

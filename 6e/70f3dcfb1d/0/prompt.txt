@@ -1,0 +1,3 @@
+good catch on the D2 wording. looks good now. let's get into the implementation work
+
+/openspec-apply-change selection-as-subtree-set
