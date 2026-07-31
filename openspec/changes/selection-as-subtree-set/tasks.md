@@ -1,21 +1,21 @@
 ## 1. Forest-cover geometry
 
-- [ ] 1.1 Add a single exported forest-cover computation to `src/escalate.ts`: given two
+- [x] 1.1 Add a single exported forest-cover computation to `src/escalate.ts`: given two
       end nodes, return the covered ROOTS (maximal subtrees of the document-order run,
       closed under descendants) and their combined span. Ancestor/descendant ends return
       the ancestor's subtree, unchanged
-- [ ] 1.2 Replace `siblingRunCover`'s use in `escalateRange` with it; keep `subtreeCoverOf`
+- [x] 1.2 Replace `siblingRunCover`'s use in `escalateRange` with it; keep `subtreeCoverOf`
       as-is
-- [ ] 1.3 Rebuild `coveredSubtreeRoots` on the same function — one implementation, now FOUR
+- [x] 1.3 Rebuild `coveredSubtreeRoots` on the same function — one implementation, now FOUR
       consumers (`decorations.ts` ×2, `enforce.ts`'s `coverIdsOf` and
       `computeMultiRangeDeletionVerdict`, `classify.ts`'s `isExactSubtreeCoverDeletion`),
       per design D4 and the two "silently-stale duplicate" incidents in docs/research/04
       (Q18, Q19)
-- [ ] 1.4 Unit tests for the geometry: the cross-scope case that used to pull in a parent,
+- [x] 1.4 Unit tests for the geometry: the cross-scope case that used to pull in a parent,
       ancestor/descendant ends, mixed-depth roots, and the ANCESTOR-SWALLOWED-MID-SPAN case
       design D2 turns on — a span from a nested item into the first child of a later
       top-level node must cover that node's whole subtree, not stop at the end node
-- [ ] 1.5 Re-expect `tests/escalate.test.ts`'s "escalates to the contiguous run of whole
+- [x] 1.5 Re-expect `tests/escalate.test.ts`'s "escalates to the contiguous run of whole
       top-level sections, not just the endpoints" (the `multi-sibling scope resolution`
       describe). It is the one unit test that pins the old rule directly: `Body one.` →
       `Body two.` currently expects `pos(0, 0)`, pulling in `# One`; the forest span starts
@@ -23,17 +23,17 @@
 
 ## 2. Invariant and property tests
 
-- [ ] 2.1 Add the DOWNWARD-CLOSURE property to `tests/escalate.test.ts`: every covered root's
+- [x] 2.1 Add the DOWNWARD-CLOSURE property to `tests/escalate.test.ts`: every covered root's
       whole subtree is inside the cover, and no node whose own lines are inside the cover has
       a descendant outside it. Note there is no existing sibling-run property to replace —
       the old invariant is encoded only in unit tests (1.5) and implicitly in
       `siblingRunCover`, which is why the closure gap in the first draft of design D2 went
       unnoticed. This property is the one that would have caught it
-- [ ] 2.2 Property: an escalated cover is a single contiguous span (node order is text
+- [x] 2.2 Property: an escalated cover is a single contiguous span (node order is text
       order) — this is what keeps a block selection representable as one range
-- [ ] 2.3 Keep and re-run the unchanged properties: expand-only, orientation preservation,
+- [x] 2.3 Keep and re-run the unchanged properties: expand-only, orientation preservation,
       multi-range uniformity, preamble jurisdiction
-- [ ] 2.4 Confirm `progressive-select-all`'s ladder rungs remain FIXPOINTS of the rewritten
+- [x] 2.4 Confirm `progressive-select-all`'s ladder rungs remain FIXPOINTS of the rewritten
       escalation: every rung is downward-closed and contiguous, so its forest span should be
       itself, but the ladder is the one shipped feature that dispatches covers into this filter
       and `select-all-ladder.ts` does not import the changed functions — nothing would fail

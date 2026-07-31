@@ -3,8 +3,9 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { nextRung, nextRungs } from '../src/select-all-ladder';
-import { coveredSubtreeRoots } from '../src/escalate';
+import { coveredSubtreeRoots, escalateRange, rangesEqual } from '../src/escalate';
 import type { LinePos, LineRange } from '../src/escalate';
+import { nodeAtLine } from '../src/locate';
 import { arbTree } from './generators';
 
 const pos = (line: number, ch: number): LinePos => ({ line, ch });
@@ -278,6 +279,61 @@ describe('property: the ladder always terminates and never shrinks', () => {
           current = next;
         }
         return false; // did not terminate within 200 steps — treat as a failure
+      }),
+      { numRuns: 300 },
+    );
+  });
+});
+
+describe('ladder rungs are fixpoints of escalation (selection-as-subtree-set task 2.4)', () => {
+  // The ladder is the one shipped feature that DISPATCHES covers back through
+  // the transaction filter, and `select-all-ladder.ts` imports none of the
+  // functions `selection-as-subtree-set` rewrote — so if the forest span
+  // disagreed with a rung, the ladder would silently jump a rung (or refuse
+  // to climb) with nothing in either suite failing. Every rung is
+  // downward-closed and contiguous, so escalating one must return it
+  // unchanged. Asserted, not assumed.
+  //
+  // Rung 1 (a node's own content) is deliberately NOT a subtree cover — it
+  // excludes descendants and the list marker. It is a fixpoint for the other
+  // reason: both its ends rest on one node's own content lines, which
+  // escalation passes through untouched.
+  const climb = (d: ReturnType<typeof parse>, start: LineRange): LineRange[] => {
+    const rungs: LineRange[] = [];
+    let current: LineRange | null = start;
+    // Bounded: the ladder is finite and `nextRung` returns null at the top.
+    for (let i = 0; i < 20 && current; i++) {
+      current = nextRung(d, current);
+      if (current) rungs.push(current);
+    }
+    return rungs;
+  };
+
+  it('every rung of the fixture document survives escalateRange unchanged', () => {
+    const seen: LineRange[] = [];
+    for (let line = 0; line < 12; line++) {
+      if (!nodeAtLine(doc, line)) continue;
+      seen.push(...climb(doc, cursor(pos(line, 0))));
+    }
+    expect(seen.length).toBeGreaterThan(10); // the loop actually exercised rungs
+    for (const rung of seen) {
+      expect(escalateRange(doc, rung)).toEqual(rung);
+    }
+  });
+
+  it('property: no rung of any generated document is altered by escalation', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), (tree, pick) => {
+        const text = encode(tree);
+        const lines = text === '' ? [] : text.split('\n');
+        const d = parse(text);
+        const candidates: number[] = [];
+        for (let i = 0; i < lines.length; i++) if (nodeAtLine(d, i)) candidates.push(i);
+        if (candidates.length === 0) return true;
+        const line = candidates[pick % candidates.length]!;
+        return climb(d, cursor(pos(line, 0))).every((rung) =>
+          rangesEqual(escalateRange(d, rung), rung),
+        );
       }),
       { numRuns: 300 },
     );

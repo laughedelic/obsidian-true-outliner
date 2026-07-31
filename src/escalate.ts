@@ -1,7 +1,9 @@
 /**
- * Selection escalation math (design.md D4): a non-empty selection range
- * that crosses a node boundary expands to the minimal contiguous cover of
- * whole sibling subtrees. Pure module — no CodeMirror imports; the CM6
+ * Selection escalation math (design.md D4, as replaced by
+ * `selection-as-subtree-set`): a non-empty selection range that crosses a
+ * node boundary expands to the FOREST SPAN of its two ends — a set of whole
+ * subtrees whose roots may sit at different depths, closed downward and
+ * still a single contiguous range. Pure module — no CodeMirror imports; the CM6
  * adapter (src/plugin/transaction-filter.ts) converts to/from character
  * offsets and handles multi-range selections (each range escalates
  * independently, per D4 — that iteration lives in the adapter, not here).
@@ -21,8 +23,16 @@
  * `coveredSubtreeRoots` (escalated-selection-decoration, docs/research/13)
  * is the read-only counterpart: given a range that's already in place,
  * which subtree(s), if any, does it exactly cover? Built from the same
- * `siblingRunCover`/`subtreeCoverOf` geometry `escalateRange` uses to
+ * `forestCoverOf`/`subtreeCoverOf` geometry `escalateRange` uses to
  * escalate a range in the first place — a membership test, not new math.
+ *
+ * A cover is a FOREST of whole subtrees whose roots may sit at different
+ * depths (`selection-as-subtree-set`), not a run of siblings under one
+ * scope. The governing invariant is DOWNWARD CLOSURE: no node is ever
+ * covered without its whole subtree. The upward half the sibling-run rule
+ * silently also enforced — never covering a node together with content
+ * outside its parent — is deliberately gone; it was what made one
+ * Shift+ArrowDown out of a subtree select the entire document.
  *
  * A subtree's cover (`subtreeCoverEnd`) includes its own trailing gap
  * in full (escalate-include-owned-gap, docs/research/13's "Escalation math
@@ -37,7 +47,7 @@
  */
 
 import type { NodePath, OutlineDoc, OutlineNode } from './model';
-import { findPath } from './model';
+import { findPath, nodeAt } from './model';
 import { nodeAtLine } from './locate';
 
 export interface LinePos {
@@ -154,47 +164,155 @@ export function subtreeCoverOf(doc: OutlineDoc, node: OutlineNode): Cover {
   return { start: { line: start, ch: 0 }, end: subtreeCoverEnd(node, start) };
 }
 
+/** Every node's own absolute start line, in ONE traversal. `startLineOf`
+ * rescans the document per call, which is fine for the two lookups the
+ * single-subtree paths need but quadratic for a forest whose root count
+ * grows with the document (Select All being the limiting case). The
+ * classification gate that now consumes this geometry runs inside the
+ * keystroke-latency budget (`transaction-classification`), so the walk
+ * below stays linear. */
+function startLineIndex(doc: OutlineDoc): Map<number, number> {
+  const index = new Map<number, number>();
+  let line = doc.preamble.length;
+  const walk = (node: OutlineNode): void => {
+    index.set(node.id, line);
+    line += node.lines.length + node.trailingGap.length;
+    node.children.forEach(walk);
+  };
+  doc.children.forEach(walk);
+  return index;
+}
+
+/** The node following `path`'s WHOLE SUBTREE in document order: the next
+ * sibling, else the nearest ancestor's next sibling. Distinct from ops.ts's
+ * `rawSuccessorPath`, which descends into `path`'s own first child instead
+ * — that one answers "what abuts this node's last line", this one answers
+ * "what comes after everything this node owns". */
+function subtreeSuccessorPath(doc: OutlineDoc, path: NodePath): NodePath | undefined {
+  let p: NodePath = path;
+  while (p.length > 0) {
+    const parentPath = p.slice(0, -1);
+    const index = p[p.length - 1]!;
+    if (index + 1 < childrenAtScope(doc, parentPath).length) return [...parentPath, index + 1];
+    p = parentPath;
+  }
+  return undefined;
+}
+
+/** A forest of whole subtrees and the single contiguous span covering it.
+ * `roots` are in document order and may sit at DIFFERENT DEPTHS; grouped by
+ * parent they form one contiguous sibling run per parent, which is what
+ * `enforce.ts` hands to `deleteSubtreeGroups`. */
+export interface ForestCover {
+  readonly roots: readonly OutlineNode[];
+  readonly cover: Cover;
+}
+
 /**
- * The minimal contiguous run of sibling subtrees (at the ends' deepest
- * common ancestor scope) spanning two distinct nodes, plus its combined
- * cover — the shared geometry both `escalateRange` (to compute the
- * expand-only union) and `coveredSubtreeRoots` (to test an existing range
- * against it) need. The cover's end includes the last subtree's own
- * trailing gap in full (`subtreeCoverEnd`), so reaching a node's content by
- * crossing into it is enough to pull its whole gap into the cover — no
- * separate drag onto the blank line required. See `escalateRange`'s own doc
- * comment for the "one node is an ancestor of the other" scope-resolution
- * note; unchanged here, just extracted so both callers agree by
- * construction rather than by duplicated logic.
+ * The forest span of two distinct nodes (`selection-as-subtree-set` D2) —
+ * the shared geometry `escalateRange` (to compute the expand-only union),
+ * `coveredSubtreeRoots` (to test an existing range against it), and through
+ * the latter `classify.ts` and `enforce.ts` all read. One implementation,
+ * every consumer, per that change's D4 and the two silently-stale-duplicate
+ * incidents in docs/research/04 (Q18, Q19).
+ *
+ * When one node is an ancestor of the other, the cover is the ANCESTOR's
+ * whole subtree — selecting a parent takes its children, unchanged from the
+ * sibling-run rule this replaces.
+ *
+ * Otherwise the roots are the maximal subtrees of the document-order run
+ * from `firstNode` to `lastNode` closed under descendants, walked here as
+ * the subtree-successor chain from `firstNode` up to and including the LAST
+ * ROOT. That last root is the OUTERMOST ancestor-or-self of `lastNode` whose
+ * own start line is at or after the span's start — NOT `lastNode` itself.
+ * The distinction is the whole content of D2 and is invisible in the common
+ * shapes: with
+ *
+ *     - P            - S
+ *       - c1           - t1
+ *       - c2           - t2
+ *
+ * a drag from inside `c2` to inside `t1` ends at `S`'s subtree end, not at
+ * `t1`'s. Ending at `t1` would put `S`'s entire line in the selection while
+ * leaving `t2` out — a node selected without its whole subtree, which is
+ * exactly the downward-closure violation this geometry exists to prevent,
+ * and which would orphan `t2` on deletion.
+ *
+ * The start needs no such qualification: every ancestor of `firstNode`
+ * begins above it, so none can fall inside the span. The asymmetry is
+ * inherent to preorder, not a defect in the rule.
+ *
+ * The cover's end includes the last root's own trailing gap in full
+ * (`subtreeCoverEnd`, escalate-include-owned-gap), so reaching a node's
+ * content by crossing into it is enough to pull its whole gap in — no
+ * separate drag onto the blank line required.
  */
-function siblingRunCover(
+export function forestCoverOf(
   doc: OutlineDoc,
   anchorNode: OutlineNode,
   headNode: OutlineNode,
-): { readonly nodes: readonly OutlineNode[]; readonly cover: Cover } {
+): ForestCover {
   const anchorPath = findPath(doc, anchorNode.id)!;
   const headPath = findPath(doc, headNode.id)!;
+  const startLines = startLineIndex(doc);
+  const startOf = (node: OutlineNode): number => startLines.get(node.id)!;
 
-  let k = 0;
-  while (k < anchorPath.length && k < headPath.length && anchorPath[k] === headPath[k]) k++;
-  const scopeLen = k < anchorPath.length && k < headPath.length ? k : k - 1;
+  const isPrefix = (a: NodePath, b: NodePath): boolean =>
+    a.length < b.length && a.every((index, i) => index === b[i]);
 
-  const scopePath = anchorPath.slice(0, scopeLen);
-  const scopeChildren = childrenAtScope(doc, scopePath);
-  const anchorIndex = anchorPath[scopeLen]!;
-  const headIndex = headPath[scopeLen]!;
-  const loIndex = Math.min(anchorIndex, headIndex);
-  const hiIndex = Math.max(anchorIndex, headIndex);
-  const nodes = scopeChildren.slice(loIndex, hiIndex + 1);
-  const firstSubtree = nodes[0]!;
-  const lastSubtree = nodes[nodes.length - 1]!;
+  // One end's node is an ancestor of the other's: the ancestor's whole
+  // subtree is the cover, and it is the only root.
+  if (isPrefix(anchorPath, headPath)) return singleRootCover(anchorNode, startOf(anchorNode));
+  if (isPrefix(headPath, anchorPath)) return singleRootCover(headNode, startOf(headNode));
+
+  const forward = startOf(anchorNode) <= startOf(headNode);
+  const firstNode = forward ? anchorNode : headNode;
+  const lastNode = forward ? headNode : anchorNode;
+  const firstPath = forward ? anchorPath : headPath;
+  const lastPath = forward ? headPath : anchorPath;
+  const spanStart = startOf(firstNode);
+
+  // The outermost ancestor-or-self of `lastNode` that begins at or after
+  // the span's start. Start lines increase monotonically along a path, so
+  // the shallowest prefix that qualifies is the answer and every deeper one
+  // qualifies too.
+  let lastRoot = lastNode;
+  for (let depth = 1; depth < lastPath.length; depth++) {
+    const ancestor = nodeAt(doc, lastPath.slice(0, depth))!;
+    if (startOf(ancestor) >= spanStart) {
+      lastRoot = ancestor;
+      break;
+    }
+  }
+
+  // Walk the subtree-successor chain from `firstNode` to `lastRoot`. Every
+  // node it emits is a maximal subtree of the span: the chain never
+  // descends, so no emitted node is inside another's subtree, and `lastRoot`
+  // is always reached — were it inside some earlier emitted subtree, that
+  // subtree's root would be a SHALLOWER ancestor of `lastNode` starting at
+  // or after `spanStart`, contradicting `lastRoot`'s outermost-ness.
+  const roots: OutlineNode[] = [];
+  let path: NodePath | undefined = firstPath;
+  while (path) {
+    const node = nodeAt(doc, path)!;
+    roots.push(node);
+    if (node === lastRoot) break;
+    path = subtreeSuccessorPath(doc, path);
+  }
 
   return {
-    nodes,
+    roots,
     cover: {
-      start: { line: startLineOf(doc, firstSubtree), ch: 0 },
-      end: subtreeCoverEnd(lastSubtree, startLineOf(doc, lastSubtree)),
+      start: { line: spanStart, ch: 0 },
+      end: subtreeCoverEnd(lastRoot, startOf(lastRoot)),
     },
+  };
+}
+
+function singleRootCover(node: OutlineNode, startLine: number): ForestCover {
+  return {
+    roots: [node],
+    cover: { start: { line: startLine, ch: 0 }, end: subtreeCoverEnd(node, startLine) },
   };
 }
 
@@ -225,10 +343,10 @@ function expandToCover(range: LineRange, cover: Cover): LineRange {
  * either end in the preamble (D5 jurisdiction), and ranges whose ends both
  * rest on a single node's own content lines. Escalates to the node's whole
  * subtree when a same-node range has an end on a trailing gap line (the
- * single-node-selection trigger), and to the minimal contiguous run of
- * whole sibling subtrees when the ends resolve to different nodes — in
- * both cases unioned with the original range (expand-only) and with
- * orientation preserved.
+ * single-node-selection trigger), and to the FOREST SPAN of the two ends
+ * when they resolve to different nodes (`forestCoverOf`) — in both cases
+ * unioned with the original range (expand-only) and with orientation
+ * preserved.
  */
 export function escalateRange(doc: OutlineDoc, range: LineRange): LineRange {
   if (isEmpty(range)) return range;
@@ -247,12 +365,7 @@ export function escalateRange(doc: OutlineDoc, range: LineRange): LineRange {
     return expandToCover(range, subtreeCoverOf(doc, anchorNode));
   }
 
-  // Deepest common ancestor scope: the longest shared index prefix of the
-  // two paths. When one node is an ancestor of the other (paths differ in
-  // length with no divergence — the "selection leaves a parent" case, D4),
-  // the scope is one level ABOVE the shallower node, so its own sibling
-  // index is used as both endpoints' subtree index. (See `siblingRunCover`.)
-  return expandToCover(range, siblingRunCover(doc, anchorNode, headNode).cover);
+  return expandToCover(range, forestCoverOf(doc, anchorNode, headNode).cover);
 }
 
 /**
@@ -286,9 +399,18 @@ export function escalateRanges(doc: OutlineDoc, ranges: readonly LineRange[]): L
 /**
  * The escalated-selection-decoration query (docs/research/13, "Escalated-
  * selection visual treatment"): does `range`'s current bounds cover a
- * single node's whole subtree, or the combined cover of a contiguous run of
- * sibling subtrees? Returns the covered subtree roots (length 1 for a
- * single-node cover) when so, `null` otherwise.
+ * single node's whole subtree, or the combined cover of a FOREST of whole
+ * subtrees at possibly different depths? Returns the covered subtree roots
+ * (length 1 for a single-node cover) when so, `null` otherwise.
+ *
+ * Three consumers beyond the selection chrome read this, and they read it
+ * for different reasons, so widening what it recognizes widens all of them
+ * at once (`selection-as-subtree-set` D4): `enforce.ts`'s `coverIdsOf` and
+ * `computeMultiRangeDeletionVerdict` turn the roots into deletion groups,
+ * and `classify.ts`'s `isExactSubtreeCoverDeletion` uses a non-`null`
+ * answer as a CLASSIFICATION GATE — the test that routes an exact-cover
+ * deletion to the verdict layer even though its raw line span reads as
+ * within-node.
  *
  * The match is `lo` at the cover's exact start AND `hi` at-or-beyond the
  * cover's end — NOT strict equality on both ends. `cover.end` is already
@@ -317,10 +439,10 @@ export function coveredSubtreeRoots(doc: OutlineDoc, range: LineRange): readonly
   const headNode = nodeAtLine(doc, hi.line);
   if (!anchorNode || !headNode) return null; // preamble jurisdiction
 
-  const { nodes, cover } =
+  const { roots, cover } =
     anchorNode === headNode
-      ? { nodes: [anchorNode] as readonly OutlineNode[], cover: subtreeCoverOf(doc, anchorNode) }
-      : siblingRunCover(doc, anchorNode, headNode);
+      ? { roots: [anchorNode] as readonly OutlineNode[], cover: subtreeCoverOf(doc, anchorNode) }
+      : forestCoverOf(doc, anchorNode, headNode);
 
-  return posEqual(lo, cover.start) && !posBefore(hi, cover.end) ? nodes : null;
+  return posEqual(lo, cover.start) && !posBefore(hi, cover.end) ? roots : null;
 }
