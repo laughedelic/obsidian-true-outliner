@@ -15,16 +15,21 @@ SHALL be narrowed further. Within such a run, when the run has the same number o
 both sides, each line pair SHALL be diffed independently and its common character prefix and
 suffix trimmed; when it does not, the run SHALL be emitted as one character-trimmed span.
 
-Alignment SHALL match a line only when its content is unique on both sides, so that a
-repeated line — a blank gap line, an identical list marker, an identical table separator —
-never anchors an alignment it does not unambiguously determine. This is why the exclusion
-above is stated over the lines the alignment matches rather than over every line the edit
-keeps: a line that survives but repeats may have nothing to match against, and will then be
-described as rewritten rather than left alone. Failing to match a line that could have been
-matched costs minimality and the precision of the description, never correctness — the
-resulting document is the same either way, and the guarantee that survives unconditionally
-is the one stated under "A relocation is dispatched as a relocation": no change may cut
-partway into a line the edit keeps, matched or not.
+Alignment SHALL match a line in one of two ways, and the rule differs because the risk does.
+At a segment's leading and trailing EDGES it SHALL match lines that are equal at the same
+relative position, whatever their content and however often they repeat: position forces the
+pairing there, so the match claims only that nothing moved at that offset, which is the
+weakest claim available and cannot be wrong. In a segment's INTERIOR, where the alignment is
+choosing which occurrence to pair with which, it SHALL match a line only when its content is
+unique on both sides, so that a repeated line — an identical list marker, an identical table
+separator — never anchors a pairing it does not unambiguously determine. This is why the
+exclusion above is stated over the lines the alignment matches rather than over every line the
+edit keeps: a line that survives but repeats in the interior may have nothing to match
+against, and will then be described as rewritten rather than left alone. Failing to match a
+line that could have been matched costs minimality and the precision of the description, never
+correctness — the resulting document is the same either way, and the guarantee that survives
+unconditionally is the one stated under "A relocation is dispatched as a relocation": no
+change may cut partway into a line the edit keeps, matched or not.
 
 Uniqueness on both sides is evidence that a line survived, not proof of it, so an alignment
 SHALL be adopted on the same evidence a relocation is recognised by elsewhere in this
@@ -71,6 +76,13 @@ kind, or direction it is dispatching.
 - **WHEN** a structural operation's rewritten region includes a blank gap line whose
   text is identical before and after the operation
 - **THEN** that gap line does not appear in the dispatched change set
+
+#### Scenario: A repeated line at an edit's edge is still excluded
+- **WHEN** an edit's region begins with lines that are identical to each other and unchanged
+  by the operation, so no line among them is unique
+- **THEN** none of them appears in the change set — uniqueness is required only where the
+  alignment chooses between occurrences, and at a region's edge the pairing is forced by
+  position
 
 #### Scenario: An unchanged line in the MIDDLE of an edit is excluded
 - **WHEN** a structural operation's rewritten region contains a line whose text is

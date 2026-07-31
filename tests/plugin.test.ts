@@ -768,22 +768,6 @@ describe('edit dispatch: line edits → editor changes', () => {
     });
 
     /**
-     * The same coincidence one level up, where the clamp above cannot reach it.
-     *
-     * A repeated chain nests rather than repeats flatly: indenting `- a` over
-     * children `  - a` / `    - a` shifts every line down one level, and
-     * because each line's NEW text is the next line's OLD text, the middle
-     * lines come out unique on both sides of the edit. Alignment reads that as
-     * "these two lines survived, one above vanished and a deeper one
-     * appeared", and emits a whole-line deletion plus an insertion instead of
-     * three two-character insertions. `relocates` cannot catch it: anchored
-     * lines are matched, so they never land in a run to be clamped.
-     *
-     * The caret is what the user feels — it is mapped through these changes,
-     * and under the deletion reading it stops following the character it was
-     * on and slides back a column.
-     */
-    /**
      * The cheapest description of a swap is not always the truthful one. Two
      * lines that differ by a character can be rewritten in place for less than
      * it costs to move one past the other, and a reader of that change set --
@@ -805,6 +789,49 @@ describe('edit dispatch: line edits → editor changes', () => {
         { from: { line: 0, ch: 0 }, to: { line: 1, ch: 0 }, text: '' },
         { from: { line: 2, ch: 0 }, to: { line: 2, ch: 0 }, text: '- a\n' },
       ]);
+    });
+
+    /**
+     * The same coincidence one level up, where the clamp above cannot reach it.
+     *
+     * A repeated chain nests rather than repeats flatly: indenting `- a` over
+     * children `  - a` / `    - a` shifts every line down one level, and
+     * because each line's NEW text is the next line's OLD text, the middle
+     * lines come out unique on both sides of the edit. Alignment reads that as
+     * "these two lines survived, one above vanished and a deeper one
+     * appeared", and emits a whole-line deletion plus an insertion instead of
+     * three two-character insertions. `relocates` cannot catch it: anchored
+     * lines are matched, so they never land in a run to be clamped.
+     *
+     * The caret is what the user feels — it is mapped through these changes,
+     * and under the deletion reading it stops following the character it was
+     * on and slides back a column.
+     */
+    /**
+     * Uniqueness is required where the alignment CHOOSES an occurrence, and
+     * nowhere else. At a region's leading and trailing edges the pairing is
+     * forced by position: a line is matched against the line at its own
+     * offset, so a repeat cannot send it to the wrong partner, and the match
+     * claims only that nothing moved there. Demanding uniqueness at the edges
+     * too would drop lines the narrowing has every right to exclude -- among
+     * them the blank gap lines that separate almost every pair of blocks.
+     *
+     * This pins the OUTCOME, not that one mechanism produced it. Measured:
+     * with edge matching restricted to unique lines the change set is
+     * unaltered, because character trimming lands on the same boundary from
+     * the other direction. Two independent routes to the same guarantee --
+     * which is why the spec having described this rule wrongly until now cost
+     * nothing observable.
+     */
+    it('excludes a repeated line at the edge, though nothing there is unique', () => {
+      const lines = ['dup', 'dup', 'p', 'q', ''];
+      const changes = editsToChanges(lines, [
+        { fromLine: 0, toLine: 4, insert: ['dup', 'dup', 'q', 'p'] },
+      ]);
+      // The two identical leading lines are matched by position and excluded,
+      // though neither is unique on either side.
+      expect(changes.every((change) => change.from.line >= 2)).toBe(true);
+      expect(applyChanges(lines.join('\n'), changes)).toBe('dup\ndup\nq\np\n');
     });
 
     it('an indent stays minimal when the lines it touches repeat DOWN a chain', () => {
