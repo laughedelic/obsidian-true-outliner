@@ -129,16 +129,18 @@
       as the set of subtrees it is. Geometry does not move
 - [ ] 7.3 Copy a mixed-depth selection into several destination depths and check the results
       against what Logseq produces for the same shapes
-- [ ] 7.4 Record findings in `docs/research/04` as a numbered entry, continuing the Q-series
-      (Q29 is the last one recorded)
+- [x] 7.4 Recorded as Q30: the false equivalence in D2 and why only a downward-closure
+      property could catch it; the property that was exercised once in 302 cases; the gate that
+      did not widen; and the two tasks that needed measurement rather than code. The real-vault
+      pass's own findings (7.1, 7.3) still to be appended
 
 ## 8. Documentation
 
-- [ ] 8.1 Close out `docs/research/13`. Two entries, and neither needs what the original task
+- [x] 8.1 Close out `docs/research/13`. Two entries, and neither needs what the original task
       assumed: the "Escalation math re-examination candidate" entry's actual question was
       GAP inclusion, already answered by `escalate-include-owned-gap`; and "The
       selection/cursor-UX track" entry already records this pivot and already states that it
       resolves the former. All that remains is marking change 2 of the five as shipped and
       recording whatever the manual pass (7.x) found
-- [ ] 8.2 Note in `docs/research/05-org-mode-comparison.md`'s divergence table that our
+- [x] 8.2 Note in `docs/research/05-org-mode-comparison.md`'s divergence table that our
       selection model now matches the outliner mainstream on downward-vs-upward closure

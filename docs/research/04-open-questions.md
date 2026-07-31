@@ -1891,3 +1891,84 @@ deliberately disabled — `arbTree()` generates no tables, so that half of the p
 vacuous. Q28's catalogue gains another entry: a property test can be vacuous in one CONJUNCT
 while the others carry it, and the only way to see it is to disable each mechanism separately
 rather than the feature as a whole. Fixed by splicing a table into the generated document.
+
+## Q30. `selection-as-subtree-set` implementation findings (2026-07-31)
+
+Four findings from implementing the forest span. The first is the one that mattered.
+
+### The design's own equivalence claim was false, and only one kind of test could see it
+
+D2 originally gave two forms for the cover's end and called them equivalent: "the end of
+`lastNode`'s own subtree cover", and "the document-order run closed under descendants". They
+diverge whenever an ANCESTOR of `lastNode` begins inside the span. With
+
+```
+- P            - S
+  - c1           - t1
+  - c2           - t2
+```
+
+a drag from inside `c2` to inside `t1` ends at `t1` under the first form — a span containing
+all of `S`'s line while excluding `t2`. That is a node selected without its whole subtree: the
+exact violation the change exists to forbid, reachable by an ordinary drag, and it would orphan
+`t2` on deletion.
+
+The correct end bound is the subtree end of the OUTERMOST ancestor-or-self of `lastNode` whose
+own start is at or after the span's start. An earlier draft had considered and REJECTED that
+wording, for "making the two ends asymmetric and silently swallowing later siblings at the
+end." Both objections are true and both are the point: the asymmetry is inherent to preorder
+(ancestors precede their descendants, so only the end side can have one inside the span), and
+the swallowed siblings are required by downward closure.
+
+**What let it survive review**: every OTHER property holds under the wrong form. Expand-only,
+orientation preservation, idempotence, the ch-boundary property — all of them pass. So does
+every existing unit test, because the plain sibling case and the crossing-out-of-a-scope case
+agree under both forms. The only test that separates them is downward closure stated directly,
+and `tests/escalate.test.ts` had no such property: the old invariant lived in ONE unit test and
+implicitly inside `siblingRunCover`. Adding the property was what turned an argument into a
+check, and it was verified by negative control (revert the end bound, watch four tests fail).
+
+Generalizing: when a change replaces an invariant, the question is not "do the tests still
+pass" but "which test would fail if the NEW invariant were stated wrong." If the answer is
+none, that test does not exist yet.
+
+### A property can be exercised once in 302 cases and still pass
+
+The gate enumeration below was first written as "pick two random lines, build the deletion span,
+assert the cover is single-rooted." It passed. It also reached its assertion exactly once in
+302 generated cases — every other case was filtered out before the assert. Rewritten to
+enumerate REAL cover shapes (every node's own subtree cover, every node pair's forest cover) it
+reaches 452, and it now carries an explicit coverage counter that fails if that number
+collapses. Q28's vacuity catalogue gains a third shape: not a vacuous conjunct (Q29's table
+case), but a vacuous *filter* — the guard that makes a property well-formed is also what can
+make it measure nothing.
+
+### The classification gate did NOT widen, contrary to the design
+
+`classify.ts`'s `isExactSubtreeCoverDeletion` reads `coveredSubtreeRoots`, so making the cover
+forest-aware looked like it must widen that gate — filed as a risk to measure. It does not.
+The gate is only consulted when no span crosses a boundary by line identity, i.e. every line
+the change touched belongs to one node, and a range shaped that way cannot reach a multi-root
+cover's end. Mixed-depth deletions are classified by the ordinary line-identity test instead,
+well before the gate. The gate remains what it was built for: the single-node cover whose
+trailing newline the span convention is blind to.
+
+The prediction was wrong in the safe direction, but it was wrong, and the reason is worth
+keeping: "this function feeds that predicate, so the predicate widens" ignores whether the
+predicate is REACHABLE with the new inputs.
+
+### Two things needed no code at all
+
+`reencodeBlocksForDestination` already satisfied D3's root normalization — it maps each block
+through `reindentSubtreeVerbatim`, which swaps that block's own top-level whitespace for the
+destination indent INDEPENDENTLY, so roots from different source depths land as siblings by
+construction. And `deleteSubtreeGroups` already accepted exactly the shape a forest decomposes
+into (one contiguous sibling run per parent), so structural deletion needed grouping, not new
+machinery. Both were tasks written as "extend X"; both turned out to be "measure X, then pin it
+with a test." Worth checking for before writing the extension.
+
+### Still open
+
+A TYPE-OVER of a mixed-depth cover is unmodeled — `deleteAndSplice` splices into the single gap
+a deletion left, and a forest leaves one gap per parent. Implemented as a conservative `PASS`.
+It wants a judgement about what users expect, not more measurement.

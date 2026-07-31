@@ -33,7 +33,17 @@ see design.md's "D4 amendments" and the amended node-selection-enforcement delta
   never shrinks a range, which keeps no-frontmatter Select All byte-identical to stock
   (and fixed a latent trailing-newline exclusion in the pre-amendment behavior).
 
-## Escalation math re-examination candidate (found 2026-07-23, selection-visual-treatment review)
+## ~~Escalation math re-examination candidate~~ RESOLVED (found 2026-07-23, selection-visual-treatment review)
+
+**Both halves of this entry are now answered.** The question it actually asks below — should
+reaching any point of a node's own text pull in that node's owned gap — was answered YES by
+`escalate-include-owned-gap` (2026-07-24); `subtreeCoverEnd` carries the whole gap. The broader
+"the escalation math deserves its own dedicated look" was taken up by `selection-as-subtree-set`
+(2026-07-31), which replaced the sibling-run rule with a forest span. Kept as written, because
+its reasoning about why a cover-geometry change ripples through every scenario in
+`tests/escalate.test.ts` and the spec turned out to be exactly right.
+
+
 
 **A same-node selection that reaches a node's own text does not yet include that node's
 owned trailing gap — only a selection that's dragged INTO the gap does.** Confirmed live:
@@ -597,15 +607,21 @@ the need for stored extension-origin state in keyboard extension.
 
 ### The five changes and their order
 
-1. `fix-orphan-gap-on-node-deletion` — deleting an exactly-selected node leaves its blank line
-   behind, and multi-range deletions are not enforced at all. First, because its choice of layer
-   decides whether a cover's end includes its owned gap's newline, which is geometry the pivot
-   builds on.
-2. `selection-as-subtree-set` — the pivot above.
+1. ~~`fix-orphan-gap-on-node-deletion`~~ — **shipped 2026-07-26.** Deleting an exactly-selected
+   node leaves its blank line behind, and multi-range deletions are not enforced at all. First,
+   because its choice of layer decides whether a cover's end includes its owned gap's newline,
+   which is geometry the pivot builds on. It answered yes, in full, and chose CLASSIFICATION
+   rather than geometry as the layer (Q22).
+2. ~~`selection-as-subtree-set`~~ — **shipped 2026-07-31.** The pivot above. Implementation
+   findings in Q30, including a false equivalence in its own design that only a
+   downward-closure property could catch.
 3. `node-selection-extension` — Shift+Arrow as one node per press, symmetric, stateless.
-   Depends on 2, and is materially simpler because of it.
-4. `content-space-caret` — gap lines and marker prefixes stop being caret-addressable.
-   Independent of all of the above.
+   Depends on 2, and is materially simpler because of it. **Now unblocked**, and 2 delivered
+   what it was promised: a cover's start edge identifies the originating node again, so no
+   extension-origin `StateField` is needed, and a block selection is still ONE range, so the
+   shape discriminator holds.
+4. ~~`content-space-caret`~~ — **shipped 2026-07-26.** Gap lines and marker prefixes stop being
+   caret-addressable. Independent of all of the above.
 5. `paste-heading-section-reencoding` — a heading section pasted into a list mangles.
    Independent; a re-encoding problem, not a selection one.
 
