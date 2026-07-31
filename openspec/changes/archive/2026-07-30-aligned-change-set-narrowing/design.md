@@ -172,12 +172,13 @@ requirement is not read as "mapping works for moves now".
 ## Risks / Trade-offs
 
 - **A pathological document with no unique lines in the region falls back to the old shape.**
-  → Minimality degrades; the relocation guarantee does NOT. Losing every anchor was the one
-  case where this shape could still cut into a relocated line, so the guarantee no longer
-  rests on anchoring at all: the trimming clamps a change to whole-line bounds whenever the
-  line it would cut into both survives the operation and stands where another of the edit's
-  lines used to stand. Correctness is bounded independently by the `applyEdits` property test.
-  Requires every line in the moved and passed-over spans to be duplicated within the region.
+  → Minimality degrades, and so does the PRECISION of the description — a surviving line with
+  nothing to match against is described as rewritten rather than left alone. What does not
+  degrade is safety: the trimming clamps a change to whole-line bounds whenever the line it
+  would cut into both survives the operation and stands where another of the edit's lines used
+  to stand, so a lost anchor can never turn into a cut partway through a row. Correctness is
+  bounded independently by the `applyEdits` property test. Measured live for the realistic
+  instance of this — two sibling tables sharing a header row — and both widgets survive.
 - **A run whose two sides have unequal line counts is now emitted as one trimmed span where the
   whole region previously went per-line.** → Measured on the existing suites as an improvement
   or a wash; the property tests and the pinned worked shapes for indent, outdent, and merge all
@@ -203,9 +204,19 @@ requirement is not read as "mapping works for moves now".
   mover's second line while that row still stood further down. So neither "the passed-over
   block is untouched" (unkeepable — the alignment may anchor the mover instead) nor "no change
   cuts into a surviving line" (insufficient — that change set cuts into none) is the property.
-  What is: no change overwrites a whole line that is still standing in the result. Covered by a
-  property test over generated trees, and live by e2e regressions from BOTH sides against a
-  real Obsidian with a mounted table widget.
+  What is: no change overwrites a whole line that is still standing in the result — but only
+  WHERE THE ALIGNMENT CAN MATCH THE BLOCKS. Round 9 found the counterexample in an ordinary
+  document: two sibling tables sharing a header and a separator row leave those lines
+  non-unique, so the body rows are each other's only candidates and the change set says each
+  became the other though both survive. Measured against a real Obsidian with both widgets
+  mounted, that shape is safe, and the host's change representation has no encoding that would
+  say it better — a replacement and a deletion followed by an insertion delete the same range,
+  so no consumer can tell them apart. The guarantee is therefore stated in two strengths: no
+  change may EVER cut partway into a surviving line, and no change may overwrite a whole
+  surviving line wherever the region's lines are distinct enough to match the blocks. Covered
+  by a property test whose distinct-line condition is CONSTRUCTED rather than filtered — a
+  filter left 33 of 300 documents and 8 ops between them, a test that could not fail — a
+  pinned unit test for the degradation, and live e2e regressions from both sides.
 - **Performance on very large moved subtrees.** → The alignment is over one edit region's
   lines; the LIS is O(k log k) on the k candidate pairs. Subdivision re-scans each gap, so the
   concern is depth rather than any single pass: measured work per line is flat from 25 to

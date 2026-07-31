@@ -9,16 +9,22 @@ requirement wins and the change is widened: a change set describes what happened
 narrower description that misdescribes it is not the better one.
 
 Narrowing SHALL begin by ALIGNING the edit's old lines against its new lines. Any line the
-edit keeps SHALL be excluded from the change set wherever it occurs — not only when it sits
-at the edit's leading or trailing edge — and only the runs of lines that remain unmatched
+alignment MATCHES SHALL be excluded from the change set wherever it occurs — not only when it
+sits at the edit's leading or trailing edge — and only the runs of lines that remain unmatched
 SHALL be narrowed further. Within such a run, when the run has the same number of lines on
 both sides, each line pair SHALL be diffed independently and its common character prefix and
 suffix trimmed; when it does not, the run SHALL be emitted as one character-trimmed span.
 
 Alignment SHALL match a line only when its content is unique on both sides, so that a
 repeated line — a blank gap line, an identical list marker, an identical table separator —
-never anchors an alignment it does not unambiguously determine. Failing to match a line that
-could have been matched costs minimality only, never correctness.
+never anchors an alignment it does not unambiguously determine. This is why the exclusion
+above is stated over the lines the alignment matches rather than over every line the edit
+keeps: a line that survives but repeats may have nothing to match against, and will then be
+described as rewritten rather than left alone. Failing to match a line that could have been
+matched costs minimality and the precision of the description, never correctness — the
+resulting document is the same either way, and the guarantee that survives unconditionally
+is the one stated under "A relocation is dispatched as a relocation": no change may cut
+partway into a line the edit keeps, matched or not.
 
 Uniqueness on both sides is evidence that a line survived, not proof of it, so an alignment
 SHALL be adopted on the same evidence a relocation is recognised by elsewhere in this

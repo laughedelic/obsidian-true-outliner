@@ -17,8 +17,8 @@ half: the shape must also be TRUE.
 
 ## What Changes
 
-- Narrowing gains a line-level ALIGNMENT step before it diffs anything. Lines an edit keeps —
-  wherever they end up — are matched and excluded, and only the runs that remain are narrowed.
+- Narrowing gains a line-level ALIGNMENT step before it diffs anything. Lines the alignment
+  matches — wherever they end up — are excluded, and only the runs that remain are narrowed.
   Anchoring follows patience diff's rule: match only lines unique on both sides, chain them by
   longest increasing subsequence, recurse between anchors.
 - The two existing narrowing branches (per-line for equal line counts, one trimmed character
@@ -26,9 +26,12 @@ half: the shape must also be TRUE.
 - A move is consequently dispatched as one deletion plus one insertion, with one of the two
   rearranged blocks in no change range at all — for every atom kind, at any nesting depth.
   Which block is spared is a minimality decision (the alignment anchors the larger one), and
-  the safety property is that neither is ever rewritten in place.
+  the safety property is that neither is rewritten in place wherever the alignment can match
+  them at all.
 - The requirement gains an explicit guarantee about relocation: an operation that MOVES lines
-  SHALL NOT be expressed as an in-place rewrite of the lines it passes over.
+  SHALL NOT be expressed as an in-place rewrite of the lines it passes over, wherever the
+  narrowing can tell the rearranged blocks apart — and SHALL never cut partway into one of
+  their lines, whether it can or not.
 - Change sets get strictly smaller for reorders (measured: 2 changes / 16 characters, against 5
   changes / ~40), so this tightens the existing minimality requirement rather than relaxing it.
 - No dispatch site learns which operation it is dispatching. An earlier table-shaped fix that
@@ -48,8 +51,9 @@ None. This sharpens an existing capability rather than introducing one.
 ### Modified Capabilities
 
 - `minimal-change-dispatch`: the narrowing requirement gains line alignment and a relocation
-  guarantee — unchanged lines are excluded wherever they occur, not only at the region's
-  leading and trailing edges, and a relocation is never expressed as an in-place rewrite.
+  guarantee — matched lines are excluded wherever they occur, not only at the region's
+  leading and trailing edges, and a relocation is not expressed as an in-place rewrite wherever
+  the blocks can be told apart.
 - `structural-history-integration`: the stated reason a move's cursor must be recorded is made
   precise for aligned change sets. The requirement itself does not change.
 
