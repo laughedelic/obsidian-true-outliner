@@ -42,31 +42,35 @@
 
 ## 3. Structural deletion over a forest
 
-- [ ] 3.1 Make `siblingCoverIds` in `src/enforce.ts` return GROUPS — one contiguous sibling
+- [x] 3.1 Make `siblingCoverIds` in `src/enforce.ts` return GROUPS — one contiguous sibling
       run per parent — using the exported computation from 1.1 rather than its own
       traversal, and have `coverIdsOf`'s caller dispatch to `deleteSubtreeGroups` instead of
       `deleteSubtrees`. `deleteSubtreeGroups` (`fix-orphan-gap-on-node-deletion` D2) already
       removes runs under different parents in one structural pass with one diff, so no new
       deletion machinery is needed and `deleteSubtrees`' single-run contiguity rule stays
-- [ ] 3.2 Confirm deletion of a mixed-depth cover removes each root's subtree with its owned
+- [x] 3.2 Confirm deletion of a mixed-depth cover removes each root's subtree with its owned
       gap and leaves the remaining tree well formed
-- [ ] 3.3 Property test over generated trees: deleting any escalated cover re-parses to a
+- [x] 3.3 Property test over generated trees: deleting any escalated cover re-parses to a
       valid tree with no orphaned nodes
-- [ ] 3.4 Confirm `computeMultiRangeDeletionVerdict` needs no shape change — it already maps
+- [x] 3.4 Confirm `computeMultiRangeDeletionVerdict` needs no shape change — it already maps
       each range's `coveredSubtreeRoots` to one group. Verify it with a multi-range selection
       whose ranges are themselves mixed-depth covers, which is newly reachable
 
 ## 3b. The widened classification gate
 
-- [ ] 3b.1 Enumerate what `classify.ts`'s `isExactSubtreeCoverDeletion` newly admits once
+- [x] 3b.1 Enumerate what `classify.ts`'s `isExactSubtreeCoverDeletion` newly admits once
       `coveredSubtreeRoots` is forest-aware, and confirm each shape is one the verdict layer
       models. The gate belongs to `transaction-classification` ("A change exactly covering
       whole subtrees is a boundary-crossing edit"), a capability this change does not
       otherwise touch — design D4. Relaxing a predicate silently admits inputs nobody
       considered; measure rather than reason
-- [ ] 3b.2 Negative control: disable the forest computation and confirm the new
-      classification assertions fail, so they are known to be testing the gate and not the
-      geometry
+- [x] 3b.2 Negative control. The original framing assumed the gate widened, so "disable the
+      forest computation and watch the new assertions fail" does not apply — the assertion
+      (every gate-decided cover is single-rooted) holds under BOTH rules, which is the finding.
+      The control that does apply is vacuity: the property carries a coverage counter, verified
+      to fail when raised past the observed 452, because a filter this narrow passes just as
+      happily when it excludes everything. An earlier version reached its assertion once in 302
+      cases
 - [ ] 3b.3 Re-run `tests/classify.test.ts` and
       `e2e/specs/60-transaction-classification.e2e.ts` in full; the within-node-deletion
       scenarios are the ones that must NOT move

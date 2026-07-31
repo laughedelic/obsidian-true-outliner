@@ -158,16 +158,30 @@ resolved against the pristine document and removed in ONE structural pass with O
 `deleteSubtrees` is the whole change. `deleteSubtrees`' own single-run contiguity rule, and
 `structural-operations`' requirement stating it, stay exactly as they are.
 
-**The classification gate widens, and that is measured rather than assumed.**
-`isExactSubtreeCoverDeletion` (`transaction-classification`: "A change exactly covering whole
-subtrees is a boundary-crossing edit") asks `coveredSubtreeRoots` whether a deletion whose raw
-line span reads as within-node is in fact an exact cover. Redefining the cover redefines what
-that gate admits — mixed-depth covers start reaching the verdict layer. That is the intent: a
-mixed-depth cover's deletion must be enforced for the same reason a sibling run's is. But this
-is a predicate widening in a capability this change does not otherwise touch, and the recorded
-lesson is that relaxing a predicate silently admits inputs nobody considered. The verification
-is to enumerate what newly passes the gate and confirm each is a shape the verdict layer
-models, not to reason that it must be fine because the geometry is correct.
+**The classification gate does NOT widen — measured, and not what this decision first
+assumed.** `isExactSubtreeCoverDeletion` (`transaction-classification`: "A change exactly
+covering whole subtrees is a boundary-crossing edit") asks `coveredSubtreeRoots` whether a
+deletion whose raw line span reads as within-node is in fact an exact cover. Redefining the
+cover looked like it must redefine what that gate admits, so this was filed as a widening to
+enumerate rather than reason about.
+
+The enumeration says otherwise. The gate is only consulted when NO span crosses a boundary by
+line identity — when every line the change touched belongs to one node. A range shaped that way
+cannot reach a multi-root cover's end, so the forest branch is unreachable from the gate, and
+the single-node branch never enters `forestCoverOf` at all. Over generated documents, building
+the deletion span for every single-subtree cover and every node-pair forest cover, 452 cases
+reached the gate as the deciding test and every one of them was single-rooted.
+
+What actually enforces a mixed-depth deletion is the ordinary line-identity test, which sees
+two different nodes and returns `boundary-crossing-edit` before the gate is ever asked. The
+gate remains what it was built for: the single-node cover whose trailing newline the span
+convention is blind to.
+
+*Recorded because the argument above is exactly the kind that stops being true when someone
+changes the span convention*, so it is pinned as a property with a coverage counter rather than
+left as prose. The counter matters more than the assertion here: a filter this narrow passes
+just as happily when it excludes everything, and the first version of this property reached its
+assertion once in 302 cases before being rewritten to enumerate real cover shapes.
 
 ### D5. What deliberately does not change
 
@@ -251,6 +265,14 @@ plugin or toggling outline mode off, both of which restore stock selection byte-
   the layer to fix (docs/research/04 Q22), which is why the gate in D4 exists at all. Every
   span rule here is written against this end convention; nothing in it is still provisional.
 - Does mixed-depth chrome read clearly, or does it need per-root treatment? Manual pass.
-- Does the widened classification gate (D4) admit any deletion shape the verdict layer does not
-  model? Expected answer is no — the fallback is `PASS`, so the failure mode is an unenforced
-  deletion rather than a wrong one — but "expected" is the word that makes this a question.
+- ~~Does the widened classification gate (D4) admit any deletion shape the verdict layer does
+  not model?~~ **Answered during implementation: the gate does not widen at all.** See D4 —
+  it is unreachable for multi-root covers, and mixed-depth deletions are classified by the
+  ordinary line-identity test instead.
+- A TYPE-OVER of a mixed-depth cover has no modeled answer for where the typed text lands:
+  `deleteAndSplice` splices into the single gap a deletion left, and a forest leaves one gap per
+  parent. Newly reachable because of this change. Implemented as a conservative `PASS` (the
+  native replacement of a forest span re-parses to a valid tree — it is simply not structural),
+  which matches the layer's "a wrong pass is editable text; a wrong rewrite is surprising
+  relocation" bias. Whether it deserves a real rule is left to the manual pass: it needs a
+  judgement about what users expect, not more measurement.

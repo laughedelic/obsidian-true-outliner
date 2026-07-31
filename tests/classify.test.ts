@@ -9,6 +9,14 @@ import {
 } from '../src/classify';
 import { arbTree } from './generators';
 import { encode } from '../src/encode';
+import {
+  coveredSubtreeRoots,
+  forestCoverOf,
+  subtreeCoverOf,
+  type LinePos,
+} from '../src/escalate';
+import { walkNodes } from '../src/model';
+import { nodeAtLine } from '../src/locate';
 
 const ALL_CLASSES: readonly TransactionClass[] = [
   'programmatic',
@@ -407,3 +415,110 @@ describe('classify: totality and default-permit (property)', () => {
  * selection against CM6's own forward mapping — so it needs a real
  * `Transaction` to test and cannot live in this module's string-level suite.
  */
+
+describe('classify: what the forest-aware cover newly admits to the exact-cover gate (selection-as-subtree-set 3b.1)', () => {
+  // `isExactSubtreeCoverDeletion` asks `coveredSubtreeRoots` — the same
+  // function `selection-as-subtree-set` made forest-aware. Redefining the
+  // cover redefines what this gate admits, and the gate belongs to a
+  // capability that change does not otherwise touch. The design filed this
+  // as a widening to be MEASURED, not reasoned about.
+  //
+  // Measured answer: the gate's reachable set does NOT change. The gate is
+  // only consulted when no span crosses a boundary by line identity — i.e.
+  // the change's own lines all belong to ONE node — and a range shaped that
+  // way can never reach a multi-root cover's end, so the forest branch is
+  // unreachable from here. The single-node branch (`anchorNode ===
+  // headNode`) never enters `forestCoverOf` at all.
+  //
+  // This is asserted rather than argued, because the argument is exactly the
+  // kind that stops being true when someone changes the span convention.
+
+  const spanFor = (doc: ReturnType<typeof parse>, fromLine: number, fromCh: number, endLine: number, endCh: number) =>
+    facts({
+      userEvent: 'delete.backward',
+      changedLineSpans: [
+        {
+          fromLine,
+          // `toLine = lineAt(max(fromA, toA - 1))` — the convention
+          // `collectChangedLineSpans` uses; endCh 0 means the previous line.
+          toLine: endCh === 0 ? Math.max(fromLine, endLine - 1) : endLine,
+          insertedText: '',
+          fromCh,
+          rangeEnd: { line: endLine, ch: endCh },
+        },
+      ],
+    });
+
+  it('a mixed-depth forest deletion is already boundary-crossing by LINE IDENTITY, before the gate', () => {
+    const doc = parse('- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n');
+    // The c2 -> t1 cover spans lines 2..6. `toLine` lands on line 5 (`t2`),
+    // a different node from line 2 (`c2`), so `spanCrossesBoundary` is
+    // already true and the gate is never consulted. The gate is not what
+    // enforces mixed-depth deletions — the ordinary line-span test is.
+    expect(classify(spanFor(doc, 2, 0, 6, 0), doc)).toBe('boundary-crossing-edit');
+  });
+
+  // Enumerating REAL cover shapes, not arbitrary line pairs: for every node
+  // (single-subtree covers) and every ordered node pair (forest covers) in
+  // each generated document, build the deletion span that cover would
+  // produce and ask which test decides its class. An earlier version of this
+  // property picked line pairs at random and reached the assertion once in
+  // 302 cases — it passed, and it was measuring nothing.
+  const coverCases = (doc: ReturnType<typeof parse>) => {
+    // Capped: this is quadratic in node count, and the generator produces
+    // documents large enough to make the full cross-product dominate the
+    // whole suite's runtime.
+    const nodes = [...walkNodes(doc)].slice(0, 10);
+    const cases: { from: LinePos; end: LinePos }[] = [];
+    for (const a of nodes) {
+      const own = subtreeCoverOf(doc, a);
+      cases.push({ from: own.start, end: own.end });
+      for (const b of nodes) {
+        if (a === b) continue;
+        const forest = forestCoverOf(doc, a, b);
+        cases.push({ from: forest.cover.start, end: forest.cover.end });
+      }
+    }
+    return cases;
+  };
+
+  it('property: whenever the gate is the DECIDING test, the cover it recognized has exactly one root', () => {
+    let gateDecided = 0;
+    fc.assert(
+      fc.property(arbTree(), (tree) => {
+        const text = encode(tree);
+        if (text === '') return true;
+        const doc = parse(text);
+        if (doc.children.length === 0) return true;
+
+        for (const { from, end } of coverCases(doc)) {
+          const toLine = end.ch === 0 ? Math.max(from.line, end.line - 1) : end.line;
+          if (lineIdentityDiffers(doc, from.line, toLine)) continue; // decided earlier
+          const f = facts({
+            userEvent: 'delete.backward',
+            changedLineSpans: [
+              { fromLine: from.line, toLine, insertedText: '', fromCh: from.ch, rangeEnd: end },
+            ],
+          });
+          if (classify(f, doc) !== 'boundary-crossing-edit') continue;
+          const roots = coveredSubtreeRoots(doc, { anchor: from, head: end });
+          if (roots === null) continue; // some other same-line test decided it
+          gateDecided++;
+          if (roots.length !== 1) return false;
+        }
+        return true;
+      }),
+      { numRuns: 100 },
+    );
+    // The property must actually have been exercised — without this it
+    // passes just as happily when the filter excludes everything.
+    expect(gateDecided).toBeGreaterThan(50);
+  });
+});
+
+/** `spanCrossesBoundary`'s test, mirrored — it is module-private. */
+function lineIdentityDiffers(doc: ReturnType<typeof parse>, a: number, b: number): boolean {
+  const na = nodeAtLine(doc, a);
+  const nb = nodeAtLine(doc, b);
+  return na !== nb;
+}
