@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "b6cf7ef7472c",
+  "strategy": "manual-commit",
+  "branch": "docs/update-selection-as-subtree-set",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "openspec/changes/selection-as-subtree-set/design.md",
+    "src/enforce.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b6/cf7ef7472c/0/metadata.json",
+      "transcript": "/b6/cf7ef7472c/0/full.jsonl",
+      "compact_transcript": "/b6/cf7ef7472c/0/transcript.jsonl",
+      "content_hash": "/b6/cf7ef7472c/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 71,
+    "cache_creation_tokens": 39561,
+    "cache_read_tokens": 9549048,
+    "output_tokens": 26407,
+    "api_call_count": 38
+  }
+}
