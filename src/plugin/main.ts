@@ -430,29 +430,31 @@ export default class TrueOutlinerPlugin extends Plugin {
       useMappedCursor ? cursorBefore : undefined,
     );
 
-    // TWO transactions, deliberately: the change, then the cursor. Combining
-    // them into one `editor.transaction({changes, selection})` looks tidier and
-    // silently breaks undo granularity — measured, and caught by
+    // The change and the caret that belongs to it go in ONE transaction. A
+    // caret computed from the NEW document is meaningless to anything that has
+    // not seen the change yet, and the editor is full of things that watch:
+    // measured, Obsidian's live table widget still holds its PRE-change offsets
+    // when a selection-only transaction arrives between the two, decides the
+    // caret landed inside its last row, and calls `editTableCell` — which
+    // focuses a nested cell editor and reports that focus back as the host
+    // selection. Moving a paragraph past a table left the caret in the table.
+    // The keyboard path never had this because it always dispatched both at
+    // once (`keymap.ts`); this is the command path catching up.
+    //
+    // The trailing `setCursor` is NOT how the caret gets set — it re-asserts
+    // the position it already has, to keep undo granularity. `Editor.transaction`
+    // dispatches with no `userEvent`, and CM6's `HistoryState.addChanges` joins
+    // a new change into the previous event when (among other things)
+    // `!userEvent` and the previous event has no `selectionsAfter`. Two palette
+    // commands back-to-back — indent then outdent — are adjacent and inside
+    // `newGroupDelay`, so with nothing between them they merge into ONE undo
+    // step and a single Cmd+Z reverts both. A selection-only transaction
+    // populates the preceding event's `selectionsAfter`, which blocks the join.
+    // The keyboard path needs no such trick because its `input.structure.*`
+    // userEvent already fails CM6's `joinableUserEvent` test. Guarded by a unit
+    // test on that CM6 behaviour in tests/minimal-change-history.test.ts and by
     // 20-structural-commands' "one undo step each way".
-    //
-    // `Editor.transaction` dispatches with no `userEvent`, and CM6's
-    // `HistoryState.addChanges` joins a new change into the previous event when
-    // (among other things) `!userEvent` and the previous event has no
-    // `selectionsAfter`. Two palette commands run back-to-back — indent then
-    // outdent — are adjacent and inside `newGroupDelay`, so with nothing
-    // between them they merge into ONE undo step and a single Cmd+Z reverts
-    // both. The separate `setCursor` is what prevents that: a selection-only
-    // transaction populates the preceding event's `selectionsAfter`, which
-    // blocks the join. The keyboard path needs no such trick because its
-    // `input.structure.*` userEvent already fails CM6's `joinableUserEvent`
-    // test. Guarded by a unit test on that CM6 behaviour in
-    // tests/minimal-change-history.test.ts.
-    //
-    // Splitting them costs nothing in cursor correctness: `setCursor` writes an
-    // absolute position computed from the PRE-op buffer, so it overwrites
-    // rather than builds on the change transaction's own default mapping, and
-    // the resulting `selectionsAfter[0]` is what redo prefers — our cursor.
-    if (changes.length > 0) editor.transaction({ changes });
+    if (changes.length > 0) editor.transaction({ changes, selection: { from: cursor } });
     editor.setCursor(cursor);
   }
 

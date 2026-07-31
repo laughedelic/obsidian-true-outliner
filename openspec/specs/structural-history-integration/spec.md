@@ -121,11 +121,19 @@ before, but a split point CAN coincide with the mapped position (a mid-item spli
 its marker at the caret, which assoc=1 maps onto the new item's content start), and such a
 dispatch is correctly left unrecorded — redo already reproduces it.
 
-Recording is required because no rule applied AFTER the fact can recover the position. A
-reordering maps a caret that was inside the moved node into whatever now occupies its old
-lines — a position that is perfectly legal, and therefore invisible to any check that
-only asks whether the caret may be there. The information identifying the moved node is
-not present in what the history retains.
+Recording is required because no rule applied AFTER the fact can recover the position, and
+because whether mapping happens to recover it is not a property the operation controls. A
+swap has two equally true descriptions — this node moved down, that node moved up — and the
+line alignment in `minimal-change-dispatch` selects one of them from the line content alone,
+not from which node the user acted on. When it selects the user's node as the one that MOVED,
+the caret rides the relocated run and mapping lands correctly by coincidence; when it selects
+the other way, the caret is in text the change rewrites and mapping puts it on whatever now
+occupies those lines — a position that is perfectly legal, and therefore invisible to any
+check that only asks whether the caret may be there. Both outcomes are reachable from the
+same operation in opposite directions. Recording is what makes the answer the same either
+way, because the information identifying the moved node is not present in what the history
+retains. Nor can the narrowing be asked to supply it: which node "moved" is a fact about the
+gesture, and the change set is derived from the text.
 
 #### Scenario: Redo after moving a node
 - **WHEN** a node is moved up or down, then undone and redone
@@ -135,6 +143,12 @@ not present in what the history retains.
 #### Scenario: Repeated redo keeps the moved node's cursor
 - **WHEN** a move is followed by repeated undo/redo cycles
 - **THEN** every redo puts the cursor back on the moved node
+
+#### Scenario: Recording covers the direction mapping cannot
+- **WHEN** the move direction is the one whose change set rewrites the lines the caret was
+  in, rather than relocating them, and the operation is undone and redone
+- **THEN** the cursor is on the moved node, where without recording it would have landed on
+  the sibling that took its former place
 
 #### Scenario: Indent is not recorded and stays correct anyway
 - **WHEN** Tab indents a node with a plain caret, so the dispatch uses the mapped position,

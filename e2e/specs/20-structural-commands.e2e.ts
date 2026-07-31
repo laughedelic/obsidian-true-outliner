@@ -136,6 +136,60 @@ describe('structural commands', function () {
     expect(await h.getBuffer()).toBe('1. one\n2. two\n3. three\n');
   });
 
+  /**
+   * The one shape the narrowing cannot describe as a relocation: two tables
+   * whose header and separator rows are identical leave it no unique line to
+   * anchor either block on, so the change set says each body row was replaced
+   * by the other even though both survive. The spec permits that, on the
+   * strength of this measurement -- both tables come through whole.
+   */
+  it('swaps two tables sharing a header without disturbing either widget', async function () {
+    const head = '| h1  | h2  |\n| --- | --- |';
+    const first = `${head}\n| 1   | 2   |`;
+    const second = `${head}\n| 3   | 4   |`;
+    await outlineNote(`${first}\n\n${second}\n`, 4, 1);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 2);
+
+    await h.runCommand('move-node-up');
+    await browser.pause(150);
+
+    expect(await h.getBuffer()).toBe(`${second}\n\n${first}\n`);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 2);
+  });
+
+  it('move up command moves a list item past a live table without splitting its rows', async function () {
+    const table = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
+    await outlineNote(`${table}\n\n- Mover\n`, 4, 3);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
+
+    await h.runCommand('move-node-up');
+    await browser.pause(150);
+
+    expect(await h.getBuffer()).toBe(`- Mover\n\n${table}\n`);
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 2 }); // with the node it moved
+  });
+
+  /**
+   * The caret that belongs to a change is meaningless to anything that has not
+   * seen the change yet. Obsidian's live table widget is such a thing: measured,
+   * it still held its PRE-change offsets when the caret arrived in a separate
+   * transaction, decided the new position was inside its last row, and focused a
+   * nested cell editor — which reported that focus back as the host selection.
+   * Moving DOWN is what exposes it, because that is the direction in which the
+   * moved node's new home lies past the table, at offsets the table used to own.
+   */
+  it('move down command leaves the caret on the moved node, not inside the table it passed', async function () {
+    const table = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
+    await outlineNote(`- Mover\n\n${table}\n`, 0, 3);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
+
+    await h.runCommand('move-node-down');
+    await browser.pause(150); // allow any live-table focus handoff to settle
+
+    expect(await h.getBuffer()).toBe(`${table}\n\n- Mover\n`);
+    expect(await h.getCursor()).toEqual({ line: 4, ch: 2 });
+  });
+
   it('each rejection cue fires with the right message; document untouched', async function () {
     const cases: { name: string; content: string; line: number; command: string; message: string }[] = [
       {

@@ -13,10 +13,11 @@ import {
   outdent,
   splitNode,
 } from '../src/ops';
-import { applyEdits, type Edit } from '../src/result';
+import { applyEdits, diffLines, type Edit } from '../src/result';
 import { OutlineModeRegistry } from '../src/plugin/mode-registry';
 import { nodeAtLine } from '../src/plugin/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
+import { planKey } from '../src/plugin/grammar';
 import { REJECTION_MESSAGES } from '../src/plugin/messages';
 import { compareWithSections, topLevelSpans } from '../src/plugin/crosscheck';
 import { arbTree } from './generators';
@@ -113,6 +114,65 @@ describe('edit dispatch: line edits → editor changes', () => {
     }
     return out;
   }
+
+  /**
+   * The ordering guarantee `minimal-change-dispatch` states, asserted rather
+   * than assumed. It is not free: runs are ascending and disjoint in LINE
+   * space, but `lineRangeEnvelope` has to anchor a run with no line to sit on
+   * somewhere real — an insertion past the last line becomes an insertion AT
+   * the document's end — and that can coincide with the run in front of it.
+   *
+   * The consequences are quiet, which is why this is worth pinning. Applied
+   * in emission order the document is still right, because CodeMirror keeps
+   * equal-`from` specs in the order given; it is every POSITION-based
+   * consumer that breaks — `applyChanges` above (which sorts, as any
+   * reference implementation would) and `mapCursorForward`, which stops at
+   * the first of two changes sharing a position.
+   */
+  describe('changes are strictly ascending and non-overlapping', () => {
+    const toOffset = (lines: readonly string[], pos: { line: number; ch: number }): number => {
+      let acc = 0;
+      for (let i = 0; i < pos.line; i++) acc += (lines[i]?.length ?? 0) + 1;
+      return acc + pos.ch;
+    };
+
+    /** Ascending with no two ranges touching or overlapping. */
+    function ordering(lines: readonly string[], changes: readonly EditorChange[]) {
+      const bounds = changes.map((c) => [toOffset(lines, c.from), toOffset(lines, c.to)] as const);
+      return bounds.every(([from, to], i) => from <= to && (i === 0 || from > bounds[i - 1]![1]));
+    }
+
+    it('for the shape that first broke it: an anchor on the empty last line', () => {
+      // Appending a list under a paragraph in a file that ends with a newline.
+      // The alignment anchors on the trailing empty line, leaving an insertion
+      // run on either side of it — and the second one has no line to sit on,
+      // so it lands at the document end, exactly where the first one is.
+      const before = ['para', ''];
+      const changes = editsToChanges(before, diffLines(before, ['para', '- a', '', '- b']));
+      expect(ordering(before, changes)).toBe(true);
+      expect(applyChanges(before.join('\n'), changes)).toBe('para\n- a\n\n- b');
+    });
+
+    it('for any before/after line pair the enforcement rewrite path can produce', () => {
+      // `enforce.ts` feeds arbitrary before/after documents through the same
+      // `diffLines`, so this is not a hypothetical input space. The vocabulary
+      // repeats deliberately: duplicate and empty lines are what defeat the
+      // alignment's unique-line anchoring and produce the awkward runs.
+      const arbLines = fc.array(
+        fc.constantFrom('', 'para', '- a', '- b', '\t- a', '# h', '| a | b |', '\t'),
+        { maxLength: 8 },
+      );
+      fc.assert(
+        fc.property(arbLines, arbLines, (before, after) => {
+          const changes = editsToChanges(before, diffLines(before, after));
+          if (!ordering(before, changes)) return false;
+          // Position-ordered application must agree with the edits themselves.
+          return applyChanges(before.join('\n'), changes) === after.join('\n');
+        }),
+        { numRuns: 20000 },
+      );
+    });
+  });
 
   it('reproduces the op encoding exactly for any generated op', () => {
     const OPS = [indent, outdent, moveUp, moveDown];
@@ -301,6 +361,704 @@ describe('edit dispatch: line edits → editor changes', () => {
         { from: { line: 1, ch: 0 }, to: { line: 1, ch: 1 }, text: '' },
         { from: { line: 2, ch: 1 }, to: { line: 2, ch: 2 }, text: '' },
       ]);
+    });
+  });
+
+  /**
+   * The property a REORDER needs and the per-line narrowing alone could not
+   * express: a move relocates lines, so it must be described as lines
+   * removed from one side and inserted on the other — never as an in-place
+   * rewrite of everything in between.
+   *
+   * This is not a style preference. Obsidian's live table widget re-derives
+   * its own document from the change set, and an in-place rewrite of a table
+   * row it still owns made it split the table — the header severed from the
+   * body by a blank line — when any sibling moved past it. The guarantee
+   * that fixes it is stated here, at the choke point, for every atom kind
+   * and at any nesting depth, rather than as a table-shaped special case at
+   * the dispatch sites.
+   */
+  describe('a move never edits inside the block it passes over', () => {
+    const TABLE = ['| a   | b   |', '| --- | --- |', '| 1   | 2   |'];
+
+    const scenarios = [
+      {
+        name: 'paragraph moving down past a table',
+        text: `Mover.\n\n${TABLE.join('\n')}\n`,
+        target: 'Mover.',
+        op: moveDown,
+      },
+      {
+        name: 'paragraph moving up past a table',
+        text: `${TABLE.join('\n')}\n\nMover.\n`,
+        target: 'Mover.',
+        op: moveUp,
+      },
+      {
+        name: 'list item moving down past a table',
+        text: `- Mover\n\n${TABLE.join('\n')}\n`,
+        target: '- Mover',
+        op: moveDown,
+      },
+      {
+        // The shape the earlier, table-shaped fix missed: the sibling being
+        // passed over is a LIST ITEM, and the table is its child.
+        name: 'list item moving down past a sibling whose child is a table',
+        text: `- Mover\n- Sibling\n\n${TABLE.map((l) => `\t${l}`).join('\n')}\n`,
+        target: '- Mover',
+        op: moveDown,
+      },
+    ] as const;
+
+    it.each(scenarios)('$name', ({ text, target, op }) => {
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === target)!;
+      const result = op(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+
+      const tableLines = lines
+        .map((line, i) => (line.trimStart().startsWith('|') ? i : -1))
+        .filter((i) => i >= 0);
+      expect(tableLines.length).toBe(TABLE.length);
+
+      for (const change of changes) {
+        for (const line of tableLines) {
+          // A change may SPAN a table line only by covering it whole from a
+          // line boundary — i.e. relocating it — never by starting or ending
+          // partway into one, which is what makes the widget rewrite itself.
+          const startsInside = change.from.line === line && change.from.ch > 0;
+          const endsInside = change.to.line === line && change.to.ch > 0;
+          expect({ change, line, startsInside, endsInside }).toMatchObject({
+            startsInside: false,
+            endsInside: false,
+          });
+        }
+      }
+
+      // …and in these scenarios the table is not relocated at all, so its
+      // characters are outside every change range.
+      const spans = changes.map((c) => [c.from.line, c.to.line] as const);
+      for (const line of tableLines) {
+        expect(spans.some(([from, to]) => from <= line && line < to)).toBe(false);
+      }
+    });
+
+    /**
+     * Whole old lines a change overwrites while putting something else in their
+     * place. This is the corruption's actual signature, and it is worth being
+     * precise about, because two more obvious signatures are NOT it. The
+     * pre-fix change set for a FOUR-line mover past this table cut into no line
+     * at all -- every boundary sat on a line edge -- and split the paragraph
+     * anyway; what it did do was replace the table's first row with the mover's
+     * second line while that row still existed further down the document. A
+     * change may overwrite text freely, but only text that is actually gone.
+     */
+    const overwrittenSurvivors = (
+      lines: readonly string[],
+      changes: readonly EditorChange[],
+      result: ReadonlySet<string>,
+    ) =>
+      changes.flatMap((change) => {
+        if (change.text === '') return [];
+        const inserted = new Set(change.text.split('\n'));
+        const gone: string[] = [];
+        for (let i = change.from.line; i <= change.to.line; i++) {
+          const whole =
+            (i > change.from.line || change.from.ch === 0) &&
+            (i < change.to.line || change.to.ch === (lines[i] ?? '').length);
+          const line = lines[i];
+          if (whole && line !== undefined && !inserted.has(line) && result.has(line)) {
+            gone.push(line);
+          }
+        }
+        return gone;
+      });
+
+    /**
+     * The alignment anchors whichever block it can chain the longest, so a mover
+     * with more lines than the table wins and the TABLE becomes the block the
+     * description says moved. That is not a defect and it is not what protects
+     * the table: whichever block moves, it is removed and re-inserted whole
+     * rather than rewritten in place, and measured against the live widget both
+     * shapes leave the table intact. What the guarantee cannot be is a claim
+     * about WHICH sibling stays put -- the change set alone does not know which
+     * one the user gestured at, and it does not need to.
+     */
+    it('names the larger block as the one that stayed, and moves the other whole', () => {
+      const mover = ['L1', 'L2', 'L3', 'L4'];
+      const text = `${mover.join('\n')}\n\n${TABLE.join('\n')}\n`;
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === 'L1')!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+
+      // The four-line mover out-anchors the three-row table, so the table is
+      // what the change set describes as having moved -- whole, in one piece.
+      expect(changes).toEqual([
+        {
+          from: { line: 0, ch: 0 },
+          to: { line: 0, ch: 0 },
+          text: `${TABLE.join('\n')}\n\n`,
+        },
+        { from: { line: 4, ch: 0 }, to: { line: 8, ch: 0 }, text: '' },
+      ]);
+
+      // ...and nothing is rewritten in place, which is the property that
+      // actually keeps the widget whole.
+      const after = new Set(applyEdits(lines, result.value.edits));
+      expect(overwrittenSurvivors(lines, changes, after)).toEqual([]);
+
+      // The predicate is not vacuous: this is the change set this same document
+      // produced BEFORE the alignment landed (measured), and it is caught.
+      const preFix: EditorChange[] = [
+        { from: { line: 0, ch: 0 }, to: { line: 0, ch: 2 }, text: '| a   | b   |' },
+        { from: { line: 1, ch: 0 }, to: { line: 1, ch: 2 }, text: '| --- | --- |' },
+        { from: { line: 2, ch: 0 }, to: { line: 2, ch: 2 }, text: '| 1   | 2   |' },
+        { from: { line: 3, ch: 0 }, to: { line: 3, ch: 2 }, text: '' },
+        { from: { line: 4, ch: 0 }, to: { line: 4, ch: 0 }, text: 'L1' },
+        { from: { line: 5, ch: 0 }, to: { line: 5, ch: 13 }, text: 'L2' },
+        { from: { line: 6, ch: 0 }, to: { line: 6, ch: 13 }, text: 'L3' },
+        { from: { line: 7, ch: 0 }, to: { line: 7, ch: 13 }, text: 'L4' },
+      ];
+      expect(cutsIntoSurvivingLine(lines, preFix, after)).toEqual([]); // cuts nothing
+      // ...yet rewrites every one of the table's rows, and the mover's lines too,
+      // while all of them are still standing somewhere in the result.
+      expect(overwrittenSurvivors(lines, preFix, after)).toEqual(
+        expect.arrayContaining(TABLE),
+      );
+    });
+
+    /**
+     * The general form, over generated trees: a change may overwrite text, but
+     * only text the edit actually destroys. Anything still standing elsewhere in
+     * the result was MOVED, and a description that says it was rewritten is
+     * telling every consumer -- widget, decoration, caret, folding -- something
+     * that did not happen.
+     *
+     * Scoped, deliberately, to documents whose lines are DISTINCT. That is the
+     * condition under which the alignment has anchors to work with, and round 8
+     * stated it without the condition -- which reads as a guarantee the
+     * narrowing cannot keep. Where lines repeat it degrades, on purpose and
+     * measurably; the next two tests pin that, and the unconditional half of
+     * the guarantee (no change ever cuts INTO a surviving line) is asserted
+     * over the repeating family below.
+     */
+    it('never overwrites a whole line that survives the edit, for any op', () => {
+      fc.assert(
+        fc.property(arbTree(), (tree) => {
+          // Give every content line its own identity. The generator's small
+          // alphabet repeats lines constantly, and merely FILTERING for a
+          // distinct-line document leaves a handful of tiny trees that exercise
+          // almost no ops -- a property that cannot fail. Constructing the
+          // condition instead keeps the shapes and the op coverage.
+          const text = encode(parse(encode(tree)))
+            .split('\n')
+            .map((line, i) => (line.trim() === '' ? line : `${line} u${i}`))
+            .join('\n');
+          const lines = text.split('\n');
+          const content = lines.filter((line) => line !== '');
+          fc.pre(new Set(content).size === content.length);
+          const doc = parse(text);
+          for (const op of [indent, outdent, moveUp, moveDown]) {
+            for (const node of walkNodes(doc)) {
+              const applied = op(doc, node.id);
+              if (!applied.ok) continue;
+              const changes = editsToChanges(lines, applied.value.edits);
+              const after = new Set(applyEdits(lines, applied.value.edits));
+              // Blank lines are the one thing that always repeats: they are
+              // separators, not content, and the alignment never anchors them.
+              expect(
+                overwrittenSurvivors(lines, changes, after).filter((line) => line !== ''),
+              ).toEqual([]);
+            }
+          }
+        }),
+        { numRuns: 300 },
+      );
+    });
+
+    /**
+     * …and here is the degradation, pinned rather than papered over.
+     *
+     * Two sibling tables sharing a header and a separator row -- an entirely
+     * ordinary document. Those shared lines are not unique, so they anchor
+     * nothing, and the two body rows are left as each other's only candidates.
+     * The change set says "row one became row three, row three became row one"
+     * even though both survive. There is no better description available: a
+     * deletion followed by an insertion deletes exactly the same range, so no
+     * consumer can tell the two encodings apart. Measured against the live
+     * widget, both tables come through intact (e2e, 20-structural-commands).
+     *
+     * What still holds is the half that matters: neither change starts or ends
+     * partway into a row.
+     */
+    it('describes a swap of two rows it cannot anchor as a swap of whole rows', () => {
+      const head = ['| h1  | h2  |', '| --- | --- |'];
+      const text = `${head.join('\n')}\n| 1   | 2   |\n\n${head.join('\n')}\n| 3   | 4   |\n`;
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[2] === '| 3   | 4   |')!;
+      const result = moveUp(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+      expect(changes).toEqual([
+        { from: { line: 2, ch: 0 }, to: { line: 2, ch: 13 }, text: '| 3   | 4   |' },
+        { from: { line: 6, ch: 0 }, to: { line: 6, ch: 13 }, text: '| 1   | 2   |' },
+      ]);
+      const after = new Set(applyEdits(lines, result.value.edits));
+      // Whole rows, both of them -- no character-level cut into either.
+      expect(cutsIntoSurvivingLine(lines, changes, after)).toEqual([]);
+    });
+
+    it('states a move as one deletion plus one insertion', () => {
+      const text = `Mover.\n\n${TABLE.join('\n')}\n`;
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === 'Mover.')!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(editsToChanges(text.split('\n'), result.value.edits)).toEqual([
+        { from: { line: 0, ch: 0 }, to: { line: 2, ch: 0 }, text: '' },
+        { from: { line: 5, ch: 0 }, to: { line: 5, ch: 0 }, text: '\nMover.\n' },
+      ]);
+    });
+
+    /**
+     * Every position a change may name in a line that SURVIVES the edit — a
+     * line whose content still exists afterwards was not rewritten, it moved,
+     * so a change may cover it whole but must never cut into it.
+     */
+    const cutsIntoSurvivingLine = (
+      lines: readonly string[],
+      changes: readonly EditorChange[],
+      surviving: ReadonlySet<string>,
+    ) =>
+      changes.flatMap((change) =>
+        [change.from, change.to]
+          .filter((pos) => {
+            const line = lines[pos.line];
+            return (
+              line !== undefined && pos.ch > 0 && pos.ch < line.length && surviving.has(line)
+            );
+          })
+          .map((pos) => ({ pos, line: lines[pos.line] })),
+      );
+
+    it('relocates the table itself without cutting into either node', () => {
+      const text = `${TABLE.join('\n')}\n\nMover.\n`;
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === TABLE[0])!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+      expect(changes).toEqual([
+        { from: { line: 0, ch: 0 }, to: { line: 0, ch: 0 }, text: 'Mover.\n\n' },
+        { from: { line: 3, ch: 0 }, to: { line: 5, ch: 0 }, text: '' },
+      ]);
+      expect(cutsIntoSurvivingLine(lines, changes, new Set(result.value.edits.flatMap((edit) => edit.insert)))).toEqual(
+        [],
+      );
+    });
+
+    /**
+     * The alignment anchors on lines that are unique to both sides, so a
+     * region that REPEATS its lines can leave it with nothing to anchor a
+     * relocated block on. What is left over then pairs lines that merely
+     * swapped places, and character-level trimming on such a pair finds the
+     * accidental `| ` prefix and ` |` suffix two table rows share — a change
+     * starting partway into a row the move left alone, which is the exact
+     * shape that splits the table. Losing an anchor may cost minimality; it
+     * must never cost the guarantee.
+     */
+    it('never cuts into a line it could not anchor, only describes it more coarsely', () => {
+      const text = 'Dup\n| a   | b   |\n\nDup\n| --- | --- |\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === 'Dup')!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const lines = text.split('\n');
+      const changes = editsToChanges(lines, result.value.edits);
+      expect(changes).toEqual([
+        { from: { line: 1, ch: 0 }, to: { line: 1, ch: 13 }, text: '| --- | --- |' },
+        { from: { line: 4, ch: 0 }, to: { line: 4, ch: 13 }, text: '| a   | b   |' },
+      ]);
+    });
+
+    it('never cuts into a surviving line, anywhere in that family', () => {
+      // Documents whose siblings SHARE lines, which is what starves the
+      // alignment of unique anchors; the rows differ only in their cells, so
+      // whatever the alignment fails to match, character trimming is left
+      // with the `| ` and ` |` every row has in common to align on.
+      const marker = fc.constantFrom('Dup', '- dup');
+      const row = fc.constantFrom(
+        '| a   | b   |',
+        '| --- | --- |',
+        '| 1   | 2   |',
+        '| x   | y   |',
+      );
+      const block = fc.tuple(marker, fc.array(row, { minLength: 1, maxLength: 2 }));
+      fc.assert(
+        fc.property(fc.array(block, { minLength: 2, maxLength: 3 }), (blocks) => {
+          const text =
+            blocks.map(([head, rows]) => [head, ...rows].join('\n')).join('\n\n') + '\n';
+          const lines = text.split('\n');
+          const doc = parse(text);
+          // Every op on every node, so a document that reaches the shape is
+          // never wasted on an op that cannot expose it.
+          for (const op of [moveDown, moveUp, indent, outdent]) {
+            for (const node of walkNodes(doc)) {
+              const result = op(doc, node.id);
+              if (!result.ok) continue;
+              const changes = editsToChanges(lines, result.value.edits);
+              expect(
+                cutsIntoSurvivingLine(lines, changes, new Set(result.value.edits.flatMap((edit) => edit.insert))),
+              ).toEqual([]);
+              // …while still describing the same document.
+              expect(applyChanges(text, changes)).toBe(
+                applyEdits(lines, result.value.edits).join('\n'),
+              );
+            }
+          }
+        }),
+        { numRuns: 5000 },
+      );
+    });
+
+    /**
+     * …and the converse, which the guarantee above cannot state on its own:
+     * coarsening is only ever allowed where a line actually relocated.
+     *
+     * Whether two lines were swapped or rewritten is decided from the text on
+     * each side of the edit, so a document whose lines merely REPEAT can make
+     * an ordinary in-place edit look like a swap. Indenting `- a` whose two
+     * children are both `  - a` produces `  - a` as the parent's new text —
+     * the old child's text — and keying on that one coincidence turned three
+     * two-character insertions into three whole-line replacements. The caret
+     * is mapped through those changes, so it stopped keeping its column and
+     * jumped to the end of the line.
+     */
+    it('an indent stays minimal when the lines it touches happen to repeat', () => {
+      const text = '- x\n- a\n  - a\n  - a\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- a')!;
+      const result = indent(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const changes = editsToChanges(text.split('\n'), result.value.edits);
+      expect(changes).toEqual([
+        { from: { line: 1, ch: 0 }, to: { line: 1, ch: 0 }, text: '  ' },
+        { from: { line: 2, ch: 2 }, to: { line: 2, ch: 2 }, text: '  ' },
+        { from: { line: 3, ch: 2 }, to: { line: 3, ch: 2 }, text: '  ' },
+      ]);
+      // What the user sees: the caret keeps its column instead of being
+      // carried to the end of a whole-line replacement.
+      expect(planKey(text, { line: 1, ch: 2 }, 'indent')).toMatchObject({
+        plan: { selection: 8 },
+      });
+    });
+
+    /**
+     * The cheapest description of a swap is not always the truthful one. Two
+     * lines that differ by a character can be rewritten in place for less than
+     * it costs to move one past the other, and a reader of that change set --
+     * a widget, a decoration, the caret -- is told both lines were edited when
+     * in fact neither was. Nothing here is a table, but this is the shape the
+     * table bug wore: a line the operation only passed over, reported as
+     * changed. The alignment puts back every line it takes, so it is believed.
+     */
+    it('a swap is a swap even when rewriting both lines would be cheaper', () => {
+      const text = '- a\n- b\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- a')!;
+      const result = moveDown(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // '- b' is passed over, so it is in no change range at all -- not even
+      // the two-character rewrite that would describe this document for less.
+      expect(editsToChanges(text.split('\n'), result.value.edits)).toEqual([
+        { from: { line: 0, ch: 0 }, to: { line: 1, ch: 0 }, text: '' },
+        { from: { line: 2, ch: 0 }, to: { line: 2, ch: 0 }, text: '- a\n' },
+      ]);
+    });
+
+    /**
+     * The same coincidence one level up, where the clamp above cannot reach it.
+     *
+     * A repeated chain nests rather than repeats flatly: indenting `- a` over
+     * children `  - a` / `    - a` shifts every line down one level, and
+     * because each line's NEW text is the next line's OLD text, the middle
+     * lines come out unique on both sides of the edit. Alignment reads that as
+     * "these two lines survived, one above vanished and a deeper one
+     * appeared", and emits a whole-line deletion plus an insertion instead of
+     * three two-character insertions. `relocates` cannot catch it: anchored
+     * lines are matched, so they never land in a run to be clamped.
+     *
+     * The caret is what the user feels — it is mapped through these changes,
+     * and under the deletion reading it stops following the character it was
+     * on and slides back a column.
+     */
+    /**
+     * Uniqueness is required where the alignment CHOOSES an occurrence, and
+     * nowhere else. At a region's leading and trailing edges the pairing is
+     * forced by position: a line is matched against the line at its own
+     * offset, so a repeat cannot send it to the wrong partner, and the match
+     * claims only that nothing moved there. Demanding uniqueness at the edges
+     * too would drop lines the narrowing has every right to exclude -- among
+     * them the blank gap lines that separate almost every pair of blocks.
+     *
+     * This pins the OUTCOME, not that one mechanism produced it. Measured:
+     * with edge matching restricted to unique lines the change set is
+     * unaltered, because character trimming lands on the same boundary from
+     * the other direction. Two independent routes to the same guarantee --
+     * which is why the spec having described this rule wrongly until now cost
+     * nothing observable.
+     */
+    it('excludes a repeated line at the edge, though nothing there is unique', () => {
+      const lines = ['dup', 'dup', 'p', 'q', ''];
+      const changes = editsToChanges(lines, [
+        { fromLine: 0, toLine: 4, insert: ['dup', 'dup', 'q', 'p'] },
+      ]);
+      // The two identical leading lines are matched by position and excluded,
+      // though neither is unique on either side.
+      expect(changes.every((change) => change.from.line >= 2)).toBe(true);
+      expect(applyChanges(lines.join('\n'), changes)).toBe('dup\ndup\nq\np\n');
+    });
+
+    it('an indent stays minimal when the lines it touches repeat DOWN a chain', () => {
+      const text = '- x\n- a\n  - a\n    - a\n';
+      const doc = parse(text);
+      const node = [...walkNodes(doc)].find((n) => n.lines[0] === '- a')!;
+      const result = indent(doc, node.id);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const changes = editsToChanges(text.split('\n'), result.value.edits);
+      // Every change stays on the line it belongs to: no line is deleted and
+      // re-inserted elsewhere, whatever the clamp does to their widths.
+      expect(changes.map((c) => [c.from.line, c.to.line])).toEqual([
+        [1, 1],
+        [2, 2],
+        [3, 3],
+      ]);
+      // The caret keeps the character it was on, as it does when the same
+      // chain is spelled with distinct text.
+      expect(planKey(text, { line: 1, ch: 3 }, 'indent')).toMatchObject({
+        plan: { selection: 9 },
+      });
+      expect(planKey('- x\n- a\n  - b\n    - c\n', { line: 1, ch: 3 }, 'indent')).toMatchObject({
+        plan: { selection: 9 },
+      });
+    });
+
+    /**
+     * Narrowing a change set must not be able to throw. Alignment decides
+     * uniqueness per segment, so a segment can always subdivide again, and the
+     * subdivision used to be a recursive call — bounded only by the line count.
+     * A whole-document rewrite of repeated lines is the cheapest way to ask for
+     * a lot of subdividing at once.
+     */
+    it('narrows a large, heavily repeated document without exhausting anything', () => {
+      const before = Array.from({ length: 40_000 }, (_, i) => `- item ${i % 3}`);
+      const after = [...before].reverse();
+      const changes = editsToChanges(before, [
+        { fromLine: 0, toLine: before.length, insert: after },
+      ]);
+      expect(applyChanges(before.join('\n'), changes)).toBe(after.join('\n'));
+    });
+
+    /**
+     * The other end of that same worry, and the one repetition does NOT cover:
+     * repeated lines yield no anchors at all, so they subdivide once and stop.
+     * Work grows with how much the alignment SUCCEEDS — every anchor splits a
+     * segment, and each resulting gap is re-scanned for anchors of its own,
+     * so a document that keeps revealing new ones is what makes the subdivision
+     * do the most work per line.
+     *
+     * These three ask for that in the ways available: wholesale reversal of
+     * distinct lines (one anchor per pass, maximally lopsided gaps), pairwise
+     * transposition (an anchor between every pair, maximal gap COUNT), and a
+     * mix that leaves ambiguous lines behind in every gap. Measured work per
+     * line stays flat as the document grows rather than rising with it — an
+     * anchor at the edge of a segment leaves the gap beside it empty, and a
+     * gap that loses no line to its neighbour cannot make an ambiguous line
+     * unique, so single-anchor passes cannot chain. The wall-clock bound is
+     * deliberately loose: it is here to catch a change of ORDER, not to police
+     * milliseconds on a shared CI box.
+     */
+    it.each([
+      {
+        shape: 'reversed',
+        rewrite: (lines: string[]) => [...lines].reverse(),
+      },
+      {
+        shape: 'pairwise transpositions',
+        rewrite: (lines: string[]) => {
+          const out = [...lines];
+          for (let i = 0; i + 1 < out.length; i += 2) [out[i], out[i + 1]] = [out[i + 1]!, out[i]!];
+          return out;
+        },
+      },
+      {
+        shape: 'unique lines interleaved with ambiguous ones',
+        rewrite: (lines: string[]) =>
+          [...lines.map((l, i) => (i % 2 === 0 ? l : `- dup ${i % 7}`))].reverse(),
+      },
+    ])('narrows a large document that keeps finding anchors: $shape', ({ rewrite }) => {
+      const before = Array.from({ length: 40_000 }, (_, i) => `- item ${i}`);
+      const after = rewrite(before);
+      const started = performance.now();
+      const changes = editsToChanges(before, [
+        { fromLine: 0, toLine: before.length, insert: after },
+      ]);
+      const narrowing = performance.now() - started;
+      expect(applyChanges(before.join('\n'), changes)).toBe(after.join('\n'));
+      expect(narrowing).toBeLessThan(2_000);
+    });
+
+    /**
+     * The invariant the shifted chain broke, stated the way a user would: what
+     * the caret does when you indent must not depend on what the lines SAY.
+     *
+     * Two documents with the same structure and the same line lengths, one
+     * whose contents repeat and one whose contents are all distinct, are the
+     * same outline as far as any structural operation is concerned. So indent
+     * must land the caret at the same offset in both, and must describe the
+     * edit with the same per-line shape in both. How WIDE each change is may
+     * differ — the clamp widens a change when repetition makes a rewrite
+     * indistinguishable from a move, and that degradation is documented — but
+     * which lines it touches may not, because that is the difference between
+     * editing three lines in place and deleting one line to insert another.
+     *
+     * Stated as a property rather than as the one chain that was reported,
+     * because the coincidence has a whole family: any shift where a line's new
+     * text is some other line's old text will do, at any depth and any width.
+     */
+    it('what indent does to the caret does not depend on what the lines say', () => {
+      const render = (depths: readonly number[], content: (i: number) => string) =>
+        depths.map((d, i) => `${'  '.repeat(d)}- ${content(i)}`).join('\n') + '\n';
+
+      const shapes = fc
+        .array(fc.integer({ min: 0, max: 3 }), { minLength: 2, maxLength: 7 })
+        .map((raw) => {
+          // Legalise: a node may go one level deeper than its predecessor.
+          const depths: number[] = [];
+          for (const d of raw) depths.push(Math.min(d, (depths.at(-1) ?? -1) + 1));
+          return depths;
+        });
+
+      fc.assert(
+        fc.property(shapes, fc.array(fc.constantFrom('a', 'b'), { minLength: 7 }), (depths, pick) => {
+          // Same shape, same line lengths, different amounts of repetition.
+          const repeated = render(depths, (i) => pick[i % pick.length]!);
+          const distinct = render(depths, (i) => String.fromCharCode(97 + i));
+
+          const spansOf = (text: string, id: number) => {
+            const doc = parse(text);
+            const node = [...walkNodes(doc)][id];
+            if (!node) return null;
+            const result = indent(doc, node.id);
+            if (!result.ok) return null;
+            return editsToChanges(text.split('\n'), result.value.edits).map((c) => [
+              c.from.line,
+              c.to.line,
+            ]);
+          };
+
+          for (let id = 0; id < depths.length; id++) {
+            expect(spansOf(repeated, id)).toEqual(spansOf(distinct, id));
+          }
+          const caretAfterIndent = (text: string, line: number, ch: number) => {
+            const planned = planKey(text, { line, ch }, 'indent');
+            return planned && 'plan' in planned ? planned.plan.selection : null;
+          };
+          for (let line = 0; line < depths.length; line++) {
+            const ch = 2 * depths[line]! + 3; // just after the content character
+            expect(caretAfterIndent(repeated, line, ch)).toBe(caretAfterIndent(distinct, line, ch));
+          }
+        }),
+        { numRuns: 400 },
+      );
+    });
+
+    /**
+     * The converse guarantee, stated as a property because the failure needs a
+     * coincidence and coincidences are what a list of cases forgets.
+     *
+     * Whether two lines were swapped or rewritten is read off the text on each
+     * side of the edit, so a document whose lines REPEAT can make an ordinary
+     * in-place edit look like a swap and be coarsened for no reason. Losing an
+     * anchor is allowed to cost a MOVE its minimality — that is the documented
+     * price of anchoring on unique lines — but an indent relocates nothing, so
+     * every change it emits must still be trimmed to the characters that
+     * actually differ. A change whose removed and inserted text share a prefix
+     * or a suffix is the coarsening misfiring: that is exactly what turned a
+     * two-character insertion into a whole-line replacement, and with it moved
+     * the caret to the end of the line.
+     */
+    it('an indent stays trimmed to what differs, however much the lines repeat', () => {
+      const offsetIn = (ls: readonly string[], pos: { line: number; ch: number }) => {
+        let acc = 0;
+        for (let i = 0; i < pos.line; i++) acc += ls[i]!.length + 1;
+        return acc + pos.ch;
+      };
+      const sharedPrefix = (a: string, b: string) => {
+        let i = 0;
+        while (i < a.length && i < b.length && a[i] === b[i]) i++;
+        return i;
+      };
+      const sharedSuffix = (a: string, b: string) => {
+        let i = 0;
+        while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++;
+        return i;
+      };
+      const marker = fc.constantFrom('- dup', 'dup..');
+      const row = fc.constantFrom('| a   | b   |', '| --- | --- |', '| 1   | 2   |');
+      // `  - dup` is what a `- dup` BECOMES when indented, so a document
+      // holding both makes the coincidence the bug needed: the new text of a
+      // line edited in place already exists elsewhere in the old document.
+      const kid = fc.constantFrom('  - a', '  - b', '  - dup');
+      const block = fc.tuple(
+        marker,
+        fc.array(row, { minLength: 0, maxLength: 2 }),
+        fc.array(kid, { minLength: 0, maxLength: 2 }),
+      );
+
+      fc.assert(
+        fc.property(fc.array(block, { minLength: 2, maxLength: 3 }), (blocks) => {
+          const text =
+            blocks.map(([head, rows, kids]) => [head, ...rows, ...kids].join('\n')).join('\n\n') +
+            '\n';
+          const lines = text.split('\n');
+          const doc = parse(text);
+
+          for (const op of [indent, outdent]) {
+            for (const node of walkNodes(doc)) {
+              const result = op(doc, node.id);
+              if (!result.ok) continue;
+              for (const change of editsToChanges(lines, result.value.edits)) {
+                const removed = text.slice(offsetIn(lines, change.from), offsetIn(lines, change.to));
+                // Reported as a triple so a failure names the pair it found.
+                expect([
+                  removed,
+                  change.text,
+                  sharedPrefix(removed, change.text),
+                  sharedSuffix(removed, change.text),
+                ]).toEqual([removed, change.text, 0, 0]);
+              }
+            }
+          }
+        }),
+        { numRuns: 3000 },
+      );
     });
   });
 });

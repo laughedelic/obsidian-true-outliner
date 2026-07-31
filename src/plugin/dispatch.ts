@@ -4,13 +4,27 @@
  * library's own applyEdits (`minimal-change-dispatch`).
  *
  * Each `Edit` (a whole line-range replacement) is narrowed to the smallest
- * set of character-level ranges that produce the same resulting document:
- * unchanged leading/trailing lines are dropped, and the remaining lines are
- * diffed either per-line (when the edit doesn't change how many lines there
- * are — indent, outdent) or as one trimmed character span (when it does —
- * merge, split, delete). See design.md D2 for why both branches are needed:
- * a whole-region trim alone is minimal enough for a merge but not for an
- * indent, which changes several lines' leading whitespace independently.
+ * set of character-level ranges that produce the same resulting document.
+ * The narrowing is a line-level ALIGNMENT first: lines the edit keeps —
+ * wherever they end up — are matched and excluded, leaving a set of changed
+ * runs. Each run is then diffed either per-line (when it has the same
+ * number of lines on both sides — indent, outdent) or as one trimmed
+ * character span (when it doesn't — merge, split, delete). See design.md D2
+ * for why both per-run branches are needed: a whole-region trim alone is
+ * minimal enough for a merge but not for an indent, which changes several
+ * lines' leading whitespace independently.
+ *
+ * The alignment is what makes a REORDER expressible. `diffLines` describes
+ * every operation as one contiguous line-range replacement, and a swap
+ * preserves line count, so without alignment a move takes the per-line
+ * branch and is narrowed into "every line in the region was edited in
+ * place" — including partial character edits INSIDE lines the move never
+ * touched. That is not merely unminimal, it is a false description of what
+ * happened, and Obsidian's live table widget corrupts its own document when
+ * it reconciles against it (a sibling moving past a table split the table's
+ * header from its body). Aligned, the same move becomes what it is: the
+ * moved lines deleted from one side and inserted on the other, with the
+ * passed-over block's characters in no change range at all.
  */
 
 import type { Edit } from '../result';
@@ -40,23 +54,158 @@ function commonSuffixLen(a: string, b: string, max: number): number {
   return i;
 }
 
-/** How many lines match at the start and end of `oldLines`/`newLines`, without overlap. */
-function trimCommonEnds(
-  oldLines: readonly string[],
-  newLines: readonly string[],
-): { leading: number; trailing: number } {
-  const maxLeading = Math.min(oldLines.length, newLines.length);
-  let leading = 0;
-  while (leading < maxLeading && oldLines[leading] === newLines[leading]) leading++;
-  const maxTrailing = maxLeading - leading;
-  let trailing = 0;
-  while (
-    trailing < maxTrailing &&
-    oldLines[oldLines.length - 1 - trailing] === newLines[newLines.length - 1 - trailing]
-  ) {
-    trailing++;
+/**
+ * A run of lines the edit actually changes: old lines
+ * [oldStart, oldEnd) become new lines [newStart, newEnd). Either side may
+ * be empty — a pure insertion or a pure deletion.
+ */
+interface ChangedRun {
+  oldStart: number;
+  oldEnd: number;
+  newStart: number;
+  newEnd: number;
+}
+
+/**
+ * Lines occurring EXACTLY ONCE on both sides, paired by content and reduced
+ * to the longest chain of pairs increasing on both sides — the anchoring
+ * rule from patience diff.
+ *
+ * Uniqueness is the whole point. Matching any equal line would anchor on
+ * blank lines and repeated markers, fragmenting a relocated block into
+ * spurious runs; matching only lines that are unambiguous on both sides
+ * keeps a moved block whole, and ambiguous lines simply fall into a changed
+ * run, where the character-level narrowing still trims them. Anchors need
+ * not be recovered exhaustively: missing one costs minimality, never
+ * correctness.
+ */
+function uniqueAnchors(a: readonly string[], b: readonly string[]): Array<[number, number]> {
+  const indexUnique = (lines: readonly string[]): Map<string, number> => {
+    const seen = new Map<string, number>();
+    lines.forEach((line, i) => seen.set(line, seen.has(line) ? -1 : i));
+    return seen;
+  };
+  const inA = indexUnique(a);
+  const inB = indexUnique(b);
+
+  const pairs: Array<[number, number]> = [];
+  for (const [line, i] of inA) {
+    if (i === -1) continue;
+    const j = inB.get(line);
+    if (j === undefined || j === -1) continue;
+    pairs.push([i, j]);
   }
-  return { leading, trailing };
+  pairs.sort((x, y) => x[0] - y[0]);
+
+  // Longest increasing subsequence on the second coordinate.
+  const tails: number[] = [];
+  const previous = new Array<number>(pairs.length).fill(-1);
+  for (let p = 0; p < pairs.length; p++) {
+    let lo = 0;
+    let hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pairs[tails[mid]!]![1] < pairs[p]![1]) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo > 0) previous[p] = tails[lo - 1]!;
+    tails[lo] = p;
+  }
+  const chain: Array<[number, number]> = [];
+  for (let p = tails.length > 0 ? tails[tails.length - 1]! : -1; p !== -1; p = previous[p]!) {
+    chain.push(pairs[p]!);
+  }
+  return chain.reverse();
+}
+
+/**
+ * Align `a` against `b` at the line level, appending the runs that differ
+ * to `out` in ascending order. Common leading and trailing lines are
+ * dropped, unique anchors split what remains, and each gap between anchors
+ * is aligned the same way — so a block that merely moved is matched at its
+ * new position and never appears in a run.
+ *
+ * Iterative rather than recursive. Uniqueness is decided per segment, so a
+ * line that was ambiguous in the whole region can become an anchor once the
+ * region is narrowed — which means the number of times this can subdivide is
+ * bounded by the line count, not by anything smaller, and a deep enough chain
+ * of such narrowings would exhaust the call stack. That would take a
+ * pathological document to reach and none was found, but "narrowing a change
+ * set must not be able to throw" is cheaper to guarantee than to argue: the
+ * segments live on an explicit stack instead. They are pushed in reverse so
+ * they pop in document order, which is what keeps `out` ascending.
+ */
+interface AlignSegment {
+  readonly a: readonly string[];
+  readonly b: readonly string[];
+  readonly aOffset: number;
+  readonly bOffset: number;
+}
+
+function alignLines(
+  a: readonly string[],
+  b: readonly string[],
+  aOffset: number,
+  bOffset: number,
+  out: ChangedRun[],
+): void {
+  const pending: AlignSegment[] = [{ a, b, aOffset, bOffset }];
+
+  while (pending.length > 0) {
+    const segment = pending.pop()!;
+    const { a: segA, b: segB } = segment;
+
+    const maxLeading = Math.min(segA.length, segB.length);
+    let leading = 0;
+    while (leading < maxLeading && segA[leading] === segB[leading]) leading++;
+    const maxTrailing = maxLeading - leading;
+    let trailing = 0;
+    while (
+      trailing < maxTrailing &&
+      segA[segA.length - 1 - trailing] === segB[segB.length - 1 - trailing]
+    ) {
+      trailing++;
+    }
+
+    const aMid = segA.slice(leading, segA.length - trailing);
+    const bMid = segB.slice(leading, segB.length - trailing);
+    if (aMid.length === 0 && bMid.length === 0) continue;
+
+    const aMidOffset = segment.aOffset + leading;
+    const bMidOffset = segment.bOffset + leading;
+    const anchors = aMid.length > 0 && bMid.length > 0 ? uniqueAnchors(aMid, bMid) : [];
+
+    if (anchors.length === 0) {
+      out.push({
+        oldStart: aMidOffset,
+        oldEnd: aMidOffset + aMid.length,
+        newStart: bMidOffset,
+        newEnd: bMidOffset + bMid.length,
+      });
+      continue;
+    }
+
+    const gaps: AlignSegment[] = [];
+    let ai = 0;
+    let bi = 0;
+    for (const [x, y] of anchors) {
+      gaps.push({
+        a: aMid.slice(ai, x),
+        b: bMid.slice(bi, y),
+        aOffset: aMidOffset + ai,
+        bOffset: bMidOffset + bi,
+      });
+      ai = x + 1;
+      bi = y + 1;
+    }
+    gaps.push({
+      a: aMid.slice(ai),
+      b: bMid.slice(bi),
+      aOffset: aMidOffset + ai,
+      bOffset: bMidOffset + bi,
+    });
+    for (let i = gaps.length - 1; i >= 0; i--) pending.push(gaps[i]!);
+  }
 }
 
 /** Walk `pos` forward by `n` characters through `lines`, crossing newlines as single characters. */
@@ -87,6 +236,46 @@ function retreat(lines: readonly string[], pos: EditorPos, n: number): EditorPos
 }
 
 /**
+ * The distinct lines on each side of one edit. Edit-wide, not run-wide: a
+ * relocated line and the line that took its place usually end up in DIFFERENT
+ * runs, separated by whatever the alignment did manage to anchor, so a run on
+ * its own cannot see that its lines went somewhere rather than being
+ * rewritten.
+ */
+interface EditSides {
+  readonly before: ReadonlySet<string>;
+  readonly after: ReadonlySet<string>;
+}
+
+/**
+ * Whether pairing these two lines describes a RELOCATION rather than an edit.
+ *
+ * The per-line branch trims a pair down to the characters that differ, which
+ * is only truthful when old line `i` and new line `i` are the same line, edited
+ * — the alignment above establishes that for every run it can anchor. When a
+ * region repeats its lines the alignment can run out of unique anchors, and a
+ * leftover run then pairs lines that merely swapped places. Character trimming
+ * on such a pair finds an accidental common prefix and suffix — table rows
+ * share `| ` and ` |`, so `| a   | b   |` against `| --- | --- |` narrows to a
+ * change starting partway INTO a row the operation actually left alone, which
+ * is exactly the description that makes the live table widget split its table.
+ *
+ * Evidence of a shuffle has to point BOTH ways: the old line reappears among
+ * the edit's new lines *and* the new line was already among its old ones. One
+ * direction alone is not evidence, only coincidence — indenting `- a` whose
+ * children are two identical `  - a` lines produces `  - a` as the parent's
+ * new text, so the old child matches the new parent and every line of an
+ * ordinary indent looks relocated. That cost the indent its minimal change
+ * set and, because `planCaret` maps the caret through it, moved the caret to
+ * the end of the line instead of keeping its column. Requiring both
+ * directions keeps the coincidence out while still catching a real swap,
+ * where each side genuinely holds the other's lines.
+ */
+function relocates(oldLine: string, newLine: string, sides: EditSides): boolean {
+  return sides.after.has(oldLine) && sides.before.has(newLine);
+}
+
+/**
  * Same line count on both sides (indent, outdent, and any op that changes
  * lines' content without changing how many there are): diff each line pair
  * independently so an unrelated middle line — or the unchanged part of a
@@ -96,14 +285,18 @@ function perLineChanges(
   startLine: number,
   oldMid: readonly string[],
   newMid: readonly string[],
+  sides: EditSides,
 ): EditorChange[] {
   const changes: EditorChange[] = [];
   for (let i = 0; i < oldMid.length; i++) {
     const oldLine = oldMid[i]!;
     const newLine = newMid[i]!;
     if (oldLine === newLine) continue;
-    const prefix = commonPrefixLen(oldLine, newLine);
-    const suffix = commonSuffixLen(oldLine, newLine, Math.min(oldLine.length, newLine.length) - prefix);
+    const moved = relocates(oldLine, newLine, sides);
+    const prefix = moved ? 0 : commonPrefixLen(oldLine, newLine);
+    const suffix = moved
+      ? 0
+      : commonSuffixLen(oldLine, newLine, Math.min(oldLine.length, newLine.length) - prefix);
     const line = startLine + i;
     changes.push({
       from: { line, ch: prefix },
@@ -201,19 +394,105 @@ function wholeRegionChange(
   fromLine: number,
   toLine: number,
   newMid: readonly string[],
+  sides: EditSides,
 ): EditorChange[] {
   const envelope = lineRangeEnvelope(lines, fromLine, toLine, newMid);
-  const prefix = commonPrefixLen(envelope.oldSpanText, envelope.text);
-  const suffix = commonSuffixLen(
+  let prefix = commonPrefixLen(envelope.oldSpanText, envelope.text);
+  let suffix = commonSuffixLen(
     envelope.oldSpanText,
     envelope.text,
     Math.min(envelope.oldSpanText.length, envelope.text.length) - prefix,
   );
-  const from = advance(lines, envelope.from, prefix);
-  const to = retreat(lines, envelope.to, suffix);
+
+  // The trim runs over the span's text as a whole, so it can stop in the
+  // middle of a line — which is right for a split or a join, where that line
+  // really is being edited, and wrong for a line that only relocated: two
+  // table rows share `| ` and ` |`, and trimming those would start the change
+  // partway into a row the operation left alone. Give those characters back.
+  let from = advance(lines, envelope.from, prefix);
+  const overshoot = lineStartOvershoot(lines, from, sides);
+  if (overshoot > 0) from = advance(lines, envelope.from, (prefix -= overshoot));
+
+  let to = retreat(lines, envelope.to, suffix);
+  const undershoot = lineEndUndershoot(lines, to, sides);
+  if (undershoot > 0) to = retreat(lines, envelope.to, (suffix -= undershoot));
+
   const text = envelope.text.slice(prefix, envelope.text.length - suffix);
   if (text === '' && from.line === to.line && from.ch === to.ch) return [];
   return [{ from, to, text }];
+}
+
+/** How far `pos` sits past the start of a relocated line — 0 if trimming to it was fine. */
+function lineStartOvershoot(lines: readonly string[], pos: EditorPos, sides: EditSides): number {
+  const line = lines[pos.line];
+  if (line === undefined || pos.ch === 0 || pos.ch === line.length) return 0;
+  return sides.after.has(line) ? pos.ch : 0;
+}
+
+/** How far `pos` sits short of the end of a relocated line — 0 if trimming to it was fine. */
+function lineEndUndershoot(lines: readonly string[], pos: EditorPos, sides: EditSides): number {
+  const line = lines[pos.line];
+  if (line === undefined || pos.ch === 0 || pos.ch === line.length) return 0;
+  return sides.after.has(line) ? line.length - pos.ch : 0;
+}
+
+/**
+ * Whether `a` is strictly after `b` in the document. Both are valid positions
+ * in the same line space, so this is lexicographic — deliberately NOT via
+ * `offsetOf`, which walks the document from line 0 and would make its caller
+ * quadratic in the document's length.
+ */
+function isAfter(a: EditorPos, b: EditorPos): boolean {
+  return a.line > b.line || (a.line === b.line && a.ch > b.ch);
+}
+
+/**
+ * Narrow one aligned run into character-level changes: per-line when the run
+ * has the same number of lines on both sides (indent, outdent, and the
+ * changed lines of any in-place rewrite), one trimmed character span when it
+ * does not (merge, split, an insertion, a deletion).
+ */
+function changesForRun(
+  lines: readonly string[],
+  insert: readonly string[],
+  run: ChangedRun,
+  sides: EditSides,
+): EditorChange[] {
+  const newMid = insert.slice(run.newStart, run.newEnd);
+  if (run.oldEnd - run.oldStart === run.newEnd - run.newStart) {
+    return perLineChanges(run.oldStart, lines.slice(run.oldStart, run.oldEnd), newMid, sides);
+  }
+  return wholeRegionChange(lines, run.oldStart, run.oldEnd, newMid, sides);
+}
+
+/** Do these two line lists hold the same lines, in any order? */
+function sameLines(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const counts = new Map<string, number>();
+  for (const line of a) counts.set(line, (counts.get(line) ?? 0) + 1);
+  for (const line of b) {
+    const n = counts.get(line);
+    if (n === undefined) return false;
+    if (n === 1) counts.delete(line);
+    else counts.set(line, n - 1);
+  }
+  return counts.size === 0;
+}
+
+/** How much of the document a change set claims: characters removed plus inserted. */
+function charsTouched(lines: readonly string[], changes: readonly EditorChange[]): number {
+  let total = 0;
+  for (const { from, to, text } of changes) {
+    total += text.length;
+    if (from.line === to.line) {
+      total += to.ch - from.ch;
+      continue;
+    }
+    total += (lines[from.line]?.length ?? 0) - from.ch + 1;
+    for (let i = from.line + 1; i < to.line; i++) total += (lines[i]?.length ?? 0) + 1;
+    total += to.ch;
+  }
+  return total;
 }
 
 /**
@@ -221,16 +500,121 @@ function wholeRegionChange(
  * changes that produce the same result (`minimal-change-dispatch`).
  */
 export function editToChanges(lines: readonly string[], edit: Edit): EditorChange[] {
-  const { fromLine, toLine, insert } = edit;
-  const oldRegion = lines.slice(fromLine, toLine);
-  const { leading, trailing } = trimCommonEnds(oldRegion, insert);
-  const oldMid = oldRegion.slice(leading, oldRegion.length - trailing);
-  const newMid = insert.slice(leading, insert.length - trailing);
-  if (oldMid.length === 0 && newMid.length === 0) return [];
+  const runs: ChangedRun[] = [];
+  alignLines(lines.slice(edit.fromLine, edit.toLine), edit.insert, edit.fromLine, 0, runs);
 
-  const midFromLine = fromLine + leading;
-  if (oldMid.length === newMid.length) return perLineChanges(midFromLine, oldMid, newMid);
-  return wholeRegionChange(lines, midFromLine, toLine - trailing, newMid);
+  // Which lines exist on each side of this edit, so the narrowing below can
+  // tell a line that was rewritten from one that only moved.
+  const sides: EditSides = {
+    before: new Set(lines.slice(edit.fromLine, edit.toLine)),
+    after: new Set(edit.insert),
+  };
+
+  // Runs are ascending and disjoint in LINE space, but two of them can still
+  // narrow to the same character POSITION, because `lineRangeEnvelope` has to
+  // anchor a run with no line to sit on somewhere real: an insertion past the
+  // last line becomes an insertion AT the end of the document, and a deletion
+  // through the end borrows the newline BEFORE it. Either can coincide with
+  // the run in front of it — reachable whenever an alignment anchors on the
+  // empty last line of a document that ends in a newline, e.g.
+  // `["para", ""]` → `["para", "- a", "", "- b"]`, which narrowed to two
+  // insertions both at {line 1, ch 0}.
+  //
+  // Applied in emission order that is still the right document (CodeMirror
+  // keeps equal-`from` specs in the order given), but it breaks the ordering
+  // this capability requires, and every position-based consumer with it:
+  // `mapCursorForward` below stops at the first of the two, and a change set
+  // re-sorted by position produces different text.
+  //
+  // Merging the two runs restores the invariant and stays correct by
+  // construction: what separates consecutive runs is matched lines, identical
+  // and equally many on both sides, so a merged run spans the same text.
+  for (let i = 1; i < runs.length; ) {
+    const before = changesForRun(lines, edit.insert, runs[i - 1]!, sides).at(-1);
+    const after = changesForRun(lines, edit.insert, runs[i]!, sides)[0];
+    if (before && after && !isAfter(after.from, before.to)) {
+      runs.splice(i - 1, 2, {
+        oldStart: runs[i - 1]!.oldStart,
+        oldEnd: runs[i]!.oldEnd,
+        newStart: runs[i - 1]!.newStart,
+        newEnd: runs[i]!.newEnd,
+      });
+      if (i > 1) i -= 1; // the merged run may now collide with the one before it
+    } else {
+      i += 1;
+    }
+  }
+
+  // An anchor is a claim that a line SURVIVED — and text identity is only
+  // evidence for that claim, never proof, the same lesson `relocates` learned
+  // one level down. An indent walks a repeated subtree down one level:
+  // `['- a', '  - a', '    - a']` becomes `['  - a', '    - a', '      - a']`,
+  // where `  - a` and `    - a` are each unique on BOTH sides, so anchoring
+  // pairs them across the shift and reads an in-place indent as "the first
+  // line vanished and a deeper one appeared" — carrying the caret off the
+  // character it was on. `relocates` cannot save this: anchored lines never
+  // reach a run, so nothing downstream ever sees them.
+  //
+  // So ask the alignment for evidence, the way `relocates` asks a line for it.
+  // A relocation PUTS BACK WHAT IT TAKES: the lines it removes from one place
+  // are the lines it inserts in another, every one of them, because moving a
+  // block is the one edit that changes no line at all. An indent puts nothing
+  // back — `- a` is gone and `      - a` is new — so a reading that describes
+  // it as a removal and an insertion is describing a move that never happened.
+  //
+  // All of them, not one of them: a single line in common is the same
+  // coincidence in new clothes. Indenting `- b` over `  - b` / `  - a` /
+  // `  - a` / `    - a` shifts a subtree whose deepest line reappears at the
+  // depth above it, so one line does turn up on both sides of the reading
+  // while the other three are plainly rewritten. Requiring the whole set to
+  // balance is what separates that from a block that genuinely went somewhere.
+  //
+  // It is the TEXT that decides, not the operation: no dispatch site learns
+  // what it is dispatching, and the guarantee covers every op that relocates
+  // lines, including ones not written yet.
+  const removed: string[] = [];
+  const inserted: string[] = [];
+  for (const run of runs) {
+    for (let i = run.oldStart; i < run.oldEnd; i++) removed.push(lines[i]!);
+    for (let i = run.newStart; i < run.newEnd; i++) inserted.push(edit.insert[i]!);
+  }
+  if (removed.length > 0 && sameLines(removed, inserted)) {
+    return runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
+  }
+
+  // Nothing moved, so the alignment is one reading of an in-place edit among
+  // others and has to earn being chosen. Judge it the way we judge any
+  // description here: by how much of the document it has to claim. Characters
+  // outside every change range are what a live widget keeps, what a caret maps
+  // through unmoved, and what undo replays as one gesture, so a reading that
+  // claims more buys nothing for it.
+  //
+  // Measured WITHOUT the relocation clamp, on purpose. The clamp widens a
+  // change to whole lines when it cannot tell a rewrite from a move; that is a
+  // decision about how conservatively to emit a reading, not evidence about
+  // which reading is true, and letting it vote here inverts the answer — in
+  // the indent above it widens the in-place reading from 6 characters to 16
+  // and hands the comparison to the very alignment it was meant to guard
+  // against. So: the text picks the reading, the clamp then emits it.
+  const asExplanation = { before: new Set<string>(), after: new Set<string>() };
+  const wholeRun = {
+    oldStart: edit.fromLine,
+    oldEnd: edit.toLine,
+    newStart: 0,
+    newEnd: edit.insert.length,
+  };
+  const explains = (candidate: readonly ChangedRun[]): number =>
+    charsTouched(
+      lines,
+      candidate.flatMap((run) => changesForRun(lines, edit.insert, run, asExplanation)),
+    );
+
+  // A tie goes to the in-place reading. The alignment is only worth adopting
+  // for what it saves, and on equal characters it saves nothing while claiming
+  // a different shape for the same edit.
+  return explains([wholeRun]) <= explains(runs)
+    ? changesForRun(lines, edit.insert, wholeRun, sides)
+    : runs.flatMap((run) => changesForRun(lines, edit.insert, run, sides));
 }
 
 export function editsToChanges(lines: readonly string[], edits: readonly Edit[]): EditorChange[] {
@@ -247,8 +631,10 @@ function offsetOf(lines: readonly string[], pos: EditorPos): number {
  * Map `oldPos` (a position in the pre-op buffer `lines`) forward through
  * `changes` (as produced by `editsToChanges` — ascending, non-overlapping)
  * to its corresponding flat character offset in the resulting text, using
- * assoc=1: a position sitting exactly at a change's boundary lands AFTER
- * that change's inserted text, never before it.
+ * assoc=1: a position sitting exactly at a change's boundary lands AFTER that
+ * change's inserted text, never before it — with one exception CM6 itself
+ * makes, at the START of a REPLACEMENT, where the position stays put. See the
+ * boundary case below.
  *
  * This is not an arbitrary choice — it is the ONLY assoc that keeps a live
  * dispatch and a later redo of the same transaction in agreement.
@@ -277,6 +663,14 @@ export function mapCursorForward(
     const from = offsetOf(lines, change.from);
     const to = offsetOf(lines, change.to);
     if (target < from) break;
+    // At the START of a REPLACEMENT, CM6 leaves the position where it is; only
+    // an insertion (`from === to`) carries it past the inserted text. Measured
+    // against `ChangeDesc.mapPos(pos, 1)` — replacing [3,6) with "XY" maps 3 to
+    // 3, while inserting "XY" at 3 maps 3 to 5. Treating both alike put the
+    // caret after the replacement instead, which the line alignment made
+    // reachable: a run can now begin exactly on the caret's own line start,
+    // where the single trimmed region it replaced never did.
+    if (target === from && from < to) return target + delta;
     if (target <= to) return from + delta + change.text.length;
     delta += change.text.length - (to - from);
   }

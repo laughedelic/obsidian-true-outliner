@@ -199,6 +199,14 @@ describe('keyboard grammar', function () {
     const after = await h.getBuffer();
     expect(after.startsWith('|')).toBe(true); // table is now the first node
     expect(after.trimEnd().endsWith('para')).toBe(true);
+    // ...and it is still a TABLE. Where it landed is this spec's concern; that
+    // its rows survived the trip is `minimal-change-dispatch`'s. This is the
+    // liveliest the table widget ever gets — a mounted per-cell EditorView —
+    // while a structural transaction rewrites the very lines it owns, so the
+    // integrity claim belongs on this test rather than a near-duplicate of it.
+    const lines = after.split('\n');
+    const rows = lines.slice(0, lines.findIndex((l) => !l.startsWith('|')));
+    expect(rows.length).toBe(3); // header, separator, body — contiguous
   });
 
   it('the move-node default hotkey moves nodes with their children; ordered runs renumber', async function () {
@@ -211,6 +219,45 @@ describe('keyboard grammar', function () {
     await grammarNote('1. one\n2. two\n3. three\n', 1, 3);
     await h.keys.moveNodeUp();
     expect(await h.getBuffer()).toBe('1. two\n2. one\n3. three\n');
+  });
+
+  it('the move hotkey moves a paragraph past a live table without splitting its rows', async function () {
+    const table = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
+    await grammarNote(`Mover.\n\n${table}\n`, 0, 3);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
+
+    await h.keys.moveNodeDown();
+    await browser.pause(150); // allow any live-table write-back to settle
+
+    expect(await h.getBuffer()).toBe(`${table}\n\nMover.\n`);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(`Mover.\n\n${table}\n`);
+  });
+
+  /**
+   * The other way round. Line alignment anchors whichever block it can chain
+   * the longest, so a mover with MORE lines than the table wins and the table
+   * becomes the block the change set describes as having moved. Nothing about
+   * the gesture changed, and the guarantee cannot be "the table is never in a
+   * change range" -- a change set does not know which sibling the user pointed
+   * at. What it can promise is that neither block is rewritten in place, and
+   * this is that promise measured against the live widget from the side the
+   * shorter fixtures never exercise. (Before the alignment landed, this
+   * document corrupted too: measured, the PARAGRAPH came back as `L1`, a blank
+   * line, then `L2 L3 L4` -- split into two nodes.)
+   */
+  it('a mover longer than the table survives, though the table is what moves in the change set', async function () {
+    const table = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
+    const mover = 'L1\nL2\nL3\nL4';
+    await grammarNote(`${mover}\n\n${table}\n`, 0, 1);
+    await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
+
+    await h.keys.moveNodeDown();
+    await browser.pause(150); // allow any live-table write-back to settle
+
+    expect(await h.getBuffer()).toBe(`${table}\n\n${mover}\n`);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(`${mover}\n\n${table}\n`);
   });
 
   it('Enter mid-item splits into two items (childless)', async function () {
