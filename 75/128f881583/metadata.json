@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "75128f881583",
+  "strategy": "manual-commit",
+  "branch": "docs/update-selection-as-subtree-set",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/05-org-mode-comparison.md",
+    "docs/research/13-selection-follow-ups.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/75/128f881583/0/metadata.json",
+      "transcript": "/75/128f881583/0/full.jsonl",
+      "compact_transcript": "/75/128f881583/0/transcript.jsonl",
+      "content_hash": "/75/128f881583/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 15,
+    "cache_creation_tokens": 8320,
+    "cache_read_tokens": 2622586,
+    "output_tokens": 5598,
+    "api_call_count": 8
+  }
+}
