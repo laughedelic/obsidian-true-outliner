@@ -36,6 +36,14 @@ This is what keeps two commands as separate undo steps — `Editor.transaction` 
 unless a selection-only transaction intervenes. It re-asserts a position the caret already
 holds, so no observer ever sees a cursor that belongs to a document it has not been shown.
 
+*(Amendment 2026-07-31, `aligned-change-set-narrowing`: this requirement previously
+mandated the OPPOSITE — that the change and the cursor be applied separately, the selection
+transaction being the only place the cursor was set. Narrowing a move to a deletion plus an
+insertion stopped rewriting the table it passes, so Obsidian's table widget now SURVIVES the
+transaction, and the window between the two transactions became observable. Measured with a
+`cm.dispatch` trace: `editTableCell` fires from the selection-only transaction and focuses a
+nested cell editor, which reports its focus back as the host selection.)*
+
 That re-asserting cursor transaction does record the cursor into history unconditionally,
 which makes `caret-placement-policy`'s recording test moot for this path. For indent and
 outdent this is unobservable: the value recorded is the mapped cursor, which is exactly

@@ -1,17 +1,25 @@
 ## MODIFIED Requirements
 
 ### Requirement: An operation that chooses its own cursor has it recorded in history
-A structural operation whose resulting cursor is a CHOICE rather than a function of the
-pre-operation caret — a merge's join point, a split point, a moved node's new location,
-the survivor after a deletion — SHALL make that cursor known to the editor's undo
-history, by re-asserting it in a following selection-only transaction. Recording SHALL
-happen before any subsequent user input can be processed, so an undo issued immediately
-after the operation still finds it recorded.
+A structural DISPATCH whose cursor is not the position mapping would produce SHALL make
+that cursor known to the editor's undo history, by re-asserting it in a following
+selection-only transaction. Recording SHALL happen before any subsequent user input can be
+processed, so an undo issued immediately after the operation still finds it recorded.
 
-Indent and outdent SHALL NOT be recorded. Their cursor is derived by mapping the
-pre-operation caret forward (`minimal-change-dispatch`), which is what the history
-recomputes on redo, so the two already agree at any depth; recording them would only
-subject them to the limitation below.
+The decision SHALL be derived from the transaction itself — comparing the dispatched
+selection against the pre-operation selection mapped forward through the change set, at
+the same association CodeMirror's own redo restore uses — and SHALL NOT be read from a
+list of operation names. A per-operation list is insufficient in a measurable way: one
+operation can dispatch a derived cursor most of the time and a chosen one when its
+addressability fallback fires, and a list leaves the second case unrecorded.
+
+The derived rule SHALL preserve the previous set's BEHAVIOUR rather than its membership.
+Every dispatch mapping cannot reproduce is recorded, so redo stays exact wherever the list
+made it exact. It may record fewer transactions: a merge join point, a moved node's new
+location and the seam after a deletion are not what mapping produces and are recorded as
+before, but a split point CAN coincide with the mapped position (a mid-item split inserts
+its marker at the caret, which assoc=1 maps onto the new item's content start), and such a
+dispatch is correctly left unrecorded — redo already reproduces it.
 
 Recording is required because no rule applied AFTER the fact can recover the position, and
 because whether mapping happens to recover it is not a property the operation controls. A
@@ -43,5 +51,12 @@ gesture, and the change set is derived from the text.
   the sibling that took its former place
 
 #### Scenario: Indent is not recorded and stays correct anyway
-- **WHEN** Tab indents a node and the user undoes and redoes any number of times
-- **THEN** the cursor is correct at every depth, from mapping alone
+- **WHEN** Tab indents a node with a plain caret, so the dispatch uses the mapped position,
+  and the user undoes and redoes any number of times
+- **THEN** the cursor is correct at every depth, from mapping alone, and nothing was
+  recorded
+
+#### Scenario: The same operation records only when it chooses
+- **WHEN** indent is invoked twice — once with a plain caret, once with a whole-block
+  cover whose mapped position would not be addressable
+- **THEN** the first dispatch is not recorded and the second is, from the same operation
