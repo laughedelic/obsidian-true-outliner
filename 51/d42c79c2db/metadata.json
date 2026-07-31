@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "51d42c79c2db",
+  "strategy": "manual-commit",
+  "branch": "docs/update-selection-as-subtree-set",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/plugin/decorations.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/51/d42c79c2db/0/metadata.json",
+      "transcript": "/51/d42c79c2db/0/full.jsonl",
+      "compact_transcript": "/51/d42c79c2db/0/transcript.jsonl",
+      "content_hash": "/51/d42c79c2db/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 43,
+    "cache_creation_tokens": 26915,
+    "cache_read_tokens": 6515771,
+    "output_tokens": 14196,
+    "api_call_count": 23
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "51d42c79c2db",
+  "session_id": "9802894c-2a81-4f6e-b031-179a9a6ca2d0",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-31T02:25:19.851698Z",
+  "branch": "docs/update-selection-as-subtree-set",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/plugin/decorations.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "f48119da88ed",
+  "checkpoint_transcript_start": 527,
+  "transcript_lines_at_start": 527,
+  "compact_transcript_start": 152,
+  "token_usage": {
+    "input_tokens": 43,
+    "cache_creation_tokens": 26915,
+    "cache_read_tokens": 6515771,
+    "output_tokens": 14196,
+    "api_call_count": 23
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-openspec-update-change-2026-07-31T01:30:58.873871Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "openspec-update-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "817d42c02031",
+      "timestamp": "2026-07-31T01:30:58.873871Z",
+      "native": {
+        "command": "/openspec-update-change"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/openspec-update-change",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01H3mDGg7aESFa3CF2LJVv5t",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "f48119da88ed",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 243,
+        "end": 244,
+        "entry_ids": [
+          "6679e0d4-ff75-4319-b0d2-1bb3f7f27a04"
+        ],
+        "tool_use_id": "toolu_01H3mDGg7aESFa3CF2LJVv5t"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01H3mDGg7aESFa3CF2LJVv5t"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-apply-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-31T02:25:19.777523Z",
+    "agent_lines": 41,
+    "agent_removed": 22,
+    "human_added": 167,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 208,
+    "total_lines_changed": 249,
+    "agent_percentage": 25.301204819277107,
+    "metric_version": 2
+  }
+}
