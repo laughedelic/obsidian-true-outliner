@@ -118,8 +118,15 @@
 ## 7. Real-vault manual pass
 
 - [ ] 7.1 Drag and keyboard selections across scope boundaries on real notes
-- [ ] 7.2 Judge mixed-depth chrome — design D4's open question; if it reads badly, decide
-      whether chrome or geometry moves
+- [x] 7.2 Judge mixed-depth chrome — design D4's open question. ANSWERED, with a measured
+      before/after. In a pure-LIST document the question is moot: every list item's own shift is
+      `0px` (list guides are deferred to Obsidian's native rendering), so all roots anchor
+      identically and the cover is one clean rectangle. The difference only appears where roots
+      have additive columns — headings and atoms. There, the pre-fix behavior left a covered
+      root's own heading text OUTSIDE its own highlight, because every line took the cover's
+      START line's column and the start line is the DEEPEST root. Per-root anchoring renders a
+      stepped rectangle, one step per root, each root's own line inside its own step. It reads
+      as the set of subtrees it is. Geometry does not move
 - [ ] 7.3 Copy a mixed-depth selection into several destination depths and check the results
       against what Logseq produces for the same shapes
 - [ ] 7.4 Record findings in `docs/research/04` as a numbered entry, continuing the Q-series
