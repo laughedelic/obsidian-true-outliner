@@ -199,12 +199,25 @@ function subtreeSuccessorPath(doc: OutlineDoc, path: NodePath): NodePath | undef
   return undefined;
 }
 
+/** One covered root, with everything its consumers would otherwise recompute
+ * per root by re-walking the document: its `path` (so grouping by parent
+ * needs no `findPath`) and its own subtree `cover` (so chrome needs no
+ * `nodeStartLine`/`subtreeCoverOf`). Both are free here — the forest walk
+ * already holds the path it arrived by and a start-line index — and both
+ * were Θ(n²) when each consumer derived them itself, which matters most for
+ * exactly the case this geometry exists to support: a cover with many roots. */
+export interface ForestRoot {
+  readonly node: OutlineNode;
+  readonly path: NodePath;
+  readonly cover: Cover;
+}
+
 /** A forest of whole subtrees and the single contiguous span covering it.
  * `roots` are in document order and may sit at DIFFERENT DEPTHS; grouped by
  * parent they form one contiguous sibling run per parent, which is what
  * `enforce.ts` hands to `deleteSubtreeGroups`. */
 export interface ForestCover {
-  readonly roots: readonly OutlineNode[];
+  readonly roots: readonly ForestRoot[];
   readonly cover: Cover;
 }
 
@@ -262,8 +275,12 @@ export function forestCoverOf(
 
   // One end's node is an ancestor of the other's: the ancestor's whole
   // subtree is the cover, and it is the only root.
-  if (isPrefix(anchorPath, headPath)) return singleRootCover(anchorNode, startOf(anchorNode));
-  if (isPrefix(headPath, anchorPath)) return singleRootCover(headNode, startOf(headNode));
+  if (isPrefix(anchorPath, headPath)) {
+    return singleRootCover(anchorNode, anchorPath, startOf(anchorNode));
+  }
+  if (isPrefix(headPath, anchorPath)) {
+    return singleRootCover(headNode, headPath, startOf(headNode));
+  }
 
   const forward = startOf(anchorNode) <= startOf(headNode);
   const firstNode = forward ? anchorNode : headNode;
@@ -291,11 +308,16 @@ export function forestCoverOf(
   // is always reached — were it inside some earlier emitted subtree, that
   // subtree's root would be a SHALLOWER ancestor of `lastNode` starting at
   // or after `spanStart`, contradicting `lastRoot`'s outermost-ness.
-  const roots: OutlineNode[] = [];
+  const roots: ForestRoot[] = [];
   let path: NodePath | undefined = firstPath;
   while (path) {
     const node = nodeAt(doc, path)!;
-    roots.push(node);
+    const start = startOf(node);
+    roots.push({
+      node,
+      path,
+      cover: { start: { line: start, ch: 0 }, end: subtreeCoverEnd(node, start) },
+    });
     if (node === lastRoot) break;
     path = subtreeSuccessorPath(doc, path);
   }
@@ -309,11 +331,12 @@ export function forestCoverOf(
   };
 }
 
-function singleRootCover(node: OutlineNode, startLine: number): ForestCover {
-  return {
-    roots: [node],
-    cover: { start: { line: startLine, ch: 0 }, end: subtreeCoverEnd(node, startLine) },
+function singleRootCover(node: OutlineNode, path: NodePath, startLine: number): ForestCover {
+  const cover: Cover = {
+    start: { line: startLine, ch: 0 },
+    end: subtreeCoverEnd(node, startLine),
   };
+  return { roots: [{ node, path, cover }], cover };
 }
 
 /**
@@ -430,7 +453,7 @@ export function escalateRanges(doc: OutlineDoc, ranges: readonly LineRange[]): L
  * then Shift+End on a single-line paragraph) is indistinguishable from an
  * escalated one, and is meant to be: the same thing is selected either way.
  */
-export function coveredSubtreeRoots(doc: OutlineDoc, range: LineRange): readonly OutlineNode[] | null {
+export function coveredForestOf(doc: OutlineDoc, range: LineRange): ForestCover | null {
   if (isEmpty(range)) return null;
 
   const lo = isBackward(range) ? range.head : range.anchor;
@@ -439,10 +462,20 @@ export function coveredSubtreeRoots(doc: OutlineDoc, range: LineRange): readonly
   const headNode = nodeAtLine(doc, hi.line);
   if (!anchorNode || !headNode) return null; // preamble jurisdiction
 
-  const { roots, cover } =
+  const forest =
     anchorNode === headNode
-      ? { roots: [anchorNode] as readonly OutlineNode[], cover: subtreeCoverOf(doc, anchorNode) }
+      ? singleRootCover(anchorNode, findPath(doc, anchorNode.id)!, startLineOf(doc, anchorNode))
       : forestCoverOf(doc, anchorNode, headNode);
 
-  return posEqual(lo, cover.start) && !posBefore(hi, cover.end) ? roots : null;
+  return posEqual(lo, forest.cover.start) && !posBefore(hi, forest.cover.end) ? forest : null;
+}
+
+/**
+ * `coveredForestOf` projected to just the root NODES — the shape three of
+ * the four consumers want. Kept as its own export because it is the name the
+ * decoration, classification and deletion call sites already read as "is
+ * this range a cover, and of what".
+ */
+export function coveredSubtreeRoots(doc: OutlineDoc, range: LineRange): readonly OutlineNode[] | null {
+  return coveredForestOf(doc, range)?.roots.map((r) => r.node) ?? null;
 }

@@ -320,24 +320,34 @@ describe('node-selection-enforcement: Phase B', function () {
     expect(await h.getBuffer()).toBe('- P\n  - c1');
   });
 
-  it('copying a mixed-depth selection pastes its roots as siblings at the destination depth', async function () {
+  it('copying a mixed-depth selection yields a faithful slice of the document', async function () {
     if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n\n- DEST\n  - d1\n';
     await outlineNote(md);
-    // The clipboard slice of a mixed-depth cover is over-indented at its
-    // head; pasting must normalize its roots to the destination's depth
-    // without flattening each root's own internals.
+
+    // A REAL copy of a real mixed-depth selection — c2 (depth 1) plus all of
+    // S (depth 0). What the SELECTION yields is this change's own
+    // responsibility, so it is asserted exactly.
+    await h.mouseDragSelect({ line: 2, ch: 5 }, { line: 4, ch: 5 });
+    await h.keys.copy();
+    const copied = await browser.execute(async () => navigator.clipboard.readText());
+    // Over-indented at its head, because that is what those lines look like
+    // in the document — the isomorphism guarantee, not a defect.
+    expect(copied).toBe('  - c2\n- S\n  - t1\n  - t2\n');
+  });
+
+  it('pasting a mixed-depth payload normalizes its roots to the destination depth', async function () {
+    const md = '- DEST\n  - d1\n';
+    await outlineNote(md);
+    await h.setCursor(1, '  - d1'.length);
+    await h.keys.end();
+    await h.keys.enter();
     await h.pasteText('  - c2\n- S\n  - t1\n  - t2\n');
-    const after = await h.getBuffer();
-    expect(after).toContain('- c2');
-    expect(after).toContain('- S');
-    // S keeps its children one level below itself, wherever it landed.
-    const lines = after.split('\n');
-    const sIndex = lines.findIndex((l) => l.trimStart().startsWith('- S'));
-    expect(sIndex).toBeGreaterThan(-1);
-    const sIndent = lines[sIndex]!.length - lines[sIndex]!.trimStart().length;
-    const t1Indent = lines[sIndex + 1]!.length - lines[sIndex + 1]!.trimStart().length;
-    expect(t1Indent).toBeGreaterThan(sIndent);
+
+    // Both roots land as SIBLINGS at the destination depth, and S keeps its
+    // own children one level below it rather than flattened alongside it
+    // (`selection-as-subtree-set` D3, structural-operations delta).
+    expect(await h.getBuffer()).toBe('- DEST\n  - d1\n  - c2\n  - S\n    - t1\n    - t2');
   });
 
   it('Select All without frontmatter eventually reaches stock (expand-only)', async function () {

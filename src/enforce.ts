@@ -15,9 +15,10 @@ import type { OutlineDoc, OutlineNode } from './model';
 import { findPath, nodeAt } from './model';
 import { nodeAtLine } from './locate';
 import {
-  coveredSubtreeRoots,
+  coveredForestOf,
   escalateRange,
   forestCoverOf,
+  type ForestRoot,
   type LinePos,
   type LineRange,
 } from './escalate';
@@ -145,18 +146,33 @@ function coverGroups(
   startNode: OutlineNode,
   endNode: OutlineNode,
 ): readonly (readonly number[])[] {
-  const roots =
-    startNode.id === endNode.id ? [startNode] : forestCoverOf(doc, startNode, endNode).roots;
+  return groupRootsByParent(forestCoverOf(doc, startNode, endNode).roots);
+}
 
+/**
+ * Roots (document order) split into one contiguous sibling run per parent.
+ * A forest span is an interval in document order, so it cannot straddle a
+ * parent's children non-contiguously — consecutive roots sharing a parent
+ * are therefore always a contiguous run, and a parent change always starts a
+ * new group.
+ *
+ * Every caller that hands roots to `deleteSubtreeGroups` MUST go through
+ * this: that function resolves each group with `resolveContiguousGroup`,
+ * which REJECTS a group whose members do not share a parent — and a
+ * rejection here is a veto, i.e. the user's whole deletion silently refused.
+ * Reads `ForestRoot.path` rather than calling `findPath` per root, which was
+ * a full-tree search per root (Θ(n²) for a forest of n roots).
+ */
+function groupRootsByParent(roots: readonly ForestRoot[]): readonly (readonly number[])[] {
   const groups: number[][] = [];
   let currentParent: string | undefined;
   for (const root of roots) {
-    const parentKey = findPath(doc, root.id)!.slice(0, -1).join('/');
+    const parentKey = root.path.slice(0, -1).join('/');
     if (parentKey !== currentParent) {
       groups.push([]);
       currentParent = parentKey;
     }
-    groups[groups.length - 1]!.push(root.id);
+    groups[groups.length - 1]!.push(root.node.id);
   }
   return groups;
 }
@@ -582,9 +598,13 @@ function computeMultiRangeDeletionVerdict(doc: OutlineDoc, edits: readonly EditF
   for (const i of order) {
     const edit = edits[i]!;
     if (edit.insert !== '') return PASS;
-    const roots = coveredSubtreeRoots(doc, { anchor: edit.from, head: edit.to });
-    if (!roots) return PASS;
-    groups.push(roots.map((n) => n.id));
+    const forest = coveredForestOf(doc, { anchor: edit.from, head: edit.to });
+    if (!forest) return PASS;
+    // One group PER PARENT, not one per range. A range's cover can itself be
+    // a mixed-depth forest whose roots sit under different parents; pushing
+    // them as a single group made `resolveContiguousGroup` reject it and
+    // VETOED the user's whole multi-range deletion.
+    groups.push(...groupRootsByParent(forest.roots));
   }
 
   const deletion = deleteSubtreeGroups(doc, groups);

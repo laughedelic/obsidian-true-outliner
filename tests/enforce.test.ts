@@ -727,15 +727,35 @@ describe('computeVerdictForRanges: multi-range deletion of mixed-depth covers (t
   // Two independent forests, one per range. `computeMultiRangeDeletionVerdict`
   // already maps each range's `coveredSubtreeRoots` to one group, so this
   // needs no shape change — asserted rather than assumed.
+  //  0 '- P' / 1 '  - c1' / 2 '  - c2' / 3 '- S' / 4 '  - t1' / 5 gap
+  //  6 '- Q' / 7 '  - d1' / 8 '  - d2' / 9 '- R' / 10 '  - u1' / 11 gap
   const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n\n- Q\n  - d1\n  - d2\n- R\n  - u1\n';
   const doc = parse(md);
 
   it('each range contributes its own roots and all are removed in one pass', () => {
-    const roots = coveredSubtreeRoots(doc, { anchor: pos(2, 0), head: pos(5, 0) });
-    expect(roots?.map((n) => n.lines[0])).toEqual(['  - c2', '- S']);
+    // TWO edits — with one, `computeVerdictForRanges` delegates straight to
+    // `computeVerdict` and the multi-range branch is never reached.
+    const first = coveredSubtreeRoots(doc, { anchor: pos(2, 0), head: pos(5, 0) });
+    expect(first?.map((n) => n.lines[0])).toEqual(['  - c2', '- S']);
+    const second = coveredSubtreeRoots(doc, { anchor: pos(8, 0), head: pos(11, 0) });
+    expect(second?.map((n) => n.lines[0])).toEqual(['  - d2', '- R']);
+
     const verdict = computeVerdictForRanges('boundary-crossing-edit', doc, [
       { from: pos(2, 0), to: pos(5, 0), insert: '' },
+      { from: pos(8, 0), to: pos(11, 0), insert: '' },
     ]);
+    // Each range is a MIXED-DEPTH forest, so each decomposes into two
+    // parent-local groups. Collapsing a whole forest into one group makes
+    // `resolveContiguousGroup` reject roots that do not share a parent, and
+    // the user's whole deletion is VETOED.
     expect(verdict.kind).toBe('rewrite');
+  });
+
+  it('a multi-range deletion of mixed-depth forests is not vetoed', () => {
+    const verdict = computeVerdictForRanges('boundary-crossing-edit', doc, [
+      { from: pos(2, 0), to: pos(5, 0), insert: '' },
+      { from: pos(8, 0), to: pos(11, 0), insert: '' },
+    ]);
+    expect(verdict.kind).not.toBe('veto');
   });
 });

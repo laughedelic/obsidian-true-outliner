@@ -208,8 +208,8 @@ describe('forestCoverOf: the geometry (selection-as-subtree-set D2)', () => {
   const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n';
   const doc = parse(md);
   const at = (line: number) => nodeAtLine(doc, line)!;
-  const firstLines = (cover: { roots: readonly { lines: readonly string[] }[] }) =>
-    cover.roots.map((n) => n.lines[0]);
+  const firstLines = (cover: { roots: readonly { node: { lines: readonly string[] } }[] }) =>
+    cover.roots.map((r) => r.node.lines[0]);
 
   it('an ancestor swallowed mid-span brings its later children with it', () => {
     // c2 → t1. `S`'s own line is inside the span, so `t2` comes too.

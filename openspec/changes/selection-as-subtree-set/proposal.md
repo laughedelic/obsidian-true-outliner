@@ -55,12 +55,14 @@ without contiguity.
   parent, which is already the input shape `deleteSubtreeGroups` (`fix-orphan-gap-on-node-
   deletion` D2) takes — so structural deletion of a mixed-depth cover needs no new machinery,
   only the grouped ids.
-- **A classification gate widens as a side effect.** `coveredSubtreeRoots` now also backs
-  `classify.ts`'s `isExactSubtreeCoverDeletion` — the gate that routes an exact-cover deletion
-  to the verdict layer even though its raw line span reads as within-node. Forest-awareness
-  admits shapes that gate has never seen. The widening is intended (a mixed-depth cover's
-  deletion must be enforced too), but it is a behavior change in a second capability
-  (`transaction-classification`) and is verified there, not assumed.
+- **A classification gate looked like it would widen, and does not.** `coveredSubtreeRoots`
+  also backs `classify.ts`'s `isExactSubtreeCoverDeletion` — the gate that routes an exact-cover
+  deletion to the verdict layer even though its raw line span reads as within-node. Measured
+  during implementation: the gate is only consulted when every line the change touched belongs
+  to ONE node, and a range shaped that way cannot reach a multi-root cover's end, so the forest
+  branch is unreachable from it. Mixed-depth deletions are classified by the ordinary
+  line-identity test, well before the gate. See design D4; pinned by a property with a coverage
+  counter.
 - **BREAKING (in-mode behavior)**: escalated selections that previously grew to include an
   ancestor now stop at the crossing. Files, the parse model, and off-mode behavior are
   untouched.
@@ -91,9 +93,8 @@ selection is several.
 
 - `transaction-classification`: its "A change exactly covering whole subtrees is a boundary-
   crossing edit" requirement already delegates cover recognition to the exported computation
-  rather than restating the geometry, so it needs no textual amendment — but its OBSERVABLE
-  reach widens with the cover, which is why it gets its own verification task rather than
-  riding along silently.
+  rather than restating the geometry, so it needs no textual amendment — and, measured, its
+  observable reach does not change either (design D4).
 - `structural-operations`' "Subtree deletion" requirement keeps its single-run contiguity rule.
   A forest is delivered as several such runs through the existing multi-group form, not by
   loosening what one run may be.
@@ -102,16 +103,19 @@ selection is several.
 
 - `src/escalate.ts`: `subtreeCoverOf` unchanged; `siblingRunCover` is replaced by a
   forest-cover computation for the crossing case, and `coveredSubtreeRoots` follows.
-- `src/classify.ts`: `isExactSubtreeCoverDeletion` reads `coveredSubtreeRoots`, so a
-  forest-aware cover WIDENS a classification gate — deletions that read as within-node today
-  start reaching the verdict layer. Re-measured explicitly rather than assumed benign.
+- `src/classify.ts`: UNCHANGED. `isExactSubtreeCoverDeletion` reads `coveredSubtreeRoots`, so
+  this looked like a widened gate; measured, the forest branch is unreachable from it (design
+  D4). Covered by a new property in `tests/classify.test.ts` rather than a code change.
 - `src/enforce.ts`: `siblingCoverIds` returns GROUPS (one contiguous sibling run per parent)
   instead of one flat run, and `coverIdsOf` feeds them to `deleteSubtreeGroups`.
-  `computeMultiRangeDeletionVerdict` already builds groups from `coveredSubtreeRoots` and
-  needs no shape change.
-- `src/ops.ts`: `deleteSubtreeGroups` already removes several runs under different parents in
-  one pass — no new deletion machinery. `reencodeBlocksForDestination` gains root-level
-  normalization.
+  `computeMultiRangeDeletionVerdict` needs the SAME grouping — it pushed each range's roots as
+  a single group, which `resolveContiguousGroup` rejects once a range's own cover is a
+  mixed-depth forest, vetoing the user's whole multi-range deletion.
+- `src/ops.ts`: UNCHANGED. `deleteSubtreeGroups` already removes several runs under different
+  parents in one pass, and `reencodeBlocksForDestination` already normalizes each root
+  independently (it maps every block through `reindentSubtreeVerbatim`, which swaps that
+  block's own top-level whitespace for the destination indent) — so D3 needed measurement and
+  a test, not code.
 - `src/plugin/decorations.ts`: two `coveredSubtreeRoots` call sites gate block chrome; a
   mixed-depth cover must decorate per root rather than fall back to character-level highlight.
 - `tests/escalate.test.ts`: the "multi-sibling scope resolution" case is re-expected, and a

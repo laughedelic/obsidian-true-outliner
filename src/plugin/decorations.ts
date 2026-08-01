@@ -70,13 +70,7 @@ import {
 import { editorInfoField } from 'obsidian';
 import type { NodeKind } from '../model';
 import { parse } from '../parse';
-import {
-  coveredSubtreeRoots,
-  subtreeCoverOf,
-  type LinePos,
-  type LineRange,
-} from '../escalate';
-import { nodeStartLine } from '../locate';
+import { coveredForestOf, coveredSubtreeRoots, type LinePos, type LineRange } from '../escalate';
 import {
   computeLineGuides,
   decorate,
@@ -701,8 +695,8 @@ function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string
       anchor: offsetToLinePos(state.doc, selRange.anchor),
       head: offsetToLinePos(state.doc, selRange.head),
     };
-    const roots = coveredSubtreeRoots(doc, lineRange);
-    if (!roots) continue;
+    const forest = coveredForestOf(doc, lineRange);
+    if (!forest) continue;
     const hiLine = Math.min(Math.max(lineRange.anchor.line, lineRange.head.line), totalLines - 1);
 
     // PER ROOT, not once for the whole range (`selection-as-subtree-set`): a
@@ -713,8 +707,13 @@ function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string
     // to its deepest root's column, indenting the shallower subtrees below
     // it. Roots tile the span contiguously, so walking them covers every
     // line exactly once with no gaps.
-    for (const root of roots) {
-      const rootLine = nodeStartLine(doc, root.id);
+    for (const root of forest.roots) {
+      // `root.cover` comes from the forest walk, which already held a
+      // start-line index — deriving it here per root (`nodeStartLine` plus
+      // `subtreeCoverOf`, two full traversals each) made every decoration
+      // recomputation Θ(n²) in the root count, worst exactly where covers are
+      // largest (a whole-document ladder rung).
+      const rootLine = root.cover.start.line;
       const rootFact = factsByLine.get(rootLine);
       if (!rootFact) continue; // a root's own first line always has a fact; defensive only
       // One level further left than the root's own column — the PARENT's own
@@ -733,7 +732,7 @@ function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string
       const rootTarget = rootFact.isListItem
         ? `calc(${plainOwnShiftExpr(rootFact)} - ${UNIT})`
         : `calc((${rootFact.depth} - 1) * ${UNIT})`;
-      const rootEnd = Math.min(subtreeCoverOf(doc, root).end.line, hiLine);
+      const rootEnd = Math.min(root.cover.end.line, hiLine);
       for (let line = rootLine; line <= rootEnd; line++) targets.set(line, rootTarget);
     }
   }

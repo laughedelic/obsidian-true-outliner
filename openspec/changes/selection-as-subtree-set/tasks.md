@@ -52,9 +52,13 @@
       gap and leaves the remaining tree well formed
 - [x] 3.3 Property test over generated trees: deleting any escalated cover re-parses to a
       valid tree with no orphaned nodes
-- [x] 3.4 Confirm `computeMultiRangeDeletionVerdict` needs no shape change — it already maps
-      each range's `coveredSubtreeRoots` to one group. Verify it with a multi-range selection
-      whose ranges are themselves mixed-depth covers, which is newly reachable
+- [x] 3.4 CORRECTED (PR #36 review): `computeMultiRangeDeletionVerdict` DID need a shape
+      change. It pushed each range's roots as one group; once a range's own cover is a
+      mixed-depth forest those roots span parents, `resolveContiguousGroup` rejects the group,
+      and the whole multi-range deletion is VETOED. Now shares `groupRootsByParent` with the
+      single-range path. The original claim went unchecked because the test written for it
+      passed ONE edit, and `computeVerdictForRanges` delegates a single edit straight to
+      `computeVerdict` — it never reached the multi-range branch at all
 
 ## 3b. The widened classification gate
 

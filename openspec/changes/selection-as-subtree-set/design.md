@@ -146,7 +146,7 @@ drafted it acquired two consumers beyond the selection chrome. All four move tog
 | --- | --- |
 | `plugin/decorations.ts` | mixed-depth covers decorate as a forest instead of falling back to character-level highlight (D4's open chrome question) |
 | `enforce.ts` `coverIdsOf` → `siblingCoverIds` | returns GROUPS, one contiguous run per parent, instead of one flat run |
-| `enforce.ts` `computeMultiRangeDeletionVerdict` | unchanged in shape — it already turns each range's roots into a group |
+| `enforce.ts` `computeMultiRangeDeletionVerdict` | needs the same per-parent grouping: it pushed each range's roots as ONE group, which is rejected once a range's cover is a forest — a VETO of the whole deletion |
 | `classify.ts` `isExactSubtreeCoverDeletion` | a GATE WIDENS: see below |
 
 **Deletion needs no new machinery.** A forest's roots decompose into exactly one contiguous
@@ -155,7 +155,10 @@ non-contiguously — and that is precisely `deleteSubtreeGroups`' input shape
 (`fix-orphan-gap-on-node-deletion` D2): several runs, possibly under different parents,
 resolved against the pristine document and removed in ONE structural pass with ONE diff.
 `siblingCoverIds` returning groups and `coverIdsOf` calling `deleteSubtreeGroups` instead of
-`deleteSubtrees` is the whole change. `deleteSubtrees`' own single-run contiguity rule, and
+`deleteSubtrees` is the whole change — but EVERY caller that hands roots to
+`deleteSubtreeGroups` must group them, `computeMultiRangeDeletionVerdict` included. Missing one
+is not a silent degradation: `resolveContiguousGroup` rejects a group whose members do not
+share a parent, and the rejection surfaces as a veto — the user's deletion simply refused. `deleteSubtrees`' own single-run contiguity rule, and
 `structural-operations`' requirement stating it, stay exactly as they are.
 
 **The classification gate does NOT widen — measured, and not what this decision first
