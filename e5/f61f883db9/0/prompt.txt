@@ -1,0 +1,15 @@
+looks good at the first glance. I'll test it more later, but for now let's open a PR and get some code review
+
+---
+
+<ci-monitor-event>CI check "e2e-test (latest)" failed on laughedelic/obsidian-true-outliner PR #36. Run `gh pr checks 36 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing check.</ci-monitor-event>
+
+---
+
+<task-notification>
+<task-id>b2viv3ilj</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/9802894c-2a81-4f6e-b031-179a9a6ca2d0/tasks/b2viv3ilj.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for the CI re-run to finish" completed (exit code 0)</summary>
+</task-notification>
