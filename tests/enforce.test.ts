@@ -687,7 +687,7 @@ describe('computeVerdict: deletion of a mixed-depth forest cover (selection-as-s
     expect(computeVerdict('boundary-crossing-edit', doc, edit).kind).toBe('rewrite');
   });
 
-  it('property: deleting any escalated cover re-parses to a valid tree with no orphans', () => {
+  it('property: deleting any escalated cover removes EXACTLY its lines, orphaning nothing', () => {
     fc.assert(
       fc.property(arbTree(), fc.nat(), fc.nat(), (tree, aPick, bPick) => {
         const text = encode(tree);
@@ -712,11 +712,23 @@ describe('computeVerdict: deletion of a mixed-depth forest cover (selection-as-s
         });
         if (verdict.kind !== 'rewrite') return true; // vetoes/passes are their own contracts
 
-        // Closure over the mapping: the result must re-parse to exactly the
-        // tree the operation declared, which is what rules out an orphaned
-        // node left behind by a partially-applied group.
-        const applied = applyVerdict(text, verdict);
-        return encode(parse(applied)) === applied;
+        // Compared against an INDEPENDENTLY constructed expectation, not a
+        // round-trip. `encode(parse(applied)) === applied` was the first
+        // version and it is far too weak: `finalize` already emits a
+        // parsed/encoded document, so it holds for a no-op deletion, and it
+        // holds when a parent is removed and its indented descendants simply
+        // re-parse as new roots — the exact orphan the property claims to
+        // rule out.
+        //
+        // An escalated cover's roots tile a contiguous line span, and each
+        // root's cover carries its own trailing gap, so deleting the cover
+        // must remove EXACTLY the lines in [lo, hi] and leave every other
+        // line byte-identical. That is computable from the span alone,
+        // without reference to how the deletion was implemented.
+        const expected = lines
+          .filter((_, i) => i < lo.line || i > hi.line)
+          .join('\n');
+        return applyVerdict(text, verdict) === expected;
       }),
       { numRuns: 400 },
     );

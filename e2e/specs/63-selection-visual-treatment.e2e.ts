@@ -465,6 +465,45 @@ describe('escalated-selection-decoration: chrome anchors to the covered root\'s 
     expect(await classListAtLine(2)).not.toContain(CLASS);
   });
 
+  it('a MIXED-DEPTH cover anchors each root to its OWN column, not the whole span to one', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    // The case `selection-as-subtree-set` introduced: a cover whose roots
+    // sit at different depths. Roots run DEEPEST-FIRST (each is the subtree
+    // successor of the last, which only moves outward), so the cover's START
+    // line is the deepest root — and the pre-change implementation used that
+    // one line's column for the ENTIRE span. Every other scenario in this
+    // suite is single-rooted and passes under both implementations; without
+    // this one, that regression is invisible.
+    //
+    // Headings, not list items: a list item's own additive shift is 0 (list
+    // guides are deferred to Obsidian's native rendering), so a pure-list
+    // mixed-depth cover anchors identically either way and would prove
+    // nothing.
+    const md = '# Alpha\n\n## Beta\n\nPara in Beta.\n\n# Gamma\n\nPara in Gamma.\n';
+    await outlineNote(md);
+    // 0 '# Alpha' / 2 '## Beta' / 4 'Para in Beta.' / 6 '# Gamma' / 8 'Para in Gamma.'
+    await h.mouseDragSelect({ line: 4, ch: 5 }, { line: 8, ch: 5 });
+
+    const sel = await h.getSelection();
+    // Roots: the Beta paragraph (deep) and the whole Gamma section (shallow).
+    expect(sel.anchor).toEqual({ line: 4, ch: 0 });
+
+    const deepRootX = await chromeLeftAbsoluteX(4); // 'Para in Beta.'
+    const shallowRootX = await chromeLeftAbsoluteX(6); // '# Gamma'
+
+    // The two roots must NOT share a column — that is the whole assertion.
+    // Under the one-target-for-the-whole-range implementation these are
+    // equal, and the Gamma heading's own text renders outside its highlight.
+    expect(shallowRootX).toBeLessThan(deepRootX - 8);
+
+    // A root's descendant shares ITS root's column, not its own indentation.
+    expect(await chromeLeftAbsoluteX(8)).toBeCloseTo(shallowRootX, 0);
+
+    // Alpha and Beta sit above the span and stay uncovered.
+    expect(await h.getLineClassList(0)).not.toContain(CLASS);
+    expect(await classListAtLine(2)).not.toContain(CLASS);
+  });
+
   it('a blockquote line inside a cover renders full-width chrome, not a 1px sliver (regression guard)', async function () {
     if (h.IS_MOBILE_RUN) this.skip();
     // Obsidian's native `.HyperMD-quote::before` sets `width: 1px` for its

@@ -147,7 +147,7 @@ drafted it acquired two consumers beyond the selection chrome. All four move tog
 | `plugin/decorations.ts` | mixed-depth covers decorate as a forest instead of falling back to character-level highlight (D4's open chrome question) |
 | `enforce.ts` `coverIdsOf` → `siblingCoverIds` | returns GROUPS, one contiguous run per parent, instead of one flat run |
 | `enforce.ts` `computeMultiRangeDeletionVerdict` | needs the same per-parent grouping: it pushed each range's roots as ONE group, which is rejected once a range's cover is a forest — a VETO of the whole deletion |
-| `classify.ts` `isExactSubtreeCoverDeletion` | a GATE WIDENS: see below |
+| `classify.ts` `isExactSubtreeCoverDeletion` | NOTHING — its reachable set is unchanged, because a multi-root cover is classified earlier by line identity and never reaches this gate (measured; see below) |
 
 **Deletion needs no new machinery.** A forest's roots decompose into exactly one contiguous
 sibling run per parent — an interval in document order cannot straddle a parent's children
