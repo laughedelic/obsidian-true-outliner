@@ -6,6 +6,7 @@ import {
   coveredSubtreeRoots,
   escalateRange,
   escalateRanges,
+  forestCoverOf,
   rangesEqual,
   type LinePos,
   type LineRange,
@@ -171,21 +172,91 @@ describe('escalateRanges: uniform multi-range escalation (D4 amendment)', () => 
   });
 });
 
-describe('escalateRange: multi-sibling scope resolution', () => {
+describe('escalateRange: forest span across scopes (selection-as-subtree-set D2)', () => {
   const md = '# One\n\nBody one.\n\n# Two\n\nBody two.\n\n# Three\n\nBody three.\n';
   const doc = parse(md);
   // 0 '# One' / 1 gap / 2 'Body one.' / 3 gap
   // 4 '# Two' / 5 gap / 6 'Body two.' / 7 gap
   // 8 '# Three' / 9 gap / 10 'Body three.'
 
-  it('escalates to the contiguous run of whole top-level sections, not just the endpoints', () => {
+  it('crossing out of a section does NOT pull that section\'s heading in', () => {
     const r = range(pos(2, 3), pos(6, 2)); // Body one → Body two
     const result = escalateRange(doc, r);
-    // Must cover from section One's own start through section Two's end,
-    // including section Two's own trailing gap (line 7) — section Two's
-    // own subtree end, not section Three's.
-    expect(result.anchor).toEqual(pos(0, 0));
+    // Starts at Body one's OWN line, not at '# One'. Under the replaced
+    // sibling-run rule this was pos(0, 0): both ends resolved to the root
+    // scope, dragging sections One AND Two in whole. '# One' sits ABOVE the
+    // span, so downward closure has no claim on it.
+    expect(result.anchor).toEqual(pos(2, 0));
+    // Ends at section Two's subtree end (Body two's own gap, line 7) — NOT
+    // at Body two's own end. '# Two' (line 4) falls INSIDE the span, so its
+    // whole subtree comes along. This is the case the two candidate wordings
+    // for the end bound disagree on.
     expect(result.head).toEqual(pos(7, 0));
+  });
+
+  it('the covered roots are Body one and section Two — at different depths', () => {
+    const escalated = escalateRange(doc, range(pos(2, 3), pos(6, 2)));
+    const roots = coveredSubtreeRoots(doc, escalated);
+    expect(roots?.map((n) => n.lines[0])).toEqual(['Body one.', '# Two']);
+  });
+});
+
+describe('forestCoverOf: the geometry (selection-as-subtree-set D2)', () => {
+  // The worked example from design D2 and the spec's own scenarios.
+  //   0 '- P' / 1 '  - c1' / 2 '  - c2'
+  //   3 '- S' / 4 '  - t1' / 5 '  - t2'
+  const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n';
+  const doc = parse(md);
+  const at = (line: number) => nodeAtLine(doc, line)!;
+  const firstLines = (cover: { roots: readonly { node: { lines: readonly string[] } }[] }) =>
+    cover.roots.map((r) => r.node.lines[0]);
+
+  it('an ancestor swallowed mid-span brings its later children with it', () => {
+    // c2 → t1. `S`'s own line is inside the span, so `t2` comes too.
+    // Stating the end as "t1's own subtree end" would select `S` whole while
+    // leaving `t2` out — the downward-closure violation D2 exists to forbid.
+    const cover = forestCoverOf(doc, at(2), at(4));
+    expect(firstLines(cover)).toEqual(['  - c2', '- S']);
+    expect(cover.cover.start).toEqual(pos(2, 0));
+    expect(cover.cover.end).toEqual(pos(6, 0)); // through t2's own trailing gap
+  });
+
+  it('crossing between two siblings does not reach their later siblings', () => {
+    // c1 → c2, with no ancestor of c2 beginning inside the span. `P` starts
+    // above it, so `P` is excluded and the span stops at c2.
+    const cover = forestCoverOf(doc, at(1), at(2));
+    expect(firstLines(cover)).toEqual(['  - c1', '  - c2']);
+    expect(cover.cover).toEqual({ start: pos(1, 0), end: pos(2, 6) });
+  });
+
+  it('one end inside the other\'s subtree covers the ancestor whole', () => {
+    const cover = forestCoverOf(doc, at(0), at(2)); // P → c2
+    expect(firstLines(cover)).toEqual(['- P']);
+    expect(cover.cover).toEqual({ start: pos(0, 0), end: pos(2, 6) });
+  });
+
+  it('is orientation-independent: the roots are the same either way round', () => {
+    expect(forestCoverOf(doc, at(4), at(2))).toEqual(forestCoverOf(doc, at(2), at(4)));
+    expect(forestCoverOf(doc, at(2), at(0))).toEqual(forestCoverOf(doc, at(0), at(2)));
+  });
+
+  it('roots may sit at different depths and are not made siblings', () => {
+    // c2 (depth 2) → S (depth 1): no common ancestor is added.
+    const cover = forestCoverOf(doc, at(2), at(3));
+    expect(firstLines(cover)).toEqual(['  - c2', '- S']);
+  });
+
+  it('a deeper end reaches back up: c1 → t2 takes c1, c2 and all of S', () => {
+    const cover = forestCoverOf(doc, at(1), at(5));
+    expect(firstLines(cover)).toEqual(['  - c1', '  - c2', '- S']);
+    expect(cover.cover).toEqual({ start: pos(1, 0), end: pos(6, 0) });
+  });
+
+  it('every root\'s whole subtree is inside the cover (downward closure, by hand)', () => {
+    const cover = forestCoverOf(doc, at(2), at(4));
+    // `S` is a root, so `t1` and `t2` — its descendants — must both be
+    // within the span, not merely `t1` which the drag actually reached.
+    expect(cover.cover.end.line).toBe(6); // t2's gap, past t1 (line 4)
   });
 });
 
@@ -321,6 +392,129 @@ describe('escalateRange: idempotence and boundary invariants (property)', () => 
         return untouched.anchor.line === line && untouched.head.line === line;
       }),
       { numRuns: 300 },
+    );
+  });
+});
+
+describe('escalateRange: downward closure and contiguity (selection-as-subtree-set)', () => {
+  /** All lines that resolve to a node, i.e. every candidate cursor line. */
+  function resolvableLines(doc: ReturnType<typeof parse>, totalLines: number): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < totalLines; i++) if (nodeAtLine(doc, i)) out.push(i);
+    return out;
+  }
+
+  /** Every node with its own line bounds — own lines only, gap excluded, so
+   * "inside the cover" means the node's own text was selected. */
+  function nodeExtents(
+    doc: ReturnType<typeof parse>,
+  ): { node: ReturnType<typeof nodeAtLine>; start: number; ownEnd: number; depth: number }[] {
+    const out: { node: ReturnType<typeof nodeAtLine>; start: number; ownEnd: number; depth: number }[] = [];
+    let line = doc.preamble.length;
+    const walk = (node: NonNullable<ReturnType<typeof nodeAtLine>>, depth: number): void => {
+      out.push({ node, start: line, ownEnd: line + node.lines.length - 1, depth });
+      line += node.lines.length + node.trailingGap.length;
+      node.children.forEach((child) => walk(child, depth + 1));
+    };
+    doc.children.forEach((child) => walk(child, 0));
+    return out;
+  }
+
+  /** An escalated range's line span, orientation-normalized. */
+  function span(r: LineRange): { lo: number; hi: number } {
+    return r.head.line < r.anchor.line
+      ? { lo: r.head.line, hi: r.anchor.line }
+      : { lo: r.anchor.line, hi: r.head.line };
+  }
+
+  /** A sample that ESCALATION ACTUALLY CHANGED. The invariant governs covers
+   * the filter produced, not every range it returns: a within-node selection
+   * passes through untouched and is not a cover at all — `- A\n  - a` with a
+   * range inside `- A`'s own text was the first counterexample this property
+   * reported, and it is correct behavior, not a violation. Guarding on
+   * `changed` rather than on `coveredSubtreeRoots` keeps the property
+   * independent of the query it is meant to backstop. */
+  const escalatedSamples = (tree: Parameters<typeof encode>[0], aPick: number, bPick: number) => {
+    const text = encode(tree);
+    const lines = text === '' ? [] : text.split('\n');
+    const doc = parse(text);
+    const candidates = resolvableLines(doc, lines.length);
+    if (candidates.length < 2) return undefined;
+    const aLine = candidates[aPick % candidates.length]!;
+    const bLine = candidates[bPick % candidates.length]!;
+    const r = range(pos(aLine, 0), pos(bLine, (lines[bLine] ?? '').length));
+    const escalated = escalateRange(doc, r);
+    if (rangesEqual(escalated, r)) return undefined;
+    return { doc, escalated };
+  };
+
+  // THE property this change turns on. The first draft of design D2 stated
+  // the cover's end as "lastNode's own subtree end", which selects an
+  // ancestor's whole line while leaving its later children out whenever that
+  // ancestor begins inside the span. Nothing else in this suite fails under
+  // that rule — expand-only, orientation, idempotence and the ch-boundary
+  // property all hold for it. This is the one that does.
+  it('property: no node is covered without its whole subtree (downward closure)', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), (tree, aPick, bPick) => {
+        const sample = escalatedSamples(tree, aPick, bPick);
+        if (!sample) return true;
+        const { doc, escalated } = sample;
+        const { lo, hi } = span(escalated);
+        const extents = nodeExtents(doc);
+        const inside = (e: (typeof extents)[number]): boolean => e.start >= lo && e.ownEnd <= hi;
+
+        // For every node whose OWN lines are fully inside the cover, every
+        // descendant's own lines must be inside too. Descendants of a node
+        // are the following entries with a strictly greater depth, up to the
+        // next entry at or above the node's own depth.
+        for (let i = 0; i < extents.length; i++) {
+          const parent = extents[i]!;
+          if (!inside(parent)) continue;
+          for (let j = i + 1; j < extents.length && extents[j]!.depth > parent.depth; j++) {
+            if (!inside(extents[j]!)) return false;
+          }
+        }
+        return true;
+      }),
+      { numRuns: 500 },
+    );
+  });
+
+  it('property: an escalated cover is a single contiguous span with no interior gaps', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), (tree, aPick, bPick) => {
+        const sample = escalatedSamples(tree, aPick, bPick);
+        if (!sample) return true;
+        const { doc, escalated } = sample;
+        // A range escalation changed is always an exact cover — asserted,
+        // not assumed, so this property fails loudly rather than vacuously
+        // skipping if that ever stops being true.
+        const roots = coveredSubtreeRoots(doc, escalated);
+        if (!roots) return false;
+        const { lo, hi } = span(escalated);
+        const extents = nodeExtents(doc);
+        const byNode = new Map(extents.map((e) => [e.node, e]));
+
+        // Consecutive roots must abut: each root's subtree (its own lines,
+        // its gap, and every descendant's) ends exactly where the next root
+        // begins. That is what makes the forest ONE range rather than
+        // several, which is what keeps block selection distinguishable from
+        // multi-cursor by shape alone.
+        let cursor = lo;
+        for (const root of roots) {
+          const e = byNode.get(root)!;
+          if (e.start !== cursor) return false;
+          // Advance past the whole subtree: the next entry at or above this
+          // root's depth, or the document's end.
+          const index = extents.indexOf(e);
+          let next = index + 1;
+          while (next < extents.length && extents[next]!.depth > e.depth) next++;
+          cursor = next < extents.length ? extents[next]!.start : hi + 1;
+        }
+        return cursor === hi + 1 || cursor > hi;
+      }),
+      { numRuns: 500 },
     );
   });
 });

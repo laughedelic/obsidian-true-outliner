@@ -256,6 +256,100 @@ describe('node-selection-enforcement: Phase B', function () {
     expect(sel.head).toEqual({ line: 5, ch: 0 });
   });
 
+  // --- selection-as-subtree-set: the forest span ---------------------------
+  //
+  // The scenarios above are all SAME-PARENT crossings, which the forest span
+  // and the sibling run it replaced answer identically — that is why none of
+  // them needed re-expecting. The cases below are the ones that differ.
+
+  it('crossing out of a scope stops at the crossing instead of pulling in the parent', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
+    const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n';
+    await outlineNote(md);
+    // Drag from inside `c2` (line 2) into `t1` (line 4).
+    await h.mouseDragSelect({ line: 2, ch: 5 }, { line: 4, ch: 5 });
+    const sel = await h.getSelection();
+    // Starts at c2's OWN line. Under the replaced sibling-run rule both ends
+    // resolved to the root scope and this selected `- P` whole — the entire
+    // document, from line 0.
+    expect(sel.anchor).toEqual({ line: 2, ch: 0 });
+    // Ends past `t2`, not at `t1`: `- S`'s own line is inside the span, so
+    // downward closure takes its whole subtree. Line 6 is t2's owned gap.
+    expect(sel.head).toEqual({ line: 6, ch: 0 });
+  });
+
+  it('two cursors in adjacent siblings extended once do not collapse to the whole document', async function () {
+    const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n';
+    await outlineNote(md);
+    // The measured shape from the proposal: two cursors in adjacent
+    // children, one extension press. Under the sibling-run rule this became
+    // a single range covering everything.
+    await h.dispatchSelectOnlyRanges([
+      { anchor: { line: 1, ch: 4 }, head: { line: 2, ch: 4 } },
+      { anchor: { line: 4, ch: 4 }, head: { line: 5, ch: 4 } },
+    ]);
+    const ranges = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const doc = cm.state.doc;
+      const toPos = (offset: number) => {
+        const line = doc.lineAt(offset);
+        return { line: line.number - 1, ch: offset - line.from };
+      };
+      return cm.state.selection.ranges.map((r: { anchor: number; head: number }) => ({
+        anchor: toPos(r.anchor),
+        head: toPos(r.head),
+      }));
+    });
+    // Still TWO ranges, each a local cover — not one whole-document range.
+    expect(ranges.length).toBe(2);
+    expect(ranges[0].anchor).toEqual({ line: 1, ch: 0 });
+    expect(ranges[1].anchor).toEqual({ line: 4, ch: 0 });
+    expect(ranges[0].head.line).toBeLessThan(4);
+  });
+
+  it('deleting a mixed-depth cover removes each root\'s subtree and orphans nothing', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
+    const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n';
+    await outlineNote(md);
+    await h.mouseDragSelect({ line: 2, ch: 5 }, { line: 4, ch: 5 });
+    await browser.keys(Key.Backspace);
+    // `c1` survives under `P`; `c2` and all of `S` are gone. `t1`/`t2` left
+    // WITH their parent, which is the whole point of downward closure —
+    // the geometry, the classification and the grouped deletion in one path.
+    expect(await h.getBuffer()).toBe('- P\n  - c1');
+  });
+
+  it('copying a mixed-depth selection yields a faithful slice of the document', async function () {
+    if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
+    const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n\n- DEST\n  - d1\n';
+    await outlineNote(md);
+
+    // A REAL copy of a real mixed-depth selection — c2 (depth 1) plus all of
+    // S (depth 0). What the SELECTION yields is this change's own
+    // responsibility, so it is asserted exactly.
+    await h.mouseDragSelect({ line: 2, ch: 5 }, { line: 4, ch: 5 });
+    await h.keys.copy();
+    const copied = await browser.execute(async () => navigator.clipboard.readText());
+    // Over-indented at its head, because that is what those lines look like
+    // in the document — the isomorphism guarantee, not a defect.
+    expect(copied).toBe('  - c2\n- S\n  - t1\n  - t2\n');
+  });
+
+  it('pasting a mixed-depth payload normalizes its roots to the destination depth', async function () {
+    const md = '- DEST\n  - d1\n';
+    await outlineNote(md);
+    await h.setCursor(1, '  - d1'.length);
+    await h.keys.end();
+    await h.keys.enter();
+    await h.pasteText('  - c2\n- S\n  - t1\n  - t2\n');
+
+    // Both roots land as SIBLINGS at the destination depth, and S keeps its
+    // own children one level below it rather than flattened alongside it
+    // (`selection-as-subtree-set` D3, structural-operations delta).
+    expect(await h.getBuffer()).toBe('- DEST\n  - d1\n  - c2\n  - S\n    - t1\n    - t2');
+  });
+
   it('Select All without frontmatter eventually reaches stock (expand-only)', async function () {
     const md = 'Alpha.\n\nBeta.\n';
     const offNote = 'Scratch/select-all-nofm-off.md';

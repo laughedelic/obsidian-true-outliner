@@ -5,7 +5,13 @@ import { encode } from '../src/encode';
 import { applyEdits } from '../src/result';
 import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { computeVerdict, computeVerdictForRanges, type EditFact, type Verdict } from '../src/enforce';
-import { subtreeCoverOf } from '../src/escalate';
+import {
+  coveredSubtreeRoots,
+  escalateRange,
+  rangesEqual,
+  subtreeCoverOf,
+} from '../src/escalate';
+import { nodeAtLine } from '../src/locate';
 import type { TransactionClass } from '../src/classify';
 import { arbTree } from './generators';
 
@@ -629,5 +635,139 @@ describe('computeVerdict: property suite', () => {
       }),
       { numRuns: 300 },
     );
+  });
+});
+
+describe('computeVerdict: deletion of a mixed-depth forest cover (selection-as-subtree-set)', () => {
+  // - P
+  //   - c1
+  //   - c2
+  // - S
+  //   - t1
+  //   - t2
+  const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n  - t2\n';
+  const doc = parse(md);
+
+  it('removes each root\'s subtree and leaves the remaining tree well formed', () => {
+    // The escalated cover of a c2 -> t1 drag: roots c2 and S, spanning
+    // lines 2..6 (S's subtree through t2's own trailing gap). Two groups
+    // under two different parents — the shape `deleteSubtreeGroups` takes.
+    const edit: EditFact = { from: pos(2, 0), to: pos(6, 0), insert: '' };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(verdict.kind).toBe('rewrite');
+    // `c1` survives under `P`; `S` and both its children are gone. Nothing
+    // is orphaned: `t1`/`t2` left with their parent, not without it. `t2`'s
+    // owned gap — the document's final newline — goes with it, the same
+    // convention a single last-node deletion follows.
+    expect(applyVerdict(md, verdict)).toBe('- P\n  - c1');
+  });
+
+  it('the deletion is one structural pass — the result re-parses to a valid tree', () => {
+    const edit: EditFact = { from: pos(2, 0), to: pos(6, 0), insert: '' };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    const after = parse(applyVerdict(md, verdict));
+    expect(encode(after)).toBe('- P\n  - c1');
+    expect(after.children).toHaveLength(1);
+    expect(after.children[0]!.children.map((n) => n.lines[0])).toEqual(['  - c1']);
+  });
+
+  it('a TYPE-OVER of a mixed-depth cover passes rather than guessing where the text lands', () => {
+    // Deliberately unmodeled: a forest leaves one gap per parent, and
+    // `deleteAndSplice` splices into a single one. Conservative pass, per
+    // the layer's "a wrong pass is editable text" bias.
+    const edit: EditFact = { from: pos(2, 0), to: pos(6, 0), insert: 'x' };
+    expect(computeVerdict('boundary-crossing-edit', doc, edit)).toEqual({ kind: 'pass' });
+  });
+
+  it('a single-group (same-parent) type-over still rewrites, unchanged', () => {
+    // c1 -> c2, both children of `P`: one group, so the existing
+    // delete-and-splice path is untouched. Note `(1,0)..(3,0)` would NOT
+    // qualify — line 3 is `S`, making that span a two-group forest.
+    const edit: EditFact = { from: pos(1, 0), to: pos(2, '  - c2'.length), insert: 'x' };
+    expect(computeVerdict('boundary-crossing-edit', doc, edit).kind).toBe('rewrite');
+  });
+
+  it('property: deleting any escalated cover removes EXACTLY its lines, orphaning nothing', () => {
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.nat(), (tree, aPick, bPick) => {
+        const text = encode(tree);
+        if (text === '') return true;
+        const lines = text.split('\n');
+        const d = parse(text);
+        const candidates: number[] = [];
+        for (let i = 0; i < lines.length; i++) if (nodeAtLine(d, i)) candidates.push(i);
+        if (candidates.length < 2) return true;
+        const aLine = candidates[aPick % candidates.length]!;
+        const bLine = candidates[bPick % candidates.length]!;
+        const raw = { anchor: pos(aLine, 0), head: pos(bLine, (lines[bLine] ?? '').length) };
+        const esc = escalateRange(d, raw);
+        if (rangesEqual(esc, raw)) return true; // not a cover; nothing to delete structurally
+
+        const lo = esc.head.line < esc.anchor.line ? esc.head : esc.anchor;
+        const hi = esc.head.line < esc.anchor.line ? esc.anchor : esc.head;
+        const verdict = computeVerdict('boundary-crossing-edit', d, {
+          from: lo,
+          to: hi,
+          insert: '',
+        });
+        if (verdict.kind !== 'rewrite') return true; // vetoes/passes are their own contracts
+
+        // Compared against an INDEPENDENTLY constructed expectation, not a
+        // round-trip. `encode(parse(applied)) === applied` was the first
+        // version and it is far too weak: `finalize` already emits a
+        // parsed/encoded document, so it holds for a no-op deletion, and it
+        // holds when a parent is removed and its indented descendants simply
+        // re-parse as new roots — the exact orphan the property claims to
+        // rule out.
+        //
+        // An escalated cover's roots tile a contiguous line span, and each
+        // root's cover carries its own trailing gap, so deleting the cover
+        // must remove EXACTLY the lines in [lo, hi] and leave every other
+        // line byte-identical. That is computable from the span alone,
+        // without reference to how the deletion was implemented.
+        const expected = lines
+          .filter((_, i) => i < lo.line || i > hi.line)
+          .join('\n');
+        return applyVerdict(text, verdict) === expected;
+      }),
+      { numRuns: 400 },
+    );
+  });
+});
+
+describe('computeVerdictForRanges: multi-range deletion of mixed-depth covers (task 3.4)', () => {
+  // Two independent forests, one per range. `computeMultiRangeDeletionVerdict`
+  // already maps each range's `coveredSubtreeRoots` to one group, so this
+  // needs no shape change — asserted rather than assumed.
+  //  0 '- P' / 1 '  - c1' / 2 '  - c2' / 3 '- S' / 4 '  - t1' / 5 gap
+  //  6 '- Q' / 7 '  - d1' / 8 '  - d2' / 9 '- R' / 10 '  - u1' / 11 gap
+  const md = '- P\n  - c1\n  - c2\n- S\n  - t1\n\n- Q\n  - d1\n  - d2\n- R\n  - u1\n';
+  const doc = parse(md);
+
+  it('each range contributes its own roots and all are removed in one pass', () => {
+    // TWO edits — with one, `computeVerdictForRanges` delegates straight to
+    // `computeVerdict` and the multi-range branch is never reached.
+    const first = coveredSubtreeRoots(doc, { anchor: pos(2, 0), head: pos(5, 0) });
+    expect(first?.map((n) => n.lines[0])).toEqual(['  - c2', '- S']);
+    const second = coveredSubtreeRoots(doc, { anchor: pos(8, 0), head: pos(11, 0) });
+    expect(second?.map((n) => n.lines[0])).toEqual(['  - d2', '- R']);
+
+    const verdict = computeVerdictForRanges('boundary-crossing-edit', doc, [
+      { from: pos(2, 0), to: pos(5, 0), insert: '' },
+      { from: pos(8, 0), to: pos(11, 0), insert: '' },
+    ]);
+    // Each range is a MIXED-DEPTH forest, so each decomposes into two
+    // parent-local groups. Collapsing a whole forest into one group makes
+    // `resolveContiguousGroup` reject roots that do not share a parent, and
+    // the user's whole deletion is VETOED.
+    expect(verdict.kind).toBe('rewrite');
+  });
+
+  it('a multi-range deletion of mixed-depth forests is not vetoed', () => {
+    const verdict = computeVerdictForRanges('boundary-crossing-edit', doc, [
+      { from: pos(2, 0), to: pos(5, 0), insert: '' },
+      { from: pos(8, 0), to: pos(11, 0), insert: '' },
+    ]);
+    expect(verdict.kind).not.toBe('veto');
   });
 });

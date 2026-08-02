@@ -14,7 +14,14 @@
 import type { OutlineDoc, OutlineNode } from './model';
 import { findPath, nodeAt } from './model';
 import { nodeAtLine } from './locate';
-import { coveredSubtreeRoots, escalateRange, type LinePos, type LineRange } from './escalate';
+import {
+  coveredForestOf,
+  escalateRange,
+  forestCoverOf,
+  type ForestRoot,
+  type LinePos,
+  type LineRange,
+} from './escalate';
 import { parse } from './parse';
 import { encode, encodeLines } from './encode';
 import {
@@ -120,25 +127,54 @@ function childrenAtScope(doc: OutlineDoc, scopePath: readonly number[]): readonl
   return list;
 }
 
-/** Sibling ids spanning `startNode`..`endNode` (inclusive) at their deepest
- * common scope — escalate.ts's own scope resolution, INCLUDING its
- * one-node-is-the-other's-ancestor case: when one path is a prefix of the
- * other (a heading and a node inside its own section — the single-subtree
- * selection shape), the scope is one level ABOVE the shallower node, and
- * both endpoints resolve to that node's own sibling index. Without that
- * fallback `startPath[k]` is undefined here and the cover silently came
- * back empty — a selected heading+subtree "deleted" to a no-op veto. */
-function siblingCoverIds(doc: OutlineDoc, startNode: OutlineNode, endNode: OutlineNode): readonly number[] {
-  if (startNode.id === endNode.id) return [startNode.id];
-  const startPath = findPath(doc, startNode.id)!;
-  const endPath = findPath(doc, endNode.id)!;
-  let k = 0;
-  while (k < startPath.length && k < endPath.length && startPath[k] === endPath[k]) k++;
-  const scopeLen = k < startPath.length && k < endPath.length ? k : k - 1;
-  const scopeChildren = childrenAtScope(doc, startPath.slice(0, scopeLen));
-  const loIndex = Math.min(startPath[scopeLen]!, endPath[scopeLen]!);
-  const hiIndex = Math.max(startPath[scopeLen]!, endPath[scopeLen]!);
-  return scopeChildren.slice(loIndex, hiIndex + 1).map((n) => n.id);
+/**
+ * The forest cover spanning `startNode`..`endNode`, as DELETION GROUPS —
+ * one contiguous sibling run per parent, in document order, `groups[0]`
+ * topmost. That is exactly `deleteSubtreeGroups`' input shape
+ * (`fix-orphan-gap-on-node-deletion` D2), so a mixed-depth cover needs no
+ * deletion machinery of its own.
+ *
+ * The roots come from `escalate.ts`'s exported `forestCoverOf` rather than a
+ * second scope resolution here — one implementation, every consumer
+ * (`selection-as-subtree-set` D4). The grouping is the only thing this adds:
+ * a forest span is an interval in document order, so it cannot straddle a
+ * parent's children non-contiguously, and consecutive roots sharing a parent
+ * are therefore always a contiguous run.
+ */
+function coverGroups(
+  doc: OutlineDoc,
+  startNode: OutlineNode,
+  endNode: OutlineNode,
+): readonly (readonly number[])[] {
+  return groupRootsByParent(forestCoverOf(doc, startNode, endNode).roots);
+}
+
+/**
+ * Roots (document order) split into one contiguous sibling run per parent.
+ * A forest span is an interval in document order, so it cannot straddle a
+ * parent's children non-contiguously — consecutive roots sharing a parent
+ * are therefore always a contiguous run, and a parent change always starts a
+ * new group.
+ *
+ * Every caller that hands roots to `deleteSubtreeGroups` MUST go through
+ * this: that function resolves each group with `resolveContiguousGroup`,
+ * which REJECTS a group whose members do not share a parent — and a
+ * rejection here is a veto, i.e. the user's whole deletion silently refused.
+ * Reads `ForestRoot.path` rather than calling `findPath` per root, which was
+ * a full-tree search per root (Θ(n²) for a forest of n roots).
+ */
+function groupRootsByParent(roots: readonly ForestRoot[]): readonly (readonly number[])[] {
+  const groups: number[][] = [];
+  let currentParent: string | undefined;
+  for (const root of roots) {
+    const parentKey = root.path.slice(0, -1).join('/');
+    if (parentKey !== currentParent) {
+      groups.push([]);
+      currentParent = parentKey;
+    }
+    groups[groups.length - 1]!.push(root.node.id);
+  }
+  return groups;
 }
 
 /** The deletion's OLD-document range removes NOTHING but the single line
@@ -258,18 +294,23 @@ function computeMergeVerdict(
   return rewriteFrom(doc, result.value, { kind: 'exact' }, 'delete.structural.merge');
 }
 
-/** The whole-subtree cover of a (possibly stale, never-escalated) range —
- * the SAME rule for an already-escalated selection and a mid-node one
- * (design.md D3: "one rule for both paths"). Returns `undefined` when
- * either end is out of jurisdiction (preamble). */
-function coverIdsOf(doc: OutlineDoc, range: LineRange): readonly number[] | undefined {
+/** The whole-subtree cover of a (possibly stale, never-escalated) range, as
+ * deletion groups — the SAME rule for an already-escalated selection and a
+ * mid-node one (design.md D3: "one rule for both paths"). Returns
+ * `undefined` when either end is out of jurisdiction (preamble). More than
+ * one group means the cover is a mixed-depth forest, newly reachable since
+ * `selection-as-subtree-set`. */
+function coverGroupsOf(
+  doc: OutlineDoc,
+  range: LineRange,
+): readonly (readonly number[])[] | undefined {
   const covered = escalateRange(doc, range);
   const loLine = Math.min(covered.anchor.line, covered.head.line);
   const hiLine = Math.max(covered.anchor.line, covered.head.line);
   const startNode = nodeAtLine(doc, loLine);
   const endNode = nodeAtLine(doc, hiLine);
   if (!startNode || !endNode) return undefined;
-  return siblingCoverIds(doc, startNode, endNode);
+  return coverGroups(doc, startNode, endNode);
 }
 
 interface Survivors {
@@ -436,15 +477,28 @@ function computeDeletionVerdict(
   fallbackIndentUnit: string | undefined,
 ): Verdict {
   const range: LineRange = { anchor: edit.from, head: edit.to };
-  const ids = coverIdsOf(doc, range);
-  if (!ids) return PASS; // preamble jurisdiction
+  const groups = coverGroupsOf(doc, range);
+  if (!groups) return PASS; // preamble jurisdiction
 
   if (edit.insert === '') {
-    const deletion = deleteSubtrees(doc, ids);
+    const deletion = deleteSubtreeGroups(doc, groups);
     if (!deletion.ok) return vetoFrom(deletion);
-    return rewriteFrom(doc, deletion.value, { kind: 'deletion', removed: ids }, 'delete.structural');
+    return rewriteFrom(
+      doc,
+      deletion.value,
+      { kind: 'deletion', removed: groups.flat() },
+      'delete.structural',
+    );
   }
-  return composeTypeOver(doc, ids, edit.insert, fallbackIndentUnit);
+  // A TYPE-OVER of a mixed-depth forest has no modeled answer for where the
+  // typed text lands — `deleteAndSplice` splices into the single gap the
+  // deletion left, and a forest leaves one gap per parent. Newly reachable
+  // since `selection-as-subtree-set`; passing keeps the layer's stated
+  // conservative default ("a wrong pass is editable text; a wrong rewrite is
+  // surprising relocation") and is safe: the native replacement of a forest
+  // span re-parses to a valid tree, it is simply not structural.
+  if (groups.length > 1) return PASS;
+  return composeTypeOver(doc, groups[0]!, edit.insert, fallbackIndentUnit);
 }
 
 /**
@@ -544,9 +598,13 @@ function computeMultiRangeDeletionVerdict(doc: OutlineDoc, edits: readonly EditF
   for (const i of order) {
     const edit = edits[i]!;
     if (edit.insert !== '') return PASS;
-    const roots = coveredSubtreeRoots(doc, { anchor: edit.from, head: edit.to });
-    if (!roots) return PASS;
-    groups.push(roots.map((n) => n.id));
+    const forest = coveredForestOf(doc, { anchor: edit.from, head: edit.to });
+    if (!forest) return PASS;
+    // One group PER PARENT, not one per range. A range's cover can itself be
+    // a mixed-depth forest whose roots sit under different parents; pushing
+    // them as a single group made `resolveContiguousGroup` reject it and
+    // VETOED the user's whole multi-range deletion.
+    groups.push(...groupRootsByParent(forest.roots));
   }
 
   const deletion = deleteSubtreeGroups(doc, groups);

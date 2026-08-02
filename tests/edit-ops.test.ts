@@ -504,3 +504,61 @@ describe('edit-ops property suite: closure, totality, minimal edit', () => {
     );
   });
 });
+
+describe('insertSubtrees: a payload whose roots came from different depths (selection-as-subtree-set D3)', () => {
+  // A mixed-depth selection's clipboard text is a faithful slice of the
+  // document, so its first root arrives OVER-INDENTED relative to the ones
+  // after it — roots always run deepest-first, since each is the subtree
+  // successor of the last and that only ever moves outward.
+  //
+  // No code was needed for D3: `reindentSubtreeVerbatim` already swaps each
+  // block's OWN top-level whitespace for the destination indent,
+  // independently per block, so roots at different source depths land as
+  // siblings by construction. These tests pin that rather than assume it —
+  // the rule lives in a function whose doc comment is about indent-unit
+  // consistency, not about root normalization, and nothing else would fail
+  // if it changed.
+  const payload = '  - c2\n- S\n  - t1\n  - t2\n';
+
+  it('the clipboard slice parses as two ROOTS, not one nested structure', () => {
+    const parsed = parse(payload);
+    expect(parsed.children.map((n) => n.lines[0])).toEqual(['  - c2', '- S']);
+    expect(parsed.children[1]!.children.map((n) => n.lines[0])).toEqual(['  - t1', '  - t2']);
+  });
+
+  it('both roots land as siblings at the destination depth, internals intact', () => {
+    const dest = parse('- A\n  - B\n    - C\n- D\n');
+    const anchor = dest.children[0]!.children[0]!.children[0]!; // C, three deep
+    const result = insertSubtrees(dest, anchor.id, parse(payload).children, 'after');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // c2 and S are siblings of C; S's own children keep their relative
+    // offset beneath it rather than being flattened alongside it.
+    expect(encode(result.value.doc)).toBe(
+      '- A\n  - B\n    - C\n    - c2\n    - S\n      - t1\n      - t2\n- D\n',
+    );
+  });
+
+  it('a single root is unaffected — the existing behavior', () => {
+    const dest = parse('- A\n  - B\n- D\n');
+    const anchor = dest.children[0]!.children[0]!;
+    const result = insertSubtrees(dest, anchor.id, parse('- S\n  - t1\n').children, 'after');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- A\n  - B\n  - S\n    - t1\n- D\n');
+  });
+
+  it('a root whose own descendants are deeper than the destination keeps its shape', () => {
+    const dest = parse('- A\n- D\n');
+    const result = insertSubtrees(
+      dest,
+      dest.children[0]!.id,
+      parse('    - x\n- Z\n  - z1\n    - z2\n').children,
+      'after',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // x normalizes from depth 2 to top level; Z's two-deep chain survives.
+    expect(encode(result.value.doc)).toBe('- A\n- x\n- Z\n  - z1\n    - z2\n- D\n');
+  });
+});

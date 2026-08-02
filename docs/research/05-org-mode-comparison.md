@@ -38,6 +38,7 @@ model. Our outline toggle is that idea, generalized.
 | Node types on reparent | n/a (one body-content blob) | context-determined encoding (nearest-sibling type) | needed because markdown has multiple encodings for "a node" |
 | Task/TODO states | first-class on headlines (TODO/DONE, tags, properties) | plain content in v1 | deliberate MVP cut (Q9) |
 | Fold persistence | in-file (`STARTUP` keywords, `VISIBILITY` properties) | plugin data store, files stay clean | clean-files invariant (Q3) |
+| Selection closure | region selection is plain text — no structural closure at all | a selection that CROSSES a node boundary becomes a forest of whole subtrees, closed DOWNWARD only: no node is selected without its children, though a node may be selected together with content outside its parent. Selections within one node's own content stay ordinary character selections | outliner-UX convention — Logseq, Workflowy, Roam, Notion, Dynalist and Tana all enforce downward closure and none enforces the upward half (`selection-as-subtree-set`, 2026-07-31) |
 
 ## Takeaways for implementation
 
