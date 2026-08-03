@@ -1,0 +1,38 @@
+/openspec-update-change node-selection-extension.
+
+a few changes have been merged since this has been proposed. make sure that the proposal is still relevant and the design is up to date
+
+---
+
+first, let's create a branch. then let's sync and archive the selection-as-subtree-set change. it has shipped, I just forgot to archive it. then update the proposal
+
+---
+
+/openspec-apply-change
+
+---
+
+let's go with C, update the design and specs. 
+
+but I also want to clarify the observation because the interpretation you gave in "1. Your symptom, measured" doesn't match what I meant. first of all, you are talking about lists, while I was actually trying it with P heading. 
+from c1 shift-up expands to whole P chapter, then shift-down does not shrink back, it does not not go to c1+c2, it get's stuck for the downward expansion, but it can still expand upward. my interpretation is that after expansion to P the cursor is placed inside selection in the heading (after the `#`s), so then if it goes down into the gap line after the heading, it jumps back to the same place, it never reacher the end of the range. to go further down. that's just my interpretation. it's also based on the observation that when selection is expanded via keyboard, there's always blinking of the character-level selection under the block-level selection. this does not happen with mouse selection.
+
+---
+
+ok. we can move ahead with this plan. but I wonder if we can make the keyboard-driven selection more like the purely block-level mouse-driven selection, i.e. without the underlying character-level selection happening on every keypress.
+
+---
+
+good. here are a couple of clarifications:
+
+> Should extension have any relationship to the Mod-A ladder?
+
+yes, in the sense that both should work independently of how we arrived at the current state. so if we did mod-A several times, then decided to go sideways, it should be the same as if we started from that that whole subtree as the first selection. and vice versa: if we have a multi-subtree selection from expanding sideways, pressing mod-A should do the predictable thing, i.e. expand to the nearest sibling-list that covers the whole current selection or go to the parent. see if this interplay between the features is worth specifying explicitly. since we are changing how selection works, we need to keep in mind how that change interacts with the existing functionality. this is not out of scope.
+
+> which repaint you see inside the focused window — whether the native command's intermediate selection is briefly a non-cover, or it's the Live Preview raw-markdown reveal
+
+both. I can see both the character-level selection in the blink and the raw-markdown toggle as well. it's a quick blink, but noticeable enough. it's not about making it less noticeable, but about adjusting how block-selection works as a different mode instead of some sort of cover-up.
+
+---
+
+commit the proposal and then /openspec-apply-change
