@@ -1,31 +1,31 @@
 ## 1. Cover-sequence module
 
-- [ ] 1.1 Add a pure module computing, for an (anchor node, direction) pair, the ordered
+- [x] 1.1 Add a pure module computing, for an (anchor node, direction) pair, the ordered
       sequence of covers — anchor's own subtree first, then each successive node in content
       order, built on `escalate.ts`'s exported `forestCoverOf`, with cover-preserving steps
       omitted. No new cover math: this is the fifth consumer of that one computation
-- [ ] 1.2 Add the anchor lookup (design D8): read it off the normalized cover's ROOTS — first
+- [x] 1.2 Add the anchor lookup (design D8): read it off the normalized cover's ROOTS — first
       root when forward, last when backward, and for a single-root cover the root ITSELF, which
       re-seats the anchor after an upward ancestor swallow. No stored state. `coveredForestOf`
       returning `null` is the not-a-cover case 1.2b handles
-- [ ] 1.2c Implement the step: with ≥2 roots the opposite direction drops the far root; with
+- [x] 1.2c Implement the step: with ≥2 roots the opposite direction drops the far root; with
       exactly one root there is nothing to shrink to, so BOTH directions grow. Unit-test the
       re-seat trace directly — `[c1] → ⇧↑ → [P] → ⇧↓ → [P,Q] → ⇧↑ → [P]` — since this is the
       case the original design got wrong and the one a reader will most doubt
-- [ ] 1.2b Normalize a non-cover input to the ANCHOR NODE'S subtree cover (design D6) — NOT via
+- [x] 1.2b Normalize a non-cover input to the ANCHOR NODE'S subtree cover (design D6) — NOT via
       `escalateRange`/`escalateRanges`, both measured to leave a within-node content range
       untouched, which is correct for them and useless here. Where normalization changes the
       selection it IS the step; do not also advance. Test that it is the IDENTITY on every range
       that is already a cover, or it is silently changing the normal path too
-- [ ] 1.3 Unit tests mirroring `tests/escalate.test.ts`'s style, including the cross-scope case
+- [x] 1.3 Unit tests mirroring `tests/escalate.test.ts`'s style, including the cross-scope case
       that must NOT pull in a parent
-- [ ] 1.4 Property tests: consecutive covers are strictly nested; opposite presses are mutual
+- [x] 1.4 Property tests: consecutive covers are strictly nested; opposite presses are mutual
       inverses OVER COVERS **while the cover has ≥2 roots** (the single-root base is excluded by
       D8 — state the exclusion in the property, do not silently filter it out, or the property
       passes vacuously on documents where every cover is single-rooted); every dispatched cover
       is exact, so escalation would leave it unchanged — assert rung-in equals rung-out the way
       `selection-as-subtree-set`'s task 2.4 does for the ladder
-- [ ] 1.5 NO-FIXPOINT property, the one that would have caught today's bug: for every document
+- [x] 1.5 NO-FIXPOINT property, the one that would have caught today's bug: for every document
       and every cover with a further element in the pressed direction, the press CHANGES the
       selection. Negative control — run it against a walk that reuses the native-extend-then-
       escalate path and confirm it fails on the loose-list and heading-section shapes
