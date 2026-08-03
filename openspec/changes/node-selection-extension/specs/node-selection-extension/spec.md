@@ -16,6 +16,19 @@ sequence is exhausted, the selection SHALL remain unchanged.
 
 The sequence SHALL be recomputed from the document on every press, and the selection's position
 within it determined by the current cover together with the range's anchor/head orientation.
+A range that is NOT an exact cover SHALL first be normalized to the whole-subtree cover of the
+node its anchor resolves to. This normalization is the identity for every range that is already
+a cover. It SHALL NOT be expressed as ordinary selection escalation: escalation deliberately
+leaves a within-node content range untouched, so it does not produce a cover for these inputs.
+
+Two ordinary gestures produce such a range: a selection restored by undo or redo, which bypasses
+the escalation filter entirely (`@codemirror/commands` dispatches history transactions with
+`filter: false`), and the progressive-select-all ladder's first rung, which is a node's own
+content and is not a cover.
+
+Where the normalization CHANGES the selection, that change SHALL BE the press's step, and the
+sequence SHALL NOT additionally advance. A press moves one position; for an input that was not on
+the sequence, arriving on it is that move.
 No press-count, timer, stored head node, or stored extension origin SHALL be used: because
 escalation no longer expands a crossing range to a common ancestor, the cover's start edge (for
 a forward selection) or end edge (for a backward one) continues to identify the anchor node
@@ -46,14 +59,36 @@ however far the selection has grown.
 - **THEN** the selection grows to include the parent's next sibling — the already-covered
   children are passed over rather than costing a keypress
 
+#### Scenario: A selection restored by undo is normalized before stepping
+- **WHEN** an undo or redo restores a selection that is not an exact cover — history maps the
+  pre-operation selection forward through the operation's changes without the escalation
+  filter ever seeing it — and the user then presses Shift+ArrowDown
+- **THEN** the selection is first taken to the nearest cover, and the press steps from there;
+  the result is a cover, never a range whose edge falls mid-node
+
 ### Requirement: Extension is symmetric and can shrink
-`Shift+ArrowUp` and `Shift+ArrowDown` SHALL be exact inverses OVER COVERS: pressing the
-opposite direction SHALL restore precisely the cover that preceded the last press, moving one
-position back along the same sequence. Consecutive covers in a sequence SHALL be strictly
-nested, so a shrink is always a proper reduction. Shrinking SHALL bottom out at the sequence's
-first element, the anchor node's own whole subtree; pressing further SHALL switch to the
-opposite direction's sequence, so the selection begins growing on the other side, with the
-range's anchor/head orientation reflecting that direction.
+The anchor node SHALL be read from the current cover's own covered ROOTS, never from stored
+state: for a cover with two or more roots it is the FIRST root when the range is oriented
+forward and the LAST root when oriented backward — the root on the side the extension is not
+growing from. For a cover with exactly ONE root, that root IS the anchor node and the cover is
+the base of its sequence.
+
+While the cover has two or more roots, `Shift+ArrowUp` and `Shift+ArrowDown` SHALL be exact
+inverses OVER COVERS: pressing the opposite direction SHALL restore precisely the cover that
+preceded the last press, by dropping the root on the growing side. Consecutive covers in a
+sequence SHALL be strictly nested, so a shrink is always a proper reduction. Shrinking SHALL
+bottom out at a single-root cover and SHALL NOT reduce further to a caret or a partial range.
+
+From a single-root cover, BOTH directions SHALL grow — there is no smaller element to return to
+— with the range's anchor/head orientation reflecting the pressed direction.
+
+A consequence, stated because it is a real behavior and not an oversight: an upward press out of
+a node that is not its parent's last child yields that parent's whole subtree, since downward
+closure admits no smaller cover containing both. That cover has ONE root, so by the rule above
+the parent becomes the anchor, and no number of opposite presses returns to the original child.
+The selection instead oscillates between the parent's subtree and the parent plus its next
+sibling. Extension SHALL NOT attempt to return to a cover that is not reachable from the current
+selection, and SHALL NOT produce a cover that did not appear along the current anchor's sequence.
 
 The inverse property is stated over covers rather than over head-node identity deliberately:
 different head nodes can produce the identical cover, so head identity is neither observable in
@@ -76,9 +111,29 @@ the resulting selection nor a sound basis for a test.
   caret or a partial range
 
 #### Scenario: Continuing past the anchor grows upward
-- **WHEN** the selection is exactly the anchor node's own subtree and the user presses
-  Shift+ArrowUp
+- **WHEN** the selection is exactly the anchor node's own subtree, the node has a preceding
+  sibling, and the user presses Shift+ArrowUp
 - **THEN** the selection grows to cover the previous node as well, oriented backward
+
+#### Scenario: An upward press out of a first child re-seats the anchor on the parent
+- **WHEN** the caret is in a list item that is its parent's FIRST child, the parent has a later
+  child, and the user presses Shift+ArrowUp
+- **THEN** the selection covers the parent's whole subtree — including the later child, below
+  the caret — because downward closure admits no smaller cover, and the parent is now the
+  anchor node
+
+#### Scenario: Reversing after a re-seat grows rather than shrinking
+- **WHEN** the selection is exactly a parent's whole subtree, reached by the previous scenario,
+  and the user presses Shift+ArrowDown
+- **THEN** the selection grows to additionally cover the parent's next sibling — it does not
+  shrink, and in particular does not reduce to the parent's last child, a cover that never
+  appeared on the way up
+
+#### Scenario: A press never leaves the selection unchanged while a further cover exists
+- **WHEN** the selection is a parent's whole subtree whose own trailing gap line follows its
+  first line, and the user presses Shift+ArrowDown — the shape that is a fixpoint today, because
+  the head falls into the parent's own gap and re-resolves to the parent
+- **THEN** the selection changes, growing to include the parent's next sibling
 
 ### Requirement: A block selection and a multi-cursor selection are told apart by shape
 A selection consisting of exactly ONE range SHALL be treated as a block selection and extended
@@ -107,6 +162,46 @@ contiguous text, so growing a block selection never splits it into several range
 - **THEN** each range covers its own node's subtree, neither jumping ahead because the other is
   deeper
 
+### Requirement: Extension and progressive select-all compose through the selection alone
+Neither extension nor the `progressive-select-all` ladder SHALL consult, record, or infer how the
+current selection was produced. A selection reached by any sequence of gestures SHALL behave
+identically to the same selection reached by any other sequence.
+
+Consequently, `Mod+A` applied to a selection built by extension SHALL climb that selection's own
+ladder — the smallest rung strictly containing it, which is the nearest sibling run covering the
+whole selection, else the enclosing parent's subtree — including when the selection's covered
+roots sit at different depths, and SHALL preserve the range's orientation. Extension applied to a
+selection built by `Mod+A` SHALL step from that selection exactly as if it had been reached by
+extension. Neither capability SHALL gain shared state with the other, and neither SHALL
+special-case a selection by its provenance.
+
+#### Scenario: Mod+A over an extension-built sibling run climbs to the parent
+- **WHEN** the selection covers two sibling subtrees under one parent, reached by extension, and
+  the user presses Mod+A
+- **THEN** the selection becomes the parent's whole subtree
+
+#### Scenario: Mod+A over a cross-scope extension selection climbs to the enclosing run
+- **WHEN** the selection covers a nested item's subtree and a following top-level subtree,
+  reached by extension, and the user presses Mod+A
+- **THEN** the selection becomes the nearest run of whole subtrees containing both
+
+#### Scenario: Extension from a ladder rung matches extension from a caret
+- **WHEN** the user presses Mod+A once — selecting the node's own content, which is not a cover
+  — and then presses Shift+ArrowDown
+- **THEN** the selection is that node's whole subtree, identical to pressing Shift+ArrowDown from
+  a bare caret in the same node
+
+#### Scenario: Extension from a climbed ladder rung steps from that rung
+- **WHEN** the user presses Mod+A repeatedly until the selection is some node's whole subtree,
+  then presses Shift+ArrowDown
+- **THEN** the selection grows by one node from that subtree, identical to having reached the
+  same subtree by extension
+
+#### Scenario: Orientation survives the handoff
+- **WHEN** the selection was built by extending BACKWARD and the user presses Mod+A
+- **THEN** the resulting rung keeps the backward orientation, so a following Shift+ArrowUp
+  continues to grow upward rather than reversing
+
 ### Requirement: Extension dispatches exact covers and leaves escalation untouched
 Each extension SHALL dispatch a selection whose every range is already an exact cover under
 `node-selection-enforcement`'s geometry, so the transaction filter's escalation leaves it
@@ -125,13 +220,26 @@ any behavior of `node-selection-enforcement` for ranges the user produces by oth
 
 ### Requirement: Extension is scoped to outline mode
 Extension handlers SHALL activate per keypress only when the editor's file has outline mode
-enabled, resolved through the public `editorInfoField`. Outside outline mode every binding
-SHALL decline the key, so `Shift+ArrowUp` and `Shift+ArrowDown` behave byte-for-byte as stock
-Obsidian.
+enabled, resolved through the SAME single gate every other binding in the outline keymap uses —
+the public `editorInfoField`, AND exclusion of nested editors. Outside outline mode every
+binding SHALL decline the key, so `Shift+ArrowUp` and `Shift+ArrowDown` behave byte-for-byte as
+stock Obsidian.
+
+The nested-editor exclusion is not optional for these bindings. Obsidian mounts a table cell
+being edited as its own `EditorView`, the plugin's editor extension is installed there too, and
+`editorInfoField` still resolves to the outer note — so a gate reading outline mode alone would
+apply outline rules to a document that is only the cell's raw text. A private check that merely
+looks equivalent to the shared one SHALL NOT be used.
 
 #### Scenario: Off-mode extension is native
 - **WHEN** the user presses Shift+ArrowDown in a note without outline mode
 - **THEN** the native line-wise extension runs, unaffected by the plugin
+
+#### Scenario: A nested editor gets native extension
+- **WHEN** the user is editing a table cell inside an outline-mode note — a nested editor whose
+  own document is the cell's raw text — and presses Shift+ArrowDown
+- **THEN** the binding declines and native extension runs against the cell's own text, with no
+  node sequence computed from the outer note's tree
 
 #### Scenario: Toggle takes effect immediately
 - **WHEN** outline mode is toggled while the note is open

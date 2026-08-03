@@ -1,8 +1,11 @@
 # Examples: current versus intended behavior
 
 Keyboard selection extension. Every **today** frame was measured in a real Obsidian instance
-(1.12.7, desktop) on 2026-07-25 via a temporary WebDriver probe suite. The **intended** frames
-assume `selection-as-subtree-set` has landed, since this change is sequenced after it.
+(1.12.7, desktop) on 2026-07-25 via a temporary WebDriver probe suite, i.e. BEFORE
+`selection-as-subtree-set` landed — so a "today" frame showing an ancestor pulled in (E4) is
+already historical, though the granularity and one-way-ratchet frames still hold. The
+**intended** frames are written against the post-`selection-as-subtree-set` geometry, which has
+since shipped (#36).
 
 Caret-motion examples live in the `content-space-caret` change's own examples.md.
 
@@ -116,7 +119,9 @@ parent:
 > This case carried the change's biggest open question through two review rounds. With the old
 > escalation rule the second press had to pull `- parent` in — a *down* key growing the
 > selection upward — and reversing it then needed stored state to find the way back.
-> `selection-as-subtree-set` removes the pull-in, and both problems go with it.
+> `selection-as-subtree-set` removed the pull-in, and both problems went with it. The "today"
+> frame above is what the pre-#36 filter produced; a drag over the same span now already gives
+> the intended cover, and only the per-press granularity is left for this change.
 
 ### E4c — reversing after leaving a scope
 
@@ -191,6 +196,51 @@ node, then keeps going and starts growing upward:
 The caret's original position inside "Bravo two." is not recoverable once the selection
 snaps to node boundaries — the smallest rung is the anchor node, whole. Workflowy and
 Logseq behave the same way.
+
+### E7 — Upward out of a FIRST child (design D8)
+
+The shape no earlier example drew: every reversal example above extends downward, and E6's
+upward case is flat paragraphs with no ancestor to swallow.
+
+```
+- P
+	- c|1
+	- c2
+- Q
+```
+
+`⇧↑`.
+
+**Today** — the whole `P` subtree, and then the gesture is stuck. `⇧↓` produces a
+byte-identical selection, indefinitely: the head sits at `- P`'s own first column, moves down
+one line into `P`'s own trailing gap, and a gap line resolves back to `P`, which re-escalates
+to the same cover. Measured for a heading section and for a LOOSE list; a tight list escapes
+the trap but drifts its anchor onto `c2` instead.
+
+```
+▌- P
+▌	- c1
+▌	- c2
+ - Q
+```
+
+**Intended** — the same first frame, because downward closure admits no smaller cover
+containing both `c1` and `- P`. What changes is what happens next: `P` is now the anchor
+(D8 — a single-root cover re-seats it), so `⇧↓` GROWS to `P`'s sibling rather than sticking:
+
+```
+1st ⇧↑ →  ▌- P          2nd, ⇧↓ →  ▌- P          3rd, ⇧↑ →  ▌- P
+          ▌	- c1                   ▌	- c1                  ▌	- c1
+          ▌	- c2                   ▌	- c2                  ▌	- c2
+           - Q                     ▌- Q                    - Q
+```
+
+From here the selection oscillates between those two frames. `- c1` is not reachable again by
+keyboard — the swallow is irreversible, which D8 accepts and states rather than hiding.
+
+> Contrast E4, where the anchor is the LAST child and extension runs downward. There the
+> anchor survives every press, because a forest span always begins at the anchor's own subtree
+> start and no ancestor can displace it. The asymmetry is inherent to preorder, not a choice.
 
 ### E8 — Two cursors in adjacent siblings
 

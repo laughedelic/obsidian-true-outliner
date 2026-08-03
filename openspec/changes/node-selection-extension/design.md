@@ -16,8 +16,40 @@ The tight-list and upward cases are not design decisions; they are artifacts of 
 gap line sits between two nodes, since a cursor landing on a gap stays inside the previous
 node's territory while one landing on text does not.
 
-This change is sequenced after `selection-as-subtree-set`, which removes the ancestor pull-in
-from escalation. That ordering is what keeps this change small — see D3.
+### The gap-line fixpoint (2026-08-03, post-`selection-as-subtree-set`)
+
+The table above understates one case. Re-traced against the SHIPPED `escalateRange` with the
+native half modeled as "head moves one line, goal column preserved" — a simulation, unlike the
+real-instance rows above, and on post-#36 geometry — extending UPWARD out of a child and then
+reversing does not merely fail to shrink. It is a **fixpoint**: every subsequent press produces a
+byte-identical selection.
+
+| document | `⇧↑` from `c1` | then `⇧↓` |
+| --- | --- | --- |
+| heading section (`# P` with two paragraphs) | whole `P` section | **no change**, indefinitely |
+| LOOSE list (blank line between items) | whole `P` subtree | **no change**, indefinitely |
+| TIGHT list (no blank lines) | whole `P` subtree | shrinks, and drifts to `c2` |
+
+Mechanism, and it is not the expand-only rule: after the upward press the head sits at the
+cover's START — ch 0 of `# P`'s own line. `⇧↓` moves it down exactly one line, into **`P`'s own
+trailing gap**. `nodeAtLine` resolves a gap line to the node that PRECEDES it, so the head
+resolves back to `P`; `P` is an ancestor of the node the anchor sits in, so `forestCoverOf`
+returns `P`'s whole subtree — the identical cover. The head can never travel toward the far end
+of the range, because it is trapped one line below its own starting line.
+
+So the tight/loose split that produces the granularity bug in the table above produces this one
+too, from the same cause: gap ownership. It is not a heading behavior. Where there is no gap
+(the tight list) the head escapes into `c1`'s own line and the selection shrinks instead — but to
+a cover anchored on `c2`, because the first escalation already rewrote the range's ANCHOR offset
+from inside `c1` to the end of `c2`. Either way the origin of the gesture is destroyed on press
+one, by our own filter, and the character-mode offsets are what carry (and lose) it. That is the
+sharpest available statement of why extension needs to be a bound command rather than a
+correction: the correction has no way to preserve what the gesture meant.
+
+This change is sequenced after `selection-as-subtree-set`, which removed the ancestor pull-in
+from escalation. That ordering is what keeps this change small — see D3. It has since landed
+(#36, archived `2026-08-02`), together with `caret-placement-policy` (#33) and the nested-editor
+keymap gate (#35); what each settled for this change is recorded in D3, D4, D6 and D7.
 
 ## Goals / Non-Goals
 
@@ -61,11 +93,43 @@ cover, after which the range's two ends were the parent's own bounds and the nod
 started from was unrecoverable. Reversing then stepped back along the *parent's* sequence and
 produced a cover that never appeared on the way down.
 
-`selection-as-subtree-set` removes the pull-in. The cover's start edge (forward) or end edge
-(backward) again identifies the anchor node however far the selection has grown, so the walk is
-a plain function of the current selection. The statelessness `progressive-select-all` enjoys
+`selection-as-subtree-set` removed the pull-in. The statelessness `progressive-select-all` enjoys
 transfers here only because of that ordering — a bidirectional walk needs strictly more state
 than a monotone one unless the selection itself keeps identifying its origin.
+
+**Forward only, and this was measured rather than assumed (2026-08-03).** The cover's start edge
+identifies the anchor node however far a DOWNWARD extension has grown, permanently:
+`forestCoverOf`'s span begins at `firstNode`'s own subtree start, and every ancestor of
+`firstNode` begins above it, so no ancestor can ever displace the start edge. The first root of a
+forward cover is the anchor, always.
+
+The backward half of the original claim is FALSE. In
+
+```
+- P
+  - c1     ← caret here
+  - c2
+```
+
+one upward step is `forestCoverOf(c1, P)`, and since `P` is an ancestor of `c1` the cover is `P`'s
+whole subtree — roots `[P]`, lines 0..2. Downward closure drags `c2` in BELOW the anchor, so the
+cover's end edge resolves to `c2`, not `c1`. The anchor sits on neither edge and is gone.
+
+This is not a defect in `forestCoverOf`; escalate.ts's own comment already names the asymmetry as
+"inherent to preorder, not a defect in the rule". `selection-as-subtree-set` removed the upward
+pull-in on DOWNWARD extension, which is what this decision originally credited it with. The
+downward closure on UPWARD extension is the governing invariant itself, so nothing removed it and
+nothing can. It fires whenever the anchor is a non-last child — a first child of any list — which
+is why no worked example caught it: every reversal example in examples.md extends downward, and
+the one upward example is flat paragraphs with no ancestor to swallow.
+
+The resolution is D8, which keeps the walk stateless.
+
+The geometry to build on is `escalate.ts`'s exported `forestCoverOf` (two end nodes → covered
+roots and their combined span) and `coveredForestOf` (a range → its forest, or `null` if the
+range is not an exact cover). Both already have four consumers; this change adds a fifth and
+introduces no cover math of its own. `coveredForestOf` returning `null` is exactly the malformed
+input D6 handles.
 
 ### D4. Block versus multi-cursor is decided by range count
 
@@ -76,6 +140,11 @@ independently.
 growing block selection never fragments into several ranges. Had the pivot introduced a
 set-of-ranges representation, block and multi-cursor selections would have been
 indistinguishable and this would have needed a mode.
+
+That is no longer a projection. Contiguity shipped as a property test over generated trees
+(that change's task 2.2), and its e2e 6.2 confirms two cursors in adjacent siblings extended
+once stay two ranges rather than collapsing to a whole-document range — the discriminator's
+premise and its first real case, both measured.
 
 *Known edge, measured rather than assumed.* CodeMirror's `EditorSelection` requires ranges not
 to overlap but explicitly permits them to TOUCH. Verified directly (2026-07-25): two touching
@@ -102,12 +171,228 @@ Each press dispatches a selection the filter's escalation leaves untouched, exac
 expand-only invariant: expand-only governs the filter's correction of ranges the *user* produced
 by other gestures, and extension produces none of those.
 
+`selection-as-subtree-set`'s task 2.4 asserts rung-in equals rung-out for every ladder rung under
+the rewritten escalation, so the "dispatch an exact cover and the filter leaves it alone" pattern
+is verified for the one feature already using it. Extension inherits the same check.
+
+### D6. The walk normalizes its own input
+
+The walk can receive a selection that is not a cover at all. Two sources, and the second was
+missed until D10's ladder interplay was worked out: an undo or a redo restores a mapped-forward
+selection the filter never saw (Risks, below), and **the Mod-A ladder's first rung is a node's
+own content — not a cover.** D3's statelessness assumes a cover, and D4 compounds it, since both
+of those are still ONE range and so read as a block selection.
+
+**The walk normalizes its input to the ANCHOR NODE'S OWN SUBTREE COVER before stepping.**
+
+The obvious phrasing — "escalate to the nearest cover" — is wrong, and measurably so.
+`escalateRange` deliberately returns a within-node content range UNCHANGED; that is the whole
+point of the same-node branch, since a partial selection inside one node must stay partial.
+`escalateRanges` does not help either: its uniform second pass only fires when some range already
+escalated. Measured on the ladder's rung 1 (`1,3 → 1,5`, c1's own content after its marker), both
+return it untouched and it remains a non-cover. Only `subtreeCoverOf` of the node the range's
+anchor resolves to produces the cover. The normalization is therefore its own step, not a call
+into the escalation helpers.
+
+**A normalization that changed the selection IS that press's step.** The press moves one position;
+if the input was not on the sequence at all, arriving on it is that move. So Mod-A once (own
+content) followed by `⇧↓` selects that node's own subtree — identical to `⇧↓` from a bare caret in
+the same node, which is exactly the how-did-we-get-here independence D10 requires. For every
+selection already on the sequence the normalization is the identity and costs nothing.
+
+*Why here rather than at the history seam:* the earlier draft of this design expected
+`caret-placement-policy` to own it, since that change owns the caret half of the same
+`filter: false` fact. It shipped and explicitly declined — reshaping a restored selection changes
+the range the user is about to act on, which is this capability's question, not a caret one. So
+the choice is between normalizing in the walk and adding a new re-normalization point at the seam;
+the walk is self-contained, needs agreement with nothing, and is idempotent. Stored state was
+never the alternative: the failure is a malformed INPUT, and a `StateField` would be equally stale
+after the same undo.
+
+### D7. The handlers follow the Mod-A convention, not the motion-key convention
+
+Two conventions already exist in `keymap.ts` and this change must pick the right one deliberately,
+because they are opposites.
+
+- **The outline gate is `outlinePathOf`, which also excludes NESTED editors.** Obsidian mounts a
+  table cell being edited as its own `EditorView` and `registerEditorExtension` installs this
+  keymap there too, where `editorInfoField` still resolves to the outer note. A private
+  `editorInfoField` + `isOutline` check looks equivalent and is not; that defect has bitten twice
+  (#35), which is why the module comment requires every binding to route through the one helper.
+- **Multi-range: plan every range, like `makeSelectAllHandler`.** The motion handlers use
+  `soleCursor`, which DECLINES on multiple ranges — load-bearing there, because those handlers
+  plan from `selection.main` alone and would silently discard the other ranges. Extension is the
+  opposite case by D4: it plans every range and dispatches them together, exactly as the Mod-A
+  ladder does (each range advancing its own sequence, a range with nowhere to go left in place).
+  `makeSelectAllHandler` is the shape to mirror, down to preserving `mainIndex`.
+
+### D8. The anchor is the cover's own outer root; a single-root cover re-seats it
+
+The walk reads its anchor off the normalized cover's ROOTS rather than off a stored origin:
+
+- **Two or more roots.** The anchor node is `r1` for a forward cover, `rk` for a backward one —
+  the root on the FIXED side. The pressed direction grows by adding a root on the far side, and
+  the opposite direction shrinks by dropping the far root. This is the ordinary case and D1's
+  inverse property holds exactly.
+- **Exactly one root.** That root IS the anchor, and the cover is the base of its sequence. There
+  is nothing to shrink to, so BOTH directions grow from it.
+
+The single-root case is what an upward ancestor swallow produces, and the rule's consequence is
+that the swallow **re-seats the anchor onto the swallowed ancestor**. Continuing the D3 example:
+
+```
+[c1]  --⇧↑-->  [P]  --⇧↓-->  [P, Q]  --⇧↑-->  [P]  --⇧↓-->  [P, Q]  ...
+```
+
+`⇧↓` out of `[P]` grows to `P`'s next sibling rather than shrinking, because `[P]` is a base. From
+there the selection oscillates between `[P]` and `[P, Q]`; `c1` is not reachable again by
+keyboard.
+
+*Why this and not stored state.* Stored state restores D1's inverse property universally, and it
+was the option considered first. It was rejected on the evidence in Context: the character-mode
+anchor offset is ALREADY a hidden origin carrier, and losing it is precisely what makes today's
+behavior wrong. Replacing one hidden carrier with another — a `StateField` needing invalidation
+rules for every selection change that is not an extension — reintroduces the failure mode this
+change exists to remove, and would be equally stale after an undo (D6). A rule that reads
+everything it needs from the selection cannot go stale.
+
+*Why not "shrink to whatever the end edge resolves to".* That is the third option and it is the
+worst: from `[P]` it lands on `[c2]`, a cover that never appeared on the way up, reproducing
+today's measured drift with better granularity. Rejected explicitly, not overlooked.
+
+*What it costs.* D1's inverse property becomes conditional: `⇧↓` undoes `⇧↑` except across an
+ancestor swallow, where the swallow is irreversible by keyboard. Accepted because the resulting
+behavior is self-consistent and visible — every state on the oscillation is a cover the user can
+see and act on — where the alternatives are silently wrong or silently stateful. The spec states
+the condition rather than promising an inverse it cannot deliver.
+
+### D9. Block selection is a derived interaction MODE, not a set of DOM corrections
+
+**When every non-empty range is a cover, the editor is in block-selection mode.** The mode is
+DERIVED — `allRangesCovered`, the predicate the chrome and the `::selection` suppression already
+share — so there is no flag to set, no command to enter or leave it, and no way for it to
+disagree with what is rendered.
+
+Everything that currently happens per-gesture becomes a property of the mode:
+
+| | in block-selection mode | otherwise |
+| --- | --- | --- |
+| Live Preview | rendered (editor blurred) | raw around the caret (editor focused) |
+| native `::selection` | transparent | normal |
+| block chrome | shown per covered root | none |
+| key routing | the block-mode handler, first-class | ordinary CM6 focused dispatch |
+
+*This is the reframe, and it is the point.* The three focus calls today are corrections applied
+after the fact — blur because the selection turned out to be a cover, blur again because the
+first one was skipped, refocus because blurring broke keys. Each is a cover-up for the previous.
+Under a mode, focus is not a thing done TO the editor; it is one of the mode's properties, and it
+changes only when the mode changes. Two block selections in a row are the same mode, so nothing
+happens between them — which is why the flicker becomes unreachable rather than merely rarer, and
+why `onDocumentKeyDown` stops being "recovering keyboard interaction after we broke it" and
+becomes the block mode's own key path.
+
+*Confirmed symptom (2026-08-03).* Both repaints are visible in the blink: the character-level
+selection AND the raw-markdown toggle. That is a full round-trip out of the mode and back — the
+editor genuinely leaves block-selection appearance on every keypress and returns. Making it
+faster or less visible would be the cover-up; not leaving the mode is the fix.
+
+*Relation to D4 and to the change's out-of-scope list.* Two different things are called "mode"
+and only one is ruled out. D4 says no STORED modal state is needed to tell a block selection from
+a multi-cursor one — that stands, and this mode is derived, so it introduces none. What
+docs/research/13 files as "modal block-level keyboard selection" is the stored kind, with entry
+and exit gestures and `Cmd`-click cherry-picking; still out of scope. The proposal's out-of-scope
+entry is split accordingly rather than left to imply this is forbidden.
+
+*What it replaces.* `SelectionDecorationPlugin` manipulates focus in three places, each added to
+patch the previous one's fallout: `update()` blurs when covered and no drag is in progress;
+`onMouseUp` blurs again because the drag's settling transaction may have committed while
+`mouseDown` was still true, so `update()` skipped it; `onDocumentKeyDown` refocuses
+unconditionally, because a blurred `contentDOM` never sees `keydown`. All three approximate the
+one invariant above.
+
+*Why the flicker follows from it.* Today every keypress is focus → run command → settle → blur a
+macrotask later, because `onDocumentKeyDown` focuses BEFORE `runScopeHandlers`. A mouse drag
+never does this: `update()`'s hook is guarded on `!mouseDown`, so the blur happens once at
+`onMouseUp` — one transition per gesture, not one per event. Under D9 an extension press goes
+cover → cover, the policy's answer does not change, and no focus transition happens at all. The
+flicker is not made less likely; it is made unreachable.
+
+*How key input survives.* `onDocumentKeyDown` stops treating focus as a precondition. It replays
+the event through `runScopeHandlers` first; a command that matched dispatches its own selection
+and the policy decides focus from the result. Only an UNMATCHED key focuses immediately, because
+plain typing is inserted by the browser's own later `beforeinput` against whatever is focused at
+that moment — and that case ends in a non-cover selection anyway, so the immediate focus agrees
+with the policy rather than fighting it.
+
+*What does not change.* The `setTimeout` deferral stays on the blur direction. Blurring
+synchronously inside `update()` races CM6's DOM-selection sync and was observed inserting typed
+text at a stale position (decorations.ts's own comment). The policy governs WHEN focus should
+change, not how soon the DOM call may follow. The `isActiveEditor` guard stays too — it
+disambiguates two blurred panes and is orthogonal to this rule.
+
+*Scope.* This is `escalated-selection-decoration`'s mechanism, not this capability's, and it is
+pulled in deliberately: extension cannot look like mouse block selection while a refocus fires on
+every press. Codifying it also closes a gap that capability's spec names outright — the blur
+mechanism was "implemented alongside this capability but deliberately not codified here as a
+formal requirement", which is exactly how three sites drifted apart with no spec disagreeing.
+
+### D10. Extension and the Mod-A ladder compose through the selection, and only through it
+
+Both features read the CURRENT selection and the document, and neither records how that selection
+came about. So they compose in both directions with no coordination, and the resulting rule is
+worth stating outright because it is a guarantee rather than an accident:
+
+**A selection reached by any means behaves identically to the same selection reached any other
+way.** Mod-A four times then `⇧↓` equals `⇧↓` from a caret that had already arrived at that
+cover; extension sideways then Mod-A equals Mod-A from that cover directly.
+
+Measured against the shipped `nextRung`, over extension-shaped selections in `- P / c1 / c2 / - Q`:
+
+| current selection | `Mod-A` gives |
+| --- | --- |
+| `[c1]` | `c1 + c2` — the sibling run under `P` |
+| `[c1, c2]` | `P`'s whole subtree — the parent |
+| `[c1, c2, Q]` | the whole outline body |
+| `[c2, Q]` (crosses a scope) | the whole outline body — the nearest run containing both |
+| `[P]`, backward | the whole outline body, orientation preserved |
+
+That is exactly "the nearest sibling run covering the whole current selection, else the parent",
+so no new ladder behavior is needed. `nextRung` resolves its node from `range.anchor` and climbs
+to the smallest rung that strictly contains the range, which for a mixed-depth forest lands on
+the first enclosing run regardless of which end the anchor sits at — checked at both
+orientations, since D8 makes backward covers ordinary.
+
+*The one seam, and it is not free.* The ladder's rung 1 is a node's OWN CONTENT — for a list item
+starting after its marker — and that is not an escalation cover. So Mod-A hands extension a
+non-cover selection through a perfectly ordinary gesture, not only through undo. D6 owns the
+answer and had to be corrected to give a right one; this interplay is what exposed it.
+
+*What this rules out.* No shared state between the two features, and no special-casing of "this
+selection came from the ladder". The reverse direction stays rejected: `⇧↑` from a whole-subtree
+cover grows sideways rather than climbing, because the two features answer different questions
+("one more node, that way" versus "wider, from here"). Composability is not conflation.
+
 ## Risks / Trade-offs
 
 - **The first press loses the caret's exact offset** — the walk bottoms out at "anchor node,
   whole", not at the original caret. Workflowy and Logseq behave the same way. → Accepted, and
   stated so it is a decision rather than a surprise.
 - **The merge edge in D4** → recorded, measured in real use, revisited rather than pre-solved.
+- **An upward ancestor swallow is irreversible by keyboard (D8).** Once `⇧↑` from a first child
+  takes the parent's whole subtree, the anchor re-seats onto the parent and no number of `⇧↓`
+  presses returns to the child. → Accepted as the price of a walk that stores nothing; judge it
+  in the real-vault pass (5.x) rather than pre-solving. If it reads as a trap, the fix is D8's
+  rejected option — a stored origin — and the argument against it is recorded there.
+- **Keyboard extension flickers where a mouse drag does not.** Reported from real use,
+  2026-08-03; traced to the focus/refocus cycle and fixed by D9. The two-transaction escalation
+  flash was the first suspect and was WRONG — escalation returns `[tr, { selection }]` from
+  inside a `transactionFilter`, which CM6 resolves into one transaction. Recorded because the
+  wrong suspect is the plausible one, and re-deriving it would cost the same investigation
+  again.
+- **D9 changes when the editor is focused, which is load-bearing for input, not just for
+  looks.** A focus policy that is wrong in the blurred direction silently eats keystrokes — the
+  exact failure `onDocumentKeyDown` exists to recover from. → The e2e coverage (4.4x) asserts
+  input still lands after every gesture, not only that the flicker is gone.
 - **Someone relied on `⇧↓` grabbing two tight-list items in one press** → that was an artifact,
   not a feature; one press per node is the point of the change.
 - **A selection restored by undo or redo need not be a cover at all, which D3's stateless walk
@@ -127,15 +412,12 @@ by other gestures, and extension produces none of those.
   reads it as a block selection and extends from an anchor derived from an edge that no longer
   sits on a node boundary.
 
-  → Not a reason to add the `StateField` back: the failure is a malformed INPUT, not an
-  unrecoverable anchor, and stored state would be equally stale after the same undo. Two cheap
-  options: have the walk normalize its input (escalate the current selection to the nearest
-  cover before stepping, which is idempotent for every selection the filter already produced),
-  or have something re-normalize restored selections at the point history bypasses the filter.
-  The second belongs to `caret-placement-policy`, which owns the caret half of this same
-  `filter: false` fact and is sequenced before this change partly for that reason. Normalizing
-  in the walk is self-contained and needs no agreement with it — worth settling before the walk
-  is written rather than after.
+  → **Settled in D6: the walk normalizes its own input.** Not a reason to add the `StateField`
+  back — the failure is a malformed INPUT, not an unrecoverable anchor, and stored state would be
+  equally stale after the same undo. The other candidate, re-normalizing restored selections at
+  the seam where history bypasses the filter, was offered to `caret-placement-policy`, which owns
+  the caret half of this same `filter: false` fact; it shipped and declined, leaving the question
+  here.
 
 ## Migration Plan
 
@@ -144,13 +426,4 @@ are byte-for-byte stock.
 
 ## Open Questions
 
-- Should the walk normalize its input selection to the nearest cover before stepping, so a
-  selection restored by undo/redo (which the escalation filter provably never sees — see
-  Risks) has defined behavior? Idempotent for every selection the filter already produced, so
-  the cost is one escalation call per press.
 - Does the D4 merge edge ever occur in practice, and does it read as wrong when it does?
-- Should extension have any relationship to the Mod-A ladder's rungs — for instance, should
-  `⇧↑` from a whole-subtree cover ever climb rather than grow sideways? Deliberately not
-  designed in: the two features answer different questions ("one more node, that way" versus
-  "wider, from here"), and conflating them was rejected in the discussion that produced this
-  change.
