@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "8e036764f8e4",
+  "strategy": "manual-commit",
+  "branch": "docs/update-node-selection-extension",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "openspec/changes/archive/2026-08-02-selection-as-subtree-set/.openspec.yaml",
+    "openspec/changes/archive/2026-08-02-selection-as-subtree-set/README.md",
+    "openspec/changes/archive/2026-08-02-selection-as-subtree-set/design.md",
+    "openspec/changes/archive/2026-08-02-selection-as-subtree-set/proposal.md",
+    "openspec/changes/archive/2026-08-02-selection-as-subtree-set/specs/escalated-selection-decoration/spec.md",
+    "openspec/changes/archive/2026-08-02-selection-as-subtree-set/specs/node-selection-enforcement/spec.md",
+    "openspec/changes/archive/2026-08-02-selection-as-subtree-set/specs/structural-operations/spec.md",
+    "openspec/changes/archive/2026-08-02-selection-as-subtree-set/tasks.md",
+    "openspec/changes/selection-as-subtree-set/.openspec.yaml",
+    "openspec/changes/selection-as-subtree-set/README.md",
+    "openspec/changes/selection-as-subtree-set/design.md",
+    "openspec/changes/selection-as-subtree-set/proposal.md",
+    "openspec/changes/selection-as-subtree-set/specs/escalated-selection-decoration/spec.md",
+    "openspec/changes/selection-as-subtree-set/specs/node-selection-enforcement/spec.md",
+    "openspec/changes/selection-as-subtree-set/specs/structural-operations/spec.md",
+    "openspec/changes/selection-as-subtree-set/tasks.md",
+    "openspec/specs/escalated-selection-decoration/spec.md",
+    "openspec/specs/node-selection-enforcement/spec.md",
+    "openspec/specs/structural-operations/spec.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/8e/036764f8e4/0/metadata.json",
+      "transcript": "/8e/036764f8e4/0/full.jsonl",
+      "compact_transcript": "/8e/036764f8e4/0/transcript.jsonl",
+      "content_hash": "/8e/036764f8e4/0/content_hash.txt",
+      "prompt": "/8e/036764f8e4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 220,
+    "cache_creation_tokens": 318525,
+    "cache_read_tokens": 18836182,
+    "output_tokens": 112592,
+    "api_call_count": 118
+  }
+}
