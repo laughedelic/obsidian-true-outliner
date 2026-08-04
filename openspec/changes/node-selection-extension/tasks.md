@@ -68,14 +68,14 @@
       mechanism that no longer runs. Concretely one test, `Shift+ArrowDown crossing a boundary
       escalates both nodes in full` (line 77): `selection-as-subtree-set`'s task 6.1 left it in
       place on purpose, for this change to take
-- [ ] 3.2 Confirm `progressive-select-all`'s ladder is untouched, including multi-range
+- [x] 3.2 Confirm `progressive-select-all`'s ladder is untouched, including multi-range
       independence
-- [ ] 3.2b Pin design D10's composition in `tests/select-all-ladder.test.ts`: `nextRung` over
+- [x] 3.2b Pin design D10's composition in `tests/select-all-ladder.test.ts`: `nextRung` over
       extension-shaped selections — a sibling run, a cross-scope mixed-depth forest, and a
       backward cover — asserting the measured answers (nearest enclosing run, else the parent,
       orientation preserved). These pass today; the point is that this change alters which
       selections exist for the ladder to climb from, so nothing should silently move
-- [ ] 3.2c Round-trip property: for any cover, `Mod-A` then extension, and extension then
+- [x] 3.2c Round-trip property: for any cover, `Mod-A` then extension, and extension then
       `Mod-A`, both agree with performing the second gesture from that selection directly — the
       how-did-we-get-here independence D10 guarantees, stated as a property rather than examples
 - [ ] 3.3 Confirm block-selection chrome renders for extension-produced covers
