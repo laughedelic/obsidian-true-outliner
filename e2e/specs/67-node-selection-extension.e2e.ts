@@ -47,6 +47,20 @@ async function outlineNote(content: string): Promise<void> {
   await h.setBuffer(content);
 }
 
+/** Give the editor DOM focus. `dispatchSelectOnlyRanges` sets the selection
+ * through the CM6 API without focusing, and a blurred editor never sees
+ * `keydown` — on desktop the editor happened to be focused already, so the
+ * multi-cursor tests below passed there and did nothing at all under mobile
+ * emulation (measured: the ranges came back byte-identical). Block-selection
+ * mode's own `onDocumentKeyDown` path does not cover this, and correctly so:
+ * two CURSORS are not a cover, so the editor is not in the mode. */
+async function focusEditor(): Promise<void> {
+  await browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+    (view.editor as any).cm.focus();
+  });
+}
+
 const down = (): Promise<void> => browser.keys([Key.Shift, Key.ArrowDown]);
 const up = (): Promise<void> => browser.keys([Key.Shift, Key.ArrowUp]);
 
@@ -201,6 +215,7 @@ describe('node-selection-extension: multi-cursor (design D4)', () => {
       { anchor: { line: 1, ch: 8 }, head: { line: 1, ch: 8 } },
       { anchor: { line: 3, ch: 3 }, head: { line: 3, ch: 3 } },
     ]);
+    await focusEditor();
     await down();
     let ranges = await h.getSelectionRanges();
     expect(ranges).toHaveLength(2);
@@ -216,6 +231,7 @@ describe('node-selection-extension: multi-cursor (design D4)', () => {
       { anchor: { line: 1, ch: 4 }, head: { line: 1, ch: 4 } },
       { anchor: { line: 3, ch: 2 }, head: { line: 3, ch: 2 } },
     ]);
+    await focusEditor();
     await down();
     const ranges = await h.getSelectionRanges();
     expect(ranges).toHaveLength(2);
@@ -236,6 +252,7 @@ describe('node-selection-extension: D4\'s merge edge and D6\'s restored input', 
       { anchor: { line: 0, ch: 3 }, head: { line: 0, ch: 3 } },
       { anchor: { line: 2, ch: 3 }, head: { line: 2, ch: 3 } },
     ]);
+    await focusEditor();
     await down();
     expect(await h.getSelectionRanges()).toHaveLength(2);
     await down();
@@ -449,3 +466,4 @@ describe('node-selection-extension: composition with the Mod-A ladder (design D1
     expect(await span()).toBe('0..2 fwd'); // P's whole subtree
   });
 });
+

@@ -901,6 +901,9 @@ class MarkersPlugin implements PluginValue {
 class SelectionDecorationPlugin implements PluginValue {
   decorations: DecorationSet;
   private mouseDown = false;
+  /** Whether the last policy evaluation saw block-selection mode. Detects the
+   * mode's exit edge; see `applyFocusPolicy`. */
+  private inBlockMode = false;
 
   constructor(
     private readonly view: EditorView,
@@ -944,24 +947,56 @@ class SelectionDecorationPlugin implements PluginValue {
    * browser's `beforeinput` read once refocused). A real mouse drag never hit
    * this because it updates the DOM's native selection continuously.
    *
-   * The FOCUS direction is guarded so the policy can only ever take focus
-   * back for a view that lost it to this same mechanism: it acts only when
-   * the view is blurred, nothing else has claimed focus
-   * (`document.activeElement === document.body`), and this view is the host's
-   * own active editor. Without the last guard two blurred panes both act —
-   * see `isActiveEditor`.
+   * The FOCUS direction must go through `EditorView.focus()`, NOT
+   * `contentDOM.focus()`. A first version used the raw DOM call and broke
+   * caret placement for a plain mouse click: focusing a contenteditable lets
+   * CodeMirror's own selection observer read the BROWSER's DOM selection back
+   * into state, and after a click that is the raw clicked offset, not the
+   * corrected one the transaction filter had just resolved. Measured under
+   * mobile emulation on `- alpha / - bravo`: clicking the second item's marker
+   * landed the caret at `ch 1`, between the `-` and its space, instead of
+   * content start at `ch 2` (`65-content-space-caret.e2e.ts` D2). That is the
+   * exact mirror of the blur race above — one direction strands the DOM's
+   * selection, the other lets it win.
+   *
+   * `EditorView.focus()` is built for this: it wraps the focus in
+   * `observer.ignore(...)` so nothing is read back, then calls
+   * `docView.updateSelection()` to push STATE to DOM. So it cannot resurrect a
+   * pre-correction position, and it needs no re-assert afterward —
+   * `keymap.ts`'s `dispatchCursor` already records that re-dispatching on a
+   * later frame is inherently a race.
+   *
+   * It is guarded so the policy can only take focus back for a view that lost
+   * it to this same mechanism: only when the view is blurred, nothing else has
+   * claimed focus (`document.activeElement === document.body`), and this view
+   * is the host's own active editor. Without the last guard two blurred panes
+   * both act — see `isActiveEditor`.
    */
   private applyFocusPolicy(): void {
     window.setTimeout(() => {
       if (!this.isOutlineNote()) return;
-      if (allRangesCovered(this.view.state)) {
+      const covered = allRangesCovered(this.view.state);
+      const wasCovered = this.inBlockMode;
+      this.inBlockMode = covered;
+
+      if (covered) {
         if (this.view.hasFocus) this.view.contentDOM.blur();
         return;
       }
+      // Focus is restored on the mode's EXIT EDGE, not asserted continuously
+      // on every non-cover selection. That distinction is load-bearing: a
+      // plain click also produces a non-cover selection, and calling focus on
+      // that path regressed caret placement even through `EditorView.focus()`
+      // (measured — `65-content-space-caret.e2e.ts` D2 landed at `ch 1`
+      // instead of content start `ch 2`). A click never exits the mode,
+      // because it was never in it, so this edge leaves the click path
+      // untouched. `inBlockMode` is a transition detector, not selection
+      // state — the mode itself stays derived.
+      if (!wasCovered) return;
       if (this.view.hasFocus) return;
       if (document.activeElement !== document.body) return;
       if (!this.isActiveEditor()) return;
-      this.view.contentDOM.focus();
+      this.view.focus();
     }, 0);
   }
 
@@ -1135,7 +1170,7 @@ class SelectionDecorationPlugin implements PluginValue {
       event.stopPropagation();
       return;
     }
-    this.view.contentDOM.focus();
+    this.view.focus();
   };
 
   private compute(): DecorationSet {

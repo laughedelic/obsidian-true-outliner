@@ -5,11 +5,25 @@ An outline-mode editor SHALL be in BLOCK-SELECTION MODE exactly when its current
 least one non-empty range and every non-empty range is an exact cover — the same all-or-nothing
 test that already drives the block chrome and the native-highlight suppression.
 
-The mode SHALL be DERIVED from the current selection on every evaluation. No flag SHALL be
-stored, and no command, gesture, or keystroke SHALL enter or leave the mode other than by
-changing the selection. The mode's observable properties — Live Preview rendered rather than
-raw, the content DOM blurred, native character-level highlight suppressed, block chrome shown —
-SHALL all follow from it, so they cannot disagree with one another or with what is selected.
+The mode SHALL be DERIVED from the current selection on every evaluation. No flag SHALL
+determine whether the editor is in the mode, and no command, gesture, or keystroke SHALL enter or
+leave it other than by changing the selection. The mode's observable properties — Live Preview
+rendered rather than raw, the content DOM blurred, native character-level highlight suppressed,
+block chrome shown — SHALL all follow from it, so they cannot disagree with one another or with
+what is selected.
+
+Focus SHALL follow the mode's TRANSITIONS, not its negation: entering the mode SHALL blur the
+editor, leaving it SHALL restore focus, and a selection that is merely outside the mode SHALL
+NOT cause focus to be asserted. Restoring focus SHALL go through the editor library's own focus
+entry point, which re-applies the editor state's selection to the DOM, rather than focusing the
+content element directly, which permits the browser's existing DOM selection to be read back
+into state.
+
+Both asymmetries exist because a focus change can carry a stale selection in either direction. A
+direct DOM focus lets the browser's selection win over a correction the editor has already
+resolved — observed as a click on a list marker landing between the marker and its space instead
+of at content start. Asserting focus on every non-cover selection reaches the same click path at
+all, which is why the restore is scoped to the transition.
 
 A gesture whose selection is a cover BEFORE and AFTER it — keyboard extension from one cover to
 the next — SHALL NOT leave and re-enter the mode, and SHALL therefore produce no focus change, no
@@ -41,6 +55,11 @@ through the policy above.
   cover — collapsing to a caret, or selecting part of one node's content
 - **THEN** the editor is focused again, and ordinary text editing works with no extra keypress
   needed to restore focus
+
+#### Scenario: Clicking in an ordinary document does not disturb caret placement
+- **WHEN** the editor is NOT in block-selection mode and the user clicks on a list item's marker
+- **THEN** the caret lands where caret placement resolves it — the item's content start — and
+  the focus policy does not act at all, since no mode transition occurred
 
 #### Scenario: Typing into a block selection still lands
 - **WHEN** the selection is a block cover, the editor is blurred, and the user types an ordinary

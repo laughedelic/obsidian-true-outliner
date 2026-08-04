@@ -330,6 +330,29 @@ text at a stale position (decorations.ts's own comment). The policy governs WHEN
 change, not how soon the DOM call may follow. The `isActiveEditor` guard stays too — it
 disambiguates two blurred panes and is orthogonal to this rule.
 
+*Amended during implementation (2026-08-03): the two directions are NOT symmetric.* The rule as
+first stated — assert focus whenever the selection is not a cover — is wrong, and measurably so.
+Two corrections, both found by the existing suite rather than by review:
+
+- **Focus must use `EditorView.focus()`, never `contentDOM.focus()`.** The raw DOM call lets
+  CM6's selection observer read the BROWSER's DOM selection back into state; after a click that
+  is the raw clicked offset, not the corrected one the filter just resolved. `EditorView.focus()`
+  wraps the focus in `observer.ignore(...)` and then calls `docView.updateSelection()`, pushing
+  STATE to DOM, so it cannot resurrect a pre-correction position. Exactly the mirror of the blur
+  race: one direction strands the DOM's selection, the other lets it win.
+- **Focus is restored on the mode's EXIT EDGE, not asserted continuously.** Even through
+  `EditorView.focus()`, acting on every non-cover selection still regressed a plain mouse click
+  (`65-content-space-caret.e2e.ts` D2: caret at `ch 1` instead of content start `ch 2`). A click
+  produces a non-cover selection but never EXITS the mode, because it was never in it — so
+  keying the restore to the transition leaves the click path untouched entirely. This costs one
+  boolean, a transition detector rather than selection state; the mode itself stays derived.
+
+So the honest invariant is asymmetric: **entering block-selection mode blurs; leaving it
+restores focus; being outside it asserts nothing.** The flicker fix does not depend on the focus
+half at all — it comes from the keymap reorder — but without the exit edge a bound command that
+leaves the mode strands the keyboard, since `onDocumentKeyDown` only acts while the selection is
+still a cover.
+
 *Scope.* This is `escalated-selection-decoration`'s mechanism, not this capability's, and it is
 pulled in deliberately: extension cannot look like mouse block selection while a refocus fires on
 every press. Codifying it also closes a gap that capability's spec names outright — the blur

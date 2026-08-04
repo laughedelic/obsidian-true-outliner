@@ -119,8 +119,13 @@
       grows from it; Shift+Arrow sideways then Mod-A climbs to the enclosing run. Assert the
       resulting SELECTIONS match the direct route, not merely that something changed
 - [x] 4.5 Off-mode reference assertions
-- [ ] 4.6 Mobile-emulation run — including the focus policy, where there is no mouse path at all
-      and a wrong blur would leave the on-screen keyboard with nowhere to type
+- [x] 4.6 Mobile-emulation run, 18/18. It caught TWO defects desktop did not. (a) The focus
+      policy's focus direction regressed `65-content-space-caret` D2 — a click on a marker landed
+      at `ch 1` instead of content start; root cause and the two corrections are in design D9's
+      amendment. (b) Two of this change's own multi-cursor tests silently did NOTHING on mobile:
+      `dispatchSelectOnlyRanges` does not focus the editor, a blurred editor never sees `keydown`,
+      and `onDocumentKeyDown` correctly declines because two CURSORS are not a cover. Desktop
+      passed only because the editor happened to be focused already
 
 ## 5. Real-vault manual pass
 

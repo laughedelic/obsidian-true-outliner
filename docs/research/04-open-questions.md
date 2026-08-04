@@ -2041,3 +2041,32 @@ anchor, so the end edge resolves to that child instead. Not a defect in the geom
 removed the upward pull-in on downward extension; the downward closure on upward extension
 is the invariant itself and nothing can remove it. Resolved by D8 (re-seat the anchor onto
 the swallowed ancestor) rather than by re-introducing stored state.
+
+### Focus is not symmetric with blur, and the suite found both halves
+
+D9 was first specified as "focused exactly when the selection is not an all-cover block
+selection". That is wrong twice over, and both corrections came from existing e2e coverage
+rather than from review.
+
+**`contentDOM.focus()` lets the DOM's selection win.** Focusing the content element permits
+CodeMirror's selection observer to read the BROWSER's DOM selection back into state. After a
+click that is the raw clicked offset, not the position the transaction filter had already
+resolved. Measured under mobile emulation on `- alpha / - bravo`: `65-content-space-caret`'s
+D2 landed the caret at `ch 1`, between the marker and its space, instead of content start
+`ch 2`. `EditorView.focus()` is built for this case — `observer.ignore(...)` around the focus,
+then `docView.updateSelection()` pushing STATE to DOM — and cannot resurrect a pre-correction
+position. This is the exact mirror of the blur race in Q21/Q25: one direction strands the DOM's
+selection, the other lets it overwrite state.
+
+**Even so, focus must key off the mode's EXIT EDGE.** Asserting focus on every non-cover
+selection still regressed the same click test, because a click also produces a non-cover
+selection. It never EXITS block-selection mode, though — it was never in it — so scoping the
+restore to the transition removes the click path from the policy's reach entirely. Cost: one
+boolean transition detector. The mode itself stays derived; what is remembered is the previous
+answer, not the mode.
+
+The exit edge is not optional. `onDocumentKeyDown` only replays keys while the selection is
+still a cover, so without it a bound command that leaves the mode — indent over a block
+selection, then undo — strands the keyboard entirely with no way back but a click. That the
+first version of this change shipped that hole and the undo scenario caught it is the argument
+for the scenario existing.
