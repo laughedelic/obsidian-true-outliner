@@ -1972,3 +1972,72 @@ with a test." Worth checking for before writing the extension.
 A TYPE-OVER of a mixed-depth cover is unmodeled — `deleteAndSplice` splices into the single gap
 a deletion left, and a forest leaves one gap per parent. Implemented as a conservative `PASS`.
 It wants a judgement about what users expect, not more measurement.
+
+## Q31. `node-selection-extension` implementation findings (2026-08-03)
+
+Four measurements this change's design rests on. Each cost an investigation, and each has
+a plausible wrong answer that was believed at some point in this repo — which is why they
+are recorded rather than left to be re-derived.
+
+### The keyboard flash was never a two-transaction escalation
+
+`docs/research/13`'s flash entry recorded, as a "confirmed root cause", that a transaction
+filter returning `[tr, { selection: escalated }]` makes CM6 apply two separate state
+transitions with their own DOM syncs, rendering the raw pre-escalation selection for one
+frame. **That is wrong.** Read in `@codemirror/state`'s `filterTransaction`: an array
+result goes through `tr = resolveTransaction(state, asArray(filtered), false)`, and
+`resolveTransaction` folds the specs with `mergeTransaction` into a single
+`Transaction.create`. One transaction, one DOM sync, always.
+
+The wrong mechanism had a measurable cost: an earlier attempt at deferring
+`contentDOM.focus()` in `onDocumentKeyDown` was implemented, measured to have zero effect,
+and reverted as though disproved. It had been aimed at a path that was never the cause.
+
+The real cause is a focus round trip. `onDocumentKeyDown` focused the editor BEFORE
+replaying the key through `runScopeHandlers`, and block-selection mode keeps the editor
+blurred, so every keypress was focus → run → blur-a-macrotask-later. Counting real
+`focus`/`blur` events on `contentDOM`: **2 with the old order, 0 with the keymap running
+first** — for Shift+Arrow and for Mod-A alike, so the "Mod-A-specific residual" that entry
+files as a separate unknown is the same mechanism.
+
+### A before/after assertion cannot see a round trip
+
+The first version of the regression test compared `document.activeElement` before and
+after a press. It passed against the PRE-change build. A round trip ends where it started,
+so only counting transitions detects it. Same shape as Q28's lesson about asserting the
+mechanism rather than the outcome, in a new place.
+
+### Neither escalation helper normalizes a within-node range
+
+The walk has to accept selections that are not covers — undo/redo restores mapped-forward
+ranges the filter provably never sees (Q29), and the Mod-A ladder's FIRST RUNG is a node's
+own content, which is not a cover either. The obvious phrasing, "escalate to the nearest
+cover", is unimplementable: `escalateRange` deliberately returns a within-node content
+range untouched, and `escalateRanges`' uniform pass only fires when some range already
+escalated. Measured on rung 1 (`1,3 → 1,5`, after a list marker): both return it
+unchanged. Only `subtreeCoverOf` of the anchor's node produces a cover.
+
+Found via the ladder-interplay question, not via undo — the case the design was actually
+written for was the rarer one.
+
+### "Drop the far root" is not the inverse of a growth step
+
+Growing UPWARD can absorb the previous leading roots into the newly added ancestor. On
+`# A / a1. / # B / b1. / b2.`, the cover `[a1., # B]` grows up to `[# A, # B]` because
+`a1.` lives inside `# A`'s subtree; dropping the new first root then removed `a1.` too,
+landing two steps back on a cover the walk had passed through. Both directions now step
+the CANDIDATE inward and recompute — asking the same question growth asked, one step
+earlier. A property test over generated trees found this; the hand-written examples did
+not, because the shape needs a mid-span ancestor to absorb something.
+
+### And the design claim that started it: D3 was half wrong
+
+The cover's start edge identifies the anchor for a DOWNWARD extension permanently — a
+forest span begins at the anchor's own subtree start and no ancestor can displace it. The
+backward claim is false: one upward step out of a first child is `forestCoverOf(c1, P)`,
+which is `P`'s whole subtree, and downward closure drags the later child in BELOW the
+anchor, so the end edge resolves to that child instead. Not a defect in the geometry —
+`escalate.ts` already calls the asymmetry inherent to preorder. `selection-as-subtree-set`
+removed the upward pull-in on downward extension; the downward closure on upward extension
+is the invariant itself and nothing can remove it. Resolved by D8 (re-seat the anchor onto
+the swallowed ancestor) rather than by re-introducing stored state.

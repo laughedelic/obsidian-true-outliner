@@ -74,19 +74,12 @@ describe('node-selection-enforcement: Phase B', function () {
     expect(sel.anchor.ch).not.toBe(sel.head.ch); // a real word got selected
   });
 
-  it('Shift+ArrowDown crossing a boundary escalates both nodes in full', async function () {
-    const md = 'First.\n\nSecond.\n';
-    await outlineNote(md);
-    await h.setCursor(0, 3);
-    // Down into the next node, then extend far enough right to guarantee
-    // the head lands past the node's own text (clamped by CM6 to EOL).
-    await browser.keys([Key.Shift, Key.ArrowDown]);
-    await browser.keys([Key.Shift, Key.ArrowDown]);
-    const sel = await h.getSelection();
-    expect(sel.anchor).toEqual({ line: 0, ch: 0 });
-    // Line 3 is "Second."'s own trailing gap — included in the cover.
-    expect(sel.head).toEqual({ line: 3, ch: 0 });
-  });
+  // Keyboard crossing MOVED to `67-node-selection-extension.e2e.ts`
+  // (node-selection-extension). Shift+Arrow is now a bound command that
+  // dispatches exact covers, so it never reaches escalation — an assertion
+  // here would document a mechanism that no longer runs. The pointer and
+  // programmatic paths below are still this file's jurisdiction, and remain
+  // the ones that exercise escalation for real.
 
   it('selection leaving a heading escalates to the heading\'s entire subtree', async function () {
     if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)

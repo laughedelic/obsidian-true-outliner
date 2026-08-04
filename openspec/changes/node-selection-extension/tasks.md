@@ -58,12 +58,12 @@
       nothing re-triggers `update()` afterward. What collapsed is the DECISION, not the trigger:
       `applyFocusPolicy` is one method invoked from two places. Two triggers for one policy is
       the honest end state, not the "three sites become one" the task assumed
-- [ ] 2b.4 Negative control: disable the reorder in 2b.2 and confirm the flicker assertion in
+- [x] 2b.4 Negative control: disable the reorder in 2b.2 and confirm the flicker assertion in
       4.4a fails. A visual regression that passes both ways is testing nothing
 
 ## 3. Regression
 
-- [ ] 3.1 Move keyboard-crossing coverage out of `61-selection-enforcement.e2e.ts` — after this
+- [x] 3.1 Move keyboard-crossing coverage out of `61-selection-enforcement.e2e.ts` — after this
       change Shift+Arrow no longer reaches escalation, so an assertion left there documents a
       mechanism that no longer runs. Concretely one test, `Shift+ArrowDown crossing a boundary
       escalates both nodes in full` (line 77): `selection-as-subtree-set`'s task 6.1 left it in
@@ -78,47 +78,47 @@
 - [x] 3.2c Round-trip property: for any cover, `Mod-A` then extension, and extension then
       `Mod-A`, both agree with performing the second gesture from that selection directly — the
       how-did-we-get-here independence D10 guarantees, stated as a property rather than examples
-- [ ] 3.3 Confirm block-selection chrome renders for extension-produced covers
+- [x] 3.3 Confirm block-selection chrome renders for extension-produced covers
       (`escalated-selection-decoration` reads covers, not their provenance)
 
 ## 4. End-to-end verification
 
-- [ ] 4.1 New e2e spec for every example in examples.md
-- [ ] 4.2 Cross-scope scenario: extending out of a subtree does not add the parent, and
+- [x] 4.1 New e2e spec for every example in examples.md
+- [x] 4.2 Cross-scope scenario: extending out of a subtree does not add the parent, and
       reversing returns to the child
-- [ ] 4.2b Re-seat scenario (design D8, examples E7): `⇧↑` from a FIRST child in a heading
+- [x] 4.2b Re-seat scenario (design D8, examples E7): `⇧↑` from a FIRST child in a heading
       section and again in a loose list — the two shapes measured as fixpoints today — then
       `⇧↓`, which must GROW to the parent's next sibling rather than leaving the selection
       unchanged or dropping to the parent's last child
-- [ ] 4.3 Multi-cursor scenario: two cursors extend independently and do not collapse into one
+- [x] 4.3 Multi-cursor scenario: two cursors extend independently and do not collapse into one
       whole-document range. `selection-as-subtree-set`'s e2e 6.2 already pins the ONE-press case
       under the new geometry; extend it to repeated presses and to cursors at different depths
       rather than duplicating it
-- [ ] 4.3b Nested-editor scenario: Shift+Arrow inside a table cell's editor falls through to
+- [x] 4.3b Nested-editor scenario: Shift+Arrow inside a table cell's editor falls through to
       native, with no outline sequence computed from the outer note (task 2.1's gate — the
       failure mode #35 documents is that a private check looks right and is not)
-- [ ] 4.3c Undo-restored selection scenario (design D6): perform a structural op over a block
+- [x] 4.3c Undo-restored selection scenario (design D6): perform a structural op over a block
       selection, undo, then press Shift+Arrow — the restored range is mapped forward and need
       not be a cover, and the press must still produce one
-- [ ] 4.4 Multi-cursor overlap scenario: two cursors ONE node apart, extended three times in the
+- [x] 4.4 Multi-cursor overlap scenario: two cursors ONE node apart, extended three times in the
       same direction — press 1 leaves two touching ranges (which do not merge), press 2 makes
       them overlap and merge, press 3 must then extend the merged range as a single block. This
       is design D4's edge, and one press is not enough to reach it
-- [ ] 4.4a Focus-policy scenario: assert `document.activeElement` does NOT change across a
+- [x] 4.4a Focus-policy scenario: assert `document.activeElement` does NOT change across a
       cover-to-cover extension press — the mechanism, not the appearance. Asserting "no flicker"
       by screenshot would pass for the wrong reasons; the claim is that no focus transition
       occurs at all
-- [ ] 4.4b Input-still-lands scenarios, the failure mode D9 risks: type an ordinary character
+- [x] 4.4b Input-still-lands scenarios, the failure mode D9 risks: type an ordinary character
       over a keyboard-built block selection; press Backspace over one; press a bound structural
       key over one. Each must behave as it does today — this is what `onDocumentKeyDown` exists
       for and the reorder must not regress it
-- [ ] 4.4c Mouse-path regression: a drag settling into a cover still ends blurred with chrome,
+- [x] 4.4c Mouse-path regression: a drag settling into a cover still ends blurred with chrome,
       and a click into text still focuses. `onMouseUp`'s case (2b.3) is the one at risk
-- [ ] 4.4d Ladder-handoff scenarios (D10): Mod-A once then Shift+ArrowDown equals Shift+ArrowDown
+- [x] 4.4d Ladder-handoff scenarios (D10): Mod-A once then Shift+ArrowDown equals Shift+ArrowDown
       from a bare caret (the non-cover rung, D6); Mod-A up to a subtree then Shift+ArrowDown
       grows from it; Shift+Arrow sideways then Mod-A climbs to the enclosing run. Assert the
       resulting SELECTIONS match the direct route, not merely that something changed
-- [ ] 4.5 Off-mode reference assertions
+- [x] 4.5 Off-mode reference assertions
 - [ ] 4.6 Mobile-emulation run — including the focus policy, where there is no mouse path at all
       and a wrong blur would leave the on-screen keyboard with nowhere to type
 
@@ -141,11 +141,12 @@
 ## 6. Documentation
 
 - [ ] 6.1 Update examples.md with anything the manual pass revises
-- [ ] 6.2 Update `docs/research/13`'s "Modal block-level keyboard selection" entry: record what
-      the shape discriminator settled, that block selection is now a DERIVED mode (D9), and what
-      a STORED modal design would still be for — the two were previously one entry and the
-      distinction is what let D9 stay in scope
-- [ ] 6.3 Record in `docs/research/04` the three measurements this change's design rests on, so
-      none is re-derived: the gap-line fixpoint and its mechanism; that the keyboard flicker is
-      the focus round-trip and NOT the two-transaction escalation flash; and that neither
-      escalation helper normalizes a within-node range, which is why D6 names `subtreeCoverOf`
+- [x] 6.2 Updated `docs/research/13`'s "Modal block-level keyboard selection" entry, split into
+      shipped / still-open / knowingly-irreversible. ALSO corrected that file's flash entry: its
+      "confirmed root cause" (a two-transaction escalation split) does not exist — CM6's
+      `filterTransaction` merges an array result into one `Transaction.create`. That wrong
+      mechanism is why an earlier fix attempt measured zero effect and was reverted as disproved
+- [x] 6.3 Recorded as Q31, five findings rather than the three the task anticipated: the CM6
+      merge fact and the cost of the wrong mechanism; that a before/after focus assertion cannot
+      see a round trip; that neither escalation helper normalizes a within-node range; that
+      "drop the far root" is not the inverse of an upward growth step; and D3's half-wrongness

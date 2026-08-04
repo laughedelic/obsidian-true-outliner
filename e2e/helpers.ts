@@ -163,6 +163,29 @@ export function getSelection(): Promise<{
   });
 }
 
+/** Every range of the current selection, in order. `getSelection` above reads
+ * only `selection.main`, which is the wrong question for multi-cursor
+ * assertions — the interesting failure there is a selection collapsing from
+ * several ranges into one, which `main` alone cannot see. */
+export function getSelectionRanges(): Promise<
+  { anchor: { line: number; ch: number }; head: { line: number; ch: number } }[]
+> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const cm = (view.editor as any).cm;
+    const doc = cm.state.doc;
+    const toPos = (offset: number) => {
+      const line = doc.lineAt(offset);
+      return { line: line.number - 1, ch: offset - line.from };
+    };
+    return cm.state.selection.ranges.map((r: { anchor: number; head: number }) => ({
+      anchor: toPos(r.anchor),
+      head: toPos(r.head),
+    }));
+  });
+}
+
 const SELECT_ALL_KEYS = [process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'a'];
 
 /** One Mod-A keypress. */
