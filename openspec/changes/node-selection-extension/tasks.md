@@ -45,17 +45,19 @@
 
 ## 2b. Focus policy (design D9)
 
-- [ ] 2b.1 Replace `SelectionDecorationPlugin`'s three focus sites with one policy: focused iff
+- [x] 2b.1 Replace `SelectionDecorationPlugin`'s three focus sites with one policy: focused iff
       NOT `allRangesCovered`. Keep the `setTimeout` deferral on the blur direction and the
       `isActiveEditor` guard — both are recorded fixes for real bugs, neither is what D9 changes
-- [ ] 2b.2 Reorder `onDocumentKeyDown`: run `runScopeHandlers` FIRST, focus only when no command
+- [x] 2b.2 Reorder `onDocumentKeyDown`: run `runScopeHandlers` FIRST, focus only when no command
       matched. Today's unconditional `contentDOM.focus()` before the replay is the flicker's
       direct cause. Keep the existing `preventDefault`/`stopPropagation`-only-when-handled rule
       — it fixed the double-Backspace and Tab-focus-steal bugs and is independent of this
-- [ ] 2b.3 Confirm `onMouseUp`'s separate blur is genuinely subsumed before deleting it. Its
-      comment says the settling transaction can commit while `mouseDown` is still true, so
-      `update()` skips it — check whether one policy evaluated on `mouseup` covers that, and if
-      it does not, keep a mouse-completion trigger rather than losing the case silently
+- [x] 2b.3 CHECKED, and NOT subsumed — the mouse-completion trigger is kept. `update()` is
+      guarded on `!mouseDown` because blurring mid-drag breaks the browser's native drag-select,
+      and a drag's last settling transaction can commit while `mouseDown` is still true, so
+      nothing re-triggers `update()` afterward. What collapsed is the DECISION, not the trigger:
+      `applyFocusPolicy` is one method invoked from two places. Two triggers for one policy is
+      the honest end state, not the "three sites become one" the task assumed
 - [ ] 2b.4 Negative control: disable the reorder in 2b.2 and confirm the flicker assertion in
       4.4a fails. A visual regression that passes both ways is testing nothing
 
