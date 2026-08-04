@@ -84,6 +84,37 @@
         "label": "/openspec-apply-change",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_01Tixth43RPwxaBNWiQBpDx5",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "5479c9bd9071",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 436,
+        "end": 437,
+        "entry_ids": [
+          "2eb9bdd4-5c38-4c61-8b7f-acc19ca626b0"
+        ],
+        "tool_use_id": "toolu_01Tixth43RPwxaBNWiQBpDx5"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Tixth43RPwxaBNWiQBpDx5"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-apply-change",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
