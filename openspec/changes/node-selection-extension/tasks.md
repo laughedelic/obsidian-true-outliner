@@ -32,15 +32,15 @@
 
 ## 2. CM6 wiring
 
-- [ ] 2.1 Bind Shift+ArrowUp/Shift+ArrowDown in the existing high-precedence keymap, gated
+- [x] 2.1 Bind Shift+ArrowUp/Shift+ArrowDown in the existing high-precedence keymap, gated
       through `outlinePathOf` — the shared helper, which also excludes nested editors. NOT a
       private `editorInfoField` + `isOutline` check: that is the defect #35 fixed after it bit
       twice, and the keymap's module comment requires every binding to route through the one gate
-- [ ] 2.2 Implement the shape discriminator: one range extends as a block, several ranges extend
+- [x] 2.2 Implement the shape discriminator: one range extends as a block, several ranges extend
       per-range independently. Mirror `makeSelectAllHandler`'s shape (map over every range,
       leave a range with nowhere to go in place, preserve `mainIndex`). Do NOT use `soleCursor`
       — the motion keys decline on multi-range for a reason that does not apply here (design D7)
-- [ ] 2.3 Verify dispatches pass through the transaction filter uncorrected, the way
+- [x] 2.3 Verify dispatches pass through the transaction filter uncorrected, the way
       `progressive-select-all`'s rungs already do
 
 ## 2b. Focus policy (design D9)

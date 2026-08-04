@@ -8,6 +8,13 @@
  * handlers above, but its own pure decision module (`select-all-ladder.ts`)
  * rather than `grammar.ts`.
  *
+ * And the node-selection-extension Shift+Arrow handlers, on the same terms
+ * again with `select-extend.ts` as their decision module. The two selection
+ * features share only the cover geometry beneath them and never each other:
+ * both read the CURRENT selection and nothing about how it was produced, so
+ * a selection reached by either behaves identically under the other (that
+ * change's design.md D10).
+ *
  * And the content-space-caret motion handlers (content-space-caret change,
  * design.md D1/D3-D5): ArrowLeft/Right/Up/Down/Home/End, computing their
  * target directly from the parsed tree (`../caret.ts`) rather than
@@ -41,6 +48,7 @@ import { indentUnit } from "@codemirror/language";
 import { Notice, editorInfoField } from "obsidian";
 import { planKey, type GrammarKey } from "./grammar";
 import { nextRungs } from "../select-all-ladder";
+import { extendSelections, type ExtendDirection } from "../select-extend";
 import type { LineRange } from "../escalate";
 import {
   contentBoundaryCh,
@@ -111,6 +119,56 @@ function toLineRange(doc: Text, range: SelectionRange): LineRange {
   return {
     anchor: offsetToLinePos(doc, range.anchor),
     head: offsetToLinePos(doc, range.head),
+  };
+}
+
+/**
+ * Shift+ArrowUp/Shift+ArrowDown (node-selection-extension): intercepts
+ * keyboard extension in outline mode and replaces every range with the next
+ * cover along `select-extend.ts`'s sequence — one node per press, in both
+ * directions, in every document shape.
+ *
+ * Shaped after `makeSelectAllHandler` above, NOT after the motion handlers'
+ * `soleCursor` convention (design.md D7). Those decline on multiple ranges
+ * because they plan from `selection.main` alone and would silently discard
+ * the rest; this handler plans every range, so declining would be a
+ * regression rather than a safeguard. A range with nowhere to go is left in
+ * place while others still advance (D4: each range walks its own sequence,
+ * with no forced common step); only when EVERY range is `null` does the key
+ * fall through to native extension, so the sequence's ends are a
+ * pass-through to stock behavior rather than a hand-computed no-op.
+ *
+ * Returning `true` without dispatching is not an option at the sequence's
+ * end: that would consume the key and make the editor look frozen.
+ *
+ * The dispatch carries no `userEvent`, the same convention the Mod-A handler
+ * uses — `classify.ts` reads an annotation-less transaction as
+ * `programmatic`, so these covers never run through selection ESCALATION a
+ * second time. They are exact covers by construction, so escalation would be
+ * an identity anyway; the annotation choice keeps it from being asked.
+ */
+function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
+  return (view: EditorView): boolean => {
+    if (!outlinePathOf(modes, view)) return false;
+
+    const doc = view.state.doc;
+    const { doc: outlineDoc } = parsedDoc(doc);
+    const before = view.state.selection.ranges.map((range) => toLineRange(doc, range));
+    const next = extendSelections(outlineDoc, before, direction);
+    if (next.every((range) => range === null)) return false;
+
+    const ranges = before.map((original, i) => {
+      const target = next[i] ?? original;
+      return EditorSelection.range(
+        linePosToOffset(doc, target.anchor),
+        linePosToOffset(doc, target.head),
+      );
+    });
+    view.dispatch({
+      selection: EditorSelection.create(ranges, view.state.selection.mainIndex),
+      scrollIntoView: true,
+    });
+    return true;
   };
 }
 
@@ -640,6 +698,14 @@ export function grammarExtension(modes: ModeSource): Extension {
         { key: "Enter", run: makeHandler(modes, "split") },
         { key: "Shift-Enter", run: makeHandler(modes, "continue") },
         { key: "Mod-a", run: makeSelectAllHandler(modes) },
+        {
+          key: "Shift-ArrowUp",
+          run: probed("Shift-Up", makeExtendHandler(modes, "up")),
+        },
+        {
+          key: "Shift-ArrowDown",
+          run: probed("Shift-Down", makeExtendHandler(modes, "down")),
+        },
         {
           key: "ArrowLeft",
           run: probed("Left", makeHorizontalHandler(modes, "left")),

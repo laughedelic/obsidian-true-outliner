@@ -224,19 +224,22 @@ the trap but drifts its anchor onto `c2` instead.
  - Q
 ```
 
-**Intended** — the same first frame, because downward closure admits no smaller cover
-containing both `c1` and `- P`. What changes is what happens next: `P` is now the anchor
-(D8 — a single-root cover re-seats it), so `⇧↓` GROWS to `P`'s sibling rather than sticking:
+**Intended** — the first press takes `- c1` alone, exactly as `⇧↓` would: a caret is not a
+cover, so reaching the anchor's own subtree is that press's step (D6). The swallow is the
+SECOND press, where downward closure admits no smaller cover containing both `c1` and `- P`,
+so `- c2` comes along BELOW the anchor:
 
 ```
-1st ⇧↑ →  ▌- P          2nd, ⇧↓ →  ▌- P          3rd, ⇧↑ →  ▌- P
-          ▌	- c1                   ▌	- c1                  ▌	- c1
-          ▌	- c2                   ▌	- c2                  ▌	- c2
-           - Q                     ▌- Q                    - Q
+1st ⇧↑ →   - P          2nd ⇧↑ →  ▌- P          3rd, ⇧↓ →  ▌- P          4th, ⇧↑ →  ▌- P
+          ▌	- c1                  ▌	- c1                  ▌	- c1                  ▌	- c1
+           	- c2                  ▌	- c2                  ▌	- c2                  ▌	- c2
+           - Q                    - Q                    ▌- Q                    - Q
 ```
 
-From here the selection oscillates between those two frames. `- c1` is not reachable again by
-keyboard — the swallow is irreversible, which D8 accepts and states rather than hiding.
+`P` is the anchor from the second frame on (D8 — a single-root cover re-seats it), so `⇧↓`
+GROWS to `P`'s sibling rather than sticking as it does today. From there the selection
+oscillates between the last two frames. `- c1` is not reachable again by keyboard — the swallow
+is irreversible, which D8 accepts and states rather than hiding.
 
 > Contrast E4, where the anchor is the LAST child and extension runs downward. There the
 > anchor survives every press, because a forest span always begins at the anchor's own subtree
