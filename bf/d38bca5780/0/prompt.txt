@@ -1,0 +1,25 @@
+<ci-monitor-event>laughedelic/obsidian-true-outliner PR #38 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ## Pull request overview
+
+Copilot reviewed 22 out of 29 changed files in this pull request and generated no new comments.
+
+
+
+
+<details>
+<summary>Suppressed comments (2)</summary>
+
+**openspec/changes/node-selection-extension/specs/escalated-selection-decoration/spec.md:38**
+* This normative promise contradicts the PR's documented known issue: `docs/research/13-selection-follow-ups.md:453-490` says a visible intermediate frame still remains when entering block mode and its cause is untested. Either resolve that residual flicker before declaring “SHALL render no intermediate frame,” or narrow the requirement to the class-marker continuity that is actually verified.
+```
+ENTERING the mode SHALL likewise render no intermediate frame. Any marker the editor library
+itself recomputes — an attribute it derives from its own model and rewrites wholesale, such as
+the editor element's class list — SHALL be declared through that library's own mechanism for
+contributing to it, never written imperatively alongside it. Otherwise the library's rewrite,
+triggered by the very focus change entering the mode causes, drops the marker until the next
+update restores it.
+```
+**styles.css:534**
+* These lines … [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/38/reviews/4861285271`]
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
