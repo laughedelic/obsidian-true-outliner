@@ -1,0 +1,40 @@
+<ci-monitor-event>laughedelic/obsidian-true-outliner PR #38 has 7 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ## Pull request overview
+
+Adds node-granular Shift+Arrow selection extension and a derived block-selection focus mode, with expanded regression coverage and updated specifications.
+
+**Changes:**
+- Adds stateless cover-sequence extension with multi-range support.
+- Integrates Shift+Arrow commands, focus policy, and selection styling.
+- Adds unit/E2E coverage and archives the prerequisite selection design.
+
+### Reviewed changes
+
+Copilot reviewed 22 out of 29 changed files in this pull request and generated 6 comments.
+
+<details>
+<summary>Show a summary per file</summary>
+
+| File | Description |
+| ---- | ----------- |
+| `src/select-extend.ts` | Implements cover-sequence extension. |
+| `src/plugin/keymap.ts` | Wires Shift+Arrow commands. |
+| `src/plugin/decorations.ts` | Adds derived focus-mode behavior. |
+| `styles.css` | Suppresses multi-range selection backgrounds. |
+| `tests/select-extend.test.ts` | Tests extension geometry and properties. |
+| `tests/select-all-ladder.test.ts` | Tests ladder composition. |
+| `e2e/helpers.ts` | Adds multi-range inspection helper. |
+| `e2e/specs/61-selection-enforcement.e2e.ts` | Removes relocated keyboard coverage. |
+| `e2e/specs/67-node-s… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/38/reviews/4860729415`]
+- Copilot on src/plugin/keymap.ts:205 [comment_id=3717716036]: The all-or-nothing D11 gate breaks multi-range independence. If one cursor would stay within a multiline node while another crosses a node boundary, `every(...)` is false, so the handler normalizes and block-extends both ranges; the first cursor loses ordinary character-level extension even though `movesWithinOneNode` returned true for it. Plan each range independently (using `moveVertically` for text ranges and `extendSelection` for outline ranges) before dispatching the combined selection.
+
+This issue also appears on line 210 of the same file.
+- Copilot on src/plugin/decorations.ts:950 [comment_id=3717716061]: This comment names the obsolete scheduler: the implementation and D9 now use `requestAnimationFrame`, specifically to run before the next paint while remaining asynchronous. Referring to `setTimeout` here contradicts the code and the corrected design record.
+
+This issue also appears on line 988 of the same file.
+- Copilot on openspec/changes/node-selection-extension/specs/node-selection-extension/spec.md:108 [comment_id=3717716073]: This normative algorithm contradicts the implementation and Q31: upward growth can absorb earlier roots into a newly added ancestor, so dropping the outer root can jump back multiple covers. The inverse is implemented by stepping the far-side candidate inward and recomputing `forestCoverOf`; the specification should state that rather than require the rejected root-drop behavior.
+- Copilot on openspec/changes/node-selection-extension/tasks.md:14 [comment_id=3717716082]: This completed task still records the rejected “drop the far root” implementation. The code and Q31 explain that an upward step may absorb prior roots into an ancestor, so shrinking must step the candidate inward and recompute the forest span; otherwise this archive directs future work back to the known-broken algorithm.
+- Copilot on e2e/specs/67-node-selection-extension.e2e.ts:338 [comment_id=3717716102]: This assertion does not prove that overlap ever merges the ranges: two unmerged ranges satisfy `afterThree.length <= afterTwo.length`, and checking only the last range's head also passes if that range alone advances. Assert the expected single merged range after the overlap press and that the next press expands that same range.
+- Copilot on src/plugin/decorations.ts:1194 [comment_id=3717716117]: The unmatched-key path also catches keys that never produce a subsequent input event. The existing Escape regression records that the first Escape on a forward cover changes no selection; here that same press still calls `focus()`, leaving an exact cover focused indefinitely (block class/chrome remain while Live Preview switches to focused rendering) because no `selectionSet` occurs to re-run the blur policy. Only refocus keys that will actually edit, or explicitly handle non-text keys such as Escape without leaving a covered selection focused.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
