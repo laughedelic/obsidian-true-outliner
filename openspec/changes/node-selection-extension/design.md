@@ -324,7 +324,16 @@ plain typing is inserted by the browser's own later `beforeinput` against whatev
 that moment — and that case ends in a non-cover selection anyway, so the immediate focus agrees
 with the policy rather than fighting it.
 
-*What does not change.* The `setTimeout` deferral stays on the blur direction. Blurring
+*Deferral mechanism corrected (2026-08-04).* The blur is deferred with
+`requestAnimationFrame`, not `setTimeout(0)`. Measured: with a timer, one frame is painted
+between the chrome landing and the blur — `class=true paints=0`, then `BLUR paints=1` — so the
+first press into the mode renders a single frame of block chrome over raw markdown with a caret,
+which is the residual flicker reported after the class fix. `setTimeout(0)` only guarantees
+running after the current task; `requestAnimationFrame` guarantees running before the next paint.
+The deferral itself is still required for the race below — rAF is asynchronous with respect to
+the current task just as the timer was.
+
+*What does not change.* The deferral stays on the blur direction. Blurring
 synchronously inside `update()` races CM6's DOM-selection sync and was observed inserting typed
 text at a stale position (decorations.ts's own comment). The policy governs WHEN focus should
 change, not how soon the DOM call may follow. The `isActiveEditor` guard stays too — it
@@ -427,6 +436,19 @@ generalized silently to one where they do not. Measured on a two-line paragraph:
 implementation returned the node's whole cover on press one, where the pre-change path kept the
 character range `(0,5)→(1,5)`. Neither the no-fixpoint nor the inverse property could catch it —
 taking over early is a correct walk over the wrong operand, not a broken walk.
+
+*Corrected once, and the correction is the interesting part.* The first implementation put this
+rule in the pure module and decided it from SOURCE lines. That handles a paragraph broken across
+two source lines and gets the commoner shape exactly backwards: a long paragraph that soft-wraps
+is ONE source line rendered as several rows, so it looked single-line and was block-selected on
+the first press. Both shapes sat in the same real note, which is how the split showed up —
+the last paragraph worked, the first did not.
+
+`Shift+Arrow` moves by rendered ROW, so "would this press stay inside the node" is a question
+about visual layout, and only the view can answer it. The decision therefore lives in the CM6
+adapter and asks `EditorView.moveVertically` where stock extension would actually land. The pure
+module deliberately does not try: it answers "what cover comes next", never "is this press about
+the outline at all".
 
 *Why the boundary is CONTENT lines, not the subtree and not the gap.* A node's trailing gap is
 chrome between nodes; reaching it is already a boundary crossing, and the gap-line trigger in

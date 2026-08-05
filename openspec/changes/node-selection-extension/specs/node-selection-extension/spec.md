@@ -35,12 +35,21 @@ a forward selection) or end edge (for a backward one) continues to identify the 
 however far the selection has grown.
 
 A press SHALL NOT be intercepted at all while the selection is a plain character range lying
-entirely within ONE node's own content lines and the press would leave it within them. Such a
+entirely within ONE node's own content lines and the press would leave it within them. Whether it
+would SHALL be judged against where the platform's own vertical motion would actually place the
+head — by RENDERED LINE, so a single source line that soft-wraps across several rows counts as
+staying within the node for as many presses as it has rows. Such a
 press SHALL fall through to the platform's ordinary line-wise extension, so the interior of a
 node that owns several lines stays reachable by keyboard selection. Interception SHALL resume at
 the node's boundary — the first press whose target leaves those content lines, including onto the
 node's own trailing gap — which SHALL produce the anchor node's whole subtree cover as above. For
 a node owning a single line no such press exists, so its first press covers the node.
+
+#### Scenario: A soft-wrapped node stays character-level across its rows
+- **WHEN** the caret is in a paragraph occupying ONE source line that wraps across several
+  rendered rows, and the user presses Shift+ArrowDown
+- **THEN** the selection extends by one rendered row and remains a character range on that same
+  source line, with no block chrome
 
 #### Scenario: Extension inside a multi-line node stays character-level
 - **WHEN** the caret is on the first of a node's two content lines and the user presses

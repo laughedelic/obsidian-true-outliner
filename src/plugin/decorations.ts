@@ -985,7 +985,7 @@ class SelectionDecorationPlugin implements PluginValue {
    * both act — see `isActiveEditor`.
    */
   private applyFocusPolicy(): void {
-    window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
       if (!this.isOutlineNote()) return;
       const covered = allRangesCovered(this.view.state);
       const wasCovered = this.inBlockMode;
@@ -1009,7 +1009,7 @@ class SelectionDecorationPlugin implements PluginValue {
       if (document.activeElement !== document.body) return;
       if (!this.isActiveEditor()) return;
       this.view.focus();
-    }, 0);
+    });
   }
 
   /**

@@ -2196,8 +2196,22 @@ selection is a plain character range inside one node's own content lines and wou
 letting stock line-wise extension run; the sequence takes over at the node boundary. A
 single-line node is unaffected, since the target line is always outside it.
 
+**And the first fix was itself incomplete, in the instructive way.** It decided from SOURCE lines,
+which handles a paragraph broken across two of them and gets the commoner shape exactly backwards:
+a long paragraph that soft-WRAPS is one source line rendered as several rows, so it looked
+single-line and was still block-selected on the first press. Both shapes sat in the same real note
+— `test-vault/Projects/Aurora Dashboard.md`, whose last paragraph is genuinely two source lines
+and whose first is one long wrapped line — which is how the split surfaced: "the last paragraph
+now behaves fine, the first doesn't."
+
+`Shift+Arrow` moves by rendered ROW, so the question is about visual layout and only the view can
+answer it. The decision moved to the CM6 adapter and now asks `EditorView.moveVertically` where
+stock extension would actually land. The pure module deliberately does not try: it answers "what
+cover comes next", never "is this press about the outline at all".
+
 The general shape is the same one this project keeps meeting: a rule stated over the common case
-(one line per node) silently generalized to a case nobody drew. The no-fixpoint and inverse
+(one line per node) silently generalized to a case nobody drew — and then a fix stated over
+source lines silently assumed source lines and rendered rows coincide. The no-fixpoint and inverse
 properties could not catch it, because taking over early is not a fixpoint and not an inverse
 violation — it is a correct walk over the wrong operand.
 
@@ -2208,3 +2222,29 @@ raw markdown while the chrome still showed. Measured: before the press `hasFocus
 DOM selection and the refocus buys it nothing. Excluded copy specifically — narrowly, since cut
 and paste look similar but do need focus (both modify the document through events that require a
 focused editable, and both end in a non-cover selection where focusing agrees with the policy).
+
+### The entering-block-mode flicker: one painted frame, and how the claim was overstated
+
+Fixing the class-drop above removed one mechanism and was reported as removing THE flicker. That
+was overstated: what had been verified was that the class no longer drops, not that no frame
+renders wrong. A second report ("still a bit of the initial flicker") prompted the measurement
+that should have been made the first time — instrumenting the window between the chrome landing
+and the blur rather than the class mutations alone:
+
+    11.40 class=true  paints=0     <- chrome on, editor still FOCUSED
+    12.30 BLUR        paints=1     <- a frame was painted first
+
+So one frame renders with block chrome, raw markdown and a caret, because
+`applyFocusPolicy` deferred the blur with `setTimeout(0)`, which is only guaranteed to run after
+the current task — not before the next paint. A mouse drag has no equivalent window: its blur
+fires once at `mouseup`, so the chrome and the render change together.
+
+Switched to `requestAnimationFrame`, which the spec DOES guarantee runs before the next paint.
+Note the limit of the evidence: an rAF-callback counter cannot distinguish "painted" from "about
+to paint" — both the ticker and the policy run in the same pre-paint batch — so the argument for
+the fix is the scheduling guarantee, and the measured timestamps are consistent with it rather
+than proof of it. Whether the residual flicker is gone in real use is the reporter's to judge.
+
+The deferral itself is still required. Blurring synchronously inside `update()` races CM6's
+DOM-selection sync (Q21/Q25); rAF is still asynchronous with respect to the current task, so it
+keeps that property while moving inside the frame.

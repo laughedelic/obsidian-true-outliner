@@ -157,6 +157,32 @@ describe('node-selection-extension: a multiline node keeps character selection (
     expect(sel.head.line).toBe(0);
   });
 
+  it('a soft-WRAPPED paragraph is one source line but many rows, and stays character-level', async () => {
+    // The shape that exposed the first fix as incomplete. This paragraph is a
+    // SINGLE source line; it only looks multiline because it wraps. Deciding
+    // from source lines alone made it look like a single-line node and
+    // block-select on the first press, while a paragraph genuinely broken
+    // across two source lines behaved correctly in the same file.
+    const long = 'Redesign of the alarm dashboard for industrial monitoring customers, ' +
+      'with a Q3 goal to cut mean time-to-acknowledge by thirty percent across ' +
+      'every severity tier and every customer deployment we currently support.';
+    await outlineNote(`${long}\n\nNext node.\n`);
+    await h.setCursor(0, 5);
+    const rows = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const block = cm.lineBlockAt(0);
+      return Math.round(block.height / cm.defaultLineHeight);
+    });
+    if (rows < 2) return; // viewport too wide to wrap — nothing to assert
+    await down();
+    const sel = await h.getSelection();
+    expect(sel.anchor).toEqual({ line: 0, ch: 5 });
+    expect(sel.head.line).toBe(0); // moved a ROW, still the same source line
+    expect(sel.head.ch).toBeGreaterThan(5);
+    expect(await classListAtLine(0)).not.toContain(SELECTED_CLASS);
+  });
+
   it('a SINGLE-line node still covers on the first press', async () => {
     // The common case, and the one every drawn example uses — unchanged.
     await outlineNote('- alpha\n- bravo\n');

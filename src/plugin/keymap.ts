@@ -123,6 +123,41 @@ function toLineRange(doc: Text, range: SelectionRange): LineRange {
 }
 
 /**
+ * True when `range` lies inside one node's own CONTENT lines and stock
+ * vertical extension would keep it there — i.e. this press is text selection
+ * within a node, not an outline gesture (design.md D11).
+ *
+ * The node's own content lines, not its subtree and not its trailing gap: the
+ * gap is chrome between nodes, so reaching it is already a boundary crossing
+ * and the cover sequence owns it. A range that is already an exact cover is
+ * the sequence's business too, and is excluded by the content-line test — a
+ * cover reaches at least to the node's gap or beyond.
+ */
+function movesWithinOneNode(
+  view: EditorView,
+  outlineDoc: ReturnType<typeof parsedDoc>['doc'],
+  range: SelectionRange,
+  direction: ExtendDirection,
+): boolean {
+  const doc = view.state.doc;
+  const anchorLine = doc.lineAt(range.anchor).number - 1;
+  const node = nodeAtLine(outlineDoc, anchorLine);
+  if (!node) return false;
+  if (nodeAtLine(outlineDoc, doc.lineAt(range.head).number - 1) !== node) return false;
+
+  const first = nodeStartLine(outlineDoc, node.id);
+  const last = first + node.lines.length - 1;
+  if (last >= doc.lines) return false; // defensive: stale parse against the live doc
+  const from = doc.line(first + 1).from;
+  const to = doc.line(last + 1).to;
+  if (range.from < from || range.to > to) return false;
+
+  // Where stock extension would put the head, wrapping accounted for.
+  const moved = view.moveVertically(range, direction === 'down');
+  return moved.head >= from && moved.head <= to;
+}
+
+/**
  * Shift+ArrowUp/Shift+ArrowDown (node-selection-extension): intercepts
  * keyboard extension in outline mode and replaces every range with the next
  * cover along `select-extend.ts`'s sequence — one node per press, in both
@@ -153,6 +188,25 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
 
     const doc = view.state.doc;
     const { doc: outlineDoc } = parsedDoc(doc);
+
+    // A press that only moves within one node's own text is ordinary text
+    // selection, not an outline gesture — decline and let stock line-wise
+    // extension run (design.md D11). Decided HERE rather than in
+    // `select-extend.ts` because it depends on VISUAL lines: Shift+Arrow moves
+    // by rendered row, and a long paragraph that soft-wraps is a single SOURCE
+    // line spanning several rows. Answering it from source lines alone got the
+    // common case backwards — a wrapped paragraph looked single-line and was
+    // block-selected on the first press, while a paragraph genuinely broken
+    // across two source lines behaved correctly. `moveVertically` is the view's
+    // own answer to "where would the caret go", wrapping included.
+    if (
+      view.state.selection.ranges.every((range) =>
+        movesWithinOneNode(view, outlineDoc, range, direction),
+      )
+    ) {
+      return false;
+    }
+
     const before = view.state.selection.ranges.map((range) => toLineRange(doc, range));
     const next = extendSelections(outlineDoc, before, direction);
     if (next.every((range) => range === null)) return false;

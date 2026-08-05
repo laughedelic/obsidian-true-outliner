@@ -173,6 +173,12 @@
 Found by continued real-vault use after the pass in §5, and fixed here rather than filed:
 both are defects this change introduced.
 
+- [x] 7.1a INCOMPLETE FIRST FIX, corrected. The source-line rule in `select-extend.ts` handled a
+      paragraph broken across two SOURCE lines but not a long paragraph that merely WRAPS — one
+      source line, several rendered rows — which is the far commoner shape and the one reported.
+      Whether a press stays inside a node depends on VISUAL lines, which a pure module cannot
+      know, so the decision moved to the CM6 adapter and now asks
+      `EditorView.moveVertically` where stock extension would actually land
 - [x] 7.1 A MULTILINE node lost intra-node keyboard selection — the bound handler intercepted
       unconditionally, so the first `⇧↓` inside a two-line paragraph jumped to the node's whole
       cover where the pre-change path kept a character range. Design D11: decline while the
@@ -188,7 +194,12 @@ both are defects this change introduced.
       as a LIST OF NODES and paint the chrome wider — is the parked modal design, not a
       misunderstanding, and `mainIndex` would carry the anchor inside the selection. Recorded
       with the four things that break under the current representation
-- [ ] 7.4 UNRESOLVED, seen once: `30-keyboard-grammar`'s "Tab respects the vault's Indent using
-      tabs setting" failed in one full desktop run and passed both in isolation and on a clean
-      re-run of the same suite. Not investigated; not attributable to this change on the evidence.
-      Recorded so a second sighting is recognised as a pattern rather than re-diagnosed
+- [x] 7.4 PRE-EXISTING, established rather than assumed. `30-keyboard-grammar`'s "Tab respects
+      the vault's Indent using tabs setting" fails intermittently in full desktop runs, passes in
+      isolation, and reproduces in ~20s from just the four specs that precede it
+      (`00-smoke`, `10-outline-mode`, `20-structural-commands`, `30-keyboard-grammar`) — so it is
+      ORDER-dependent, not random. Ran that same prefix against the pre-change source
+      (`git checkout ede1dc4 -- src/ styles.css`) and it fails identically, which rules this
+      change out as the cause. Left for its own fix: the test flips `useTab` via `setConfig` +
+      `updateOptions()` and presses Tab without waiting for the editor's `indentUnit` facet to
+      actually reconfigure, which is a real race in the helper rather than in the grammar

@@ -43,6 +43,23 @@ highlight is not sufficient on its own: a selection of several ranges cannot be 
 the single native selection, so the editor library draws the remaining ranges itself, and those
 SHALL be suppressed as well.
 
+The blur direction MUST NOT run synchronously within the update that changed the selection —
+doing so races CodeMirror's own DOM-selection synchronization and has been observed leaving the
+browser's selection at a stale position. It SHALL nonetheless be applied BEFORE the next frame is
+painted, so entering the mode never renders a frame carrying block chrome over a still-focused,
+raw-markdown editor. Deferring to a plain task queue satisfies the first requirement but not the
+second. The policy SHALL apply only to the editor that is the host application's own active
+editor, so two simultaneously blurred panes do not both act on one keypress.
+
+Keyboard input SHALL remain available in the blurred state. A key press observed while blurred
+SHALL first be offered to the editor's own installed keymap; only a key that no command handles
+SHALL focus the editor immediately, because such a key is inserted by the browser's own
+subsequent input handling against whatever is focused at that time. A key that a command DOES
+handle SHALL NOT cause a focus change on its own — the selection it produces decides focus
+through the policy above. A key whose default action only READS the selection, such as copy,
+SHALL NOT focus the editor: the platform reads it from the DOM selection, which survives the
+blur, so focusing would leave the mode for nothing.
+
 #### Scenario: A multi-range block selection shows only block chrome
 - **WHEN** three separate cursors are each extended into a cover, so the selection has three
   covered ranges
@@ -54,20 +71,6 @@ SHALL be suppressed as well.
   block-selection mode and blurs the editor
 - **THEN** the mode's marker is present continuously from that moment, with no intervening
   update in which it is absent
-
-The blur direction MAY be deferred to a later task; blurring synchronously within the update
-that changed the selection races CodeMirror's own DOM-selection synchronization and has been
-observed leaving the browser's selection at a stale position, so a deferral is permitted and the
-policy constrains only WHICH state focus settles in. The policy SHALL apply only to the editor
-that is the host application's own active editor, so two simultaneously blurred panes do not
-both act on one keypress.
-
-Keyboard input SHALL remain available in the blurred state. A key press observed while blurred
-SHALL first be offered to the editor's own installed keymap; only a key that no command handles
-SHALL focus the editor immediately, because such a key is inserted by the browser's own
-subsequent input handling against whatever is focused at that time. A key that a command DOES
-handle SHALL NOT cause a focus change on its own — the selection it produces decides focus
-through the policy above.
 
 #### Scenario: Keyboard extension between two covers stays in the mode
 - **WHEN** the selection is a block cover, the editor is therefore blurred, and the user presses
@@ -97,6 +100,11 @@ through the policy above.
   bound to a plugin command
 - **THEN** the command runs against the block selection and the editor's focus state is decided
   only by the selection the command produced, not by the fact that a key was pressed
+
+#### Scenario: Copying a block selection stays in the mode
+- **WHEN** the selection is a block cover, the editor is therefore blurred, and the user presses
+  the platform's copy shortcut
+- **THEN** the editor stays blurred with its chrome, and the copied text is the covered text
 
 #### Scenario: Mouse drag settles into block selection unchanged
 - **WHEN** the user drag-selects across node boundaries so the selection escalates to a cover
