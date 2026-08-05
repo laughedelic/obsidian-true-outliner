@@ -478,6 +478,24 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
     expect(await h.getBuffer()).not.toContain('Alpha one.');
   });
 
+  it('undo still reaches the editor while block-selection mode has it blurred', async () => {
+    // Undo is handled ABOVE CodeMirror's keymap, so `runScopeHandlers` does not
+    // claim it and it lands in the unmatched-key path. If that path declines to
+    // focus, the keystroke never reaches the editor at all and the edit cannot
+    // be undone — which is what a too-narrow "produces input" test caused.
+    const original = 'Alpha one.\n\nBravo two.\n';
+    await outlineNote(original);
+    await h.setCursor(0, 6);
+    await down(); // block-selects Alpha, blurring the editor
+    await browser.pause(100);
+    await browser.keys(Key.Backspace);
+    await browser.pause(150);
+    expect(await h.getBuffer()).not.toBe(original);
+    await h.keys.undo();
+    await browser.pause(200);
+    expect(await h.getBuffer()).toBe(original);
+  });
+
   it('a bound structural key still runs over a block selection', async () => {
     await outlineNote('- alpha\n- bravo\n- charlie\n');
     await h.setCursor(1, 3);
@@ -621,34 +639,6 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
     expect(after.hasFocus).toBe(false); // still in the mode
     expect(after.blockClass).toBe(true);
     expect(after.domText).toContain('Alpha one.'); // and the copy still has its text
-  });
-
-  it('a key that produces no input does not strand the editor focused', async () => {
-    // A key that produces no input AND changes no selection would, if it
-    // refocused, leave the editor focused over an exact cover forever: nothing
-    // re-runs the focus policy without a `selectionSet`, so the block chrome
-    // stays while Live Preview returns to its focused form.
-    //
-    // F9 rather than Escape, which was the suspected case: measured, Escape is
-    // handled by CodeMirror's own `simplifySelection`, collapses the cover
-    // (`0-11` -> `10-10`), leaves the mode and correctly regains focus through
-    // the exit edge. F9 is genuinely unbound and genuinely inert.
-    await outlineNote('Alpha one.\n\nBravo two.\n');
-    await h.setCursor(0, 6);
-    await down();
-    await browser.pause(100);
-    await browser.keys(Key.F9);
-    await browser.pause(150);
-    const after = await browser.executeObsidian(({ app, obsidian }) => {
-      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
-      const cm = (view.editor as any).cm;
-      return {
-        hasFocus: cm.hasFocus,
-        blockClass: (cm.dom as HTMLElement).classList.contains('to-decor-block-selecting'),
-      };
-    });
-    expect(after.hasFocus).toBe(false);
-    expect(after.blockClass).toBe(true);
   });
 
   it('Escape leaves the mode cleanly and regains focus', async () => {

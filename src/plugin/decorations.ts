@@ -638,39 +638,33 @@ export const BLOCK_SELECTING_CLASS = 'to-decor-block-selecting';
  * this set and so refocuses and replays exactly as before.
  */
 /**
- * Whether this key press will be followed by input the editor must receive —
- * the only reason block-selection mode's key path focuses at all.
+ * Whether block-selection mode's key path should decline to focus the editor.
  *
- * A POSITIVE test on purpose. The first version excluded copy alone, which
- * fixed the reported symptom and left every other non-input key doing the same
- * damage: a key that produces no input AND changes no selection focuses the
- * editor and then strands it, because the focus policy only re-runs on a
- * selection change. Escape is the case that proves it — docs/research/13
- * records that the first Escape on a forward cover changes nothing — but the
- * same holds for function keys, media keys and any unbound chord.
+ * A NARROW exclusion, and narrow deliberately. The obvious generalisation — a
+ * positive test for "will this produce input" — was tried and reverted: it
+ * breaks every command the host handles ABOVE CodeMirror's keymap, undo being
+ * the measured case. `runScopeHandlers` does not claim `Mod+Z`, so it reaches
+ * the unmatched path, and declining to focus there drops the keystroke
+ * entirely — an edit made over a block selection could no longer be undone.
+ * Guessing which chords the host owns is not something this layer can do.
  *
- * Printable characters arrive through the browser's own later `beforeinput`
- * against whatever is focused then, so they need focus now. So do paste and
- * cut, which are delivered as events to the focused editable. Copy is NOT
- * here: it reads the DOM selection, which survives the blur. Composition keys
- * are included because an IME's own input follows the same route as typing.
+ * So the rule is: focus by default, and exclude only what is MEASURED not to
+ * need it. Copy qualifies — the platform reads it off the DOM selection, which
+ * survives the blur; measured on a covered selection while blurred,
+ * `getSelection().toString()` is the covered text. Cut and paste do not: both
+ * are delivered as events to the focused editable.
+ *
+ * KNOWN LIMITATION, recorded rather than papered over: a key that produces
+ * neither input nor a selection change still focuses, and nothing re-runs the
+ * focus policy without a `selectionSet`, so the editor sits focused over an
+ * exact cover until the user acts again. Escape was the suspected instance and
+ * is NOT one — measured, CodeMirror's `simplifySelection` claims it, collapses
+ * the cover and leaves the mode cleanly. What remains are inert keys such as
+ * function keys, which cost a stale-looking frame and nothing else.
  */
-function producesInput(event: KeyboardEvent): boolean {
-  const mod = event.metaKey || event.ctrlKey;
-  if (mod) {
-    // Paste and cut only; copy reads the selection and needs no focus.
-    const key = event.key.toLowerCase();
-    return !event.altKey && (key === 'v' || key === 'x');
-  }
-  // A single-character `key` is a printable character. `Dead`/`Process`/
-  // `Unidentified` are how dead keys and IME composition surface, and they
-  // lead to real input too.
-  return (
-    event.key.length === 1 ||
-    event.key === 'Dead' ||
-    event.key === 'Process' ||
-    event.key === 'Unidentified'
-  );
+function declinesFocus(event: KeyboardEvent): boolean {
+  const key = event.key.toLowerCase();
+  return (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && key === 'c';
 }
 
 const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
@@ -1209,16 +1203,9 @@ class SelectionDecorationPlugin implements PluginValue {
       event.stopPropagation();
       return;
     }
-    // Focus only for keys that will actually PRODUCE INPUT. Anything else
-    // leaves the mode for nothing, and for a key that changes no selection it
-    // leaves it for good: nothing re-runs the focus policy without a
-    // `selectionSet`, so the editor sits focused over an exact cover — block
-    // chrome with Live Preview back in its focused form — until the user acts
-    // again. Escape is the concrete case (docs/research/13 records that the
-    // first Escape on a forward cover changes no selection at all), and copy
-    // is the one that was reported: the platform reads it off the DOM
-    // selection, which survives the blur intact, so focusing buys it nothing.
-    if (!producesInput(event)) return;
+    // Focus by default; see `declinesFocus` for why the exclusion is one
+    // measured key rather than a positive "produces input" test.
+    if (declinesFocus(event)) return;
     this.view.focus();
   };
 

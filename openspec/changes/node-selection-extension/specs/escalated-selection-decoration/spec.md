@@ -58,11 +58,11 @@ subsequent input handling against whatever is focused at that time. A key that a
 handle SHALL NOT cause a focus change on its own — the selection it produces decides focus
 through the policy above.
 
-Only a key that will PRODUCE INPUT SHALL focus the editor. A key that produces none must not,
-whether because the platform reads it off the DOM selection, which survives the blur — copy — or
-because it does nothing at all. The second case is the load-bearing one: a key that produces no
-input AND changes no selection would leave the editor focused over an exact cover indefinitely,
-since nothing re-evaluates the policy without a selection change.
+A key MEASURED not to need focus SHALL NOT cause one. Copy is such a key: the platform reads it
+off the DOM selection, which survives the blur. The exclusion SHALL be stated as specific keys
+rather than as a general test for whether input will follow — commands the host application
+handles above the editor's own keymap, undo among them, reach this path too and are lost if it
+declines, and which chords those are is not knowable from the key event.
 
 #### Scenario: A multi-range block selection shows only block chrome
 - **WHEN** three separate cursors are each extended into a cover, so the selection has three
@@ -105,11 +105,11 @@ since nothing re-evaluates the policy without a selection change.
 - **THEN** the command runs against the block selection and the editor's focus state is decided
   only by the selection the command produced, not by the fact that a key was pressed
 
-#### Scenario: A key that produces no input leaves the mode untouched
-- **WHEN** the selection is a block cover, the editor is therefore blurred, and the user presses
-  a key that is bound to nothing and inserts nothing
-- **THEN** the editor stays blurred with its chrome, rather than being focused with no
-  subsequent selection change to restore it
+#### Scenario: An edit made over a block selection can be undone
+- **WHEN** the selection is a block cover, the editor is therefore blurred, the user deletes the
+  selection and then invokes undo
+- **THEN** the buffer is restored — the undo keystroke reaches the editor even though the
+  editor's own keymap does not claim it
 
 #### Scenario: Copying a block selection stays in the mode
 - **WHEN** the selection is a block cover, the editor is therefore blurred, and the user presses

@@ -235,9 +235,12 @@ both are defects this change introduced.
       TOUCHING and still two, then one merged range, then that range extending. Lengthened the
       fixture so the merge no longer coincides with the document end, which is what had made the
       final state unobservable
-- [x] 8.6 Refocus is now a POSITIVE test for keys that produce input, replacing the copy-only
-      exclusion: any key producing neither input nor a selection change would otherwise strand the
-      editor focused over a cover, since nothing re-runs the policy without a `selectionSet`.
-      The reviewer's example does NOT reproduce, and the test says so — measured, Escape is
-      handled by CodeMirror's `simplifySelection`, collapses the cover and correctly regains focus
-      through the exit edge. F9 is the genuinely inert case; both are now covered
+- [x] 8.6 Refocus stays a NARROW exclusion (copy), and the reviewer's suggested generalisation was
+      tried and REVERTED. A positive "will this produce input" test breaks every command the host
+      handles above CodeMirror's keymap: `runScopeHandlers` does not claim `Mod+Z`, so declining
+      to focus dropped the keystroke and an edit made over a block selection could no longer be
+      undone — caught by `62-outline-edit-enforcement` under mobile emulation, and now pinned by
+      a dedicated scenario. The reviewer's own example does not reproduce either: measured, Escape
+      IS claimed by `simplifySelection`, collapses the cover and leaves the mode cleanly, which
+      the Escape scenario now asserts. The residual — an inert key such as F9 focusing with
+      nothing to restore the blur — is recorded as a known limitation in the code
