@@ -176,12 +176,21 @@ function notAnOutlineGesture(
   // `0,0..0,5` and `2,5..2,10` character ranges where a cover was required).
   // There is nothing beyond the edge, so that is a boundary, not motion.
   // Coordinates rather than line numbers because rows are visual: a wrapped
-  // source line holds several. A position outside the rendered viewport has no
-  // coordinates, and is treated as a boundary — the outline reading, which is
-  // what this decision defaults to everywhere else.
+  // source line holds several.
   const fromTop = view.coordsAtPos(range.head)?.top;
   const toTop = view.coordsAtPos(moved.head)?.top;
-  return fromTop != null && toTop != null && fromTop !== toTop;
+  if (fromTop != null && toTop != null) return fromTop !== toTop;
+
+  // No coordinates: the position is outside the rendered viewport, which a
+  // secondary cursor in a multi-cursor selection easily is. Fall back to SOURCE
+  // lines. That still catches the clamp — clamping cannot cross a source line —
+  // so a document edge is still read as a boundary, and an offscreen cursor
+  // stepping between the lines of a multi-line node still keeps its text
+  // motion. It is only wrong for an offscreen cursor inside a WRAPPED single
+  // source line, which it reads as a boundary. Choosing a fallback direction is
+  // unavoidable here; this one preserves D11 for the cases that have a source
+  // line to move to, rather than snapping every unrendered range to a cover.
+  return doc.lineAt(moved.head).number !== doc.lineAt(range.head).number;
 }
 
 /**

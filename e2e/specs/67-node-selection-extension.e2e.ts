@@ -739,6 +739,34 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
     expect(await classListAtLine(3)).not.toContain(SELECTED_CLASS);
   });
 
+  it('copying a THREE-range block selection puts every range on the clipboard', async () => {
+    // Copy is excluded from the refocus, so the editor stays blurred through
+    // it. The concern was that the platform would then serialize only the one
+    // range the native DOM Selection can hold, silently dropping the rest.
+    // Measured by pasting: all three arrive.
+    const mod = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
+    await outlineNote('- a\n- b\n- c\n- d\n- e\n');
+    await h.dispatchSelectOnlyRanges([
+      { anchor: { line: 0, ch: 3 }, head: { line: 0, ch: 3 } },
+      { anchor: { line: 2, ch: 3 }, head: { line: 2, ch: 3 } },
+      { anchor: { line: 4, ch: 3 }, head: { line: 4, ch: 3 } },
+    ]);
+    await focusEditor();
+    await down();
+    await browser.pause(150);
+    expect((await h.getSelectionRanges()).length).toBe(3);
+    await browser.keys([mod, 'c']);
+    await browser.pause(250);
+
+    await h.createNote('Scratch/node-selection-extension-paste.md', '');
+    await h.setCursor(0, 0);
+    await browser.keys([mod, 'v']);
+    await browser.pause(400);
+    const pasted = await h.getBuffer();
+    for (const node of ['- a', '- c', '- e']) expect(pasted).toContain(node);
+    expect(pasted).not.toContain('- b'); // and nothing that was not selected
+  });
+
   it('copying a block selection does not disturb the mode', async () => {
     // Cmd/Ctrl+C is unbound, so it used to fall through to the unmatched-key
     // refocus — putting a caret at the selection edge and returning Live

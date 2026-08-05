@@ -338,3 +338,19 @@ worst defect any round has found.
       a decoration-layer suppression", immediately above a correction and a rule that DO suppress
       CM6's drawn layer. Restated as the single-range path, pointing at the second rule for the
       ranges the native selection cannot represent
+
+## 13. PR #38 sixth review round (2026-08-04)
+
+- [x] 13.1 NOT REPRODUCED, and no change made. The concern was that excluding copy from the
+      refocus loses the ranges CodeMirror draws itself, since the native DOM Selection holds only
+      one and a blurred editor cannot serialize the others. Measured end-to-end by pasting: a
+      three-range block selection copied while blurred yields all three nodes. Limiting the
+      exclusion to single-range selections would therefore cost a mode transition for nothing.
+      Kept as an e2e scenario so the measurement is a regression net rather than a note
+- [x] 13.2 `coordsAtPos` returns `null` for a position outside the rendered viewport, which a
+      SECONDARY cursor easily is, and treating that as a boundary snapped such ranges to a cover
+      — losing D11 for exactly the multi-cursor case it was written to serve. Falls back to source
+      lines now: clamping cannot cross a source line, so a document edge still reads as a
+      boundary, while an offscreen cursor stepping between the lines of a multi-line node keeps
+      its text motion. The residual is an offscreen cursor inside a WRAPPED single source line,
+      stated in the code rather than left implicit
