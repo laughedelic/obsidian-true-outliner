@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "64681a587e91",
+  "strategy": "manual-commit",
+  "branch": "feat/node-selection-extension",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "openspec/changes/archive/2026-08-05-node-selection-extension/.openspec.yaml",
+    "openspec/changes/archive/2026-08-05-node-selection-extension/README.md",
+    "openspec/changes/archive/2026-08-05-node-selection-extension/design.md",
+    "openspec/changes/archive/2026-08-05-node-selection-extension/examples.md",
+    "openspec/changes/archive/2026-08-05-node-selection-extension/proposal.md",
+    "openspec/changes/archive/2026-08-05-node-selection-extension/specs/escalated-selection-decoration/spec.md",
+    "openspec/changes/archive/2026-08-05-node-selection-extension/specs/node-selection-extension/spec.md",
+    "openspec/changes/archive/2026-08-05-node-selection-extension/tasks.md",
+    "openspec/changes/node-selection-extension/.openspec.yaml",
+    "openspec/changes/node-selection-extension/README.md",
+    "openspec/changes/node-selection-extension/design.md",
+    "openspec/changes/node-selection-extension/examples.md",
+    "openspec/changes/node-selection-extension/proposal.md",
+    "openspec/changes/node-selection-extension/specs/escalated-selection-decoration/spec.md",
+    "openspec/changes/node-selection-extension/specs/node-selection-extension/spec.md",
+    "openspec/changes/node-selection-extension/tasks.md",
+    "openspec/specs/escalated-selection-decoration/spec.md",
+    "openspec/specs/node-selection-extension/spec.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/64/681a587e91/0/metadata.json",
+      "transcript": "/64/681a587e91/0/full.jsonl",
+      "compact_transcript": "/64/681a587e91/0/transcript.jsonl",
+      "content_hash": "/64/681a587e91/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 2008,
+    "cache_read_tokens": 3027618,
+    "output_tokens": 1108,
+    "api_call_count": 4
+  }
+}
