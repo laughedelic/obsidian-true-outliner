@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "f58d83e5e77f",
+  "strategy": "manual-commit",
+  "branch": "feat/node-selection-extension",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/plugin/keymap.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f5/8d83e5e77f/0/metadata.json",
+      "transcript": "/f5/8d83e5e77f/0/full.jsonl",
+      "compact_transcript": "/f5/8d83e5e77f/0/transcript.jsonl",
+      "content_hash": "/f5/8d83e5e77f/0/content_hash.txt",
+      "prompt": "/f5/8d83e5e77f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 25112,
+    "cache_read_tokens": 8673130,
+    "output_tokens": 15258,
+    "api_call_count": 13
+  }
+}
