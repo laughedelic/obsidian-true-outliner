@@ -217,8 +217,10 @@ both are defects this change introduced.
       `docs/research/13` with what has been ruled out, the leading untested hypothesis (Obsidian's
       own Live Preview re-render landing a frame after the blur, which the focus policy cannot
       reach), and the instrument that would distinguish them. The `requestAnimationFrame` change
-      is KEPT — the frame it removes is a real defect independent of the symptom — with its one
-      behavioural difference noted: rAF does not fire in a hidden window
+      is KEPT — the frame it removes is a real defect independent of the symptom. Its one
+      behavioural difference, that rAF does not fire in a hidden window, was first written up as a
+      caveat and is not one: the deferred work is purely visual, a hidden window cannot be
+      interacted with, and on becoming visible rAF runs before the first painted frame
 
 ## 8. PR #38 review round (2026-08-04)
 

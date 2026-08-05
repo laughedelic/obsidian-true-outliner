@@ -489,9 +489,11 @@ blur, rather than instrumenting focus and class as both previous attempts did. T
 "our scheduling is still wrong" from "Obsidian re-renders a frame later", which is the question
 neither measurement so far has answered.
 
-**Caveat on the current mechanism:** `requestAnimationFrame` does not fire in a hidden window, so
-a selection that becomes a cover while Obsidian is minimised will not blur until it is shown
-again. Harmless, but a real difference from the timer it replaced.
+**A non-caveat, recorded because it was first written up as one.** `requestAnimationFrame` does
+not fire in a hidden window, so a cover reached while Obsidian is minimised does not blur until it
+is shown. That has no consequence: the deferred work is purely visual, nothing interactive can
+happen in a hidden window, and on becoming visible rAF runs BEFORE the first painted frame — which
+is stricter than the timer it replaced, not looser.
 
 ## Track 1: Phase C (edit enforcement) inputs
 
