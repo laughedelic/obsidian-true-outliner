@@ -1,0 +1,4 @@
+ok, two more notes:
+
+* multiline regression is partially fixed. strangely, in @test-vault/Projects/Aurora Dashboard.md the last multiline paragraph now behaves fine, with character-level selection within the paragraph. but that doesn't work in the first paragraph in the same file, it gets into block-selection mode immediately.
+* there is still a bit of the initial flicker. not a big deal, but if you thought that you completely fixed it, I just want to point out that it's not the case. it might have become less noticeable, but I'm not sure about that.
