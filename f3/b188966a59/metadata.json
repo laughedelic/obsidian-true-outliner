@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "f3b188966a59",
+  "strategy": "manual-commit",
+  "branch": "docs/update-node-selection-extension",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "test-vault/.obsidian/community-plugins.json",
+    "test-vault/.obsidian/plugins/true-outliner/data.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f3/b188966a59/0/metadata.json",
+      "transcript": "/f3/b188966a59/0/full.jsonl",
+      "compact_transcript": "/f3/b188966a59/0/transcript.jsonl",
+      "content_hash": "/f3/b188966a59/0/content_hash.txt",
+      "prompt": "/f3/b188966a59/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 569674,
+    "cache_read_tokens": 3603083,
+    "output_tokens": 6119,
+    "api_call_count": 7
+  }
+}
