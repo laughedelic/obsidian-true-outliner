@@ -49,7 +49,7 @@ import { Notice, editorInfoField } from "obsidian";
 import { planKey, type GrammarKey } from "./grammar";
 import { nextRungs } from "../select-all-ladder";
 import { extendSelections, type ExtendDirection } from "../select-extend";
-import type { LineRange } from "../escalate";
+import { coveredForestOf, type LineRange } from "../escalate";
 import {
   contentBoundaryCh,
   resolvePlacement,
@@ -129,9 +129,15 @@ function toLineRange(doc: Text, range: SelectionRange): LineRange {
  *
  * The node's own content lines, not its subtree and not its trailing gap: the
  * gap is chrome between nodes, so reaching it is already a boundary crossing
- * and the cover sequence owns it. A range that is already an exact cover is
- * the sequence's business too, and is excluded by the content-line test — a
- * cover reaches at least to the node's gap or beyond.
+ * and the cover sequence owns it.
+ *
+ * An exact cover is rejected EXPLICITLY rather than left to the content-line
+ * bounds. An earlier version relied on those bounds, reasoning that a cover
+ * always reaches a node's gap or beyond — false for a leaf that owns no gap,
+ * such as a final code fence, whose cover IS exactly its content lines
+ * (measured: `gap=0`, cover `2..4`, content lines `2..4`). Such a cover would
+ * be read as text motion, and the opposite press would fall through to stock
+ * extension and SHRINK inside the node instead of stepping the sequence.
  */
 function movesWithinOneNode(
   view: EditorView,
@@ -140,6 +146,9 @@ function movesWithinOneNode(
   direction: ExtendDirection,
 ): boolean {
   const doc = view.state.doc;
+  // Already a cover: the sequence's business, whatever its line bounds.
+  if (!range.empty && coveredForestOf(outlineDoc, toLineRange(doc, range))) return false;
+
   const anchorLine = doc.lineAt(range.anchor).number - 1;
   const node = nodeAtLine(outlineDoc, anchorLine);
   if (!node) return false;
@@ -173,8 +182,11 @@ function movesWithinOneNode(
  * fall through to native extension, so the sequence's ends are a
  * pass-through to stock behavior rather than a hand-computed no-op.
  *
- * Returning `true` without dispatching is not an option at the sequence's
- * end: that would consume the key and make the editor look frozen.
+ * At the sequence's end the key IS consumed without dispatching, which is what
+ * "the selection remains unchanged" requires. Declining there instead looks
+ * safer and is not: stock extension would move a backward cover's head inward
+ * and shrink it. Declining is reserved for ranges that were never ours — the
+ * preamble, and text motion inside one node.
  *
  * The dispatch carries no `userEvent`, the same convention the Mod-A handler
  * uses — `classify.ts` reads an annotation-less transaction as
@@ -210,7 +222,20 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
 
     const before = sel.ranges.map((range) => toLineRange(doc, range));
     const next = extendSelections(outlineDoc, before, direction);
-    if (!asText.some((yes) => yes) && next.every((range) => range === null)) return false;
+
+    if (!asText.some((yes) => yes) && next.every((range) => range === null)) {
+      // Nothing moved. `null` means two different things here, and they need
+      // opposite answers. Outside any node's jurisdiction — the preamble —
+      // this key was never ours, so decline and let stock extension run. But a
+      // range that IS in jurisdiction and has simply run out of sequence must
+      // leave the selection UNCHANGED, which means consuming the key: falling
+      // through would let stock extension move the head of a backward cover
+      // inward and SHRINK it, at the one document edge where the walk has
+      // nothing left to offer.
+      return sel.ranges.some(
+        (range) => nodeAtLine(outlineDoc, doc.lineAt(range.anchor).number - 1) !== undefined,
+      );
+    }
 
     // Ranges are planned INDEPENDENTLY, so a mixed selection does not force one
     // reading on all of them: a cursor inside a multi-line node keeps

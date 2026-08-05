@@ -948,10 +948,16 @@ class SelectionDecorationPlugin implements PluginValue {
   /**
    * The focus half of BLOCK-SELECTION MODE (node-selection-extension
    * design.md D9). The mode is derived, never stored: an outline-mode editor
-   * is in it exactly when `allRangesCovered` holds, and the editor is focused
-   * exactly when it is NOT. Live Preview rendering, the `::selection`
-   * suppression and the chrome all key off the same predicate, so they cannot
-   * disagree with each other or with what is selected.
+   * is in it exactly when `allRangesCovered` holds, and Live Preview
+   * rendering, the `::selection` suppression and the chrome all key off that
+   * same predicate, so they cannot disagree with each other or with what is
+   * selected.
+   *
+   * Focus follows the mode's TRANSITIONS, not its negation. Entering blurs,
+   * LEAVING restores — and a selection that is merely outside the mode asserts
+   * nothing, which is the load-bearing part: asserting focus on every
+   * non-cover selection reaches the ordinary click path and was measured
+   * breaking caret placement there. See the focus branch below.
    *
    * This replaced three separate focus manipulations, each originally added
    * to patch the previous one's fallout: a blur here when a selection turned
@@ -1008,8 +1014,12 @@ class SelectionDecorationPlugin implements PluginValue {
    */
   private applyFocusPolicy(): void {
     window.requestAnimationFrame(() => {
-      if (!this.isOutlineNote()) return;
-      const covered = allRangesCovered(this.view.state);
+      // Losing outline mode IS a mode exit, not a reason to stop evaluating.
+      // Returning early left `inBlockMode` stale and skipped the exit edge, so
+      // toggling the mode off over a block selection stranded the editor
+      // blurred — and `onDocumentKeyDown` then correctly declines, being
+      // off-mode, so nothing brought focus back either.
+      const covered = this.isOutlineNote() && allRangesCovered(this.view.state);
       const wasCovered = this.inBlockMode;
       this.inBlockMode = covered;
 

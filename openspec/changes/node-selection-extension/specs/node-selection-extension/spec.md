@@ -29,10 +29,13 @@ content and is not a cover.
 Where the normalization CHANGES the selection, that change SHALL BE the press's step, and the
 sequence SHALL NOT additionally advance. A press moves one position; for an input that was not on
 the sequence, arriving on it is that move.
-No press-count, timer, stored head node, or stored extension origin SHALL be used: because
-escalation no longer expands a crossing range to a common ancestor, the cover's start edge (for
-a forward selection) or end edge (for a backward one) continues to identify the anchor node
-however far the selection has grown.
+No press-count, timer, stored head node, or stored extension origin SHALL be used. For a FORWARD
+selection this is exact and permanent: escalation no longer expands a crossing range to a common
+ancestor, and a forest span begins at the anchor's own subtree start, so no ancestor can displace
+the start edge. For a BACKWARD selection it holds only while no ancestor has been swallowed;
+where one has, the anchor is re-seated onto that ancestor rather than recovered. The single rule
+covering both is stated under "Extension is symmetric and can shrink" below — the anchor is read
+from the cover's own roots — and that rule governs.
 
 Each range of a multi-range selection SHALL be judged independently against the rule below, so a
 selection holding both a text range and one that would cross a node boundary keeps each range's

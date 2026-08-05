@@ -174,7 +174,10 @@ describe('node-selection-extension: a multiline node keeps character selection (
       const block = cm.lineBlockAt(0);
       return Math.round(block.height / cm.defaultLineHeight);
     });
-    if (rows < 2) return; // viewport too wide to wrap — nothing to assert
+    // Fail loudly rather than skipping: a silent return here would let this
+    // scenario stay green without ever exercising soft wrapping, which is the
+    // whole point of it.
+    expect(rows).toBeGreaterThan(1);
     await down();
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 5 });
@@ -205,6 +208,44 @@ describe('node-selection-extension: a multiline node keeps character selection (
     // Outline range: took its node's whole cover.
     expect(ranges[1]!.anchor).toEqual({ line: 3, ch: 0 });
     expect(ranges[1]!.head.line).toBe(3);
+  });
+
+  it('a gapless multiline leaf steps the sequence, it does not shrink inside itself', async () => {
+    // A final code fence owns no trailing gap, so its cover IS exactly its
+    // content lines. Relying on the content-line bounds to exclude covers
+    // therefore misread it as text motion, and the opposite press fell through
+    // to stock extension — shrinking inside the fence instead of stepping.
+    // No blank line after the fence, so it owns NO trailing gap and its cover
+    // is exactly its content lines — while still having a node to step to.
+    await outlineNote('Intro.\n\n```ts\nconst x = 1;\n```\nAfter.\n');
+    await h.setCursor(4, 2); // the fence's LAST content line
+    await up(); // within the fence — text motion
+    await up(); // still within
+    await up(); // leaves it: the fence's whole cover, lines 2..4
+    expect(await span()).toBe('2..4 back');
+    expect(await classListAtLine(2)).toContain(SELECTED_CLASS);
+
+    // The cover is exactly the fence's content lines, since it owns no gap.
+    // The opposite press must step the SEQUENCE, not be misread as text
+    // motion and fall through to stock extension shrinking inside the fence.
+    await down();
+    const after = await span();
+    expect(after).not.toBe('2..4 back');
+    expect(after.startsWith('3..')).toBe(false); // did not collapse inward
+  });
+
+  it('at the sequence end the selection stays unchanged, rather than shrinking', async () => {
+    // `null` from the walk means both "not ours" and "nowhere left to go", and
+    // they need opposite answers. Falling through at the document edge let
+    // stock extension move a backward cover's head inward.
+    await outlineNote('Intro.\n\n```ts\nconst x = 1;\n```');
+    await h.setCursor(4, 2);
+    await up();
+    await up();
+    await up(); // the fence's whole cover, at the document's end
+    const atEnd = await span();
+    await down(); // exhausted: must change nothing
+    expect(await span()).toBe(atEnd);
   });
 
   it('a SINGLE-line node still covers on the first press', async () => {
@@ -639,6 +680,32 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
     expect(after.hasFocus).toBe(false); // still in the mode
     expect(after.blockClass).toBe(true);
     expect(after.domText).toContain('Alpha one.'); // and the copy still has its text
+  });
+
+  it('turning outline mode OFF over a block selection is a mode exit', async () => {
+    // Losing outline mode is an exit like any other. Bailing out of the policy
+    // instead left the transition state stale and skipped the exit edge, so the
+    // editor stayed blurred — and the document key path then correctly declines,
+    // being off-mode, so nothing brought focus back either.
+    await outlineNote('Alpha one.\n\nBravo two.\n');
+    await h.setCursor(0, 6);
+    await down();
+    await browser.pause(120);
+    await h.toggleOutlineMode();
+    await h.dismissNotices();
+    await browser.pause(250);
+    const after = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      return {
+        hasFocus: cm.hasFocus,
+        blockClass: (cm.dom as HTMLElement).classList.contains('to-decor-block-selecting'),
+      };
+    });
+    expect(after.blockClass).toBe(false);
+    expect(after.hasFocus).toBe(true);
+    await h.toggleOutlineMode(); // leave the fixture note as the suite found it
+    await h.dismissNotices();
   });
 
   it('Escape leaves the mode cleanly and regains focus', async () => {

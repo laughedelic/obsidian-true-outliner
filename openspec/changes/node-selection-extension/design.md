@@ -231,9 +231,16 @@ because they are opposites.
 The walk reads its anchor off the normalized cover's ROOTS rather than off a stored origin:
 
 - **Two or more roots.** The anchor node is `r1` for a forward cover, `rk` for a backward one —
-  the root on the FIXED side. The pressed direction grows by adding a root on the far side, and
-  the opposite direction shrinks by dropping the far root. This is the ordinary case and D1's
-  inverse property holds exactly.
+  the root on the FIXED side. The pressed direction grows by taking the next node beyond the
+  cover; the opposite direction steps that same candidate one node back INWARD and recomputes.
+  This is the ordinary case and D1's inverse property holds exactly.
+
+  Shrinking is deliberately NOT "drop the far root", which is what this decision first said and
+  what the implementation had to abandon: growing upward can absorb the previous leading roots
+  into the newly added ancestor, so removing that ancestor removes them too and lands several
+  covers back. Measured on `# A / a1. / # B / b1. / b2.` — `[a1., # B]` grows up to `[# A, # B]`,
+  because `a1.` lies inside `# A`'s subtree. Recomputing from the stepped-back candidate asks the
+  same question growth asked, one step earlier, and cannot drift this way.
 - **Exactly one root.** That root IS the anchor, and the cover is the base of its sequence. There
   is nothing to shrink to, so BOTH directions grow from it.
 

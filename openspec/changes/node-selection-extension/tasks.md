@@ -244,3 +244,31 @@ both are defects this change introduced.
       IS claimed by `simplifySelection`, collapses the cover and leaves the mode cleanly, which
       the Escape scenario now asserts. The residual — an inert key such as F9 focusing with
       nothing to restore the blur — is recorded as a known limitation in the code
+
+## 9. PR #38 second review round (2026-08-04)
+
+All six suppressed comments were legitimate; two changed behavior.
+
+- [x] 9.1 An exact cover was NOT always excluded by D11's content-line bounds. A leaf owning no
+      trailing gap — a code fence with a node immediately after it, or one at the document end —
+      has a cover that IS exactly its content lines (measured: `gap=0`, cover `2..4`, content
+      `2..4`). It was read as text motion, so the opposite press fell through to stock extension
+      and SHRANK inside the node. Covers are now rejected explicitly, before the bounds test
+- [x] 9.2 Losing outline mode is a mode EXIT. `applyFocusPolicy` returned early when the note was
+      no longer outline, leaving the transition flag stale and skipping the exit edge, so toggling
+      the mode off over a block selection stranded the editor blurred — and `onDocumentKeyDown`
+      then correctly declines, being off-mode, so nothing restored focus either
+- [x] 9.3 Found while writing 9.1's test, not raised in review: at the sequence's end the handler
+      DECLINED, and stock extension then moved a backward cover's head inward, shrinking it. The
+      spec says the selection stays unchanged there, so the key is now consumed. `null` from the
+      walk means both "not ours" and "nowhere left to go" and they need opposite answers; the
+      adapter now separates them on node jurisdiction
+- [x] 9.4 `applyFocusPolicy`'s doc comment still opened with "focused exactly when it is NOT [in
+      the mode]", the invariant D9 had already replaced with the transition rule
+- [x] 9.5 D8's own bullet still carried "shrinks by dropping the far root" — the rule the spec,
+      tasks and Q31 had all been corrected away from, and the implementation abandoned
+- [x] 9.6 The spec's earlier anchor-recovery sentence contradicted D8: it claimed a backward
+      cover's end edge always identifies the anchor, which the ancestor swallow makes false.
+      Rewritten to state the forward case as exact and defer the backward case to D8's rule
+- [x] 9.7 The soft-wrap scenario returned early when the viewport did not wrap, so it could stay
+      green without exercising wrapping. Now asserts at least two rendered rows
