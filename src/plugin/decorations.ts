@@ -940,6 +940,14 @@ class SelectionDecorationPlugin implements PluginValue {
     private readonly modes: DecorationSource,
   ) {
     this.decorations = this.compute();
+    // Evaluate the policy once at construction. The chrome, the highlight
+    // suppression and the mode class are all derived and therefore correct
+    // immediately, but focus is driven by TRANSITIONS — and until this runs
+    // there has been none. A view created over an existing exact cover (plugin
+    // load, a reconfigure, a note reopened with its selection restored) would
+    // otherwise show block chrome on a focused, raw-markdown editor until some
+    // later gesture happened to move the selection.
+    this.applyFocusPolicy();
     this.view.dom.addEventListener('mousedown', this.onMouseDown);
     this.view.dom.addEventListener('mouseup', this.onMouseUp);
     document.addEventListener('keydown', this.onDocumentKeyDown, { capture: true });

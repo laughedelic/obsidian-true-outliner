@@ -244,12 +244,19 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     const before = sel.ranges.map((range) => toLineRange(doc, range));
     const next = extendSelections(outlineDoc, before, direction);
 
-    // Every remaining range is ours and has run out of sequence. CONSUME the
+    // Every range is ours and every one has run out of sequence. CONSUME the
     // key: the selection must stay unchanged, and falling through would let
-    // stock extension move a backward cover's head inward and SHRINK it. The
-    // "was never ours" case cannot reach here — those ranges are in `stock`,
-    // and a selection made only of them returned above.
-    if (next.every((range) => range === null)) return true;
+    // stock extension move a backward cover's head inward and SHRINK it.
+    //
+    // The `!stock.some` guard is not redundant with the early return above. A
+    // MIXED selection reaches here — say a preamble cursor beside an outline
+    // range at its sequence end — and `extendSelections` yields `null` for
+    // both, since it reports "nowhere to go" and "not in jurisdiction" the same
+    // way. Consuming then would freeze the stock-owned range instead of giving
+    // it its vertical motion. An earlier comment here claimed such ranges could
+    // not reach this branch; they can, whenever the outline ranges beside them
+    // are exhausted.
+    if (!stock.some((yes) => yes) && next.every((range) => range === null)) return true;
 
     // Ranges are planned INDEPENDENTLY, so a mixed selection does not force one
     // reading on all of them: a cursor inside a multi-line node keeps

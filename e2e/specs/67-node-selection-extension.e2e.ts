@@ -391,6 +391,26 @@ describe('node-selection-extension: multi-cursor (design D4)', () => {
     expect(after[1]!.anchor).toEqual({ line: 4, ch: 0 });
   });
 
+  it('a stock-owned range still moves when every outline range is exhausted', async () => {
+    // `extendSelections` reports "nowhere to go" and "not in jurisdiction" the
+    // same way, so a preamble cursor beside an exhausted outline range made the
+    // whole result null — and consuming the key there froze the preamble
+    // cursor instead of giving it its vertical motion.
+    await outlineNote('---\ntitle: x\n---\n\nAlpha one.\n');
+    await h.dispatchSelectOnlyRanges([
+      { anchor: { line: 1, ch: 3 }, head: { line: 1, ch: 3 } }, // preamble
+      { anchor: { line: 4, ch: 5 }, head: { line: 4, ch: 5 } }, // the LAST node
+    ]);
+    await focusEditor();
+    await down(); // the node takes its cover; the preamble cursor moves
+    await browser.pause(80);
+    const mid = await h.getSelectionRanges();
+    await down(); // the node is now exhausted — but the preamble must still move
+    await browser.pause(80);
+    const after = await h.getSelectionRanges();
+    expect(after[0]!.head.line).toBeGreaterThan(mid[0]!.head.line);
+  });
+
   it('two cursors extend independently across repeated presses', async () => {
     await outlineNote('- parent\n\t- child one\n\t- child two\n- next\n');
     await h.dispatchSelectOnlyRanges([

@@ -310,3 +310,18 @@ worst defect any round has found.
       applied eagerly on the path that caused the exit. My earlier attribution of the same failure
       to the refocus whitelist rested on one passing run, which for an intermittent failure is
       not evidence
+
+## 11. PR #38 fourth review round (2026-08-04)
+
+- [x] 11.1 The exhaustion branch could still freeze a MIXED selection. `extendSelections` reports
+      "nowhere to go" and "not in jurisdiction" identically, so a preamble cursor beside an
+      exhausted outline range made every result `null` and the key was consumed before the
+      stock-owned range got its vertical motion. A comment I had written here claimed such ranges
+      could not reach this branch; they can, whenever the outline ranges beside them are
+      exhausted. Consuming now requires that NO range is stock-owned; verified by negative control
+- [x] 11.2 The mode's transition detector was never initialised. Chrome, highlight suppression and
+      the mode class are all derived and so correct immediately, but focus is driven by
+      TRANSITIONS — and none has happened yet when a view is constructed over an existing exact
+      cover (plugin load, a reconfigure, a note reopened with its selection restored). Block
+      chrome would show on a focused, raw-markdown editor until some later gesture moved the
+      selection. The policy is now evaluated once at construction
