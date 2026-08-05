@@ -44,7 +44,7 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
-import { nodeAtLine } from './locate';
+import { nodeAtLine, nodeStartLine } from './locate';
 import {
   coveredForestOf,
   subtreeCoverOf,
@@ -148,6 +148,45 @@ function normalize(
   return { forest, normalized: true };
 }
 
+/**
+ * True when this press should DECLINE, leaving stock line-wise extension to
+ * run: the selection is a plain character range inside ONE node's own content
+ * lines, and the press would keep it there (design.md D11).
+ *
+ * A node may own several lines — a wrapped-in-source paragraph, a code fence,
+ * a table. Inside one, extension is ordinary text selection and has nothing to
+ * do with the outline: the user is selecting prose, not nodes. Taking over on
+ * the first press would make a multi-line node's interior unreachable by
+ * keyboard selection, which is what the first implementation did (measured:
+ * `⇧↓` from line one of a two-line paragraph jumped straight to the node's
+ * whole cover, where the pre-change path kept a character range).
+ *
+ * The node's own CONTENT lines, not its subtree and not its trailing gap: the
+ * gap is chrome between nodes, so reaching it is already a boundary crossing
+ * and the cover sequence takes over there. For a single-line node the target
+ * is always outside, so this never fires and the first press covers the node —
+ * unchanged, and the common case.
+ */
+function staysInsideNodeContent(
+  doc: OutlineDoc,
+  range: LineRange,
+  direction: ExtendDirection,
+): boolean {
+  // A cover is the sequence's business, even one that happens to sit inside a
+  // single node's lines.
+  if (!isEmpty(range) && coveredForestOf(doc, range)) return false;
+
+  const node = nodeAtLine(doc, range.anchor.line);
+  if (!node || nodeAtLine(doc, range.head.line) !== node) return false;
+
+  const first = nodeStartLine(doc, node.id);
+  const last = first + node.lines.length - 1;
+  const inside = (line: number): boolean => line >= first && line <= last;
+  if (!inside(range.anchor.line) || !inside(range.head.line)) return false;
+
+  return inside(range.head.line + (direction === 'down' ? 1 : -1));
+}
+
 /** The first node OUTSIDE `cover` on `direction`'s side, or `undefined` at
  * the document's edge or the preamble boundary. Covers span whole lines, so
  * the neighbouring line is the neighbouring node's own. */
@@ -222,6 +261,8 @@ export function extendSelection(
   range: LineRange,
   direction: ExtendDirection,
 ): LineRange | null {
+  if (staysInsideNodeContent(doc, range, direction)) return null;
+
   const start = normalize(doc, range);
   if (!start) return null;
 

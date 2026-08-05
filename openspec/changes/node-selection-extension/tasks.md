@@ -167,3 +167,28 @@
       merge fact and the cost of the wrong mechanism; that a before/after focus assertion cannot
       see a round trip; that neither escalation helper normalizes a within-node range; that
       "drop the far root" is not the inverse of an upward growth step; and D3's half-wrongness
+
+## 7. Post-manual-pass fixes (2026-08-04)
+
+Found by continued real-vault use after the pass in §5, and fixed here rather than filed:
+both are defects this change introduced.
+
+- [x] 7.1 A MULTILINE node lost intra-node keyboard selection — the bound handler intercepted
+      unconditionally, so the first `⇧↓` inside a two-line paragraph jumped to the node's whole
+      cover where the pre-change path kept a character range. Design D11: decline while the
+      selection is a character range inside one node's own content lines and the press would keep
+      it there; the sequence takes over at the node boundary. Single-line nodes unchanged
+- [x] 7.2 `Mod+C` broke block-selection mode — unbound, so it fell through to the unmatched-key
+      refocus, putting a caret at the selection edge and showing raw markdown under the chrome.
+      Measured: the DOM selection survives the blur intact, so the refocus buys copy nothing.
+      Copy excluded specifically; cut and paste still refocus, since both modify the document and
+      both end in a non-cover selection
+- [x] 7.3 Answered the 5.3b follow-up properly in Q32. The first answer addressed only the
+      single-contiguous-range representation; the fuller question — keep the underlying selection
+      as a LIST OF NODES and paint the chrome wider — is the parked modal design, not a
+      misunderstanding, and `mainIndex` would carry the anchor inside the selection. Recorded
+      with the four things that break under the current representation
+- [ ] 7.4 UNRESOLVED, seen once: `30-keyboard-grammar`'s "Tab respects the vault's Indent using
+      tabs setting" failed in one full desktop run and passed both in isolation and on a clean
+      re-run of the same suite. Not investigated; not attributable to this change on the evidence.
+      Recorded so a second sighting is recognised as a pattern rather than re-diagnosed

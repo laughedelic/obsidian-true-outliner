@@ -2090,14 +2090,48 @@ on real notes.
   answer is not obvious: *could the selection preserve `c1 + c2 + P` instead of collapsing to
   "whole P", and doesn't the mixed-depth forest prove we already keep state?*
 
-  No, on both counts. A CodeMirror selection is anchor/head OFFSETS — one contiguous range. The
-  forest is DERIVED by `coveredForestOf` on every call, so a mixed-depth cover needs no storage;
-  it is the same bytes as any other range. And `c1 + c2 + P` and "P's whole subtree" are the SAME
-  SPAN — downward closure means a cover containing `P`'s line contains all of `P`'s descendants,
-  so there is no richer range being discarded. What is lost is WHICH NODE THE GESTURE STARTED
-  FROM, and that was never in the range: extending up from `c1` and from `c2` both land on
-  `0..2`, byte for byte. The rejected alternative is therefore not "keep a better range" but a
-  SEPARATE field alongside a range that cannot express it — which is exactly what D8 declined.
+  For the representation we HAVE — one contiguous anchor/head range — the answer is no on both
+  counts. The forest is DERIVED by `coveredForestOf` on every call, so a mixed-depth cover needs
+  no storage; it is the same bytes as any other range. And `c1 + c2 + P` and "P's whole subtree"
+  are the SAME SPAN, since downward closure means a cover containing `P`'s line contains all of
+  `P`'s descendants. What is lost is WHICH NODE THE GESTURE STARTED FROM, and that was never in
+  the range: extending up from `c1` and from `c2` both land on the same span, byte for byte.
+
+  **But that answers a narrower question than the one asked, and the fuller version is worth
+  recording because it is a real design rather than a misunderstanding.** Restated with three
+  children: from `c2`, keep the UNDERLYING selection at `c2 + c1 + P` while PAINTING the chrome
+  over `P`'s whole subtree (`c3` included). The anchor survives, reversal works, and the premise
+  is correct — the chrome genuinely is derived from the selection and painted separately, so a
+  wider paint is mechanically possible.
+
+  Four things break, and none of them is the paint:
+
+  - **Copy and cut are not interceptable.** They read the browser's DOM selection, which mirrors
+    `state.selection`. Measured while fixing the copy defect below: blurred, with block chrome
+    showing, `getSelection().toString()` returns exactly the covered text. So a selection of
+    `P + c1 + c2` copies without `c3` while the chrome shows `c3` selected — silently different
+    from what the user sees, and fixable only by owning every path the browser has to read a
+    selection.
+  - **That range is invalid by our own spec.** `node-selection-enforcement`'s governing
+    invariant is downward closure: no node selected without its whole subtree. `P` without `c3`
+    is exactly the violation it exists to forbid, and the one that orphans `c3` on deletion.
+  - **Three consumers derive from the RANGE**, not from the chrome — `enforce.ts`'s deletion
+    grouping, `classify.ts`'s exact-cover gate, `decorations.ts`. Diverging range and operand
+    means every one of them must remember to use the second, which is the silently-stale
+    duplicate this repo has already been bitten by twice (Q18, Q19).
+  - **`allRangesCovered` would stop firing**, so the mode itself — chrome, highlight
+    suppression, blur — would need a second, different predicate.
+
+  The idea does work in a DIFFERENT representation: selection as several ranges, one per node.
+  CM6 supports that, handles multi-range copy itself (`copiedRange`), and — the piece this
+  analysis had missed — carries `mainIndex` alongside the ranges and preserves it through
+  mapping, so the ANCHOR can live inside the selection rather than beside it. What that costs is
+  D4: once a block selection is several ranges it is indistinguishable from several cursors, so
+  it needs a STORED mode flag. Which is precisely the modal design docs/research/13 parks and
+  this change puts out of scope.
+
+  So the honest summary is not "that cannot work" but "that is the parked alternative, and it
+  buys reversibility with the stored mode D8 was avoiding."
 
 ### Defect: a multi-range block selection painted stray highlights (5.2)
 
@@ -2146,3 +2180,31 @@ composes with the theme rather than racing it. Post-fix the `class=off` entry is
 that a library also manages is not owned by the writer. The same applies to the two focus
 findings in Q31 — DOM state the library considers its own will be recomputed from the library's
 model, and anything written outside that model is transient.
+
+### Two defects from continued real-vault use (2026-08-04)
+
+**A multiline node lost intra-node keyboard selection.** A node can own several source lines — a
+paragraph broken across lines, a code fence, a table. The bound handler intercepted
+unconditionally in outline mode, so the first `⇧↓` inside such a node jumped straight to the
+node's whole cover. Measured against the pre-change path on a two-line paragraph: ours returned
+the cover `0..2`, the old native-then-escalate path returned the character range `(0,5)→(1,5)`,
+because `escalateRange` deliberately leaves a same-node content range alone.
+
+Nothing in the design said to do this — every drawn example (E1, E2, E3) is a single-line node,
+so the case was never considered rather than decided. Fixed by D11: the press DECLINES while the
+selection is a plain character range inside one node's own content lines and would stay there,
+letting stock line-wise extension run; the sequence takes over at the node boundary. A
+single-line node is unaffected, since the target line is always outside it.
+
+The general shape is the same one this project keeps meeting: a rule stated over the common case
+(one line per node) silently generalized to a case nobody drew. The no-fixpoint and inverse
+properties could not catch it, because taking over early is not a fixpoint and not an inverse
+violation — it is a correct walk over the wrong operand.
+
+**Copy broke block-selection mode.** `Mod+C` is unbound, so `onDocumentKeyDown` fell through to
+the unmatched-key refocus, putting a caret at the selection edge and returning Live Preview to
+raw markdown while the chrome still showed. Measured: before the press `hasFocus: false` and
+`getSelection().toString()` already carries the covered text, so the browser reads copy off the
+DOM selection and the refocus buys it nothing. Excluded copy specifically — narrowly, since cut
+and paste look similar but do need focus (both modify the document through events that require a
+focused editable, and both end in a non-cover selection where focusing agrees with the policy).

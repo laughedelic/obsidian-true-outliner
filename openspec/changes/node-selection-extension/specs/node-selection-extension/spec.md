@@ -34,6 +34,25 @@ escalation no longer expands a crossing range to a common ancestor, the cover's 
 a forward selection) or end edge (for a backward one) continues to identify the anchor node
 however far the selection has grown.
 
+A press SHALL NOT be intercepted at all while the selection is a plain character range lying
+entirely within ONE node's own content lines and the press would leave it within them. Such a
+press SHALL fall through to the platform's ordinary line-wise extension, so the interior of a
+node that owns several lines stays reachable by keyboard selection. Interception SHALL resume at
+the node's boundary — the first press whose target leaves those content lines, including onto the
+node's own trailing gap — which SHALL produce the anchor node's whole subtree cover as above. For
+a node owning a single line no such press exists, so its first press covers the node.
+
+#### Scenario: Extension inside a multi-line node stays character-level
+- **WHEN** the caret is on the first of a node's two content lines and the user presses
+  Shift+ArrowDown
+- **THEN** the selection extends one line as ordinary text selection, keeping the anchor's exact
+  column, and no block chrome appears
+
+#### Scenario: The node boundary is where interception resumes
+- **WHEN** the selection has been extended to a multi-line node's last content line and the user
+  presses Shift+ArrowDown again
+- **THEN** the selection becomes that node's whole subtree cover, including its trailing gap
+
 #### Scenario: First press selects the anchor node alone
 - **WHEN** the caret is mid-text in a list item that has a following sibling on the very next
   line, with no blank line between them, and the user presses Shift+ArrowDown

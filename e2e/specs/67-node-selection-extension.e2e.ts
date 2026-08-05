@@ -120,6 +120,52 @@ describe('node-selection-extension: one node per press', () => {
   });
 });
 
+describe('node-selection-extension: a multiline node keeps character selection (D11)', () => {
+  // A node can own several lines — a paragraph broken across source lines, a
+  // code fence, a table. Inside one, extension is ordinary text selection and
+  // has nothing to do with the outline. The first implementation took over on
+  // the first press and made a multiline node's interior unreachable.
+  const MULTILINE = 'Line one of a para\nline two of it\n\nNext node.\n';
+
+  it('extends line-wise INSIDE the node, without block-selecting it', async () => {
+    await outlineNote(MULTILINE);
+    await h.setCursor(0, 5);
+    await down();
+    const sel = await h.getSelection();
+    // Still a character range: the anchor kept its column, and the head moved
+    // one line rather than snapping to a node boundary.
+    expect(sel.anchor).toEqual({ line: 0, ch: 5 });
+    expect(sel.head.line).toBe(1);
+    expect(await classListAtLine(0)).not.toContain(SELECTED_CLASS);
+  });
+
+  it('takes over at the node boundary, one press later', async () => {
+    await outlineNote(MULTILINE);
+    await h.setCursor(0, 5);
+    await down(); // within the node — native
+    await down(); // would leave the node — the sequence takes over
+    expect(await span()).toBe('0..2 fwd'); // the node's whole cover, gap included
+    expect(await classListAtLine(0)).toContain(SELECTED_CLASS);
+  });
+
+  it('extends line-wise upward inside the node too', async () => {
+    await outlineNote(MULTILINE);
+    await h.setCursor(1, 5);
+    await up();
+    const sel = await h.getSelection();
+    expect(sel.anchor).toEqual({ line: 1, ch: 5 });
+    expect(sel.head.line).toBe(0);
+  });
+
+  it('a SINGLE-line node still covers on the first press', async () => {
+    // The common case, and the one every drawn example uses — unchanged.
+    await outlineNote('- alpha\n- bravo\n');
+    await h.setCursor(0, 3);
+    await down();
+    expect(await span()).toBe('0..0 fwd');
+  });
+});
+
 describe('node-selection-extension: crossing a boundary (moved from 61)', () => {
   it('two presses cover both nodes in full, including the owned gap', async () => {
     // The scenario `61-selection-enforcement.e2e.ts` used to assert through
@@ -491,6 +537,33 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
       expect(await classListAtLine(line)).toContain(SELECTED_CLASS);
     }
     expect(await classListAtLine(3)).not.toContain(SELECTED_CLASS);
+  });
+
+  it('copying a block selection does not disturb the mode', async () => {
+    // Cmd/Ctrl+C is unbound, so it used to fall through to the unmatched-key
+    // refocus — putting a caret at the selection edge and returning Live
+    // Preview to raw markdown while the chrome was still showing. Measured:
+    // the DOM selection survives the blur intact, so focusing buys copy
+    // nothing.
+    await outlineNote('Alpha one.\n\nBravo two.\n');
+    await h.setCursor(0, 6);
+    await down();
+    await browser.pause(100);
+    await browser.keys([process.platform === 'darwin' ? Key.Command : Key.Ctrl, 'c']);
+    await browser.pause(150);
+    const after = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const sel = window.getSelection();
+      return {
+        hasFocus: cm.hasFocus,
+        blockClass: (cm.dom as HTMLElement).classList.contains('to-decor-block-selecting'),
+        domText: sel ? sel.toString() : '',
+      };
+    });
+    expect(after.hasFocus).toBe(false); // still in the mode
+    expect(after.blockClass).toBe(true);
+    expect(after.domText).toContain('Alpha one.'); // and the copy still has its text
   });
 
   it('a mouse drag still settles into block selection', async function () {

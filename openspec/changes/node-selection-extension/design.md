@@ -410,6 +410,33 @@ selection came from the ladder". The reverse direction stays rejected: `⇧↑` 
 cover grows sideways rather than climbing, because the two features answer different questions
 ("one more node, that way" versus "wider, from here"). Composability is not conflation.
 
+### D11. A press declines while it stays inside one node's own content
+
+A node can own several source lines — a paragraph broken across lines, a code fence, a table.
+Inside one, extension is ordinary TEXT selection: the user is selecting prose, not nodes, and the
+outline has nothing to say about it.
+
+**While the selection is a plain character range inside one node's own content lines and the
+press would keep it there, the handler declines** and stock line-wise extension runs. The cover
+sequence takes over at the node's boundary — reaching the trailing gap or the next node — which
+is the first moment the gesture is about outline structure at all.
+
+*Why this was missed.* Every worked example is a single-line node, so "the first press selects
+the anchor node alone" was written for a document shape where a node and a line coincide, and
+generalized silently to one where they do not. Measured on a two-line paragraph: the first
+implementation returned the node's whole cover on press one, where the pre-change path kept the
+character range `(0,5)→(1,5)`. Neither the no-fixpoint nor the inverse property could catch it —
+taking over early is a correct walk over the wrong operand, not a broken walk.
+
+*Why the boundary is CONTENT lines, not the subtree and not the gap.* A node's trailing gap is
+chrome between nodes; reaching it is already a boundary crossing, and the gap-line trigger in
+`node-selection-enforcement` treats it that way. A single-line node's target line is therefore
+always outside its content, so this rule never fires there and the common case is unchanged.
+
+*Cost.* `null` now means two things to the CM6 adapter — "sequence exhausted" and "decline, this
+is not ours" — and both fall through to native. That is right for the decline and harmless at the
+document edge, where native extension has nowhere to go either.
+
 ## Risks / Trade-offs
 
 - **The first press loses the caret's exact offset** — the walk bottoms out at "anchor node,

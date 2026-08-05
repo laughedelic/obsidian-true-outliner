@@ -637,6 +637,18 @@ export const BLOCK_SELECTING_CLASS = 'to-decor-block-selecting';
  * Cmd+A sends its own `keydown` for `a` with `metaKey` set, which is not in
  * this set and so refocuses and replays exactly as before.
  */
+/** A plain copy chord — `Mod+C`, no other modifiers. Deliberately narrow: cut
+ * and paste look similar and must keep refocusing, so this cannot be widened
+ * to "any Mod chord" without breaking them. */
+function isCopyKey(event: KeyboardEvent): boolean {
+  return (
+    (event.key === 'c' || event.key === 'C') &&
+    (event.metaKey || event.ctrlKey) &&
+    !event.shiftKey &&
+    !event.altKey
+  );
+}
+
 const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
   'Shift',
   'Control',
@@ -1169,6 +1181,16 @@ class SelectionDecorationPlugin implements PluginValue {
       event.stopPropagation();
       return;
     }
+    // COPY is the one unbound key that must not refocus. The browser reads it
+    // off the DOM selection, which survives the blur intact — measured on a
+    // block-covered selection while blurred: `hasFocus: false` yet
+    // `getSelection().toString()` is the covered text. So focusing buys copy
+    // nothing, and costs the mode: it puts a caret at the selection edge and
+    // returns Live Preview to raw markdown while the block chrome is still
+    // showing. Cut and paste are deliberately NOT excluded — both modify the
+    // document through events that need a focused editable, and both end in a
+    // selection that is no longer a cover, so focusing agrees with the policy.
+    if (isCopyKey(event)) return;
     this.view.focus();
   };
 
