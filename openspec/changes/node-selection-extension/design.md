@@ -455,6 +455,19 @@ chrome between nodes; reaching it is already a boundary crossing, and the gap-li
 `node-selection-enforcement` treats it that way. A single-line node's target line is therefore
 always outside its content, so this rule never fires there and the common case is unchanged.
 
+*Ranges are judged INDEPENDENTLY.* A selection can hold a cursor inside a multi-line node and
+another that would cross a boundary; each keeps its own answer. The first draft gated
+all-or-nothing, so one crossing range made every other one block-extend — silently overriding
+this decision for ranges that had already answered "this is text". Only when EVERY range is text
+motion does the handler decline outright, which lets stock extension run with its own bookkeeping
+rather than a re-implementation of it.
+
+Planning a text range means taking `moveVertically`'s HEAD and keeping the existing anchor, with
+its goal column carried — `moveVertically` is motion, not extension, and using it whole collapses
+the range. This is what `@codemirror/commands`' own `extendSel` does, and it is why vertical
+motion tracks a visual x-coordinate rather than a character index: in a proportional font the
+same x lands on a different column one row down.
+
 *Cost.* `null` now means two things to the CM6 adapter — "sequence exhausted" and "decline, this
 is not ours" — and both fall through to native. That is right for the decline and harmless at the
 document edge, where native extension has nowhere to go either.

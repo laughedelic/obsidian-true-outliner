@@ -190,36 +190,55 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     const { doc: outlineDoc } = parsedDoc(doc);
 
     // A press that only moves within one node's own text is ordinary text
-    // selection, not an outline gesture — decline and let stock line-wise
-    // extension run (design.md D11). Decided HERE rather than in
-    // `select-extend.ts` because it depends on VISUAL lines: Shift+Arrow moves
-    // by rendered row, and a long paragraph that soft-wraps is a single SOURCE
-    // line spanning several rows. Answering it from source lines alone got the
-    // common case backwards — a wrapped paragraph looked single-line and was
-    // block-selected on the first press, while a paragraph genuinely broken
-    // across two source lines behaved correctly. `moveVertically` is the view's
-    // own answer to "where would the caret go", wrapping included.
-    if (
-      view.state.selection.ranges.every((range) =>
-        movesWithinOneNode(view, outlineDoc, range, direction),
-      )
-    ) {
-      return false;
-    }
+    // selection, not an outline gesture (design.md D11). Decided HERE rather
+    // than in `select-extend.ts` because it depends on VISUAL lines:
+    // Shift+Arrow moves by rendered row, and a long paragraph that soft-wraps
+    // is a single SOURCE line spanning several rows. Answering it from source
+    // lines alone got the common case backwards — a wrapped paragraph looked
+    // single-line and was block-selected on the first press, while a paragraph
+    // genuinely broken across two source lines behaved correctly.
+    // `moveVertically` is the view's own answer to "where would the caret go",
+    // wrapping included, and is what stock line-wise extension uses too.
+    const sel = view.state.selection;
+    const asText = sel.ranges.map((range) =>
+      movesWithinOneNode(view, outlineDoc, range, direction),
+    );
 
-    const before = view.state.selection.ranges.map((range) => toLineRange(doc, range));
+    // Every range is plain text motion: decline outright, so stock extension
+    // runs with all of its own bookkeeping rather than our re-implementation.
+    if (asText.every((yes) => yes)) return false;
+
+    const before = sel.ranges.map((range) => toLineRange(doc, range));
     const next = extendSelections(outlineDoc, before, direction);
-    if (next.every((range) => range === null)) return false;
+    if (!asText.some((yes) => yes) && next.every((range) => range === null)) return false;
 
-    const ranges = before.map((original, i) => {
-      const target = next[i] ?? original;
+    // Ranges are planned INDEPENDENTLY, so a mixed selection does not force one
+    // reading on all of them: a cursor inside a multi-line node keeps
+    // character-level extension while another that would cross a boundary steps
+    // the cover sequence. An earlier all-or-nothing gate made a single crossing
+    // range block-extend every other one, silently overriding D11 for ranges
+    // that had already answered "this is text". `moveVertically` returns a
+    // range carrying its own goal column, so vertical motion still tracks the
+    // column across presses the way stock extension does.
+    const ranges = sel.ranges.map((range, i) => {
+      if (asText[i]) {
+        // `moveVertically` is MOTION, not extension — it returns where a
+        // cursor would land, so using it directly collapsed the range. Keep
+        // the anchor and take only the head, carrying the goal column so
+        // vertical motion tracks the column across presses. This is exactly
+        // what `@codemirror/commands`' own `extendSel` does.
+        const moved = view.moveVertically(range, direction === 'down');
+        return EditorSelection.range(range.anchor, moved.head, moved.goalColumn);
+      }
+      const target = next[i];
+      if (!target) return range;
       return EditorSelection.range(
         linePosToOffset(doc, target.anchor),
         linePosToOffset(doc, target.head),
       );
     });
     view.dispatch({
-      selection: EditorSelection.create(ranges, view.state.selection.mainIndex),
+      selection: EditorSelection.create(ranges, sel.mainIndex),
       scrollIntoView: true,
     });
     return true;

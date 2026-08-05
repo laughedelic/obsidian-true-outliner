@@ -34,7 +34,9 @@ escalation no longer expands a crossing range to a common ancestor, the cover's 
 a forward selection) or end edge (for a backward one) continues to identify the anchor node
 however far the selection has grown.
 
-A press SHALL NOT be intercepted at all while the selection is a plain character range lying
+Each range of a multi-range selection SHALL be judged independently against the rule below, so a
+selection holding both a text range and one that would cross a node boundary keeps each range's
+own answer. A press SHALL NOT be intercepted at all while the selection is a plain character range lying
 entirely within ONE node's own content lines and the press would leave it within them. Whether it
 would SHALL be judged against where the platform's own vertical motion would actually place the
 head — by RENDERED LINE, so a single source line that soft-wraps across several rows counts as
@@ -44,6 +46,12 @@ node that owns several lines stays reachable by keyboard selection. Interception
 the node's boundary — the first press whose target leaves those content lines, including onto the
 node's own trailing gap — which SHALL produce the anchor node's whole subtree cover as above. For
 a node owning a single line no such press exists, so its first press covers the node.
+
+#### Scenario: A mixed selection keeps each range's own reading
+- **WHEN** one cursor sits inside a node owning several rows, another sits where the press would
+  cross a node boundary, and the user presses Shift+ArrowDown
+- **THEN** the first extends as ordinary text selection and the second takes its node's cover —
+  neither imposing its reading on the other
 
 #### Scenario: A soft-wrapped node stays character-level across its rows
 - **WHEN** the caret is in a paragraph occupying ONE source line that wraps across several
@@ -103,9 +111,18 @@ the base of its sequence.
 
 While the cover has two or more roots, `Shift+ArrowUp` and `Shift+ArrowDown` SHALL be exact
 inverses OVER COVERS: pressing the opposite direction SHALL restore precisely the cover that
-preceded the last press, by dropping the root on the growing side. Consecutive covers in a
-sequence SHALL be strictly nested, so a shrink is always a proper reduction. Shrinking SHALL
-bottom out at a single-root cover and SHALL NOT reduce further to a caret or a partial range.
+preceded the last press. It SHALL do so by stepping the FAR-SIDE CANDIDATE one node inward and
+recomputing the cover from the anchor, which is the same question growth asks one step earlier.
+
+It SHALL NOT be defined as dropping the outermost root. That is not the inverse of a growth
+step: growing UPWARD can absorb the previous leading roots into the newly added ancestor, so
+removing that ancestor removes them too and lands several covers back, on one the walk had
+passed through. Measured on `# A / a1. / # B / b1. / b2.` — the cover `[a1., # B]` grows up to
+`[# A, # B]`, since `a1.` lies inside `# A`'s subtree.
+
+Consecutive covers in a sequence SHALL be strictly nested, so a shrink is always a proper
+reduction. Shrinking SHALL bottom out at a single-root cover and SHALL NOT reduce further to a
+caret or a partial range.
 
 From a single-root cover, BOTH directions SHALL grow — there is no smaller element to return to
 — with the range's anchor/head orientation reflecting the pressed direction.

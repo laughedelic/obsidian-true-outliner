@@ -637,15 +637,39 @@ export const BLOCK_SELECTING_CLASS = 'to-decor-block-selecting';
  * Cmd+A sends its own `keydown` for `a` with `metaKey` set, which is not in
  * this set and so refocuses and replays exactly as before.
  */
-/** A plain copy chord — `Mod+C`, no other modifiers. Deliberately narrow: cut
- * and paste look similar and must keep refocusing, so this cannot be widened
- * to "any Mod chord" without breaking them. */
-function isCopyKey(event: KeyboardEvent): boolean {
+/**
+ * Whether this key press will be followed by input the editor must receive —
+ * the only reason block-selection mode's key path focuses at all.
+ *
+ * A POSITIVE test on purpose. The first version excluded copy alone, which
+ * fixed the reported symptom and left every other non-input key doing the same
+ * damage: a key that produces no input AND changes no selection focuses the
+ * editor and then strands it, because the focus policy only re-runs on a
+ * selection change. Escape is the case that proves it — docs/research/13
+ * records that the first Escape on a forward cover changes nothing — but the
+ * same holds for function keys, media keys and any unbound chord.
+ *
+ * Printable characters arrive through the browser's own later `beforeinput`
+ * against whatever is focused then, so they need focus now. So do paste and
+ * cut, which are delivered as events to the focused editable. Copy is NOT
+ * here: it reads the DOM selection, which survives the blur. Composition keys
+ * are included because an IME's own input follows the same route as typing.
+ */
+function producesInput(event: KeyboardEvent): boolean {
+  const mod = event.metaKey || event.ctrlKey;
+  if (mod) {
+    // Paste and cut only; copy reads the selection and needs no focus.
+    const key = event.key.toLowerCase();
+    return !event.altKey && (key === 'v' || key === 'x');
+  }
+  // A single-character `key` is a printable character. `Dead`/`Process`/
+  // `Unidentified` are how dead keys and IME composition surface, and they
+  // lead to real input too.
   return (
-    (event.key === 'c' || event.key === 'C') &&
-    (event.metaKey || event.ctrlKey) &&
-    !event.shiftKey &&
-    !event.altKey
+    event.key.length === 1 ||
+    event.key === 'Dead' ||
+    event.key === 'Process' ||
+    event.key === 'Unidentified'
   );
 }
 
@@ -946,8 +970,12 @@ class SelectionDecorationPlugin implements PluginValue {
    * block selections are the same mode, so nothing happens between them and
    * the flicker is unreachable rather than merely brief.
    *
-   * The BLUR direction stays deferred via `setTimeout` — NOT optional, and
-   * not what D9 changes. A real bug found live: blurring synchronously inside
+   * The BLUR direction stays DEFERRED — NOT optional, and not what D9 changes.
+   * It is scheduled with `requestAnimationFrame` rather than a timer: both are
+   * asynchronous with respect to the current task, which is what the race below
+   * requires, but only rAF is guaranteed to run before the next paint. With a
+   * timer one frame was measured rendering block chrome over a still-focused,
+   * raw-markdown editor. A real bug found live: blurring synchronously inside
    * `update()` (still in the same dispatch cycle as the keystroke that
    * changed the selection) races CM6's own DOM-selection sync. CM6 keeps the
    * browser's native `Selection`/`Range` mirroring its internal
@@ -1073,10 +1101,10 @@ class SelectionDecorationPlugin implements PluginValue {
    *
    * This reproduces that SAME transition programmatically: right after a
    * drag settles into a whole-block cover, blur the content DOM — the same
-   * DOM effect a manual click elsewhere already produces. Deferred via
-   * `setTimeout`: the drag's own selection-escalation transaction (and
-   * CM6's own internal mouseup handling) may not have committed yet at the
-   * exact moment this native event fires.
+   * DOM effect a manual click elsewhere already produces. Deferred (see
+   * `applyFocusPolicy`, which this now routes through): the drag's own
+   * selection-escalation transaction (and CM6's own internal mouseup handling)
+   * may not have committed yet at the exact moment this native event fires.
    *
    * Confirmed by the user in their real vault: stays fully rendered with no
    * raw-markdown flash at all. Real, confirmed cost: blurring removes DOM
@@ -1181,16 +1209,16 @@ class SelectionDecorationPlugin implements PluginValue {
       event.stopPropagation();
       return;
     }
-    // COPY is the one unbound key that must not refocus. The browser reads it
-    // off the DOM selection, which survives the blur intact — measured on a
-    // block-covered selection while blurred: `hasFocus: false` yet
-    // `getSelection().toString()` is the covered text. So focusing buys copy
-    // nothing, and costs the mode: it puts a caret at the selection edge and
-    // returns Live Preview to raw markdown while the block chrome is still
-    // showing. Cut and paste are deliberately NOT excluded — both modify the
-    // document through events that need a focused editable, and both end in a
-    // selection that is no longer a cover, so focusing agrees with the policy.
-    if (isCopyKey(event)) return;
+    // Focus only for keys that will actually PRODUCE INPUT. Anything else
+    // leaves the mode for nothing, and for a key that changes no selection it
+    // leaves it for good: nothing re-runs the focus policy without a
+    // `selectionSet`, so the editor sits focused over an exact cover — block
+    // chrome with Live Preview back in its focused form — until the user acts
+    // again. Escape is the concrete case (docs/research/13 records that the
+    // first Escape on a forward cover changes no selection at all), and copy
+    // is the one that was reported: the platform reads it off the DOM
+    // selection, which survives the blur intact, so focusing buys it nothing.
+    if (!producesInput(event)) return;
     this.view.focus();
   };
 

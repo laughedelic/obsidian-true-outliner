@@ -8,10 +8,15 @@
       root when forward, last when backward, and for a single-root cover the root ITSELF, which
       re-seats the anchor after an upward ancestor swallow. No stored state. `coveredForestOf`
       returning `null` is the not-a-cover case 1.2b handles
-- [x] 1.2c Implement the step: with ≥2 roots the opposite direction drops the far root; with
-      exactly one root there is nothing to shrink to, so BOTH directions grow. Unit-test the
-      re-seat trace directly — `[c1] → ⇧↑ → [P] → ⇧↓ → [P,Q] → ⇧↑ → [P]` — since this is the
-      case the original design got wrong and the one a reader will most doubt
+- [x] 1.2c Implement the step. CORRECTED during implementation: the task's own instruction —
+      "with ≥2 roots the opposite direction drops the far root" — is WRONG and the property test
+      caught it. Growing upward can ABSORB the previous leading roots into the newly added
+      ancestor, so dropping that ancestor removes them too and lands several covers back
+      (`[a1., # B]` grows up to `[# A, # B]` because `a1.` is inside `# A`). Both directions now
+      step the far-side CANDIDATE inward and recompute, asking the same question growth asked one
+      step earlier; verified by negative control. With exactly one root there is nothing to shrink
+      to, so BOTH directions grow. Unit-tested the re-seat trace directly —
+      `[c1] → ⇧↑ → [P] → ⇧↓ → [P,Q] → ⇧↑ → [P]`
 - [x] 1.2b Normalize a non-cover input to the ANCHOR NODE'S subtree cover (design D6) — NOT via
       `escalateRange`/`escalateRanges`, both measured to leave a within-node content range
       untouched, which is correct for them and useless here. Where normalization changes the
@@ -211,3 +216,28 @@ both are defects this change introduced.
       reach), and the instrument that would distinguish them. The `requestAnimationFrame` change
       is KEPT — the frame it removes is a real defect independent of the symptom — with its one
       behavioural difference noted: rAF does not fire in a hidden window
+
+## 8. PR #38 review round (2026-08-04)
+
+- [x] 8.1 D11's gate was ALL-OR-NOTHING, so one range crossing a boundary made every other range
+      block-extend — overriding D11 for ranges that had already answered "this is text". Ranges
+      are planned independently now. Fixing it exposed a second bug the reviewer did not name:
+      `moveVertically` is MOTION, not extension, so using it whole COLLAPSED the text range;
+      corrected to keep the anchor and take its head with the goal column, as
+      `@codemirror/commands`' own `extendSel` does
+- [x] 8.2 Two doc comments still named `setTimeout` after the switch to `requestAnimationFrame`
+- [x] 8.3 The spec's shrink algorithm still said "drop the root on the growing side", the rule
+      the implementation abandoned. Restated as stepping the far-side candidate inward, with the
+      measured counterexample for why root-dropping is not the inverse
+- [x] 8.4 Task 1.2c carried the same rejected algorithm as a completed instruction
+- [x] 8.5 The merge-edge e2e proved nothing: `afterThree.length <= afterTwo.length` passes for two
+      unmerged ranges. Measured the real progression and asserted it exactly — two ranges, then
+      TOUCHING and still two, then one merged range, then that range extending. Lengthened the
+      fixture so the merge no longer coincides with the document end, which is what had made the
+      final state unobservable
+- [x] 8.6 Refocus is now a POSITIVE test for keys that produce input, replacing the copy-only
+      exclusion: any key producing neither input nor a selection change would otherwise strand the
+      editor focused over a cover, since nothing re-runs the policy without a `selectionSet`.
+      The reviewer's example does NOT reproduce, and the test says so — measured, Escape is
+      handled by CodeMirror's `simplifySelection`, collapses the cover and correctly regains focus
+      through the exit edge. F9 is the genuinely inert case; both are now covered

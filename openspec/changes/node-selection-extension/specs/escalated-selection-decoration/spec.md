@@ -56,9 +56,13 @@ SHALL first be offered to the editor's own installed keymap; only a key that no 
 SHALL focus the editor immediately, because such a key is inserted by the browser's own
 subsequent input handling against whatever is focused at that time. A key that a command DOES
 handle SHALL NOT cause a focus change on its own — the selection it produces decides focus
-through the policy above. A key whose default action only READS the selection, such as copy,
-SHALL NOT focus the editor: the platform reads it from the DOM selection, which survives the
-blur, so focusing would leave the mode for nothing.
+through the policy above.
+
+Only a key that will PRODUCE INPUT SHALL focus the editor. A key that produces none must not,
+whether because the platform reads it off the DOM selection, which survives the blur — copy — or
+because it does nothing at all. The second case is the load-bearing one: a key that produces no
+input AND changes no selection would leave the editor focused over an exact cover indefinitely,
+since nothing re-evaluates the policy without a selection change.
 
 #### Scenario: A multi-range block selection shows only block chrome
 - **WHEN** three separate cursors are each extended into a cover, so the selection has three
@@ -100,6 +104,12 @@ blur, so focusing would leave the mode for nothing.
   bound to a plugin command
 - **THEN** the command runs against the block selection and the editor's focus state is decided
   only by the selection the command produced, not by the fact that a key was pressed
+
+#### Scenario: A key that produces no input leaves the mode untouched
+- **WHEN** the selection is a block cover, the editor is therefore blurred, and the user presses
+  a key that is bound to nothing and inserts nothing
+- **THEN** the editor stays blurred with its chrome, rather than being focused with no
+  subsequent selection change to restore it
 
 #### Scenario: Copying a block selection stays in the mode
 - **WHEN** the selection is a block cover, the editor is therefore blurred, and the user presses

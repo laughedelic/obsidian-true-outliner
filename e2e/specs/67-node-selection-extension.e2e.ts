@@ -183,6 +183,30 @@ describe('node-selection-extension: a multiline node keeps character selection (
     expect(await classListAtLine(0)).not.toContain(SELECTED_CLASS);
   });
 
+  it('a MIXED multi-range selection plans each range on its own terms', async () => {
+    // One cursor inside a multi-line node, one that would cross a boundary.
+    // An all-or-nothing gate made the crossing range's answer win for both,
+    // block-extending a cursor that had already answered "this is text".
+    await outlineNote('Line one of a para\nline two of it\n\n- alpha\n- bravo\n');
+    await h.dispatchSelectOnlyRanges([
+      { anchor: { line: 0, ch: 5 }, head: { line: 0, ch: 5 } },
+      { anchor: { line: 3, ch: 4 }, head: { line: 3, ch: 4 } },
+    ]);
+    await focusEditor();
+    await down();
+    const ranges = await h.getSelectionRanges();
+    expect(ranges).toHaveLength(2);
+    // Text range: anchor untouched, head one line down, no snapping to a
+    // boundary. The head's COLUMN is not asserted — vertical motion tracks the
+    // visual x-coordinate, and in a proportional font the same x lands on a
+    // different character index than the row above.
+    expect(ranges[0]!.anchor).toEqual({ line: 0, ch: 5 });
+    expect(ranges[0]!.head.line).toBe(1);
+    // Outline range: took its node's whole cover.
+    expect(ranges[1]!.anchor).toEqual({ line: 3, ch: 0 });
+    expect(ranges[1]!.head.line).toBe(3);
+  });
+
   it('a SINGLE-line node still covers on the first press', async () => {
     // The common case, and the one every drawn example uses — unchanged.
     await outlineNote('- alpha\n- bravo\n');
@@ -316,26 +340,33 @@ describe('node-selection-extension: multi-cursor (design D4)', () => {
 describe('node-selection-extension: D4\'s merge edge and D6\'s restored input', () => {
   it('two cursors one node apart merge only on OVERLAP, then extend as a block', async () => {
     // Design D4's known edge, and one press is not enough to reach it:
-    // CodeMirror permits ranges to TOUCH without merging, so press 1 leaves
-    // two touching ranges, press 2 makes them overlap and merge, and press 3
-    // must then extend the merged range as a single block.
-    await outlineNote('- a\n- b\n- c\n- d\n- e\n');
+    // CodeMirror permits ranges to TOUCH without merging. The document is long
+    // enough that the merge does NOT coincide with the document end, so the
+    // press after the merge has somewhere to go and the block behavior is
+    // observable rather than inferred.
+    const span = (r: { anchor: { line: number }; head: { line: number } }): string =>
+      `${Math.min(r.anchor.line, r.head.line)}..${Math.max(r.anchor.line, r.head.line)}`;
+    await outlineNote('- a\n- b\n- c\n- d\n- e\n- f\n- g\n- h\n');
     await h.dispatchSelectOnlyRanges([
       { anchor: { line: 0, ch: 3 }, head: { line: 0, ch: 3 } },
       { anchor: { line: 2, ch: 3 }, head: { line: 2, ch: 3 } },
     ]);
     await focusEditor();
+
     await down();
-    expect(await h.getSelectionRanges()).toHaveLength(2);
+    expect((await h.getSelectionRanges()).map(span)).toEqual(['0..0', '2..2']);
+
+    // TOUCHING — `0..1` ends where `2..3` begins — and still two ranges.
     await down();
-    const afterTwo = await h.getSelectionRanges();
+    expect((await h.getSelectionRanges()).map(span)).toEqual(['0..1', '2..3']);
+
+    // OVERLAPPING, so CodeMirror merges them into exactly one range.
     await down();
-    const afterThree = await h.getSelectionRanges();
-    // However many presses it takes for them to meet, the result stays a
-    // coherent block selection and keeps growing — never fragmenting.
-    expect(afterThree.length).toBeLessThanOrEqual(afterTwo.length);
-    const last = afterThree[afterThree.length - 1]!;
-    expect(last.head.line).toBeGreaterThan(2);
+    expect((await h.getSelectionRanges()).map(span)).toEqual(['0..4']);
+
+    // And the merged range then extends as a single block, by one node.
+    await down();
+    expect((await h.getSelectionRanges()).map(span)).toEqual(['0..5']);
   });
 
   it('a selection restored by undo is normalized before stepping (design D6)', async () => {
@@ -590,6 +621,57 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
     expect(after.hasFocus).toBe(false); // still in the mode
     expect(after.blockClass).toBe(true);
     expect(after.domText).toContain('Alpha one.'); // and the copy still has its text
+  });
+
+  it('a key that produces no input does not strand the editor focused', async () => {
+    // A key that produces no input AND changes no selection would, if it
+    // refocused, leave the editor focused over an exact cover forever: nothing
+    // re-runs the focus policy without a `selectionSet`, so the block chrome
+    // stays while Live Preview returns to its focused form.
+    //
+    // F9 rather than Escape, which was the suspected case: measured, Escape is
+    // handled by CodeMirror's own `simplifySelection`, collapses the cover
+    // (`0-11` -> `10-10`), leaves the mode and correctly regains focus through
+    // the exit edge. F9 is genuinely unbound and genuinely inert.
+    await outlineNote('Alpha one.\n\nBravo two.\n');
+    await h.setCursor(0, 6);
+    await down();
+    await browser.pause(100);
+    await browser.keys(Key.F9);
+    await browser.pause(150);
+    const after = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      return {
+        hasFocus: cm.hasFocus,
+        blockClass: (cm.dom as HTMLElement).classList.contains('to-decor-block-selecting'),
+      };
+    });
+    expect(after.hasFocus).toBe(false);
+    expect(after.blockClass).toBe(true);
+  });
+
+  it('Escape leaves the mode cleanly and regains focus', async () => {
+    // The exit edge working: Escape collapses the cover, which is a real
+    // selection change, so the policy restores focus rather than stranding it.
+    await outlineNote('Alpha one.\n\nBravo two.\n');
+    await h.setCursor(0, 6);
+    await down();
+    await browser.pause(100);
+    await browser.keys(Key.Escape);
+    await browser.pause(200);
+    const after = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      return {
+        hasFocus: cm.hasFocus,
+        blockClass: (cm.dom as HTMLElement).classList.contains('to-decor-block-selecting'),
+        collapsed: cm.state.selection.main.empty,
+      };
+    });
+    expect(after.collapsed).toBe(true);
+    expect(after.blockClass).toBe(false);
+    expect(after.hasFocus).toBe(true);
   });
 
   it('a mouse drag still settles into block selection', async function () {
