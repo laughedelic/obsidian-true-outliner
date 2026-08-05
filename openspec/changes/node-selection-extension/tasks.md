@@ -325,3 +325,16 @@ worst defect any round has found.
       cover (plugin load, a reconfigure, a note reopened with its selection restored). Block
       chrome would show on a focused, raw-markdown editor until some later gesture moved the
       selection. The policy is now evaluated once at construction
+
+## 12. PR #38 fifth review round (2026-08-04)
+
+- [x] 12.1 The decoration spec promised "ENTERING the mode SHALL render no intermediate frame" —
+      a normative guarantee contradicted by this change's OWN filed known issue, in which the
+      reporter still sees a frame on the first switch and the cause is untested. Narrowed to what
+      is verified: the mode's MARKER stays continuous, and the blur precedes the next paint. The
+      residual is named in the requirement itself so the gap cannot be read as an oversight, and
+      D9 now says outright that the class fix did not end the reported flicker
+- [x] 12.2 `styles.css`'s comment still concluded "the fix is a scoped `::selection` override, not
+      a decoration-layer suppression", immediately above a correction and a rule that DO suppress
+      CM6's drawn layer. Restated as the single-range path, pointing at the second rule for the
+      ranges the native selection cannot represent

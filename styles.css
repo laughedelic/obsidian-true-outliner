@@ -528,10 +528,12 @@
  * comment for why a genuinely mixed selection can't arise through the real
  * transaction filter).
  *
- * Confirmed live (via the e2e harness) that Obsidian's own selection
- * rendering is the browser's NATIVE `::selection` pseudo-element, not CM6's
- * optional `drawSelection()` background layer — so the fix is a scoped
- * `::selection` override, not a decoration-layer suppression.
+ * Confirmed live (via the e2e harness) that for a SINGLE-RANGE selection
+ * Obsidian's own rendering is the browser's NATIVE `::selection`
+ * pseudo-element, so that path is a scoped `::selection` override rather than
+ * a decoration-layer suppression. It is only half the picture — see the
+ * correction below, and the second rule, which suppresses CM6's own drawn
+ * layer for the ranges the native selection cannot represent.
  *
  * CORRECTED (2026-08-04, node-selection-extension real-vault pass 5.2): that
  * held only for a SINGLE range. The original note here claimed

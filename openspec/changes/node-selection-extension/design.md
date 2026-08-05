@@ -321,8 +321,9 @@ one invariant above.
 macrotask later, because `onDocumentKeyDown` focuses BEFORE `runScopeHandlers`. A mouse drag
 never does this: `update()`'s hook is guarded on `!mouseDown`, so the blur happens once at
 `onMouseUp` — one transition per gesture, not one per event. Under D9 an extension press goes
-cover → cover, the policy's answer does not change, and no focus transition happens at all. The
-flicker is not made less likely; it is made unreachable.
+cover → cover, the policy's answer does not change, and no focus transition happens at all. For
+a press BETWEEN two covers the flicker is not made less likely; it is made unreachable. Entering
+the mode is a different matter — see the amendments below, and the known issue they end at.
 
 *How key input survives.* `onDocumentKeyDown` stops treating focus as a precondition. It replays
 the event through `runScopeHandlers` first; a command that matched dispatches its own selection
@@ -377,6 +378,14 @@ writes the `class` attribute wholesale, so the focus change the mode ITSELF caus
 class written with `classList`, and the next `update()` restored it one frame later. Declaring it
 through the `editorAttributes` facet removes the window: CM6 folds the class into the same string
 it rewrites.
+
+**It did not end the reported flicker, and this decision does not claim it did.** Two causes of a
+visibly wrong frame on ENTERING the mode were found and removed — the clobbered class here, and
+the blur landing after a paint in the previous amendment — and a third remains, still visible and
+not yet understood. It is filed in docs/research/13 with what has been ruled out, the leading
+untested hypothesis (Obsidian's own Live Preview re-render landing a frame after the blur, which
+this policy cannot reach), and the instrument that would distinguish them. The spec requires only
+what is verified: marker continuity, and the blur preceding the next paint.
 
 That is the same lesson as both focus findings above, in a third place. **DOM state a library
 considers its own gets recomputed from the library's model, and anything written outside that

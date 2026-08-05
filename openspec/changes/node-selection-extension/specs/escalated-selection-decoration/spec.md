@@ -30,12 +30,18 @@ the next — SHALL NOT leave and re-enter the mode, and SHALL therefore produce 
 Live Preview re-render, and no interval in which character-level selection is visible. This is a
 requirement about the mode not being exited, not about the transition being fast or unobtrusive.
 
-ENTERING the mode SHALL likewise render no intermediate frame. Any marker the editor library
-itself recomputes — an attribute it derives from its own model and rewrites wholesale, such as
-the editor element's class list — SHALL be declared through that library's own mechanism for
+ENTERING the mode SHALL keep its MARKER continuous. Any marker the editor library itself
+recomputes — an attribute it derives from its own model and rewrites wholesale, such as the
+editor element's class list — SHALL be declared through that library's own mechanism for
 contributing to it, never written imperatively alongside it. Otherwise the library's rewrite,
 triggered by the very focus change entering the mode causes, drops the marker until the next
-update restores it.
+update restores it. The blur SHALL additionally be applied before the next frame is painted, per
+the scheduling requirement above.
+
+This is deliberately NOT a promise that entering the mode renders no intermediate frame at all.
+Two causes of a visible frame were found and removed, and a third is known to remain and is not
+yet understood; it is recorded as a known issue rather than specified away. Requiring only what
+has been verified keeps this document honest about which is which.
 
 While the editor is in block-selection mode, NO selection highlight other than the block chrome
 SHALL be visible, for any number of ranges. Suppressing the platform's own text-selection
@@ -72,11 +78,12 @@ declines, and which chords those are is not knowable from the key event.
 - **THEN** every range renders block chrome and none renders any additional selection
   background, whether drawn by the platform or by the editor library
 
-#### Scenario: Entering the mode renders no frame without the chrome
+#### Scenario: Entering the mode never drops the mode's marker
 - **WHEN** a caret in an outline-mode note is extended into its first cover, which enters
   block-selection mode and blurs the editor
 - **THEN** the mode's marker is present continuously from that moment, with no intervening
-  update in which it is absent
+  update in which it is absent — the library's own rewrite of the attribute carries it rather
+  than clearing it
 
 #### Scenario: Keyboard extension between two covers stays in the mode
 - **WHEN** the selection is a block cover, the editor is therefore blurred, and the user presses
