@@ -450,6 +450,49 @@ comparing the settled state before and after — the round trip ends where it be
 before/after comparison passes even when the flash is present (verified: an earlier
 version of that test passed against the pre-change build).
 
+## KNOWN ISSUE: a residual flicker when ENTERING block-selection mode (2026-08-04, `node-selection-extension`)
+
+Reported after two rounds of fixes and still present: a brief flicker on the FIRST switch into
+block-selection mode, absent for mouse-driven selection. Both earlier causes were real and are
+fixed; this is what is left, and it is recorded rather than chased further because two
+measurement-driven attempts have not reached it.
+
+**Ruled out, with the evidence:**
+
+- *The class being clobbered.* `EditorView.updateAttrs` rewrites the editor's whole `class`
+  attribute on a focus change, dropping a class written with `classList`; the next update restored
+  it one frame later. Fixed by declaring the class through the `editorAttributes` facet.
+  Verified: the `class=off` mutation is simply absent afterward.
+- *The blur landing after a paint.* `applyFocusPolicy` deferred with `setTimeout(0)`, which only
+  guarantees running after the current task. Instrumented: `class=true paints=0` then
+  `BLUR paints=1`, i.e. one frame painted with chrome over a still-focused raw-markdown editor.
+  Switched to `requestAnimationFrame`, which is specified to run before the next paint. Kept
+  because that frame is a real defect independent of the symptom below — but it did NOT resolve
+  the report, so a third cause remains.
+- *The two-transaction escalation split*, which an older entry in this file named as the
+  confirmed root cause. It does not exist — see that entry's own correction.
+
+**The leading remaining hypothesis, untested:** the reveal is Obsidian's, not ours. Blurring is
+what returns Live Preview to its rendered form, and that re-render need not happen in the same
+frame the blur is applied — so the ordering we control (chrome, then blur, both before a paint)
+can be correct while Obsidian's own re-render lands a frame later, showing chrome over raw
+markdown regardless of our scheduling. If so it is not fixable from the focus policy at all, and
+the fix would be in the same territory as the abandoned CSS raw-mark-hiding approach above.
+
+**Why the mouse path has no equivalent:** its blur fires once at `mouseup`, after the gesture the
+user is already watching change, so any one-frame disagreement is hidden inside a transition they
+expect. The keyboard path enters the mode on a discrete keypress with nothing else moving.
+
+**To pick this up:** instrument WHEN the raw-markdown reveal actually changes — the presence of
+formatting marks in a covered `.cm-line`, observed with a `MutationObserver` — relative to the
+blur, rather than instrumenting focus and class as both previous attempts did. That distinguishes
+"our scheduling is still wrong" from "Obsidian re-renders a frame later", which is the question
+neither measurement so far has answered.
+
+**Caveat on the current mechanism:** `requestAnimationFrame` does not fire in a hidden window, so
+a selection that becomes a cover while Obsidian is minimised will not blur until it is shown
+again. Harmless, but a real difference from the timer it replaced.
+
 ## Track 1: Phase C (edit enforcement) inputs
 
 Threads that genuinely feed the edit-rewriting change:

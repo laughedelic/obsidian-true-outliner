@@ -203,3 +203,11 @@ both are defects this change introduced.
       change out as the cause. Left for its own fix: the test flips `useTab` via `setConfig` +
       `updateOptions()` and presses Tab without waiting for the editor's `indentUnit` facet to
       actually reconfigure, which is a real race in the helper rather than in the grammar
+- [x] 7.5 The entering-block-mode flicker is PARTIALLY fixed and the remainder is filed, not
+      chased. Two causes found and fixed with measurements (the clobbered class, the blur landing
+      after a paint); a third remains and the reporter still sees it. Recorded in
+      `docs/research/13` with what has been ruled out, the leading untested hypothesis (Obsidian's
+      own Live Preview re-render landing a frame after the blur, which the focus policy cannot
+      reach), and the instrument that would distinguish them. The `requestAnimationFrame` change
+      is KEPT — the frame it removes is a real defect independent of the symptom — with its one
+      behavioural difference noted: rAF does not fire in a hidden window
