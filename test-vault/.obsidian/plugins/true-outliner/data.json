@@ -4,8 +4,11 @@
     "Journal/2026-07-08.md",
     "Journal/2026-07-10.md",
     "Notes/Sourdough Log.md",
+    "Projects/Aurora Dashboard.md",
+    "Projects/Kitchen Renovation.md",
     "README.md"
   ],
   "coexistenceWarned": false,
-  "debugCrossCheck": true
+  "debugCrossCheck": true,
+  "markerVisibility": "all"
 }

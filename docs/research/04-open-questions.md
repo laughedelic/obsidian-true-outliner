@@ -1972,3 +1972,279 @@ with a test." Worth checking for before writing the extension.
 A TYPE-OVER of a mixed-depth cover is unmodeled — `deleteAndSplice` splices into the single gap
 a deletion left, and a forest leaves one gap per parent. Implemented as a conservative `PASS`.
 It wants a judgement about what users expect, not more measurement.
+
+## Q31. `node-selection-extension` implementation findings (2026-08-03)
+
+Four measurements this change's design rests on. Each cost an investigation, and each has
+a plausible wrong answer that was believed at some point in this repo — which is why they
+are recorded rather than left to be re-derived.
+
+### The keyboard flash was never a two-transaction escalation
+
+`docs/research/13`'s flash entry recorded, as a "confirmed root cause", that a transaction
+filter returning `[tr, { selection: escalated }]` makes CM6 apply two separate state
+transitions with their own DOM syncs, rendering the raw pre-escalation selection for one
+frame. **That is wrong.** Read in `@codemirror/state`'s `filterTransaction`: an array
+result goes through `tr = resolveTransaction(state, asArray(filtered), false)`, and
+`resolveTransaction` folds the specs with `mergeTransaction` into a single
+`Transaction.create`. One transaction, one DOM sync, always.
+
+The wrong mechanism had a measurable cost: an earlier attempt at deferring
+`contentDOM.focus()` in `onDocumentKeyDown` was implemented, measured to have zero effect,
+and reverted as though disproved. It had been aimed at a path that was never the cause.
+
+The real cause is a focus round trip. `onDocumentKeyDown` focused the editor BEFORE
+replaying the key through `runScopeHandlers`, and block-selection mode keeps the editor
+blurred, so every keypress was focus → run → blur-a-macrotask-later. Counting real
+`focus`/`blur` events on `contentDOM`: **2 with the old order, 0 with the keymap running
+first** — for Shift+Arrow and for Mod-A alike, so the "Mod-A-specific residual" that entry
+files as a separate unknown is the same mechanism.
+
+### A before/after assertion cannot see a round trip
+
+The first version of the regression test compared `document.activeElement` before and
+after a press. It passed against the PRE-change build. A round trip ends where it started,
+so only counting transitions detects it. Same shape as Q28's lesson about asserting the
+mechanism rather than the outcome, in a new place.
+
+### Neither escalation helper normalizes a within-node range
+
+The walk has to accept selections that are not covers — undo/redo restores mapped-forward
+ranges the filter provably never sees (Q29), and the Mod-A ladder's FIRST RUNG is a node's
+own content, which is not a cover either. The obvious phrasing, "escalate to the nearest
+cover", is unimplementable: `escalateRange` deliberately returns a within-node content
+range untouched, and `escalateRanges`' uniform pass only fires when some range already
+escalated. Measured on rung 1 (`1,3 → 1,5`, after a list marker): both return it
+unchanged. Only `subtreeCoverOf` of the anchor's node produces a cover.
+
+Found via the ladder-interplay question, not via undo — the case the design was actually
+written for was the rarer one.
+
+### "Drop the far root" is not the inverse of a growth step
+
+Growing UPWARD can absorb the previous leading roots into the newly added ancestor. On
+`# A / a1. / # B / b1. / b2.`, the cover `[a1., # B]` grows up to `[# A, # B]` because
+`a1.` lives inside `# A`'s subtree; dropping the new first root then removed `a1.` too,
+landing two steps back on a cover the walk had passed through. Both directions now step
+the CANDIDATE inward and recompute — asking the same question growth asked, one step
+earlier. A property test over generated trees found this; the hand-written examples did
+not, because the shape needs a mid-span ancestor to absorb something.
+
+### And the design claim that started it: D3 was half wrong
+
+The cover's start edge identifies the anchor for a DOWNWARD extension permanently — a
+forest span begins at the anchor's own subtree start and no ancestor can displace it. The
+backward claim is false: one upward step out of a first child is `forestCoverOf(c1, P)`,
+which is `P`'s whole subtree, and downward closure drags the later child in BELOW the
+anchor, so the end edge resolves to that child instead. Not a defect in the geometry —
+`escalate.ts` already calls the asymmetry inherent to preorder. `selection-as-subtree-set`
+removed the upward pull-in on downward extension; the downward closure on upward extension
+is the invariant itself and nothing can remove it. Resolved by D8 (re-seat the anchor onto
+the swallowed ancestor) rather than by re-introducing stored state.
+
+### Focus is not symmetric with blur, and the suite found both halves
+
+D9 was first specified as "focused exactly when the selection is not an all-cover block
+selection". That is wrong twice over, and both corrections came from existing e2e coverage
+rather than from review.
+
+**`contentDOM.focus()` lets the DOM's selection win.** Focusing the content element permits
+CodeMirror's selection observer to read the BROWSER's DOM selection back into state. After a
+click that is the raw clicked offset, not the position the transaction filter had already
+resolved. Measured under mobile emulation on `- alpha / - bravo`: `65-content-space-caret`'s
+D2 landed the caret at `ch 1`, between the marker and its space, instead of content start
+`ch 2`. `EditorView.focus()` is built for this case — `observer.ignore(...)` around the focus,
+then `docView.updateSelection()` pushing STATE to DOM — and cannot resurrect a pre-correction
+position. This is the exact mirror of the blur race in Q21/Q25: one direction strands the DOM's
+selection, the other lets it overwrite state.
+
+**Even so, focus must key off the mode's EXIT EDGE.** Asserting focus on every non-cover
+selection still regressed the same click test, because a click also produces a non-cover
+selection. It never EXITS block-selection mode, though — it was never in it — so scoping the
+restore to the transition removes the click path from the policy's reach entirely. Cost: one
+boolean transition detector. The mode itself stays derived; what is remembered is the previous
+answer, not the mode.
+
+The exit edge is not optional. `onDocumentKeyDown` only replays keys while the selection is
+still a cover, so without it a bound command that leaves the mode — indent over a block
+selection, then undo — strands the keyboard entirely with no way back but a click. That the
+first version of this change shipped that hole and the undo scenario caught it is the argument
+for the scenario existing.
+
+## Q32. `node-selection-extension` real-vault manual pass (2026-08-04)
+
+Five tasks, three clean and two defects — both VISUAL, neither in the walk itself. The
+geometry, the granularity, mixed-depth selection and the D8 re-seat all behaved as designed
+on real notes.
+
+### Accepted as designed
+
+- **Losing the caret's exact offset on the first press** (risk 5.3): "a bit annoying, but not a
+  deal-breaker." The first press replaces a character-level range with the whole node, and
+  shrinking bottoms out at the node rather than the original column. Workflowy and Logseq behave
+  the same. No change.
+- **D8's irreversible ancestor swallow** (5.3b): "kind of makes sense... not perfect, but
+  understandable and tolerable." The decision stands as written.
+
+  The question it drew is worth recording, because the intuition behind it is a good one and the
+  answer is not obvious: *could the selection preserve `c1 + c2 + P` instead of collapsing to
+  "whole P", and doesn't the mixed-depth forest prove we already keep state?*
+
+  For the representation we HAVE — one contiguous anchor/head range — the answer is no on both
+  counts. The forest is DERIVED by `coveredForestOf` on every call, so a mixed-depth cover needs
+  no storage; it is the same bytes as any other range. And `c1 + c2 + P` and "P's whole subtree"
+  are the SAME SPAN, since downward closure means a cover containing `P`'s line contains all of
+  `P`'s descendants. What is lost is WHICH NODE THE GESTURE STARTED FROM, and that was never in
+  the range: extending up from `c1` and from `c2` both land on the same span, byte for byte.
+
+  **But that answers a narrower question than the one asked, and the fuller version is worth
+  recording because it is a real design rather than a misunderstanding.** Restated with three
+  children: from `c2`, keep the UNDERLYING selection at `c2 + c1 + P` while PAINTING the chrome
+  over `P`'s whole subtree (`c3` included). The anchor survives, reversal works, and the premise
+  is correct — the chrome genuinely is derived from the selection and painted separately, so a
+  wider paint is mechanically possible.
+
+  Four things break, and none of them is the paint:
+
+  - **Copy and cut are not interceptable.** They read the browser's DOM selection, which mirrors
+    `state.selection`. Measured while fixing the copy defect below: blurred, with block chrome
+    showing, `getSelection().toString()` returns exactly the covered text. So a selection of
+    `P + c1 + c2` copies without `c3` while the chrome shows `c3` selected — silently different
+    from what the user sees, and fixable only by owning every path the browser has to read a
+    selection.
+  - **That range is invalid by our own spec.** `node-selection-enforcement`'s governing
+    invariant is downward closure: no node selected without its whole subtree. `P` without `c3`
+    is exactly the violation it exists to forbid, and the one that orphans `c3` on deletion.
+  - **Three consumers derive from the RANGE**, not from the chrome — `enforce.ts`'s deletion
+    grouping, `classify.ts`'s exact-cover gate, `decorations.ts`. Diverging range and operand
+    means every one of them must remember to use the second, which is the silently-stale
+    duplicate this repo has already been bitten by twice (Q18, Q19).
+  - **`allRangesCovered` would stop firing**, so the mode itself — chrome, highlight
+    suppression, blur — would need a second, different predicate.
+
+  The idea does work in a DIFFERENT representation: selection as several ranges, one per node.
+  CM6 supports that, handles multi-range copy itself (`copiedRange`), and — the piece this
+  analysis had missed — carries `mainIndex` alongside the ranges and preserves it through
+  mapping, so the ANCHOR can live inside the selection rather than beside it. What that costs is
+  D4: once a block selection is several ranges it is indistinguishable from several cursors, so
+  it needs a STORED mode flag. Which is precisely the modal design docs/research/13 parks and
+  this change puts out of scope.
+
+  So the honest summary is not "that cannot work" but "that is the parked alternative, and it
+  buys reversibility with the stored mode D8 was avoiding."
+
+### Defect: a multi-range block selection painted stray highlights (5.2)
+
+Reported as "all block-selection ranges except the last one have an overlapping selection
+background... looks more like a character-level selection."
+
+The browser's DOM `Selection` can hold only ONE range, so CM6 draws the others itself. Measured
+on a three-cursor block selection: `domRangeCount: 1`, but three `.cm-selectionBackground` rects
+inside one `.cm-selectionLayer`. Those rects carry an UNCONDITIONAL base background in CM6's own
+theme (`#d9d9d9` light, `#222` dark) with no `.cm-focused` requirement, so blurring does not hide
+them.
+
+`styles.css` suppressed only the native `::selection`, and its comment asserted
+`.cm-selectionBackground` "never actually mounts here" — measured on a SINGLE range, and false
+for multi-cursor. Both paths are now suppressed together; the regression test asserts resolved
+COLORS rather than the absence of the elements, since the elements still exist and should.
+
+### Defect: one flicker on entering block mode, and it was not the blur (5.3c)
+
+Reported as much better than before, but with "one initial flicker on the first switch to
+block-selection", absent for mouse-driven selection.
+
+Instrumented with a `MutationObserver` on the editor's class plus focus/blur listeners and a
+`requestAnimationFrame` ticker. The blur was NOT the cause — it landed 0.1ms after the class went
+on, well before the next paint:
+
+    6.8 class=ON  sel=[0-11] focus=true
+    6.9 blur
+    21.5 class=off sel=[0-11] focus=false
+    21.9 class=ON  sel=[0-11] focus=false
+
+The selection is unchanged throughout, which rules out `allRangesCovered`. The cause is CM6:
+`EditorView.updateAttrs` recomputes the editor's whole class string —
+`"cm-editor" + (hasFocus ? " cm-focused " : " ") + themeClasses` plus the `editorAttributes`
+facet — and writes the `class` ATTRIBUTE wholesale. So the focus change that block-selection mode
+ITSELF causes made CM6 clobber a class we had written with `classList`, and the next `update()`
+put it back. A paint landed in the window, so exactly one frame rendered with no chrome and the
+native highlight showing through.
+
+Declaring the class through `EditorView.editorAttributes` closes it: CM6 folds the class into the
+same computed string it rewrites, so the rewrite carries it. `attrsFromFacet` re-evaluates
+function sources on every `updateAttrs` and `combineAttrs` concatenates `class` values, so it
+composes with the theme rather than racing it. Post-fix the `class=off` entry is simply absent.
+
+**The general lesson, third instance this change:** a class written imperatively onto a DOM node
+that a library also manages is not owned by the writer. The same applies to the two focus
+findings in Q31 — DOM state the library considers its own will be recomputed from the library's
+model, and anything written outside that model is transient.
+
+### Two defects from continued real-vault use (2026-08-04)
+
+**A multiline node lost intra-node keyboard selection.** A node can own several source lines — a
+paragraph broken across lines, a code fence, a table. The bound handler intercepted
+unconditionally in outline mode, so the first `⇧↓` inside such a node jumped straight to the
+node's whole cover. Measured against the pre-change path on a two-line paragraph: ours returned
+the cover `0..2`, the old native-then-escalate path returned the character range `(0,5)→(1,5)`,
+because `escalateRange` deliberately leaves a same-node content range alone.
+
+Nothing in the design said to do this — every drawn example (E1, E2, E3) is a single-line node,
+so the case was never considered rather than decided. Fixed by D11: the press DECLINES while the
+selection is a plain character range inside one node's own content lines and would stay there,
+letting stock line-wise extension run; the sequence takes over at the node boundary. A
+single-line node is unaffected, since the target line is always outside it.
+
+**And the first fix was itself incomplete, in the instructive way.** It decided from SOURCE lines,
+which handles a paragraph broken across two of them and gets the commoner shape exactly backwards:
+a long paragraph that soft-WRAPS is one source line rendered as several rows, so it looked
+single-line and was still block-selected on the first press. Both shapes sat in the same real note
+— `test-vault/Projects/Aurora Dashboard.md`, whose last paragraph is genuinely two source lines
+and whose first is one long wrapped line — which is how the split surfaced: "the last paragraph
+now behaves fine, the first doesn't."
+
+`Shift+Arrow` moves by rendered ROW, so the question is about visual layout and only the view can
+answer it. The decision moved to the CM6 adapter and now asks `EditorView.moveVertically` where
+stock extension would actually land. The pure module deliberately does not try: it answers "what
+cover comes next", never "is this press about the outline at all".
+
+The general shape is the same one this project keeps meeting: a rule stated over the common case
+(one line per node) silently generalized to a case nobody drew — and then a fix stated over
+source lines silently assumed source lines and rendered rows coincide. The no-fixpoint and inverse
+properties could not catch it, because taking over early is not a fixpoint and not an inverse
+violation — it is a correct walk over the wrong operand.
+
+**Copy broke block-selection mode.** `Mod+C` is unbound, so `onDocumentKeyDown` fell through to
+the unmatched-key refocus, putting a caret at the selection edge and returning Live Preview to
+raw markdown while the chrome still showed. Measured: before the press `hasFocus: false` and
+`getSelection().toString()` already carries the covered text, so the browser reads copy off the
+DOM selection and the refocus buys it nothing. Excluded copy specifically — narrowly, since cut
+and paste look similar but do need focus (both modify the document through events that require a
+focused editable, and both end in a non-cover selection where focusing agrees with the policy).
+
+### The entering-block-mode flicker: one painted frame, and how the claim was overstated
+
+Fixing the class-drop above removed one mechanism and was reported as removing THE flicker. That
+was overstated: what had been verified was that the class no longer drops, not that no frame
+renders wrong. A second report ("still a bit of the initial flicker") prompted the measurement
+that should have been made the first time — instrumenting the window between the chrome landing
+and the blur rather than the class mutations alone:
+
+    11.40 class=true  paints=0     <- chrome on, editor still FOCUSED
+    12.30 BLUR        paints=1     <- a frame was painted first
+
+So one frame renders with block chrome, raw markdown and a caret, because
+`applyFocusPolicy` deferred the blur with `setTimeout(0)`, which is only guaranteed to run after
+the current task — not before the next paint. A mouse drag has no equivalent window: its blur
+fires once at `mouseup`, so the chrome and the render change together.
+
+Switched to `requestAnimationFrame`, which the spec DOES guarantee runs before the next paint.
+Note the limit of the evidence: an rAF-callback counter cannot distinguish "painted" from "about
+to paint" — both the ticker and the policy run in the same pre-paint batch — so the argument for
+the fix is the scheduling guarantee, and the measured timestamps are consistent with it rather
+than proof of it. Whether the residual flicker is gone in real use is the reporter's to judge.
+
+The deferral itself is still required. Blurring synchronously inside `update()` races CM6's
+DOM-selection sync (Q21/Q25); rAF is still asynchronous with respect to the current task, so it
+keeps that property while moving inside the frame.

@@ -637,6 +637,36 @@ export const BLOCK_SELECTING_CLASS = 'to-decor-block-selecting';
  * Cmd+A sends its own `keydown` for `a` with `metaKey` set, which is not in
  * this set and so refocuses and replays exactly as before.
  */
+/**
+ * Whether block-selection mode's key path should decline to focus the editor.
+ *
+ * A NARROW exclusion, and narrow deliberately. The obvious generalisation — a
+ * positive test for "will this produce input" — was tried and reverted: it
+ * breaks every command the host handles ABOVE CodeMirror's keymap, undo being
+ * the measured case. `runScopeHandlers` does not claim `Mod+Z`, so it reaches
+ * the unmatched path, and declining to focus there drops the keystroke
+ * entirely — an edit made over a block selection could no longer be undone.
+ * Guessing which chords the host owns is not something this layer can do.
+ *
+ * So the rule is: focus by default, and exclude only what is MEASURED not to
+ * need it. Copy qualifies — the platform reads it off the DOM selection, which
+ * survives the blur; measured on a covered selection while blurred,
+ * `getSelection().toString()` is the covered text. Cut and paste do not: both
+ * are delivered as events to the focused editable.
+ *
+ * KNOWN LIMITATION, recorded rather than papered over: a key that produces
+ * neither input nor a selection change still focuses, and nothing re-runs the
+ * focus policy without a `selectionSet`, so the editor sits focused over an
+ * exact cover until the user acts again. Escape was the suspected instance and
+ * is NOT one — measured, CodeMirror's `simplifySelection` claims it, collapses
+ * the cover and leaves the mode cleanly. What remains are inert keys such as
+ * function keys, which cost a stale-looking frame and nothing else.
+ */
+function declinesFocus(event: KeyboardEvent): boolean {
+  const key = event.key.toLowerCase();
+  return (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && key === 'c';
+}
+
 const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
   'Shift',
   'Control',
@@ -901,73 +931,145 @@ class MarkersPlugin implements PluginValue {
 class SelectionDecorationPlugin implements PluginValue {
   decorations: DecorationSet;
   private mouseDown = false;
+  /** Whether the last policy evaluation saw block-selection mode. Detects the
+   * mode's exit edge; see `applyFocusPolicy`. */
+  private inBlockMode = false;
 
   constructor(
     private readonly view: EditorView,
     private readonly modes: DecorationSource,
   ) {
     this.decorations = this.compute();
+    // Evaluate the policy once at construction. The chrome, the highlight
+    // suppression and the mode class are all derived and therefore correct
+    // immediately, but focus is driven by TRANSITIONS — and until this runs
+    // there has been none. A view created over an existing exact cover (plugin
+    // load, a reconfigure, a note reopened with its selection restored) would
+    // otherwise show block chrome on a focused, raw-markdown editor until some
+    // later gesture happened to move the selection.
+    this.applyFocusPolicy();
     this.view.dom.addEventListener('mousedown', this.onMouseDown);
     this.view.dom.addEventListener('mouseup', this.onMouseUp);
     document.addEventListener('keydown', this.onDocumentKeyDown, { capture: true });
   }
 
   /**
-   * EXPERIMENTAL: keyboard-driven selection changes (Shift+Arrow escalating
-   * into a whole-block cover, with no mouse involved at all) get the SAME
-   * blur treatment as a completed mouse drag, for consistency — the user's
-   * own framing: a keyboard-only block selection is "a different mode of
-   * interaction" otherwise, still showing the old reveal-while-focused
-   * behavior `onMouseUp` already fixed for the mouse case.
+   * The focus half of BLOCK-SELECTION MODE (node-selection-extension
+   * design.md D9). The mode is derived, never stored: an outline-mode editor
+   * is in it exactly when `allRangesCovered` holds, and Live Preview
+   * rendering, the `::selection` suppression and the chrome all key off that
+   * same predicate, so they cannot disagree with each other or with what is
+   * selected.
    *
-   * Hooked on `ViewUpdate.selectionSet` (any update where the selection
-   * actually changed, however it was caused) rather than a SEPARATE keymap
-   * binding: reuses the exact same `allRangesCovered` check already used
-   * everywhere else, no new state to keep in sync with the transaction
-   * filter's own escalation logic.
+   * Focus follows the mode's TRANSITIONS, not its negation. Entering blurs,
+   * LEAVING restores — and a selection that is merely outside the mode asserts
+   * nothing, which is the load-bearing part: asserting focus on every
+   * non-cover selection reaches the ordinary click path and was measured
+   * breaking caret placement there. See the focus branch below.
    *
+   * This replaced three separate focus manipulations, each originally added
+   * to patch the previous one's fallout: a blur here when a selection turned
+   * out to be a cover, a second blur in `onMouseUp` for the case this hook
+   * skips, and an unconditional refocus in `onDocumentKeyDown` because
+   * blurring had broken keyboard input. Their consequence was that every
+   * keypress in a block selection did focus → run → blur, i.e. a full round
+   * trip out of the mode and back, which is what made keyboard extension
+   * flicker where a mouse drag does not. Under one policy two consecutive
+   * block selections are the same mode, so nothing happens between them and
+   * the flicker is unreachable rather than merely brief.
+   *
+   * The BLUR direction stays DEFERRED — NOT optional, and not what D9 changes.
+   * It is scheduled with `requestAnimationFrame` rather than a timer: both are
+   * asynchronous with respect to the current task, which is what the race below
+   * requires, but only rAF is guaranteed to run before the next paint. With a
+   * timer one frame was measured rendering block chrome over a still-focused,
+   * raw-markdown editor. A real bug found live: blurring synchronously inside
+   * `update()` (still in the same dispatch cycle as the keystroke that
+   * changed the selection) races CM6's own DOM-selection sync. CM6 keeps the
+   * browser's native `Selection`/`Range` mirroring its internal
+   * `EditorState.selection`, but that sync is not guaranteed complete the
+   * instant `update()` fires — blurring first can freeze the DOM's own
+   * selection at a STALE position (confirmed: typing over a keyboard-built
+   * block selection sometimes inserted text somewhere unexpected instead of
+   * replacing it, consistent with the DOM's stale selection being what the
+   * browser's `beforeinput` read once refocused). A real mouse drag never hit
+   * this because it updates the DOM's native selection continuously.
+   *
+   * The FOCUS direction must go through `EditorView.focus()`, NOT
+   * `contentDOM.focus()`. A first version used the raw DOM call and broke
+   * caret placement for a plain mouse click: focusing a contenteditable lets
+   * CodeMirror's own selection observer read the BROWSER's DOM selection back
+   * into state, and after a click that is the raw clicked offset, not the
+   * corrected one the transaction filter had just resolved. Measured under
+   * mobile emulation on `- alpha / - bravo`: clicking the second item's marker
+   * landed the caret at `ch 1`, between the `-` and its space, instead of
+   * content start at `ch 2` (`65-content-space-caret.e2e.ts` D2). That is the
+   * exact mirror of the blur race above — one direction strands the DOM's
+   * selection, the other lets it win.
+   *
+   * `EditorView.focus()` is built for this: it wraps the focus in
+   * `observer.ignore(...)` so nothing is read back, then calls
+   * `docView.updateSelection()` to push STATE to DOM. So it cannot resurrect a
+   * pre-correction position, and it needs no re-assert afterward —
+   * `keymap.ts`'s `dispatchCursor` already records that re-dispatching on a
+   * later frame is inherently a race.
+   *
+   * It is guarded so the policy can only take focus back for a view that lost
+   * it to this same mechanism: only when the view is blurred, nothing else has
+   * claimed focus (`document.activeElement === document.body`), and this view
+   * is the host's own active editor. Without the last guard two blurred panes
+   * both act — see `isActiveEditor`.
+   */
+  private applyFocusPolicy(): void {
+    window.requestAnimationFrame(() => {
+      // Losing outline mode IS a mode exit, not a reason to stop evaluating.
+      // Returning early left `inBlockMode` stale and skipped the exit edge, so
+      // toggling the mode off over a block selection stranded the editor
+      // blurred — and `onDocumentKeyDown` then correctly declines, being
+      // off-mode, so nothing brought focus back either.
+      const covered = this.isOutlineNote() && allRangesCovered(this.view.state);
+      const wasCovered = this.inBlockMode;
+      this.inBlockMode = covered;
+
+      if (covered) {
+        if (this.view.hasFocus) this.view.contentDOM.blur();
+        return;
+      }
+      // Focus is restored on the mode's EXIT EDGE, not asserted continuously
+      // on every non-cover selection. That distinction is load-bearing: a
+      // plain click also produces a non-cover selection, and calling focus on
+      // that path regressed caret placement even through `EditorView.focus()`
+      // (measured — `65-content-space-caret.e2e.ts` D2 landed at `ch 1`
+      // instead of content start `ch 2`). A click never exits the mode,
+      // because it was never in it, so this edge leaves the click path
+      // untouched. `inBlockMode` is a transition detector, not selection
+      // state — the mode itself stays derived.
+      if (!wasCovered) return;
+      if (this.view.hasFocus) return;
+      if (document.activeElement !== document.body) return;
+      if (!this.isActiveEditor()) return;
+      this.view.focus();
+    });
+  }
+
+  /**
    * Guarded on `!this.mouseDown`: an in-progress mouse drag also dispatches
    * one transaction per pointer move (each its own `selectionSet` update),
    * and may reach a covering shape WHILE THE BUTTON IS STILL HELD — blurring
    * mid-drag would risk interrupting the browser's own native drag-select
-   * gesture, which relies on continuous focus/mousedown state on the
-   * target. `onMouseUp`'s own (still separate, still needed) deferred check
-   * covers the mouse-completion case instead: by the time a drag's mouseup
-   * fires, the LAST relevant selection-settling transaction may already
-   * have committed WHILE `mouseDown` was still true (so this hook would
-   * have skipped it) — nothing later re-triggers `update()` to catch it,
-   * so `onMouseUp` still needs its own explicit re-check.
-   *
-   * Deferred via `setTimeout`, matching `onMouseUp`'s own pattern below —
-   * NOT optional here: a real bug found live, blurring SYNCHRONOUSLY inside
-   * `update()` (i.e. still inside the same dispatch cycle as the keystroke
-   * that just escalated the selection) raced CM6's own DOM-selection sync.
-   * CM6 keeps the browser's native `Selection`/`Range` mirroring its own
-   * internal `EditorState.selection`, but that sync apparently isn't
-   * guaranteed to have completed the instant `update()` fires — blurring
-   * before it does can freeze the DOM's OWN selection at a STALE, earlier
-   * position (confirmed by the user: typing over a keyboard-escalated
-   * selection sometimes inserted text somewhere unexpected instead of
-   * replacing it, consistent with the DOM's restored selection — read by
-   * the browser's native `beforeinput` handling once refocused for that
-   * keystroke — not matching CM6's own correct model at all). The
-   * mouse-drag path never hit this because a real user drag continuously
-   * updates the DOM's native selection as part of the browser's own
-   * mechanics throughout, not just at one synchronous instant.
+   * gesture, which relies on continuous focus/mousedown state on the target.
+   * `onMouseUp` invokes the same policy for the mouse-completion case, which
+   * this hook genuinely cannot cover: by the time a drag's mouseup fires the
+   * last selection-settling transaction may already have committed while
+   * `mouseDown` was still true, and nothing later re-triggers `update()`.
+   * Two TRIGGERS for one policy, rather than two copies of the decision.
    */
   update(update: ViewUpdate): void {
     this.decorations = this.compute();
-    if (update.selectionSet && !this.mouseDown) {
-      window.setTimeout(() => {
-        if (this.isOutlineNote() && allRangesCovered(this.view.state)) {
-          this.view.contentDOM.blur();
-        }
-      }, 0);
-    }
+    if (update.selectionSet && !this.mouseDown) this.applyFocusPolicy();
   }
 
   destroy(): void {
-    this.view.dom.classList.remove(BLOCK_SELECTING_CLASS);
     this.view.dom.removeEventListener('mousedown', this.onMouseDown);
     this.view.dom.removeEventListener('mouseup', this.onMouseUp);
     document.removeEventListener('keydown', this.onDocumentKeyDown, { capture: true });
@@ -1011,10 +1113,10 @@ class SelectionDecorationPlugin implements PluginValue {
    *
    * This reproduces that SAME transition programmatically: right after a
    * drag settles into a whole-block cover, blur the content DOM — the same
-   * DOM effect a manual click elsewhere already produces. Deferred via
-   * `setTimeout`: the drag's own selection-escalation transaction (and
-   * CM6's own internal mouseup handling) may not have committed yet at the
-   * exact moment this native event fires.
+   * DOM effect a manual click elsewhere already produces. Deferred (see
+   * `applyFocusPolicy`, which this now routes through): the drag's own
+   * selection-escalation transaction (and CM6's own internal mouseup handling)
+   * may not have committed yet at the exact moment this native event fires.
    *
    * Confirmed by the user in their real vault: stays fully rendered with no
    * raw-markdown flash at all. Real, confirmed cost: blurring removes DOM
@@ -1028,29 +1130,18 @@ class SelectionDecorationPlugin implements PluginValue {
 
   private readonly onMouseUp = (): void => {
     this.mouseDown = false;
-    window.setTimeout(() => {
-      if (this.isOutlineNote() && allRangesCovered(this.view.state)) {
-        this.view.contentDOM.blur();
-      }
-    }, 0);
+    this.applyFocusPolicy();
   };
 
   /**
-   * EXPERIMENTAL, manual-testing-only: recovering keyboard interaction with
-   * a block-covering selection after `onMouseUp` above has blurred the
-   * editor. A blurred `contentDOM` never sees `keydown` at all (events
-   * target `document.activeElement`, typically `document.body` once
-   * blurred, and `contentDOM` isn't an ancestor of that) — so this listens
-   * on `document` itself instead, then does two things once it sees a key
-   * press meant for this view:
+   * BLOCK-SELECTION MODE'S OWN KEY PATH (design.md D9). Not a recovery hack:
+   * while the mode is active the editor is deliberately blurred, so this is
+   * simply where its keys arrive. A blurred `contentDOM` never sees `keydown`
+   * at all (events target `document.activeElement`, typically `document.body`
+   * once blurred, and `contentDOM` isn't an ancestor of that) — so this
+   * listens on `document` itself, then, for a key press meant for this view:
    *
-   * 1. Refocuses `contentDOM`. This alone should be enough for ordinary
-   *    character typing: browsers insert typed text via a SEPARATE,
-   *    later `beforeinput`/`input` dispatch (not the current `keydown`
-   *    event continuing somehow), evaluated against whatever is focused AT
-   *    THAT time — so once refocused here, the browser's own native
-   *    insertion should land on the editor correctly.
-   * 2. Replays the SAME `KeyboardEvent` through `runScopeHandlers`
+   * 1. Replays the SAME `KeyboardEvent` through `runScopeHandlers`
    *    (`@codemirror/view`'s own public API for exactly this situation —
    *    "run this view's installed keymap against an event that didn't
    *    originate on its own DOM"). This matters for anything CM6 handles
@@ -1065,6 +1156,13 @@ class SelectionDecorationPlugin implements PluginValue {
    *    that would bypass this project's own higher-precedence keymap
    *    entirely; `runScopeHandlers` runs the SAME real, fully-layered
    *    keymap this editor already has installed.
+   * 2. Focuses `contentDOM` ONLY if step 1 claimed nothing. Ordinary
+   *    character typing is inserted by a SEPARATE, later
+   *    `beforeinput`/`input` dispatch (not this `keydown` continuing
+   *    somehow), evaluated against whatever is focused at THAT time — so an
+   *    unmatched key must leave the editor focused for the browser's own
+   *    insertion to land. A matched key needs none of that, and focusing for
+   *    it is what produced the flicker (D9).
    *
    * Guarded to only act when THIS view is the one currently blurred due to
    * a covering selection AND nothing else has legitimately claimed focus
@@ -1103,21 +1201,50 @@ class SelectionDecorationPlugin implements PluginValue {
     if (!this.isOutlineNote() || !this.isActiveEditor() || !allRangesCovered(this.view.state)) {
       return;
     }
-    this.view.contentDOM.focus();
+    // Run the keymap FIRST, and focus only if nothing claimed the key
+    // (design.md D9). The original order focused unconditionally before
+    // replaying, which meant every keypress in a block selection left the
+    // mode and came back — the flicker's direct cause. A bound command needs
+    // no DOM focus: it computes its own result and dispatches it, and the
+    // selection that results decides focus through `applyFocusPolicy`. So a
+    // cover-to-cover press (keyboard extension) now changes focus not at all.
+    //
+    // An UNMATCHED key still focuses immediately, and must: plain typing is
+    // inserted by the browser's own later `beforeinput` against whatever is
+    // focused at that moment, not by this event. `beforeinput` is dispatched
+    // after this handler returns, so focusing here is still in time. That
+    // case also ends in a non-cover selection, so the immediate focus agrees
+    // with the policy rather than racing it.
     const handled = runScopeHandlers(this.view, event, 'editor');
     if (handled) {
       event.preventDefault();
       event.stopPropagation();
+      // If the command LEFT the mode, take focus back now rather than waiting
+      // for the deferred policy. The policy would get there, but not before
+      // the user's next keystroke can arrive — and this handler only replays
+      // keys while the selection is still a cover, so anything pressed in that
+      // window is dropped outright. Measured as an intermittent failure of
+      // "delete a multi-cursor block selection, then undo": the delete left a
+      // caret, the editor was still blurred, and `Mod+Z` — which the editor's
+      // own keymap does not claim — fell into the gap.
+      //
+      // Restoring focus eagerly here is the same exit edge, applied on the
+      // path that caused the exit. It cannot resurrect a stale selection:
+      // `EditorView.focus` pushes state to the DOM rather than reading it.
+      if (!allRangesCovered(this.view.state)) this.view.focus();
+      return;
     }
+    // Focus by default; see `declinesFocus` for why the exclusion is one
+    // measured key rather than a positive "produces input" test.
+    if (declinesFocus(event)) return;
+    this.view.focus();
   };
 
   private compute(): DecorationSet {
-    const isOutline = this.isOutlineNote();
-    this.view.dom.classList.toggle(
-      BLOCK_SELECTING_CLASS,
-      isOutline && allRangesCovered(this.view.state),
-    );
-    if (!isOutline) return Decoration.none;
+    // The BLOCK_SELECTING_CLASS is NOT toggled here — see the
+    // `editorAttributes` facet in `decorationsExtension` for why writing it
+    // imperatively flickered.
+    if (!this.isOutlineNote()) return Decoration.none;
     return computeSelectionDecorations(this.view.state, this.modes);
   }
 }
@@ -1552,5 +1679,41 @@ export function decorationsExtension(modes: DecorationSource): Extension {
       decorations: (v) => v.decorations,
     }),
     ViewPlugin.define<MarginCompensation>((view) => new MarginCompensation(view, modes)),
+    // Block-selection mode's marker class, declared through CM6's own
+    // `editorAttributes` facet rather than written onto `view.dom` with
+    // `classList` (node-selection-extension, real-vault pass 5.3c).
+    //
+    // The imperative version flickered once per gesture, and the mechanism is
+    // not ours: `EditorView.updateAttrs` recomputes the editor's whole class
+    // string — `"cm-editor" + (hasFocus ? " cm-focused " : " ") + themeClasses`
+    // plus this facet — and writes the `class` ATTRIBUTE wholesale. So the
+    // focus change that block-selection mode itself causes made CM6 clobber
+    // our class, and the next `update()` put it straight back. Measured with a
+    // MutationObserver: `class=ON` at 6.8ms, `blur` at 6.9ms, then `class=off`
+    // at 21.5ms and `class=ON` again at 21.9ms — with the selection unchanged
+    // throughout, which is what ruled out `allRangesCovered` as the cause. A
+    // paint landed in that window, so exactly one frame rendered without
+    // chrome and with the native highlight showing through.
+    //
+    // Through the facet there is no window at all: CM6 folds this class into
+    // the same computed string, so its rewrite carries it rather than dropping
+    // it. `attrsFromFacet` re-evaluates function sources on every
+    // `updateAttrs`, and `combineAttrs` concatenates `class` values, so this
+    // composes with the theme's own classes instead of racing them.
+    EditorView.editorAttributes.of((view) =>
+      !isNestedEditor(view) &&
+      isOutlineView(view, modes) &&
+      allRangesCovered(view.state)
+        ? { class: BLOCK_SELECTING_CLASS }
+        : null,
+    ),
   ];
+}
+
+/** Whether `view`'s file is an outline-mode note. The state-only half of
+ * `SelectionDecorationPlugin.isOutlineNote`, split out so the facet above can
+ * ask the same question without a plugin instance. */
+function isOutlineView(view: EditorView, modes: DecorationSource): boolean {
+  const path = view.state.field(editorInfoField, false)?.file?.path;
+  return !!path && modes.isOutline(path);
 }

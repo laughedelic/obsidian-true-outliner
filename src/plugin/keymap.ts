@@ -8,6 +8,13 @@
  * handlers above, but its own pure decision module (`select-all-ladder.ts`)
  * rather than `grammar.ts`.
  *
+ * And the node-selection-extension Shift+Arrow handlers, on the same terms
+ * again with `select-extend.ts` as their decision module. The two selection
+ * features share only the cover geometry beneath them and never each other:
+ * both read the CURRENT selection and nothing about how it was produced, so
+ * a selection reached by either behaves identically under the other (that
+ * change's design.md D10).
+ *
  * And the content-space-caret motion handlers (content-space-caret change,
  * design.md D1/D3-D5): ArrowLeft/Right/Up/Down/Home/End, computing their
  * target directly from the parsed tree (`../caret.ts`) rather than
@@ -41,7 +48,8 @@ import { indentUnit } from "@codemirror/language";
 import { Notice, editorInfoField } from "obsidian";
 import { planKey, type GrammarKey } from "./grammar";
 import { nextRungs } from "../select-all-ladder";
-import type { LineRange } from "../escalate";
+import { extendSelections, type ExtendDirection } from "../select-extend";
+import { coveredForestOf, type LineRange } from "../escalate";
 import {
   contentBoundaryCh,
   resolvePlacement,
@@ -111,6 +119,184 @@ function toLineRange(doc: Text, range: SelectionRange): LineRange {
   return {
     anchor: offsetToLinePos(doc, range.anchor),
     head: offsetToLinePos(doc, range.head),
+  };
+}
+
+/**
+ * True when this press is NOT an outline gesture, so stock extension should own
+ * it (design.md D11). Two cases: the range has no node jurisdiction at all —
+ * the preamble — or it is a plain character range inside ONE node's own content
+ * lines that this press would keep there.
+ *
+ * The node's own content lines, not its subtree and not its trailing gap: the
+ * gap is chrome between nodes, so reaching it is already a boundary crossing
+ * and the cover sequence owns it.
+ *
+ * An exact cover is rejected EXPLICITLY rather than left to the content-line
+ * bounds. An earlier version relied on those bounds, reasoning that a cover
+ * always reaches a node's gap or beyond — false for a leaf that owns no gap,
+ * such as a final code fence, whose cover IS exactly its content lines
+ * (measured: `gap=0`, cover `2..4`, content lines `2..4`). Such a cover would
+ * be read as text motion, and the opposite press would fall through to stock
+ * extension and SHRINK inside the node instead of stepping the sequence.
+ */
+function notAnOutlineGesture(
+  view: EditorView,
+  outlineDoc: ReturnType<typeof parsedDoc>['doc'],
+  range: SelectionRange,
+  direction: ExtendDirection,
+): boolean {
+  const doc = view.state.doc;
+  // Already a cover: the sequence's business, whatever its line bounds.
+  if (!range.empty && coveredForestOf(outlineDoc, toLineRange(doc, range))) return false;
+
+  const anchorLine = doc.lineAt(range.anchor).number - 1;
+  const node = nodeAtLine(outlineDoc, anchorLine);
+  // No jurisdiction — a preamble range was never ours, and is planned the same
+  // way a text range is so a mixed selection still moves it.
+  if (!node) return true;
+  if (nodeAtLine(outlineDoc, doc.lineAt(range.head).number - 1) !== node) return false;
+
+  const first = nodeStartLine(outlineDoc, node.id);
+  const last = first + node.lines.length - 1;
+  if (last >= doc.lines) return false; // defensive: stale parse against the live doc
+  const from = doc.line(first + 1).from;
+  const to = doc.line(last + 1).to;
+  if (range.from < from || range.to > to) return false;
+
+  // Where stock extension would put the head, wrapping accounted for.
+  const moved = view.moveVertically(range, direction === 'down');
+  if (moved.head < from || moved.head > to) return false;
+
+  // ...and it must genuinely reach ANOTHER ROW. At a document edge CM6 clamps
+  // the head to the line's own start or end instead of moving, which lands
+  // inside the node and read as row motion — so pressing Up in the first node,
+  // or Down in a final gapless one, fell through to stock extension and the
+  // anchor node's first cover became unreachable in that direction (measured:
+  // `0,0..0,5` and `2,5..2,10` character ranges where a cover was required).
+  // There is nothing beyond the edge, so that is a boundary, not motion.
+  // Coordinates rather than line numbers because rows are visual: a wrapped
+  // source line holds several.
+  const fromTop = view.coordsAtPos(range.head)?.top;
+  const toTop = view.coordsAtPos(moved.head)?.top;
+  if (fromTop != null && toTop != null) return fromTop !== toTop;
+
+  // No coordinates: the position is outside the rendered viewport, which a
+  // secondary cursor in a multi-cursor selection easily is. Fall back to SOURCE
+  // lines. That still catches the clamp — clamping cannot cross a source line —
+  // so a document edge is still read as a boundary, and an offscreen cursor
+  // stepping between the lines of a multi-line node still keeps its text
+  // motion. It is only wrong for an offscreen cursor inside a WRAPPED single
+  // source line, which it reads as a boundary. Choosing a fallback direction is
+  // unavoidable here; this one preserves D11 for the cases that have a source
+  // line to move to, rather than snapping every unrendered range to a cover.
+  return doc.lineAt(moved.head).number !== doc.lineAt(range.head).number;
+}
+
+/**
+ * Shift+ArrowUp/Shift+ArrowDown (node-selection-extension): intercepts
+ * keyboard extension in outline mode and replaces every range with the next
+ * cover along `select-extend.ts`'s sequence — one node per press, in both
+ * directions, in every document shape.
+ *
+ * Shaped after `makeSelectAllHandler` above, NOT after the motion handlers'
+ * `soleCursor` convention (design.md D7). Those decline on multiple ranges
+ * because they plan from `selection.main` alone and would silently discard
+ * the rest; this handler plans every range, so declining would be a
+ * regression rather than a safeguard. A range with nowhere to go is left in
+ * place while others still advance (D4: each range walks its own sequence,
+ * with no forced common step).
+ *
+ * The key falls through to stock extension only when NO range is an outline
+ * gesture — every one is either plain text motion inside a node or outside any
+ * node's jurisdiction. A selection that IS ours but has run out of sequence
+ * consumes the key instead; see below for why declining there is wrong.
+ *
+ * At the sequence's end the key IS consumed without dispatching, which is what
+ * "the selection remains unchanged" requires. Declining there instead looks
+ * safer and is not: stock extension would move a backward cover's head inward
+ * and shrink it. Declining is reserved for ranges that were never ours — the
+ * preamble, and text motion inside one node.
+ *
+ * The dispatch carries no `userEvent`, the same convention the Mod-A handler
+ * uses — `classify.ts` reads an annotation-less transaction as
+ * `programmatic`, so these covers never run through selection ESCALATION a
+ * second time. They are exact covers by construction, so escalation would be
+ * an identity anyway; the annotation choice keeps it from being asked.
+ */
+function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
+  return (view: EditorView): boolean => {
+    if (!outlinePathOf(modes, view)) return false;
+
+    const doc = view.state.doc;
+    const { doc: outlineDoc } = parsedDoc(doc);
+
+    // A press that only moves within one node's own text is ordinary text
+    // selection, not an outline gesture (design.md D11). Decided HERE rather
+    // than in `select-extend.ts` because it depends on VISUAL lines:
+    // Shift+Arrow moves by rendered row, and a long paragraph that soft-wraps
+    // is a single SOURCE line spanning several rows. Answering it from source
+    // lines alone got the common case backwards — a wrapped paragraph looked
+    // single-line and was block-selected on the first press, while a paragraph
+    // genuinely broken across two source lines behaved correctly.
+    // `moveVertically` is the view's own answer to "where would the caret go",
+    // wrapping included, and is what stock line-wise extension uses too.
+    const sel = view.state.selection;
+    const stock = sel.ranges.map((range) =>
+      notAnOutlineGesture(view, outlineDoc, range, direction),
+    );
+
+    // Not one outline gesture among them: decline outright, so stock extension
+    // runs with all of its own bookkeeping rather than our re-implementation.
+    if (stock.every((yes) => yes)) return false;
+
+    const before = sel.ranges.map((range) => toLineRange(doc, range));
+    const next = extendSelections(outlineDoc, before, direction);
+
+    // Every range is ours and every one has run out of sequence. CONSUME the
+    // key: the selection must stay unchanged, and falling through would let
+    // stock extension move a backward cover's head inward and SHRINK it.
+    //
+    // The `!stock.some` guard is not redundant with the early return above. A
+    // MIXED selection reaches here — say a preamble cursor beside an outline
+    // range at its sequence end — and `extendSelections` yields `null` for
+    // both, since it reports "nowhere to go" and "not in jurisdiction" the same
+    // way. Consuming then would freeze the stock-owned range instead of giving
+    // it its vertical motion. An earlier comment here claimed such ranges could
+    // not reach this branch; they can, whenever the outline ranges beside them
+    // are exhausted.
+    if (!stock.some((yes) => yes) && next.every((range) => range === null)) return true;
+
+    // Ranges are planned INDEPENDENTLY, so a mixed selection does not force one
+    // reading on all of them: a cursor inside a multi-line node keeps
+    // character-level extension while another that would cross a boundary steps
+    // the cover sequence. An earlier all-or-nothing gate made a single crossing
+    // range block-extend every other one, silently overriding D11 for ranges
+    // that had already answered "this is text". `moveVertically` returns a
+    // range carrying its own goal column, so vertical motion still tracks the
+    // column across presses the way stock extension does.
+    const ranges = sel.ranges.map((range, i) => {
+      if (stock[i]) {
+        // `moveVertically` is MOTION, not extension — it returns where a
+        // cursor would land, so using it directly collapsed the range. Keep
+        // the anchor and take only the head, carrying the goal column so
+        // vertical motion tracks the column across presses. This is exactly
+        // what `@codemirror/commands`' own `extendSel` does.
+        const moved = view.moveVertically(range, direction === 'down');
+        return EditorSelection.range(range.anchor, moved.head, moved.goalColumn);
+      }
+      const target = next[i];
+      if (!target) return range;
+      return EditorSelection.range(
+        linePosToOffset(doc, target.anchor),
+        linePosToOffset(doc, target.head),
+      );
+    });
+    view.dispatch({
+      selection: EditorSelection.create(ranges, sel.mainIndex),
+      scrollIntoView: true,
+    });
+    return true;
   };
 }
 
@@ -640,6 +826,14 @@ export function grammarExtension(modes: ModeSource): Extension {
         { key: "Enter", run: makeHandler(modes, "split") },
         { key: "Shift-Enter", run: makeHandler(modes, "continue") },
         { key: "Mod-a", run: makeSelectAllHandler(modes) },
+        {
+          key: "Shift-ArrowUp",
+          run: probed("Shift-Up", makeExtendHandler(modes, "up")),
+        },
+        {
+          key: "Shift-ArrowDown",
+          run: probed("Shift-Down", makeExtendHandler(modes, "down")),
+        },
         {
           key: "ArrowLeft",
           run: probed("Left", makeHorizontalHandler(modes, "left")),

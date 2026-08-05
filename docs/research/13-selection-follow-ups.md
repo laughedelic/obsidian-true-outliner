@@ -415,6 +415,86 @@ this harness even though this whole area is otherwise flagged as unlikely to tes
 automatically) to determine whether it's `onDocumentKeyDown`, an Obsidian/Electron-level
 Cmd+A interaction, or something else.
 
+### RESOLVED, and the mechanism above was WRONG (2026-08-03, `node-selection-extension`)
+
+**There is no two-transaction split.** Read directly in `@codemirror/state`'s
+`filterTransaction`: when a transaction filter returns an array, the code path is
+`tr = resolveTransaction(state, asArray(filtered), false)`, and `resolveTransaction`
+folds the specs together with `mergeTransaction` into a SINGLE `Transaction.create`. One
+transaction, one state update, one DOM sync. `[tr, { selection: escalated }]` never
+produced two frames, so the raw pre-escalation frame this entry describes was never
+rendered.
+
+That matters beyond the correction itself: it explains the result recorded above that
+otherwise looks inexplicable — the earlier attempt at deferring `contentDOM.focus()` was
+measured to have **zero effect**, and was reverted as if it had been disproved. It had
+not been. It was aimed at a path that was never the cause, and the entry's own framing
+("start from the confirmed mechanism above") would have sent the next person to the same
+dead end.
+
+**The real cause is a focus round trip, and it is one mechanism for both keys.**
+`SelectionDecorationPlugin.onDocumentKeyDown` called `contentDOM.focus()` BEFORE
+replaying the event through `runScopeHandlers`. Since block-selection mode keeps the
+editor blurred, every keypress was focus → run command → settle → blur a macrotask
+later: a full round trip out of the mode and back, which renders as both a
+character-level selection flash and a raw-markdown toggle. A mouse drag never did this,
+because its blur happens once at `mouseup` rather than once per event.
+
+Measured, not inferred — `focus`/`blur` listeners installed on `contentDOM` before the
+keypress, counting events: **2 with the old order, 0 with the keymap running first**, for
+Shift+Arrow and for Mod-A alike. Both are covered by one rule now (that change's design
+D9): block selection is a derived interaction mode, and a press from one cover to another
+never leaves it, so there is no transition to flash. Regression coverage lives in
+`e2e/specs/67-node-selection-extension.e2e.ts`, which counts transitions rather than
+comparing the settled state before and after — the round trip ends where it began, so a
+before/after comparison passes even when the flash is present (verified: an earlier
+version of that test passed against the pre-change build).
+
+## KNOWN ISSUE: a residual flicker when ENTERING block-selection mode (2026-08-04, `node-selection-extension`)
+
+Reported after two rounds of fixes and still present: a brief flicker on the FIRST switch into
+block-selection mode, absent for mouse-driven selection. Both earlier causes were real and are
+fixed; this is what is left, and it is recorded rather than chased further because two
+measurement-driven attempts have not reached it.
+
+**Ruled out, with the evidence:**
+
+- *The class being clobbered.* `EditorView.updateAttrs` rewrites the editor's whole `class`
+  attribute on a focus change, dropping a class written with `classList`; the next update restored
+  it one frame later. Fixed by declaring the class through the `editorAttributes` facet.
+  Verified: the `class=off` mutation is simply absent afterward.
+- *The blur landing after a paint.* `applyFocusPolicy` deferred with `setTimeout(0)`, which only
+  guarantees running after the current task. Instrumented: `class=true paints=0` then
+  `BLUR paints=1`, i.e. one frame painted with chrome over a still-focused raw-markdown editor.
+  Switched to `requestAnimationFrame`, which is specified to run before the next paint. Kept
+  because that frame is a real defect independent of the symptom below — but it did NOT resolve
+  the report, so a third cause remains.
+- *The two-transaction escalation split*, which an older entry in this file named as the
+  confirmed root cause. It does not exist — see that entry's own correction.
+
+**The leading remaining hypothesis, untested:** the reveal is Obsidian's, not ours. Blurring is
+what returns Live Preview to its rendered form, and that re-render need not happen in the same
+frame the blur is applied — so the ordering we control (chrome, then blur, both before a paint)
+can be correct while Obsidian's own re-render lands a frame later, showing chrome over raw
+markdown regardless of our scheduling. If so it is not fixable from the focus policy at all, and
+the fix would be in the same territory as the abandoned CSS raw-mark-hiding approach above.
+
+**Why the mouse path has no equivalent:** its blur fires once at `mouseup`, after the gesture the
+user is already watching change, so any one-frame disagreement is hidden inside a transition they
+expect. The keyboard path enters the mode on a discrete keypress with nothing else moving.
+
+**To pick this up:** instrument WHEN the raw-markdown reveal actually changes — the presence of
+formatting marks in a covered `.cm-line`, observed with a `MutationObserver` — relative to the
+blur, rather than instrumenting focus and class as both previous attempts did. That distinguishes
+"our scheduling is still wrong" from "Obsidian re-renders a frame later", which is the question
+neither measurement so far has answered.
+
+**A non-caveat, recorded because it was first written up as one.** `requestAnimationFrame` does
+not fire in a hidden window, so a cover reached while Obsidian is minimised does not blur until it
+is shown. That has no consequence: the deferred work is purely visual, nothing interactive can
+happen in a hidden window, and on becoming visible rAF runs BEFORE the first painted frame — which
+is stricter than the timer it replaced, not looser.
+
 ## Track 1: Phase C (edit enforcement) inputs
 
 Threads that genuinely feed the edit-rewriting change:
@@ -472,13 +552,29 @@ decoration work — independent of Phase C:
   natural mouse path is a click-the-bullet/marker-selects-the-subtree gesture
   (Logseq/Workflowy bullet semantics) — a DOM/decoration-layer interaction that
   belongs with the decorations work (docs/research/12), not the transaction funnel.
-- **Modal block-level keyboard selection.** Once a selection is escalated, keyboard
+- **Modal block-level keyboard selection.** ~~Once a selection is escalated, keyboard
   extension (Shift+Down etc.) currently moves the underlying character cursor and
-  re-escalates per transaction — which works, but a true block-selection mode would
-  extend by whole sibling subtrees per keypress, at every range of a multi-range
-  selection simultaneously. This is a modal-behavior design (when to enter/leave the
-  mode, how it interacts with the reversible drag-back behavior the manual pass
-  praised) — spec it deliberately, not as a patch on the current rule.
+  re-escalates per transaction~~ — **largely SHIPPED by `node-selection-extension`
+  (2026-08-03), and the entry needs splitting because it conflated two different things
+  called "mode".**
+  - **Done.** Shift+Arrow is a bound command stepping one node per press along a cover
+    sequence, in both directions, at every range of a multi-range selection
+    independently — the extension behavior this entry asked for. And block selection IS
+    now a mode, in the sense that matters for rendering and key routing: an editor is in
+    it exactly when every non-empty range is a cover, with Live Preview state, focus,
+    native-highlight suppression and key routing all following from that (design D9).
+  - **Still open, and this is what a STORED mode would add.** The derived mode has no
+    entry or exit gesture, so there is nothing to bind Escape to yet, and no way to
+    cherry-pick non-contiguous nodes (`Cmd`-click). The discriminator between a block
+    selection and a multi-cursor selection is by SHAPE — one range versus several —
+    which is the simplest thing that works and has a known edge where two cursors
+    extended toward each other eventually overlap and merge (that change's design D4).
+  - **One behavior is knowingly irreversible.** Extending UP out of a node that is not
+    its parent's last child yields the parent's whole subtree, because downward closure
+    admits no smaller cover; the anchor then re-seats onto the parent and no number of
+    opposite presses returns to the child (design D8). A stored origin would fix it and
+    was rejected — the argument is recorded there. If real use finds it a trap, this is
+    the thread that reopens it.
   - **Escape is left unbound, on purpose, for this — recorded here so this thread
     finds it (`content-space-caret` D6, 2026-07-25).** That change deliberately does
     NOT bind Escape, specifically so it stays free for whatever "leave block-selection

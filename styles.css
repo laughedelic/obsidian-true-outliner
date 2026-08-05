@@ -528,11 +528,27 @@
  * comment for why a genuinely mixed selection can't arise through the real
  * transaction filter).
  *
- * Confirmed live (via the e2e harness) that Obsidian's own selection
- * rendering is the browser's NATIVE `::selection` pseudo-element, not CM6's
- * optional `drawSelection()` background layer (`.cm-selectionBackground`
- * never actually mounts here) — so the fix is a scoped `::selection`
- * override, not a decoration-layer suppression. `color: inherit` alongside
+ * Confirmed live (via the e2e harness) that for a SINGLE-RANGE selection
+ * Obsidian's own rendering is the browser's NATIVE `::selection`
+ * pseudo-element, so that path is a scoped `::selection` override rather than
+ * a decoration-layer suppression. It is only half the picture — see the
+ * correction below, and the second rule, which suppresses CM6's own drawn
+ * layer for the ranges the native selection cannot represent.
+ *
+ * CORRECTED (2026-08-04, node-selection-extension real-vault pass 5.2): that
+ * held only for a SINGLE range. The original note here claimed
+ * `.cm-selectionBackground` "never actually mounts", which was measured on a
+ * one-range selection and is false for multi-cursor. The browser's DOM
+ * Selection can hold only ONE range, so CM6 draws the others itself: measured
+ * on a three-cursor block selection, `domRangeCount: 1` but
+ * `.cm-selectionBackground` × 3 inside one `.cm-selectionLayer`. Those rects
+ * carry an UNCONDITIONAL base background in CM6's own theme (`#d9d9d9` light,
+ * `#222` dark — no `.cm-focused` requirement, so blurring does not hide them),
+ * which is the stray character-looking highlight reported under every covered
+ * range but the last. The second rule below suppresses them; both rules are
+ * needed, since the two paths render different ranges of the same selection.
+ *
+ * `color: inherit` alongside
  * `background-color: transparent` restores ordinary text color — native
  * `::selection` also overrides foreground color for contrast against its
  * own background, which would otherwise look wrong once that background
@@ -544,4 +560,12 @@
 .markdown-source-view.mod-cm6 .cm-editor.to-decor-block-selecting .cm-content ::selection {
   background-color: transparent;
   color: inherit;
+}
+
+/* The multi-range half: CM6's own drawn selection rects, for every range the
+   single native DOM Selection cannot represent. Kept in sync with the rule
+   above on purpose — a block-covered selection shows block chrome and nothing
+   else, whether it has one range or five. */
+.markdown-source-view.mod-cm6 .cm-editor.to-decor-block-selecting .cm-selectionLayer .cm-selectionBackground {
+  background: transparent;
 }

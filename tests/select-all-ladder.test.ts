@@ -6,6 +6,7 @@ import { nextRung, nextRungs } from '../src/select-all-ladder';
 import { coveredSubtreeRoots, escalateRange, rangesEqual } from '../src/escalate';
 import type { LinePos, LineRange } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
+import { extendSelection, type ExtendDirection } from '../src/select-extend';
 import { arbTree } from './generators';
 
 const pos = (line: number, ch: number): LinePos => ({ line, ch });
@@ -337,5 +338,129 @@ describe('ladder rungs are fixpoints of escalation (selection-as-subtree-set tas
       }),
       { numRuns: 300 },
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Composition with keyboard extension (node-selection-extension design.md D10)
+// ---------------------------------------------------------------------------
+
+describe('ladder over extension-built selections', () => {
+  // - P        0
+  //   - c1     1
+  //   - c2     2
+  // - Q        3
+  const doc = parse(['- P', '\t- c1', '\t- c2', '- Q'].join('\n'));
+
+  /** The inclusive line span plus orientation — what a rung is observably. */
+  const spanOf = (r: LineRange | null): string => {
+    if (!r) return 'null';
+    const back = r.head.line < r.anchor.line ||
+      (r.head.line === r.anchor.line && r.head.ch < r.anchor.ch);
+    const lo = back ? r.head : r.anchor;
+    const hi = back ? r.anchor : r.head;
+    return `${lo.line}..${hi.line} ${back ? 'back' : 'fwd'}`;
+  };
+
+  /** Walk extension `presses` times from a caret on `line`. */
+  const extended = (line: number, presses: ExtendDirection[]): LineRange => {
+    let current: LineRange = cursor(pos(line, 0));
+    for (const direction of presses) current = extendSelection(doc, current, direction)!;
+    return current;
+  };
+
+  // Neither feature records how the selection was produced, so these are
+  // guarantees rather than coincidences. This change alters WHICH selections
+  // exist for the ladder to climb from, which is why they are pinned here.
+
+  it('climbs from an extension-built sibling run to the parent', () => {
+    const run = extended(1, ['down', 'down']); // [c1, c2]
+    expect(spanOf(run)).toBe('1..2 fwd');
+    expect(spanOf(nextRung(doc, run))).toBe('0..2 fwd'); // P's whole subtree
+  });
+
+  it('climbs from a single extension-built subtree to its sibling run', () => {
+    const one = extended(1, ['down']); // [c1]
+    expect(spanOf(nextRung(doc, one))).toBe('1..2 fwd'); // c1 + c2
+  });
+
+  it('climbs from a cross-scope mixed-depth forest to the enclosing run', () => {
+    const crossing = extended(2, ['down', 'down']); // [c2, Q] — different depths
+    expect(spanOf(crossing)).toBe('2..3 fwd');
+    // The nearest run of whole subtrees containing both is the outline body.
+    expect(spanOf(nextRung(doc, crossing))).toBe('0..3 fwd');
+  });
+
+  it('preserves orientation when climbing from a backward extension', () => {
+    const backward = extended(2, ['up', 'up']); // [c1, c2], grown upward
+    expect(spanOf(backward)).toBe('1..2 back');
+    expect(spanOf(nextRung(doc, backward))).toBe('0..2 back');
+  });
+
+  it('climbs from a re-seated single-root cover (design D8)', () => {
+    const swallowed = extended(1, ['up', 'up']); // [P] — anchor re-seated onto P
+    expect(spanOf(swallowed)).toBe('0..2 back');
+    expect(spanOf(nextRung(doc, swallowed))).toBe('0..3 back'); // the outline body
+  });
+});
+
+describe('property: extension and the ladder compose through the selection alone', () => {
+  it('a gesture\'s answer survives unrelated gestures running in between', () => {
+    // D10's real content is that NEITHER module keeps state: the next
+    // selection is a function of the current one and the document. A version
+    // of this test that just re-called the same function on a copy of the
+    // same value could not fail — pure calls on equal values agree by
+    // construction. So instead: record a gesture's answer, then run many
+    // unrelated gestures from other positions, then ask again. Module-level
+    // state of any kind — a press counter, a cached anchor, a "last rung" —
+    // would be disturbed by the interleaved work and change the second answer.
+    let checked = 0;
+    fc.assert(
+      fc.property(arbTree(), fc.nat(), fc.constantFrom<ExtendDirection>('up', 'down'),
+        (tree, pick, direction) => {
+          const text = encode(tree);
+          const lines = text === '' ? [] : text.split('\n');
+          const d = parse(text);
+          const candidates: number[] = [];
+          for (let i = 0; i < lines.length; i++) if (nodeAtLine(d, i)) candidates.push(i);
+          if (candidates.length < 2) return true;
+          const line = candidates[pick % candidates.length]!;
+
+          const reached = extendSelection(d, cursor(pos(line, 0)), direction);
+          if (!reached) return true;
+          const extendFirst = extendSelection(d, reached, direction);
+          const ladderFirst = nextRung(d, reached);
+
+          // Disturb: walk every other candidate line with both features, in
+          // both directions, discarding the results.
+          for (const other of candidates) {
+            if (other === line) continue;
+            let walk: LineRange | null = cursor(pos(other, 0));
+            for (let i = 0; i < 3 && walk; i++) walk = extendSelection(d, walk, 'down');
+            walk = cursor(pos(other, 0));
+            for (let i = 0; i < 3 && walk; i++) walk = extendSelection(d, walk, 'up');
+            let rung: LineRange | null = cursor(pos(other, 0));
+            for (let i = 0; i < 3 && rung; i++) rung = nextRung(d, rung);
+          }
+
+          checked++;
+          expect(extendSelection(d, reached, direction)).toEqual(extendFirst);
+          expect(nextRung(d, reached)).toEqual(ladderFirst);
+          return true;
+        }),
+      { numRuns: 120 },
+    );
+    expect(checked).toBeGreaterThan(60); // not vacuous
+  });
+
+  it('neither module imports the other', async () => {
+    // The architectural half of D10, and the one a future edit is most
+    // likely to break silently: they share the cover geometry beneath them,
+    // never each other.
+    const fs = await import('node:fs/promises');
+    const extend = await fs.readFile('src/select-extend.ts', 'utf8');
+    const ladder = await fs.readFile('src/select-all-ladder.ts', 'utf8');
+    expect(extend).not.toMatch(/from '\.\/select-all-ladder'/);
+    expect(ladder).not.toMatch(/from '\.\/select-extend'/);
   });
 });
