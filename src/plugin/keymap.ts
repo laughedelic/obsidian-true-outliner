@@ -123,9 +123,10 @@ function toLineRange(doc: Text, range: SelectionRange): LineRange {
 }
 
 /**
- * True when `range` lies inside one node's own CONTENT lines and stock
- * vertical extension would keep it there — i.e. this press is text selection
- * within a node, not an outline gesture (design.md D11).
+ * True when this press is NOT an outline gesture, so stock extension should own
+ * it (design.md D11). Two cases: the range has no node jurisdiction at all —
+ * the preamble — or it is a plain character range inside ONE node's own content
+ * lines that this press would keep there.
  *
  * The node's own content lines, not its subtree and not its trailing gap: the
  * gap is chrome between nodes, so reaching it is already a boundary crossing
@@ -139,7 +140,7 @@ function toLineRange(doc: Text, range: SelectionRange): LineRange {
  * be read as text motion, and the opposite press would fall through to stock
  * extension and SHRINK inside the node instead of stepping the sequence.
  */
-function movesWithinOneNode(
+function notAnOutlineGesture(
   view: EditorView,
   outlineDoc: ReturnType<typeof parsedDoc>['doc'],
   range: SelectionRange,
@@ -151,7 +152,9 @@ function movesWithinOneNode(
 
   const anchorLine = doc.lineAt(range.anchor).number - 1;
   const node = nodeAtLine(outlineDoc, anchorLine);
-  if (!node) return false;
+  // No jurisdiction — a preamble range was never ours, and is planned the same
+  // way a text range is so a mixed selection still moves it.
+  if (!node) return true;
   if (nodeAtLine(outlineDoc, doc.lineAt(range.head).number - 1) !== node) return false;
 
   const first = nodeStartLine(outlineDoc, node.id);
@@ -163,7 +166,22 @@ function movesWithinOneNode(
 
   // Where stock extension would put the head, wrapping accounted for.
   const moved = view.moveVertically(range, direction === 'down');
-  return moved.head >= from && moved.head <= to;
+  if (moved.head < from || moved.head > to) return false;
+
+  // ...and it must genuinely reach ANOTHER ROW. At a document edge CM6 clamps
+  // the head to the line's own start or end instead of moving, which lands
+  // inside the node and read as row motion — so pressing Up in the first node,
+  // or Down in a final gapless one, fell through to stock extension and the
+  // anchor node's first cover became unreachable in that direction (measured:
+  // `0,0..0,5` and `2,5..2,10` character ranges where a cover was required).
+  // There is nothing beyond the edge, so that is a boundary, not motion.
+  // Coordinates rather than line numbers because rows are visual: a wrapped
+  // source line holds several. A position outside the rendered viewport has no
+  // coordinates, and is treated as a boundary — the outline reading, which is
+  // what this decision defaults to everywhere else.
+  const fromTop = view.coordsAtPos(range.head)?.top;
+  const toTop = view.coordsAtPos(moved.head)?.top;
+  return fromTop != null && toTop != null && fromTop !== toTop;
 }
 
 /**
@@ -178,9 +196,12 @@ function movesWithinOneNode(
  * the rest; this handler plans every range, so declining would be a
  * regression rather than a safeguard. A range with nowhere to go is left in
  * place while others still advance (D4: each range walks its own sequence,
- * with no forced common step); only when EVERY range is `null` does the key
- * fall through to native extension, so the sequence's ends are a
- * pass-through to stock behavior rather than a hand-computed no-op.
+ * with no forced common step).
+ *
+ * The key falls through to stock extension only when NO range is an outline
+ * gesture — every one is either plain text motion inside a node or outside any
+ * node's jurisdiction. A selection that IS ours but has run out of sequence
+ * consumes the key instead; see below for why declining there is wrong.
  *
  * At the sequence's end the key IS consumed without dispatching, which is what
  * "the selection remains unchanged" requires. Declining there instead looks
@@ -212,30 +233,23 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     // `moveVertically` is the view's own answer to "where would the caret go",
     // wrapping included, and is what stock line-wise extension uses too.
     const sel = view.state.selection;
-    const asText = sel.ranges.map((range) =>
-      movesWithinOneNode(view, outlineDoc, range, direction),
+    const stock = sel.ranges.map((range) =>
+      notAnOutlineGesture(view, outlineDoc, range, direction),
     );
 
-    // Every range is plain text motion: decline outright, so stock extension
+    // Not one outline gesture among them: decline outright, so stock extension
     // runs with all of its own bookkeeping rather than our re-implementation.
-    if (asText.every((yes) => yes)) return false;
+    if (stock.every((yes) => yes)) return false;
 
     const before = sel.ranges.map((range) => toLineRange(doc, range));
     const next = extendSelections(outlineDoc, before, direction);
 
-    if (!asText.some((yes) => yes) && next.every((range) => range === null)) {
-      // Nothing moved. `null` means two different things here, and they need
-      // opposite answers. Outside any node's jurisdiction — the preamble —
-      // this key was never ours, so decline and let stock extension run. But a
-      // range that IS in jurisdiction and has simply run out of sequence must
-      // leave the selection UNCHANGED, which means consuming the key: falling
-      // through would let stock extension move the head of a backward cover
-      // inward and SHRINK it, at the one document edge where the walk has
-      // nothing left to offer.
-      return sel.ranges.some(
-        (range) => nodeAtLine(outlineDoc, doc.lineAt(range.anchor).number - 1) !== undefined,
-      );
-    }
+    // Every remaining range is ours and has run out of sequence. CONSUME the
+    // key: the selection must stay unchanged, and falling through would let
+    // stock extension move a backward cover's head inward and SHRINK it. The
+    // "was never ours" case cannot reach here — those ranges are in `stock`,
+    // and a selection made only of them returned above.
+    if (next.every((range) => range === null)) return true;
 
     // Ranges are planned INDEPENDENTLY, so a mixed selection does not force one
     // reading on all of them: a cursor inside a multi-line node keeps
@@ -246,7 +260,7 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     // range carrying its own goal column, so vertical motion still tracks the
     // column across presses the way stock extension does.
     const ranges = sel.ranges.map((range, i) => {
-      if (asText[i]) {
+      if (stock[i]) {
         // `moveVertically` is MOTION, not extension — it returns where a
         // cursor would land, so using it directly collapsed the range. Keep
         // the anchor and take only the head, carrying the goal column so

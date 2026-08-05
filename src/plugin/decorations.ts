@@ -1211,6 +1211,19 @@ class SelectionDecorationPlugin implements PluginValue {
     if (handled) {
       event.preventDefault();
       event.stopPropagation();
+      // If the command LEFT the mode, take focus back now rather than waiting
+      // for the deferred policy. The policy would get there, but not before
+      // the user's next keystroke can arrive — and this handler only replays
+      // keys while the selection is still a cover, so anything pressed in that
+      // window is dropped outright. Measured as an intermittent failure of
+      // "delete a multi-cursor block selection, then undo": the delete left a
+      // caret, the editor was still blurred, and `Mod+Z` — which the editor's
+      // own keymap does not claim — fell into the gap.
+      //
+      // Restoring focus eagerly here is the same exit edge, applied on the
+      // path that caused the exit. It cannot resurrect a stale selection:
+      // `EditorView.focus` pushes state to the DOM rather than reading it.
+      if (!allRangesCovered(this.view.state)) this.view.focus();
       return;
     }
     // Focus by default; see `declinesFocus` for why the exclusion is one

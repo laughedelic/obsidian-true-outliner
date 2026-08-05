@@ -248,6 +248,24 @@ describe('node-selection-extension: a multiline node keeps character selection (
     expect(await span()).toBe(atEnd);
   });
 
+  it('a document EDGE is a boundary, not intra-node row motion', async () => {
+    // At an edge CodeMirror clamps the head to the line's own start or end
+    // rather than moving a row. That lands inside the node, so it read as row
+    // motion and fell through to stock extension — making the anchor node's
+    // first cover unreachable in that direction, on SINGLE-row nodes where
+    // D11 should never fire at all. Measured before the fix: `0,0..0,5` and
+    // `2,5..2,10` character ranges where a cover was required.
+    await outlineNote('Alpha one.\n\nBravo two.\n');
+    await h.setCursor(0, 5); // the FIRST node
+    await up();
+    expect(await span()).toBe('0..1 back'); // its cover, not a character range
+
+    await outlineNote('Alpha one.\n\nBravo two.'); // no trailing newline: gapless
+    await h.setCursor(2, 5); // the FINAL node
+    await down();
+    expect(await span()).toBe('2..2 fwd');
+  });
+
   it('a SINGLE-line node still covers on the first press', async () => {
     // The common case, and the one every drawn example uses — unchanged.
     await outlineNote('- alpha\n- bravo\n');
@@ -346,6 +364,33 @@ describe('node-selection-extension: the ancestor swallow (E7, design D8)', () =>
 });
 
 describe('node-selection-extension: multi-cursor (design D4)', () => {
+  it('a preamble range gets stock motion while another range steps the sequence', async () => {
+    // A range outside any node's jurisdiction was never ours. It used to be
+    // returned UNCHANGED whenever some other range advanced, silently
+    // suppressing its ordinary extension.
+    await outlineNote('---\ntitle: x\n---\n\nAlpha one.\n\nBravo two.\n');
+    await h.dispatchSelectOnlyRanges([
+      { anchor: { line: 1, ch: 3 }, head: { line: 1, ch: 3 } }, // inside frontmatter
+      { anchor: { line: 4, ch: 5 }, head: { line: 4, ch: 5 } }, // a real node
+    ]);
+    await focusEditor();
+    await browser.pause(80);
+    // Read the state the press actually starts from: caret placement moves a
+    // preamble cursor out of the frontmatter before we ever see it.
+    const before = await h.getSelectionRanges();
+    expect(before).toHaveLength(2);
+
+    await down();
+    const after = await h.getSelectionRanges();
+    expect(after).toHaveLength(2);
+    // The out-of-jurisdiction range extended as ordinary text selection —
+    // anchor held, head advanced — rather than being frozen in place.
+    expect(after[0]!.anchor).toEqual(before[0]!.anchor);
+    expect(after[0]!.head.line).toBeGreaterThan(before[0]!.head.line);
+    // ...while the range that IS ours took its node's cover.
+    expect(after[1]!.anchor).toEqual({ line: 4, ch: 0 });
+  });
+
   it('two cursors extend independently across repeated presses', async () => {
     await outlineNote('- parent\n\t- child one\n\t- child two\n- next\n');
     await h.dispatchSelectOnlyRanges([
@@ -535,6 +580,25 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
     await h.keys.undo();
     await browser.pause(200);
     expect(await h.getBuffer()).toBe(original);
+  });
+
+  it('a command that LEAVES the mode restores focus before the next keystroke', async () => {
+    // The exit edge applied eagerly. Waiting for the deferred policy left a
+    // window in which the editor was blurred with a non-cover selection — and
+    // this path only replays keys while the selection IS a cover, so anything
+    // pressed in that window was dropped. Delete-then-undo is the case that
+    // caught it, since undo is not claimed by the editor's own keymap.
+    await outlineNote('Alpha one.\n\nBravo two.\n\nCharlie three.\n');
+    await h.dispatchSelectOnlyRanges([
+      { anchor: { line: 0, ch: 0 }, head: { line: 1, ch: 0 } },
+      { anchor: { line: 4, ch: 0 }, head: { line: 5, ch: 0 } },
+    ]);
+    await browser.pause(120); // let the mode settle and blur the editor
+    await browser.keys(Key.Backspace);
+    // No pause: undo must survive arriving immediately after the delete.
+    await h.keys.undo();
+    await browser.pause(200);
+    expect(await h.getBuffer()).toBe('Alpha one.\n\nBravo two.\n\nCharlie three.\n');
   });
 
   it('a bound structural key still runs over a block selection', async () => {

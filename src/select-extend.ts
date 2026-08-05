@@ -270,10 +270,15 @@ export function extendSelection(
  * Multi-range entry point (design.md D4/D7): each range steps along its own
  * anchor's sequence independently, exactly as `nextRungs` does for the Mod-A
  * ladder — there is no uniform/forced-common-step rule here, unlike
- * `escalateRanges`. Returns one entry per input range, `null` where that
- * range has nowhere to go; the CM6 adapter decides what `null` means for
- * dispatch (leave that range as-is, or — when every range is `null` —
- * decline the key entirely).
+ * `escalateRanges`. Returns one entry per input range, `null` where the walk
+ * produced nothing — which covers TWO different situations that this module
+ * cannot tell apart and does not try to: the range has no node jurisdiction at
+ * all (the preamble), or it is in jurisdiction and its sequence is exhausted.
+ *
+ * Distinguishing them is the CM6 adapter's job, and it matters: the first was
+ * never ours and must fall through to stock extension, while the second must
+ * leave the selection UNCHANGED — declining there lets stock extension move a
+ * backward cover's head inward and shrink it.
  */
 export function extendSelections(
   doc: OutlineDoc,

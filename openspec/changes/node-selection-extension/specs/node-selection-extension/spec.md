@@ -102,8 +102,8 @@ a node owning a single line no such press exists, so its first press covers the 
 - **WHEN** an undo or redo restores a selection that is not an exact cover — history maps the
   pre-operation selection forward through the operation's changes without the escalation
   filter ever seeing it — and the user then presses Shift+ArrowDown
-- **THEN** the selection is first taken to the nearest cover, and the press steps from there;
-  the result is a cover, never a range whose edge falls mid-node
+- **THEN** the selection becomes the whole-subtree cover of the node its anchor resolves to, and
+  that IS the press's step — it does not additionally advance along the sequence
 
 ### Requirement: Extension is symmetric and can shrink
 The anchor node SHALL be read from the current cover's own covered ROOTS, never from stored

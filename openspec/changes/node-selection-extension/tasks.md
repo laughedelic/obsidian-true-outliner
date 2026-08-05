@@ -50,9 +50,12 @@
 
 ## 2b. Focus policy (design D9)
 
-- [x] 2b.1 Replace `SelectionDecorationPlugin`'s three focus sites with one policy: focused iff
-      NOT `allRangesCovered`. Keep the `setTimeout` deferral on the blur direction and the
-      `isActiveEditor` guard — both are recorded fixes for real bugs, neither is what D9 changes
+- [x] 2b.1 Replace `SelectionDecorationPlugin`'s three focus sites with one policy. BOTH of this
+      task's own prescriptions were later rejected by implementation findings, and D9 carries the
+      corrected versions: focus is restored on the mode's EXIT EDGE, not asserted whenever
+      `allRangesCovered` is false (asserting it broke caret placement on an ordinary click), and
+      the blur is deferred with `requestAnimationFrame`, not `setTimeout` (a timer let one frame
+      paint with chrome over a still-focused editor). The `isActiveEditor` guard did stay
 - [x] 2b.2 Reorder `onDocumentKeyDown`: run `runScopeHandlers` FIRST, focus only when no command
       matched. Today's unconditional `contentDOM.focus()` before the replay is the flicker's
       direct cause. Keep the existing `preventDefault`/`stopPropagation`-only-when-handled rule
@@ -272,3 +275,38 @@ All six suppressed comments were legitimate; two changed behavior.
       Rewritten to state the forward case as exact and defer the backward case to D8's rule
 - [x] 9.7 The soft-wrap scenario returned early when the viewport did not wrap, so it could stay
       green without exercising wrapping. Now asserts at least two rendered rows
+
+## 10. PR #38 third review round (2026-08-04)
+
+All seven suppressed comments were legitimate; two changed behavior, and one of those was the
+worst defect any round has found.
+
+- [x] 10.1 A document EDGE was misread as intra-node row motion. `moveVertically` CLAMPS the head
+      to its line's own start or end when there is nowhere to go, which lands inside the node —
+      so pressing `⇧↑` in the FIRST node, or `⇧↓` in a final gapless one, fell through to stock
+      extension and the anchor node's first cover became unreachable in that direction. On
+      SINGLE-ROW nodes, where D11 should never fire at all. Measured: `0,0..0,5` and `2,5..2,10`
+      character ranges where the spec requires a cover. D11 now requires the press to reach
+      another ROW, compared by coordinates because rows are visual
+- [x] 10.2 Out-of-jurisdiction ranges were not planned independently: a preamble cursor beside a
+      range that advanced was returned UNCHANGED, silently suppressing its ordinary extension.
+      "No jurisdiction" now classifies with "text motion" — both mean "not an outline gesture" —
+      so a mixed selection moves it with the same anchor-preserving path, and the exhaustion
+      branch can no longer swallow it
+- [x] 10.3 Four documentation drifts, all describing behavior later rounds rejected: the handler's
+      comment still said every-null falls through; `extendSelections`' contract still gave `null`
+      one meaning; D11's *Cost* paragraph still claimed both meanings fall through to native,
+      which is the exact regression 9.3 fixed; and task 2b.1 still prescribed both focus-policy
+      choices D9 later reversed
+- [x] 10.4 The undo scenario contradicted its own requirement — "taken to the nearest cover, and
+      the press steps from there", where the rule says the anchor node's whole-subtree cover and
+      that normalization IS the step
+- [x] 10.5 Found by an intermittent mobile failure, and it was MINE rather than flaky. Before
+      2b.2, `onDocumentKeyDown` focused BEFORE running the command, so the editor stayed focused
+      through a delete-then-undo. The reorder removed that, leaving the editor blurred through the
+      deletion with focus returning only on the deferred exit edge — racing the next keystroke,
+      which this path drops because it only replays while the selection is a cover. `Mod+Z` is
+      exactly such a keystroke, being unclaimed by the editor's keymap. The exit edge is now
+      applied eagerly on the path that caused the exit. My earlier attribution of the same failure
+      to the refocus whitelist rested on one passing run, which for an intermittent failure is
+      not evidence

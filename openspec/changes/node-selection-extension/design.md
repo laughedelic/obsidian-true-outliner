@@ -475,9 +475,13 @@ the range. This is what `@codemirror/commands`' own `extendSel` does, and it is 
 motion tracks a visual x-coordinate rather than a character index: in a proportional font the
 same x lands on a different column one row down.
 
-*Cost.* `null` now means two things to the CM6 adapter — "sequence exhausted" and "decline, this
-is not ours" — and both fall through to native. That is right for the decline and harmless at the
-document edge, where native extension has nowhere to go either.
+*Cost, and it came due.* `null` from the walk means two things — "sequence exhausted" and "never
+ours" — and they need OPPOSITE answers. This decision first claimed both could fall through, on
+the reasoning that native extension has nowhere to go at a document edge either. False: at the
+edge a backward cover still has its head at the TOP, and stock extension moves it inward,
+shrinking the selection. So the adapter separates them on node jurisdiction — never-ours falls
+through, exhausted consumes the key and leaves the selection unchanged, which is what the spec
+requires.
 
 ## Risks / Trade-offs
 

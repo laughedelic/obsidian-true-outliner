@@ -56,7 +56,9 @@ SHALL first be offered to the editor's own installed keymap; only a key that no 
 SHALL focus the editor immediately, because such a key is inserted by the browser's own
 subsequent input handling against whatever is focused at that time. A key that a command DOES
 handle SHALL NOT cause a focus change on its own — the selection it produces decides focus
-through the policy above.
+through the policy above. Where that command's result LEAVES the mode, focus SHALL be restored
+without waiting for any deferral: this path only replays keys while the selection is still a
+cover, so a keystroke arriving before the deferred restore would be dropped.
 
 A key MEASURED not to need focus SHALL NOT cause one. Copy is such a key: the platform reads it
 off the DOM selection, which survives the blur. The exclusion SHALL be stated as specific keys
@@ -104,6 +106,12 @@ declines, and which chords those are is not knowable from the key event.
   bound to a plugin command
 - **THEN** the command runs against the block selection and the editor's focus state is decided
   only by the selection the command produced, not by the fact that a key was pressed
+
+#### Scenario: A command leaving the mode restores focus before the next keystroke
+- **WHEN** a command run from the blurred state produces a selection that is not a cover, and
+  the user immediately presses a key the editor's own keymap does not claim
+- **THEN** that key reaches the editor, rather than falling into a window where the editor is
+  blurred and this path no longer replays
 
 #### Scenario: An edit made over a block selection can be undone
 - **WHEN** the selection is a block cover, the editor is therefore blurred, the user deletes the
