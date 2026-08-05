@@ -1018,7 +1018,6 @@ class SelectionDecorationPlugin implements PluginValue {
   }
 
   destroy(): void {
-    this.view.dom.classList.remove(BLOCK_SELECTING_CLASS);
     this.view.dom.removeEventListener('mousedown', this.onMouseDown);
     this.view.dom.removeEventListener('mouseup', this.onMouseUp);
     document.removeEventListener('keydown', this.onDocumentKeyDown, { capture: true });
@@ -1174,12 +1173,10 @@ class SelectionDecorationPlugin implements PluginValue {
   };
 
   private compute(): DecorationSet {
-    const isOutline = this.isOutlineNote();
-    this.view.dom.classList.toggle(
-      BLOCK_SELECTING_CLASS,
-      isOutline && allRangesCovered(this.view.state),
-    );
-    if (!isOutline) return Decoration.none;
+    // The BLOCK_SELECTING_CLASS is NOT toggled here — see the
+    // `editorAttributes` facet in `decorationsExtension` for why writing it
+    // imperatively flickered.
+    if (!this.isOutlineNote()) return Decoration.none;
     return computeSelectionDecorations(this.view.state, this.modes);
   }
 }
@@ -1614,5 +1611,41 @@ export function decorationsExtension(modes: DecorationSource): Extension {
       decorations: (v) => v.decorations,
     }),
     ViewPlugin.define<MarginCompensation>((view) => new MarginCompensation(view, modes)),
+    // Block-selection mode's marker class, declared through CM6's own
+    // `editorAttributes` facet rather than written onto `view.dom` with
+    // `classList` (node-selection-extension, real-vault pass 5.3c).
+    //
+    // The imperative version flickered once per gesture, and the mechanism is
+    // not ours: `EditorView.updateAttrs` recomputes the editor's whole class
+    // string — `"cm-editor" + (hasFocus ? " cm-focused " : " ") + themeClasses`
+    // plus this facet — and writes the `class` ATTRIBUTE wholesale. So the
+    // focus change that block-selection mode itself causes made CM6 clobber
+    // our class, and the next `update()` put it straight back. Measured with a
+    // MutationObserver: `class=ON` at 6.8ms, `blur` at 6.9ms, then `class=off`
+    // at 21.5ms and `class=ON` again at 21.9ms — with the selection unchanged
+    // throughout, which is what ruled out `allRangesCovered` as the cause. A
+    // paint landed in that window, so exactly one frame rendered without
+    // chrome and with the native highlight showing through.
+    //
+    // Through the facet there is no window at all: CM6 folds this class into
+    // the same computed string, so its rewrite carries it rather than dropping
+    // it. `attrsFromFacet` re-evaluates function sources on every
+    // `updateAttrs`, and `combineAttrs` concatenates `class` values, so this
+    // composes with the theme's own classes instead of racing them.
+    EditorView.editorAttributes.of((view) =>
+      !isNestedEditor(view) &&
+      isOutlineView(view, modes) &&
+      allRangesCovered(view.state)
+        ? { class: BLOCK_SELECTING_CLASS }
+        : null,
+    ),
   ];
+}
+
+/** Whether `view`'s file is an outline-mode note. The state-only half of
+ * `SelectionDecorationPlugin.isOutlineNote`, split out so the facet above can
+ * ask the same question without a plugin instance. */
+function isOutlineView(view: EditorView, modes: DecorationSource): boolean {
+  const path = view.state.field(editorInfoField, false)?.file?.path;
+  return !!path && modes.isOutline(path);
 }

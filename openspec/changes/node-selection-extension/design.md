@@ -353,6 +353,21 @@ half at all — it comes from the keymap reorder — but without the exit edge a
 leaves the mode strands the keyboard, since `onDocumentKeyDown` only acts while the selection is
 still a cover.
 
+*Third amendment, from the real-vault pass (2026-08-04): the mode's marker class is CM6's to
+write, not ours.* One flicker survived the reorder, on the FIRST press into the mode only, and it
+was not the blur — instrumented, the blur lands ~0.1ms after the class goes on, before the next
+paint. `EditorView.updateAttrs` recomputes the editor's whole class string on a focus change and
+writes the `class` attribute wholesale, so the focus change the mode ITSELF causes clobbered a
+class written with `classList`, and the next `update()` restored it one frame later. Declaring it
+through the `editorAttributes` facet removes the window: CM6 folds the class into the same string
+it rewrites.
+
+That is the same lesson as both focus findings above, in a third place. **DOM state a library
+considers its own gets recomputed from the library's model, and anything written outside that
+model is transient** — selection for `focus()`, the class attribute for `updateAttrs`. Where CM6
+offers a modelled entry point (`EditorView.focus`, `EditorView.editorAttributes`), that is the
+one to use.
+
 *Scope.* This is `escalated-selection-decoration`'s mechanism, not this capability's, and it is
 pulled in deliberately: extension cannot look like mouse block selection while a refocus fires on
 every press. Codifying it also closes a gap that capability's spec names outright — the blur

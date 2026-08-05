@@ -2070,3 +2070,79 @@ still a cover, so without it a bound command that leaves the mode — indent ove
 selection, then undo — strands the keyboard entirely with no way back but a click. That the
 first version of this change shipped that hole and the undo scenario caught it is the argument
 for the scenario existing.
+
+## Q32. `node-selection-extension` real-vault manual pass (2026-08-04)
+
+Five tasks, three clean and two defects — both VISUAL, neither in the walk itself. The
+geometry, the granularity, mixed-depth selection and the D8 re-seat all behaved as designed
+on real notes.
+
+### Accepted as designed
+
+- **Losing the caret's exact offset on the first press** (risk 5.3): "a bit annoying, but not a
+  deal-breaker." The first press replaces a character-level range with the whole node, and
+  shrinking bottoms out at the node rather than the original column. Workflowy and Logseq behave
+  the same. No change.
+- **D8's irreversible ancestor swallow** (5.3b): "kind of makes sense... not perfect, but
+  understandable and tolerable." The decision stands as written.
+
+  The question it drew is worth recording, because the intuition behind it is a good one and the
+  answer is not obvious: *could the selection preserve `c1 + c2 + P` instead of collapsing to
+  "whole P", and doesn't the mixed-depth forest prove we already keep state?*
+
+  No, on both counts. A CodeMirror selection is anchor/head OFFSETS — one contiguous range. The
+  forest is DERIVED by `coveredForestOf` on every call, so a mixed-depth cover needs no storage;
+  it is the same bytes as any other range. And `c1 + c2 + P` and "P's whole subtree" are the SAME
+  SPAN — downward closure means a cover containing `P`'s line contains all of `P`'s descendants,
+  so there is no richer range being discarded. What is lost is WHICH NODE THE GESTURE STARTED
+  FROM, and that was never in the range: extending up from `c1` and from `c2` both land on
+  `0..2`, byte for byte. The rejected alternative is therefore not "keep a better range" but a
+  SEPARATE field alongside a range that cannot express it — which is exactly what D8 declined.
+
+### Defect: a multi-range block selection painted stray highlights (5.2)
+
+Reported as "all block-selection ranges except the last one have an overlapping selection
+background... looks more like a character-level selection."
+
+The browser's DOM `Selection` can hold only ONE range, so CM6 draws the others itself. Measured
+on a three-cursor block selection: `domRangeCount: 1`, but three `.cm-selectionBackground` rects
+inside one `.cm-selectionLayer`. Those rects carry an UNCONDITIONAL base background in CM6's own
+theme (`#d9d9d9` light, `#222` dark) with no `.cm-focused` requirement, so blurring does not hide
+them.
+
+`styles.css` suppressed only the native `::selection`, and its comment asserted
+`.cm-selectionBackground` "never actually mounts here" — measured on a SINGLE range, and false
+for multi-cursor. Both paths are now suppressed together; the regression test asserts resolved
+COLORS rather than the absence of the elements, since the elements still exist and should.
+
+### Defect: one flicker on entering block mode, and it was not the blur (5.3c)
+
+Reported as much better than before, but with "one initial flicker on the first switch to
+block-selection", absent for mouse-driven selection.
+
+Instrumented with a `MutationObserver` on the editor's class plus focus/blur listeners and a
+`requestAnimationFrame` ticker. The blur was NOT the cause — it landed 0.1ms after the class went
+on, well before the next paint:
+
+    6.8 class=ON  sel=[0-11] focus=true
+    6.9 blur
+    21.5 class=off sel=[0-11] focus=false
+    21.9 class=ON  sel=[0-11] focus=false
+
+The selection is unchanged throughout, which rules out `allRangesCovered`. The cause is CM6:
+`EditorView.updateAttrs` recomputes the editor's whole class string —
+`"cm-editor" + (hasFocus ? " cm-focused " : " ") + themeClasses` plus the `editorAttributes`
+facet — and writes the `class` ATTRIBUTE wholesale. So the focus change that block-selection mode
+ITSELF causes made CM6 clobber a class we had written with `classList`, and the next `update()`
+put it back. A paint landed in the window, so exactly one frame rendered with no chrome and the
+native highlight showing through.
+
+Declaring the class through `EditorView.editorAttributes` closes it: CM6 folds the class into the
+same computed string it rewrites, so the rewrite carries it. `attrsFromFacet` re-evaluates
+function sources on every `updateAttrs` and `combineAttrs` concatenates `class` values, so it
+composes with the theme rather than racing it. Post-fix the `class=off` entry is simply absent.
+
+**The general lesson, third instance this change:** a class written imperatively onto a DOM node
+that a library also manages is not owned by the writer. The same applies to the two focus
+findings in Q31 — DOM state the library considers its own will be recomputed from the library's
+model, and anything written outside that model is transient.

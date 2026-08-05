@@ -129,23 +129,35 @@
 
 ## 5. Real-vault manual pass
 
-- [ ] 5.1 Extend and shrink across real notes, especially deeply nested lists and heading
-      sections
-- [ ] 5.2 Reach D4's merge edge deliberately — two cursors a couple of nodes apart, extended
-      until their ranges OVERLAP rather than merely touch — and judge whether the switch to
-      block semantics reads as abrupt
-- [ ] 5.3 Judge whether losing the caret's exact offset on the first press is felt
-- [ ] 5.3b Judge D8's irreversible swallow: `⇧↑` from a first child, then try to get back. If it
-      reads as a trap rather than as "the parent is now the thing selected", the fallback is the
-      stored origin D8 rejected — reopen that decision rather than patching around it
-- [ ] 5.3c Confirm the flicker is gone in the real vault, and that the blurred state does not
-      feel inert — D9 keeps the editor blurred across a whole extension gesture, which is longer
-      than it stays blurred today. Watch specifically for a key that silently does nothing
-- [ ] 5.4 Record findings in `docs/research/04`
+- [x] 5.1 CLEAN. Variable-depth selection behaves correctly on real notes; no findings
+- [x] 5.2 Merge itself reads fine — the abruptness D4 worried about was not reported. Found a
+      DIFFERENT defect instead: every covered range but the last painted a stray highlight under
+      the chrome. The browser's DOM Selection holds only ONE range, so CM6 draws the rest as
+      `.cm-selectionBackground` rects, which carry an unconditional base background in its theme
+      with no `.cm-focused` requirement. `styles.css` suppressed only native `::selection`, and
+      its comment claimed those rects "never actually mounts here" — measured on a SINGLE range,
+      false for multi-cursor. Both paths suppressed now (Q32)
+- [x] 5.3 ACCEPTED as designed: "a bit annoying, but not a deal-breaker." Matches Workflowy and
+      Logseq. No change
+- [x] 5.3b ACCEPTED: "kind of makes sense... not perfect, but understandable and tolerable." D8
+      stands; the stored origin stays rejected. The question it drew — could the range preserve
+      `c1+c2+P` rather than collapsing to "whole P", and doesn't the mixed-depth forest prove we
+      already store state — is answered in Q32: both are the SAME span under downward closure,
+      the forest is derived not stored, and what is lost was never in the range
+- [x] 5.3c "Definitely much better", and no inert keys reported. One residual flicker remained
+      on the FIRST switch into block mode, absent for the mouse — and it was NOT the blur, which
+      lands before the next paint. `EditorView.updateAttrs` rewrites the editor's whole `class`
+      attribute on a focus change, clobbering a class written with `classList`; the next update
+      restored it, one frame late. Now declared through `EditorView.editorAttributes` so CM6's
+      own rewrite carries it (Q32)
+- [x] 5.4 Recorded as Q32
 
 ## 6. Documentation
 
-- [ ] 6.1 Update examples.md with anything the manual pass revises
+- [x] 6.1 NOTHING to revise — the pass found no behavioral difference from the drawn examples.
+      Both defects were visual (a stray highlight layer, a one-frame class drop), neither
+      changing which nodes a press selects. E7's frames were already corrected during
+      implementation, when the unit tests showed the swallow is the SECOND press
 - [x] 6.2 Updated `docs/research/13`'s "Modal block-level keyboard selection" entry, split into
       shipped / still-open / knowingly-irreversible. ALSO corrected that file's flash entry: its
       "confirmed root cause" (a two-transaction escalation split) does not exist — CM6's

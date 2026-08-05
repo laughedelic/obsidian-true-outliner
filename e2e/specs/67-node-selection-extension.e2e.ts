@@ -418,6 +418,68 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
     expect(transitions).toBe(0);
   });
 
+  it('a MULTI-RANGE block selection shows no selection background at all', async () => {
+    // Real-vault pass 5.2. The browser's DOM Selection holds only ONE range,
+    // so CM6 draws the others itself as `.cm-selectionBackground` rects — and
+    // those carry an unconditional base background in CM6's own theme, with no
+    // `.cm-focused` requirement, so blurring does not hide them. They showed
+    // through under every covered range but the last, reading as a stray
+    // character-level highlight. Asserts the resolved colors, not the absence
+    // of the elements: the elements still exist and should.
+    await outlineNote('- a\n- b\n- c\n- d\n- e\n');
+    await h.dispatchSelectOnlyRanges([
+      { anchor: { line: 0, ch: 3 }, head: { line: 0, ch: 3 } },
+      { anchor: { line: 2, ch: 3 }, head: { line: 2, ch: 3 } },
+      { anchor: { line: 4, ch: 3 }, head: { line: 4, ch: 3 } },
+    ]);
+    await focusEditor();
+    await down();
+    await browser.pause(150);
+    const painted = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const root = (view.editor as any).cm.dom as HTMLElement;
+      const rects = Array.from(root.querySelectorAll('.cm-selectionBackground'));
+      const line = root.querySelector('.cm-line');
+      return {
+        drawn: rects.map((el) => getComputedStyle(el).backgroundColor),
+        native: line ? getComputedStyle(line, '::selection').backgroundColor : 'none',
+      };
+    });
+    expect(painted.drawn.length).toBeGreaterThan(1); // CM6 really is drawing them
+    for (const color of painted.drawn) expect(color).toBe('rgba(0, 0, 0, 0)');
+    expect(painted.native).toBe('rgba(0, 0, 0, 0)');
+  });
+
+  it('entering block mode never renders a frame without the chrome class', async () => {
+    // Real-vault pass 5.3c. `EditorView.updateAttrs` recomputes the editor's
+    // whole class string on a focus change and writes the attribute wholesale,
+    // so a class added imperatively with `classList` was clobbered by the very
+    // blur block-selection mode causes, then restored by the next update —
+    // one frame of no chrome plus native highlight. Declaring it through the
+    // `editorAttributes` facet removes the window entirely.
+    await outlineNote('Alpha one.\n\nBravo two.\n\nCharlie three.\n');
+    await h.setCursor(0, 6);
+    await focusEditor();
+    await browser.pause(100);
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const cm = (view.editor as any).cm;
+      const w = window as any;
+      w.__classLog = [];
+      new MutationObserver(() => {
+        w.__classLog.push(cm.dom.classList.contains('to-decor-block-selecting'));
+      }).observe(cm.dom, { attributes: true, attributeFilter: ['class'] });
+    });
+    await down();
+    await browser.pause(300);
+    const log = await browser.execute(() => (window as any).__classLog ?? []);
+    // Once the class goes on it must never come back off while the selection
+    // stays a cover. Every observed class mutation after the first must still
+    // carry it.
+    expect(log.length).toBeGreaterThan(0);
+    expect(log.every((on: boolean) => on)).toBe(true);
+  });
+
   it('block chrome renders for extension-produced covers', async () => {
     // `escalated-selection-decoration` reads covers, not their provenance, so
     // a keyboard-built cover must decorate exactly like a drag-built one.
