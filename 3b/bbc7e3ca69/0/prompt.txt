@@ -1,0 +1,21 @@
+here are my comments per manual test task:
+
+> 5.1 Extend and shrink across real notes, especially deeply nested lists and heading sections
+
+overall it seems to be fine. variable depth selection is fine. 
+
+> 5.2 Reach D4’s merge edge deliberately — two cursors a couple of nodes apart, extended until their ranges OVERLAP rather than merely touch — and judge whether the switch to block semantics reads as abrupt
+
+Multi-cursor block-selections do merge. But there is a visual glitch: all block-selection ranges except the last one have an overlapping selection background, which looks more like a character-level selection (but I'm not sure). the block-selection is fine, it's just the extra selection background that is the problem.
+
+> 5.3 Judge whether losing the caret’s exact offset on the first press is felt
+
+I'm not sure I understood it right. Is it about the character to block selection change loosing the character-level range or cursor position? it's a bit annoying, but not a deal-breaker. Or is it about something else?
+
+> 5.3b Judge D8’s irreversible swallow: ⇧↑ from a first child, then try to get back. If it reads as a trap rather than as “the parent is now the thing selected”, the fallback is the stored origin D8 rejected — reopen that decision rather than patching around it
+
+It's kind of makes sense. It's not perfect, but understandable and tolerable. What I wonder about this, is how we currently store the selection range. If we have c2+c1 selected, then go up to P, are we just switching to "whole P" as the current selection? or could it preserve the exact c2+c1+P range? If so, why can't we roll back. I'm not sure if this is exactly the alternative proposal for the stored state, or it's actually different. We do have some state, right? Otherwise how can we maintain varied-depth selection as a multi-root forest?
+
+> 5.3c Confirm the flicker is gone in the real vault, and that the blurred state does not feel inert — D9 keeps the editor blurred across a whole extension gesture, which is longer than it stays blurred today. Watch specifically for a key that silently does nothing
+
+It's definitely much better than it was before. There is still one initial flicker on the first switch to block-selection. This doesn't happen for mouse-driven selection. See if this is something fixable. Not a deal breaker, but maybe it was just overlooked in the implementation.

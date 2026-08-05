@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "3bbbc7e3ca69",
+  "strategy": "manual-commit",
+  "branch": "docs/update-node-selection-extension",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "openspec/changes/node-selection-extension/design.md",
+    "openspec/changes/node-selection-extension/specs/escalated-selection-decoration/spec.md",
+    "src/plugin/decorations.ts",
+    "styles.css"
+  ],
+  "sessions": [
+    {
+      "metadata": "/3b/bbc7e3ca69/0/metadata.json",
+      "transcript": "/3b/bbc7e3ca69/0/full.jsonl",
+      "compact_transcript": "/3b/bbc7e3ca69/0/transcript.jsonl",
+      "content_hash": "/3b/bbc7e3ca69/0/content_hash.txt",
+      "prompt": "/3b/bbc7e3ca69/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 476040,
+    "cache_read_tokens": 12753792,
+    "output_tokens": 25370,
+    "api_call_count": 28
+  }
+}
