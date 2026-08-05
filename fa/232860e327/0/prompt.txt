@@ -1,0 +1,20 @@
+<ci-monitor-event>laughedelic/obsidian-true-outliner PR #38 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ## Pull request overview
+
+Copilot reviewed 22 out of 29 changed files in this pull request and generated no new comments.
+
+
+
+
+<details>
+<summary>Suppressed comments (2)</summary>
+
+**src/plugin/keymap.ts:252**
+* A mixed selection can still be frozen here. If one range is stock-owned (for example, a preamble cursor) and another outline range is at the end of its sequence, `extendSelections` returns `null` for both, so this branch consumes the key before the stock-owned range receives its vertical motion. Continue to the per-range dispatch whenever any `stock` entry is true; consume an all-null result only when every range is outline-owned.
+```
+    if (next.every((range) => range === null)) return true;
+```
+**src/plugin/decorations.ts:936**
+* The transition detector is never initialized from the current selection, and the focus policy only runs later on `selectionSet` or mouseup. When this view plugin is created/reconfigured while an outline editor already holds an exact cover (for example, plugin load with an existing selection), the class/chrome derive block mode immediately but the editor remains focused and `inBlockMode` stays false until another gesture. Schedule one initial poli… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/38/reviews/4861140281`]
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
