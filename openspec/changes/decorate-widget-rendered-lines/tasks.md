@@ -65,76 +65,76 @@ selector must exclude it explicitly rather than rely on it being absent.
 
 Per project practice: a new assertion that passes before the fix proves nothing.
 
-- [ ] 2.1 Write the same-depth-sibling e2e assertion for the whole-paragraph embed (its
+- [x] 2.1 Write the same-depth-sibling e2e assertion for the whole-paragraph embed (its
       resolved left edge, marker presence, and guide presence compared against the plain
       paragraph at the same tree depth in the same fixture) and confirm it FAILS on the
       current code, for the documented reason (the embed is never decorated), not an
       unrelated one. Replaces the original cursor-on-equals-cursor-off formulation, which
       task 1.3 showed is not observable — see Findings and design D5.
-- [ ] 2.2 Confirm the existing widget-atom e2e assertions in `50-decorations.e2e.ts`,
+- [x] 2.2 Confirm the existing widget-atom e2e assertions in `50-decorations.e2e.ts`,
       `51-guides-gradient.e2e.ts`, `52-block-markers-icons.e2e.ts`, and
       `63-selection-visual-treatment.e2e.ts` all pass on the current code — this is the
       baseline the refactor must leave byte-identical.
 
 ## 3. Generalize the DOM-patch path
 
-- [ ] 3.1 Replace `WIDGET_ATOM_SELECTOR`'s class enumeration with the structural predicate
+- [x] 3.1 Replace `WIDGET_ATOM_SELECTOR`'s class enumeration with the structural predicate
       (design D1): direct children of `contentDOM` that are not plain `.cm-line`s, plus
       `:scope > .cm-line.hr`, excluding `.cm-gap` and `.cm-widgetBuffer`. Rename it to
       reflect that it selects line-level widgets of any kind, and rewrite its doc comment —
       the current one claims the selector over-matches harmlessly, when measurement showed
       it *under*-matches and misses embeds entirely.
-- [ ] 3.2 Extract the shift expression into one function of `(fact, nativePaddingLeft)`
+- [x] 3.2 Extract the shift expression into one function of `(fact, nativePaddingLeft)`
       (design D2): `supplementalDepth` vs `depth`, `0px` vs `MARKER_GUTTER_CSS` gutter,
       with the live native-padding subtraction and `max(0px, …)` clamp unchanged.
-- [ ] 3.3 Verify by inspection and by test that 3.2 reduces to today's exact expression for
+- [x] 3.3 Verify by inspection and by test that 3.2 reduces to today's exact expression for
       an atom fact, so the atom path is provably unchanged rather than believed to be.
-- [ ] 3.4 Hoist marker eligibility (`isFirstLine && !isListItem`, then `shouldShowMarker`)
+- [x] 3.4 Hoist marker eligibility (`isFirstLine && !isListItem`, then `shouldShowMarker`)
       into one predicate shared by the plain-line and widget paths (design D3), so the two
       cannot disagree about which lines may carry a synthetic marker.
-- [ ] 3.5 Replace the `fact?.isAtom` gate with "this line has a fact", and route margin,
+- [x] 3.5 Replace the `fact?.isAtom` gate with "this line has a fact", and route margin,
       marker, guides, and selection chrome through 3.2/3.4 for whatever kind that fact
       reports.
-- [ ] 3.6 Narrow the `else` branch to its true no-op case and correct its comment (design
+- [x] 3.6 Narrow the `else` branch to its true no-op case and correct its comment (design
       D4) — it is defensive only, no longer the path any widget-rendered non-atom takes.
-- [ ] 3.7 Confirm `applyWidgetMarker` prepends into the outer `.cm-embed-block` wrapper and
+- [x] 3.7 Confirm `applyWidgetMarker` prepends into the outer `.cm-embed-block` wrapper and
       never into Obsidian-rendered embed content (design Risks), and extend the sanctioned-
       injection-site comment to state that the subtree is now Obsidian-owned for embeds, not
       only CM6-owned.
-- [ ] 3.8 Check `styles.css` for any rule whose selector assumes an atom-only class
+- [x] 3.8 Check `styles.css` for any rule whose selector assumes an atom-only class
       combination on a line-level widget; widen only where the measured DOM requires it,
       keeping every `>` combinator.
 
 ## 4. Verify
 
-- [ ] 4.1 The 2.1 assertion now passes, and the 2.2 baseline is still green — the atom
+- [x] 4.1 The 2.1 assertion now passes, and the 2.2 baseline is still green — the atom
       behavior unchanged.
-- [ ] 4.2 Per-placement e2e coverage: whole-paragraph embed line gets its paragraph marker +
+- [x] 4.2 Per-placement e2e coverage: whole-paragraph embed line gets its paragraph marker +
       indentation + ancestor guides; multi-line-node embed line gets the node's indentation
       and NO marker (continuation line); list-item embed line gets `supplementalDepth` and NO
       synthetic marker; inline embed among text leaves the host `.cm-line` decorated exactly
       once and the nested element unpatched (no doubled shift). The last two are measured to
       be correct already — assert them as regression locks, since the widened predicate is
       what could newly break them.
-- [ ] 4.3 Escalated-selection coverage: an embed line inside a cover shows the same chrome
+- [x] 4.3 Escalated-selection coverage: an embed line inside a cover shows the same chrome
       as plain lines in that cover, reaching the same left edge.
-- [ ] 4.4 Marker-idempotence under embed re-render (design Risks): force the embed to
+- [x] 4.4 Marker-idempotence under embed re-render (design Risks): force the embed to
       re-render and assert exactly one marker child survives. Record what actually happens
       if it does not — that finding decides whether a follow-up is needed, not a guess.
-- [ ] 4.5 `markerVisibility` across all three settings on the embed fixture: the reserved
+- [x] 4.5 `markerVisibility` across all three settings on the embed fixture: the reserved
       gutter is constant and only icon presence changes, same invariant as every other kind.
-- [ ] 4.6 Outline-mode-off on the embed fixture renders byte-identical to stock Obsidian
+- [x] 4.6 Outline-mode-off on the embed fixture renders byte-identical to stock Obsidian
       (no leftover inline styles or marker children after `clearAll()`).
-- [ ] 4.7 Full suite: unit tests, `openspec validate --strict`, lint, and the whole
+- [x] 4.7 Full suite: unit tests, `openspec validate --strict`, lint, and the whole
       decoration e2e corpus including the newly registered fixture's screenshots.
-- [ ] 4.8 Manual pass in a real vault with a real embed, at more than one theme, confirming
+- [x] 4.8 Manual pass in a real vault with a real embed, at more than one theme, confirming
       the embed sits in the outline geometry and stops moving when the cursor leaves it.
 
 ## 5. Close out
 
-- [ ] 5.1 Remove the "Wiki-embed blocks bypass decoration entirely" entry from
+- [x] 5.1 Remove the "Wiki-embed blocks bypass decoration entirely" entry from
       `docs/research/12-decoration-follow-ups.md`, and record anything the measurement pass
       turned up that is worth keeping (e.g. an unresolved async-re-render behavior) as a new
       parking-lot entry rather than losing it.
-- [ ] 5.2 Update the `decorations.ts` module doc comment where it describes the widget path
+- [x] 5.2 Update the `decorations.ts` module doc comment where it describes the widget path
       in atom terms.

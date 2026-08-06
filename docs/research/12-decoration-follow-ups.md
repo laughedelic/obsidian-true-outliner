@@ -47,27 +47,6 @@ mechanism, `width: auto`). Needs its own investigation with Minimal (and ideally
 max-width-style theme) actually installed and screenshotted, not a guess from one data
 point.
 
-### Wiki-embed blocks bypass decoration entirely
-
-Found in the 2026-07-20 personal-vault pass. A `![[Another note]]` line parses as a
-**paragraph** (the parser has no embed concept), so while the cursor is on the line — a
-plain `.cm-line` — it correctly renders as an indented paragraph with a paragraph marker.
-When the cursor leaves, Obsidian replaces the line with an opaque
-`.cm-embed-block.markdown-embed` widget: `MarginCompensation`'s broad
-`WIDGET_ATOM_SELECTOR` does match it, but the line's fact says `kind: 'paragraph'`,
-`isAtom: false`, so the code takes its cleanup branch and strips margin/marker/guides
-from the frame — the embed sits flush left, outside the outline geometry. (The cleanup
-branch's own comment assumed elements-without-atom-facts were a harmless no-op case,
-citing inline image embeds; a full-line note embed is the case where it isn't.)
-
-Fixing this is a **model decision first, mechanism second**: is an embed line its own
-node kind (an atom — it can't have children by adjacency the way a paragraph can), or a
-paragraph whose widget-rendered form the DOM patch should handle specially? Once decided,
-the mechanism already exists — the widget-atom margin/marker/guide path applies almost
-unchanged. Also needs: a fixture in the decoration corpus (none exercises embeds today),
-e2e coverage for both cursor-on-line and widget states, and a decision on which marker
-icon an embed gets.
-
 ### RTL-aware placement (openspec outline-decorations task 5.9)
 
 The marker's `left`-shift assumes the line's first character renders at the physical
@@ -78,6 +57,31 @@ Full finding and screenshot evidence: the hardening pass's RTL e2e test
 users who need RTL** — the fix is direction-aware placement (per-line direction
 detection, mirrored shift, and a design decision about which side the gutter/guides
 belong on), not a patch.
+
+### Two untested edges of the line-level-widget predicate
+
+Left over from the decorate-widget-rendered-lines change, which replaced the DOM-patch
+loop's class enumeration with a structural predicate ("a direct child of `.cm-content`
+that isn't a plain `.cm-line`"). Both are recorded rather than closed because closing
+either needs a scenario the current e2e corpus can't produce cheaply — neither is a known
+defect.
+
+- **The `.cm-gap` exclusion is untested.** CodeMirror mounts `.cm-gap` placeholders as
+  direct children of `.cm-content` when a document is long enough to be
+  viewport-virtualized, which is exactly the shape the predicate would otherwise claim and
+  patch. The exclusion is in the selector, but every fixture measured had zero `.cm-gap`
+  elements (documents far too short to virtualize), so the guard has never actually fired.
+  Confirming it needs a multi-thousand-line fixture — which is also what
+  viewport-limited decoration building (below) would need, so the two pair naturally.
+- **A real embed re-render is only approximated.** An embed's contents are rendered by
+  Obsidian's own markdown renderer, unlike the CM6-owned widget subtrees the marker's
+  injection site was originally designed against, so it can re-render on its own schedule
+  (the embedded note finishes loading, or is edited in another pane). The marker is
+  prepended to the line-level wrapper rather than into that inner content, which should
+  make it immune, and the idempotence e2e covers repeated renders — but it triggers them
+  by moving the cursor, not by actually editing the embedded note from elsewhere. If a
+  duplicated or vanished marker on an embed is ever reported, this is the first thing to
+  reproduce.
 
 ## Deferred mechanisms (working today, better shapes known)
 
@@ -200,6 +204,12 @@ box; for consistency with everything else (markers otherwise track the first tex
 they should stick near the **top** of the block instead. The code-block icon could also
 come down slightly (it sits a touch too high at the top). Cosmetic only, low stakes —
 bundled with the next deliberate decoration pass rather than done ad hoc.
+
+Wiki embeds now share this: they take the same widget marker mechanism (see
+decorate-widget-rendered-lines), so an embed's paragraph marker flex-centers against the
+whole embedded block's height — visibly further from its first text row than a table's,
+since an embed is usually taller. Confirmed in that change's own screenshot pass. Same
+fix, one more kind to cover.
 
 ## Verification-infrastructure ideas
 

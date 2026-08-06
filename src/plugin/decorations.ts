@@ -5,8 +5,12 @@
  * per-editor on outline mode via the public `editorInfoField` — same
  * gating pattern as keymap.ts's grammarExtension.
  *
- * Two mechanisms, because Obsidian renders atom kinds two different ways in
- * Live Preview:
+ * Two mechanisms, because Obsidian renders lines two different ways in Live
+ * Preview. Which mechanism a line needs is decided by its RENDERED FORM, not
+ * by its node kind: the two correlate strongly (the atom kinds are always
+ * widget-rendered, headings and paragraphs usually aren't) but they are not
+ * the same question, and treating them as one is a bug this module has
+ * already had once — see WIDGET_LINE_SELECTOR.
  *
  * - Most lines (headings, paragraphs, list items, code fences, plain
  *   blockquotes) render as a real `.cm-line` that CM6 lets us decorate
@@ -18,12 +22,14 @@
  *   for the block marker icon (Experiment 5a, see below) — CM6's own,
  *   supported way to insert extra DOM into a line's content without
  *   fighting its own re-render/diffing.
- * - Tables, callouts, raw HTML blocks, and horizontal rules are rendered as
- *   opaque replacement widgets (`.cm-embed-block`, or `.hr` for the rule) —
- *   confirmed live: a `Decoration.line` targeting that line's position has
- *   no effect at all (not even a class-merge partial win), because the
- *   widget's own `toDOM()` produces the line's DOM wholesale and neither
- *   CM6 nor Obsidian threads our decoration's class/attributes through it.
+ * - Other lines are replaced wholesale by an opaque element. Tables,
+ *   callouts, raw HTML blocks, and horizontal rules always are; so is a
+ *   paragraph (or list item) Obsidian chooses to render as something else,
+ *   such as a wiki embed. Confirmed live: a `Decoration.line` targeting
+ *   that line's position has no effect at all (not even a class-merge
+ *   partial win), because the widget's own `toDOM()` produces the line's
+ *   DOM wholesale and neither CM6 nor Obsidian threads our decoration's
+ *   class/attributes through it.
  *   These need a direct, imperative DOM patch instead — a `ViewPlugin`
  *   that, after each render, sets `margin-left` inline (with `!important`,
  *   which always wins for an inline style regardless of what any
@@ -489,8 +495,10 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
   const builder = new RangeSetBuilder<Decoration>();
   for (const fact of docFacts(state).facts) {
     // List items keep their fully native marker, untouched (same exclusion
-    // guides already use); continuation lines never repeat the marker.
-    if (fact.isListItem || !fact.isFirstLine) continue;
+    // guides already use); continuation lines never repeat the marker. The
+    // same predicate gates the widget path (see isMarkerEligible), so the
+    // two can't disagree about which lines may carry one.
+    if (!isMarkerEligible(fact)) continue;
     // Widget-replaced atoms have no plain `.cm-line` for a widget decoration
     // to attach to — MarginCompensation injects their marker directly.
     if (WIDGET_ATOM_KINDS.has(fact.kind)) continue;
@@ -819,13 +827,37 @@ function computeSelectionDecorations(state: EditorState, modes: DecorationSource
   return builder.finish();
 }
 
-// Obsidian's own selectors for widget-replaced atom kinds — matches tables,
-// callouts, and raw HTML blocks (`.cm-embed-block`) plus horizontal rules
-// (`.hr`, which oddly also carries `cm-line` but is widget-rendered all the
-// same). Broad by design: elements it catches that don't correspond to an
-// atom fact (e.g. an inline image embed inside a paragraph) just get their
-// margin cleared, a no-op.
-const WIDGET_ATOM_SELECTOR = '.cm-embed-block, .cm-line.hr';
+// Every element that stands in for a WHOLE editor line instead of the
+// plain `.cm-line` CM6 would otherwise render — whatever node kind that
+// line's text happens to parse as.
+//
+// This is deliberately STRUCTURAL rather than a list of Obsidian's own
+// classes. The previous version enumerated `.cm-embed-block, .cm-line.hr`,
+// which covers the four atom kinds (table/callout/raw HTML carry
+// `cm-embed-block`; the rule oddly carries `cm-line` but is widget-rendered
+// all the same) and silently covers nothing else. A wiki embed is rendered
+// as `internal-embed markdown-embed` with no `cm-embed-block` class at all,
+// so it matched ZERO elements and was never decorated — measured live, not
+// inferred (see the decorate-widget-rendered-lines change). Adding
+// `.markdown-embed` to the list would just reset the same trap for the next
+// widget-rendered kind, so the question asked here is the one that actually
+// matters: does this element take the place of a line?
+//
+// A line-level replacement is a direct child of `.cm-content`; anything
+// Obsidian renders INSIDE a line (an inline embed among a paragraph's text,
+// an embed in a list item) is not, and must be left alone — its host line
+// is a real `.cm-line` that already got its decoration declaratively, so
+// patching the nested element too would shift it a second time. The
+// stylesheet already encodes this same invariant via its `.cm-content > …`
+// child combinators, so JS and CSS agree by construction rather than by
+// coincidence.
+//
+// The exclusions are CM6's own scaffolding, which is also mounted as direct
+// children: `.cm-gap` (viewport-virtualization placeholders, present only
+// in documents long enough to be virtualized) and `.cm-widgetBuffer` (cursor
+// -placement helpers around widgets). Neither renders a line.
+const WIDGET_LINE_SELECTOR =
+  ':scope > *:not(.cm-line):not(.cm-gap):not(.cm-widgetBuffer), :scope > .cm-line.hr';
 
 // Plain `.cm-line`s that carry one of our own margin-based decorations
 // (atoms, list items) — needs the SAME native-base compensation as
@@ -833,7 +865,62 @@ const WIDGET_ATOM_SELECTOR = '.cm-embed-block, .cm-line.hr';
 const PLAIN_MARGIN_SELECTOR = '.cm-line.to-decor-atom, .cm-line.to-decor-list';
 
 /**
- * Injects/updates the marker icon child on a widget-replaced atom element
+ * The rightward shift a widget-replaced line's own box needs, from OUR
+ * contribution alone — the single formula every consumer derives from, so
+ * the margin, the marker's target column, the guide's leftward widening and
+ * the selection chrome's left edge can never silently disagree.
+ *
+ * Deliberately NOT including `nativeMarginBasePx`: that applies uniformly to
+ * every line regardless of depth, so it cancels out of the *difference*
+ * between any two lines' columns. It belongs on `margin-left` and nowhere
+ * else (see the call site).
+ *
+ * The depth term is `supplementalDepth` for a list item and `depth` for
+ * everything else — the same split `decorate.ts` documents and the plain-
+ * line path already applies via `--to-supp-depth`/`--to-depth`. The gutter
+ * term is the marker gutter for every kind EXCEPT list items, which show
+ * their native bullet/number instead and reserve nothing; it is added
+ * unconditionally, never gated on `markerVisibility`, so hiding a marker
+ * cannot reflow text.
+ *
+ * `nativePaddingLeft` is whatever native left padding the element carries
+ * on its own (a table's row/column drag-handle gutter, say): padding never
+ * moves a box's own edge, so it only pushes the widget's *visible content*
+ * further right than a same-depth line of another kind. Read live by the
+ * caller, never hardcoded, and clamped at 0 so a depth-0 line can't go
+ * negative.
+ *
+ * For an atom fact this reduces to exactly the expression this code used
+ * before it was generalized past atoms — the point of extracting it rather
+ * than adding a parallel branch.
+ */
+function widgetOwnShiftExpr(fact: LineDecorationFact, nativePaddingLeft: number): string {
+  const depth = fact.isListItem ? fact.supplementalDepth : fact.depth;
+  const gutter = fact.isListItem ? '0px' : MARKER_GUTTER_CSS;
+  return `max(0px, calc(${depth} * ${UNIT} - ${nativePaddingLeft}px)) + ${gutter}`;
+}
+
+/**
+ * Whether this line may carry a synthetic marker at all, before the
+ * `markerVisibility` setting gets a say. Two rules, both independent of
+ * rendered form, hoisted here so the plain-line path and the widget path
+ * cannot disagree about them:
+ *
+ * - only a node's own FIRST line carries one (never a continuation line,
+ *   never a blank gap line);
+ * - a list item NEVER carries one — its native bullet/number already
+ *   signals the node, and Experiment 1 leaves that untouched.
+ *
+ * The widget path could previously skip both checks and stay correct by
+ * accident: an atom's widget always maps to its own first line, and an atom
+ * is never a list item. Neither holds once that path admits other kinds.
+ */
+function isMarkerEligible(fact: LineDecorationFact): boolean {
+  return fact.isFirstLine && !fact.isListItem;
+}
+
+/**
+ * Injects/updates the marker icon child on a widget-replaced line's element
  * (table/callout/html/hr) — the only way to reach these (Experiment 5a),
  * same reasoning as the margin-left patch above: a CM6 decoration has no
  * effect on these elements at all. Idempotent: skips the rebuild when the
@@ -870,14 +957,22 @@ function applyWidgetMarker(el: HTMLElement, kind: NodeKind, ownShiftExpr: string
   icon.appendChild(buildMarkerIcon(kind));
   // THE sanctioned live-DOM injection site (invariant (a), see the module
   // doc comment and the no-restricted-syntax guard in eslint.config.js):
-  // `el` is a widget-replaced atom (matched by WIDGET_ATOM_SELECTOR only) —
-  // an opaque, Obsidian-owned subtree CM6 never re-diffs internally, which
-  // is what makes this append safe where the same call on a plain
-  // `.cm-line` pegs the renderer. If Obsidian ever starts re-diffing these
-  // subtrees, the failure mode is re-injection flicker/duplicated markers —
-  // the idempotence guard above (kind/position skip) is the first line of
-  // defense, and the duplicate-marker e2e test the second.
-  // eslint-disable-next-line no-restricted-syntax -- sanctioned widget-atom injection (invariant (a), see comment above)
+  // `el` is a widget-replaced LINE (matched by WIDGET_LINE_SELECTOR only) —
+  // an opaque subtree CM6 never re-diffs internally, which is what makes
+  // this append safe where the same call on a plain `.cm-line` pegs the
+  // renderer.
+  //
+  // For the atom kinds that subtree is Obsidian-owned and static once
+  // rendered. A wiki embed is a weaker guarantee: its contents are rendered
+  // by Obsidian's own markdown renderer and can re-render on their own
+  // schedule (the embedded note finishes loading, or is edited elsewhere).
+  // The icon is prepended to THIS element — the line-level wrapper — never
+  // into the embed's inner rendered content, so an inner re-render leaves it
+  // alone. If a re-render ever does clobber it the failure mode is a lost or
+  // duplicated marker: the idempotence guard above (kind/position skip) is
+  // the first line of defense, and the duplicate-marker e2e tests in
+  // 52-block-markers-icons and 54-widget-rendered-lines the second.
+  // eslint-disable-next-line no-restricted-syntax -- sanctioned widget-line injection (invariant (a), see comment above)
   el.prepend(icon);
 }
 
@@ -1283,7 +1378,7 @@ class MarginCompensation implements PluginValue {
    */
   private nativeMarginBasePx(): number {
     // `.hr` is excluded too: it carries `.cm-line` but is widget-rendered
-    // (see WIDGET_ATOM_SELECTOR) and patched by the loop below — if a
+    // (see WIDGET_LINE_SELECTOR) and patched by the loop below — if a
     // previous `apply()` call already set its margin-left, querying it
     // here would read back our OWN prior value, not the native one.
     const ref = this.view.contentDOM.querySelector<HTMLElement>(
@@ -1446,7 +1541,7 @@ class MarginCompensation implements PluginValue {
     const contentRightPx = this.nativeContentRightPx();
 
     const widgets = Array.from(
-      this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
+      this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_LINE_SELECTOR),
     );
     for (const el of widgets) {
       const lineNumber = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
@@ -1462,41 +1557,65 @@ class MarginCompensation implements PluginValue {
       const rootTarget = selectedLineTargets.get(lineNumber);
       el.classList.toggle(SELECTED_NODE_CLASS, rootTarget !== undefined);
       const fact = factsByLine.get(lineNumber);
-      if (fact?.isAtom) {
+      // Keyed on "this element renders a line that HAS a fact", not on the
+      // line's node kind. The gate here used to be `fact?.isAtom`, which
+      // asked what kind of node the line held when the only thing that
+      // matters is that the line was rendered as an opaque element, so the
+      // declarative decoration never landed on it. Those coincided while
+      // the selector above could only ever find atoms; they stopped
+      // coinciding the moment it could find a widget-rendered paragraph.
+      if (fact) {
         // Some widgets (tables, for their row/column drag-handles) carry
         // their own native left padding that our margin doesn't know
         // about — padding never moves a box's own edge, so it just pushes
         // the widget's *visible content* (e.g. the <table> grid) further
         // right than a same-depth code block or callout, whose background
         // fills their own padding invisibly. Reading it live (not a
-        // hardcoded constant) keeps this correct across themes; clamped at
-        // 0 so a depth-0 atom never goes negative.
-        const nativePaddingLeft = parseFloat(getComputedStyle(el).paddingLeft) || 0;
-        // The widget's own box's rightward shift *from our own
-        // contribution alone* — this (NOT including nativeBasePx) is also
-        // the exact compensation a guide's pseudo-element needs to widen
-        // itself by, leftward, to reach a shallower ancestor's column (see
-        // the "Guide lines" doc comment above): nativeBasePx applies
-        // uniformly to every line regardless of depth, so it cancels out
-        // of the *difference* between any two lines' columns and must be
-        // added to margin-left but never to `--to-own-shift`. Includes the
-        // marker gutter (Experiment 5a) — every widget atom always gets a
-        // marker, so its own box is always shifted by at least the gutter,
-        // even at depth 0. `applyWidgetMarker` below derives the marker's
-        // OWN target column from this exact same expression, so the two can
-        // never silently diverge again.
-        const ownShiftExpr = `max(0px, calc(${fact.depth} * ${UNIT} - ${nativePaddingLeft}px)) + ${MARKER_GUTTER_CSS}`;
+        // hardcoded constant) keeps this correct across themes.
+        const elStyle = getComputedStyle(el);
+        const nativePaddingLeft = parseFloat(elStyle.paddingLeft) || 0;
+        // The one shift formula every consumer below derives from — the
+        // margin, the marker's own target column, the guide's leftward
+        // widening, and the selection chrome's left edge — so they can
+        // never silently diverge. See widgetOwnShiftExpr's doc comment for
+        // why nativeBasePx is added to `margin-left` here and nowhere else.
+        const ownShiftExpr = widgetOwnShiftExpr(fact, nativePaddingLeft);
         el.style.setProperty('margin-left', `calc(${nativeBasePx}px + ${ownShiftExpr})`, 'important');
+
+        // Everything BELOW positions an absolutely-positioned box (the
+        // marker child, the guide's `::after`, the chrome's `::before`)
+        // inside this element, and `left` on such a box resolves against
+        // its containing block's PADDING box — inset from the border box by
+        // the border width. `ownShiftExpr` above is measured from the
+        // border box (that's what `margin-left` moves), so every positioned
+        // consumer needs the border added back to stay on the same column.
+        //
+        // Zero for the atom kinds, which carry no border — which is exactly
+        // why this never surfaced before. A wiki embed carries
+        // `border-left: 2px` (measured live), and every one of its
+        // positioned children landed 2px right of a same-depth plain line's.
+        // Read live rather than hardcoded, same as the padding above, since
+        // it is entirely theme-determined. The mirror-image rule for the
+        // right edge is already documented at `--to-selected-right` below.
+        const nativeBorderLeft = parseFloat(elStyle.borderLeftWidth) || 0;
+        const positionedShiftExpr = `${ownShiftExpr} + ${nativeBorderLeft}px`;
 
         // The gutter reservation above stays unconditional regardless of
         // markerVisibility — hiding some markers should never reflow text
         // or shift indentation, only whether the icon itself is drawn in
         // that already-reserved space (see shouldShowMarker's own doc
-        // comment).
-        if (shouldShowMarker(fact, this.modes.markerVisibility)) {
+        // comment). `isMarkerEligible` is the structural half of the
+        // question (first line, not a list item), which this path could
+        // previously leave out and stay correct only because every atom
+        // satisfied both by construction.
+        if (isMarkerEligible(fact) && shouldShowMarker(fact, this.modes.markerVisibility)) {
           el.classList.add('to-decor-marker');
-          el.dataset.markerDepth = String(fact.depth);
-          applyWidgetMarker(el, fact.kind, ownShiftExpr);
+          // Same depth term the shift above used, for the same reason: the
+          // marker's target column and the box it sits in must be derived
+          // from one number. (List items would need `supplementalDepth`
+          // here, and are excluded by `isMarkerEligible` before this runs.)
+          el.dataset.markerDepth = String(fact.isListItem ? fact.supplementalDepth : fact.depth);
+          applyWidgetMarker(el, fact.kind, positionedShiftExpr);
         } else {
           clearWidgetMarker(el);
         }
@@ -1505,7 +1624,7 @@ class MarginCompensation implements PluginValue {
         if (guide && guide.guideDepths.length > 0) {
           el.classList.add('to-decor-guides');
           el.style.setProperty('--to-guides', guideBackground(guide.guideDepths));
-          el.style.setProperty('--to-own-shift', `calc(${ownShiftExpr})`);
+          el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
         } else {
           el.classList.remove('to-decor-guides');
           el.style.removeProperty('--to-guides');
@@ -1513,13 +1632,15 @@ class MarginCompensation implements PluginValue {
         }
 
         if (rootTarget !== undefined) {
-          el.style.setProperty('--to-selected-left', `calc(${rootTarget} - (${ownShiftExpr}))`);
+          el.style.setProperty('--to-selected-left', `calc(${rootTarget} - (${positionedShiftExpr}))`);
           // `right` resolves against the containing block's PADDING box,
           // whose edge sits INSET FROM THE BORDER BOX BY THE BORDER WIDTH
           // only (not by padding — a wrong assumption in an earlier version
           // of this fix, corrected after re-deriving it from the CSS box
-          // model instead of assuming). This widget has no border
-          // (`border-width: 0`, confirmed live), so its padding box and
+          // model instead of assuming). See `nativeBorderLeft` above, which
+          // applies the same rule to every LEFT-positioned consumer. The
+          // atom kinds have no border (`border-width: 0`, confirmed live),
+          // so for them the padding box and
           // border box coincide exactly — `getBoundingClientRect()` (the
           // border box) is already the correct reference with no further
           // adjustment. Read `borderRightWidth` live anyway rather than
@@ -1543,6 +1664,16 @@ class MarginCompensation implements PluginValue {
           el.style.removeProperty('--to-selected-right');
         }
       } else {
+        // Defensive only, and genuinely a no-op in the steady state: every
+        // element this loop sees renders a real line, and every real line
+        // has a fact. It survives for the transient case where `posAtDOM`
+        // resolves against a document that has already moved on mid-update
+        // — leaving a stale patch behind would be worse than clearing it.
+        //
+        // This is NOT the branch a widget-rendered non-atom takes. It used
+        // to be: while the gate above read `fact?.isAtom`, any
+        // widget-rendered paragraph landed here and had its decoration
+        // stripped. That was the bug, not the design.
         el.style.removeProperty('margin-left');
         el.classList.remove('to-decor-guides');
         el.style.removeProperty('--to-guides');
@@ -1631,8 +1762,11 @@ class MarginCompensation implements PluginValue {
     this.view.dom.style.removeProperty('--to-chevron-dead-right');
     this.view.dom.style.removeProperty('--to-selected-bg');
     this.lastDeadRight = '';
+    // The same selector `apply()` patches through — it is the only thing
+    // that ever writes these styles, so clearing exactly that set is
+    // exactly complete.
     const widgets = Array.from(
-      this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_ATOM_SELECTOR),
+      this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_LINE_SELECTOR),
     );
     for (const el of widgets) {
       el.style.removeProperty('margin-left');

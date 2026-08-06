@@ -609,6 +609,91 @@ interface Rect {
   height: number;
 }
 
+/**
+ * Everything a decoration assertion needs about whichever element actually
+ * renders a given DOCUMENT line — `.cm-line` or not.
+ *
+ * `getLineRect`/`getLineComputedStyle` index into `:scope > .cm-line`, which
+ * silently means "the Nth plain line", not "document line N". That is fine
+ * for a document Obsidian renders entirely as plain lines, but as soon as
+ * one line is replaced by a widget (a table, a callout, a wiki embed) every
+ * index past it is off by one, and the assertion reads a neighbouring line
+ * while looking perfectly healthy. This resolves by document position
+ * instead (`posAtDOM` over every direct child of `contentDOM`), so it is
+ * correct regardless of how Obsidian chose to render the line.
+ */
+export interface LineElementInfo {
+  /** className of the element rendering this line. */
+  cls: string;
+  isCmLine: boolean;
+  rect: Rect;
+  marginLeft: number;
+  paddingLeft: number;
+  /**
+   * Where this line's own content actually begins on screen. The single
+   * quantity a same-depth comparison should use: plain lines carry their
+   * indentation as `padding-left` (box stays put, content moves), widgets
+   * carry it as `margin-left` (the whole box moves), so neither `rect.left`
+   * nor `padding-left` alone is comparable across the two — their sum is.
+   */
+  contentLeft: number;
+  hasMarker: boolean;
+  /** Absolute left edge of the marker icon, or null when there is none. */
+  markerLeft: number | null;
+  hasGuides: boolean;
+  /** Resolved background of the guide layer ('' when no guide renders). */
+  guideBackground: string;
+  hasSelectedChrome: boolean;
+}
+
+export function getLineElementInfo(lineIndex: number): Promise<LineElementInfo> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const content: HTMLElement = cm.contentDOM;
+      let found: HTMLElement | undefined;
+      for (const child of Array.from(content.children)) {
+        try {
+          if (cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1 === lineIndex) {
+            found = child as HTMLElement;
+            break;
+          }
+        } catch {
+          // Scaffolding (a viewport gap placeholder) has no document
+          // position of its own — never the element we're looking for.
+        }
+      }
+      if (!found) throw new Error(`no element renders document line ${lineIndex}`);
+      const cs = getComputedStyle(found);
+      const r = found.getBoundingClientRect();
+      const marginLeft = parseFloat(cs.marginLeft) || 0;
+      const paddingLeft = parseFloat(cs.paddingLeft) || 0;
+      const marker = found.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+      // The guide renders as an ::after layer; read the resolved value so a
+      // pass proves something actually painted, not just that a custom
+      // property was set (the postmortem's false-confidence rule).
+      const guideBg = getComputedStyle(found, '::after').backgroundImage;
+      return {
+        cls: found.className,
+        isCmLine: found.classList.contains('cm-line'),
+        rect: { left: r.left, top: r.top, width: r.width, height: r.height },
+        marginLeft,
+        paddingLeft,
+        contentLeft: r.left + paddingLeft,
+        hasMarker: !!marker,
+        markerLeft: marker ? marker.getBoundingClientRect().left : null,
+        hasGuides: found.classList.contains('to-decor-guides'),
+        guideBackground: guideBg && guideBg !== 'none' ? guideBg : '',
+        hasSelectedChrome: found.classList.contains('to-decor-node-selected'),
+      };
+    },
+    lineIndex,
+  );
+}
+
 /** getBoundingClientRect() of the Nth (0-indexed) `.cm-line` in the active editor. */
 export function getLineRect(lineIndex: number): Promise<Rect> {
   return browser.executeObsidian(
