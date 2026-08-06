@@ -7,8 +7,7 @@ replacing them, and SHALL apply to every line Obsidian replaces with an opaque w
 whatever that line's node kind is, not only the always-widget-replaced atom kinds (tables,
 callouts, raw HTML, horizontal rules) — exactly as it applies to plain `.cm-line`s, using
 whichever mechanism (declarative decoration or direct DOM patch) already reaches that line's
-rendered form. A line whose widget-replaced state depends on cursor position (e.g. a
-paragraph consisting of a note embed) SHALL show the same chrome in both states.
+rendered form.
 A line or widget that sets its OWN opaque background directly (e.g. a code fence) SHALL
 still show the chrome tint blended with that background, the same as a line that stays
 transparent. A line with its own native decorative element positioned at a fixed column
@@ -28,10 +27,9 @@ that cover.
 
 #### Scenario: A covered widget-replaced non-atom line gets chrome too
 - **WHEN** an escalated cover includes a paragraph consisting of a note embed, rendered as
-  an opaque widget because the cursor is not on it
-- **THEN** that widget receives the same selected-node chrome as every plain line in the
-  same cover, and the chrome does not disappear when the line switches between its
-  widget-replaced and plain-`.cm-line` renderings
+  an opaque replacement element rather than a plain `.cm-line`
+- **THEN** that element receives the same selected-node chrome as every plain line in the
+  same cover, reaching the same left edge
 
 #### Scenario: A widget atom's chrome matches the right edge every plain line reaches
 - **WHEN** an escalated cover includes a widget atom (e.g. a table) whose own rendered

@@ -32,7 +32,7 @@ import * as path from 'node:path';
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
-import { ALL_DECORATION_FIXTURES } from '../fixtures/decorations.js';
+import { ALL_DECORATION_FIXTURES, createFixture } from '../fixtures/decorations.js';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), '.obsidian-cache', 'guides-gradient-screenshots');
 
@@ -67,7 +67,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
 
   it('screenshots every fixture with outline mode on, light and dark', async function () {
     for (const fixture of ALL_DECORATION_FIXTURES) {
-      await h.createNote(fixture.note, fixture.md);
+      await createFixture(fixture, h.createNote);
       await ensureOutlineMode(fixture.note);
       await browser.pause(150);
 

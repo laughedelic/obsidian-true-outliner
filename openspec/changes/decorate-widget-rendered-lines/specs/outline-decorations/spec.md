@@ -36,12 +36,12 @@ line is currently rendered as plain text or as an opaque widget.
 - **THEN** every continuation line carries the same indentation contribution as the node's
   first line
 
-#### Scenario: A line's indentation does not depend on where the cursor is
+#### Scenario: A widget-rendered line aligns with its same-depth plain siblings
 - **WHEN** a line whose node is NOT an atom (e.g. a paragraph consisting of a note embed,
-  `![[Another note]]`) renders as a plain `.cm-line` with the cursor on it, and as an opaque
-  replacement widget with the cursor elsewhere
-- **THEN** its indentation contribution is identical in both states — moving the cursor onto
-  or off the line changes no horizontal position
+  `![[Another note]]`) is rendered by Obsidian as an opaque replacement element, and a plain
+  paragraph sits at the same tree depth in the same document
+- **THEN** both start at the same column — the widget-rendered line's indentation
+  contribution is its node's, exactly as though it had rendered as plain text
 
 **Covered by**: `tests/decorate.test.ts` ("agrees across heading, list, and
 paragraph-adjacency encodings", "includes multiline node continuation lines at the node's
@@ -56,12 +56,15 @@ decorated content", plus this change's embed-fixture coverage asserting cursor-o
 indentation equality).
 
 ### Requirement: Widget-replaced lines receive indentation, markers, and guides via direct DOM patching
-Obsidian replaces some lines in Live Preview with opaque widgets on which a CM6
+Obsidian replaces some lines in Live Preview with opaque elements on which a CM6
 `Decoration.line` has no effect. Which lines those are SHALL NOT be assumed to correspond to
-any set of node kinds: tables, callouts, raw HTML blocks, and horizontal rules are always
+any set of node kinds, NOR SHALL they be identified by enumerating the CSS classes those
+elements happen to carry: tables, callouts, raw HTML blocks, and horizontal rules are always
 widget-replaced, but a line of ANY kind can be — a paragraph consisting of a note embed
-(`![[Another note]]`) is widget-replaced whenever the cursor is not on it, and an embed can
-also occupy one line of a multi-line node or a list item's line.
+(`![[Another note]]`) is one, and an embed can also occupy one line of a multi-line node or
+a list item's line. A line-level replacement SHALL be recognized structurally, by standing
+in for a whole editor line, so that a widget-rendered kind the layer has never seen is
+handled correctly by construction.
 
 Every line that Obsidian replaces with an opaque widget SHALL receive its indentation
 contribution, its marker, its ancestors' guides, and its selection chrome via direct DOM
@@ -89,18 +92,22 @@ line's node is not an atom.
 - **THEN** its rendered position matches a same-depth code block or callout, not offset by
   its own native internal padding
 
-#### Scenario: A widget-replaced non-atom line is decorated, not stripped
-- **WHEN** a paragraph consisting of a note embed sits at a non-zero tree depth and the
-  cursor is elsewhere, so the line renders as an opaque widget
-- **THEN** the widget carries the paragraph's own indentation contribution, its paragraph
-  marker, and every guide its ancestors own — the same decoration state the line shows with
-  the cursor on it, not a flush-left undecorated block
+#### Scenario: A widget-replaced non-atom line is decorated, not skipped
+- **WHEN** a paragraph consisting of a note embed sits at a non-zero tree depth and renders
+  as an opaque replacement element
+- **THEN** it carries the paragraph's own indentation contribution, its paragraph marker,
+  and every guide its ancestors own — not a flush-left undecorated block
 
-#### Scenario: A widget-replaced list-item line keeps native list rendering
-- **WHEN** a list item whose line is widget-replaced (e.g. `- ![[Another note]]`) renders
-  with the cursor elsewhere
+#### Scenario: A widget-replaced continuation line takes its node's indentation and no marker
+- **WHEN** a note embed occupies one line of a multi-line paragraph, so that line is
+  widget-replaced while the node's first line is not
+- **THEN** it carries the same indentation contribution as the node's first line, and no
+  marker of its own
+
+#### Scenario: A list-item line keeps native list rendering whatever it contains
+- **WHEN** a list item's line contains a note embed (e.g. `- ![[Another note]]`)
 - **THEN** it receives its `supplementalDepth` contribution and no synthetic marker, exactly
-  as the same list item does when it renders as a plain `.cm-line`
+  as a list item containing only text does
 
 #### Scenario: A widget nested inside a rendered line is left alone
 - **WHEN** a paragraph line contains an inline embed among other text, so the line renders

@@ -1,52 +1,62 @@
 ## Why
 
-A `![[Another note]]` line drops out of the outline entirely the moment the cursor leaves
-it. With the cursor on the line it is a plain `.cm-line` and renders correctly — indented,
-with a paragraph marker and its ancestors' guides. When the cursor leaves, Obsidian
-replaces the line with an opaque `.cm-embed-block.markdown-embed` widget, and the
-decoration layer's DOM-patch loop — which gates on `fact.isAtom` — takes its *cleanup*
-branch instead, stripping margin, marker, guides, and selection chrome. The embed snaps
-flush left, outside the outline geometry, and the same block visibly changes structure
-depending on where the caret happens to be. Found in the 2026-07-20 personal-vault pass;
-diagnosed and parked in
+A `![[Another note]]` line is never part of the outline. Obsidian renders it as an opaque
+`internal-embed markdown-embed` element in place of the line, and the decoration layer
+misses it entirely: it sits flush left with no indentation, no marker, no guides, and no
+selection chrome, while every sibling around it is decorated normally. Found in the
+2026-07-20 personal-vault pass; parked in
 [docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).
 
-The root cause is broader than embeds. `fact.isAtom` is the wrong predicate: it asks *what
-kind of node is this?* when the only thing that matters is *did Obsidian replace this line
-with an opaque widget, so the declarative decoration never landed?* Those two questions
-happen to coincide for tables, callouts, HTML blocks, and horizontal rules, which is why
-the gate has held so far. An embed is the first case where they come apart — and it will
-not be the last, because an embed is not a node kind at all. It is a rendering phenomenon
-that can appear on a paragraph line, on one line of a multi-line node, inside a list item,
-or inline among other text, with the node model correctly seeing a paragraph or a list item
-in every one of those cases.
+The measurement pass (tasks.md — Findings) corrected that entry's diagnosis on two points.
+The entry assumed the DOM-patch loop's broad `WIDGET_ATOM_SELECTOR` matched the embed and
+then discarded it via the `fact.isAtom` cleanup branch; measured on Obsidian 1.13.4 the
+selector matches **zero** elements in an embed fixture, because the embed carries no
+`cm-embed-block` class at all — the loop never visits it. The entry also assumed the line
+reverts to a decorated plain `.cm-line` while the cursor is on it; measured, it stays a
+widget with the cursor anywhere on the line. The bug is therefore simpler and more absolute
+than recorded: the embed is not decorated in any state.
+
+The root cause is broader than embeds, and shows up twice over. The DOM-patch loop asks
+*what kind of node is this?* — first by enumerating the CSS classes the atom kinds happen
+to carry (`WIDGET_ATOM_SELECTOR`), then by gating on `fact.isAtom` — when the only thing
+that matters is *did Obsidian replace this line with an opaque element, so the declarative
+decoration never landed?* Those questions coincide for tables, callouts, HTML blocks, and
+horizontal rules, which is why both gates have held so far. An embed is the first case
+where they come apart — and it will not be the last, because an embed is not a node kind at
+all. It is a rendering phenomenon that can appear on a paragraph line, on one line of a
+multi-line node, inside a list item, or inline among other text, with the node model
+correctly seeing a paragraph or a list item in every one of those cases.
 
 ## What Changes
 
-- **The DOM-patch path is selected by rendered form, not by node kind.** A widget that
+- **Line-level widgets are selected structurally, not by class enumeration.** The loop
+  claims every direct child of the editor's content element that is not a plain `.cm-line`
+  (plus `.cm-line.hr`, which is widget-rendered despite carrying `cm-line`), excluding
+  CodeMirror's own scaffolding. That reaches embeds and the atom kinds alike without naming
+  either, and it is the same structural fact the stylesheet already asserts through its
+  `.cm-content > …` child combinators.
+- **The DOM-patch path is applied by rendered form, not by node kind.** A widget that
   stands in for a whole editor line receives that line's own indentation contribution,
   marker, guides, and selection chrome, computed from the line's existing decoration fact
   — whatever kind that fact reports. A widget nested *inside* a rendered `.cm-line` (an
-  inline image embed among text, an embed inside a list item) is left alone: its host line
-  is a real `.cm-line` that already received its decoration declaratively, and patching the
-  nested element too would double-shift it.
-- **The cleanup branch narrows to its true no-op case.** Today it fires for every widget
-  whose line's fact is not an atom — which is exactly the bug. After this change it fires
-  only for widgets that genuinely carry no line-level decoration state.
-- **A widget-rendered line's marker follows its node's kind**, the same marker the line
-  already shows with the cursor on it. A widget-rendered paragraph gets the paragraph
-  marker; a widget-rendered list-item line gets none (native bullet only); a continuation
-  line gets none. No new marker vocabulary, and no embed-specific icon: the whole point is
-  that the cursor-on and cursor-off renderings stop disagreeing.
+  inline embed among text, an embed inside a list item) is left alone: its host line is a
+  real `.cm-line` that already received its decoration declaratively, and patching the
+  nested element too would double-shift it. Structural selection gives this for free —
+  a nested widget is not a direct child.
+- **A widget-rendered line's marker follows its node's kind**: a widget-rendered paragraph
+  gets the paragraph marker, a widget-rendered list-item line gets none (native bullet
+  only), a continuation line gets none. No new marker vocabulary, and no embed-specific
+  icon — an embed line is decorated as exactly what it parses as.
 - **No model change.** `NodeKind` gains no `embed` member, the parser is untouched, and
   `encode(parse(md))` byte-identity is unaffected. An embed line stays whatever it parses
   as.
 - **New verification.** An embed fixture in the decoration corpus (none exercises embeds
-  today) plus e2e coverage of both the cursor-on-line and widget states, across the
-  placements an embed can actually occupy.
+  today), covering all four placements an embed can occupy, with a same-depth plain sibling
+  in each case so alignment is asserted by comparison rather than against a hardcoded pixel
+  value.
 
 Not breaking: every currently-correct rendering is preserved, and this adds decoration
-where decoration was previously stripped.
+where there was none.
 
 ## Capabilities
 
@@ -67,17 +77,16 @@ introducing a new capability.
   are restated in terms of rendered form, with the nested-widget exclusion made explicit.
 - `escalated-selection-decoration`: "Chrome composes with existing decorations without
   displacing them" likewise scopes the DOM-patch path to "widget-replaced atom lines
-  (tables, callouts, raw HTML, horizontal rules)". Selection chrome on a widget-rendered
-  line is stripped by the same wrong branch, and the requirement needs the same
+  (tables, callouts, raw HTML, horizontal rules)". A widget-rendered line gets no selection
+  chrome for the same reason it gets no margin, and the requirement needs the same
   generalization.
 
 ## Impact
 
-- `src/plugin/decorations.ts` — `WIDGET_ATOM_SELECTOR` and the `MarginCompensation.apply()`
-  widget loop: the `fact?.isAtom` gate, its cleanup `else`, and the shift/marker/guide/
-  chrome expressions inside it, which today assume every patched element is an atom. The
-  loop's line resolution (`posAtDOM`) and the new line-level-vs-nested discrimination are
-  the load-bearing pieces.
+- `src/plugin/decorations.ts` — `WIDGET_ATOM_SELECTOR` (widened from a class enumeration to
+  a structural predicate) and the `MarginCompensation.apply()` widget loop: the
+  `fact?.isAtom` gate, its cleanup `else`, and the shift/marker/guide/chrome expressions
+  inside it, which today assume every patched element is an atom.
 - `src/plugin/decorate.ts` — read-only in the expected shape: `LineDecorationFact` already
   carries `kind`, `depth`, `isFirstLine`, `isListItem`, and `supplementalDepth`, which is
   everything the generalized patch needs. `isAtom` stays on the fact (it still selects

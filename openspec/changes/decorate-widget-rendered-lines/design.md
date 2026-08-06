@@ -4,10 +4,13 @@ See proposal.md — Why, for the motivation and the diagnosis this builds on.
 
 The relevant current state, all in `src/plugin/decorations.ts`:
 
-- `WIDGET_ATOM_SELECTOR = '.cm-embed-block, .cm-line.hr'` is queried **unscoped** over
-  `contentDOM`, so it matches nested `.cm-embed-block`s inside a rendered `.cm-line` as well
-  as line-level ones. Its own comment treats that over-matching as harmless, because the
-  loop's `else` branch merely clears styles on them.
+- `WIDGET_ATOM_SELECTOR = '.cm-embed-block, .cm-line.hr'` enumerates the CSS classes the
+  atom kinds happen to carry. Measured (tasks.md — Findings): it matches all four atom kinds
+  correctly and **zero** elements in an embed fixture — an embed renders as
+  `internal-embed markdown-embed inline-embed`, with no `cm-embed-block` class. The selector
+  is also queried **unscoped** over `contentDOM`, so it would match a nested
+  `.cm-embed-block` inside a rendered `.cm-line` as readily as a line-level one; its comment
+  treats that over-matching as harmless because the `else` branch merely clears styles.
 - `MarginCompensation.apply()` branches on `fact?.isAtom`. The `if` computes an
   atom-specific shift (`max(0px, depth × unit − nativePaddingLeft) + gutter`) and applies
   margin, marker, guides, and selection chrome. The `else` strips all of it.
@@ -33,8 +36,8 @@ The relevant current state, all in `src/plugin/decorations.ts`:
 - One shared shift formula serves every kind the loop can now encounter, so the widget path
   and the plain-line path cannot drift apart per kind — the same discipline the existing
   code already applies between a widget's margin and its marker's target column.
-- The cursor-on and cursor-off renderings of the same line become indistinguishable in
-  horizontal geometry, marker, guides, and selection chrome.
+- A widget-rendered line lands in the same outline geometry as a plain-rendered sibling at
+  the same tree depth.
 
 **Non-Goals:**
 
@@ -49,31 +52,45 @@ The relevant current state, all in `src/plugin/decorations.ts`:
 
 ## Decisions
 
-### D1: Ownership is decided by DOM position, not by node kind
+### D1: Ownership is decided by DOM position, not by CSS class or node kind
 
-Scope the query to direct children of `contentDOM`:
-`:scope > .cm-embed-block, :scope > .cm-line.hr`. An element that stands in for a whole
-editor line is a direct child of `.cm-content`; a widget rendered *inside* a line is not.
+Select **direct children of `contentDOM` that are not plain `.cm-line`s**, plus
+`:scope > .cm-line.hr` (widget-rendered despite carrying `cm-line`), minus CodeMirror's own
+scaffolding — `.cm-gap` (viewport-virtualization placeholders, genuinely direct children in
+a large document) and `.cm-widgetBuffer`.
 
-Chosen over the alternatives because the stylesheet already asserts exactly this invariant
-via `>` combinators in every widget rule — the JS and CSS end up agreeing by construction
-instead of by coincidence, and the nested-widget exclusion the spec now requires becomes
-structural rather than a guard someone can forget.
+An element that stands in for a whole editor line is a direct child of `.cm-content`; a
+widget rendered *inside* a line is not. Measurement confirmed both halves: the two
+widget-replaced embeds are direct children resolving to the right lines via `posAtDOM`,
+while a list-item embed and an inline embed leave their host `.cm-line` intact with the
+embed nested inside — and those two placements are already decorated correctly today,
+precisely because the nested element is not a direct child.
 
+Chosen over the alternatives because it names no vendor class at all. The measurement
+killed the original plan of scoping the existing selector: `.cm-embed-block` never matches
+an embed, so scoping alone would have been a no-op, and *adding* `.markdown-embed` to the
+enumeration would violate the no-embed-specific-detection Non-Goal and leave the next
+widget-rendered kind broken in exactly the same way. The stylesheet already asserts this
+same structural invariant through its `.cm-content > …` combinators, so the JS and CSS agree
+by construction rather than by coincidence.
+
+- *Alternative — enumerate more classes (`.cm-embed-block, .markdown-embed, .cm-line.hr`):*
+  the smallest diff, and the one the original design implied. Rejected: it re-commits the
+  exact mistake being fixed — a class list that happens to cover today's kinds — and this
+  change exists because that list silently stopped being complete.
 - *Alternative — `el.parentElement?.closest('.cm-line') === null`:* survives CM6 someday
   wrapping widgets in an intermediate element, which the direct-child test would not. But it
-  would then disagree with the stylesheet, which would still be selecting on `>` — the patch
-  would apply and the CSS would not. If CM6 ever changes that shape, both must move
-  together; a single structural test that fails loudly (no decoration at all, caught by
-  every existing widget-atom e2e) is preferable to two that silently diverge.
+  would then disagree with the stylesheet, which still selects on `>` — the patch would
+  apply and the CSS would not. A single structural test that fails loudly (no decoration at
+  all, caught by every existing widget-atom e2e) beats two that silently diverge.
 - *Alternative — compare `posAtDOM(el)` against the line's own span:* infers a DOM fact from
   document positions. More moving parts, and it still needs a DOM check to reject a nested
   widget whose position lies inside the same line.
 
-**This must be measured, not assumed** — task 1 confirms live, for each of the four
-placements an embed can occupy, whether its rendered element is a direct child of
-`.cm-content`. If a placement turns out not to be, the finding changes which branch handles
-it, not the predicate.
+The exclusion list is the one place this predicate can rot: an unknown future direct child
+of `contentDOM` would be claimed and patched. That failure is visible (a stray element
+shifted right by a line's indentation) rather than silent, which is the trade being made
+against an allowlist that goes stale invisibly — the failure mode this change is fixing.
 
 ### D2: One shift formula, parameterized by the fact
 
@@ -117,15 +134,20 @@ unscoped query, since it must reach anything a previous scoped pass may have pat
 ### D5: Verification is measurement-first and negative-controlled
 
 The four placements (whole-paragraph line, one line of a multi-line node, list-item line,
-inline among other text) are asserted from live DOM before any code changes, so the fix is
-built against measured behavior rather than an assumed DOM shape. Each new e2e assertion is
-run with the fix disabled first, to confirm it actually fails — the existing widget-atom
-tests would otherwise keep passing and mask a no-op change.
+inline among other text) were asserted from live DOM before any code change, which is what
+caught both false premises (tasks.md — Findings). Each new e2e assertion is run with the fix
+disabled first, to confirm it actually fails — the existing widget-atom tests would
+otherwise keep passing and mask a no-op change.
 
-The load-bearing assertion is **cursor-on equals cursor-off**: measure the line's resolved
-horizontal geometry and marker presence with the cursor on it, move the cursor away, and
-assert they match. That asserts the mechanism's actual contract rather than a hardcoded
-pixel value that could be right for the wrong reason.
+The load-bearing assertion is **same-depth sibling alignment**: compare the widget-rendered
+embed's resolved left edge against a plain paragraph at the same tree depth in the same
+fixture, and its marker column against that sibling's. This replaces the design's original
+cursor-on-equals-cursor-off formulation, which measurement showed is not observable: a
+whole-line embed stays a widget with the cursor anywhere on it, so there is no plain-line
+rendering of the same line to compare against. Comparing siblings still avoids hardcoded
+pixel values, and asserts the property that actually matters — the embed sits in the
+outline geometry — rather than a self-consistency that would also hold if both states were
+equally wrong.
 
 ## Risks / Trade-offs
 
@@ -146,10 +168,10 @@ pixel value that could be right for the wrong reason.
   placement (D5); the atom reduction is checked explicitly so the existing atom behavior is
   demonstrably byte-identical, not merely believed to be.
 - **`nativeMarginBasePx()` and `nativeContentRightPx()` pick a reference line by excluding
-  our own patched classes.** A line-level `.cm-embed-block` is not a `.cm-line`, so it is
-  already excluded from those selectors and cannot contaminate the reading. → Confirm in the
-  measurement task rather than assume; a document whose only plain lines are widget-rendered
-  falls back to the existing graceful-degradation path.
+  our own patched classes.** Measured clean: a line-level widget is not a `.cm-line` at all,
+  so it is already excluded from those selectors and cannot contaminate the reading. A
+  document whose only plain lines are widget-rendered still falls back to the existing
+  graceful-degradation path.
 - **The direct-child predicate couples the JS to CM6's current widget-mounting shape.** →
   Accepted deliberately (D1): the stylesheet already carries the same coupling, and the
   failure mode is loud and covered by existing tests.
