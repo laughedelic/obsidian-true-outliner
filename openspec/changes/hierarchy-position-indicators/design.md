@@ -240,14 +240,28 @@ which is also the reason those two states are worth an explicit e2e assertion.
 
 ## Open Questions
 
-- **Does the thread stop at the current node, or continue into its own subtree?** Working answer:
-  it stops — the thread's purpose is the path from the root *to* the caret, and continuing past it
-  would re-draw what the ordinary guide layer already shows. To confirm by eye in the experiment
-  phase.
-- **Should the current node's own children get any emphasis?** Out of scope here; if the experiment
-  suggests it, it lands in the follow-ups parking lot.
+Resolved during implementation — kept here with their answers, since the reasoning is what a
+later reader needs:
+
+- **Does the thread stop at the current node, or continue into its own subtree?** ✅ It stops.
+  Confirmed by eye: continuing past the caret re-draws what the plain guide layer already shows,
+  and costs the thread the one thing that makes it readable — that every accented pixel is on
+  the path.
+- **Do the two DOM bets hold?** ✅ Both settled by live probe before anything was built on them
+  (`docs/research/14`). The list bullet survives the caret sitting on its own line, so the
+  marker accent needs no dual-form handling. `.cm-indent` spans exist per level and are
+  paintable, but their native guide column is 24px off the parent bullet's — which is why list
+  levels ship as the spec's permitted omission rather than a misaligned segment.
+- **Does the suppression rule read right?** ✅ Kept. A covered selection already fills the
+  rectangle that answers "where am I"; an accent trail on top competes with it for the same
+  pixels.
+
+Still open, deliberately:
+
+- **Should the current node's own children get any emphasis?** Out of scope here.
 - **Folded regions.** Fold persistence is a later roadmap layer; when it arrives, a trail passing
   through a folded ancestor needs a rule. Not this change.
-- **Where the `guides` and `thread` styles disagree with the escalated-selection suppression rule**
-  (decision 2) — the suppression is a judgment call made without a screenshot; the experiment phase
-  should sanity-check that a covered selection really does read better with no trail.
+- **Threading along native list columns.** The one piece of the proposal not built. What it needs
+  is written up in
+  [docs/research/14](../../../docs/research/14-experiment-position-indicators.md#deferred-threading-through-list-levels)
+  with the measurements already taken.

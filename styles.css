@@ -142,9 +142,55 @@
   right: 0;
   bottom: 0;
   background: var(--to-guides);
-  opacity: 0.6;
   pointer-events: none;
   z-index: -1;
+}
+
+/*
+ * Position indicators (hierarchy-position-indicators): the caret-derived
+ * accents share the `::after` overlay above, riding in the SAME
+ * comma-separated background list as the guides (decorations.ts's
+ * `guideBackground`) — the only place left, since `::before` is spoken for
+ * twice over and a plain `.cm-line` cannot take a real DOM child.
+ *
+ * That sharing is why the guide overlay above no longer carries a flat
+ * `opacity: 0.6`: one opacity on the pseudo-element would dim the accent
+ * along with the base guides, and there is no second pseudo to separate
+ * them onto. The dimming moved into the guide's own color instead, which is
+ * equivalent here (a single, non-overlapping layer composited against the
+ * page) and leaves the accent free to render at full strength.
+ *
+ * Both accent variables resolve from the active theme, so a snippet can
+ * retune color and weight with no plugin setting and no geometry change —
+ * the theming pattern docs/research/12 recommends, and the same pair
+ * Logseq's own bullet_threading.css exposes.
+ */
+.markdown-source-view.mod-cm6 .cm-content {
+  --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
+  --to-decor-accent: var(--text-accent);
+  --to-trail-width: 2px;
+}
+
+/*
+ * The current node's own marker, accented. Two selectors because the two
+ * markers are entirely different DOM: our own icon element, whose SVG paints
+ * with `currentColor` and so follows `color`; and Obsidian's native list
+ * bullet, a `.list-bullet` span we only restyle, never replace (the same
+ * "target the existing native element" discipline `obsidian-outliner` uses).
+ *
+ * Colors only — no size, no position, no gutter. Toggling this setting must
+ * never reflow a single character, which is a property of what these rules
+ * are allowed to set rather than something a test has to keep watch over.
+ * The native bullet is confirmed present even while the caret sits on its own
+ * line (docs/research/14); the caret is not what swaps it for raw text.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current .to-decor-marker-icon,
+.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-current .to-decor-marker-icon {
+  color: var(--to-decor-accent);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current-native .list-bullet::after {
+  background-color: var(--to-decor-accent);
 }
 
 /*

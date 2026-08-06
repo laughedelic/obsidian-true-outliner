@@ -1,0 +1,159 @@
+# Experiment: position indicators (current node + ancestor trail)
+
+Findings behind the `hierarchy-position-indicators` change: an accent on the node the caret
+sits in, and an accented trail along that node's ancestor chain. The change's design.md rests
+on two bets about DOM we do not own; this doc records what the live probe found, since both
+answers changed what got built.
+
+Probe setup: the e2e harness (Obsidian 1.13.4, installer 1.5.8, bundled theme, default vault
+settings — `showIndentGuide: true`), a note of `# Section` / paragraph / a four-level nested
+list, outline mode on, measurements taken with the caret parked on the heading (every list
+marker in its rendered form) and again with the caret on the deepest list line.
+
+## Finding 1: a list item's bullet element survives the caret sitting on its line
+
+The design flagged this as the change's sharpest hazard. `docs/research/13` established that a
+list marker's round bullet comes from a `.list-bullet` span present only in the marker's
+*hidden* form, and that revealing the raw markup swaps it for plain `"- "` text — so the one
+line the current-marker accent most wants to reach might not have a bullet at all.
+
+**The hazard does not apply to a plain caret.** With the caret directly on the deepest list
+line (`cm-active` present on it), the line's own markup is unchanged:
+
+```html
+<span class="cm-hmd-list-indent cm-hmd-list-indent-3">…</span>
+<span class="cm-formatting cm-formatting-list cm-formatting-list-ul cm-list-1"
+ ><span class="list-bullet">-</span> </span>
+<span class="cm-list-1">four</span>
+```
+
+`.list-bullet` is still there, and its `::after` still carries the visible dot
+(`background-color: rgb(102, 102, 102)`). Doc 13's swap belongs to the *block-selection*
+reveal path, which is a different state — and one where position indicators are suppressed
+anyway (design decision 2). So the current-marker accent targets `.list-bullet::after`
+directly, with no dual-form handling: the fallback the spec allows for is not needed here.
+
+The spec's "whichever form is currently mounted" wording stays as written — it costs nothing
+and keeps the contract honest if a future Obsidian reveals more aggressively.
+
+## Finding 2: `.cm-indent` spans exist per level and are paintable, but their native guide
+column is not the parent bullet's column
+
+`.cm-indent` spans are emitted one per indentation level, inside a
+`.cm-hmd-list-indent` wrapper, and their widths *are* the native per-level widths — the
+property the design wanted, since it means a list-level accent can be positioned with no
+measurement of Obsidian's list metrics.
+
+Measured columns, relative to `.cm-content` (list under a depth-0 heading, so every list line
+also carries our own `supplementalDepth × unit` margin):
+
+| list level (1-based) | `.cm-indent` spans | span lefts        | bullet left |
+| -------------------- | ------------------ | ----------------- | ----------- |
+| 1                    | 0                  | —                 | 60          |
+| 2                    | 1                  | 48                | 96          |
+| 3                    | 2                  | 48, 84            | 132         |
+| 4                    | 3                  | 48, 84, 120       | 168         |
+
+Every span is 36px wide, so span `k` occupies `[48 + 36k, 84 + 36k]` and level `m`'s bullet
+sits at `24 + 36m`.
+
+Two consequences:
+
+- **The spans are paintable.** Injecting `border-left: 2px solid red` plus a non-empty
+  `content` on `.cm-indent::before` renders — no specificity fight, no containment problem.
+  The native `::before` is already `position: absolute` with a zero-width-space `content`, so
+  the hook is real rather than something we have to construct.
+- **Obsidian's own guide column is not where a thread wants to draw.** The native `::before`
+  computes to `left: 36px` — the span's *right* edge, i.e. `84 + 36k` absolutely — while the
+  ancestor bullet that a thread segment should descend from sits at `60 + 36k`. The offset
+  between them is constant (`12px` here: the bullet's own offset inside its level's slot), but
+  it is a theme-dependent metric, not a constant to hardcode — the same trap `nativeMarginBasePx`
+  and the table widget's native padding already taught this codebase to measure rather than
+  assume.
+
+Also worth recording: with `showIndentGuide: true`, the bundled theme's `.cm-indent::before`
+computes to `border-left: 0px rgba(0, 0, 0, 0)` — the native indent guide draws nothing here.
+So an accent on these spans cannot be described as "highlighting the native guide"; it is our
+own line, merely positioned by native geometry.
+
+## What this means for the change
+
+- The current-marker accent (finding 1) and the `guides` trail need nothing from any of this:
+  guides in this model are owned exclusively by non-list ancestors, so the `guides` style is
+  complete without touching a single native list element.
+- The `thread` style through **non-list** levels rides on our own guide columns, which the
+  decoration layer already computes exactly.
+- The `thread` style through **list** levels is the part that needs finding 2's geometry, plus
+  a live measurement of the bullet-inside-slot offset. It is deliberately NOT built in this
+  pass — see "Deferred: threading through list levels" below.
+
+## What shipped, and how the two styles compare
+
+Both styles were rendered side by side on a note with two heading levels, a nested list, and a
+sibling section, with the caret in the third-level heading.
+
+**`guides`** (the default) accents each ancestor's guide along its whole length. It reads
+immediately and needs no explanation — but it is also literally a long line: a top-level
+ancestor's guide spans the entire document, including every sibling subtree *below* the caret,
+because those are still inside that ancestor. In a long note that is a lot of accented pixels
+for a fairly small amount of information. The trade-off the design predicted is real, and it is
+the reason the second style exists rather than being a refinement of the first.
+
+**`thread`** draws the Logseq shape: it leaves the root ancestor's marker, steps in one level at
+a time via an elbow at each level change, and ends at the current node's own marker. Nothing is
+accented above the root, below the caret, or in any sibling subtree — the accented pixels are
+exactly the path. It is a stronger visual with less ink, and it answers "how did I get here"
+rather than "what am I inside of".
+
+Neither reads as noisy at three levels. `guides` stays the default because it is the more
+legible of the two at a glance and degrades more gracefully in a pure list (where `thread` has
+nothing to draw at all, below).
+
+Implementation note worth keeping: a `thread` segment covering half a row does NOT replace the
+plain guide underneath it — only a full-height accent does. Replacing it in the half-row case
+punched a visible gap into a guide the trail was only supposed to be highlighting; the fix is
+one condition in `guideBackground`, and `54-position-indicators.e2e.ts` pins it.
+
+## The flat `opacity: 0.6` had to go
+
+The guide overlay carried `opacity: 0.6` on the `::after` itself. Since the accents share that
+same pseudo-element (there is no second one available — `::before` is taken by Obsidian's native
+blockquote bar and by our own selection chrome), that opacity would have dimmed the accent along
+with the base guides. The dimming moved into the guide's own color instead
+(`color-mix(in srgb, var(--text-faint) 60%, transparent)`), which composites identically here —
+a single, non-overlapping layer over the page — and leaves the accent at full strength.
+
+## Theme behavior
+
+Light and dark of the bundled theme were both checked live: the accent resolves through
+`--to-decor-accent` → `--text-accent`, so it tracks the theme in each, and stays distinguishable
+from the unaccented marker in both. A snippet overriding `--to-decor-accent` retunes it with no
+geometry change at all (both are asserted in `54-position-indicators.e2e.ts`).
+
+**Not done:** the community-theme sweep (Minimal, Catppuccin). The layer writes no geometry
+whatsoever — only colors and background layers, verified by auditing every new rule and by an
+e2e that measures every line's position and every marker's rect across all six setting
+combinations — so the class of theme bug doc 12 records for base indentation (a `max-width`-sized
+box that does not recompute) has no way to reach this layer. A visual contrast check under a
+third-party theme is still worth doing if one is ever installed for another reason.
+
+## Deferred: threading through list levels
+
+When the ancestor chain runs through list nesting, the thread today descends at the nearest
+non-list ancestor's own column and stops at the current node's row, where the accented bullet
+terminates it. It does not step in per list level. That is the spec's permitted omission, not a
+bug — nothing renders at a wrong column — and it looks coherent in a real note.
+
+Closing it properly needs three things, none of which is a small edit:
+
+1. `computePositionTrail` must emit list-level segments — which native indent index, with which
+   extent — as a distinct kind of accent from the `depth × unit` ones, with its own unit tests.
+2. The CSS cannot compute `nth-child` from a custom property, so reaching "the k-th `.cm-indent`
+   span" means a generated set of static rules, one per level up to some maximum, multiplied by
+   the three vertical extents plus the elbows.
+3. The column needs the bullet-inside-slot offset (12px in the measurements above) read LIVE and
+   published as a custom property — never hardcoded, for the same reason `nativeMarginBasePx` and
+   the table widget's native padding are read live.
+
+The measurements in finding 2 are the input to all three; a later pass should not need to
+re-derive them.

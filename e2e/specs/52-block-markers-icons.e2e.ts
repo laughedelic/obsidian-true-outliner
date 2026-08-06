@@ -41,6 +41,9 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
+    // Base-layer spec: the caret-derived accents stay off so a guide/marker
+    // assertion measures what it was written to measure (see the helper).
+    await h.pinPositionIndicatorsOff();
     await fsp.mkdir(SCREENSHOT_DIR, { recursive: true });
   });
 

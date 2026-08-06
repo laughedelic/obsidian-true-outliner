@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
-import { computeLineGuides, decorate } from '../src/plugin/decorate';
+import {
+  computeLineGuides,
+  computePositionTrail,
+  decorate,
+  type AncestorTrail,
+} from '../src/plugin/decorate';
 
 describe('decorate: indentation depth', () => {
   it('agrees across heading, list, and paragraph-adjacency encodings', () => {
@@ -409,6 +414,210 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       // The fact still exists (isGapLine: true) but decorations.ts skips
       // rendering when guideDepths is empty — verified structurally here.
       expect(byLine.get(1)?.guideDepths).toEqual([]);
+    });
+  });
+});
+
+describe('computePositionTrail: caret-derived accents (hierarchy-position-indicators)', () => {
+  const trail = (md: string, cursorLine: number, style: AncestorTrail) =>
+    computePositionTrail(parse(md), cursorLine, style);
+
+  /** Compact per-line view: 'depth:extent' pairs, plus an elbow marker. */
+  const shape = (t: ReturnType<typeof trail>) =>
+    [...t.byLine.values()]
+      .sort((a, b) => a.lineNumber - b.lineNumber)
+      .map((f) => [
+        f.lineNumber,
+        f.accents.map((a) => `${a.depth}:${a.extent}`).join(','),
+        f.elbow ? `${f.elbow.from}->${f.elbow.to}` : '',
+      ]);
+
+  const NESTED = ['# A', '', '## B', '', '### C', '', 'text under C', ''].join('\n');
+  //              0     1    2      3    4        5    6              7
+
+  describe('current node', () => {
+    it("resolves to the caret's own node and reports its first line", () => {
+      expect(trail(NESTED, 4, 'off').currentLine).toBe(4);
+      expect(trail(NESTED, 6, 'off').currentLine).toBe(6);
+    });
+
+    it('resolves a caret on a continuation line to the node’s FIRST line', () => {
+      const md = '# A\n\nfirst\nsecond\nthird\n';
+      expect(trail(md, 3, 'off').currentLine).toBe(2);
+      expect(trail(md, 4, 'off').currentLine).toBe(2);
+    });
+
+    it('resolves a caret on a blank gap line to the node that gap belongs to', () => {
+      // Line 1 is "# A"'s own trailing gap; line 3 is "## B"'s.
+      expect(trail(NESTED, 1, 'off').currentLine).toBe(0);
+      expect(trail(NESTED, 3, 'off').currentLine).toBe(2);
+    });
+
+    it('flags whether the current node is a list item (native bullet vs. our marker)', () => {
+      const md = '# A\n\n- item\n';
+      expect(trail(md, 0, 'off').currentIsListItem).toBe(false);
+      expect(trail(md, 2, 'off').currentIsListItem).toBe(true);
+    });
+
+    it('reports no current node for an empty or preamble-only document', () => {
+      expect(trail('', 0, 'guides').currentLine).toBe(null);
+      expect(trail('---\ntitle: x\n---\n\n', 1, 'guides').currentLine).toBe(null);
+    });
+
+    it('reports no current node for a caret past the end of the document', () => {
+      expect(trail(NESTED, 99, 'thread').currentLine).toBe(null);
+    });
+
+    it("is reported even when the trail style is 'off', which draws nothing", () => {
+      const t = trail(NESTED, 4, 'off');
+      expect(t.currentLine).toBe(4);
+      expect(t.byLine.size).toBe(0);
+    });
+  });
+
+  describe("'guides' style", () => {
+    it("accents every strict ancestor's guide across that ancestor's whole subtree", () => {
+      // Caret in "### C" (depth 2): ancestors are "# A" (0) and "## B" (1).
+      expect(shape(trail(NESTED, 4, 'guides'))).toEqual([
+        [1, '0:full', ''], // A's gap — inside A's subtree
+        [2, '0:full', ''], // ## B
+        [3, '0:full,1:full', ''], // B's gap — inside both
+        [4, '0:full,1:full', ''], // ### C
+        [5, '0:full,1:full', ''],
+        [6, '0:full,1:full', ''], // text under C
+        [7, '0:full,1:full', ''],
+      ]);
+    });
+
+    it("never accents the current node's own level, only strict ancestors", () => {
+      const depths = [...trail(NESTED, 4, 'guides').byLine.values()].flatMap((f) =>
+        f.accents.map((a) => a.depth),
+      );
+      expect(depths).not.toContain(2);
+    });
+
+    it("leaves a sibling subtree's own guide unaccented", () => {
+      const md = ['# One', '', '## Under one', '', '# Two', '', '## Under two', ''].join('\n');
+      //           0         1    2              3    4        5    6              7
+      const t = trail(md, 6, 'guides'); // caret under "# Two"
+      // Only "# Two"'s subtree (lines 5-7) is accented; "# One"'s (1-3) is not.
+      expect(shape(t)).toEqual([
+        [5, '0:full', ''],
+        [6, '0:full', ''],
+        [7, '0:full', ''],
+      ]);
+    });
+
+    it('accents a guide on the same gap lines the base guide layer covers', () => {
+      const t = trail(NESTED, 6, 'guides');
+      // Line 5 is C's own gap and line 3 is B's — both inside the accented
+      // ancestors' subtrees, matching computeLineGuides' own continuity.
+      expect(t.byLine.get(3)?.accents.map((a) => a.depth)).toEqual([0, 1]);
+      expect(t.byLine.get(5)?.accents.map((a) => a.depth)).toEqual([0, 1, 2]);
+    });
+
+    it('draws nothing at all for a top-level node with no ancestors', () => {
+      expect(trail(NESTED, 0, 'guides').byLine.size).toBe(0);
+    });
+
+    it('emits no elbows — the guides style has no level changes to mark', () => {
+      const t = trail(NESTED, 6, 'guides');
+      expect([...t.byLine.values()].every((f) => f.elbow === null)).toBe(true);
+    });
+  });
+
+  describe("'thread' style", () => {
+    it('runs one connected path from the root to the current node', () => {
+      // Caret in "### C" (line 4). A's segment leaves A's own marker (line 0,
+      // lower half), runs through the gap, arrives at B's line; B's segment
+      // does the same down to C's line, where the path ends.
+      expect(shape(trail(NESTED, 4, 'thread'))).toEqual([
+        [0, '0:bottom', ''],
+        [1, '0:full', ''],
+        [2, '0:top,1:bottom', '0->1'],
+        [3, '1:full', ''],
+        [4, '1:top', '1->2'],
+      ]);
+    });
+
+    it('stops at the current node, never continuing into its own subtree', () => {
+      const t = trail(NESTED, 4, 'thread');
+      expect(Math.max(...[...t.byLine.keys()])).toBe(4); // "### C"'s own line
+      expect(t.byLine.has(6)).toBe(false); // "text under C" carries nothing
+    });
+
+    it('does not accent the full extent of an ancestor the way guides does', () => {
+      const md = ['# A', '', '## B', '', 'tail of A’s subtree', ''].join('\n');
+      //           0      1    2      3    4
+      const t = trail(md, 2, 'thread'); // caret in "## B"
+      // Line 4 is still inside A's subtree, but below B — no thread there.
+      expect(t.byLine.has(4)).toBe(false);
+      expect(shape(t)).toEqual([
+        [0, '0:bottom', ''],
+        [1, '0:full', ''],
+        [2, '0:top', '0->1'],
+      ]);
+    });
+
+    it('carries no thread into a sibling subtree', () => {
+      const md = ['# One', '', '## Under one', '', '# Two', '', '## Under two', ''].join('\n');
+      const t = trail(md, 6, 'thread');
+      expect(shape(t)).toEqual([
+        [4, '0:bottom', ''],
+        [5, '0:full', ''],
+        [6, '0:top', '0->1'],
+      ]);
+    });
+
+    it('draws nothing for a top-level node — there is no ancestor to thread from', () => {
+      expect(trail(NESTED, 0, 'thread').byLine.size).toBe(0);
+    });
+
+    it('spans a multi-line ancestor’s continuation lines at full height', () => {
+      const md = ['first line', 'second line', '', '- child', ''].join('\n');
+      //           0             1              2    3
+      const t = trail(md, 3, 'thread');
+      expect(shape(t)).toEqual([
+        [0, '0:bottom', ''],
+        [1, '0:full', ''],
+        [2, '0:full', ''],
+        [3, '0:top', ''], // no elbow: the terminal is a list item
+      ]);
+    });
+  });
+
+  describe('list levels (native columns this layer cannot address)', () => {
+    it('threads through list ancestors at the shallower non-list column', () => {
+      const md = ['# A', '', '- one', '  - two', '    - three', ''].join('\n');
+      //           0      1    2        3          4
+      const t = trail(md, 4, 'thread'); // caret on the deepest list item
+      // A's own segment is the whole thread; the two list ancestors between
+      // A and the caret contribute no column of their own.
+      expect(shape(t)).toEqual([
+        [0, '0:bottom', ''],
+        [1, '0:full', ''],
+        [2, '0:full', ''],
+        [3, '0:full', ''],
+        [4, '0:top', ''], // no elbow into a list item's native column
+      ]);
+    });
+
+    it('accents only the non-list ancestor in the guides style', () => {
+      const md = ['# A', '', '- one', '  - two', '    - three', ''].join('\n');
+      const t = trail(md, 4, 'guides');
+      const depths = new Set(
+        [...t.byLine.values()].flatMap((f) => f.accents.map((a) => a.depth)),
+      );
+      expect([...depths]).toEqual([0]); // never 1 or 2, the list levels
+    });
+
+    it('draws nothing anywhere in a pure list, in either style', () => {
+      const md = ['- one', '  - two', '    - three', ''].join('\n');
+      expect(trail(md, 2, 'guides').byLine.size).toBe(0);
+      expect(trail(md, 2, 'thread').byLine.size).toBe(0);
+      // The current node is still reported — the marker accent needs it.
+      expect(trail(md, 2, 'thread').currentLine).toBe(2);
+      expect(trail(md, 2, 'thread').currentIsListItem).toBe(true);
     });
   });
 });

@@ -38,6 +38,9 @@ describe('outline decorations: contracts (nested editors, non-mutation)', functi
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
+    // Base-layer spec: the caret-derived accents stay off so a guide/marker
+    // assertion measures what it was written to measure (see the helper).
+    await h.pinPositionIndicatorsOff();
   });
 
   afterEach(async function () {

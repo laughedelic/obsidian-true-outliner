@@ -441,6 +441,27 @@ export async function readPluginData(): Promise<PluginData | null> {
 }
 
 /** Reset plugin data to defaults and reload the plugin so it re-reads it. */
+/**
+ * Pin the position-indicator settings OFF for a spec that measures the base
+ * decoration layers (indentation, guides, markers).
+ *
+ * Those two settings ship ON (hierarchy-position-indicators), so any spec whose
+ * caret happens to land inside a subtree now sees an ACCENTED ancestor guide
+ * where it used to see a plain one — same geometry, different color, and a
+ * different gradient function. That silently changes what a layer-counting or
+ * color-comparing assertion measures, which is how a default change quietly
+ * weakens an existing regression net rather than failing loudly. Specs that
+ * mean to test the base layers say so here; `54-position-indicators.e2e.ts`
+ * owns the accents themselves.
+ */
+export async function pinPositionIndicatorsOff(): Promise<void> {
+  await browser.executeObsidian(async ({ plugins }) => {
+    const plugin = plugins.trueOutliner as any;
+    await plugin.setAncestorTrail('off');
+    await plugin.setHighlightCurrentMarker(false);
+  });
+}
+
 export async function resetPluginState(): Promise<void> {
   await browser.executeObsidian(async ({ plugins }) => {
     await (plugins.trueOutliner as any).saveData({
@@ -823,6 +844,44 @@ export function getLineChildRects(lineIndex: number, selector: string): Promise<
     },
     lineIndex,
     selector,
+  );
+}
+
+/**
+ * Computed style property of the first element matching `selector` INSIDE the
+ * Nth `.cm-line` — optionally of one of its pseudo-elements. Returns null when
+ * the line has no such element at all, so a caller can tell "not there" apart
+ * from "there, with this value".
+ *
+ * Needed by the position-indicator accents (hierarchy-position-indicators),
+ * whose targets are elements nested in a line rather than the line itself: our
+ * own marker icon (`color`, which its SVG's `currentColor` follows) and
+ * Obsidian's native list bullet (`.list-bullet::after`'s `background-color`).
+ * Reading the browser's resolved value — never the custom property we set —
+ * for the same reason `getLinePseudoComputedStyle` does.
+ */
+export function getLineChildComputedStyle(
+  lineIndex: number,
+  selector: string,
+  prop: string,
+  pseudo: '::before' | '::after' | null = null,
+): Promise<string | null> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex, selector, prop, pseudo) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const cm = (view.editor as any).cm;
+      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+      const el = lines[lineIndex] as HTMLElement | undefined;
+      if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
+      const child = el.querySelector(selector) as HTMLElement | null;
+      if (!child) return null;
+      return getComputedStyle(child, pseudo ?? undefined).getPropertyValue(prop);
+    },
+    lineIndex,
+    selector,
+    prop,
+    pseudo,
   );
 }
 

@@ -24,6 +24,23 @@
 export type MarkerVisibility = 'all' | 'with-children' | 'headings-and-paragraphs';
 export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = 'all';
 
+/**
+ * Which ancestor-trail rendering the position-indicator layer draws
+ * (hierarchy-position-indicators). Re-exported from decorate.ts, whose pure
+ * `computePositionTrail` is the one place that gives each state its meaning —
+ * declared there rather than here so the type sits next to the walk that
+ * implements it, and re-exported here so `PluginData` stays a single, complete
+ * description of what is persisted.
+ *
+ * One three-state setting rather than two toggles: `'guides'` and `'thread'`
+ * are two renderings of the same idea (accenting the current node's ancestor
+ * levels), so having both on at once would double up on every level. The
+ * enum makes that combination unrepresentable instead of a rule to enforce.
+ */
+export type { AncestorTrail } from './decorate';
+import type { AncestorTrail } from './decorate';
+export const DEFAULT_ANCESTOR_TRAIL: AncestorTrail = 'guides';
+
 export interface PluginData {
   outlinePaths: string[];
   coexistenceWarned: boolean;
@@ -32,6 +49,15 @@ export interface PluginData {
    * experiments-plan.md) — a real, persisted, user-facing setting so it can
    * be tried against a real vault without a rebuild. */
   markerVisibility: MarkerVisibility;
+  /**
+   * Accent the marker (our own icon, or a list item's native bullet) of the
+   * node the caret is in. Independent of `ancestorTrail`: emphasizing where
+   * the caret IS and drawing the path that leads to it are separate questions,
+   * and the cheap one is useful on its own.
+   */
+  highlightCurrentMarker: boolean;
+  /** See `AncestorTrail`. */
+  ancestorTrail: AncestorTrail;
 }
 
 export const DEFAULT_DATA: PluginData = {
@@ -39,6 +65,8 @@ export const DEFAULT_DATA: PluginData = {
   coexistenceWarned: false,
   debugCrossCheck: false,
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
+  highlightCurrentMarker: true,
+  ancestorTrail: DEFAULT_ANCESTOR_TRAIL,
 };
 
 export class OutlineModeRegistry {

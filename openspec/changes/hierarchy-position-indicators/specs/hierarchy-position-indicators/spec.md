@@ -29,6 +29,8 @@ entries, however often it recomputes.
 - **THEN** the document text, the undo stack, and the resulting caret position are exactly what
   the caret movements themselves produced, with no additional transaction interposed
 
+**Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("renders no accent at all with outline mode off", "mutates nothing as the caret moves through the tree").
+
 ### Requirement: The current node is the node containing the primary caret
 
 The current node SHALL be the node containing the **head** of the **primary** selection range.
@@ -55,6 +57,8 @@ its head.
 - **WHEN** the selection is an escalated whole-subtree cover, rendering block-selection chrome
 - **THEN** no current-node accent and no ancestor trail render for as long as that cover stands,
   and both return once the selection collapses
+
+**Covered by**: `tests/decorate.test.ts` (`computePositionTrail` → "current node" suite); `e2e/specs/54-position-indicators.e2e.ts` ("draws one trail for multiple cursors, from the primary range", "is suppressed while a whole-subtree cover is selected, and returns after").
 
 ### Requirement: The current node's marker renders an accent when enabled
 
@@ -86,6 +90,8 @@ render any accent.
 - **THEN** the accent renders on the node's first line, and no accent renders on any
   continuation or gap line
 
+**Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-bullet finding itself is `docs/research/14`’s finding 1.
+
 ### Requirement: The ancestor trail has exactly three mutually exclusive states
 
 The ancestor-trail setting SHALL have exactly three states — `off`, `guides`, and `thread` — of
@@ -105,6 +111,8 @@ a threaded one on the same level.
 - **THEN** the full-extent ancestor accents are gone and the threaded rendering is present; no
   level shows both
 
+**Covered by**: `tests/decorate.test.ts` ("is reported even when the trail style is 'off', which draws nothing"); `e2e/specs/54-position-indicators.e2e.ts` ("with both off, renders exactly what the base layers render", "does not accent an ancestor’s full extent the way guides does").
+
 ### Requirement: The `guides` style accents exactly the current node's strict ancestors
 
 In the `guides` style, a guide SHALL render the accent treatment on a line when, and only when,
@@ -115,8 +123,8 @@ its appearance.
 
 #### Scenario: Only the ancestor's guide is accented among siblings
 
-- **WHEN** the caret is inside one of two sibling sections that each own a guide, and the styles
-  is `guides`
+- **WHEN** the caret is inside one of two sibling sections that each own a guide, and the style is
+  `guides`
 - **THEN** the guide of the section containing the caret is accented along its extent, and the
   sibling section's guide is not
 
@@ -130,6 +138,8 @@ its appearance.
 - **WHEN** a guide is accented
 - **THEN** it renders at the same column, with the same continuity through blank gap lines, as it
   did unaccented
+
+**Covered by**: `tests/decorate.test.ts` ("'guides' style" suite); `e2e/specs/54-position-indicators.e2e.ts` ("accents an ancestor's guide but leaves a sibling subtree's alone", "accents the ancestor guide on gap lines too, with no break", "emits no accent for a top-level node — there is no ancestor").
 
 ### Requirement: The `thread` style renders one continuous path from the outline root to the current node
 
@@ -159,6 +169,8 @@ segment.
   caret
 - **THEN** no thread segment renders anywhere inside that sibling subtree
 
+**Covered by**: `tests/decorate.test.ts` ("'thread' style" suite); `e2e/specs/54-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "keeps the base guide continuous through a half-accented row").
+
 ### Requirement: Trail rendering through list nesting uses native list metrics or is omitted
 
 Where the current node's ancestor chain runs through list nesting, any trail rendering at those
@@ -180,6 +192,8 @@ SHALL NOT be rendered in its place. The trail through non-list levels SHALL rend
 - **THEN** the list levels render no segment, the non-list levels of the trail still render, and
   nothing renders at an incorrect column
 
+**Covered by**: `tests/decorate.test.ts` ("list levels (native columns this layer cannot address)" suite); `e2e/specs/54-position-indicators.e2e.ts` ("threads to a list item without drawing at a native list column"). The omission branch is what ships today — rationale and the measurements a later pass needs: `docs/research/14`.
+
 ### Requirement: Position indicators never change layout geometry
 
 Enabling, disabling, or switching any position-indicator setting SHALL NOT change any line's
@@ -196,6 +210,8 @@ and other purely visual attributes SHALL differ between settings.
 
 - **WHEN** the current-marker setting is off and the ancestor-trail setting is `off`
 - **THEN** the note renders exactly as the base decoration layers alone render it
+
+**Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("changes no geometry across every setting combination" — measures every line's position, padding, margin, gutter, and marker rect across all six combinations — and "with both off, renders exactly what the base layers render").
 
 ### Requirement: Indicators track the caret and settings changes live
 
@@ -217,6 +233,8 @@ setting change.
   open in outline mode
 - **THEN** the next render reflects the new setting
 
+**Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("follows the caret with no reload and no edit", "applies a settings change live on a note of only widget-replaced atoms" — the byte-identical-output case `forceRedraw` exists for).
+
 ### Requirement: Indicator appearance is restylable without plugin settings
 
 The accent color and the trail's line weight SHALL be driven by CSS custom properties that
@@ -235,6 +253,8 @@ them without any plugin change and without any additional setting.
 - **THEN** the accent resolves from that theme's own variables in each case, with no plugin
   setting change
 
+**Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("lets a snippet retune the accent with no geometry change", "resolves the accent from the active theme, in light and in dark").
+
 ### Requirement: Nested per-cell editors receive no position indicators
 
 An actively-edited table cell renders in Live Preview as its own nested editor whose outline-mode
@@ -246,3 +266,5 @@ accent and no trail, regardless of what its own text would otherwise parse as.
 - **WHEN** a table cell in an outline-mode note is actively being edited
 - **THEN** the cell's own nested editor renders no accented marker and no trail, while the outer
   note's own decorations stay active
+
+**Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("renders no indicators inside a nested per-cell table editor").
