@@ -37,8 +37,8 @@ snippet.
 
 - Answer "where am I in the tree?" without scrolling — current-node emphasis plus an ancestor
   trail, computed from the parsed tree and the primary caret.
-- Three visual features (current marker, ancestor guides, an ancestor route), configurable, with
-  the two ancestor-trail renderings mutually exclusive by construction.
+- Three visual features (current marker, ancestor guides, an ancestor route), configurable along
+  two independent axes, with each axis's own renderings mutually exclusive by construction.
 - Strictly decorative: no document mutation, no cursor movement, no history entries, and — the
   stronger property — **no geometry change at all**, so switching any of these settings can
   never reflow text (the same contract `markerVisibility` already holds).
@@ -63,7 +63,7 @@ snippet.
 
 ### 1. The cursor-derived facts are a pure function in `decorate.ts`
 
-A new `computePositionTrail(doc, cursorLine, style)` sits beside `decorate()` and
+A new `computePositionTrail(doc, cursorLine, highlight)` sits beside `decorate()` and
 `computeLineGuides()`, returning per-line accent facts plus the current node's own line. It
 takes the caret as a plain line number and returns plain data, so the entire "which levels are
 accented on which lines, and over how much of each row" logic is unit-testable in
@@ -110,20 +110,21 @@ Consequence: the accent computation happens inside `DecorationsPlugin`'s builder
 recomputes on **every** update (not only `docChanged` ones — see `decorationsExtension`'s own
 comment), so selection-driven recomputation needs no new wiring.
 
-### 4. `path` geometry is expressible in the same gradient technique — with no horizontal parts
+### 4. `lineage` geometry is expressible in the same gradient technique — with no horizontal parts
 
-The `path` style differs from the `guides` style in *which lines carry an accent at which depth*,
-plus one extra layer shape and one reuse of the marker accent:
+The guide setting's `lineage` state differs from `full` in *which lines carry an accent at which
+depth*, plus one extra layer shape; the marker setting's `lineage` state reuses the marker accent:
 
-- **Vertical segment, depth `d`**: accented on lines from just below ancestor `d`'s own first
-  line down to the first line of ancestor `d+1` (or of the current node, at the last level) —
-  instead of the `guides` style's "every line in ancestor `d`'s subtree."
+- **Vertical segment, depth `d`**: accented on lines from just after ancestor `d`'s own lines
+  down to the first line of ancestor `d+1` (or of the current node, at the last level) — instead
+  of `full`'s "every line in ancestor `d`'s subtree."
 - **Half-height stub**: on an ancestor's *own* first line the guide for its own depth does not
   exist (a node never owns a guide on its own line), yet the path must visibly start at that
   node's marker. A layer with `background-size: <unit> 50%` positioned at `bottom` draws the
   lower half of that row — the segment leaving the marker downward.
 - **Every ancestor's marker, accented** — the same mechanism decision 6 already builds for the
-  current node, pointed at the ancestor chain.
+  current node, pointed at the ancestor chain. This is the marker axis's own `lineage` state, so
+  it can be had with or without the guide segments.
 
 All of it is `background-position`/`background-size` arithmetic on constants this module already
 computes; no pixel measurement, no overlay divs, no per-depth DOM.
@@ -139,7 +140,7 @@ Accenting the ancestor's marker instead makes the marker itself the junction. Th
 as one route with nothing horizontal drawn, it reuses two mechanisms that already work rather than
 adding a third that fights them, and — the part that turned out to matter most — it is the only
 part of the style that survives inside a list, where no segment can be drawn at all (decision 5).
-The style is named `path` rather than `thread` because it is no longer the threading shape.
+The state is named `lineage` rather than `thread` because it is no longer the threading shape.
 
 ### 5. List levels are accented on Obsidian's own DOM, not on our columns
 
@@ -168,7 +169,7 @@ measure either. Both cheap approaches are out.
 
 **Shipped instead:** list levels contribute no trail segment; segments render through non-list
 levels only. Degraded, documented, and never a misaligned line. Their MARKERS are accented (the
-`path` style's ancestor markers, decision 4), so the levels stay legible — the gap is only the
+marker axis's `lineage` state, decision 4), so the levels stay legible — the gap is only the
 connecting lines. Closing it properly means a second rendering mechanism (per-item measurement
 plus overlays, Experiment 2a's technique), which is a parking-lot item, not a follow-up here.
 
@@ -186,9 +187,10 @@ selectors. Current and ancestor share the accent in styles.css today and are kep
 so the DOM says which role a marker is playing — a snippet can dim ancestors without a new
 setting, and an assertion can name one without matching the other.
 
-Which setting owns which: `highlightCurrentMarker` gates the current node's marker, because that
-is its whole subject; ancestor markers follow `ancestorTrail`, because the `path` style is what
-asked for them (decision 4). A node is never both, so the two can never collide on one line.
+Both roles answer to `markerHighlight`: `'current'` accents the caret's own node, `'lineage'` adds
+every ancestor. A node is never both roles, so the two can never collide on one line. That the
+marker axis is separate from the guide axis is what makes markers-only reachable — the rendering
+a plain list depends on (decision 5).
 
 **Known hazard, list items specifically:** Live Preview reveals raw markup on the line the caret
 is on, and `docs/research/13` established that a list marker's round bullet comes from a
@@ -200,7 +202,8 @@ accent color on whichever form is currently mounted.
 ### 7. Colors come from theme variables through one indirection
 
 `--to-decor-accent`, defaulting to Obsidian's own `--text-accent`, plus a weight variable for the
-trail's line width — mirroring `bullet_threading.css`'s own
+accent's line width — set to the same `1px` an unaccented guide uses, so an accent is purely a
+change of colour and the column neither thickens nor shifts as the caret moves into a subtree — mirroring `bullet_threading.css`'s own
 `--ls-block-bullet-active-color` / `--ls-block-bullet-threading-width` pair and the
 custom-property theming pattern doc 12 recommends copying from `obsidian-lapel`. Nothing is
 hardcoded, and a snippet can retune the look without the plugin growing settings for it.
@@ -209,10 +212,10 @@ Note that the guide `::after` currently carries `opacity: 0.6` for the whole pse
 which would dampen the accent along with everything else; the accent color needs to carry its own
 alpha rather than inherit that flat opacity.
 
-### 8. Two settings, live-applied through the existing `forceRedraw` path
+### 8. Two independent three-state settings, live-applied through the existing `forceRedraw` path
 
-`highlightCurrentMarker: boolean` (default **on**) and `ancestorTrail: 'off' | 'guides' | 'path'`
-(default **`guides`**) join `PluginData`; existing installs pick up defaults through the
+`guideHighlight: 'off' | 'full' | 'lineage'` (default **`full`**) and
+`markerHighlight: 'off' | 'current' | 'lineage'` (default **`current`**) join `PluginData`; existing installs pick up defaults through the
 `{ ...DEFAULT_DATA, ...loadData() }` merge already in `onload`, so there is no migration step.
 Setting changes reuse `setMarkerVisibility`'s pattern — persist, then `forceRedraw()` — because
 the byte-identical-decoration-output problem that method exists for applies here too (a
@@ -222,6 +225,21 @@ table-only note can produce identical output across a setting change, and
 Both settings must be registered in **both** halves of the settings tab: `getSettingDefinitions()`
 (Obsidian 1.13+) and the pre-1.13 `display()` fallback, which the existing code explicitly keeps
 in sync.
+
+**Two axes rather than one combined setting.** The first shape bundled them: a boolean for the
+current marker plus one three-state trail where `path` implied "lineage guides AND lineage
+markers". That made the most useful rendering unreachable — `markers: 'lineage'` with
+`guides: 'off'` is the only thing that says anything inside a plain list, where there is no guide
+column to accent at all (decision 5), and the bundled enum had no state for it. Splitting them
+also stops "how did I get here" (guides) and "where am I" (markers) from having to agree, which
+they do not: a user can want the whole ancestor context in guides while marking only the caret's
+own node. Each axis stays a three-state enum rather than two booleans so its own two renderings
+remain mutually exclusive by construction.
+
+No migration: the old keys are simply absent from `PluginData`, so an install that has them on
+disk picks up the new defaults through the same merge. The plugin is pre-release and its one user
+is the person changing these settings, so a translation layer would be permanent code paying for a
+one-time inconvenience.
 
 ### 9. Geometry is untouchable
 
@@ -255,7 +273,7 @@ change's blast radius.
   invariant is narrowed to what it was always protecting — the base layers' geometry — and the
   delta spec says so explicitly rather than leaving the two requirements in silent conflict.
 - **Visual noise in deep trees** → the `guides` default accents an ancestor's *entire* guide, which
-  in a long section is a long line. This is precisely what the `path` style trades away, and why
+  in a long section is a long line. This is precisely what `lineage` trades away, and why
   both are offered; the experiment phase compares them side by side in a real vault before either
   is codified.
 - **Nested per-cell table editors** → they must stay decoration-free (an existing requirement, and
@@ -266,7 +284,7 @@ change's blast radius.
 
 No data migration: two new `PluginData` keys land with defaults through the existing
 `{ ...DEFAULT_DATA, ...(await this.loadData()) }` merge. Rollback is per-setting and immediate —
-`ancestorTrail: 'off'` plus `highlightCurrentMarker: false` restores exactly today's rendering,
+setting both axes to `'off'` restores exactly today's rendering,
 which is also the reason those two states are worth an explicit e2e assertion.
 
 ## Open Questions

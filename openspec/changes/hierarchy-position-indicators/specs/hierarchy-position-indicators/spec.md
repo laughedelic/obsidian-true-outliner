@@ -62,7 +62,7 @@ its head.
 
 ### Requirement: The current node's marker renders an accent when enabled
 
-When the current-marker setting is enabled, the current node's own marker SHALL render in an
+When the marker setting is not `off`, the current node's own marker SHALL render in an
 accent treatment distinct from every other node's: the synthetic block marker for a
 marker-eligible kind, and the native marker for a list item — both the bullet of an unordered
 item and the number of an ordered one, which Obsidian renders as different elements. The accent SHALL appear on
@@ -74,7 +74,7 @@ render any accent.
 
 #### Scenario: A heading's marker is accented when the caret is in it
 
-- **WHEN** the caret is placed in a heading and the current-marker setting is on
+- **WHEN** the caret is placed in a heading and the marker setting is not `off`
 - **THEN** that heading's block marker renders the accent treatment, and no other node's marker
   does
 
@@ -98,30 +98,46 @@ render any accent.
 
 **Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents an ORDERED list item’s number, which is a different element", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-marker findings themselves are `docs/research/14`’s findings 1 and 4.
 
-### Requirement: The ancestor trail has exactly three mutually exclusive states
+### Requirement: Guides and markers are two independent three-state settings
 
-The ancestor-trail setting SHALL have exactly three states — `off`, `guides`, and `path` — of
-which at most one rendering is ever active. `off` SHALL render no trail at all. The two active
-styles SHALL NOT be combinable, so no document ever shows both a full-extent ancestor accent and
-a partial one on the same level.
+The layer SHALL be configured by exactly two settings, each with three states, and each SHALL
+take effect independently of the other:
 
-#### Scenario: Off renders no trail
+- a GUIDE setting — `off`, `full`, or `lineage` — governing which parts of the current node's
+  ancestor guides are accented;
+- a MARKER setting — `off`, `current`, or `lineage` — governing which markers are accented.
 
-- **WHEN** the ancestor-trail setting is `off` and the caret is inside a deeply nested node
-- **THEN** every guide renders in its normal, unaccented appearance, and no accented segment or
-  accented ancestor marker renders anywhere
+Within each setting the states SHALL be mutually exclusive, so no level ever shows two guide
+renderings at once. Across the two settings every combination SHALL be valid and render exactly
+what its two values say, including the combinations where one axis is `off`.
 
-#### Scenario: Switching styles replaces rather than adds
+#### Scenario: Both off renders no accent at all
 
-- **WHEN** the setting is changed from `guides` to `path`
-- **THEN** the full-extent ancestor accents are gone and the partial ones are present; no level
-  shows both
+- **WHEN** both settings are `off` and the caret is inside a deeply nested node
+- **THEN** every guide and every marker renders in its normal, unaccented appearance
 
-**Covered by**: `tests/decorate.test.ts` ("is reported even when the trail style is 'off', which draws nothing", "accents no ancestor markers — that belongs to the path style"); `e2e/specs/54-position-indicators.e2e.ts` ("with both off, renders exactly what the base layers render", "does not accent an ancestor’s full extent the way guides does").
+#### Scenario: Either axis changes without disturbing the other
 
-### Requirement: The `guides` style accents exactly the current node's strict ancestors
+- **WHEN** the guide setting is changed while the marker setting stays put
+- **THEN** the guide rendering changes as that value says and the accented markers are exactly
+  the ones the marker setting still names — and the same holds with the roles reversed
 
-In the `guides` style, a guide SHALL render the accent treatment on a line when, and only when,
+#### Scenario: Markers alone, with no guides accented
+
+- **WHEN** the guide setting is `off` and the marker setting is `lineage`
+- **THEN** the current node's marker and every ancestor's marker render accented, and no guide
+  anywhere renders an accent
+
+**Covered by**: `tests/decorate.test.ts` ("the two axes are independent" suite — markers with no
+guides, lineage guides with only the current marker, full guides with lineage markers, and the
+current node reported under all nine combinations);
+`e2e/specs/54-position-indicators.e2e.ts` ("with both off, renders exactly what the base layers
+render", "accents ancestor markers with the guides axis off — the pure-list rendering", "turns
+off independently of the trail").
+
+### Requirement: The `full` guide state accents exactly the current node's strict ancestors
+
+In the guide setting's `full` state, a guide SHALL render the accent treatment on a line when, and only when,
 the guide belongs to a **strict ancestor of the current node**. Guides belonging to any other
 node SHALL render unchanged on that same line, so a line carrying several guides can show some
 accented and some not. Accenting SHALL NOT change a guide's column, width, or continuity — only
@@ -129,14 +145,14 @@ its appearance.
 
 #### Scenario: Only the ancestor's guide is accented among siblings
 
-- **WHEN** the caret is inside one of two sibling sections that each own a guide, and the style is
-  `guides`
+- **WHEN** the caret is inside one of two sibling sections that each own a guide, and the guide
+  setting is `full`
 - **THEN** the guide of the section containing the caret is accented along its extent, and the
   sibling section's guide is not
 
 #### Scenario: Nested ancestors are all accented
 
-- **WHEN** the caret is in a node three non-list levels deep and the style is `guides`
+- **WHEN** the caret is in a node three non-list levels deep and the guide setting is `full`
 - **THEN** the guides of all three strict ancestors are accented on the lines that carry them
 
 #### Scenario: Accenting does not move a guide
@@ -147,37 +163,37 @@ its appearance.
 
 **Covered by**: `tests/decorate.test.ts` ("'guides' style" suite); `e2e/specs/54-position-indicators.e2e.ts` ("accents an ancestor's guide but leaves a sibling subtree's alone", "accents the ancestor guide on gap lines too, with no break", "emits no accent for a top-level node — there is no ancestor").
 
-### Requirement: The `path` style accents the route from the outline root to the current node
+### Requirement: The `lineage` states accent the route from the outline root to the current node
 
-In the `path` style, each strict ancestor SHALL contribute two things: an accented segment of
-that ancestor's own guide, running from the row after that ancestor's own rows down to the row
-where the next level begins; and an accent on that ancestor's own marker. The segment at a level SHALL NOT
-extend past the row where the next level begins, and SHALL NOT continue below the current node
-into its own subtree. Levels that are not on the current node's ancestor chain SHALL render
-neither a segment nor a marker accent.
+Under the guide setting's `lineage` state, each strict ancestor SHALL contribute an accented
+segment of its own guide, running from the row after that ancestor's own rows down to the row
+where the next level begins. That segment SHALL NOT extend past that row, and SHALL NOT continue
+below the current node into its own subtree. Under the marker setting's `lineage` state, every
+strict ancestor's own marker SHALL be accented in addition to the current node's. Levels that are
+not on the current node's ancestor chain SHALL render neither.
 
-The style SHALL NOT render any horizontal link between levels. Each level's accented marker is
-what joins its segment to the next, so the rendering reads as one route without drawing anything
-across the columns between them.
+Neither state SHALL render any horizontal link between levels. With both set to `lineage`, each
+level's accented marker is what joins its segment to the next, so the rendering reads as one route
+without drawing anything across the columns between them.
 
 #### Scenario: The route runs from root to caret
 
-- **WHEN** the caret is placed in a node several levels deep and the style is `path`
+- **WHEN** the caret is placed in a node several levels deep and both settings are `lineage`
 - **THEN** each ancestor from the outermost down renders an accented marker and an accented
   segment leading to the next level, ending at the current node
 
 #### Scenario: Nothing horizontal is drawn
 
-- **WHEN** the style is `path` and the caret is several levels deep, so every level change is
-  rendered
+- **WHEN** both settings are `lineage` and the caret is several levels deep, so every level change
+  is rendered
 - **THEN** no horizontal accent renders on any row, and no accent crosses any marker's own icon
 
 #### Scenario: An ancestor's own rows carry no accent
 
-- **WHEN** the style is `path` and an ancestor spans several physical lines
+- **WHEN** the guide setting is `lineage` and an ancestor spans several physical lines
 - **THEN** no accent renders at that ancestor's own level on any of its own rows — the same rows
-  the `guides` style also leaves alone, since a node's guide does not exist there and its marker
-  sits on exactly that column
+  `full` also leaves alone, since a node's guide does not exist there and its marker sits on
+  exactly that column
 
 #### Scenario: The route stops at the current node
 
@@ -186,12 +202,12 @@ across the columns between them.
 
 #### Scenario: A sibling subtree carries nothing
 
-- **WHEN** an ancestor of the current node has another child subtree that does not contain the
-  caret
+- **WHEN** both settings are `lineage` and an ancestor of the current node has another child
+  subtree that does not contain the caret
 - **THEN** neither an accented segment nor an accented marker renders anywhere inside that
   sibling subtree
 
-**Covered by**: `tests/decorate.test.ts` ("'path' style" suite, including "accents every ancestor's own marker, which is what replaced the elbows", "starts each segment exactly where the guides style starts its own", "skips a multi-line ancestor’s OWN rows, continuation lines included"); `e2e/specs/54-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "accents every ancestor’s marker — the junction that replaced the elbows", "keeps the base guide continuous through a half-accented row").
+**Covered by**: `tests/decorate.test.ts` ("'path' style" suite, including "accents every ancestor's own marker, which is what replaced the elbows", "starts each segment exactly where the guides style starts its own", "skips a multi-line ancestor’s OWN rows, continuation lines included", and the arriving segment's stop); `e2e/specs/54-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "accents every ancestor’s marker — the junction that replaced the elbows", "keeps the base guide continuous through a half-accented row").
 
 ### Requirement: Trail rendering through list nesting uses native list chrome or is omitted
 
@@ -203,7 +219,7 @@ SHALL NOT be rendered in its place. The trail's segments through non-list levels
 regardless.
 
 A list ancestor's own MARKER is not subject to that limitation — it is a real element already at
-the real native column — so in the `path` style a list-item ancestor SHALL render its native
+the real native column — so a list-item ancestor SHALL render its native
 bullet accented like any other ancestor's marker, whether or not a segment can be drawn at its
 level.
 
@@ -223,7 +239,7 @@ level.
 #### Scenario: A pure list still shows its levels through accented bullets
 
 - **WHEN** the caret is inside a deeply nested pure list — no non-list ancestor anywhere, so no
-  segment can be drawn at all — and the style is `path`
+  segment can be drawn at all — and the marker setting is `lineage`
 - **THEN** every ancestor list item renders its native bullet accented, and no segment renders
   anywhere
 
@@ -237,13 +253,13 @@ and other purely visual attributes SHALL differ between settings.
 
 #### Scenario: Toggling indicators never reflows text
 
-- **WHEN** the current-marker setting or the ancestor-trail setting is changed to any other value
+- **WHEN** either setting is changed to any other one of its values
 - **THEN** every line's rendered indentation and text position, and every marker's size and
   position, are identical to what they were before the change
 
 #### Scenario: Turning everything off restores the base rendering
 
-- **WHEN** the current-marker setting is off and the ancestor-trail setting is `off`
+- **WHEN** both settings are `off`
 - **THEN** the note renders exactly as the base decoration layers alone render it
 
 **Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("changes no geometry across every setting combination" — measures every line's position, padding, margin, gutter, and marker rect across all six combinations — and "with both off, renders exactly what the base layers render").

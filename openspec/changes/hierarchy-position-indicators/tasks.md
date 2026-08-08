@@ -37,10 +37,13 @@ building on them — a wrong answer here changes what gets built, not just how.
 
 ## 3. Settings
 
-- [x] 3.1 Add `highlightCurrentMarker: boolean` (default `true`) and
-      `ancestorTrail: 'off' | 'guides' | 'path'` (default `'guides'`) to `PluginData` and
+- [x] 3.1 Add `guideHighlight: 'off' | 'full' | 'lineage'` (default `'full'`) and
+      `markerHighlight: 'off' | 'current' | 'lineage'` (default `'current'`) to `PluginData` and
       `DEFAULT_DATA` in `src/plugin/mode-registry.ts`, with doc comments in the style of
-      `MarkerVisibility`.
+      `MarkerVisibility`. **Reshaped after review**: the first version bundled the axes (a
+      current-marker boolean plus a trail enum whose `path` state implied lineage guides AND
+      lineage markers), which made markers-only unreachable — the one rendering a plain list can
+      show, since it has no guide column to accent. Split into two independent three-state axes.
 - [x] 3.2 Add the accessors and persisting setters in `src/plugin/main.ts`, following
       `setMarkerVisibility` (persist, then `forceRedraw()`), and extend `DecorationSource` so the
       decoration layer reads both settings fresh on every recompute.

@@ -22,22 +22,25 @@ graduates the current-position family of them.
   only document changes.
 - **Current-node emphasis**: the node containing the cursor renders its marker (our synthetic
   block marker, or a list item's native bullet) in an accent treatment.
-- **Ancestor trail**, in two escalating styles the user picks between:
-  - *guides* — every guide belonging to a strict ancestor of the current node renders in the
-    accent treatment, leaving non-ancestor guides at their normal weight;
-  - *path* — only the part of each ancestor's guide that leads to the caret (from that
-    ancestor's own row down to where the next level begins), plus an accent on every ancestor's
-    own marker, so the accented run reads as the route from the outline root to the current node
-    rather than as a set of full-height ancestor guides. Started as a port of Logseq's
-    bullet-threading and dropped its horizontal elbows after seeing them in a real note: a marker
-    sits ON its own guide column, so an elbow arriving at the next level ran through the very
-    icon it was reaching for. The accented ancestor marker is the junction instead.
-- **Two settings** covering the three features — a current-marker toggle plus a three-state
-  ancestor-trail choice (`off` / `guides` / `path`), so the two trail renderings can never
-  double up on the same guide. Current-marker emphasis and the `guides` trail are the new
-  defaults; the `path` style is opt-in. Every one of them is purely decorative — no document
+- **Ancestor emphasis**, in two escalating shapes:
+  - *full* — every guide belonging to a strict ancestor of the current node renders in the
+    accent treatment along its whole length, leaving non-ancestor guides untouched;
+  - *lineage* — only the part of each ancestor's guide that leads to the caret (from the row
+    after that ancestor's own rows down to where the next level begins), and/or an accent on
+    every ancestor's own marker, so the accented run reads as the route from the outline root to
+    the current node rather than as a set of full-height ancestor guides. Started as a port of
+    Logseq's bullet-threading and dropped its horizontal elbows after seeing them in a real note:
+    a marker sits ON its own guide column, so an elbow arriving at the next level ran through the
+    very icon it was reaching for. The accented ancestor marker is the junction instead.
+- **Two independent three-state settings** covering the three features — `guideHighlight`
+  (`off` / `full` / `lineage`) and `markerHighlight` (`off` / `current` / `lineage`). Splitting
+  them along guides-vs-markers rather than bundling styles makes every combination reachable,
+  including markers-only, which is the only rendering that says anything inside a plain list.
+  Defaults are `full` guides and `current` markers. Both are purely decorative — no document
   mutation, no cursor movement, no history entries, and no effect on layout geometry
-  (indentation, gutters, and text position are byte-identical whichever way they are set).
+  (indentation, gutters, and text position are byte-identical whichever way they are set). The
+  accent is drawn at the same 1px weight as an unaccented guide, so it reads as a change of
+  colour rather than of weight.
 - Behavior in **pure lists** (no non-list ancestor anywhere) is part of the deliverable, not
   an exclusion: that is where an outliner spends most of its time, and Obsidian's own native
   list guides/bullets are the elements the layer accents there, since our own guide layer
@@ -66,7 +69,7 @@ graduates the current-position family of them.
   ancestor chain, alongside `decorate()`/`computeLineGuides()`); `src/plugin/decorations.ts`
   (a new ViewPlugin in `decorationsExtension`, plus `MarginCompensation` handling for
   widget-replaced atoms); `styles.css` (accent rules keyed off new classes/custom
-  properties); `src/plugin/mode-registry.ts` and `src/plugin/main.ts` (three persisted
+  properties); `src/plugin/mode-registry.ts` and `src/plugin/main.ts` (two persisted
   settings and their setting-tab controls).
 - **Tests**: new `tests/decorate.test.ts` coverage for the pure fact; new e2e spec alongside
   `e2e/specs/51-guides-gradient.e2e.ts` / `52-block-markers-icons.e2e.ts`; the existing

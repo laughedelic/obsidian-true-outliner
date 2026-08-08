@@ -25,21 +25,23 @@ export type MarkerVisibility = 'all' | 'with-children' | 'headings-and-paragraph
 export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = 'all';
 
 /**
- * Which ancestor-trail rendering the position-indicator layer draws
- * (hierarchy-position-indicators). Re-exported from decorate.ts, whose pure
- * `computePositionTrail` is the one place that gives each state its meaning —
- * declared there rather than here so the type sits next to the walk that
- * implements it, and re-exported here so `PluginData` stays a single, complete
- * description of what is persisted.
+ * The two position-indicator axes (hierarchy-position-indicators). Re-exported
+ * from decorate.ts, whose pure `computePositionTrail` is the one place that
+ * gives each state its meaning — declared there rather than here so the types
+ * sit next to the walk that implements them, and re-exported here so
+ * `PluginData` stays a single, complete description of what is persisted.
  *
- * One three-state setting rather than two toggles: `'guides'` and `'path'` are
- * two renderings of the same idea (accenting the current node's ancestor
- * levels), so having both on at once would double up on every level. The enum
- * makes that combination unrepresentable instead of a rule to enforce.
+ * Two independent axes rather than one combined setting: guides answer "how did
+ * I get here" and markers answer "where am I", and the useful combinations
+ * cross them. `markers: 'lineage'` with `guides: 'off'` is the only rendering
+ * that says anything inside a pure list, where no guide column exists at all.
+ * Each axis is a three-state enum rather than a pair of toggles, so its own two
+ * renderings can never double up on the same level.
  */
-export type { AncestorTrail } from './decorate';
-import type { AncestorTrail } from './decorate';
-export const DEFAULT_ANCESTOR_TRAIL: AncestorTrail = 'guides';
+export type { GuideHighlight, MarkerHighlight } from './decorate';
+import type { GuideHighlight, MarkerHighlight } from './decorate';
+export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = 'full';
+export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = 'current';
 
 export interface PluginData {
   outlinePaths: string[];
@@ -49,15 +51,10 @@ export interface PluginData {
    * experiments-plan.md) — a real, persisted, user-facing setting so it can
    * be tried against a real vault without a rebuild. */
   markerVisibility: MarkerVisibility;
-  /**
-   * Accent the marker (our own icon, or a list item's native bullet) of the
-   * node the caret is in. Independent of `ancestorTrail`: emphasizing where
-   * the caret IS and drawing the path that leads to it are separate questions,
-   * and the cheap one is useful on its own.
-   */
-  highlightCurrentMarker: boolean;
-  /** See `AncestorTrail`. */
-  ancestorTrail: AncestorTrail;
+  /** See `GuideHighlight`. */
+  guideHighlight: GuideHighlight;
+  /** See `MarkerHighlight`. */
+  markerHighlight: MarkerHighlight;
 }
 
 export const DEFAULT_DATA: PluginData = {
@@ -65,8 +62,8 @@ export const DEFAULT_DATA: PluginData = {
   coexistenceWarned: false,
   debugCrossCheck: false,
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
-  highlightCurrentMarker: true,
-  ancestorTrail: DEFAULT_ANCESTOR_TRAIL,
+  guideHighlight: DEFAULT_GUIDE_HIGHLIGHT,
+  markerHighlight: DEFAULT_MARKER_HIGHLIGHT,
 };
 
 export class OutlineModeRegistry {

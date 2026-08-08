@@ -20,7 +20,8 @@ import { applyEdits } from '../result';
 import {
   OutlineModeRegistry,
   DEFAULT_DATA,
-  type AncestorTrail,
+  type GuideHighlight,
+  type MarkerHighlight,
   type PluginData,
 } from './mode-registry';
 import { nodeAtLine } from './locate';
@@ -42,10 +43,16 @@ const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
   'headings-and-paragraphs': 'Only headings and paragraphs',
 };
 
-const ANCESTOR_TRAIL_LABELS: Record<AncestorTrail, string> = {
-  off: 'Off',
-  guides: 'Highlight the ancestors’ whole guide lines',
-  path: 'Highlight the path down to the cursor',
+const GUIDE_HIGHLIGHT_LABELS: Record<GuideHighlight, string> = {
+  off: 'No highlight',
+  full: 'Whole guide of every ancestor',
+  lineage: 'Only the part leading down to the cursor',
+};
+
+const MARKER_HIGHLIGHT_LABELS: Record<MarkerHighlight, string> = {
+  off: 'No highlight',
+  current: 'The current node only',
+  lineage: 'The current node and all its ancestors',
 };
 
 /**
@@ -238,22 +245,22 @@ export default class TrueOutlinerPlugin extends Plugin {
     await this.forceRedraw();
   }
 
-  get highlightCurrentMarker(): boolean {
-    return this.data.highlightCurrentMarker;
+  get guideHighlight(): GuideHighlight {
+    return this.data.guideHighlight;
   }
 
-  async setHighlightCurrentMarker(value: boolean): Promise<void> {
-    this.data.highlightCurrentMarker = value;
+  async setGuideHighlight(value: GuideHighlight): Promise<void> {
+    this.data.guideHighlight = value;
     await this.saveData(this.data);
     await this.forceRedraw();
   }
 
-  get ancestorTrail(): AncestorTrail {
-    return this.data.ancestorTrail;
+  get markerHighlight(): MarkerHighlight {
+    return this.data.markerHighlight;
   }
 
-  async setAncestorTrail(value: AncestorTrail): Promise<void> {
-    this.data.ancestorTrail = value;
+  async setMarkerHighlight(value: MarkerHighlight): Promise<void> {
+    this.data.markerHighlight = value;
     await this.saveData(this.data);
     await this.forceRedraw();
   }
@@ -537,14 +544,14 @@ const SETTING_MARKER_VISIBILITY = {
   desc: 'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
 } as const;
 
-const SETTING_HIGHLIGHT_CURRENT_MARKER = {
-  name: 'Highlight the current node’s marker',
-  desc: 'Accent the block marker — or a list item’s native bullet — of the node the cursor is in, so the current position in the outline is visible at a glance.',
+const SETTING_GUIDE_HIGHLIGHT = {
+  name: 'Highlight guides at the cursor’s position',
+  desc: 'Which indentation guides to accent for the node the cursor is in. “Whole guide” accents each ancestor’s guide along its full length — everything the cursor is inside of. “Only the part leading down to the cursor” accents just the stretch of each guide between that ancestor and the next level, so the accent traces the route to the cursor instead.',
 } as const;
 
-const SETTING_ANCESTOR_TRAIL = {
-  name: 'Ancestor trail',
-  desc: 'How to show where the cursor sits in the outline. “Whole guide lines” accents each ancestor’s guide along its full length — everything the cursor is inside of. “Path down to the cursor” accents only the part of each guide that leads to the cursor, and highlights every ancestor’s marker along the way.',
+const SETTING_MARKER_HIGHLIGHT = {
+  name: 'Highlight markers at the cursor’s position',
+  desc: 'Which block markers — or a list item’s native bullet or number — to accent. “The current node only” marks where the cursor is; adding the ancestors makes each level of the lineage visible, which is the only indication available inside a plain list, where there are no guides to accent.',
 } as const;
 
 class TrueOutlinerSettingTab extends PluginSettingTab {
@@ -579,16 +586,21 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         },
       },
       {
-        ...SETTING_HIGHLIGHT_CURRENT_MARKER,
-        control: { type: 'toggle', key: 'highlightCurrentMarker', defaultValue: true },
-      },
-      {
-        ...SETTING_ANCESTOR_TRAIL,
+        ...SETTING_GUIDE_HIGHLIGHT,
         control: {
           type: 'dropdown',
-          key: 'ancestorTrail',
-          options: ANCESTOR_TRAIL_LABELS,
-          defaultValue: 'guides',
+          key: 'guideHighlight',
+          options: GUIDE_HIGHLIGHT_LABELS,
+          defaultValue: 'full',
+        },
+      },
+      {
+        ...SETTING_MARKER_HIGHLIGHT,
+        control: {
+          type: 'dropdown',
+          key: 'markerHighlight',
+          options: MARKER_HIGHLIGHT_LABELS,
+          defaultValue: 'current',
         },
       },
     ];
@@ -604,10 +616,10 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         return this.plugin.debugCrossCheck;
       case 'markerVisibility':
         return this.plugin.markerVisibility;
-      case 'highlightCurrentMarker':
-        return this.plugin.highlightCurrentMarker;
-      case 'ancestorTrail':
-        return this.plugin.ancestorTrail;
+      case 'guideHighlight':
+        return this.plugin.guideHighlight;
+      case 'markerHighlight':
+        return this.plugin.markerHighlight;
       default:
         return undefined;
     }
@@ -621,11 +633,11 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
       case 'markerVisibility':
         await this.plugin.setMarkerVisibility(value as MarkerVisibility);
         break;
-      case 'highlightCurrentMarker':
-        await this.plugin.setHighlightCurrentMarker(Boolean(value));
+      case 'guideHighlight':
+        await this.plugin.setGuideHighlight(value as GuideHighlight);
         break;
-      case 'ancestorTrail':
-        await this.plugin.setAncestorTrail(value as AncestorTrail);
+      case 'markerHighlight':
+        await this.plugin.setMarkerHighlight(value as MarkerHighlight);
         break;
     }
   }
@@ -651,21 +663,22 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           .onChange((value) => void this.plugin.setMarkerVisibility(value as MarkerVisibility)),
       );
     new Setting(this.containerEl)
-      .setName(SETTING_HIGHLIGHT_CURRENT_MARKER.name)
-      .setDesc(SETTING_HIGHLIGHT_CURRENT_MARKER.desc)
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.highlightCurrentMarker)
-          .onChange((value) => void this.plugin.setHighlightCurrentMarker(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_ANCESTOR_TRAIL.name)
-      .setDesc(SETTING_ANCESTOR_TRAIL.desc)
+      .setName(SETTING_GUIDE_HIGHLIGHT.name)
+      .setDesc(SETTING_GUIDE_HIGHLIGHT.desc)
       .addDropdown((dropdown) =>
         dropdown
-          .addOptions(ANCESTOR_TRAIL_LABELS)
-          .setValue(this.plugin.ancestorTrail)
-          .onChange((value) => void this.plugin.setAncestorTrail(value as AncestorTrail)),
+          .addOptions(GUIDE_HIGHLIGHT_LABELS)
+          .setValue(this.plugin.guideHighlight)
+          .onChange((value) => void this.plugin.setGuideHighlight(value as GuideHighlight)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_MARKER_HIGHLIGHT.name)
+      .setDesc(SETTING_MARKER_HIGHLIGHT.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(MARKER_HIGHLIGHT_LABELS)
+          .setValue(this.plugin.markerHighlight)
+          .onChange((value) => void this.plugin.setMarkerHighlight(value as MarkerHighlight)),
       );
   }
 }

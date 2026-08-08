@@ -71,21 +71,21 @@ async function ensureOutlineMode(notePath: string): Promise<void> {
 /** Both setters skip a no-op change: each persists and then forces a full
  * redraw (main.ts's `forceRedraw`), which is far too expensive to run twice
  * per test just to reassert a value that is already in effect. */
-async function setTrail(value: 'off' | 'guides' | 'path'): Promise<void> {
+async function setGuides(value: 'off' | 'full' | 'lineage'): Promise<void> {
   const changed = await browser.executeObsidian(async ({ plugins }, v) => {
     const p = plugins.trueOutliner as any;
-    if (p.ancestorTrail === v) return false;
-    await p.setAncestorTrail(v);
+    if (p.guideHighlight === v) return false;
+    await p.setGuideHighlight(v);
     return true;
   }, value);
   if (changed) await browser.pause(250);
 }
 
-async function setMarkerHighlight(value: boolean): Promise<void> {
+async function setMarkers(value: 'off' | 'current' | 'lineage'): Promise<void> {
   const changed = await browser.executeObsidian(async ({ plugins }, v) => {
     const p = plugins.trueOutliner as any;
-    if (p.highlightCurrentMarker === v) return false;
-    await p.setHighlightCurrentMarker(v);
+    if (p.markerHighlight === v) return false;
+    await p.setMarkerHighlight(v);
     return true;
   }, value);
   if (changed) await browser.pause(250);
@@ -143,14 +143,14 @@ function geometrySnapshot(): Promise<unknown> {
 describe('position indicators: current node and ancestor trail', function () {
   /** The two settings' effective values immediately after a plugin load whose
    * on-disk data has neither key — captured before any test can set one. */
-  let defaults: { marker: unknown; trail: unknown };
+  let defaults: { markers: unknown; guides: unknown };
 
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
     defaults = await browser.executeObsidian(({ plugins }) => {
       const p = plugins.trueOutliner as any;
-      return { marker: p.highlightCurrentMarker, trail: p.ancestorTrail };
+      return { markers: p.markerHighlight, guides: p.guideHighlight };
     });
   });
 
@@ -159,8 +159,8 @@ describe('position indicators: current node and ancestor trail', function () {
   // which is exactly how a single wrong assertion turns into a cascade of
   // unrelated-looking ones. Restored per test rather than per describe block.
   beforeEach(async function () {
-    await setTrail('guides');
-    await setMarkerHighlight(true);
+    await setGuides('full');
+    await setMarkers('current');
   });
 
   afterEach(async function () {
@@ -168,13 +168,13 @@ describe('position indicators: current node and ancestor trail', function () {
   });
 
   describe('defaults and scoping', function () {
-    it('ships with the marker accent on and the trail on “guides”', async function () {
+    it('ships with guides on “full” and markers on “current”', async function () {
       // `resetPluginState` wrote a data.json with NEITHER key, then reloaded
       // the plugin — exactly the shape an install predating this change has on
       // disk. These values therefore come from the
       // `{...DEFAULT_DATA, ...(await loadData())}` merge in `onload`, which is
       // the whole migration story. Captured in `before`, ahead of any setter.
-      expect(defaults).toEqual({ marker: true, trail: 'guides' });
+      expect(defaults).toEqual({ markers: 'current', guides: 'full' });
     });
 
     it('renders no accent at all with outline mode off', async function () {
@@ -198,8 +198,8 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-marker-heading.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('guides');
-      await setMarkerHighlight(true);
+      await setGuides('full');
+      await setMarkers('current');
       await h.setCursor(8, 5); // "### Deep bit"
       await browser.pause(250);
 
@@ -279,13 +279,13 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-marker-toggle.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('guides');
+      await setGuides('full');
       await h.setCursor(8, 5);
       await browser.pause(250);
       const plain = await h.getLineChildComputedStyle(4, MARKER, 'color');
       expect(await h.getLineChildComputedStyle(8, MARKER, 'color')).not.toBe(plain);
 
-      await setMarkerHighlight(false);
+      await setMarkers('off');
       await h.setCursor(8, 5);
       await browser.pause(250);
       // Marker back to normal — and the trail is untouched: line 15 still
@@ -301,7 +301,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-guides.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('guides');
+      await setGuides('full');
       await h.setCursor(8, 5); // "### Deep bit": ancestors are Project (0), Section A (1)
       await browser.pause(250);
 
@@ -321,7 +321,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-guides-gaps.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('guides');
+      await setGuides('full');
       await h.setCursor(8, 5);
       await browser.pause(250);
       // Lines 5 and 7 are blank separators inside Section A's subtree.
@@ -333,7 +333,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-guides-toplevel.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('guides');
+      await setGuides('full');
       await h.setCursor(0, 3); // "# Project" itself
       await browser.pause(250);
       // Every guide in the document renders in the one unaccented color.
@@ -351,7 +351,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-path.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('path');
+      await setGuides('lineage');
       await h.setCursor(8, 5); // "### Deep bit"
       await browser.pause(250);
 
@@ -378,14 +378,14 @@ describe('position indicators: current node and ancestor trail', function () {
       await ensureOutlineMode(note);
       await h.setCursor(8, 5);
 
-      await setTrail('guides');
+      await setGuides('full');
       await h.setCursor(8, 5);
       await browser.pause(250);
       // Under guides, line 15 (still inside Project's subtree, below the
       // caret) carries the accented ancestor guide.
       expect(await overlayColors(15)).toHaveLength(2);
 
-      await setTrail('path');
+      await setGuides('lineage');
       await h.setCursor(8, 5);
       await browser.pause(250);
       // Under path it does not — the accent ended at the current node.
@@ -396,7 +396,8 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-path-ancestors.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('path');
+      await setGuides('lineage');
+      await setMarkers('lineage');
       await h.setCursor(8, 5); // "### Deep bit": ancestors are lines 0 and 4
       await browser.pause(250);
 
@@ -418,7 +419,8 @@ describe('position indicators: current node and ancestor trail', function () {
       // entire rendering, and the reason they exist.
       await h.createNote(note, '- one\n    - two\n        - three\n');
       await ensureOutlineMode(note);
-      await setTrail('path');
+      await setGuides('lineage');
+      await setMarkers('lineage');
       await h.setCursor(2, 15); // the deepest item
       await browser.pause(250);
 
@@ -430,9 +432,9 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(await h.getLineClassList(0)).toContain('to-decor-ancestor-native');
       expect(await overlayLayers(2)).toBe(0); // and genuinely nothing is drawn
 
-      // The guides style does NOT accent ancestor markers — that is what
-      // distinguishes the two styles here.
-      await setTrail('guides');
+      // Turning the markers axis down to 'current' drops the ancestors, with
+      // the guides axis untouched — the point of splitting them.
+      await setMarkers('current');
       await h.setCursor(2, 15);
       await browser.pause(250);
       expect(await h.getLineChildComputedStyle(0, BULLET, 'background-color', '::after')).not.toBe(
@@ -447,7 +449,7 @@ describe('position indicators: current node and ancestor trail', function () {
       // overshoots the unpadded one by ~5px and undershoots the padded one.
       await h.createNote(note, '# H1\n\nintro\n\n## H2\n\nbody\n');
       await ensureOutlineMode(note);
-      await setTrail('path');
+      await setGuides('lineage');
 
       // One caret, two level changes: the path is H1 → H2 → "body", so an
       // arriving segment lands on the HEADING row (4) and on the PARAGRAPH
@@ -508,11 +510,33 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(padded).not.toBe(unpadded);
     });
 
+    it('accents ancestor markers with the guides axis off — the pure-list rendering', async function () {
+      const note = 'Scratch/pi-markers-only.md';
+      await h.createNote(note, STRUCTURED);
+      await ensureOutlineMode(note);
+      // The combination the old single setting could not express at all.
+      await setGuides('off');
+      await setMarkers('lineage');
+      await h.setCursor(8, 5);
+      await browser.pause(250);
+
+      const plain = await h.getLineChildComputedStyle(13, MARKER, 'color'); // not an ancestor
+      expect(await h.getLineChildComputedStyle(0, MARKER, 'color')).not.toBe(plain);
+      expect(await h.getLineChildComputedStyle(4, MARKER, 'color')).not.toBe(plain);
+      // …and not one accented pixel of guide anywhere.
+      const colors = new Set([
+        ...(await overlayColors(2)),
+        ...(await overlayColors(6)),
+        ...(await overlayColors(15)),
+      ]);
+      expect(colors.size).toBe(1);
+    });
+
     it('keeps the base guide continuous through a half-accented row', async function () {
       const note = 'Scratch/pi-path-continuity.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('path');
+      await setGuides('lineage');
       await h.setCursor(8, 5);
       await browser.pause(250);
       // Line 4 carries a HALF-height accent at depth 0. The plain guide at
@@ -528,7 +552,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-path-list.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('path');
+      await setGuides('lineage');
       await h.setCursor(11, 9); // "    - two"
       await browser.pause(250);
 
@@ -549,7 +573,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-tracking.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('guides');
+      await setGuides('full');
       await h.setCursor(6, 2); // "Body of A." — under Project + Section A
       await browser.pause(250);
       expect(await overlayColors(15)).toHaveLength(2); // Section B's guide unaccented
@@ -564,7 +588,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-suppression.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('guides');
+      await setGuides('full');
       await h.setCursor(6, 2);
       await browser.pause(250);
       const plainMarker = await h.getLineChildComputedStyle(4, MARKER, 'color');
@@ -592,7 +616,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-multicursor.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('guides');
+      await setGuides('full');
       // Two cursors in different subtrees; CM6's primary is the last range.
       await h.dispatchSelectOnlyRanges([
         { anchor: { line: 6, ch: 2 }, head: { line: 6, ch: 2 } },
@@ -620,16 +644,17 @@ describe('position indicators: current node and ancestor trail', function () {
       await h.setCursor(8, 5);
       await browser.pause(250);
 
-      await setTrail('off');
-      await setMarkerHighlight(false);
+      await setGuides('off');
+      await setMarkers('off');
       await h.setCursor(8, 5);
       await browser.pause(250);
       const baseline = await geometrySnapshot();
 
-      for (const trail of ['off', 'guides', 'path'] as const) {
-        for (const marker of [true, false]) {
-          await setTrail(trail);
-          await setMarkerHighlight(marker);
+      // All nine combinations of the two axes, not a sampling of them.
+      for (const guides of ['off', 'full', 'lineage'] as const) {
+        for (const markers of ['off', 'current', 'lineage'] as const) {
+          await setGuides(guides);
+          await setMarkers(markers);
           await h.setCursor(8, 5);
           await browser.pause(250);
           expect(await geometrySnapshot()).toEqual(baseline);
@@ -641,8 +666,8 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-all-off.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('off');
-      await setMarkerHighlight(false);
+      await setGuides('off');
+      await setMarkers('off');
       await h.setCursor(8, 5);
       await browser.pause(250);
 
@@ -670,12 +695,12 @@ describe('position indicators: current node and ancestor trail', function () {
       await h.setCursor(0, 3); // caret on the heading, so IT is current
       await browser.pause(300);
 
-      await setMarkerHighlight(false);
+      await setMarkers('off');
       await h.setCursor(0, 3);
       await browser.pause(300);
       const plain = await h.getLineChildComputedStyle(0, MARKER, 'color');
 
-      await setMarkerHighlight(true);
+      await setMarkers('current');
       await h.setCursor(0, 3);
       await browser.pause(300);
       expect(await h.getLineChildComputedStyle(0, MARKER, 'color')).not.toBe(plain);
@@ -689,7 +714,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const off = await geometrySnapshot();
 
       await ensureOutlineMode(note);
-      await setTrail('path');
+      await setGuides('lineage');
       await h.setCursor(2, 12);
       await browser.pause(250);
       // The caret-derived accent may color the bullet, but the base layers
@@ -783,7 +808,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-non-mutation.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('path');
+      await setGuides('lineage');
 
       await h.setCursor(15, 10);
       await h.keys.type(' xyz');

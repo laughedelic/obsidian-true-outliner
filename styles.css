@@ -168,7 +168,12 @@
 .markdown-source-view.mod-cm6 .cm-content {
   --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
   --to-decor-accent: var(--text-accent);
-  --to-trail-width: 2px;
+  /* Same width as an unaccented guide (`guideLayer`'s own 1px), so an accent is
+   * purely a change of color: the line does not thicken as the caret moves into
+   * a subtree, and an accented guide sits on exactly the columns and weight the
+   * unaccented one did. A heavier value reads as emphasis-by-weight and makes
+   * the accented column visibly jump; retune with a snippet if that is wanted. */
+  --to-trail-width: 1px;
 }
 
 /*

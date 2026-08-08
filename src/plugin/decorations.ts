@@ -81,7 +81,8 @@ import {
   computeLineGuides,
   computePositionTrail,
   decorate,
-  type AncestorTrail,
+  type GuideHighlight,
+  type MarkerHighlight,
   type LineDecorationFact,
   type LineGuideFact,
   type PositionTrail,
@@ -241,7 +242,7 @@ function accentLayer(depth: number, extent: TrailExtent): string {
  * change with an elbow (the Logseq bullet-threading shape); since a marker is
  * centered ON its own guide column, that elbow ran straight through the
  * marker's icon on arrival. The accented ancestor marker is the junction
- * instead — see `AncestorTrail` in decorate.ts.
+ * instead — see `MarkerHighlight` in decorate.ts.
  */
 function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFact): string {
   if (!trail) return guideDepths.map(guideLayer).join(', ');
@@ -272,7 +273,9 @@ function hasOverlay(guide: LineGuideFact, trail?: PositionTrailFact): boolean {
  * trail on top of a filled rectangle just makes both harder to read.
  */
 function positionTrail(state: EditorState, modes: DecorationSource): PositionTrail {
-  if (!modes.highlightCurrentMarker && modes.ancestorTrail === 'off') return EMPTY_POSITION_TRAIL;
+  if (modes.markerHighlight === 'off' && modes.guideHighlight === 'off') {
+    return EMPTY_POSITION_TRAIL;
+  }
   if (allRangesCovered(state)) return EMPTY_POSITION_TRAIL;
   const { doc } = parsedDoc(state.doc);
   // The HEAD of the PRIMARY range: head so the trail follows where the user is
@@ -280,7 +283,10 @@ function positionTrail(state: EditorState, modes: DecorationSource): PositionTra
   // competing ones.
   const head = state.selection.main.head;
   const cursorLine = state.doc.lineAt(head).number - 1;
-  return computePositionTrail(doc, cursorLine, modes.ancestorTrail);
+  return computePositionTrail(doc, cursorLine, {
+    guides: modes.guideHighlight,
+    markers: modes.markerHighlight,
+  });
 }
 
 /**
@@ -310,10 +316,10 @@ const ANCESTOR_MARKER_CLASS = 'to-decor-ancestor';
 const ANCESTOR_NATIVE_MARKER_CLASS = 'to-decor-ancestor-native';
 
 /**
- * `markerAccent` gates only the CURRENT node's marker — that is the setting's
- * whole subject. Ancestor markers belong to the `'path'` trail, which is what
- * asked for them, so they follow the trail setting instead. A node is never
- * both, so the two can never collide on one line.
+ * Both roles now answer to one setting, so only the current node needs a gate
+ * here: `ancestorLines` is populated by `computePositionTrail` only under
+ * `markers: 'lineage'`, which already encodes "and the ancestors too". A node
+ * is never both roles, so the two can never collide on one line.
  */
 function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: boolean): string {
   if (markerAccent && trail.currentLine === lineNumber) {
@@ -354,12 +360,11 @@ import type { MarkerVisibility } from './mode-registry';
  * outline mode already does (see main.ts's refreshDecorations). */
 export interface DecorationSource extends ModeSource {
   readonly markerVisibility: MarkerVisibility;
-  /** Accent the marker of the node the caret is in
-   * (hierarchy-position-indicators). Read fresh per recompute, same as the
-   * settings above. */
-  readonly highlightCurrentMarker: boolean;
-  /** Which ancestor-trail rendering to draw, if any. */
-  readonly ancestorTrail: AncestorTrail;
+  /** Which markers to accent (hierarchy-position-indicators). Read fresh per
+   * recompute, same as the settings above. */
+  readonly markerHighlight: MarkerHighlight;
+  /** How much of the ancestor guides to accent, if any. */
+  readonly guideHighlight: GuideHighlight;
 }
 
 const EMPTY_POSITION_TRAIL: PositionTrail = {
@@ -775,7 +780,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     }
     const fact = factsByLine.get(guide.lineNumber);
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
-    builder.add(from, from, lineDecoration(fact, guide, trail, modes.highlightCurrentMarker));
+    builder.add(from, from, lineDecoration(fact, guide, trail, modes.markerHighlight !== 'off'));
   }
   return builder.finish();
 }
@@ -1956,7 +1961,7 @@ class MarginCompensation implements PluginValue {
         // list item, and — being a leaf by construction — never an ancestor.
         el.classList.toggle(
           CURRENT_MARKER_CLASS,
-          this.modes.highlightCurrentMarker && trail.currentLine === lineNumber,
+          this.modes.markerHighlight !== 'off' && trail.currentLine === lineNumber,
         );
 
         const guide = guidesByLine.get(lineNumber);

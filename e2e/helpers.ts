@@ -445,8 +445,8 @@ export async function readPluginData(): Promise<PluginData | null> {
  * Pin the position-indicator settings OFF for a spec that measures the base
  * decoration layers (indentation, guides, markers).
  *
- * Those two settings ship ON (hierarchy-position-indicators), so any spec whose
- * caret happens to land inside a subtree now sees an ACCENTED ancestor guide
+ * Both axes default to something visible (hierarchy-position-indicators), so any
+ * spec whose caret happens to land inside a subtree now sees an ACCENTED ancestor guide
  * where it used to see a plain one — same geometry, different color, and a
  * different gradient function. That silently changes what a layer-counting or
  * color-comparing assertion measures, which is how a default change quietly
@@ -457,8 +457,8 @@ export async function readPluginData(): Promise<PluginData | null> {
 export async function pinPositionIndicatorsOff(): Promise<void> {
   await browser.executeObsidian(async ({ plugins }) => {
     const plugin = plugins.trueOutliner as any;
-    await plugin.setAncestorTrail('off');
-    await plugin.setHighlightCurrentMarker(false);
+    await plugin.setGuideHighlight('off');
+    await plugin.setMarkerHighlight('off');
   });
 }
 
