@@ -262,7 +262,7 @@ and other purely visual attributes SHALL differ between settings.
 - **WHEN** both settings are `off`
 - **THEN** the note renders exactly as the base decoration layers alone render it
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("changes no geometry across every setting combination" — measures every line's position, padding, margin, gutter, and marker rect across all six combinations — and "with both off, renders exactly what the base layers render").
+**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("changes no geometry across every setting combination" — measures every line's position, padding, margin, gutter, and marker rect across all nine combinations (3 guide states × 3 marker states) — and "with both off, renders exactly what the base layers render").
 
 ### Requirement: Indicators track the caret and settings changes live
 

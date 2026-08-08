@@ -271,7 +271,7 @@ geometry change at all (both are asserted in `55-position-indicators.e2e.ts`).
 
 **Not done:** the community-theme sweep (Minimal, Catppuccin). The layer writes no geometry
 whatsoever — only colors and background layers, verified by auditing every new rule and by an
-e2e that measures every line's position and every marker's rect across all six setting
+e2e that measures every line's position and every marker's rect across all nine setting
 combinations — so the class of theme bug doc 12 records for base indentation (a `max-width`-sized
 box that does not recompute) has no way to reach this layer. A visual contrast check under a
 third-party theme is still worth doing if one is ever installed for another reason.

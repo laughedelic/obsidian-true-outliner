@@ -131,7 +131,7 @@ settings surface we commit to (design.md Non-Goals) — the settings axis should
 small and opinionated rather than mirror every CSS knob.
 
 The `hierarchy-position-indicators` change took the first bite of this: its two settings
-(`highlightCurrentMarker`, `ancestorTrail`) are independently switchable and its appearance
+(`guideHighlight`, `markerHighlight`) are independently switchable and its appearance
 is driven by `--to-decor-accent`/`--to-trail-width`, so retuning the look needs a snippet
 rather than another setting. The larger "every layer optional, indentation unit configurable"
 work above is untouched by it.

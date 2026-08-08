@@ -118,16 +118,24 @@ depth*, plus one extra layer shape; the marker setting's `lineage` state reuses 
 - **Vertical segment, depth `d`**: accented on lines from just after ancestor `d`'s own lines
   down to the first line of ancestor `d+1` (or of the current node, at the last level) — instead
   of `full`'s "every line in ancestor `d`'s subtree."
-- **Half-height stub**: on an ancestor's *own* first line the guide for its own depth does not
-  exist (a node never owns a guide on its own line), yet the path must visibly start at that
-  node's marker. A layer with `background-size: <unit> 50%` positioned at `bottom` draws the
-  lower half of that row — the segment leaving the marker downward.
+- **Arriving partial segment**: on the row where the next level starts, a layer positioned at
+  `top` whose height stops at that row's own marker, so the segment visibly meets the thing it
+  points at. Nothing is drawn on an ancestor's OWN rows at either end — a node's guide does not
+  exist there (`computeLineGuides`), and its marker sits centred on that very column, so an
+  accent there would draw over the icon rather than lead to it. An earlier version did exactly
+  that with a bottom-anchored half-height stub on the ancestor's own row, meaning to make the
+  path "leave" the marker; it struck through the icon instead and is gone.
 - **Every ancestor's marker, accented** — the same mechanism decision 6 already builds for the
   current node, pointed at the ancestor chain. This is the marker axis's own `lineage` state, so
-  it can be had with or without the guide segments.
+  it can be had with or without the guide segments, and it is what connects one segment to the
+  next now that nothing horizontal is drawn.
 
-All of it is `background-position`/`background-size` arithmetic on constants this module already
-computes; no pixel measurement, no overlay divs, no per-depth DOM.
+The columns and extents are `background-position`/`background-size` arithmetic on constants this
+module already computes — no overlay divs, no per-depth DOM. The one exception is where the
+arriving segment STOPS: a marker's centre is `padding-top + iconSize / 2` down its row, and that
+padding is Obsidian's, varying by kind with no way to read it into a `calc`. `MarginCompensation`
+measures the glyph per arriving row and publishes `--to-accent-stop` (see docs/research/14,
+findings 5 and 6).
 
 **Reworked after the first real-note review.** The original built the Logseq shape literally: an
 extra horizontal `linear-gradient` layer at each level change, spanning column `d` to `d+1` at the

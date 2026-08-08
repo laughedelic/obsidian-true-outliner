@@ -55,8 +55,8 @@ building on them — a wrong answer here changes what gets built, not just how.
 ## 4. Current-node marker accent
 
 - [x] 4.1 Emit the current-node class from the decoration builder on the current node's first
-      line only, gated on outline mode, on `highlightCurrentMarker`, and on the suppression rule
-      (spec: suppressed while every non-empty range is a whole-subtree cover).
+      line only, gated on outline mode, on `markerHighlight` being other than `off`, and on the
+      suppression rule (spec: suppressed while every non-empty range is a whole-subtree cover).
 - [x] 4.2 Apply the same class on the widget-atom DOM-patch path in `MarginCompensation`, and
       clear it in `clearAll()` alongside the other decoration state.
 - [x] 4.3 Add the `styles.css` rules accenting the synthetic marker icon and the native list

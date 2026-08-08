@@ -1185,6 +1185,7 @@ function clearWidgetPatch(el: HTMLElement): void {
   el.style.removeProperty('margin-left');
   el.classList.remove('to-decor-guides');
   el.classList.remove(CURRENT_MARKER_CLASS);
+  el.classList.remove(ANCESTOR_MARKER_CLASS);
   el.classList.remove(SELECTED_NODE_CLASS);
   el.classList.remove(WIDGET_PATCHED_CLASS);
   el.style.removeProperty('--to-guides');
@@ -1955,13 +1956,29 @@ class MarginCompensation implements PluginValue {
           clearWidgetMarker(el);
         }
 
-        // Toggled (not just added) so the accent clears the moment the caret
-        // leaves this widget, on the very next render. Only the current-node
-        // synthetic-marker class can ever apply here: a widget atom is never a
-        // list item, and — being a leaf by construction — never an ancestor.
+        // Toggled (not just added) so an accent clears the moment the caret
+        // leaves, on the very next render.
+        //
+        // BOTH roles apply here, not just the current node. That was not true
+        // while this loop gated on `fact.isAtom`: an atom is a leaf by
+        // construction, so a widget could never be an ancestor. Deciding by
+        // rendered form instead (decorate-widget-rendered-lines) admits
+        // widget-rendered PARAGRAPHS — a whole-line embed is one — and the
+        // attachment rule (`listAttachesTo`) makes a following list that
+        // paragraph's children. So a widget line genuinely can be an ancestor,
+        // and skipping that here left `markerHighlight: 'lineage'` silently
+        // unable to accent an embed it had descended from.
+        //
+        // Only the synthetic-marker classes are reachable: `isMarkerEligible`
+        // excludes list items, so the native-bullet variants never apply.
+        const markerAccent = this.modes.markerHighlight !== 'off';
         el.classList.toggle(
           CURRENT_MARKER_CLASS,
-          this.modes.markerHighlight !== 'off' && trail.currentLine === lineNumber,
+          markerAccent && trail.currentLine === lineNumber,
+        );
+        el.classList.toggle(
+          ANCESTOR_MARKER_CLASS,
+          markerAccent && trail.ancestorLines.has(lineNumber),
         );
 
         const guide = guidesByLine.get(lineNumber);

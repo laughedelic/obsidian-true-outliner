@@ -440,7 +440,6 @@ export async function readPluginData(): Promise<PluginData | null> {
   }
 }
 
-/** Reset plugin data to defaults and reload the plugin so it re-reads it. */
 /**
  * Pin the position-indicator settings OFF for a spec that measures the base
  * decoration layers (indentation, guides, markers).
@@ -462,6 +461,7 @@ export async function pinPositionIndicatorsOff(): Promise<void> {
   });
 }
 
+/** Reset plugin data to defaults and reload the plugin so it re-reads it. */
 export async function resetPluginState(): Promise<void> {
   await browser.executeObsidian(async ({ plugins }) => {
     await (plugins.trueOutliner as any).saveData({

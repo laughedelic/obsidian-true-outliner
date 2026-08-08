@@ -532,6 +532,45 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(colors.size).toBe(1);
     });
 
+    it('accents a widget-rendered ANCESTOR — an embed with a list under it', async function () {
+      const note = 'Scratch/pi-embed-ancestor.md';
+      // A whole-line embed parses as a paragraph, and `listAttachesTo` makes a
+      // following list its children — so this widget-rendered line is a real
+      // ancestor. It carries neither `.cm-line` nor `.cm-embed-block`, which is
+      // why both the DOM patch and the CSS have to key off our own class alone.
+      await h.createNote(note, '# Head\n\n![[README]]\n- child one\n- child two\n');
+      await ensureOutlineMode(note);
+      await setMarkers('lineage');
+      await h.setCursor(3, 5); // "- child one", a child of the embed
+      await browser.pause(400);
+
+      const embedIcon = () =>
+        browser.executeObsidian(({ app, obsidian }) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+          const cm = (view.editor as any).cm;
+          const el = cm.contentDOM.querySelector('.internal-embed') as HTMLElement | null;
+          const icon = el?.querySelector('.to-decor-marker-icon') as HTMLElement | null;
+          return {
+            hasAncestorClass: !!el?.classList.contains('to-decor-ancestor'),
+            color: icon ? getComputedStyle(icon).color : null,
+          };
+        });
+
+      const accented = await embedIcon();
+      expect(accented.hasAncestorClass).toBe(true);
+      expect(accented.color).toBeTruthy();
+      // The heading is an ancestor too; both should read the same accent.
+      expect(await h.getLineChildComputedStyle(0, MARKER, 'color')).toBe(accented.color);
+
+      // Dropping to 'current' releases it — the ancestor role is what earns it.
+      await setMarkers('current');
+      await h.setCursor(3, 5);
+      await browser.pause(400);
+      const released = await embedIcon();
+      expect(released.hasAncestorClass).toBe(false);
+      expect(released.color).not.toBe(accented.color);
+    });
+
     it('keeps the base guide continuous through a half-accented row', async function () {
       const note = 'Scratch/pi-path-continuity.md';
       await h.createNote(note, STRUCTURED);
@@ -617,22 +656,27 @@ describe('position indicators: current node and ancestor trail', function () {
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
       await setGuides('full');
-      // Two cursors in different subtrees; CM6's primary is the last range.
+      // Two cursors in different subtrees. `EditorSelection.create` defaults
+      // its main index to 0, so the PRIMARY is the FIRST range — line 6.
       await h.dispatchSelectOnlyRanges([
         { anchor: { line: 6, ch: 2 }, head: { line: 6, ch: 2 } },
         { anchor: { line: 15, ch: 2 }, head: { line: 15, ch: 2 } },
       ]);
       await browser.pause(300);
+
+      // Asserted exactly, per range, rather than as "at least one of them":
+      // an earlier version filtered with an async predicate, which keeps every
+      // element (a Promise is always truthy), so it passed no matter what
+      // rendered — including a missing or a duplicated accent.
       const plainMarker = await h.getLineChildComputedStyle(4, MARKER, 'color');
-      const accented = [6, 15].filter(
-        async (l) => (await h.getLineChildComputedStyle(l, MARKER, 'color')) !== plainMarker,
-      );
-      expect(accented.length).toBeGreaterThan(0);
-      // Exactly one of the two subtrees reads as current: Section A's guide
-      // and Section B's guide cannot both be accented.
-      const a = (await overlayColors(6)).length;
-      const b = (await overlayColors(15)).length;
-      expect(a === b).toBe(false);
+      expect(await h.getLineChildComputedStyle(6, MARKER, 'color')).not.toBe(plainMarker);
+      expect(await h.getLineChildComputedStyle(15, MARKER, 'color')).toBe(plainMarker);
+
+      // And exactly one trail: line 6 sits under both of the primary's
+      // ancestors, so both its guides are accented (one colour); line 15 sits
+      // under Project (an ancestor) and Section B (not one), so it shows two.
+      expect(await overlayColors(6)).toHaveLength(1);
+      expect(await overlayColors(15)).toHaveLength(2);
     });
   });
 

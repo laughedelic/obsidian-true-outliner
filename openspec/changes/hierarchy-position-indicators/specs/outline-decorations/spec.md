@@ -17,8 +17,9 @@ so a pure list's geometry is unchanged whatever they render.
 #### Scenario: Pure list nesting shows no decoration
 - **WHEN** a document is a deeply nested list with no heading or paragraph ancestor anywhere
   in it
-- **THEN** every list item's rendered position, guide state, and marker state are identical
-  to outline-mode-off
+- **THEN** the base layers contribute nothing: every list item's rendered position is identical
+  to outline-mode-off, no guide renders anywhere, and no synthetic marker is added — the only
+  marker present is Obsidian's own native bullet, which the base layers never restyle
 
 #### Scenario: A caret-derived accent in a pure list changes no geometry
 - **WHEN** a pure-list document is open in outline mode with the caret inside it and the

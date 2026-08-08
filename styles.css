@@ -195,20 +195,28 @@
  * selectors anyway so a snippet can distinguish them (e.g. a dimmer ancestor)
  * without the plugin growing a setting for it.
  *
+ * Matched on OUR OWN class alone, with no Obsidian class qualifying it — the
+ * same rule the guide overlay above records. An earlier version wrote
+ * `> .cm-embed-block.to-decor-current`, which silently meant "plain lines and
+ * the atom kinds": a wiki embed carries neither `.cm-line` nor
+ * `.cm-embed-block`, so an embed's accent class would have been set by the
+ * ViewPlugin and then matched nothing. We only ever set these classes on an
+ * element that renders a whole line, so the direct-child combinator alone
+ * already says everything that needs saying.
+ *
  * Colors only — no size, no position, no gutter. Toggling any of this must
  * never reflow a single character, which is a property of what these rules
  * are allowed to set rather than something a test has to keep watch over.
  * The native bullet is confirmed present even while the caret sits on its own
  * line (docs/research/14); the caret is not what swaps it for raw text.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current .to-decor-marker-icon,
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-ancestor .to-decor-marker-icon,
-.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-current .to-decor-marker-icon {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-current .to-decor-marker-icon,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-ancestor .to-decor-marker-icon {
   color: var(--to-decor-accent);
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current-native .list-bullet::after,
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-ancestor-native .list-bullet::after {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-current-native .list-bullet::after,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-ancestor-native .list-bullet::after {
   background-color: var(--to-decor-accent);
 }
 
@@ -218,8 +226,8 @@
  * this made the accent silently do nothing on every numbered list — found by
  * probing the DOM rather than by any test, since "no accent" looks exactly like
  * "not the current node". */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current-native .list-number,
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-ancestor-native .list-number {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-current-native .list-number,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-ancestor-native .list-number {
   color: var(--to-decor-accent);
 }
 
