@@ -451,7 +451,7 @@ export async function readPluginData(): Promise<PluginData | null> {
  * different gradient function. That silently changes what a layer-counting or
  * color-comparing assertion measures, which is how a default change quietly
  * weakens an existing regression net rather than failing loudly. Specs that
- * mean to test the base layers say so here; `54-position-indicators.e2e.ts`
+ * mean to test the base layers say so here; `55-position-indicators.e2e.ts`
  * owns the accents themselves.
  */
 export async function pinPositionIndicatorsOff(): Promise<void> {

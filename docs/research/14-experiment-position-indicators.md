@@ -251,7 +251,7 @@ segment with no line crossing anything. Three consequences worth recording:
 Implementation note worth keeping: a `path` segment covering half a row does NOT replace the
 plain guide underneath it — only a full-height accent does. Replacing it in the half-row case
 punched a visible gap into a guide the trail was only supposed to be highlighting; the fix is
-one condition in `guideBackground`, and `54-position-indicators.e2e.ts` pins it.
+one condition in `guideBackground`, and `55-position-indicators.e2e.ts` pins it.
 
 ## The flat `opacity: 0.6` had to go
 
@@ -267,7 +267,7 @@ a single, non-overlapping layer over the page — and leaves the accent at full 
 Light and dark of the bundled theme were both checked live: the accent resolves through
 `--to-decor-accent` → `--text-accent`, so it tracks the theme in each, and stays distinguishable
 from the unaccented marker in both. A snippet overriding `--to-decor-accent` retunes it with no
-geometry change at all (both are asserted in `54-position-indicators.e2e.ts`).
+geometry change at all (both are asserted in `55-position-indicators.e2e.ts`).
 
 **Not done:** the community-theme sweep (Minimal, Catppuccin). The layer writes no geometry
 whatsoever — only colors and background layers, verified by auditing every new rule and by an

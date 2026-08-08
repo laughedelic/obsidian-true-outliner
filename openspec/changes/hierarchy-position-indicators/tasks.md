@@ -123,7 +123,7 @@ building on them — a wrong answer here changes what gets built, not just how.
 
 ## 8. End-to-end coverage
 
-- [x] 8.1 Add `e2e/specs/54-position-indicators.e2e.ts` covering: no indicators with outline mode
+- [x] 8.1 Add `e2e/specs/55-position-indicators.e2e.ts` covering: no indicators with outline mode
       off; current-marker accent on a heading and on a list item (both mounted forms); `guides`
       accenting an ancestor's guide but not a sibling's; `path` connectivity from root to caret
       and its termination at the current node.

@@ -29,6 +29,6 @@ so a pure list's geometry is unchanged whatever they render.
 **Covered by**: `tests/decorate.test.ts` ("is 0 for a list with no non-list-item ancestors
 (byte-identical invariant)", "draws nothing anywhere in a pure list, in either style"),
 `e2e/specs/51-guides-gradient.e2e.ts` ("a pure list nesting fixture (no non-list ancestor)
-draws no guides at all"), `e2e/specs/54-position-indicators.e2e.ts` ("leaves a pure list’s
+draws no guides at all"), `e2e/specs/55-position-indicators.e2e.ts` ("leaves a pure list’s
 geometry byte-identical to outline-mode-off" — measures every line's position with the caret
 inside a pure list at the strongest trail setting).
