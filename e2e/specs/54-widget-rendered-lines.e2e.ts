@@ -176,10 +176,16 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     }
   });
 
-  it('markers stay single after an embed re-render (idempotent patch)', async function () {
+  it('markers stay single across repeated renders over an embed (idempotent patch)', async function () {
     // Embeds are Obsidian-rendered subtrees that can re-render on their own,
     // unlike the CM6-owned widget subtrees the injection site was designed
     // against. A duplicated or lost marker is the failure mode to catch.
+    //
+    // Scope, stated plainly: this drives repeated EDITOR renders by moving
+    // the cursor. It does NOT make the embedded note's own rendered subtree
+    // re-render, which is the case the injection site is actually weaker
+    // against — that needs the embedded note edited from elsewhere, and
+    // stays deferred (docs/research/12-decoration-follow-ups.md).
     await h.setCursor(6, 0);
     await browser.pause(150);
     await h.setCursor(0, 0);

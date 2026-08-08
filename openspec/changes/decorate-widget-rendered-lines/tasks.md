@@ -13,9 +13,12 @@ Nothing in section 3 starts until this section's findings are written down.
       direct child of `.cm-content`, its `parentElement` chain up to `.cm-content`, and what
       `posAtDOM` resolves it to. Record the results in the change (a short findings note in
       this file or `docs/research/12`'s entry).
-- [x] 1.3 Repeat 1.2 with the cursor ON each embed line, confirming the line reverts to a
-      plain `.cm-line` and recording which decoration state it carries in that form — this
-      is the reference the fix must reproduce in the widget state.
+- [x] 1.3 Repeat 1.2 with the cursor ON each embed line, recording what actually changes.
+      (Written expecting the line to revert to a plain `.cm-line`, which would have been the
+      reference the widget state must reproduce. Measured otherwise — see Findings 2: the
+      embed element never reverts, and in some cursor states Obsidian ADDS a separate
+      `.cm-line` for the same document line while keeping it. That is what removed the
+      cursor-on baseline and, later, what produced the double marker.)
 - [x] 1.4 Confirm a line-level `.cm-embed-block` does not contaminate the reference-line
       readings in `nativeMarginBasePx()` / `nativeContentRightPx()` (design Risks). If it
       does, that selector needs the same exclusion `.hr` already has.
@@ -124,9 +127,13 @@ Per project practice: a new assertion that passes before the fix proves nothing.
       what could newly break them.
 - [x] 4.3 Escalated-selection coverage: an embed line inside a cover shows the same chrome
       as plain lines in that cover, reaching the same left edge.
-- [x] 4.4 Marker-idempotence under embed re-render (design Risks): force the embed to
-      re-render and assert exactly one marker child survives. Record what actually happens
-      if it does not — that finding decides whether a follow-up is needed, not a guess.
+- [x] 4.4 Marker-idempotence across repeated renders (design Risks): drive several editor
+      renders over the embed and assert exactly one marker child survives each. NOT the full
+      scenario this task was written for — it triggers renders by moving the cursor, which
+      never makes the EMBEDDED note's own subtree re-render. Forcing that (editing the
+      embedded note from another pane) stays deferred and is recorded as such in
+      `docs/research/12-decoration-follow-ups.md`; the test name says "repeated renders", not
+      "re-render", so the suite does not claim the deferred coverage.
 - [x] 4.5 `markerVisibility` across all three settings on the embed fixture: the reserved
       gutter is constant and only icon presence changes, same invariant as every other kind.
 - [x] 4.6 Outline-mode-off on the embed fixture renders byte-identical to stock Obsidian

@@ -172,13 +172,20 @@ otherwise keep passing and mask a no-op change.
 
 The load-bearing assertion is **same-depth sibling alignment**: compare the widget-rendered
 embed's resolved left edge against a plain paragraph at the same tree depth in the same
-fixture, and its marker column against that sibling's. This replaces the design's original
-cursor-on-equals-cursor-off formulation, which measurement showed is not observable: a
-whole-line embed stays a widget with the cursor anywhere on it, so there is no plain-line
-rendering of the same line to compare against. Comparing siblings still avoids hardcoded
-pixel values, and asserts the property that actually matters — the embed sits in the
-outline geometry — rather than a self-consistency that would also hold if both states were
-equally wrong.
+fixture, and its marker column against that sibling's.
+
+This replaces the design's original cursor-on-equals-cursor-off formulation, which
+measurement showed is not a usable baseline. The embed element never reverts to a plain
+line; what some cursor states do instead is ADD a separate `.cm-line` for the same document
+line while keeping the embed (see D4b). So a "cursor-on plain rendering" is not simply
+absent — it is a *different element* that appears only in some states, carries its
+indentation by a different mechanism (`padding-left`, not `margin-left`), and coexists with
+the very element the assertion is about. Equality between them is neither stable nor
+meaningful.
+
+Comparing siblings avoids hardcoded pixel values, and asserts the property that actually
+matters — the embed sits in the outline geometry — rather than a self-consistency that
+would also hold if both states were equally wrong.
 
 ## Risks / Trade-offs
 
