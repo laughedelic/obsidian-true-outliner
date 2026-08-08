@@ -32,10 +32,10 @@ export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = 'all';
  * implements it, and re-exported here so `PluginData` stays a single, complete
  * description of what is persisted.
  *
- * One three-state setting rather than two toggles: `'guides'` and `'thread'`
- * are two renderings of the same idea (accenting the current node's ancestor
- * levels), so having both on at once would double up on every level. The
- * enum makes that combination unrepresentable instead of a rule to enforce.
+ * One three-state setting rather than two toggles: `'guides'` and `'path'` are
+ * two renderings of the same idea (accenting the current node's ancestor
+ * levels), so having both on at once would double up on every level. The enum
+ * makes that combination unrepresentable instead of a rule to enforce.
  */
 export type { AncestorTrail } from './decorate';
 import type { AncestorTrail } from './decorate';

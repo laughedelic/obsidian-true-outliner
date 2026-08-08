@@ -71,7 +71,7 @@ async function ensureOutlineMode(notePath: string): Promise<void> {
 /** Both setters skip a no-op change: each persists and then forces a full
  * redraw (main.ts's `forceRedraw`), which is far too expensive to run twice
  * per test just to reassert a value that is already in effect. */
-async function setTrail(value: 'off' | 'guides' | 'thread'): Promise<void> {
+async function setTrail(value: 'off' | 'guides' | 'path'): Promise<void> {
   const changed = await browser.executeObsidian(async ({ plugins }, v) => {
     const p = plugins.trueOutliner as any;
     if (p.ancestorTrail === v) return false;
@@ -329,32 +329,34 @@ describe('position indicators: current node and ancestor trail', function () {
     });
   });
 
-  describe("'thread' style", function () {
+  describe("'path' style", function () {
     it('runs a connected path from the root to the caret, and stops there', async function () {
-      const note = 'Scratch/pi-thread.md';
+      const note = 'Scratch/pi-path.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('thread');
+      await setTrail('path');
       await h.setCursor(8, 5); // "### Deep bit"
       await browser.pause(250);
 
-      // Line 0 ("# Project") owns no guide of its own, yet the thread leaves
-      // its marker downward — so an overlay exists there ONLY because of the
-      // thread. That is the half-segment the guides style never draws.
+      // Line 0 ("# Project") owns no guide of its own, yet the path leaves its
+      // marker downward — so an overlay exists there ONLY because of the path.
+      // That is the half-segment the guides style never draws.
       expect(await overlayLayers(0)).toBe(1);
 
       // Line 4 ("## Section A") is a level change: the arriving segment, the
-      // elbow, the departing half-segment, plus the plain guide underneath.
-      expect(await overlayLayers(4)).toBe(4);
+      // departing half-segment, plus the plain guide underneath. NOTHING
+      // horizontal — the elbow that used to be here ran through this row's own
+      // marker icon, and the accented marker is the junction instead.
+      expect(await overlayLayers(4)).toBe(3);
 
-      // Below the current node the thread is gone — line 10 ("- one") keeps
+      // Below the current node the path is gone — line 10 ("- one") keeps
       // only its plain guides.
       expect(await overlayColors(10)).toHaveLength(1);
       expect(await overlayColors(15)).toHaveLength(1);
     });
 
     it('does not accent an ancestor’s full extent the way guides does', async function () {
-      const note = 'Scratch/pi-thread-extent.md';
+      const note = 'Scratch/pi-path-extent.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
       await h.setCursor(8, 5);
@@ -366,18 +368,66 @@ describe('position indicators: current node and ancestor trail', function () {
       // caret) carries the accented ancestor guide.
       expect(await overlayColors(15)).toHaveLength(2);
 
-      await setTrail('thread');
+      await setTrail('path');
       await h.setCursor(8, 5);
       await browser.pause(250);
-      // Under thread it does not — the path ended at the current node.
+      // Under path it does not — the accent ended at the current node.
       expect(await overlayColors(15)).toHaveLength(1);
     });
 
-    it('keeps the base guide continuous through a half-accented row', async function () {
-      const note = 'Scratch/pi-thread-continuity.md';
+    it('accents every ancestor’s marker — the junction that replaced the elbows', async function () {
+      const note = 'Scratch/pi-path-ancestors.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('thread');
+      await setTrail('path');
+      await h.setCursor(8, 5); // "### Deep bit": ancestors are lines 0 and 4
+      await browser.pause(250);
+
+      const plain = await h.getLineChildComputedStyle(2, MARKER, 'color'); // not on the path
+      const rootMarker = await h.getLineChildComputedStyle(0, MARKER, 'color');
+      const midMarker = await h.getLineChildComputedStyle(4, MARKER, 'color');
+      expect(rootMarker).not.toBe(plain);
+      expect(midMarker).not.toBe(plain);
+      // A sibling section is not an ancestor, so its marker stays plain.
+      expect(await h.getLineChildComputedStyle(13, MARKER, 'color')).toBe(plain);
+      expect(await h.getLineClassList(0)).toContain('to-decor-ancestor');
+      expect(await h.getLineClassList(4)).toContain('to-decor-ancestor');
+    });
+
+    it('accents ancestor BULLETS in a list, where no segment can be drawn', async function () {
+      const note = 'Scratch/pi-path-list-ancestors.md';
+      // A pure list: no non-list ancestor exists, so the path style has no
+      // column to draw a single segment on — the accented bullets are the
+      // entire rendering, and the reason they exist.
+      await h.createNote(note, '- one\n    - two\n        - three\n');
+      await ensureOutlineMode(note);
+      await setTrail('path');
+      await h.setCursor(2, 15); // the deepest item
+      await browser.pause(250);
+
+      const current = await h.getLineChildComputedStyle(2, BULLET, 'background-color', '::after');
+      const anc0 = await h.getLineChildComputedStyle(0, BULLET, 'background-color', '::after');
+      const anc1 = await h.getLineChildComputedStyle(1, BULLET, 'background-color', '::after');
+      expect(anc0).toBe(current); // both ancestors accented, like the caret's own
+      expect(anc1).toBe(current);
+      expect(await h.getLineClassList(0)).toContain('to-decor-ancestor-native');
+      expect(await overlayLayers(2)).toBe(0); // and genuinely nothing is drawn
+
+      // The guides style does NOT accent ancestor markers — that is what
+      // distinguishes the two styles here.
+      await setTrail('guides');
+      await h.setCursor(2, 15);
+      await browser.pause(250);
+      expect(await h.getLineChildComputedStyle(0, BULLET, 'background-color', '::after')).not.toBe(
+        current,
+      );
+    });
+
+    it('keeps the base guide continuous through a half-accented row', async function () {
+      const note = 'Scratch/pi-path-continuity.md';
+      await h.createNote(note, STRUCTURED);
+      await ensureOutlineMode(note);
+      await setTrail('path');
       await h.setCursor(8, 5);
       await browser.pause(250);
       // Line 4 carries a HALF-height accent at depth 0. The plain guide at
@@ -388,15 +438,15 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(sizes).toMatch(/50%/); // and the half-height accent is too
     });
 
-    it('threads to a list item without drawing at a native list column', async function () {
-      const note = 'Scratch/pi-thread-list.md';
+    it('reaches a list item without drawing at a native list column', async function () {
+      const note = 'Scratch/pi-path-list.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('thread');
+      await setTrail('path');
       await h.setCursor(11, 9); // "    - two"
       await browser.pause(250);
 
-      // The thread reaches the row and the bullet is accented, but no accent
+      // The path reaches the row and the bullet is accented, but no accent
       // is placed on a list level: the accented layers only ever sit at our
       // own `depth * unit` columns (docs/research/14's deliberate gap).
       expect(await h.getLineClassList(11)).toContain('to-decor-current-native');
@@ -490,7 +540,7 @@ describe('position indicators: current node and ancestor trail', function () {
       await browser.pause(250);
       const baseline = await geometrySnapshot();
 
-      for (const trail of ['off', 'guides', 'thread'] as const) {
+      for (const trail of ['off', 'guides', 'path'] as const) {
         for (const marker of [true, false]) {
           await setTrail(trail);
           await setMarkerHighlight(marker);
@@ -553,7 +603,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const off = await geometrySnapshot();
 
       await ensureOutlineMode(note);
-      await setTrail('thread');
+      await setTrail('path');
       await h.setCursor(2, 12);
       await browser.pause(250);
       // The caret-derived accent may color the bullet, but the base layers
@@ -647,7 +697,7 @@ describe('position indicators: current node and ancestor trail', function () {
       const note = 'Scratch/pi-non-mutation.md';
       await h.createNote(note, STRUCTURED);
       await ensureOutlineMode(note);
-      await setTrail('thread');
+      await setTrail('path');
 
       await h.setCursor(15, 10);
       await h.keys.type(' xyz');

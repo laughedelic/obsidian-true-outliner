@@ -422,15 +422,15 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
   const trail = (md: string, cursorLine: number, style: AncestorTrail) =>
     computePositionTrail(parse(md), cursorLine, style);
 
-  /** Compact per-line view: 'depth:extent' pairs, plus an elbow marker. */
+  /** Compact per-line view: line number, then its 'depth:extent' accents. */
   const shape = (t: ReturnType<typeof trail>) =>
     [...t.byLine.values()]
       .sort((a, b) => a.lineNumber - b.lineNumber)
-      .map((f) => [
-        f.lineNumber,
-        f.accents.map((a) => `${a.depth}:${a.extent}`).join(','),
-        f.elbow ? `${f.elbow.from}->${f.elbow.to}` : '',
-      ]);
+      .map((f) => [f.lineNumber, f.accents.map((a) => `${a.depth}:${a.extent}`).join(',')]);
+
+  /** Which lines carry an accented ancestor marker, and of which kind. */
+  const ancestors = (t: ReturnType<typeof trail>) =>
+    [...t.ancestorLines.entries()].sort((a, b) => a[0] - b[0]);
 
   const NESTED = ['# A', '', '## B', '', '### C', '', 'text under C', ''].join('\n');
   //              0     1    2      3    4        5    6              7
@@ -465,7 +465,7 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
     });
 
     it('reports no current node for a caret past the end of the document', () => {
-      expect(trail(NESTED, 99, 'thread').currentLine).toBe(null);
+      expect(trail(NESTED, 99, 'path').currentLine).toBe(null);
     });
 
     it("is reported even when the trail style is 'off', which draws nothing", () => {
@@ -479,13 +479,13 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
     it("accents every strict ancestor's guide across that ancestor's whole subtree", () => {
       // Caret in "### C" (depth 2): ancestors are "# A" (0) and "## B" (1).
       expect(shape(trail(NESTED, 4, 'guides'))).toEqual([
-        [1, '0:full', ''], // A's gap — inside A's subtree
-        [2, '0:full', ''], // ## B
-        [3, '0:full,1:full', ''], // B's gap — inside both
-        [4, '0:full,1:full', ''], // ### C
-        [5, '0:full,1:full', ''],
-        [6, '0:full,1:full', ''], // text under C
-        [7, '0:full,1:full', ''],
+        [1, '0:full'], // A's gap — inside A's subtree
+        [2, '0:full'], // ## B
+        [3, '0:full,1:full'], // B's gap — inside both
+        [4, '0:full,1:full'], // ### C
+        [5, '0:full,1:full'],
+        [6, '0:full,1:full'], // text under C
+        [7, '0:full,1:full'],
       ]);
     });
 
@@ -502,9 +502,9 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       const t = trail(md, 6, 'guides'); // caret under "# Two"
       // Only "# Two"'s subtree (lines 5-7) is accented; "# One"'s (1-3) is not.
       expect(shape(t)).toEqual([
-        [5, '0:full', ''],
-        [6, '0:full', ''],
-        [7, '0:full', ''],
+        [5, '0:full'],
+        [6, '0:full'],
+        [7, '0:full'],
       ]);
     });
 
@@ -520,28 +520,28 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       expect(trail(NESTED, 0, 'guides').byLine.size).toBe(0);
     });
 
-    it('emits no elbows — the guides style has no level changes to mark', () => {
-      const t = trail(NESTED, 6, 'guides');
-      expect([...t.byLine.values()].every((f) => f.elbow === null)).toBe(true);
+    it('accents no ancestor markers — that belongs to the path style', () => {
+      expect(ancestors(trail(NESTED, 6, 'guides'))).toEqual([]);
+      expect(ancestors(trail(NESTED, 4, 'guides'))).toEqual([]);
     });
   });
 
-  describe("'thread' style", () => {
+  describe("'path' style", () => {
     it('runs one connected path from the root to the current node', () => {
       // Caret in "### C" (line 4). A's segment leaves A's own marker (line 0,
       // lower half), runs through the gap, arrives at B's line; B's segment
       // does the same down to C's line, where the path ends.
-      expect(shape(trail(NESTED, 4, 'thread'))).toEqual([
-        [0, '0:bottom', ''],
-        [1, '0:full', ''],
-        [2, '0:top,1:bottom', '0->1'],
-        [3, '1:full', ''],
-        [4, '1:top', '1->2'],
+      expect(shape(trail(NESTED, 4, 'path'))).toEqual([
+        [0, '0:bottom'],
+        [1, '0:full'],
+        [2, '0:top,1:bottom'],
+        [3, '1:full'],
+        [4, '1:top'],
       ]);
     });
 
     it('stops at the current node, never continuing into its own subtree', () => {
-      const t = trail(NESTED, 4, 'thread');
+      const t = trail(NESTED, 4, 'path');
       expect(Math.max(...[...t.byLine.keys()])).toBe(4); // "### C"'s own line
       expect(t.byLine.has(6)).toBe(false); // "text under C" carries nothing
     });
@@ -549,56 +549,87 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
     it('does not accent the full extent of an ancestor the way guides does', () => {
       const md = ['# A', '', '## B', '', 'tail of A’s subtree', ''].join('\n');
       //           0      1    2      3    4
-      const t = trail(md, 2, 'thread'); // caret in "## B"
-      // Line 4 is still inside A's subtree, but below B — no thread there.
+      const t = trail(md, 2, 'path'); // caret in "## B"
+      // Line 4 is still inside A's subtree, but below B — nothing there.
       expect(t.byLine.has(4)).toBe(false);
       expect(shape(t)).toEqual([
-        [0, '0:bottom', ''],
-        [1, '0:full', ''],
-        [2, '0:top', '0->1'],
+        [0, '0:bottom'],
+        [1, '0:full'],
+        [2, '0:top'],
       ]);
     });
 
-    it('carries no thread into a sibling subtree', () => {
+    it('carries nothing into a sibling subtree', () => {
       const md = ['# One', '', '## Under one', '', '# Two', '', '## Under two', ''].join('\n');
-      const t = trail(md, 6, 'thread');
+      const t = trail(md, 6, 'path');
       expect(shape(t)).toEqual([
-        [4, '0:bottom', ''],
-        [5, '0:full', ''],
-        [6, '0:top', '0->1'],
+        [4, '0:bottom'],
+        [5, '0:full'],
+        [6, '0:top'],
       ]);
     });
 
-    it('draws nothing for a top-level node — there is no ancestor to thread from', () => {
-      expect(trail(NESTED, 0, 'thread').byLine.size).toBe(0);
+    it('draws nothing for a top-level node — it has no ancestor at all', () => {
+      const t = trail(NESTED, 0, 'path');
+      expect(t.byLine.size).toBe(0);
+      expect(ancestors(t)).toEqual([]);
     });
 
     it('spans a multi-line ancestor’s continuation lines at full height', () => {
       const md = ['first line', 'second line', '', '- child', ''].join('\n');
       //           0             1              2    3
-      const t = trail(md, 3, 'thread');
+      const t = trail(md, 3, 'path');
       expect(shape(t)).toEqual([
-        [0, '0:bottom', ''],
-        [1, '0:full', ''],
-        [2, '0:full', ''],
-        [3, '0:top', ''], // no elbow: the terminal is a list item
+        [0, '0:bottom'],
+        [1, '0:full'],
+        [2, '0:full'],
+        [3, '0:top'],
+      ]);
+    });
+
+    it("accents every ancestor's own marker, which is what replaced the elbows", () => {
+      // Caret in "### C": both "# A" (line 0) and "## B" (line 2) are
+      // ancestors, and neither is a list item.
+      expect(ancestors(trail(NESTED, 4, 'path'))).toEqual([
+        [0, false],
+        [2, false],
+      ]);
+      // The current node itself is NOT in there — it has its own accent,
+      // under its own setting.
+      expect(trail(NESTED, 4, 'path').currentLine).toBe(4);
+    });
+
+    it('marks a list-item ancestor as native, so the bullet gets accented', () => {
+      const md = ['# A', '', '- one', '  - two', ''].join('\n');
+      //           0      1    2        3
+      expect(ancestors(trail(md, 3, 'path'))).toEqual([
+        [0, false], // "# A" — our own marker icon
+        [2, true], // "- one" — Obsidian's native bullet
       ]);
     });
   });
 
   describe('list levels (native columns this layer cannot address)', () => {
-    it('threads through list ancestors at the shallower non-list column', () => {
+    it('runs the segment at the shallower non-list column, through the list levels', () => {
       const md = ['# A', '', '- one', '  - two', '    - three', ''].join('\n');
       //           0      1    2        3          4
-      const t = trail(md, 4, 'thread'); // caret on the deepest list item
-      // A's own segment is the whole thread; the two list ancestors between
-      // A and the caret contribute no column of their own.
+      const t = trail(md, 4, 'path'); // caret on the deepest list item
+      // A's own segment is the whole drawn path; the two list ancestors
+      // between A and the caret contribute no column of their own.
       expect(shape(t)).toEqual([
-        [0, '0:bottom', ''],
-        [1, '0:full', ''],
-        [2, '0:full', ''],
-        [3, '0:full', ''],
-        [4, '0:top', ''], // no elbow into a list item's native column
+        [0, '0:bottom'],
+        [1, '0:full'],
+        [2, '0:full'],
+        [3, '0:full'],
+        [4, '0:top'],
+      ]);
+      // Their MARKERS are still accented, though — a bullet is a real element
+      // at the real native column, so it needs none of the geometry the
+      // segments cannot address.
+      expect(ancestors(t)).toEqual([
+        [0, false],
+        [2, true],
+        [3, true],
       ]);
     });
 
@@ -611,13 +642,24 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       expect([...depths]).toEqual([0]); // never 1 or 2, the list levels
     });
 
-    it('draws nothing anywhere in a pure list, in either style', () => {
+    it('draws no segment anywhere in a pure list, in either style', () => {
       const md = ['- one', '  - two', '    - three', ''].join('\n');
       expect(trail(md, 2, 'guides').byLine.size).toBe(0);
-      expect(trail(md, 2, 'thread').byLine.size).toBe(0);
+      expect(trail(md, 2, 'path').byLine.size).toBe(0);
       // The current node is still reported — the marker accent needs it.
-      expect(trail(md, 2, 'thread').currentLine).toBe(2);
-      expect(trail(md, 2, 'thread').currentIsListItem).toBe(true);
+      expect(trail(md, 2, 'path').currentLine).toBe(2);
+      expect(trail(md, 2, 'path').currentIsListItem).toBe(true);
+    });
+
+    it('still accents the ancestor bullets in a pure list, where no line can be drawn', () => {
+      const md = ['- one', '  - two', '    - three', ''].join('\n');
+      // This is the whole reason ancestor markers exist: with no non-list
+      // ancestor there is nothing to draw, yet the levels are still legible.
+      expect(ancestors(trail(md, 2, 'path'))).toEqual([
+        [0, true],
+        [1, true],
+      ]);
+      expect(ancestors(trail(md, 2, 'guides'))).toEqual([]);
     });
   });
 });

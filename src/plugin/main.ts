@@ -44,8 +44,8 @@ const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
 
 const ANCESTOR_TRAIL_LABELS: Record<AncestorTrail, string> = {
   off: 'Off',
-  guides: 'Highlight the ancestors’ guide lines',
-  thread: 'Thread from the outline root to the cursor',
+  guides: 'Highlight the ancestors’ whole guide lines',
+  path: 'Highlight the path down to the cursor',
 };
 
 /**
@@ -544,7 +544,7 @@ const SETTING_HIGHLIGHT_CURRENT_MARKER = {
 
 const SETTING_ANCESTOR_TRAIL = {
   name: 'Ancestor trail',
-  desc: 'How to show the path from the outline root down to the cursor. “Highlight the ancestors’ guide lines” accents each ancestor’s guide along its whole length; “Thread” instead draws a single connected line that steps in one level at a time, ending at the current node.',
+  desc: 'How to show where the cursor sits in the outline. “Whole guide lines” accents each ancestor’s guide along its full length — everything the cursor is inside of. “Path down to the cursor” accents only the part of each guide that leads to the cursor, and highlights every ancestor’s marker along the way.',
 } as const;
 
 class TrueOutlinerSettingTab extends PluginSettingTab {

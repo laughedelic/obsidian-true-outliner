@@ -197,7 +197,7 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
 
 /**
  * One accented vertical segment at `depth`. `'full'` covers the row; `'top'`
- * and `'bottom'` cover half of it — a thread segment arriving at the row where
+ * and `'bottom'` cover half of it — a `path` segment arriving at the row where
  * the next level starts, and one leaving an ancestor's own marker downward,
  * which is a row where that ancestor's own guide deliberately does not exist.
  */
@@ -211,37 +211,25 @@ function accentLayer(depth: number, extent: TrailExtent): string {
 }
 
 /**
- * The horizontal link across a row's vertical middle that turns a stack of
- * per-level segments into one connected thread. `50%` as the vertical
- * position centers the bar in the row (a percentage aligns that same
- * percentage point of image and box), so it meets the marker the row's node
- * renders on the target column.
- */
-function elbowLayer(from: number, to: number): string {
-  return (
-    `linear-gradient(${ACCENT}, ${ACCENT}) ` +
-    `calc(${from} * ${UNIT}) 50% / calc((${to} - ${from}) * ${UNIT}) ${TRAIL_WIDTH} no-repeat`
-  );
-}
-
-/**
- * The full background list for one line: elbow first (topmost), then the
- * caret-derived accents, then the plain guides underneath.
+ * The full background list for one line: the caret-derived accents first
+ * (topmost), then the plain guides underneath.
  *
  * A plain guide is dropped only where a `'full'` accent covers the same
  * column — a half-height accent deliberately leaves its plain layer in place,
  * so the base guide stays continuous through the row and the accent merely
  * brightens half of it. Dropping it there would punch a visible gap into a
  * guide the trail is only supposed to be highlighting.
+ *
+ * Nothing horizontal is ever drawn here. An earlier version linked each level
+ * change with an elbow (the Logseq bullet-threading shape); since a marker is
+ * centered ON its own guide column, that elbow ran straight through the
+ * marker's icon on arrival. The accented ancestor marker is the junction
+ * instead — see `AncestorTrail` in decorate.ts.
  */
-function guideBackground(
-  guideDepths: readonly number[],
-  trail?: PositionTrailFact,
-): string {
+function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFact): string {
   if (!trail) return guideDepths.map(guideLayer).join(', ');
   const accents = new Map(trail.accents.map((a) => [a.depth, a.extent]));
   const layers: string[] = [];
-  if (trail.elbow) layers.push(elbowLayer(trail.elbow.from, trail.elbow.to));
   for (const [depth, extent] of accents) layers.push(accentLayer(depth, extent));
   for (const depth of guideDepths) {
     if (accents.get(depth) !== 'full') layers.push(guideLayer(depth));
@@ -279,28 +267,48 @@ function positionTrail(state: EditorState, modes: DecorationSource): PositionTra
 }
 
 /**
- * The class that accents the current node's own marker. Two classes, not one,
- * because the two markers are entirely different DOM: our own icon element
- * (whose `color` the SVG's `currentColor` follows) versus Obsidian's native
- * list bullet (a `.list-bullet` span we only ever restyle, never replace —
- * the same "target the existing native element" discipline
- * `obsidian-outliner` uses). Naming which one a line carries keeps the CSS
- * explicit about which mechanism it is reaching for.
+ * The classes that accent a marker. Two per role, not one, because the two
+ * markers are entirely different DOM: our own icon element (whose `color` the
+ * SVG's `currentColor` follows) versus Obsidian's native list bullet (a
+ * `.list-bullet` span we only ever restyle, never replace — the same "target
+ * the existing native element" discipline `obsidian-outliner` uses). Naming
+ * which one a line carries keeps the CSS explicit about which mechanism it is
+ * reaching for.
  *
- * The "first line only" half of the contract needs no guard here: `currentLine`
- * IS the current node's own first line (`computePositionTrail`), so a
- * continuation or gap line can never match it. A redundant `isFirstLine` check
- * was tried and removed — a mutation that deleted it changed no test's outcome,
- * which is the definition of logic that isn't doing anything.
+ * Current and ancestor are also kept apart, even though styles.css gives them
+ * the same accent today: the DOM then says which role a marker is playing, so
+ * a snippet can tell them apart and an assertion can name one without
+ * accidentally matching the other.
+ *
+ * The "first line only" half of the contract needs no guard here: both
+ * `currentLine` and every `ancestorLines` key ARE nodes' own first lines
+ * (`computePositionTrail`), so a continuation or gap line can never match. A
+ * redundant `isFirstLine` check was tried and removed — a mutation that deleted
+ * it changed no test's outcome, which is the definition of logic that isn't
+ * doing anything.
  */
 const CURRENT_MARKER_CLASS = 'to-decor-current';
 const CURRENT_NATIVE_MARKER_CLASS = 'to-decor-current-native';
+const ANCESTOR_MARKER_CLASS = 'to-decor-ancestor';
+const ANCESTOR_NATIVE_MARKER_CLASS = 'to-decor-ancestor-native';
 
-function currentMarkerClass(trail: PositionTrail, lineNumber: number): string {
-  if (trail.currentLine !== lineNumber) return '';
-  return trail.currentIsListItem
-    ? ` ${CURRENT_NATIVE_MARKER_CLASS}`
-    : ` ${CURRENT_MARKER_CLASS}`;
+/**
+ * `markerAccent` gates only the CURRENT node's marker — that is the setting's
+ * whole subject. Ancestor markers belong to the `'path'` trail, which is what
+ * asked for them, so they follow the trail setting instead. A node is never
+ * both, so the two can never collide on one line.
+ */
+function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: boolean): string {
+  if (markerAccent && trail.currentLine === lineNumber) {
+    return trail.currentIsListItem
+      ? ` ${CURRENT_NATIVE_MARKER_CLASS}`
+      : ` ${CURRENT_MARKER_CLASS}`;
+  }
+  const ancestorIsListItem = trail.ancestorLines.get(lineNumber);
+  if (ancestorIsListItem === undefined) return '';
+  return ancestorIsListItem
+    ? ` ${ANCESTOR_NATIVE_MARKER_CLASS}`
+    : ` ${ANCESTOR_MARKER_CLASS}`;
 }
 
 // ---- Block markers (Experiment 5a: icon markers) ---------------------------
@@ -340,6 +348,7 @@ export interface DecorationSource extends ModeSource {
 const EMPTY_POSITION_TRAIL: PositionTrail = {
   currentLine: null,
   currentIsListItem: false,
+  ancestorLines: new Map(),
   byLine: new Map(),
 };
 
@@ -699,7 +708,7 @@ function lineDecoration(
     styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
   }
 
-  if (markerAccent) cls += currentMarkerClass(trail, fact.lineNumber);
+  cls += markerClasses(trail, fact.lineNumber, markerAccent);
 
   const lineTrail = trail.byLine.get(fact.lineNumber);
   if (hasOverlay(guide, lineTrail)) {
@@ -715,7 +724,7 @@ function lineDecoration(
 // comment) has no decorate() fact at all — no depth, no kind, nothing to
 // indent — so it gets a minimal decoration with just the guide class/style,
 // not the full lineDecoration() treatment. A trail accent can land on such a
-// line too (a thread passing through the gap between two blocks), so the
+// line too (a path segment passing through the gap between two blocks), so the
 // background is built from both sources here as well.
 function gapLineDecoration(guide: LineGuideFact, lineTrail?: PositionTrailFact): Decoration {
   return Decoration.line({
@@ -1870,8 +1879,9 @@ class MarginCompensation implements PluginValue {
         }
 
         // Toggled (not just added) so the accent clears the moment the caret
-        // leaves this widget, on the very next render. A widget atom is never
-        // a list item, so only the synthetic-marker class can apply here.
+        // leaves this widget, on the very next render. Only the current-node
+        // synthetic-marker class can ever apply here: a widget atom is never a
+        // list item, and — being a leaf by construction — never an ancestor.
         el.classList.toggle(
           CURRENT_MARKER_CLASS,
           this.modes.highlightCurrentMarker && trail.currentLine === lineNumber,

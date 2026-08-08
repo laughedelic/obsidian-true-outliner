@@ -25,14 +25,17 @@ graduates the current-position family of them.
 - **Ancestor trail**, in two escalating styles the user picks between:
   - *guides* — every guide belonging to a strict ancestor of the current node renders in the
     accent treatment, leaving non-ancestor guides at their normal weight;
-  - *thread* — the Logseq bullet-threading shape: at each ancestor level, an accented segment
-    running from that ancestor's own marker down to the next level's marker, connected by an
-    elbow, so the accented run reads as one continuous thread from the outline root to the
-    current node rather than as a set of full-height ancestor guides.
+  - *path* — only the part of each ancestor's guide that leads to the caret (from that
+    ancestor's own row down to where the next level begins), plus an accent on every ancestor's
+    own marker, so the accented run reads as the route from the outline root to the current node
+    rather than as a set of full-height ancestor guides. Started as a port of Logseq's
+    bullet-threading and dropped its horizontal elbows after seeing them in a real note: a marker
+    sits ON its own guide column, so an elbow arriving at the next level ran through the very
+    icon it was reaching for. The accented ancestor marker is the junction instead.
 - **Two settings** covering the three features — a current-marker toggle plus a three-state
-  ancestor-trail choice (`off` / `guides` / `thread`), so the two trail renderings can never
+  ancestor-trail choice (`off` / `guides` / `path`), so the two trail renderings can never
   double up on the same guide. Current-marker emphasis and the `guides` trail are the new
-  defaults; the `thread` style is opt-in. Every one of them is purely decorative — no document
+  defaults; the `path` style is opt-in. Every one of them is purely decorative — no document
   mutation, no cursor movement, no history entries, and no effect on layout geometry
   (indentation, gutters, and text position are byte-identical whichever way they are set).
 - Behavior in **pure lists** (no non-list ancestor anywhere) is part of the deliverable, not
@@ -47,8 +50,8 @@ graduates the current-position family of them.
 ### New Capabilities
 
 - `hierarchy-position-indicators`: cursor-derived decoration showing where the caret sits in
-  the tree — current-node marker emphasis, ancestor-guide emphasis, and bullet-threading —
-  each independently configurable, all off by default, all strictly read-only rendering.
+  the tree — current-node marker emphasis, ancestor-guide emphasis, and an ancestor route —
+  independently configurable, all strictly read-only rendering.
 
 ### Modified Capabilities
 

@@ -63,9 +63,9 @@ Two consequences:
   `content` on `.cm-indent::before` renders — no specificity fight, no containment problem.
   The native `::before` is already `position: absolute` with a zero-width-space `content`, so
   the hook is real rather than something we have to construct.
-- **Obsidian's own guide column is not where a thread wants to draw.** The native `::before`
+- **Obsidian's own guide column is not where a trail segment wants to draw.** The native `::before`
   computes to `left: 36px` — the span's *right* edge, i.e. `84 + 36k` absolutely — while the
-  ancestor bullet that a thread segment should descend from sits at `60 + 36k`. The offset
+  ancestor bullet that a trail segment should descend from sits at `60 + 36k`. The offset
   between them is constant (`12px` here: the bullet's own offset inside its level's slot), but
   it is a theme-dependent metric, not a constant to hardcode — the same trap `nativeMarginBasePx`
   and the table widget's native padding already taught this codebase to measure rather than
@@ -81,11 +81,12 @@ own line, merely positioned by native geometry.
 - The current-marker accent (finding 1) and the `guides` trail need nothing from any of this:
   guides in this model are owned exclusively by non-list ancestors, so the `guides` style is
   complete without touching a single native list element.
-- The `thread` style through **non-list** levels rides on our own guide columns, which the
-  decoration layer already computes exactly.
-- The `thread` style through **list** levels is the part that needs finding 2's geometry, plus
-  a live measurement of the bullet-inside-slot offset. It is deliberately NOT built in this
-  pass — see "Deferred: threading through list levels" below.
+- The `path` style's segments through **non-list** levels ride on our own guide columns, which
+  the decoration layer already computes exactly.
+- Segments through **list** levels are the part that needs finding 2's geometry, plus a live
+  measurement of the bullet-inside-slot offset. They are deliberately NOT built — see "Deferred"
+  below. Their ancestors' BULLETS are accented regardless (finding 1 makes that free), so the
+  levels stay legible even where no line can be drawn.
 
 ## What shipped, and how the two styles compare
 
@@ -99,17 +100,35 @@ because those are still inside that ancestor. In a long note that is a lot of ac
 for a fairly small amount of information. The trade-off the design predicted is real, and it is
 the reason the second style exists rather than being a refinement of the first.
 
-**`thread`** draws the Logseq shape: it leaves the root ancestor's marker, steps in one level at
-a time via an elbow at each level change, and ends at the current node's own marker. Nothing is
-accented above the root, below the caret, or in any sibling subtree — the accented pixels are
-exactly the path. It is a stronger visual with less ink, and it answers "how did I get here"
-rather than "what am I inside of".
+**`path`** accents only the part of each ancestor's guide that leads to the caret, and accents
+every ancestor's marker along the way. Nothing is accented above the root, below the caret, or in
+any sibling subtree — the accented pixels are exactly the route. It is a stronger visual with less
+ink, and it answers "how did I get here" rather than "what am I inside of".
 
-Neither reads as noisy at three levels. `guides` stays the default because it is the more
-legible of the two at a glance and degrades more gracefully in a pure list (where `thread` has
-nothing to draw at all, below).
+Neither reads as noisy at three levels. `guides` stays the default because it is the more legible
+of the two at a glance.
 
-Implementation note worth keeping: a `thread` segment covering half a row does NOT replace the
+### The elbows are gone (first real-note review)
+
+`path` originally drew the Logseq shape literally, with a horizontal `linear-gradient` layer at
+each level change. Reviewing it in a real note killed it, for a reason the geometry made
+inevitable: **a marker is centered ON its own guide column** (Experiment 5a's placement), so an
+elbow arriving at level `d+1` ran straight through the very icon it was reaching for, and the
+segment ends picked up visible offsets against it. It read as lines crossing icons, not as a path.
+
+What replaced it costs less and reaches further: **accent every ancestor's marker**, and draw
+nothing horizontal at all. The marker becomes the junction — the eye follows segment → marker →
+segment with no line crossing anything. Three consequences worth recording:
+
+- It reuses two mechanisms that already worked (the vertical segments, and the current-marker
+  accent pointed at the ancestor chain) instead of adding a third that fought them.
+- It is the only part of the style that survives inside a list, where no segment can be drawn at
+  all. In a pure list, `path` is now *entirely* accented bullets — and that is the case the whole
+  style is most useful for.
+- The style is named `path`, not `thread`: it is no longer the threading shape, and calling it
+  one would have made every doc here misleading.
+
+Implementation note worth keeping: a `path` segment covering half a row does NOT replace the
 plain guide underneath it — only a full-height accent does. Replacing it in the half-row case
 punched a visible gap into a guide the trail was only supposed to be highlighting; the fix is
 one condition in `guideBackground`, and `54-position-indicators.e2e.ts` pins it.
@@ -137,12 +156,13 @@ combinations — so the class of theme bug doc 12 records for base indentation (
 box that does not recompute) has no way to reach this layer. A visual contrast check under a
 third-party theme is still worth doing if one is ever installed for another reason.
 
-## Deferred: threading through list levels
+## Deferred: drawing segments along native list columns
 
-When the ancestor chain runs through list nesting, the thread today descends at the nearest
-non-list ancestor's own column and stops at the current node's row, where the accented bullet
-terminates it. It does not step in per list level. That is the spec's permitted omission, not a
-bug — nothing renders at a wrong column — and it looks coherent in a real note.
+When the ancestor chain runs through list nesting, the `path` style today descends at the nearest
+non-list ancestor's own column and stops at the current node's row. It does not step in per list
+level. That is the spec's permitted omission, not a bug — nothing renders at a wrong column — and
+since every list ancestor's own bullet IS accented, the levels are still legible; what is missing
+is only the lines between them.
 
 Closing it properly needs three things, none of which is a small edit:
 

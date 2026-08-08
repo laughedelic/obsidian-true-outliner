@@ -172,24 +172,38 @@
 }
 
 /*
- * The current node's own marker, accented. Two selectors because the two
- * markers are entirely different DOM: our own icon element, whose SVG paints
- * with `currentColor` and so follows `color`; and Obsidian's native list
- * bullet, a `.list-bullet` span we only restyle, never replace (the same
- * "target the existing native element" discipline `obsidian-outliner` uses).
+ * Accented markers: the current node's, and — in the `path` trail style —
+ * every ancestor's. Two selectors per role because the two markers are
+ * entirely different DOM: our own icon element, whose SVG paints with
+ * `currentColor` and so follows `color`; and Obsidian's native list bullet, a
+ * `.list-bullet` span we only restyle, never replace (the same "target the
+ * existing native element" discipline `obsidian-outliner` uses).
  *
- * Colors only — no size, no position, no gutter. Toggling this setting must
+ * The ancestor markers are what the `path` style uses INSTEAD of drawing a
+ * horizontal elbow at each level change: a marker is centered on its own guide
+ * column, so an elbow arriving at the next level ran through the icon it was
+ * trying to reach. Accenting the marker makes it the junction, and the same
+ * treatment then works in a deep list — where a bullet is a real element at
+ * the real native column, even though no line can be drawn between the levels.
+ *
+ * Current and ancestor share the accent today, and are kept as separate
+ * selectors anyway so a snippet can distinguish them (e.g. a dimmer ancestor)
+ * without the plugin growing a setting for it.
+ *
+ * Colors only — no size, no position, no gutter. Toggling any of this must
  * never reflow a single character, which is a property of what these rules
  * are allowed to set rather than something a test has to keep watch over.
  * The native bullet is confirmed present even while the caret sits on its own
  * line (docs/research/14); the caret is not what swaps it for raw text.
  */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current .to-decor-marker-icon,
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-ancestor .to-decor-marker-icon,
 .markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-current .to-decor-marker-icon {
   color: var(--to-decor-accent);
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current-native .list-bullet::after {
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current-native .list-bullet::after,
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-ancestor-native .list-bullet::after {
   background-color: var(--to-decor-accent);
 }
 

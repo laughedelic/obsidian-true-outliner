@@ -216,23 +216,36 @@ export function computeLineGuides(doc: OutlineDoc): LineGuideFact[] {
 
 /**
  * Which ancestor-trail rendering the position-indicator layer draws (see the
- * hierarchy-position-indicators change). `'guides'` accents each strict
- * ancestor's guide along its whole extent; `'thread'` draws the Logseq
- * bullet-threading shape instead — per-level segments bounded by where the
- * next level starts, joined by elbows, running from the outline root down to
- * the current node. The two are one setting rather than two toggles precisely
- * so they can never double up on the same level.
+ * hierarchy-position-indicators change).
+ *
+ * - `'guides'` accents each strict ancestor's guide along its WHOLE extent —
+ *   "everything you are inside of", including the sibling subtrees below the
+ *   caret, since those are inside those ancestors too.
+ * - `'path'` accents only the part of each ancestor's guide that leads TO the
+ *   caret (from that ancestor's own row down to where the next level starts),
+ *   and accents every ancestor's own marker.
+ *
+ * `'path'` began as a port of Logseq's bullet-threading, with a horizontal
+ * elbow drawn at each level change. Those elbows were removed after seeing
+ * them in a real note: a marker is centered ON its own guide column, so an
+ * elbow arriving at the next level ran straight through that marker's icon,
+ * and the segment ends picked up visible offsets. Accenting the ancestor's
+ * marker instead makes the marker itself the junction — the shape reads as
+ * connected without drawing anything horizontal, and it reuses two mechanisms
+ * that already work rather than adding a third that fights them.
+ *
+ * One three-state setting rather than two toggles, so the two styles can never
+ * double up on the same level.
  */
-export type AncestorTrail = 'off' | 'guides' | 'thread';
+export type AncestorTrail = 'off' | 'guides' | 'path';
 
 /**
  * How much of a line's height an accent covers at one depth. `'full'` is the
- * whole row (a `guides` accent, or a `thread` segment passing straight
- * through); `'bottom'` is the lower half — a thread segment leaving an
- * ancestor's own marker downward, drawn on the ancestor's own line, where its
- * own guide deliberately does not exist; `'top'` is the upper half, a segment
- * arriving at the row where the next level starts and turning into that
- * row's elbow.
+ * whole row (a `guides` accent, or a `path` segment passing straight through);
+ * `'bottom'` is the lower half — a `path` segment leaving an ancestor's own
+ * marker downward, drawn on the ancestor's own row, where that ancestor's own
+ * guide deliberately does not exist; `'top'` is the upper half, a segment
+ * arriving at the row where the next level starts.
  */
 export type TrailExtent = 'full' | 'top' | 'bottom';
 
@@ -247,13 +260,6 @@ export interface PositionTrailFact {
   readonly lineNumber: number;
   /** Ascending by depth; at most one accent per depth, never two. */
   readonly accents: readonly TrailAccent[];
-  /**
-   * A horizontal link across this row's vertical middle, from the `from`
-   * depth's column to the `to` depth's column — the elbow that makes a
-   * `thread` read as one connected path rather than a set of stubs. Null for
-   * every line in the `guides` style, which has no level changes to mark.
-   */
-  readonly elbow: { readonly from: number; readonly to: number } | null;
 }
 
 export interface PositionTrail {
@@ -270,6 +276,14 @@ export interface PositionTrail {
    * need different CSS to accent, so the consumer has to know which.
    */
   readonly currentIsListItem: boolean;
+  /**
+   * Every strict ancestor's own first line, mapped to whether that ancestor is
+   * a list item (same native-vs-synthetic marker split as `currentIsListItem`).
+   * Populated by the `'path'` style only — it is what replaced the elbows, and
+   * the reason `'path'` says something in a pure list, where no ancestor owns a
+   * guide column this layer can draw on at all.
+   */
+  readonly ancestorLines: ReadonlyMap<number, boolean>;
   /** Keyed by line number, like `computeLineGuides`'s own output. */
   readonly byLine: ReadonlyMap<number, PositionTrailFact>;
 }
@@ -277,6 +291,7 @@ export interface PositionTrail {
 const EMPTY_TRAIL: PositionTrail = {
   currentLine: null,
   currentIsListItem: false,
+  ancestorLines: new Map(),
   byLine: new Map(),
 };
 
@@ -342,42 +357,35 @@ function chainAtLine(doc: OutlineDoc, cursorLine: number): ChainEntry[] | null {
 function push(byLine: Map<number, PositionTrailFact>, lineNumber: number, accent: TrailAccent): void {
   const existing = byLine.get(lineNumber);
   if (!existing) {
-    byLine.set(lineNumber, { lineNumber, accents: [accent], elbow: null });
+    byLine.set(lineNumber, { lineNumber, accents: [accent] });
     return;
   }
   byLine.set(lineNumber, { ...existing, accents: [...existing.accents, accent] });
 }
 
-function setElbow(
-  byLine: Map<number, PositionTrailFact>,
-  lineNumber: number,
-  elbow: { from: number; to: number },
-): void {
-  const existing = byLine.get(lineNumber);
-  byLine.set(
-    lineNumber,
-    existing ? { ...existing, elbow } : { lineNumber, accents: [], elbow },
-  );
-}
-
 /**
  * Per-line accents describing where the caret sits in the tree, plus the
- * current node's own line — the pure half of the position-indicator layer
- * (hierarchy-position-indicators). Depends on the caret as a plain line
- * number, so the whole "which levels are accented on which lines, and where
- * the elbows go" question is testable without CM6 or Obsidian, the same split
- * that made `computeLineGuides` cheap to get right.
+ * current node's own line and (in the `'path'` style) every ancestor's — the
+ * pure half of the position-indicator layer (hierarchy-position-indicators).
+ * Depends on the caret as a plain line number, so the whole "which levels are
+ * accented on which lines, and over how much of each row" question is testable
+ * without CM6 or Obsidian, the same split that made `computeLineGuides` cheap
+ * to get right.
  *
- * List-item ancestors never contribute an accent, for exactly the reason they
+ * List-item ancestors never contribute a SEGMENT, for exactly the reason they
  * never own a guide (`computeLineGuides`): their columns are Obsidian's own
  * native list metrics, not our `depth × unit` ones, so an accent placed at our
  * column for a list level would land beside the list rather than on it. In the
  * `guides` style that costs nothing — a list ancestor owns no guide to accent.
- * In the `thread` style it means a segment spans from one non-list ancestor to
- * the next, passing THROUGH any list levels between them at the shallower
- * column, and the final elbow is omitted when the current node is itself a
- * list item. Threading along native list columns is a deliberate gap, recorded
- * in docs/research/14 with the measurements a later pass needs.
+ * In the `path` style a segment spans from one non-list ancestor to the next,
+ * passing THROUGH any list levels between them at the shallower column.
+ *
+ * Their MARKERS are a different matter, and are accented like any other
+ * ancestor's: a bullet is a real element at the real native column, so
+ * accenting it needs none of the geometry we cannot address. That is what lets
+ * `'path'` say something useful inside a deep list — the levels show up as a
+ * run of accented bullets even though no line can be drawn between them.
+ * Drawing those lines is still a deliberate gap, recorded in docs/research/14.
  */
 export function computePositionTrail(
   doc: OutlineDoc,
@@ -392,7 +400,8 @@ export function computePositionTrail(
     currentLine: currentNode.firstLine,
     currentIsListItem: currentNode.isListItem,
   };
-  if (style === 'off') return { ...base, byLine: new Map() };
+  const empty = { ...base, ancestorLines: new Map<number, boolean>(), byLine: new Map() };
+  if (style === 'off') return empty;
 
   const byLine = new Map<number, PositionTrailFact>();
   const ancestors = chain.slice(0, -1);
@@ -408,28 +417,29 @@ export function computePositionTrail(
         push(byLine, line, { depth: a.depth, extent: 'full' });
       }
     }
-    return { ...base, byLine };
+    return { ...empty, byLine };
   }
 
-  // 'thread': one connected path from the outline root to the current node.
-  // Only non-list ancestors own a column we can draw on; the current node is
-  // always the terminal, whatever its kind.
+  // 'path': only the part of each ancestor's guide that leads to the caret,
+  // plus every ancestor's own marker (which is what makes the levels connect,
+  // now that nothing horizontal is drawn — see `AncestorTrail`).
+  const ancestorLines = new Map(ancestors.map((a) => [a.firstLine, a.isListItem]));
+
+  // Only non-list ancestors own a column to draw a segment on; the current
+  // node is always the terminal, whatever its kind.
   const rungs = [...ancestors.filter((a) => !a.isListItem), currentNode];
   for (let i = 0; i < rungs.length - 1; i++) {
     const from = rungs[i]!; // never a list item: only the terminal can be one
     const to = rungs[i + 1]!;
-    // The segment leaves `from`'s own marker (lower half of its own line),
-    // runs full-height through everything between, and arrives at the row
-    // where the next rung starts (upper half), where the elbow turns it in.
+    // The segment leaves `from`'s own marker (lower half of its own row), runs
+    // full-height through everything between, and stops at the row where the
+    // next level starts (upper half) — where that level's own accented marker
+    // picks the path back up.
     push(byLine, from.firstLine, { depth: from.depth, extent: 'bottom' });
     for (let line = from.firstLine + 1; line < to.firstLine; line++) {
       push(byLine, line, { depth: from.depth, extent: 'full' });
     }
     push(byLine, to.firstLine, { depth: from.depth, extent: 'top' });
-    // No elbow into a list item: its marker sits on a native column this
-    // layer cannot address, so a link drawn to `depth × unit` would point at
-    // empty space beside the bullet.
-    if (!to.isListItem) setElbow(byLine, to.firstLine, { from: from.depth, to: to.depth });
   }
-  return { ...base, byLine };
+  return { ...base, ancestorLines, byLine };
 }

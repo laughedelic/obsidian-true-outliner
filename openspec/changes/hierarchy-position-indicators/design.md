@@ -37,7 +37,7 @@ snippet.
 
 - Answer "where am I in the tree?" without scrolling — current-node emphasis plus an ancestor
   trail, computed from the parsed tree and the primary caret.
-- Three visual features (current marker, ancestor guides, bullet-threading), configurable, with
+- Three visual features (current marker, ancestor guides, an ancestor route), configurable, with
   the two ancestor-trail renderings mutually exclusive by construction.
 - Strictly decorative: no document mutation, no cursor movement, no history entries, and — the
   stronger property — **no geometry change at all**, so switching any of these settings can
@@ -66,13 +66,13 @@ snippet.
 A new `computePositionTrail(doc, cursorLine, style)` sits beside `decorate()` and
 `computeLineGuides()`, returning per-line accent facts plus the current node's own line. It
 takes the caret as a plain line number and returns plain data, so the entire "which levels are
-accented on which lines, and where do the elbows go" logic is unit-testable in
+accented on which lines, and over how much of each row" logic is unit-testable in
 `tests/decorate.test.ts` with no CM6 and no Obsidian — the same split that made the guide layer
 cheap to get right.
 
 *Alternative considered:* compute inside the ViewPlugin from `state.selection` directly. Rejected
 for the same reason the guide walk lives in `decorate.ts` — the interesting logic (segment
-extents, elbow placement, list-vs-non-list levels) is exactly the part worth testing without a
+extents, ancestor markers, list-vs-non-list levels) is exactly the part worth testing without a
 browser.
 
 ### 2. "Current node" = the node containing the primary selection's head, suppressed under block-selection chrome
@@ -102,7 +102,7 @@ take an appended DOM child — an earlier attempt at that pegged the renderer at
 place left, and it costs zero extra DOM nodes.
 
 *Alternative considered:* a separate ViewPlugin emitting its own custom property, composed in CSS
-as `background: var(--to-thread) var(--to-guides)`. Rejected: composing two comma-separated
+as `background: var(--to-path) var(--to-guides)`. Rejected: composing two comma-separated
 custom properties into one `background` needs the fragile empty-custom-property trick, and CM6
 would be merging two sources into one declaration with no way to keep them from fighting.
 
@@ -110,30 +110,48 @@ Consequence: the accent computation happens inside `DecorationsPlugin`'s builder
 recomputes on **every** update (not only `docChanged` ones — see `decorationsExtension`'s own
 comment), so selection-driven recomputation needs no new wiring.
 
-### 4. Thread geometry is expressible in the same gradient technique — including elbows
+### 4. `path` geometry is expressible in the same gradient technique — with no horizontal parts
 
-The `thread` style differs from the `guides` style only in *which lines carry an accent at which
-depth*, plus two extra layer shapes:
+The `path` style differs from the `guides` style in *which lines carry an accent at which depth*,
+plus one extra layer shape and one reuse of the marker accent:
 
 - **Vertical segment, depth `d`**: accented on lines from just below ancestor `d`'s own first
   line down to the first line of ancestor `d+1` (or of the current node, at the last level) —
   instead of the `guides` style's "every line in ancestor `d`'s subtree."
 - **Half-height stub**: on an ancestor's *own* first line the guide for its own depth does not
-  exist (a node never owns a guide on its own line), yet the thread must visibly start at that
+  exist (a node never owns a guide on its own line), yet the path must visibly start at that
   node's marker. A layer with `background-size: <unit> 50%` positioned at `bottom` draws the
   lower half of that row — the segment leaving the marker downward.
-- **Elbow**: on the line where the next level starts, one additional horizontal
-  `linear-gradient` layer spanning column `d` to column `d+1` at that row's vertical middle.
+- **Every ancestor's marker, accented** — the same mechanism decision 6 already builds for the
+  current node, pointed at the ancestor chain.
 
 All of it is `background-position`/`background-size` arithmetic on constants this module already
 computes; no pixel measurement, no overlay divs, no per-depth DOM.
 
+**Reworked after the first real-note review.** The original built the Logseq shape literally: an
+extra horizontal `linear-gradient` layer at each level change, spanning column `d` to `d+1` at the
+row's vertical middle. Seen in a real note, it was wrong in a way the geometry made inevitable — a
+marker is centered ON its own guide column (decision 6's placement, and Experiment 5a's before
+it), so an elbow arriving at level `d+1` ran straight through the very icon it was reaching for,
+and the segment ends picked up visible offsets against it.
+
+Accenting the ancestor's marker instead makes the marker itself the junction. The rendering reads
+as one route with nothing horizontal drawn, it reuses two mechanisms that already work rather than
+adding a third that fights them, and — the part that turned out to matter most — it is the only
+part of the style that survives inside a list, where no segment can be drawn at all (decision 5).
+The style is named `path` rather than `thread` because it is no longer the threading shape.
+
 ### 5. List levels are accented on Obsidian's own DOM, not on our columns
 
 Our gradient columns are `depth × unit`; a list's per-level columns are Obsidian's native metrics,
-which we deliberately never touch and never measure. Drawing a thread through list nesting with
+which we deliberately never touch and never measure. Drawing a SEGMENT through list nesting with
 our own gradient would therefore land at the wrong columns — the exact mistake Experiment 2
 already learned not to make.
+
+A list ancestor's own MARKER is a different matter, and is accented like any other's: a bullet is
+a real element already sitting at the real native column, so it needs none of the geometry we
+cannot address. That is what lets `path` say something inside a deep list — the levels read as a
+run of accented bullets even though nothing can be drawn between them.
 
 Leading mechanism, to be confirmed in the experiment phase: **style the native `.cm-indent`
 spans**. Obsidian emits one per list indentation level inside the line, and its `::before` is
@@ -152,12 +170,23 @@ community theme.
 renders through non-list levels only and stops where the list begins. Degraded, documented, and
 still correct — never a misaligned line.
 
-### 6. The current marker is accented by class, on both mechanisms
+### 6. Markers are accented by class, on both mechanisms
 
-A `Decoration.line` class on the current node's first line lets CSS color the marker widget
+A `Decoration.line` class on a node's first line lets CSS color the marker widget
 (`.to-decor-marker-icon`) that `MarkersPlugin` already put there; widget-replaced atoms get the
 same class through the existing `MarginCompensation` DOM patch, the same declarative/imperative
-split every other decoration here uses.
+split every other decoration here uses. (A widget atom is a leaf by construction, so it can only
+ever be the CURRENT node, never an ancestor.)
+
+Four classes, not one: current vs. ancestor, each split again by our own icon vs. Obsidian's
+native list bullet, since those are entirely different DOM reached by entirely different
+selectors. Current and ancestor share the accent in styles.css today and are kept apart anyway,
+so the DOM says which role a marker is playing — a snippet can dim ancestors without a new
+setting, and an assertion can name one without matching the other.
+
+Which setting owns which: `highlightCurrentMarker` gates the current node's marker, because that
+is its whole subject; ancestor markers follow `ancestorTrail`, because the `path` style is what
+asked for them (decision 4). A node is never both, so the two can never collide on one line.
 
 **Known hazard, list items specifically:** Live Preview reveals raw markup on the line the caret
 is on, and `docs/research/13` established that a list marker's round bullet comes from a
@@ -169,7 +198,7 @@ accent color on whichever form is currently mounted.
 ### 7. Colors come from theme variables through one indirection
 
 `--to-decor-accent`, defaulting to Obsidian's own `--text-accent`, plus a weight variable for the
-thread's line width — mirroring `bullet_threading.css`'s own
+trail's line width — mirroring `bullet_threading.css`'s own
 `--ls-block-bullet-active-color` / `--ls-block-bullet-threading-width` pair and the
 custom-property theming pattern doc 12 recommends copying from `obsidian-lapel`. Nothing is
 hardcoded, and a snippet can retune the look without the plugin growing settings for it.
@@ -180,7 +209,7 @@ alpha rather than inherit that flat opacity.
 
 ### 8. Two settings, live-applied through the existing `forceRedraw` path
 
-`highlightCurrentMarker: boolean` (default **on**) and `ancestorTrail: 'off' | 'guides' | 'thread'`
+`highlightCurrentMarker: boolean` (default **on**) and `ancestorTrail: 'off' | 'guides' | 'path'`
 (default **`guides`**) join `PluginData`; existing installs pick up defaults through the
 `{ ...DEFAULT_DATA, ...loadData() }` merge already in `onload`, so there is no migration step.
 Setting changes reuse `setMarkerVisibility`'s pattern — persist, then `forceRedraw()` — because
@@ -224,7 +253,7 @@ change's blast radius.
   invariant is narrowed to what it was always protecting — the base layers' geometry — and the
   delta spec says so explicitly rather than leaving the two requirements in silent conflict.
 - **Visual noise in deep trees** → the `guides` default accents an ancestor's *entire* guide, which
-  in a long section is a long line. This is precisely what the `thread` style trades away, and why
+  in a long section is a long line. This is precisely what the `path` style trades away, and why
   both are offered; the experiment phase compares them side by side in a real vault before either
   is codified.
 - **Nested per-cell table editors** → they must stay decoration-free (an existing requirement, and
@@ -243,10 +272,12 @@ which is also the reason those two states are worth an explicit e2e assertion.
 Resolved during implementation — kept here with their answers, since the reasoning is what a
 later reader needs:
 
-- **Does the thread stop at the current node, or continue into its own subtree?** ✅ It stops.
+- **Does the route stop at the current node, or continue into its own subtree?** ✅ It stops.
   Confirmed by eye: continuing past the caret re-draws what the plain guide layer already shows,
-  and costs the thread the one thing that makes it readable — that every accented pixel is on
+  and costs the style the one thing that makes it readable — that every accented pixel is on
   the path.
+- **Do the elbows work?** ❌ No, and they are gone — see decision 4. The first real-note review
+  is what settled it; the shape that replaced them is simpler and reaches further.
 - **Do the two DOM bets hold?** ✅ Both settled by live probe before anything was built on them
   (`docs/research/14`). The list bullet survives the caret sitting on its own line, so the
   marker accent needs no dual-form handling. `.cm-indent` spans exist per level and are
@@ -261,7 +292,8 @@ Still open, deliberately:
 - **Should the current node's own children get any emphasis?** Out of scope here.
 - **Folded regions.** Fold persistence is a later roadmap layer; when it arrives, a trail passing
   through a folded ancestor needs a rule. Not this change.
-- **Threading along native list columns.** The one piece of the proposal not built. What it needs
+- **Drawing segments along native list columns.** The one piece of the proposal not built (the
+  ancestor markers there ARE accented — only the lines between them are missing). What it needs
   is written up in
-  [docs/research/14](../../../docs/research/14-experiment-position-indicators.md#deferred-threading-through-list-levels)
+  [docs/research/14](../../../docs/research/14-experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns)
   with the measurements already taken.

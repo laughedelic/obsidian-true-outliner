@@ -136,15 +136,15 @@ is driven by `--to-decor-accent`/`--to-trail-width`, so retuning the look needs 
 rather than another setting. The larger "every layer optional, indentation unit configurable"
 work above is untouched by it.
 
-### Threading the ancestor trail along native list columns
+### Drawing the ancestor trail's segments along native list columns
 
-Deferred out of `hierarchy-position-indicators` deliberately. Its `thread` style steps in one
-level per non-list ancestor; where the chain runs through list nesting it descends at the
-nearest non-list ancestor's column instead, which is honest (nothing renders at a wrong column)
-but is not the full Logseq shape. The measurements needed to close it — `.cm-indent` span
-geometry, the bullet-inside-slot offset, and what is paintable on those spans — plus the three
-pieces of work it implies, are recorded in
-[14-experiment-position-indicators.md](14-experiment-position-indicators.md#deferred-threading-through-list-levels).
+Deferred out of `hierarchy-position-indicators` deliberately. Its `path` style steps in one level
+per non-list ancestor; where the chain runs through list nesting it descends at the nearest
+non-list ancestor's column instead. Each list ancestor's own bullet IS accented, so the levels
+stay legible — what is missing is only the connecting lines between them. The measurements needed
+to close it — `.cm-indent` span geometry, the bullet-inside-slot offset, and what is paintable on
+those spans — plus the three pieces of work it implies, are recorded in
+[14-experiment-position-indicators.md](14-experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns).
 
 ### Marker/guide interactions (hover and click)
 

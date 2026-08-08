@@ -94,24 +94,24 @@ render any accent.
 
 ### Requirement: The ancestor trail has exactly three mutually exclusive states
 
-The ancestor-trail setting SHALL have exactly three states — `off`, `guides`, and `thread` — of
+The ancestor-trail setting SHALL have exactly three states — `off`, `guides`, and `path` — of
 which at most one rendering is ever active. `off` SHALL render no trail at all. The two active
 styles SHALL NOT be combinable, so no document ever shows both a full-extent ancestor accent and
-a threaded one on the same level.
+a partial one on the same level.
 
 #### Scenario: Off renders no trail
 
 - **WHEN** the ancestor-trail setting is `off` and the caret is inside a deeply nested node
-- **THEN** every guide renders in its normal, unaccented appearance, and no thread segments or
-  elbows render anywhere
+- **THEN** every guide renders in its normal, unaccented appearance, and no accented segment or
+  accented ancestor marker renders anywhere
 
 #### Scenario: Switching styles replaces rather than adds
 
-- **WHEN** the setting is changed from `guides` to `thread`
-- **THEN** the full-extent ancestor accents are gone and the threaded rendering is present; no
-  level shows both
+- **WHEN** the setting is changed from `guides` to `path`
+- **THEN** the full-extent ancestor accents are gone and the partial ones are present; no level
+  shows both
 
-**Covered by**: `tests/decorate.test.ts` ("is reported even when the trail style is 'off', which draws nothing"); `e2e/specs/54-position-indicators.e2e.ts` ("with both off, renders exactly what the base layers render", "does not accent an ancestor’s full extent the way guides does").
+**Covered by**: `tests/decorate.test.ts` ("is reported even when the trail style is 'off', which draws nothing", "accents no ancestor markers — that belongs to the path style"); `e2e/specs/54-position-indicators.e2e.ts` ("with both off, renders exactly what the base layers render", "does not accent an ancestor’s full extent the way guides does").
 
 ### Requirement: The `guides` style accents exactly the current node's strict ancestors
 
@@ -141,58 +141,80 @@ its appearance.
 
 **Covered by**: `tests/decorate.test.ts` ("'guides' style" suite); `e2e/specs/54-position-indicators.e2e.ts` ("accents an ancestor's guide but leaves a sibling subtree's alone", "accents the ancestor guide on gap lines too, with no break", "emits no accent for a top-level node — there is no ancestor").
 
-### Requirement: The `thread` style renders one continuous path from the outline root to the current node
+### Requirement: The `path` style accents the route from the outline root to the current node
 
-In the `thread` style, the accented rendering SHALL read as a single connected path: at each
-strict ancestor level, an accented segment SHALL run from that ancestor's own marker down to the
-point where the next level begins, and SHALL connect to that next level by a visible horizontal
-link, ending at the current node's own marker. The accented segment at a level SHALL NOT extend
-past the point where the next level begins, and SHALL NOT continue below the current node into
-its own subtree. Levels that are not on the current node's ancestor chain SHALL render no thread
-segment.
+In the `path` style, each strict ancestor SHALL contribute two things: an accented segment of
+that ancestor's own guide, running from the ancestor's own row down to the row where the next
+level begins; and an accent on that ancestor's own marker. The segment at a level SHALL NOT
+extend past the row where the next level begins, and SHALL NOT continue below the current node
+into its own subtree. Levels that are not on the current node's ancestor chain SHALL render
+neither a segment nor a marker accent.
 
-#### Scenario: The thread connects root to caret without gaps
+The style SHALL NOT render any horizontal link between levels. Each level's accented marker is
+what joins its segment to the next, so the rendering reads as one route without drawing anything
+across the columns between them.
 
-- **WHEN** the caret is placed in a node several levels deep and the style is `thread`
-- **THEN** a connected accented path is present from the outermost ancestor's marker down to the
-  current node's marker, with a horizontal link at each level change and no visible break between
-  segments
+#### Scenario: The route runs from root to caret
 
-#### Scenario: The thread stops at the current node
+- **WHEN** the caret is placed in a node several levels deep and the style is `path`
+- **THEN** each ancestor from the outermost down renders an accented marker and an accented
+  segment leading to the next level, ending at the current node
+
+#### Scenario: Nothing horizontal is drawn
+
+- **WHEN** the style is `path` and the caret is several levels deep, so every level change is
+  rendered
+- **THEN** no horizontal accent renders on any row, and no accent crosses any marker's own icon
+
+#### Scenario: The route stops at the current node
 
 - **WHEN** the current node has children of its own
-- **THEN** no thread segment renders below the current node's own line
+- **THEN** no accented segment renders below the current node's own line
 
-#### Scenario: A sibling subtree carries no thread
+#### Scenario: A sibling subtree carries nothing
 
 - **WHEN** an ancestor of the current node has another child subtree that does not contain the
   caret
-- **THEN** no thread segment renders anywhere inside that sibling subtree
+- **THEN** neither an accented segment nor an accented marker renders anywhere inside that
+  sibling subtree
 
-**Covered by**: `tests/decorate.test.ts` ("'thread' style" suite); `e2e/specs/54-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "keeps the base guide continuous through a half-accented row").
+**Covered by**: `tests/decorate.test.ts` ("'path' style" suite, including "accents every ancestor's own marker, which is what replaced the elbows"); `e2e/specs/54-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "accents every ancestor’s marker — the junction that replaced the elbows", "keeps the base guide continuous through a half-accented row").
 
-### Requirement: Trail rendering through list nesting uses native list metrics or is omitted
+### Requirement: Trail rendering through list nesting uses native list chrome or is omitted
 
 Where the current node's ancestor chain runs through list nesting, any trail rendering at those
 levels SHALL be positioned on Obsidian's own native list columns and bullets, never on a column
-this plugin computes for non-list nodes. If the native chrome needed to do that is unavailable in
-the running environment, those levels SHALL render no trail segment at all; a misaligned segment
-SHALL NOT be rendered in its place. The trail through non-list levels SHALL render regardless.
+this plugin computes for non-list nodes. If the geometry needed to draw a SEGMENT at a native
+list column is unavailable, those levels SHALL render no segment at all; a misaligned segment
+SHALL NOT be rendered in its place. The trail's segments through non-list levels SHALL render
+regardless.
+
+A list ancestor's own MARKER is not subject to that limitation — it is a real element already at
+the real native column — so in the `path` style a list-item ancestor SHALL render its native
+bullet accented like any other ancestor's marker, whether or not a segment can be drawn at its
+level.
 
 #### Scenario: A trail through a list aligns with native nesting
 
 - **WHEN** the caret is inside a list nested several levels deep under a heading, with a trail
   style active
-- **THEN** the segments at the list's levels sit on the same columns as Obsidian's own list
-  nesting, and the segment at the heading's level sits on the heading's own guide column
+- **THEN** whatever renders at the list's levels sits on Obsidian's own list columns, and the
+  segment at the heading's level sits on the heading's own guide column
 
-#### Scenario: Unavailable native chrome degrades to omission
+#### Scenario: Missing segment geometry degrades to omission, not misalignment
 
-- **WHEN** the native list chrome the list-level segments rely on is not present
-- **THEN** the list levels render no segment, the non-list levels of the trail still render, and
+- **WHEN** the geometry needed for a segment at a native list column is unavailable
+- **THEN** those levels render no segment, the non-list levels of the trail still render, and
   nothing renders at an incorrect column
 
-**Covered by**: `tests/decorate.test.ts` ("list levels (native columns this layer cannot address)" suite); `e2e/specs/54-position-indicators.e2e.ts` ("threads to a list item without drawing at a native list column"). The omission branch is what ships today — rationale and the measurements a later pass needs: `docs/research/14`.
+#### Scenario: A pure list still shows its levels through accented bullets
+
+- **WHEN** the caret is inside a deeply nested pure list — no non-list ancestor anywhere, so no
+  segment can be drawn at all — and the style is `path`
+- **THEN** every ancestor list item renders its native bullet accented, and no segment renders
+  anywhere
+
+**Covered by**: `tests/decorate.test.ts` ("list levels (native columns this layer cannot address)" suite, including "still accents the ancestor bullets in a pure list, where no line can be drawn"); `e2e/specs/54-position-indicators.e2e.ts` ("reaches a list item without drawing at a native list column", "accents ancestor BULLETS in a list, where no segment can be drawn"). Segments at native list columns are the deliberate omission — rationale and the measurements a later pass needs: `docs/research/14`.
 
 ### Requirement: Position indicators never change layout geometry
 

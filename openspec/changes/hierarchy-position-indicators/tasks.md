@@ -26,7 +26,7 @@ building on them — a wrong answer here changes what gets built, not just how.
 - [x] 2.2 Cover the `guides` style in `tests/decorate.test.ts`: strict ancestors only (a node
       never accents its own level), sibling subtrees unaccented, nested ancestors all accented,
       accents present on the same gap lines the base guides already cover.
-- [x] 2.3 Cover the `thread` style: each level's segment stops where the next level starts,
+- [x] 2.3 Cover the `path` style: each level's segment stops where the next level starts,
       nothing renders below the current node, the half-segment on an ancestor's own line is
       present, and level-change links sit on the lines where the level actually changes.
 - [x] 2.4 Cover the list cases: a chain running through list nesting reports those levels as
@@ -38,7 +38,7 @@ building on them — a wrong answer here changes what gets built, not just how.
 ## 3. Settings
 
 - [x] 3.1 Add `highlightCurrentMarker: boolean` (default `true`) and
-      `ancestorTrail: 'off' | 'guides' | 'thread'` (default `'guides'`) to `PluginData` and
+      `ancestorTrail: 'off' | 'guides' | 'path'` (default `'guides'`) to `PluginData` and
       `DEFAULT_DATA` in `src/plugin/mode-registry.ts`, with doc comments in the style of
       `MarkerVisibility`.
 - [x] 3.2 Add the accessors and persisting setters in `src/plugin/main.ts`, following
@@ -65,23 +65,29 @@ building on them — a wrong answer here changes what gets built, not just how.
 
 - [x] 5.1 Extend the guide-layer generator in `src/plugin/decorations.ts` so an accented depth
       emits its layer in the accent color **instead of** the normal one, never in addition, and
-      thread half-segments/level-change links emit as additional layers in the same
+      path half-segments emit as additional layers in the same
       comma-separated background list.
 - [x] 5.2 Wire `computePositionTrail` into the existing decoration builder (which already
       recomputes on every update, selection changes included), gated on outline mode,
       `isNestedEditor`, the trail setting, and the suppression rule.
 - [x] 5.3 Implement the `guides` style end to end: full-extent accent on every strict ancestor's
       guide, with column, width, and gap-line continuity unchanged.
-- [x] 5.4 Implement the `thread` style end to end: per-level segments bounded by the next level's
-      start, half-segments from each ancestor's own marker, level-change links, terminating at the
-      current node.
+- [x] 5.4 Implement the `path` style end to end: per-level segments bounded by the next level's
+      start, half-segments from each ancestor's own marker, and an accent on every ancestor's own
+      marker, terminating at the current node. **Reworked after the first real-note review**: the
+      original built the Logseq shape, with a horizontal elbow at each level change. Those ran
+      through the very marker icons they were reaching for (a marker is centered ON its own guide
+      column) and picked up visible offsets, so the elbows are gone and the accented ancestor
+      marker is the junction — which also makes the style say something inside a deep list, where
+      no segment can be drawn at all. Renamed `thread` → `path` to match what it now is.
 - [x] 5.5 Implement list-level rendering per task 1.2's finding — native chrome accenting for
       those levels, or the documented omission fallback. A misaligned segment is never an
       acceptable outcome. **Shipped as the omission fallback** (native list threading was scoped
       as a stretch goal): the probe found `.cm-indent`'s native guide column sits 24px off the
-      parent bullet's, so accenting it as-is would be misaligned. The trail descends at the
-      nearest non-list ancestor's column and terminates at the accented bullet. What closing it
-      properly needs is written up in `docs/research/14` and re-filed in `docs/research/12`.
+      parent bullet's, so accenting it as-is would be misaligned. The trail's SEGMENTS descend at
+      the nearest non-list ancestor's column; each list ancestor's own bullet is accented, so the
+      levels stay legible and only the connecting lines are missing. What closing it properly
+      needs is written up in `docs/research/14` and re-filed in `docs/research/12`.
 - [x] 5.6 Handle the guide pseudo-element's flat `opacity: 0.6` so the accent is not dampened
       along with the base guides (design decision 7).
 
@@ -98,11 +104,11 @@ building on them — a wrong answer here changes what gets built, not just how.
 
 ## 7. Real-vault experiment and design confirmation
 
-- [x] 7.1 Compare `guides` and `thread` side by side on a real, deep note (screenshots into
+- [x] 7.1 Compare `guides` and `path` side by side on a real, deep note (screenshots into
       `docs/research/14`) — including the deep-tree noise trade-off the design flags for the
       `guides` default.
 - [x] 7.2 Confirm or overturn the open questions the design records with working answers: the
-      thread stops at the current node; block-selection chrome suppresses indicators. Update the
+      route stops at the current node; block-selection chrome suppresses indicators. Update the
       design and the spec if the screenshots disagree.
 - [x] 7.3 Sweep the bundled themes plus Minimal and Catppuccin, checking the accent's contrast in
       light and dark, and checking that nothing in the new layer regresses the base layers under a
@@ -116,7 +122,7 @@ building on them — a wrong answer here changes what gets built, not just how.
 
 - [x] 8.1 Add `e2e/specs/54-position-indicators.e2e.ts` covering: no indicators with outline mode
       off; current-marker accent on a heading and on a list item (both mounted forms); `guides`
-      accenting an ancestor's guide but not a sibling's; `thread` connectivity from root to caret
+      accenting an ancestor's guide but not a sibling's; `path` connectivity from root to caret
       and its termination at the current node.
 - [x] 8.2 Cover the settings axis: each of the three trail states renders what it should and
       nothing more; `off` plus current-marker off renders exactly the base layers; a settings
