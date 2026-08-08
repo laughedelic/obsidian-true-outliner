@@ -1606,7 +1606,25 @@ class MarginCompensation implements PluginValue {
 
     const patched = new Set<HTMLElement>();
     for (const el of widgets) {
-      const lineNumber = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
+      let lineNumber: number;
+      try {
+        lineNumber = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
+      } catch {
+        // An element the CURRENT state cannot place — mid-update DOM that
+        // has already moved on. Guarded because this runs inside
+        // `docViewUpdate`: an exception here would abandon the rest of the
+        // pass, leaving every later widget on this render undecorated, and
+        // would propagate into CM6's own update cycle.
+        //
+        // Marked as patched-this-pass on purpose, so the stranded sweep
+        // below leaves it alone. Skipping is strictly better than clearing:
+        // the element most likely still holds a correct patch from a pass
+        // that COULD place it, and the next update recomputes it either
+        // way — whereas clearing on a transient failure would visibly strip
+        // a live line's decoration.
+        patched.add(el);
+        continue;
+      }
       patched.add(el);
       el.classList.add(WIDGET_PATCHED_CLASS);
       // Same class the plain-`.cm-line` path applies via CM6 decoration
@@ -1743,9 +1761,12 @@ class MarginCompensation implements PluginValue {
       } else {
         // Defensive only, and genuinely a no-op in the steady state: every
         // element this loop sees renders a real line, and every real line
-        // has a fact. It survives for the transient case where `posAtDOM`
-        // resolves against a document that has already moved on mid-update
-        // — leaving a stale patch behind would be worse than clearing it.
+        // has a fact. (The mid-update case where the element cannot be
+        // placed at all no longer arrives here — it is caught at the
+        // `lineAt` call above, which throws rather than returning a stale
+        // line number, so this branch was never actually reachable that
+        // way.) Kept for a line that resolves but has no fact, where
+        // leaving a stale patch behind would be worse than clearing it.
         //
         // This is NOT the branch a widget-rendered non-atom takes. It used
         // to be: while the gate above read `fact?.isAtom`, any

@@ -666,19 +666,35 @@ export function getLineElementInfo(lineIndex: number): Promise<LineElementInfo> 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cm = (view.editor as any).cm;
       const content: HTMLElement = cm.contentDOM;
-      let found: HTMLElement | undefined;
+      const matches: HTMLElement[] = [];
       for (const child of Array.from(content.children)) {
         try {
           if (cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1 === lineIndex) {
-            found = child as HTMLElement;
-            break;
+            matches.push(child as HTMLElement);
           }
         } catch {
           // Scaffolding (a viewport gap placeholder) has no document
           // position of its own — never the element we're looking for.
         }
       }
-      if (!found) throw new Error(`no element renders document line ${lineIndex}`);
+      if (matches.length === 0) throw new Error(`no element renders document line ${lineIndex}`);
+      // Fail loudly rather than silently picking whichever came first in DOM
+      // order. One document line really can be rendered by TWO direct
+      // children at once — with the cursor on it, Obsidian reveals the raw
+      // source as a `.cm-line` while KEEPING the rendered widget — and in
+      // that state "the element for line N" is an ambiguous question this
+      // helper has no business answering by accident. Every caller today
+      // parks the cursor elsewhere so exactly one element exists; a caller
+      // that genuinely wants the doubly-rendered state should ask for the
+      // rendering it means, not inherit a DOM-order coin flip.
+      if (matches.length > 1) {
+        throw new Error(
+          `document line ${lineIndex} is rendered by ${matches.length} elements ` +
+            `(${matches.map((m) => `"${m.className}"`).join(', ')}) — ` +
+            `move the cursor off the line, or assert against the specific rendering you mean`,
+        );
+      }
+      const found = matches[0]!;
       const cs = getComputedStyle(found);
       const r = found.getBoundingClientRect();
       const marginLeft = parseFloat(cs.marginLeft) || 0;
