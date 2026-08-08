@@ -36,13 +36,16 @@ directly, with no dual-form handling: the fallback the spec allows for is not ne
 The spec's "whichever form is currently mounted" wording stays as written — it costs nothing
 and keeps the contract honest if a future Obsidian reveals more aggressively.
 
-## Finding 2: `.cm-indent` spans exist per level and are paintable, but their native guide
-column is not the parent bullet's column
+## Finding 2: `.cm-indent` spans are paintable, but their native guide column is not the parent
+bullet's column
 
-`.cm-indent` spans are emitted one per indentation level, inside a
-`.cm-hmd-list-indent` wrapper, and their widths *are* the native per-level widths — the
-property the design wanted, since it means a list-level accent can be positioned with no
-measurement of Obsidian's list metrics.
+(Finding 3 below revises this one: the spans do not correspond to list levels at all. This
+section's measurements stand; the conclusion drawn from them at the time does not.)
+
+`.cm-indent` spans are emitted inside a `.cm-hmd-list-indent` wrapper, and their widths *are*
+native rendered widths — which looked, from this fixture alone, like it meant a list-level accent
+could be positioned with no measurement of Obsidian's list metrics. This fixture used 4-space
+indentation throughout; finding 3 shows that is what made the mapping look one-to-one.
 
 Measured columns, relative to `.cm-content` (list under a depth-0 heading, so every list line
 also carries our own `supplementalDepth × unit` margin):
@@ -75,6 +78,47 @@ Also worth recording: with `showIndentGuide: true`, the bundled theme's `.cm-ind
 computes to `border-left: 0px rgba(0, 0, 0, 0)` — the native indent guide draws nothing here.
 So an accent on these spans cannot be described as "highlighting the native guide"; it is our
 own line, merely positioned by native geometry.
+
+## Finding 3: there is no per-level list step to draw against (second probe)
+
+The deferred plan below originally assumed the `.cm-indent` spans could carry a per-level accent,
+since span `k` would be list level `k`. A second probe, measuring several indentation styles,
+shows that assumption is wrong twice over.
+
+Bullet columns and `.cm-indent` counts, measured on three-level lists:
+
+| markdown indentation | bullet columns | `.cm-indent` spans per line |
+| -------------------- | -------------- | --------------------------- |
+| 4 spaces             | 12, 48, 84     | 0, 1, 2                     |
+| tab                  | 12, 48, 84     | 0, 1, 2                     |
+| 2 spaces             | 12, 20, 48     | 0, **0**, 1                 |
+
+Two consequences, both fatal to the cheap approaches:
+
+- **`.cm-indent` count is not the list level.** With 2-space indentation a genuine level-2 item
+  emits *zero* spans — Obsidian renders the literal whitespace and only produces a span once it
+  reaches a full unit. So "style the k-th span" does not mean "style the k-th ancestor", and any
+  `nth-child` scheme silently targets the wrong level exactly where indentation is narrow.
+- **There is no constant step to measure.** 4-space nesting steps by 36px per level; 2-space
+  nesting steps by 8px then 28px. The columns track the rendered width of whatever whitespace the
+  file actually contains, which can differ per level within a single list. So publishing a
+  measured `origin`/`step` pair as CSS variables — the approach that would have let our existing
+  gradient draw at native columns with two live measurements — cannot be correct in general
+  either.
+
+What remains is per-item measurement: read each list item's own already-rendered bullet position
+(`view.coordsAtPos`/element rects) and draw from that. That is precisely obsidian-outliner's
+technique, and precisely what Experiment 2a did before 2b replaced it with the measurement-free
+gradient — so closing this means running a *second* rendering mechanism alongside the first, not
+extending the first.
+
+## Finding 4: an ordered list item's marker is a different element
+
+`.list-bullet` covers bulleted items only. An ordered item renders `<span class="list-number">1. </span>`
+— literal text taking `color`, where a bullet's dot is a `::after` background. The first version of
+the marker accent targeted only `.list-bullet`, so it silently did nothing on every numbered list,
+and "no accent" is indistinguishable from "not the current node" by eye. Found by probing the DOM,
+not by a test. Both elements are now targeted, with an e2e case pinning the ordered one.
 
 ## What this means for the change
 
@@ -164,16 +208,21 @@ level. That is the spec's permitted omission, not a bug — nothing renders at a
 since every list ancestor's own bullet IS accented, the levels are still legible; what is missing
 is only the lines between them.
 
-Closing it properly needs three things, none of which is a small edit:
+Finding 3 rules out both of the cheap approaches — the `.cm-indent` spans do not correspond to
+list levels, and there is no constant step to publish as a CSS variable. What is left is a
+genuinely different mechanism from the one this layer uses:
 
-1. `computePositionTrail` must emit list-level segments — which native indent index, with which
-   extent — as a distinct kind of accent from the `depth × unit` ones, with its own unit tests.
-2. The CSS cannot compute `nth-child` from a custom property, so reaching "the k-th `.cm-indent`
-   span" means a generated set of static rules, one per level up to some maximum, multiplied by
-   the three vertical extents plus the elbows.
-3. The column needs the bullet-inside-slot offset (12px in the measurements above) read LIVE and
-   published as a custom property — never hardcoded, for the same reason `nativeMarginBasePx` and
-   the table widget's native padding are read live.
+1. Measure each list item's own already-rendered bullet position per view
+   (`view.coordsAtPos`/element rects), rather than computing a column from a formula.
+2. Draw absolutely-positioned overlay elements at those measured coordinates — obsidian-outliner's
+   technique, and Experiment 2a's, which Experiment 2b deliberately replaced with the
+   measurement-free gradient this layer is built on.
+3. Keep both mechanisms alive side by side, with a rule for which owns which levels, and re-run
+   the measurement on every relevant reflow (font change, window resize, fold, theme switch) —
+   the maintenance cost 2b was chosen to avoid.
 
-The measurements in finding 2 are the input to all three; a later pass should not need to
-re-derive them.
+So this is a second rendering mechanism, not an extension of the current one, and it lands
+squarely on the parking lot's "native list decoration experiments" entry rather than being a
+follow-up to this change. Note that the *markers* at those levels are already accented — what is
+missing is only the connecting lines between them, which is a much smaller gap than it was before
+the ancestor-marker rework.

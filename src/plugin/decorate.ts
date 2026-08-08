@@ -242,12 +242,18 @@ export type AncestorTrail = 'off' | 'guides' | 'path';
 /**
  * How much of a line's height an accent covers at one depth. `'full'` is the
  * whole row (a `guides` accent, or a `path` segment passing straight through);
- * `'bottom'` is the lower half — a `path` segment leaving an ancestor's own
- * marker downward, drawn on the ancestor's own row, where that ancestor's own
- * guide deliberately does not exist; `'top'` is the upper half, a segment
- * arriving at the row where the next level starts.
+ * `'top'` is the upper half — a `path` segment arriving at the row where the
+ * next level starts and stopping there, which is the one place the two styles
+ * differ from each other.
+ *
+ * There is deliberately no `'bottom'`. It existed to draw the path "leaving" an
+ * ancestor's own marker, on that ancestor's own row — a row where that
+ * ancestor's guide does not exist at all (`computeLineGuides`), and where its
+ * marker sits centered on exactly that column. So it drew a line the base
+ * rendering had nothing underneath, straight through the icon. The accented
+ * ancestor marker already makes the connection it was reaching for.
  */
-export type TrailExtent = 'full' | 'top' | 'bottom';
+export type TrailExtent = 'full' | 'top';
 
 export interface TrailAccent {
   /** Tree depth whose guide column this accent sits on. */
@@ -431,12 +437,16 @@ export function computePositionTrail(
   for (let i = 0; i < rungs.length - 1; i++) {
     const from = rungs[i]!; // never a list item: only the terminal can be one
     const to = rungs[i + 1]!;
-    // The segment leaves `from`'s own marker (lower half of its own row), runs
-    // full-height through everything between, and stops at the row where the
-    // next level starts (upper half) — where that level's own accented marker
-    // picks the path back up.
-    push(byLine, from.firstLine, { depth: from.depth, extent: 'bottom' });
-    for (let line = from.firstLine + 1; line < to.firstLine; line++) {
+    // Starts at `ownEnd + 1`, the SAME row the `guides` style starts on: a
+    // node's guide does not exist on its own rows at all (`computeLineGuides`),
+    // so accenting one there draws a line the base rendering has nothing
+    // underneath — and lands it right on top of that node's own marker, which
+    // is centered on this very column. An earlier version started half a row
+    // earlier to make the path "leave" the marker; what it actually did was
+    // strike through the icon, and the ancestor accent it was reaching for
+    // already connects the two. So the two styles now differ ONLY in where the
+    // accent ENDS.
+    for (let line = from.ownEnd + 1; line < to.firstLine; line++) {
       push(byLine, line, { depth: from.depth, extent: 'full' });
     }
     push(byLine, to.firstLine, { depth: from.depth, extent: 'top' });

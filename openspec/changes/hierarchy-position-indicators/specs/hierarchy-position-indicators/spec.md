@@ -64,7 +64,8 @@ its head.
 
 When the current-marker setting is enabled, the current node's own marker SHALL render in an
 accent treatment distinct from every other node's: the synthetic block marker for a
-marker-eligible kind, and the native bullet/number for a list item. The accent SHALL appear on
+marker-eligible kind, and the native marker for a list item — both the bullet of an unordered
+item and the number of an ordered one, which Obsidian renders as different elements. The accent SHALL appear on
 the current node's first line only — never on its continuation lines, never on its trailing gap
 lines, and never on any other node. Because Live Preview may render a list item's marker either
 as its bullet element or as revealed raw text depending on where the caret is, the accent SHALL
@@ -76,6 +77,11 @@ render any accent.
 - **WHEN** the caret is placed in a heading and the current-marker setting is on
 - **THEN** that heading's block marker renders the accent treatment, and no other node's marker
   does
+
+#### Scenario: An ordered list item's number is accented too
+
+- **WHEN** the caret is placed on an item of a numbered list
+- **THEN** that item's rendered number is accented, and a sibling item's is not
 
 #### Scenario: A list item's native bullet is accented in both mounted forms
 
@@ -90,7 +96,7 @@ render any accent.
 - **THEN** the accent renders on the node's first line, and no accent renders on any
   continuation or gap line
 
-**Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-bullet finding itself is `docs/research/14`’s finding 1.
+**Covered by**: `e2e/specs/54-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents an ORDERED list item’s number, which is a different element", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-marker findings themselves are `docs/research/14`’s findings 1 and 4.
 
 ### Requirement: The ancestor trail has exactly three mutually exclusive states
 
@@ -144,8 +150,8 @@ its appearance.
 ### Requirement: The `path` style accents the route from the outline root to the current node
 
 In the `path` style, each strict ancestor SHALL contribute two things: an accented segment of
-that ancestor's own guide, running from the ancestor's own row down to the row where the next
-level begins; and an accent on that ancestor's own marker. The segment at a level SHALL NOT
+that ancestor's own guide, running from the row after that ancestor's own rows down to the row
+where the next level begins; and an accent on that ancestor's own marker. The segment at a level SHALL NOT
 extend past the row where the next level begins, and SHALL NOT continue below the current node
 into its own subtree. Levels that are not on the current node's ancestor chain SHALL render
 neither a segment nor a marker accent.
@@ -166,6 +172,13 @@ across the columns between them.
   rendered
 - **THEN** no horizontal accent renders on any row, and no accent crosses any marker's own icon
 
+#### Scenario: An ancestor's own rows carry no accent
+
+- **WHEN** the style is `path` and an ancestor spans several physical lines
+- **THEN** no accent renders at that ancestor's own level on any of its own rows — the same rows
+  the `guides` style also leaves alone, since a node's guide does not exist there and its marker
+  sits on exactly that column
+
 #### Scenario: The route stops at the current node
 
 - **WHEN** the current node has children of its own
@@ -178,7 +191,7 @@ across the columns between them.
 - **THEN** neither an accented segment nor an accented marker renders anywhere inside that
   sibling subtree
 
-**Covered by**: `tests/decorate.test.ts` ("'path' style" suite, including "accents every ancestor's own marker, which is what replaced the elbows"); `e2e/specs/54-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "accents every ancestor’s marker — the junction that replaced the elbows", "keeps the base guide continuous through a half-accented row").
+**Covered by**: `tests/decorate.test.ts` ("'path' style" suite, including "accents every ancestor's own marker, which is what replaced the elbows", "starts each segment exactly where the guides style starts its own", "skips a multi-line ancestor’s OWN rows, continuation lines included"); `e2e/specs/54-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "accents every ancestor’s marker — the junction that replaced the elbows", "keeps the base guide continuous through a half-accented row").
 
 ### Requirement: Trail rendering through list nesting uses native list chrome or is omitted
 

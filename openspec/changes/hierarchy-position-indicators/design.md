@@ -153,7 +153,7 @@ a real element already sitting at the real native column, so it needs none of th
 cannot address. That is what lets `path` say something inside a deep list — the levels read as a
 run of accented bullets even though nothing can be drawn between them.
 
-Leading mechanism, to be confirmed in the experiment phase: **style the native `.cm-indent`
+Mechanism explored and REJECTED by the experiment phase: **style the native `.cm-indent`
 spans**. Obsidian emits one per list indentation level inside the line, and its `::before` is
 where the native indent guide draws (`obsidian-outliner` disables exactly that selector when it
 substitutes its own guides — see `docs/research/06`). Their widths *are* the native per-level
@@ -161,14 +161,16 @@ widths, so accenting the nth such span puts the accent on the native column with
 measurement at all**. The bullet uses the same family of hooks (`.list-bullet::after`, the
 element `obsidian-outliner` restyles rather than replaces).
 
-Two things to establish before relying on it, and both are experiment tasks rather than
-assumptions: whether `.cm-indent` spans are present regardless of Obsidian's "Show indentation
-guides" setting, and whether accenting them survives the bundled themes plus a `max-width`-style
-community theme.
+Measuring it killed it (docs/research/14, finding 3): `.cm-indent` spans do NOT correspond to list
+levels — 2-space indentation emits none at all for a genuine level — and the columns track the
+rendered width of whatever whitespace the file contains, so there is no constant per-level step to
+measure either. Both cheap approaches are out.
 
-*Fallback, if `.cm-indent` proves unreliable:* list levels contribute no trail segment; the trail
-renders through non-list levels only and stops where the list begins. Degraded, documented, and
-still correct — never a misaligned line.
+**Shipped instead:** list levels contribute no trail segment; segments render through non-list
+levels only. Degraded, documented, and never a misaligned line. Their MARKERS are accented (the
+`path` style's ancestor markers, decision 4), so the levels stay legible — the gap is only the
+connecting lines. Closing it properly means a second rendering mechanism (per-item measurement
+plus overlays, Experiment 2a's technique), which is a parking-lot item, not a follow-up here.
 
 ### 6. Markers are accented by class, on both mechanisms
 

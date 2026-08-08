@@ -528,16 +528,32 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
 
   describe("'path' style", () => {
     it('runs one connected path from the root to the current node', () => {
-      // Caret in "### C" (line 4). A's segment leaves A's own marker (line 0,
-      // lower half), runs through the gap, arrives at B's line; B's segment
-      // does the same down to C's line, where the path ends.
+      // Caret in "### C" (line 4). A's segment starts on the row AFTER A's own
+      // (line 1, its gap) and stops at B's row; B's does the same down to C's
+      // row, where the path ends. Nothing is drawn on A's or B's own rows —
+      // their accented markers are what connect the segments there.
       expect(shape(trail(NESTED, 4, 'path'))).toEqual([
-        [0, '0:bottom'],
         [1, '0:full'],
-        [2, '0:top,1:bottom'],
+        [2, '0:top'],
         [3, '1:full'],
         [4, '1:top'],
       ]);
+    });
+
+    it('starts each segment exactly where the guides style starts its own', () => {
+      // The two styles differ ONLY in where the accent ENDS. Anything drawn on
+      // an ancestor's own row would sit where that ancestor's guide does not
+      // exist — and right on top of its own marker, centered on that column.
+      const guides = trail(NESTED, 4, 'guides');
+      const path = trail(NESTED, 4, 'path');
+      const firstAccentedLine = (t: ReturnType<typeof trail>, depth: number) =>
+        Math.min(
+          ...[...t.byLine.values()]
+            .filter((f) => f.accents.some((a) => a.depth === depth))
+            .map((f) => f.lineNumber),
+        );
+      expect(firstAccentedLine(path, 0)).toBe(firstAccentedLine(guides, 0));
+      expect(firstAccentedLine(path, 1)).toBe(firstAccentedLine(guides, 1));
     });
 
     it('stops at the current node, never continuing into its own subtree', () => {
@@ -553,7 +569,6 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       // Line 4 is still inside A's subtree, but below B — nothing there.
       expect(t.byLine.has(4)).toBe(false);
       expect(shape(t)).toEqual([
-        [0, '0:bottom'],
         [1, '0:full'],
         [2, '0:top'],
       ]);
@@ -563,7 +578,6 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       const md = ['# One', '', '## Under one', '', '# Two', '', '## Under two', ''].join('\n');
       const t = trail(md, 6, 'path');
       expect(shape(t)).toEqual([
-        [4, '0:bottom'],
         [5, '0:full'],
         [6, '0:top'],
       ]);
@@ -575,13 +589,13 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       expect(ancestors(t)).toEqual([]);
     });
 
-    it('spans a multi-line ancestor’s continuation lines at full height', () => {
+    it('skips a multi-line ancestor’s OWN rows, continuation lines included', () => {
       const md = ['first line', 'second line', '', '- child', ''].join('\n');
       //           0             1              2    3
+      // Lines 0-1 are the ancestor's own; its guide exists on neither, so the
+      // accent starts at its gap (line 2). Same rule the guides style follows.
       const t = trail(md, 3, 'path');
       expect(shape(t)).toEqual([
-        [0, '0:bottom'],
-        [1, '0:full'],
         [2, '0:full'],
         [3, '0:top'],
       ]);
@@ -617,7 +631,6 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       // A's own segment is the whole drawn path; the two list ancestors
       // between A and the caret contribute no column of their own.
       expect(shape(t)).toEqual([
-        [0, '0:bottom'],
         [1, '0:full'],
         [2, '0:full'],
         [3, '0:full'],

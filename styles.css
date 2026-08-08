@@ -207,6 +207,17 @@
   background-color: var(--to-decor-accent);
 }
 
+/* An ORDERED list item's marker is a different element with a different
+ * painting model: `.list-number` renders the literal "1. " as text (so it takes
+ * `color`), where a bullet is a `::after` whose dot is a background. Missing
+ * this made the accent silently do nothing on every numbered list — found by
+ * probing the DOM rather than by any test, since "no accent" looks exactly like
+ * "not the current node". */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-current-native .list-number,
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-ancestor-native .list-number {
+  color: var(--to-decor-accent);
+}
+
 /*
  * Widget-replaced atoms (table/callout/html/hr) DO need one more override,
  * and it's a genuinely different mechanism from the padding/margin

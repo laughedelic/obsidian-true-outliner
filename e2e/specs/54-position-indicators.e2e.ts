@@ -240,6 +240,23 @@ describe('position indicators: current node and ancestor trail', function () {
       );
     });
 
+    it('accents an ORDERED list item’s number, which is a different element', async function () {
+      const note = 'Scratch/pi-marker-ordered.md';
+      await h.createNote(note, '# Head\n\n1. first\n2. second\n');
+      await ensureOutlineMode(note);
+      await h.setCursor(3, 5); // "2. second"
+      await browser.pause(250);
+
+      // An ordered marker is `.list-number` — literal "2. " text taking
+      // `color` — not `.list-bullet`, whose dot is a `::after` background.
+      // Targeting only the bullet made the accent silently do nothing here.
+      const current = await h.getLineChildComputedStyle(3, '.list-number', 'color');
+      const sibling = await h.getLineChildComputedStyle(2, '.list-number', 'color');
+      expect(current).toBeTruthy();
+      expect(sibling).toBeTruthy();
+      expect(current).not.toBe(sibling);
+    });
+
     it('accents only the node’s FIRST line, never a continuation or gap line', async function () {
       const note = 'Scratch/pi-marker-multiline.md';
       // A hard-wrapped paragraph under a heading: lines 2-4 are one node.
@@ -338,16 +355,16 @@ describe('position indicators: current node and ancestor trail', function () {
       await h.setCursor(8, 5); // "### Deep bit"
       await browser.pause(250);
 
-      // Line 0 ("# Project") owns no guide of its own, yet the path leaves its
-      // marker downward — so an overlay exists there ONLY because of the path.
-      // That is the half-segment the guides style never draws.
-      expect(await overlayLayers(0)).toBe(1);
+      // Line 0 ("# Project") is an ancestor's OWN row: its own guide does not
+      // exist there, so the path draws nothing on it either — exactly what the
+      // guides style does. Its accented marker is what connects it downward.
+      expect(await overlayLayers(0)).toBe(0);
 
-      // Line 4 ("## Section A") is a level change: the arriving segment, the
-      // departing half-segment, plus the plain guide underneath. NOTHING
-      // horizontal — the elbow that used to be here ran through this row's own
-      // marker icon, and the accented marker is the junction instead.
-      expect(await overlayLayers(4)).toBe(3);
+      // Line 4 ("## Section A") is a level change: the arriving half-height
+      // segment plus the plain depth-0 guide underneath it. Nothing else —
+      // no horizontal link, and nothing drawn at depth 1 on this row, which
+      // is where line 4's own marker sits.
+      expect(await overlayLayers(4)).toBe(2);
 
       // Below the current node the path is gone — line 10 ("- one") keeps
       // only its plain guides.

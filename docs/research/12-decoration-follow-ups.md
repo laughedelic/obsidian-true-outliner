@@ -141,10 +141,19 @@ work above is untouched by it.
 Deferred out of `hierarchy-position-indicators` deliberately. Its `path` style steps in one level
 per non-list ancestor; where the chain runs through list nesting it descends at the nearest
 non-list ancestor's column instead. Each list ancestor's own bullet IS accented, so the levels
-stay legible — what is missing is only the connecting lines between them. The measurements needed
-to close it — `.cm-indent` span geometry, the bullet-inside-slot offset, and what is paintable on
-those spans — plus the three pieces of work it implies, are recorded in
+stay legible — what is missing is only the connecting lines between them.
+
+Probing settled that this is a **second rendering mechanism, not an extension of the current
+one**, which is why it belongs here rather than as a follow-up to that change: `.cm-indent` spans
+do not correspond to list levels (2-space indentation emits none for a real level), and there is
+no constant per-level step to publish as a measured CSS variable (columns track the rendered width
+of whatever whitespace the file contains). What is left is per-item measurement plus
+absolutely-positioned overlays — obsidian-outliner's technique, and Experiment 2a's, which 2b
+deliberately replaced with the measurement-free gradient the whole decoration layer now rests on.
+Measurements and the full argument:
 [14-experiment-position-indicators.md](14-experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns).
+Pairs naturally with the "native list decoration experiments" entry below — both are about owning
+list geometry rather than deferring to it.
 
 ### Marker/guide interactions (hover and click)
 

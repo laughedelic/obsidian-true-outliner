@@ -197,13 +197,12 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
 
 /**
  * One accented vertical segment at `depth`. `'full'` covers the row; `'top'`
- * and `'bottom'` cover half of it — a `path` segment arriving at the row where
- * the next level starts, and one leaving an ancestor's own marker downward,
- * which is a row where that ancestor's own guide deliberately does not exist.
+ * covers its upper half — a `path` segment arriving at the row where the next
+ * level starts and stopping there.
  */
 function accentLayer(depth: number, extent: TrailExtent): string {
   const height = extent === 'full' ? '100%' : '50%';
-  const y = extent === 'top' ? 'top' : extent === 'bottom' ? 'bottom' : '0';
+  const y = extent === 'top' ? 'top' : '0';
   return (
     `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH}) ` +
     `calc(${depth} * ${UNIT}) ${y} / ${UNIT} ${height} no-repeat`
