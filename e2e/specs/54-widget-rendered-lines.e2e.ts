@@ -19,9 +19,12 @@
  * property that actually matters (the line sits in the outline geometry)
  * instead of a self-consistency that would hold just as well if everything
  * were equally wrong. The obvious alternative — compare the line's widget
- * rendering against its own cursor-on plain rendering — is not available:
- * measurement showed a whole-line embed stays a widget with the cursor
- * anywhere on it.
+ * rendering against its own cursor-on plain rendering — is not usable: the
+ * embed element never reverts to a plain line, and what the cursor does in
+ * some states is ADD a separate `.cm-line` for the same document line while
+ * keeping the widget. That second element is a different rendering with a
+ * different indentation mechanism, coexisting with the one under assertion,
+ * so equality between them is neither stable nor meaningful.
  *
  * Fixture line map (EMBED_MD):
  *   0  `# Section`                         heading, depth 0
@@ -44,7 +47,31 @@ const EMBED = ALL_DECORATION_FIXTURES.find((f) => f.label === 'embed')!;
 
 // Sub-pixel differences are expected between a padding-shifted plain line
 // and a margin-shifted widget box; anything under a pixel is alignment.
+//
+// DO NOT RAISE THIS. The real defects this file guards are small: with the
+// border-box compensation disabled, the marker assertions fail by 1.99px and
+// 2px (measured, by disabling it and re-running). A 2px tolerance would let
+// that regression straight through. 1px sits above sub-pixel rounding noise
+// and below the smallest real bug — deliberately, not incidentally.
 const ALIGN_TOLERANCE_PX = 1;
+
+/**
+ * Assert two resolved x-coordinates land on the same column, within a real
+ * PIXEL tolerance.
+ *
+ * Deliberately not `toBeCloseTo(expected, ALIGN_TOLERANCE_PX)`, which is
+ * what this file used to do and is a trap: that second argument is a
+ * precision in DECIMAL DIGITS, not pixels. Passing 1 asserts
+ * `|a - b| < 0.05` — twenty times stricter than the "under a pixel" the
+ * constant's name promises, and strict enough to go flaky on another
+ * platform's sub-pixel rounding. (The tell was visible in this spec's own
+ * negative-control output: "Expected precision: 1 / Expected difference:
+ * < 0.05".) Comparing the absolute difference makes the tolerance mean
+ * exactly what it says.
+ */
+function expectSameColumn(actual: number, expected: number): void {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(ALIGN_TOLERANCE_PX);
+}
 
 async function openEmbedFixture(): Promise<void> {
   await createFixture(EMBED, h.createNote);
@@ -92,7 +119,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     const embed = await h.getLineElementInfo(4); // embed paragraph, depth 1
 
     expect(control.alignedLeft).toBeGreaterThan(0);
-    expect(embed.alignedLeft).toBeCloseTo(control.alignedLeft, ALIGN_TOLERANCE_PX);
+    expectSameColumn(embed.alignedLeft, control.alignedLeft);
   });
 
   it('a whole-line embed gets its paragraph marker, in the same column', async function () {
@@ -101,7 +128,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
 
     expect(control.hasMarker).toBe(true); // the control's own marker must exist
     expect(embed.hasMarker).toBe(true);
-    expect(embed.markerLeft).toBeCloseTo(control.markerLeft!, ALIGN_TOLERANCE_PX);
+    expectSameColumn(embed.markerLeft!, control.markerLeft!);
   });
 
   it("a whole-line embed carries its ancestors' guides", async function () {
@@ -119,8 +146,8 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     const embedLine = await h.getLineElementInfo(7); // widget continuation
     const plainContinuation = await h.getLineElementInfo(8); // plain continuation
 
-    expect(embedLine.alignedLeft).toBeCloseTo(firstLine.alignedLeft, ALIGN_TOLERANCE_PX);
-    expect(embedLine.alignedLeft).toBeCloseTo(plainContinuation.alignedLeft, ALIGN_TOLERANCE_PX);
+    expectSameColumn(embedLine.alignedLeft, firstLine.alignedLeft);
+    expectSameColumn(embedLine.alignedLeft, plainContinuation.alignedLeft);
 
     // A marker belongs to a node's first line only — the plain continuation
     // proves that rule is live in this very fixture, so the widget
@@ -135,8 +162,8 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     const withEmbed = await h.getLineElementInfo(11); // list item + embed
 
     expect(withEmbed.isCmLine).toBe(true);
-    expect(withEmbed.marginLeft).toBeCloseTo(control.marginLeft, ALIGN_TOLERANCE_PX);
-    expect(withEmbed.alignedLeft).toBeCloseTo(control.alignedLeft, ALIGN_TOLERANCE_PX);
+    expectSameColumn(withEmbed.marginLeft, control.marginLeft);
+    expectSameColumn(withEmbed.alignedLeft, control.alignedLeft);
     // List items never take a synthetic marker, whatever they contain.
     expect(control.hasMarker).toBe(false);
     expect(withEmbed.hasMarker).toBe(false);
@@ -148,9 +175,9 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
 
     // No doubled shift: the host `.cm-line` is decorated declaratively, and
     // the element nested inside it must not be patched a second time.
-    expect(inline.alignedLeft).toBeCloseTo(control.alignedLeft, ALIGN_TOLERANCE_PX);
+    expectSameColumn(inline.alignedLeft, control.alignedLeft);
     expect(inline.hasMarker).toBe(true);
-    expect(inline.markerLeft).toBeCloseTo(control.markerLeft!, ALIGN_TOLERANCE_PX);
+    expectSameColumn(inline.markerLeft!, control.markerLeft!);
 
     const nestedPatched = await browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
@@ -241,7 +268,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
         });
     });
     expect(chromeLeft.length).toBeGreaterThan(1);
-    for (const left of chromeLeft) expect(left).toBeCloseTo(chromeLeft[0]!, ALIGN_TOLERANCE_PX);
+    for (const left of chromeLeft) expectSameColumn(left, chromeLeft[0]!);
 
     await h.setCursor(0, 0);
     await browser.pause(150);
@@ -268,12 +295,12 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
       await setVisibility('with-children');
       const hidden = await h.getLineElementInfo(4);
       expect(hidden.hasMarker).toBe(false);
-      expect(hidden.alignedLeft).toBeCloseTo(baseline.alignedLeft, ALIGN_TOLERANCE_PX);
+      expectSameColumn(hidden.alignedLeft, baseline.alignedLeft);
 
       await setVisibility('headings-and-paragraphs');
       const shown = await h.getLineElementInfo(4);
       expect(shown.hasMarker).toBe(true);
-      expect(shown.alignedLeft).toBeCloseTo(baseline.alignedLeft, ALIGN_TOLERANCE_PX);
+      expectSameColumn(shown.alignedLeft, baseline.alignedLeft);
     } finally {
       await setVisibility('all'); // leave the vault on the default
     }
@@ -386,8 +413,8 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
       await browser.pause(800);
       const reopened = await h.getLineElementInfo(4);
 
-      expect(live.alignedLeft).toBeCloseTo(reopened.alignedLeft, ALIGN_TOLERANCE_PX);
-      expect(live.marginLeft).toBeCloseTo(reopened.marginLeft, ALIGN_TOLERANCE_PX);
+      expectSameColumn(live.alignedLeft, reopened.alignedLeft);
+      expectSameColumn(live.marginLeft, reopened.marginLeft);
       expect(await markersForLine(4)).toBe(0);
       expect(await strandedPatches()).toEqual([]);
     });
@@ -407,7 +434,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
       expect(await markersForLine(4)).toBe(1);
       const control = await h.getLineElementInfo(2);
       const embed = await h.getLineElementInfo(4);
-      expect(embed.alignedLeft).toBeCloseTo(control.alignedLeft, ALIGN_TOLERANCE_PX);
+      expectSameColumn(embed.alignedLeft, control.alignedLeft);
     });
   });
 
