@@ -1682,6 +1682,14 @@ class MarginCompensation implements PluginValue {
    * it is the thing the segment has to meet, so measuring it directly cannot
    * drift from it. Rows with no icon to measure (a list item, or a marker
    * `markerVisibility` hides) get nothing and fall back to the CSS `50%`.
+   *
+   * Measures the SVG, NOT its wrapper span — they are not in the same place.
+   * The wrapper is an `inline-block` sized to the icon; the SVG inside it is an
+   * inline box that gets baseline-aligned WITHIN that wrapper, so it renders
+   * offset downward and overflowing (measured: wrapper top 0 / glyph top 4.4 on
+   * a paragraph row, 16 / 24.9 on an H2 — see docs/research/14, finding 6). The
+   * wrapper's box is therefore not where the user sees the marker, and aiming
+   * at it lands the segment near the glyph's TOP edge rather than its middle.
    */
   private measureAccentStops(trail: PositionTrail): void {
     for (const el of this.accentStopLines) el.style.removeProperty('--to-accent-stop');
@@ -1699,10 +1707,13 @@ class MarginCompensation implements PluginValue {
       const host = node.nodeType === 1 ? (node as HTMLElement) : node.parentElement;
       const line = host?.closest<HTMLElement>('.cm-line');
       const icon = line?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
-      if (!line || !icon) continue;
-      const iconRect = icon.getBoundingClientRect();
-      if (iconRect.height === 0) continue; // not laid out yet
-      const stop = iconRect.top + iconRect.height / 2 - line.getBoundingClientRect().top;
+      // The painted glyph, falling back to its wrapper only if the SVG is
+      // somehow absent — never the other way round.
+      const glyph = icon?.querySelector('svg') ?? icon;
+      if (!line || !glyph) continue;
+      const glyphRect = glyph.getBoundingClientRect();
+      if (glyphRect.height === 0) continue; // not laid out yet
+      const stop = glyphRect.top + glyphRect.height / 2 - line.getBoundingClientRect().top;
       line.style.setProperty('--to-accent-stop', `${stop}px`);
       this.accentStopLines.push(line);
     }

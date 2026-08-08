@@ -164,6 +164,38 @@ Two testing notes worth keeping, both about assertions that looked fine and prov
 - The version after that asserted only the stop, not where the layer began, so it would have
   passed the whole broken-continuity state above. It now asserts both.
 
+## Finding 6: a marker's wrapper box is not where its glyph paints
+
+The marker icon is a `.to-decor-marker-icon` span (`display: inline-block`, sized to the icon)
+containing an `<svg width="100%" height="100%">`. The SVG is an inline box, so it is
+baseline-aligned *inside* that inline-block — which puts it lower than the wrapper and overflowing
+it. The two are never in the same place:
+
+| row           | wrapper top | glyph top | glyph center | wrapper center |
+| ------------- | ----------- | --------- | ------------ | -------------- |
+| paragraph     | 0           | 4.41      | 11.2         | 6.8            |
+| `> quote`     | 0           | 4.41      | 11.2         | 6.8            |
+| code fence    | 0           | 1.41      | 8.2          | 6.8            |
+| `## H2`       | 16          | 24.91     | 31.7         | 22.8           |
+| `# H1`        | 16          | 27.41     | 34.2         | 22.8           |
+
+So **the wrapper's rect is not the marker the user sees**, and anything aiming at a marker has to
+measure the SVG. Aiming at the wrapper lands roughly on the glyph's TOP edge — off by ~4px on a
+paragraph and ~9px on a heading, which is exactly how the mis-aimed `path` segment looked when
+reported: "aligned with the top of the icon, instead of the middle".
+
+It also explains why the kinds with NO measurement looked right: a list item and a widget atom
+have no `.to-decor-marker-icon` on a `.cm-line` to measure, so they fell back to the CSS `50%` —
+which on a 24px row is 12px, within a pixel of the 11.2px glyph center. The one path that guessed
+was accidentally the accurate one.
+
+**The testing lesson is the sharper half of this.** The e2e pinning the alignment measured the
+same wrapper the implementation aimed at, so implementation and assertion shared the error and
+cancelled it out: the test reported 0.0px agreement while the rendering was visibly wrong, and
+mutating the implementation could not expose it because the test moved with it. A measurement-based
+assertion is only as good as its choice of what to measure — "read what resolved, not what you
+set" is not enough if you read the wrong element. Both now measure the SVG.
+
 ## What this means for the change
 
 - The current-marker accent (finding 1) and the `guides` trail need nothing from any of this:

@@ -463,10 +463,16 @@ describe('position indicators: current node and ancestor trail', function () {
             cm.contentDOM.querySelectorAll(':scope > .cm-line'),
           ) as HTMLElement[];
           const el = lines[row]!;
-          const icon = el.querySelector('.to-decor-marker-icon') as HTMLElement | null;
-          if (!icon) return null;
+          // The PAINTED glyph, not its wrapper: the SVG is baseline-aligned
+          // inside the inline-block wrapper and renders offset downward, so the
+          // wrapper's box is not where the marker appears. Measuring the
+          // wrapper here (as an earlier version did) made the assertion agree
+          // with an implementation that aimed at the same wrong element — the
+          // test and the bug cancelling out.
+          const glyph = el.querySelector('.to-decor-marker-icon svg') as SVGElement | null;
+          if (!glyph) return null;
           const lr = el.getBoundingClientRect();
-          const ir = icon.getBoundingClientRect();
+          const ir = glyph.getBoundingClientRect();
           const after = getComputedStyle(el, '::after');
           const firstLayer = (after.backgroundSize.split(',')[0] ?? '').trim().split(/\s+/);
           const layerHeight = parseFloat(firstLayer[1] ?? '');
@@ -483,7 +489,7 @@ describe('position indicators: current node and ancestor trail', function () {
             origin,
             layerTop,
             paintedStop: layerTop + layerHeight,
-            iconCenter: ir.top + ir.height / 2 - lr.top,
+            glyphCenter: ir.top + ir.height / 2 - lr.top,
             padTop: parseFloat(getComputedStyle(el).paddingTop) || 0,
           };
         }, row);
@@ -493,7 +499,7 @@ describe('position indicators: current node and ancestor trail', function () {
         // it and the segment arriving from the row above.
         expect(measured!.layerTop).toBe(0);
         // And it ends on the marker.
-        expect(Math.abs(measured!.paintedStop - measured!.iconCenter)).toBeLessThan(1);
+        expect(Math.abs(measured!.paintedStop - measured!.glyphCenter)).toBeLessThan(1);
       }
       // And the two rows really are the two different cases, or the test would
       // be asserting the same thing twice.
