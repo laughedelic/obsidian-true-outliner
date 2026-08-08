@@ -172,16 +172,10 @@ function docFacts(state: EditorState): DocFacts {
 // computes.
 const UNIT = 'var(--to-decor-unit, 1.5rem)';
 
-// Every layer names its own `<origin> <clip>` pair explicitly (the trailing two
-// boxes the `background` shorthand accepts per layer). `padding-box` is where
-// these have always drawn — the whole row, padding included, which is what
-// keeps a guide continuous through a padded heading. Naming it rather than
-// leaning on the initial value is what lets ONE layer opt out: see
-// `accentLayer`'s `'top'` case.
 function guideLayer(depth: number): string {
   return (
     `repeating-linear-gradient(to right, var(--to-guide-color) 0 1px, transparent 1px ${UNIT}) ` +
-    `calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat padding-box border-box`
+    `calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat`
   );
 }
 
@@ -203,31 +197,34 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
 
 /**
  * One accented vertical segment at `depth`. `'full'` covers the row; `'top'`
- * arrives from above and stops at the MARKER on that row, so the path visibly
- * meets the thing it is pointing at.
+ * arrives from the row's top and stops at the MARKER on that row, so the path
+ * visibly meets the thing it is pointing at.
  *
- * "Stops at the marker" is not 50% of the row. Measured (docs/research/14,
- * finding 5): a marker's top edge sits exactly at its line's CONTENT-box top,
- * so its center is `padding-top + iconSize / 2` from the row's top — while 50%
- * is half the row INCLUDING that padding. The two coincide nowhere: on an
- * unpadded paragraph row 50% lands ~5px BELOW the icon's center, and on a
- * heading row (16px of native padding) it lands just above it. Same layer,
- * visibly different relationship to the icon, which is what made the path look
- * inconsistent between kinds.
+ * Where that marker is cannot be written as a CSS length. Measured
+ * (docs/research/14, finding 5): a marker's top edge sits at its line's
+ * CONTENT-box top, so its center is `padding-top + iconSize / 2` down from the
+ * row — and `padding-top` is Obsidian's, varying by kind (0 on a paragraph,
+ * 16px on a heading) with no way to read it into a `calc`. A fixed 50% of the
+ * row is a different anchor entirely: it overshoots the paragraph marker by
+ * ~5px and undershoots the heading one.
  *
- * Expressed without measuring anything: this one layer draws from the
- * `content-box` origin — which the `::after` inherits the line's own
- * `padding-top` to establish (styles.css) — and is exactly half an icon tall.
- * Every other layer keeps the `padding-box` origin and its full-row height, so
- * guide continuity through that same padding is untouched.
+ * So `MarginCompensation` measures the icon's own center per row and publishes
+ * `--to-accent-stop` — the same "read the native value live, never assume it"
+ * rule `nativeMarginBasePx` and the table widget's padding already follow. The
+ * `50%` fallback only applies on a row with no icon to measure (a list item, or
+ * one whose marker `markerVisibility` hides).
+ *
+ * A previous attempt spent this on CSS instead: draw from the `content-box`
+ * origin, with the `::after` inheriting the line's `padding-top` to establish
+ * it. That put the segment's END in the right place and its START in the wrong
+ * one — the layer began at the content box, so the row's whole padding region
+ * went unaccented and the path visibly broke into two pieces with a gap the
+ * size of that padding. Which is why the gap "varied": it WAS the padding.
  */
 function accentLayer(depth: number, extent: TrailExtent): string {
   const gradient = `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH})`;
-  if (extent === 'full') {
-    return `${gradient} calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat padding-box border-box`;
-  }
-  const halfIcon = `calc(var(--to-marker-icon-size, ${MARKER_ICON_CSS}) / 2)`;
-  return `${gradient} calc(${depth} * ${UNIT}) top / ${UNIT} ${halfIcon} no-repeat content-box border-box`;
+  const height = extent === 'full' ? '100%' : 'var(--to-accent-stop, 50%)';
+  return `${gradient} calc(${depth} * ${UNIT}) top / ${UNIT} ${height} no-repeat`;
 }
 
 /**
@@ -1668,6 +1665,49 @@ class MarginCompensation implements PluginValue {
    */
   private lastDeadRight = '';
 
+  /**
+   * Lines currently carrying a measured `--to-accent-stop`, kept so the next
+   * render can clear exactly those instead of rescanning every line. Elements
+   * CM6 has since detached are harmless to call `removeProperty` on.
+   */
+  private accentStopLines: HTMLElement[] = [];
+
+  /**
+   * Publishes, per row where the `path` style's segment arrives, how far down
+   * that row the row's own marker sits — the one number `accentLayer` cannot
+   * express in CSS, because it is `Obsidian's padding-top + half our icon` and
+   * that padding varies by kind with no way to read it into a `calc`.
+   *
+   * Measured from the icon itself rather than reconstructed from the padding:
+   * it is the thing the segment has to meet, so measuring it directly cannot
+   * drift from it. Rows with no icon to measure (a list item, or a marker
+   * `markerVisibility` hides) get nothing and fall back to the CSS `50%`.
+   */
+  private measureAccentStops(trail: PositionTrail): void {
+    for (const el of this.accentStopLines) el.style.removeProperty('--to-accent-stop');
+    this.accentStopLines = [];
+
+    const doc = this.view.state.doc;
+    for (const [lineNumber, fact] of trail.byLine) {
+      if (!fact.accents.some((a) => a.extent === 'top')) continue;
+      if (lineNumber >= doc.lines) continue; // stale fact past a shrunk doc
+      const from = doc.line(lineNumber + 1).from;
+      // Only rendered lines can be measured; CM6 keeps just the viewport (plus
+      // a margin) in the DOM.
+      if (!this.view.visibleRanges.some((r) => from >= r.from && from <= r.to)) continue;
+      const node = this.view.domAtPos(from).node;
+      const host = node.nodeType === 1 ? (node as HTMLElement) : node.parentElement;
+      const line = host?.closest<HTMLElement>('.cm-line');
+      const icon = line?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+      if (!line || !icon) continue;
+      const iconRect = icon.getBoundingClientRect();
+      if (iconRect.height === 0) continue; // not laid out yet
+      const stop = iconRect.top + iconRect.height / 2 - line.getBoundingClientRect().top;
+      line.style.setProperty('--to-accent-stop', `${stop}px`);
+      this.accentStopLines.push(line);
+    }
+  }
+
   private measureChevron(): void {
     const wrapper = this.view.contentDOM.querySelector<HTMLElement>(
       '.cm-fold-indicator .collapse-indicator',
@@ -1740,6 +1780,7 @@ class MarginCompensation implements PluginValue {
     // does — through this imperative patch, since a CM6 decoration has no
     // effect on them at all (module doc comment).
     const trail = positionTrail(this.view.state, this.modes);
+    this.measureAccentStops(trail);
     // The right edge every plain `.cm-line` naturally reaches — read live
     // (not assumed to be `right: 0` relative to a widget's OWN box), since
     // a widget atom's own box can be WIDER than that on the right (a table
@@ -2078,6 +2119,8 @@ class MarginCompensation implements PluginValue {
       this.view.contentDOM.querySelectorAll<HTMLElement>(PLAIN_MARGIN_SELECTOR),
     );
     for (const el of plainLines) el.style.removeProperty('margin-left');
+    for (const el of this.accentStopLines) el.style.removeProperty('--to-accent-stop');
+    this.accentStopLines = [];
   }
 }
 

@@ -144,27 +144,6 @@
   background: var(--to-guides);
   pointer-events: none;
   z-index: -1;
-  /*
-   * Inherits the LINE's own padding-top, purely so one background layer can
-   * anchor to it. A pseudo-element inherits from the element that originates
-   * it, so this tracks whatever the theme pads a heading (or any other kind)
-   * by, live, with nothing measured or hardcoded.
-   *
-   * Why any layer needs that: a marker's top edge sits exactly at its line's
-   * content-box top (measured — docs/research/14, finding 5), so its center is
-   * `padding-top + iconSize / 2` down from the row's top. The `path` style's
-   * arriving segment has to stop THERE, at the marker it points at. It does so
-   * by drawing from the `content-box` origin — which is what this padding
-   * establishes — while every other layer names `padding-box` and keeps
-   * covering the whole row, so guide continuity through the same padding is
-   * unaffected. Each layer names its own origin in `decorations.ts`, so this
-   * declaration only has to make the content box exist in the right place.
-   *
-   * Only `padding-top` is inherited, never the shorthand: a line's padding-LEFT
-   * is its depth indentation, and inheriting that would drag every layer
-   * rightward by it.
-   */
-  padding-top: inherit;
 }
 
 /*

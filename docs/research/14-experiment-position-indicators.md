@@ -137,17 +137,32 @@ quote, code fence, and H1–H4, `iconTop === padding-top` in every case. So its 
 nowhere; they merely happen to come close on a padded heading, which is why the paragraph case
 looked like the wrong one.
 
-Fixed with no measurement at runtime: the guide overlay inherits its line's own `padding-top`
-(a pseudo-element inherits from the element that originates it), and the arriving layer alone
-draws from the `content-box` origin at exactly half an icon tall. Every other layer names
-`padding-box` and keeps its full-row height, so guide continuity through that same padding is
-untouched. Verified live: the painted stop now lands on the icon's center to within 0.0px on both
-padded and unpadded rows.
+### The CSS-only attempt, and why it broke continuity
 
-The e2e that pins this reads the layer's resolved `background-origin` and the pseudo-element's OWN
-`padding-top`, not the line's. An earlier version derived the stop from the line's padding and
-therefore passed with the inheritance removed — a false-confidence test of exactly the kind the
-postmortem warns about, caught by mutating the fix and seeing nothing fail.
+The first fix tried to spend no measurement: have the `::after` inherit its line's `padding-top`
+(a pseudo-element inherits from the element that originates it) and draw the arriving layer from
+the `content-box` origin at exactly half an icon tall. That put the segment's END in the right
+place and its START in the wrong one. `content-box` begins *after* the padding, so the row's whole
+padding region went unaccented: the path broke into two pieces separated by a gap the size of that
+padding — which is also why the gap appeared to "vary", since it WAS the padding, and padding
+differs by kind and context.
+
+There is no way out of that in CSS. The layer has to start at the row's top (padding-box) and end
+at `padding-top + iconSize / 2`, and `padding-top` cannot be read into a `calc`. So the stop is
+measured instead: `MarginCompensation` reads the icon's own center per arriving row and publishes
+`--to-accent-stop`, the same "read the native value live, never assume it" rule
+`nativeMarginBasePx` and the table widget's padding already follow. Measuring the icon rather than
+reconstructing it from the padding means the number cannot drift from the thing it has to meet.
+Verified live: the stop lands on the icon's center to within 0.0px on both padded and unpadded
+rows, with the layer starting at the row's top.
+
+Two testing notes worth keeping, both about assertions that looked fine and proved nothing:
+
+- The first version of the e2e derived the stop from the LINE's padding-top — baking in the very
+  assumption under test — so it passed with the `padding-top: inherit` removed entirely. Caught by
+  mutating the fix and seeing nothing fail.
+- The version after that asserted only the stop, not where the layer began, so it would have
+  passed the whole broken-continuity state above. It now asserts both.
 
 ## What this means for the change
 

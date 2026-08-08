@@ -471,17 +471,17 @@ describe('position indicators: current node and ancestor trail', function () {
           const firstLayer = (after.backgroundSize.split(',')[0] ?? '').trim().split(/\s+/);
           const layerHeight = parseFloat(firstLayer[1] ?? '');
           if (!Number.isFinite(layerHeight) || firstLayer[1] === '100%') return null;
-          // Where that layer actually STARTS, read from what resolved rather
-          // than assumed: its own origin box, and — when that is the content
-          // box — the pseudo-element's OWN padding-top, which is where the
-          // inherited value shows up. Deriving this from the line's padding
-          // instead would make the assertion pass even with the origin or the
-          // inheritance removed, which is the whole failure mode being pinned.
+          // Where the layer actually starts, read from what resolved rather
+          // than assumed. It must start at the ROW's top — an origin that
+          // skipped the padding would leave the row's padding region
+          // unaccented, breaking the path into two pieces with a gap the size
+          // of that padding.
           const origin = (after.backgroundOrigin.split(',')[0] ?? '').trim();
           const afterPadTop = parseFloat(after.paddingTop) || 0;
           const layerTop = origin === 'content-box' ? afterPadTop : 0;
           return {
             origin,
+            layerTop,
             paintedStop: layerTop + layerHeight,
             iconCenter: ir.top + ir.height / 2 - lr.top,
             padTop: parseFloat(getComputedStyle(el).paddingTop) || 0,
@@ -489,6 +489,10 @@ describe('position indicators: current node and ancestor trail', function () {
         }, row);
         // Not null: this row really does carry an arriving accent.
         expect(measured).not.toBe(null);
+        // Continuous: it starts at the row's own top, leaving no gap between
+        // it and the segment arriving from the row above.
+        expect(measured!.layerTop).toBe(0);
+        // And it ends on the marker.
         expect(Math.abs(measured!.paintedStop - measured!.iconCenter)).toBeLessThan(1);
       }
       // And the two rows really are the two different cases, or the test would
