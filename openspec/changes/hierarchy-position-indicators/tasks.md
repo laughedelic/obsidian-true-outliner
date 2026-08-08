@@ -26,9 +26,9 @@ building on them — a wrong answer here changes what gets built, not just how.
 - [x] 2.2 Cover the `guides` style in `tests/decorate.test.ts`: strict ancestors only (a node
       never accents its own level), sibling subtrees unaccented, nested ancestors all accented,
       accents present on the same gap lines the base guides already cover.
-- [x] 2.3 Cover the `path` style: each level's segment stops where the next level starts,
-      nothing renders below the current node, the half-segment on an ancestor's own line is
-      present, and level-change links sit on the lines where the level actually changes.
+- [x] 2.3 Cover the `lineage` states: each level's segment starts after that ancestor's own
+      rows and stops at the row where the next level starts, nothing renders below the current
+      node, and every ancestor's own marker is reported for accenting.
 - [x] 2.4 Cover the list cases: a chain running through list nesting reports those levels as
       native-metric levels distinguishable from our own columns, and a pure list (no non-list
       ancestor) reports no non-list levels at all.
@@ -68,16 +68,18 @@ building on them — a wrong answer here changes what gets built, not just how.
 
 - [x] 5.1 Extend the guide-layer generator in `src/plugin/decorations.ts` so an accented depth
       emits its layer in the accent color **instead of** the normal one, never in addition, and
-      path half-segments emit as additional layers in the same
+      the `lineage` arriving segment emits as one more layer in the same
       comma-separated background list.
 - [x] 5.2 Wire `computePositionTrail` into the existing decoration builder (which already
       recomputes on every update, selection changes included), gated on outline mode,
       `isNestedEditor`, the trail setting, and the suppression rule.
 - [x] 5.3 Implement the `guides` style end to end: full-extent accent on every strict ancestor's
       guide, with column, width, and gap-line continuity unchanged.
-- [x] 5.4 Implement the `path` style end to end: per-level segments bounded by the next level's
-      start, half-segments from each ancestor's own marker, and an accent on every ancestor's own
-      marker, terminating at the current node. **Reworked after the first real-note review**: the
+- [x] 5.4 Implement the `lineage` states end to end: per-level segments running from after an
+      ancestor's own rows to the row where the next level starts (only that arriving end is
+      partial, stopping at that row's marker), plus an accent on every ancestor's own marker,
+      terminating at the current node. Nothing is drawn on an ancestor's own rows.
+      **Reworked twice after real-note review**: the
       original built the Logseq shape, with a horizontal elbow at each level change. Those ran
       through the very marker icons they were reaching for (a marker is centered ON its own guide
       column) and picked up visible offsets, so the elbows are gone and the accented ancestor
@@ -113,11 +115,13 @@ building on them — a wrong answer here changes what gets built, not just how.
 - [x] 7.2 Confirm or overturn the open questions the design records with working answers: the
       route stops at the current node; block-selection chrome suppresses indicators. Update the
       design and the spec if the screenshots disagree.
-- [x] 7.3 Sweep the bundled themes plus Minimal and Catppuccin, checking the accent's contrast in
-      light and dark, and checking that nothing in the new layer regresses the base layers under a
-      `max-width`-style theme. **Bundled light + dark done and pinned by e2e; the community-theme
-      sweep was NOT run** — no third-party theme is installed in the harness, and doc 12 records
-      the cost of committing one. The base-layer regression risk it guards against cannot reach
+- [x] 7.3 Sweep the BUNDLED theme in light and dark, checking the accent's contrast in each.
+      Done and pinned by e2e ("resolves the accent from the active theme, in light and in dark").
+      The community-theme sweep this task originally also asked for (Minimal, Catppuccin) was
+      **NOT run** and is deliberately deferred to `docs/research/12`'s "community-theme sweep as
+      repeatable infrastructure" entry — no third-party theme is installed in the harness, and
+      doc 12 records the cost of committing one. The base-layer regression risk it guards against
+      cannot reach
       this layer, which writes no geometry at all (audited per 6.2, measured per 8.4).
 - [x] 7.4 Record the outcome, including anything deliberately not fixed, in `docs/research/14`.
 
@@ -147,8 +151,11 @@ building on them — a wrong answer here changes what gets built, not just how.
       ambiguous, rather than letting the default change weaken an existing net.
 - [x] 9.2 Negative-control the new e2e assertions: disable each new rendering path and confirm the
       corresponding test actually fails.
-- [x] 9.3 Run `npm run lint`, `npm run build`, `npm test`, `npm run build:e2e`, and
-      `npm run test:e2e` clean.
+- [x] 9.3 Run `npm run lint`, `npm run build`, `npm test`, and `npm run build:e2e` clean, and
+      `npm run test:e2e` with **three known pre-existing failures** — `65`'s "D1 - click on a gap
+      line lands at the node above's content end" and `66`'s two D8 gap-click cases. Verified
+      identical on the base branch by checking it out and running those two specs there, so they
+      are neither caused nor touched by this change. Every other spec passes.
 - [x] 9.4 Mark the graduated entries in `docs/research/12-decoration-follow-ups.md` as done by this
       change, and move anything the experiment surfaced but this change is not doing into that same
       parking lot.

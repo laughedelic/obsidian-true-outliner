@@ -42,9 +42,10 @@ graduates the current-position family of them.
   accent is drawn at the same 1px weight as an unaccented guide, so it reads as a change of
   colour rather than of weight.
 - Behavior in **pure lists** (no non-list ancestor anywhere) is part of the deliverable, not
-  an exclusion: that is where an outliner spends most of its time, and Obsidian's own native
-  list guides/bullets are the elements the layer accents there, since our own guide layer
-  deliberately draws nothing.
+  an exclusion: that is where an outliner spends most of its time. There the layer accents
+  Obsidian's own native markers — the bullet or number of each ancestor list item — and draws no
+  guide segments at all, since a list's columns are native metrics this layer deliberately does
+  not compute (design decision 5).
 - Findings and screenshots land in a new `docs/research/14-experiment-position-indicators.md`,
   matching the experiment-then-codify discipline the other decoration layers followed.
 

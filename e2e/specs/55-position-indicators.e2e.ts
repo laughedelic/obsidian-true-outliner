@@ -729,25 +729,41 @@ describe('position indicators: current node and ancestor trail', function () {
       );
     });
 
-    it('applies a settings change live on a note of only widget-replaced atoms', async function () {
-      const note = 'Scratch/pi-widget-only.md';
-      // A table nested under a heading: a decoration output that is otherwise
-      // byte-identical across the setting change — the exact case `forceRedraw`
-      // exists for (main.ts).
-      await h.createNote(note, '# Head\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n');
+    it('applies a settings change live, on a WIDGET-rendered element', async function () {
+      const note = 'Scratch/pi-widget-refresh.md';
+      // An embed with a list attached under it, so the widget-rendered line is
+      // an ancestor and its accent is applied by `MarginCompensation`'s DOM
+      // patch — not by a declarative line decoration. The caret never moves
+      // after the setting changes, so the only thing that can repaint the
+      // widget is the setting change itself: exactly the byte-identical-output
+      // case `forceRedraw` exists for (main.ts).
+      //
+      // An earlier version used a heading + table and read the HEADING's
+      // marker, which is a plain `.cm-line` — so it passed even if the widget
+      // path never ran at all, which is the one thing it meant to prove.
+      await h.createNote(note, '# Head\n\n![[README]]\n- child one\n- child two\n');
       await ensureOutlineMode(note);
-      await h.setCursor(0, 3); // caret on the heading, so IT is current
-      await browser.pause(300);
+      await setMarkers('lineage');
+      await h.setCursor(3, 5); // in the embed's child; the embed is an ancestor
+      await browser.pause(400);
 
-      await setMarkers('off');
-      await h.setCursor(0, 3);
-      await browser.pause(300);
-      const plain = await h.getLineChildComputedStyle(0, MARKER, 'color');
+      const embedMarkerColor = () =>
+        browser.executeObsidian(({ app, obsidian }) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+          const cm = (view.editor as any).cm;
+          const icon = cm.contentDOM.querySelector(
+            '.internal-embed .to-decor-marker-icon',
+          ) as HTMLElement | null;
+          return icon ? getComputedStyle(icon).color : null;
+        });
 
+      const accented = await embedMarkerColor();
+      expect(accented).toBeTruthy();
+
+      // Change the setting and touch NOTHING else.
       await setMarkers('current');
-      await h.setCursor(0, 3);
-      await browser.pause(300);
-      expect(await h.getLineChildComputedStyle(0, MARKER, 'color')).not.toBe(plain);
+      await browser.pause(400);
+      expect(await embedMarkerColor()).not.toBe(accented);
     });
 
     it('leaves a pure list’s geometry byte-identical to outline-mode-off', async function () {

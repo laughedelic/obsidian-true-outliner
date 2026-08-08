@@ -200,12 +200,18 @@ every ancestor. A node is never both roles, so the two can never collide on one 
 marker axis is separate from the guide axis is what makes markers-only reachable — the rendering
 a plain list depends on (decision 5).
 
-**Known hazard, list items specifically:** Live Preview reveals raw markup on the line the caret
-is on, and `docs/research/13` established that a list marker's round bullet comes from a
-`.list-bullet` span that exists **only in the hidden/rendered form** — revealing swaps it for
-plain `"- "` text. So on the one line we most want to accent, the bullet element may not exist.
-The fallback is to accent the revealed text instead (`.cm-formatting-list`), giving the same
-accent color on whichever form is currently mounted.
+**The list-item hazard this decision expected did not materialise.** `docs/research/13` had
+established that a list marker's round bullet comes from a `.list-bullet` span present **only in
+the hidden/rendered form**, which suggested the one line we most want to accent might have no
+bullet element at all. Measured (docs/research/14, finding 1): a plain caret does NOT trigger
+that swap — `.list-bullet` survives on the caret's own line, and the raw-text form belongs to the
+block-selection reveal path, which is a state where indicators are suppressed anyway (decision
+2). So the accent targets `.list-bullet::after` directly and no revealed-text fallback is
+implemented. The spec's "whichever form is currently mounted" wording stays deliberately
+permissive, so a future Obsidian that reveals more aggressively would not contradict it.
+
+An ordered item is a different element again — `.list-number`, literal text taking `color`,
+where a bullet's dot is a `::after` background (finding 4). Both are targeted.
 
 ### 7. Colors come from theme variables through one indirection
 
