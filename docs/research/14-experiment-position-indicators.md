@@ -120,6 +120,35 @@ the marker accent targeted only `.list-bullet`, so it silently did nothing on ev
 and "no accent" is indistinguishable from "not the current node" by eye. Found by probing the DOM,
 not by a test. Both elements are now targeted, with an e2e case pinning the ordered one.
 
+## Finding 5: a marker sits at its line's CONTENT-box top, not at half the row
+
+The `path` style's arriving segment covered the upper 50% of its row, which read inconsistently:
+on a heading it stopped just above the marker, on a paragraph it ran past it. Measuring both says
+the two use entirely different anchors.
+
+| row kind  | `padding-top` | icon center from row top | 50% of row |
+| --------- | ------------- | ------------------------ | ---------- |
+| paragraph | 0px           | 6.8px                    | 12.0px     |
+| heading   | 16px          | 22.8px                   | 22.0px     |
+
+A marker's TOP edge sits exactly at its line's content-box top — measured across paragraph,
+quote, code fence, and H1–H4, `iconTop === padding-top` in every case. So its center is
+`padding-top + iconSize / 2`, while 50% is half a row that *includes* that padding. The two agree
+nowhere; they merely happen to come close on a padded heading, which is why the paragraph case
+looked like the wrong one.
+
+Fixed with no measurement at runtime: the guide overlay inherits its line's own `padding-top`
+(a pseudo-element inherits from the element that originates it), and the arriving layer alone
+draws from the `content-box` origin at exactly half an icon tall. Every other layer names
+`padding-box` and keeps its full-row height, so guide continuity through that same padding is
+untouched. Verified live: the painted stop now lands on the icon's center to within 0.0px on both
+padded and unpadded rows.
+
+The e2e that pins this reads the layer's resolved `background-origin` and the pseudo-element's OWN
+`padding-top`, not the line's. An earlier version derived the stop from the line's padding and
+therefore passed with the inheritance removed — a false-confidence test of exactly the kind the
+postmortem warns about, caught by mutating the fix and seeing nothing fail.
+
 ## What this means for the change
 
 - The current-marker accent (finding 1) and the `guides` trail need nothing from any of this:

@@ -172,10 +172,16 @@ function docFacts(state: EditorState): DocFacts {
 // computes.
 const UNIT = 'var(--to-decor-unit, 1.5rem)';
 
+// Every layer names its own `<origin> <clip>` pair explicitly (the trailing two
+// boxes the `background` shorthand accepts per layer). `padding-box` is where
+// these have always drawn — the whole row, padding included, which is what
+// keeps a guide continuous through a padded heading. Naming it rather than
+// leaning on the initial value is what lets ONE layer opt out: see
+// `accentLayer`'s `'top'` case.
 function guideLayer(depth: number): string {
   return (
     `repeating-linear-gradient(to right, var(--to-guide-color) 0 1px, transparent 1px ${UNIT}) ` +
-    `calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat`
+    `calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat padding-box border-box`
   );
 }
 
@@ -197,16 +203,31 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
 
 /**
  * One accented vertical segment at `depth`. `'full'` covers the row; `'top'`
- * covers its upper half — a `path` segment arriving at the row where the next
- * level starts and stopping there.
+ * arrives from above and stops at the MARKER on that row, so the path visibly
+ * meets the thing it is pointing at.
+ *
+ * "Stops at the marker" is not 50% of the row. Measured (docs/research/14,
+ * finding 5): a marker's top edge sits exactly at its line's CONTENT-box top,
+ * so its center is `padding-top + iconSize / 2` from the row's top — while 50%
+ * is half the row INCLUDING that padding. The two coincide nowhere: on an
+ * unpadded paragraph row 50% lands ~5px BELOW the icon's center, and on a
+ * heading row (16px of native padding) it lands just above it. Same layer,
+ * visibly different relationship to the icon, which is what made the path look
+ * inconsistent between kinds.
+ *
+ * Expressed without measuring anything: this one layer draws from the
+ * `content-box` origin — which the `::after` inherits the line's own
+ * `padding-top` to establish (styles.css) — and is exactly half an icon tall.
+ * Every other layer keeps the `padding-box` origin and its full-row height, so
+ * guide continuity through that same padding is untouched.
  */
 function accentLayer(depth: number, extent: TrailExtent): string {
-  const height = extent === 'full' ? '100%' : '50%';
-  const y = extent === 'top' ? 'top' : '0';
-  return (
-    `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH}) ` +
-    `calc(${depth} * ${UNIT}) ${y} / ${UNIT} ${height} no-repeat`
-  );
+  const gradient = `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH})`;
+  if (extent === 'full') {
+    return `${gradient} calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat padding-box border-box`;
+  }
+  const halfIcon = `calc(var(--to-marker-icon-size, ${MARKER_ICON_CSS}) / 2)`;
+  return `${gradient} calc(${depth} * ${UNIT}) top / ${UNIT} ${halfIcon} no-repeat content-box border-box`;
 }
 
 /**

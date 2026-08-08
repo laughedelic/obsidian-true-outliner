@@ -440,6 +440,64 @@ describe('position indicators: current node and ancestor trail', function () {
       );
     });
 
+    it('stops the arriving segment exactly on that row’s marker, padded or not', async function () {
+      const note = 'Scratch/pi-path-stop.md';
+      // "## H2" carries native heading padding-top; "body" carries none. A
+      // fixed fraction of the row cannot land on both markers — half the row
+      // overshoots the unpadded one by ~5px and undershoots the padded one.
+      await h.createNote(note, '# H1\n\nintro\n\n## H2\n\nbody\n');
+      await ensureOutlineMode(note);
+      await setTrail('path');
+
+      // One caret, two level changes: the path is H1 → H2 → "body", so an
+      // arriving segment lands on the HEADING row (4) and on the PARAGRAPH
+      // row (6) — the padded and unpadded cases, in the same render.
+      await h.setCursor(6, 3);
+      await browser.pause(250);
+
+      for (const row of [4, 6] as const) {
+        const measured = await browser.executeObsidian(({ app, obsidian }, row) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+          const cm = (view.editor as any).cm;
+          const lines = Array.from(
+            cm.contentDOM.querySelectorAll(':scope > .cm-line'),
+          ) as HTMLElement[];
+          const el = lines[row]!;
+          const icon = el.querySelector('.to-decor-marker-icon') as HTMLElement | null;
+          if (!icon) return null;
+          const lr = el.getBoundingClientRect();
+          const ir = icon.getBoundingClientRect();
+          const after = getComputedStyle(el, '::after');
+          const firstLayer = (after.backgroundSize.split(',')[0] ?? '').trim().split(/\s+/);
+          const layerHeight = parseFloat(firstLayer[1] ?? '');
+          if (!Number.isFinite(layerHeight) || firstLayer[1] === '100%') return null;
+          // Where that layer actually STARTS, read from what resolved rather
+          // than assumed: its own origin box, and — when that is the content
+          // box — the pseudo-element's OWN padding-top, which is where the
+          // inherited value shows up. Deriving this from the line's padding
+          // instead would make the assertion pass even with the origin or the
+          // inheritance removed, which is the whole failure mode being pinned.
+          const origin = (after.backgroundOrigin.split(',')[0] ?? '').trim();
+          const afterPadTop = parseFloat(after.paddingTop) || 0;
+          const layerTop = origin === 'content-box' ? afterPadTop : 0;
+          return {
+            origin,
+            paintedStop: layerTop + layerHeight,
+            iconCenter: ir.top + ir.height / 2 - lr.top,
+            padTop: parseFloat(getComputedStyle(el).paddingTop) || 0,
+          };
+        }, row);
+        // Not null: this row really does carry an arriving accent.
+        expect(measured).not.toBe(null);
+        expect(Math.abs(measured!.paintedStop - measured!.iconCenter)).toBeLessThan(1);
+      }
+      // And the two rows really are the two different cases, or the test would
+      // be asserting the same thing twice.
+      const padded = await h.getLineComputedStyle(4, 'padding-top');
+      const unpadded = await h.getLineComputedStyle(6, 'padding-top');
+      expect(padded).not.toBe(unpadded);
+    });
+
     it('keeps the base guide continuous through a half-accented row', async function () {
       const note = 'Scratch/pi-path-continuity.md';
       await h.createNote(note, STRUCTURED);
@@ -451,8 +509,9 @@ describe('position indicators: current node and ancestor trail', function () {
       // that same depth must survive underneath it, or the base guide would
       // show a visible gap on exactly this row.
       const sizes = await h.getLinePseudoComputedStyle(4, 'background-size');
-      expect(sizes).toContain('100%'); // a full-height layer is still present
-      expect(sizes).toMatch(/50%/); // and the half-height accent is too
+      const heights = sizes.split(',').map((l) => l.trim().split(/\s+/)[1]);
+      expect(heights).toContain('100%'); // the plain guide still spans the row
+      expect(heights.some((hh) => hh !== '100%')).toBe(true); // accent does not
     });
 
     it('reaches a list item without drawing at a native list column', async function () {
