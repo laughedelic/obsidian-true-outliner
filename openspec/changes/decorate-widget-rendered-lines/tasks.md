@@ -35,11 +35,17 @@ both were written as inference rather than measurement:
    fixture: `any=4, direct=4`, classes `cm-embed-block cm-table-widget…`,
    `cm-embed-block cm-callout`, `cm-html-embed cm-embed-block`, plus `.cm-line.hr` — so the
    selector remains correct for the atom kinds.)
-2. **A whole-line embed never reverts to a plain `.cm-line`.** Probed with the cursor at
-   line 4 ch 0, line 4 ch 5, and line 7 ch 5: the element stays
-   `internal-embed markdown-embed`, and no line carries `cm-active` (confirming the cursor
-   really is on the widget-replaced line). There is no cursor-on plain-line rendering to
-   compare the widget state against.
+2. **A whole-line embed does not swap back to a plain `.cm-line`.** Probed with the cursor
+   at line 4 ch 0, line 4 ch 5, and line 7 ch 5: the embed element stays
+   `internal-embed markdown-embed`. There is therefore no cursor-on plain rendering *of the
+   same element* to compare the widget state against, which is what invalidates the
+   cursor-on-equals-cursor-off acceptance test.
+
+   **Amended after the reported bugs** (see "Second measurement pass"): what Obsidian does
+   in some cursor-on states is not swap but ADD — the raw source appears as its own real
+   `.cm-line` alongside the still-present embed block, so one document line has two
+   elements. The original probe missed this because it recorded one entry per line index
+   and the fixture happened not to reproduce it; a note whose embed is its last block does.
 
 Confirmed as designed:
 
@@ -129,6 +135,40 @@ Per project practice: a new assertion that passes before the fix proves nothing.
       decoration e2e corpus including the newly registered fixture's screenshots.
 - [x] 4.8 Manual pass in a real vault with a real embed, at more than one theme, confirming
       the embed sits in the outline geometry and stops moving when the cursor leaves it.
+
+## 5b. Second measurement pass (three bugs reported against the first version)
+
+Reported from real use, all three reproduced in a probe before any code changed:
+an embed paragraph showed a marker beside its text AND one mid-block; indenting it into a
+list threw the embed too far right (doubled indentation); closing and reopening the note
+rendered it correctly.
+
+Measured causes, both of them flaws in this change's own reasoning rather than in Obsidian:
+
+- **Obsidian re-parents the patched element.** After `indent-node`, the same
+  `internal-embed markdown-embed` element became a CHILD of the new `.cm-line`, still
+  carrying `margin-left: calc(0px + max(...) + 1.25rem)` and a stale `to-decor-marker`.
+  Cleanup keyed on the patch selector could no longer see it (design D4's original claim
+  that same-selector cleanup is "exactly complete" was simply false), so the patch was
+  stranded until the view was rebuilt — hence "correct after reopening".
+- **One line can have two elements.** With the cursor on the embed line, `contentDOM` had
+  BOTH a `.cm-line` for line 4 and the embed block for line 4. Each decoration path
+  decorated its own, producing two markers. The original per-element marker count could not
+  have caught this: it counted `:scope > .to-decor-marker-icon` per element, never across
+  the elements sharing a line.
+
+- [x] 5b.1 Reproduce all three symptoms in a probe against the shipped code, recording the
+      re-parented element's stale inline style and the two-elements-one-line state.
+- [x] 5b.2 Stamp patched elements with our own class and sweep by it (design D4), in both
+      the per-pass cleanup and `clearAll()`.
+- [x] 5b.3 Suppress the widget marker when a plain `.cm-line` renders the same line
+      (design D4b), excluding `.cm-line.hr`.
+- [x] 5b.4 Regression tests counting markers ACROSS every element rendering a line, and
+      asserting no stranded patch survives an indent — plus a live-vs-reopened equality
+      check, since "correct only after reopening" was the reported tell. Negative-controlled
+      against the shipped code: the two bug repros fail, the outdent lock passes (outdent
+      returns the element to the selector's reach, so it locks behavior rather than
+      reproducing a defect).
 
 ## 5. Close out
 

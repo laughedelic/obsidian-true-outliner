@@ -271,7 +271,141 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     }
   });
 
+  describe('live edits that change how a line renders', function () {
+    // All three reported against the first version of this fix, which
+    // decided cleanup by "does the selector still match this element"
+    // rather than "did we patch this element". Obsidian REUSES a rendered
+    // embed's element across renders and RE-PARENTS it into a `.cm-line`
+    // when the line stops being a whole-line replacement, so a patched
+    // element can walk out of the selector's reach carrying our styles.
+    const LIVE_NOTE = 'Scratch/decorations-embed-live.md';
+    const LIVE_MD = '# Section\n\nAnchor paragraph.\n\n![[decorations-embed-target]]\n';
+
+    /** Every marker icon anywhere under the given document line's elements. */
+    async function markersForLine(lineIndex: number): Promise<number> {
+      return browser.executeObsidian(
+        ({ app, obsidian }, lineIndex) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+          if (!view) throw new Error('no active markdown view');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cm = (view.editor as any).cm;
+          const content: HTMLElement = cm.contentDOM;
+          // Deliberately counts markers at ANY depth, across EVERY element
+          // that renders this line. A per-element `:scope >` count cannot
+          // see a second marker on a second element for the same line —
+          // which is exactly how the double marker went unnoticed.
+          let total = 0;
+          for (const child of Array.from(content.children)) {
+            try {
+              if (cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1 !== lineIndex) continue;
+            } catch {
+              continue;
+            }
+            total += child.querySelectorAll('.to-decor-marker-icon').length;
+          }
+          return total;
+        },
+        lineIndex,
+      );
+    }
+
+    /** Elements anywhere still carrying our widget patch. */
+    function strandedPatches(): Promise<string[]> {
+      return browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        if (!view) throw new Error('no active markdown view');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (view.editor as any).cm;
+        const content: HTMLElement = cm.contentDOM;
+        return Array.from(content.querySelectorAll<HTMLElement>('*'))
+          .filter((el) => el.parentElement !== content)
+          .filter(
+            (el) =>
+              el.style.marginLeft ||
+              el.classList.contains('to-decor-guides') ||
+              el.classList.contains('to-decor-marker'),
+          )
+          .map((el) => `${el.className} ml=${el.style.marginLeft}`);
+      });
+    }
+
+    beforeEach(async function () {
+      await h.createNote(LIVE_NOTE, LIVE_MD);
+      if (!(await h.isOutlineMode(LIVE_NOTE))) {
+        await h.toggleOutlineMode();
+        await h.waitForNotice('Outline mode on');
+        await h.dismissNotices();
+      }
+      await h.setCursor(0, 0);
+      await browser.pause(700);
+    });
+
+    it('an embed line under the cursor shows exactly ONE marker, not two', async function () {
+      // With the cursor on it, Obsidian reveals the raw source as a real
+      // `.cm-line` AND keeps the rendered embed block — two elements, one
+      // document line. Only the source line may carry a marker; a second
+      // one floated in the middle of the embed block.
+      expect(await markersForLine(4)).toBe(1); // cursor away: the widget's own
+
+      await h.setCursor(4, 2);
+      await browser.pause(400);
+      expect(await markersForLine(4)).toBe(1); // cursor on: the source line's
+
+      await h.setCursor(0, 0);
+      await browser.pause(400);
+      expect(await markersForLine(4)).toBe(1);
+    });
+
+    it('indenting an embed into a list item strands no patch and does not double its indent', async function () {
+      await h.setCursor(4, 2);
+      await browser.pause(300);
+      await h.runCommand('indent-node');
+      await browser.pause(600);
+      expect(await h.getBuffer()).toContain('- ![[decorations-embed-target]]');
+
+      expect(await strandedPatches()).toEqual([]);
+      // A list item takes no synthetic marker, whatever it contains.
+      expect(await markersForLine(4)).toBe(0);
+
+      // The live result must equal the from-scratch result. Anything left
+      // over from the paragraph rendering would show up as extra offset.
+      const live = await h.getLineElementInfo(4);
+      await h.saveActiveFile();
+      await h.openNote(EMBED.note);
+      await browser.pause(200);
+      await h.openNote(LIVE_NOTE);
+      await h.setCursor(0, 0);
+      await browser.pause(800);
+      const reopened = await h.getLineElementInfo(4);
+
+      expect(live.contentLeft).toBeCloseTo(reopened.contentLeft, ALIGN_TOLERANCE_PX);
+      expect(live.marginLeft).toBeCloseTo(reopened.marginLeft, ALIGN_TOLERANCE_PX);
+      expect(await markersForLine(4)).toBe(0);
+      expect(await strandedPatches()).toEqual([]);
+    });
+
+    it('outdenting back to a paragraph restores the widget-line decoration', async function () {
+      await h.setCursor(4, 2);
+      await browser.pause(300);
+      await h.runCommand('indent-node');
+      await browser.pause(500);
+      await h.runCommand('outdent-node');
+      await browser.pause(500);
+      expect(await h.getBuffer()).toContain('\n![[decorations-embed-target]]');
+
+      await h.setCursor(0, 0);
+      await browser.pause(500);
+      expect(await strandedPatches()).toEqual([]);
+      expect(await markersForLine(4)).toBe(1);
+      const control = await h.getLineElementInfo(2);
+      const embed = await h.getLineElementInfo(4);
+      expect(embed.contentLeft).toBeCloseTo(control.contentLeft, ALIGN_TOLERANCE_PX);
+    });
+  });
+
   it('outline mode off leaves no patch behind on a widget-rendered line', async function () {
+    // The live-edit block above left a different note open.
+    await openEmbedFixture();
     await h.toggleOutlineMode();
     await h.waitForNotice('Outline mode off');
     await h.dismissNotices();

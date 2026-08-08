@@ -982,6 +982,37 @@ function clearWidgetMarker(el: HTMLElement): void {
   delete el.dataset.markerDepth;
 }
 
+/**
+ * Marks an element as one WE have patched. The patch loop's selector says
+ * which elements are eligible *right now*; this says which ones actually
+ * carry our state, and the two are not the same set over time.
+ *
+ * The gap is real and was a shipped bug: Obsidian REUSES a rendered embed's
+ * element and RE-PARENTS it into a `.cm-line` when the line stops being a
+ * whole-line replacement (e.g. `![[note]]` indented into `- ![[note]]`).
+ * The element is then no longer a direct child of `.cm-content`, so neither
+ * the patch loop nor a same-selector cleanup can see it — and it keeps our
+ * inline `margin-left` forever, on top of its new host line's own
+ * indentation, which is exactly the doubled indentation that was reported.
+ * Cleaning up by "what did we patch" instead of "what does the selector
+ * match" is what closes it, and it stays closed for any future re-parenting
+ * Obsidian invents.
+ */
+const WIDGET_PATCHED_CLASS = 'to-decor-widget-line';
+
+/** Removes every trace of a widget-line patch, wherever the element now is. */
+function clearWidgetPatch(el: HTMLElement): void {
+  el.style.removeProperty('margin-left');
+  el.classList.remove('to-decor-guides');
+  el.classList.remove(SELECTED_NODE_CLASS);
+  el.classList.remove(WIDGET_PATCHED_CLASS);
+  el.style.removeProperty('--to-guides');
+  el.style.removeProperty('--to-own-shift');
+  el.style.removeProperty('--to-selected-left');
+  el.style.removeProperty('--to-selected-right');
+  clearWidgetMarker(el);
+}
+
 
 class DecorationsPlugin implements PluginValue {
   decorations: DecorationSet;
@@ -1543,8 +1574,41 @@ class MarginCompensation implements PluginValue {
     const widgets = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_LINE_SELECTOR),
     );
+
+    // Document lines that ALSO have a plain `.cm-line` of their own right
+    // now. A line-level widget is usually its line's only rendering, but not
+    // always: with the cursor on the line, Obsidian reveals the raw source
+    // as a real `.cm-line` AND keeps the rendered block, so ONE document
+    // line has TWO elements. Measured for both a wiki embed and a depth-0
+    // table.
+    //
+    // That only causes a DOUBLE MARKER when the declarative path also
+    // emitted one for the line, which it does for every kind except the
+    // always-widget-rendered atoms (see computeMarkers's own
+    // WIDGET_ATOM_KINDS skip). So this set alone is not the suppression
+    // condition — pairing it with that same kind test is (see the marker
+    // branch below). Suppressing on the set alone silently deleted every
+    // widget atom's marker the moment the cursor landed on it, caught by
+    // 52-block-markers-icons.
+    //
+    // `.hr` is excluded because it is BOTH a `.cm-line` and widget-rendered
+    // — counting it here would make it look doubly rendered to itself.
+    const linesWithPlainRendering = new Set<number>();
+    for (const line of Array.from(
+      this.view.contentDOM.querySelectorAll<HTMLElement>(':scope > .cm-line:not(.hr)'),
+    )) {
+      try {
+        linesWithPlainRendering.add(this.view.state.doc.lineAt(this.view.posAtDOM(line)).number - 1);
+      } catch {
+        // Mid-update DOM the current document can't place — nothing to add.
+      }
+    }
+
+    const patched = new Set<HTMLElement>();
     for (const el of widgets) {
       const lineNumber = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
+      patched.add(el);
+      el.classList.add(WIDGET_PATCHED_CLASS);
       // Same class the plain-`.cm-line` path applies via CM6 decoration
       // (computeSelectionDecorations) — widgets need the imperative DOM
       // patch instead, same reasoning as margin/marker below. Toggled
@@ -1608,7 +1672,20 @@ class MarginCompensation implements PluginValue {
         // question (first line, not a list item), which this path could
         // previously leave out and stay correct only because every atom
         // satisfied both by construction.
-        if (isMarkerEligible(fact) && shouldShowMarker(fact, this.modes.markerVisibility)) {
+        // Exactly the complement of computeMarkers's own emit condition: it
+        // skips the always-widget-rendered atom kinds and handles every
+        // other kind declaratively. So a declarative marker exists for this
+        // line, and has a `.cm-line` to land on, precisely when the kind is
+        // NOT an atom kind and the line is doubly rendered — and that is the
+        // only case where this path would add a second one. The two paths
+        // partition the work by the same test, from opposite sides.
+        const declarativeMarkerLands =
+          !WIDGET_ATOM_KINDS.has(fact.kind) && linesWithPlainRendering.has(lineNumber);
+        if (
+          isMarkerEligible(fact) &&
+          !declarativeMarkerLands &&
+          shouldShowMarker(fact, this.modes.markerVisibility)
+        ) {
           el.classList.add('to-decor-marker');
           // Same depth term the shift above used, for the same reason: the
           // marker's target column and the box it sits in must be derived
@@ -1674,14 +1751,21 @@ class MarginCompensation implements PluginValue {
         // to be: while the gate above read `fact?.isAtom`, any
         // widget-rendered paragraph landed here and had its decoration
         // stripped. That was the bug, not the design.
-        el.style.removeProperty('margin-left');
-        el.classList.remove('to-decor-guides');
-        el.style.removeProperty('--to-guides');
-        el.style.removeProperty('--to-own-shift');
-        el.style.removeProperty('--to-selected-left');
-        el.style.removeProperty('--to-selected-right');
-        clearWidgetMarker(el);
+        clearWidgetPatch(el);
       }
+    }
+
+    // Anything we patched on an earlier pass that this one did NOT reach.
+    // Obsidian re-parents a rendered embed's own element into a `.cm-line`
+    // when the line stops being a whole-line replacement, at which point the
+    // selector above can no longer find it and its stale inline margin adds
+    // to its new host line's own indentation. Sweeping by our own marker
+    // class instead reaches it wherever it now sits — see
+    // WIDGET_PATCHED_CLASS.
+    for (const el of Array.from(
+      this.view.contentDOM.querySelectorAll<HTMLElement>(`.${WIDGET_PATCHED_CLASS}`),
+    )) {
+      if (!patched.has(el)) clearWidgetPatch(el);
     }
 
     // Plain lines (atoms/list items rendered as genuine `.cm-line`s, not
@@ -1762,22 +1846,20 @@ class MarginCompensation implements PluginValue {
     this.view.dom.style.removeProperty('--to-chevron-dead-right');
     this.view.dom.style.removeProperty('--to-selected-bg');
     this.lastDeadRight = '';
-    // The same selector `apply()` patches through — it is the only thing
-    // that ever writes these styles, so clearing exactly that set is
-    // exactly complete.
-    const widgets = Array.from(
-      this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_LINE_SELECTOR),
-    );
-    for (const el of widgets) {
-      el.style.removeProperty('margin-left');
-      el.classList.remove('to-decor-guides');
-      el.classList.remove(SELECTED_NODE_CLASS);
-      el.style.removeProperty('--to-guides');
-      el.style.removeProperty('--to-own-shift');
-      el.style.removeProperty('--to-selected-left');
-      el.style.removeProperty('--to-selected-right');
-      clearWidgetMarker(el);
-    }
+    // Swept by our OWN patch class, not by `WIDGET_LINE_SELECTOR`, and
+    // deliberately unscoped. An element we patched may since have been
+    // re-parented inside a `.cm-line` (see WIDGET_PATCHED_CLASS), where the
+    // selector can no longer reach it — turning outline mode off has to
+    // strip its inline margin and marker all the same, or stock rendering
+    // is not restored. The union with the selector keeps the sweep correct
+    // even for an element patched before this class existed in a session.
+    const widgets = new Set<HTMLElement>([
+      ...Array.from(
+        this.view.contentDOM.querySelectorAll<HTMLElement>(`.${WIDGET_PATCHED_CLASS}`),
+      ),
+      ...Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_LINE_SELECTOR)),
+    ]);
+    for (const el of widgets) clearWidgetPatch(el);
     const plainLines = Array.from(
       this.view.contentDOM.querySelectorAll<HTMLElement>(PLAIN_MARGIN_SELECTOR),
     );

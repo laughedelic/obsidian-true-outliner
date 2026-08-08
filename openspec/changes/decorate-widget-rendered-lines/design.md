@@ -122,14 +122,45 @@ enforcement point.
 `shouldShowMarker`'s `'headings-and-paragraphs'` case (`!fact.isAtom`) already yields the
 right answer for a widget-rendered paragraph, and needs no change.
 
-### D4: The cleanup branch narrows to "no line-level decoration state"
+### D4: Cleanup is driven by what we patched, not by what the selector matches
 
-After D1 the loop only sees line-level widgets, so the `else` is reached only when the line
-has no fact at all. Keep it — as a genuine defensive no-op, with its comment corrected to
-say so — rather than deleting it: `posAtDOM` can transiently resolve against a stale
-document during a view update, and leaving a patch behind in that case is worse than
-clearing it. `clearAll()` (outline mode off, or plugin destroy) is unaffected and keeps its
-unscoped query, since it must reach anything a previous scoped pass may have patched.
+After D1 the loop only sees line-level widgets, so the `else` branch is reached only when
+the line has no fact at all. Keep it as a defensive no-op — `posAtDOM` can transiently
+resolve against a stale document during a view update, and leaving a patch behind is worse
+than clearing it.
+
+That is not sufficient on its own, and an earlier version of this design said it was. It
+argued that cleanup could use the same selector as the patch loop, "since that is the only
+thing that ever writes these styles, so clearing exactly that set is exactly complete."
+**That reasoning is wrong**, and shipped three user-visible bugs. It assumes a patched
+element stays where it was. Obsidian REUSES a rendered embed's element and RE-PARENTS it
+into a `.cm-line` when the line stops being a whole-line replacement — indent `![[note]]`
+into `- ![[note]]` and the same element becomes a child of the new list line. It is then
+invisible to a selector scoped to direct children, so its inline `margin-left` survives
+forever on top of its new host line's own indentation (the reported doubled indent), along
+with a stale marker the line should not have.
+
+So: stamp every patched element with our own class, and clean up by sweeping that class,
+unscoped. Each pass clears any stamped element it did not just patch; `clearAll()` sweeps
+the class union the selector, so turning outline mode off restores stock rendering wherever
+the element has drifted to. The invariant becomes "we clean what we dirtied", which holds
+under any re-parenting Obsidian invents, rather than "we clean what we can currently see",
+which held only while elements stayed put.
+
+### D4b: A line can have two elements, and only one may carry the marker
+
+The widget path and the declarative path were assumed mutually exclusive — a line is either
+a plain `.cm-line` or replaced by a widget. Measured false: with the cursor on an embed
+line Obsidian reveals the raw source as a real `.cm-line` **and** keeps the rendered embed
+block, so one document line has two elements, and each path decorated its own. The result
+was two paragraph icons, one beside the source text and one floating mid-embed.
+
+The source line is the one being edited and already takes the declarative marker, so the
+widget suppresses its own whenever a plain `.cm-line` renders the same line. Geometry still
+applies to both, so the preview block stays aligned with the source line rather than
+snapping flush left the moment the cursor arrives. `.cm-line.hr` is excluded from that
+"plain rendering" set — it is both a `.cm-line` and widget-rendered, and counting it would
+suppress its own only marker.
 
 ### D5: Verification is measurement-first and negative-controlled
 
