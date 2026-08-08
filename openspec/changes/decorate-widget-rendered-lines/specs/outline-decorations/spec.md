@@ -52,8 +52,9 @@ ancestor", "recomputes independently for separate lists under separate heading d
 depth, per-level spacing untouched", "wide-numbering: no marker/text overlap across the
 9->10 digit-width boundary", "multiline continuation: continuation lines indent identically
 to the node's first line", "fold indicator on a parent list item does not collide with
-decorated content", plus this change's embed-fixture coverage asserting cursor-on/cursor-off
-indentation equality).
+decorated content", plus this change's embed-fixture coverage asserting that a
+widget-rendered embed line starts at the same column as a plain paragraph at the same tree
+depth).
 
 ### Requirement: Widget-replaced lines receive indentation, markers, and guides via direct DOM patching
 Obsidian replaces some lines in Live Preview with opaque elements on which a CM6
@@ -78,6 +79,12 @@ bullet/number is untouched), and a widget-replaced continuation line renders non
 Native padding the widget itself contributes SHALL be read live (never hardcoded) and
 subtracted so the widget's visible content aligns with same-depth content of other kinds,
 clamped so a depth-0 line's contribution never goes negative.
+
+A line MAY be rendered by two elements at once: with the cursor on it, Obsidian can reveal
+the raw source as its own `.cm-line` while KEEPING the rendered element. Both SHALL carry
+the line's indentation, so the two stay aligned, but the line SHALL render exactly ONE
+marker — the declarative one on the source line, with the widget suppressing its own
+whenever a declarative marker exists for that line and has a `.cm-line` to render on.
 
 A widget nested INSIDE a rendered `.cm-line` (for example an inline image embed among a
 paragraph's text) SHALL NOT be patched: its host line is a real `.cm-line` that already
@@ -109,6 +116,12 @@ line's node is not an atom.
 - **THEN** it receives its `supplementalDepth` contribution and no synthetic marker, exactly
   as a list item containing only text does
 
+#### Scenario: A doubly rendered line shows one marker, not two
+- **WHEN** the cursor is on a note-embed paragraph line, so Obsidian renders both the raw
+  source as a `.cm-line` and the embed block for that same line
+- **THEN** exactly one marker renders for the line, and both elements start at the same
+  column
+
 #### Scenario: A widget nested inside a rendered line is left alone
 - **WHEN** a paragraph line contains an inline embed among other text, so the line renders
   as a real `.cm-line` with a widget element nested inside it
@@ -118,6 +131,8 @@ line's node is not an atom.
 **Covered by**: `e2e/specs/50-decorations.e2e.ts` ("widget-replaced atoms (table, callout,
 hr, html) get margin-left too"), `e2e/specs/52-block-markers-icons.e2e.ts`
 ("widget-replaced atom kinds (table/callout/html/hr) each get exactly one marker child"),
-plus this change's embed-fixture coverage across the placements an embed can occupy
-(whole-paragraph line, one line of a multi-line node, list-item line, inline among text) in
-both the cursor-on and cursor-off states.
+plus `e2e/specs/54-widget-rendered-lines.e2e.ts`, which covers each placement an embed can
+occupy (whole-paragraph line, one line of a multi-line node, list-item line, inline among
+text) with the cursor parked away from them, and separately covers the cursor-on state for
+the whole-paragraph case — where Obsidian renders the source line and the embed block at
+once, and only one of the two may carry a marker.

@@ -630,13 +630,25 @@ export interface LineElementInfo {
   marginLeft: number;
   paddingLeft: number;
   /**
-   * Where this line's own content actually begins on screen. The single
-   * quantity a same-depth comparison should use: plain lines carry their
-   * indentation as `padding-left` (box stays put, content moves), widgets
-   * carry it as `margin-left` (the whole box moves), so neither `rect.left`
-   * nor `padding-left` alone is comparable across the two — their sum is.
+   * The COLUMN this line's indentation places it at: border-box left plus
+   * the element's own native left padding. The single quantity a same-depth
+   * comparison should use — plain lines carry their indentation as
+   * `padding-left` (box stays put, content moves) while widgets carry it as
+   * `margin-left` (the whole box moves), so neither `rect.left` nor
+   * `padding-left` alone is comparable across the two; their sum is exactly
+   * what `widgetOwnShiftExpr` is defined to hold constant across kinds.
+   *
+   * NOT "where the text starts", and deliberately does NOT add
+   * `border-left-width`. Measured at depth 1, with a plain paragraph's text
+   * at x=334.9: paragraph rect+pad 334.9 (text 334.9), callout 334.9 (text
+   * 380.9), table 334.9 (text 343.9), embed 334.9 (text 336.9). Every kind
+   * agrees on rect+pad and disagrees on text origin by up to 46px, because
+   * each draws its own internal chrome (a callout's icon, a table's cell
+   * padding, an embed's 2px left border) inside that shared column. The
+   * border is the embed's own visible left edge, the counterpart of a
+   * callout's bar, and belongs ON the column rather than inset from it.
    */
-  contentLeft: number;
+  alignedLeft: number;
   hasMarker: boolean;
   /** Absolute left edge of the marker icon, or null when there is none. */
   markerLeft: number | null;
@@ -682,7 +694,7 @@ export function getLineElementInfo(lineIndex: number): Promise<LineElementInfo> 
         rect: { left: r.left, top: r.top, width: r.width, height: r.height },
         marginLeft,
         paddingLeft,
-        contentLeft: r.left + paddingLeft,
+        alignedLeft: r.left + paddingLeft,
         hasMarker: !!marker,
         markerLeft: marker ? marker.getBoundingClientRect().left : null,
         hasGuides: found.classList.contains('to-decor-guides'),

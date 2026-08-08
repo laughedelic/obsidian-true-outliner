@@ -12,7 +12,7 @@ import * as path from 'node:path';
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
-import { ALL_DECORATION_FIXTURES } from '../fixtures/decorations.js';
+import { ALL_DECORATION_FIXTURES, createFixture } from '../fixtures/decorations.js';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), '.obsidian-cache', 'decorations-screenshots');
 
@@ -33,12 +33,17 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
 
   it('screenshots every fixture with outline mode on, light and dark', async function () {
     for (const fixture of ALL_DECORATION_FIXTURES) {
-      await h.createNote(fixture.note, fixture.md);
+      await createFixture(fixture, h.createNote);
       if (!(await h.isOutlineMode(fixture.note))) {
         await h.toggleOutlineMode();
         await h.waitForNotice('Outline mode on');
       }
       await h.dismissNotices();
+      // `settleMs` covers a fixture whose own rendering is ASYNCHRONOUS —
+      // an embed resolves its link and renders another note, and a shorter
+      // wait screenshots the pre-embed line instead.
+      await browser.pause(fixture.settleMs ?? 0);
+
 
       await h.setTheme(false);
       await browser.pause(150); // let CSS var recompute settle before capture

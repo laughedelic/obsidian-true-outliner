@@ -69,7 +69,10 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     for (const fixture of ALL_DECORATION_FIXTURES) {
       await createFixture(fixture, h.createNote);
       await ensureOutlineMode(fixture.note);
-      await browser.pause(150);
+      // `settleMs` covers a fixture whose own rendering is ASYNCHRONOUS —
+      // an embed resolves its link and renders another note, and a shorter
+      // wait screenshots the pre-embed line instead.
+      await browser.pause(150 + (fixture.settleMs ?? 0));
 
       await h.setTheme(false);
       await browser.pause(150);

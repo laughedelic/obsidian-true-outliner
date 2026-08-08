@@ -185,10 +185,19 @@ export const EMBED_TARGET_MD = [
 export const EMBED_NOTE = 'Scratch/decorations-embed.md';
 // A wiki embed is NOT a node kind — the parser has no embed concept, and
 // `![[…]]` is just paragraph (or list-item) text. It is a RENDERING
-// phenomenon: Obsidian replaces the line with an opaque
-// `.cm-embed-block.markdown-embed` widget whenever the cursor is not on
-// it, and puts the plain `.cm-line` back when the cursor returns. This
-// fixture covers all four placements an embed can occupy, so the
+// phenomenon: Obsidian renders the line as an opaque
+// `internal-embed markdown-embed` element in place of the usual
+// `.cm-line`. Two measured details, both the opposite of what this
+// change's first diagnosis assumed:
+//
+//   - the element carries NO `cm-embed-block` class, so the selector that
+//     covers the atom kinds never matched it;
+//   - the cursor does not swap it back to a plain `.cm-line`. With the
+//     cursor on the line Obsidian ADDS the raw source as its own
+//     `.cm-line` and KEEPS the rendered element, so one document line then
+//     has two elements.
+//
+// This fixture covers all four placements an embed can occupy, so the
 // decoration layer can be checked against each:
 //
 //   1. its own whole paragraph line (`![[…]]` alone) — the reported bug,
@@ -234,6 +243,14 @@ export interface DecorationFixture {
    * fixture's own note.
    */
   readonly deps?: readonly { readonly note: string; readonly md: string }[];
+  /**
+   * Extra settling time, in ms, this fixture's own ASYNCHRONOUS rendering
+   * needs before the DOM is stable enough to screenshot or assert against.
+   * Zero for anything Obsidian renders synchronously from the buffer; an
+   * embed has to resolve its link and render another note's markdown, and
+   * a shorter wait captures the pre-embed line instead.
+   */
+  readonly settleMs?: number;
 }
 
 export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
@@ -257,6 +274,7 @@ export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
     md: EMBED_MD,
     label: 'embed',
     deps: [{ note: EMBED_TARGET_NOTE, md: EMBED_TARGET_MD }],
+    settleMs: 600,
   },
 ];
 

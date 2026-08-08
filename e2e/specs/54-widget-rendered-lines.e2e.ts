@@ -54,8 +54,10 @@ async function openEmbedFixture(): Promise<void> {
     await h.dismissNotices();
   }
   // Embeds resolve and render asynchronously; without this the widget may
-  // not exist yet and the assertions would read the pre-embed line.
-  await browser.pause(600);
+  // not exist yet and the assertions would read the pre-embed line. The
+  // fixture declares how long that takes, so the corpus screenshot loops
+  // and this spec cannot drift apart on it.
+  await browser.pause(EMBED.settleMs ?? 0);
   // Park the cursor on the heading so no line is in an edit-revealed state.
   await h.setCursor(0, 0);
   await browser.pause(200);
@@ -89,8 +91,8 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     const control = await h.getLineElementInfo(2); // plain paragraph, depth 1
     const embed = await h.getLineElementInfo(4); // embed paragraph, depth 1
 
-    expect(control.contentLeft).toBeGreaterThan(0);
-    expect(embed.contentLeft).toBeCloseTo(control.contentLeft, ALIGN_TOLERANCE_PX);
+    expect(control.alignedLeft).toBeGreaterThan(0);
+    expect(embed.alignedLeft).toBeCloseTo(control.alignedLeft, ALIGN_TOLERANCE_PX);
   });
 
   it('a whole-line embed gets its paragraph marker, in the same column', async function () {
@@ -117,8 +119,8 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     const embedLine = await h.getLineElementInfo(7); // widget continuation
     const plainContinuation = await h.getLineElementInfo(8); // plain continuation
 
-    expect(embedLine.contentLeft).toBeCloseTo(firstLine.contentLeft, ALIGN_TOLERANCE_PX);
-    expect(embedLine.contentLeft).toBeCloseTo(plainContinuation.contentLeft, ALIGN_TOLERANCE_PX);
+    expect(embedLine.alignedLeft).toBeCloseTo(firstLine.alignedLeft, ALIGN_TOLERANCE_PX);
+    expect(embedLine.alignedLeft).toBeCloseTo(plainContinuation.alignedLeft, ALIGN_TOLERANCE_PX);
 
     // A marker belongs to a node's first line only — the plain continuation
     // proves that rule is live in this very fixture, so the widget
@@ -134,7 +136,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
 
     expect(withEmbed.isCmLine).toBe(true);
     expect(withEmbed.marginLeft).toBeCloseTo(control.marginLeft, ALIGN_TOLERANCE_PX);
-    expect(withEmbed.contentLeft).toBeCloseTo(control.contentLeft, ALIGN_TOLERANCE_PX);
+    expect(withEmbed.alignedLeft).toBeCloseTo(control.alignedLeft, ALIGN_TOLERANCE_PX);
     // List items never take a synthetic marker, whatever they contain.
     expect(control.hasMarker).toBe(false);
     expect(withEmbed.hasMarker).toBe(false);
@@ -146,7 +148,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
 
     // No doubled shift: the host `.cm-line` is decorated declaratively, and
     // the element nested inside it must not be patched a second time.
-    expect(inline.contentLeft).toBeCloseTo(control.contentLeft, ALIGN_TOLERANCE_PX);
+    expect(inline.alignedLeft).toBeCloseTo(control.alignedLeft, ALIGN_TOLERANCE_PX);
     expect(inline.hasMarker).toBe(true);
     expect(inline.markerLeft).toBeCloseTo(control.markerLeft!, ALIGN_TOLERANCE_PX);
 
@@ -260,12 +262,12 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
       await setVisibility('with-children');
       const hidden = await h.getLineElementInfo(4);
       expect(hidden.hasMarker).toBe(false);
-      expect(hidden.contentLeft).toBeCloseTo(baseline.contentLeft, ALIGN_TOLERANCE_PX);
+      expect(hidden.alignedLeft).toBeCloseTo(baseline.alignedLeft, ALIGN_TOLERANCE_PX);
 
       await setVisibility('headings-and-paragraphs');
       const shown = await h.getLineElementInfo(4);
       expect(shown.hasMarker).toBe(true);
-      expect(shown.contentLeft).toBeCloseTo(baseline.contentLeft, ALIGN_TOLERANCE_PX);
+      expect(shown.alignedLeft).toBeCloseTo(baseline.alignedLeft, ALIGN_TOLERANCE_PX);
     } finally {
       await setVisibility('all'); // leave the vault on the default
     }
@@ -378,7 +380,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
       await browser.pause(800);
       const reopened = await h.getLineElementInfo(4);
 
-      expect(live.contentLeft).toBeCloseTo(reopened.contentLeft, ALIGN_TOLERANCE_PX);
+      expect(live.alignedLeft).toBeCloseTo(reopened.alignedLeft, ALIGN_TOLERANCE_PX);
       expect(live.marginLeft).toBeCloseTo(reopened.marginLeft, ALIGN_TOLERANCE_PX);
       expect(await markersForLine(4)).toBe(0);
       expect(await strandedPatches()).toEqual([]);
@@ -399,7 +401,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
       expect(await markersForLine(4)).toBe(1);
       const control = await h.getLineElementInfo(2);
       const embed = await h.getLineElementInfo(4);
-      expect(embed.contentLeft).toBeCloseTo(control.contentLeft, ALIGN_TOLERANCE_PX);
+      expect(embed.alignedLeft).toBeCloseTo(control.alignedLeft, ALIGN_TOLERANCE_PX);
     });
   });
 
