@@ -61,6 +61,7 @@ import {
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { parsedDoc } from "./parsed-doc";
 import { isNestedEditor } from "./nested-editor";
+import { cancelOnDelete, provisionalCleanup } from "./provisional-cleanup";
 
 export interface ModeSource {
   isOutline(path: string): boolean;
@@ -824,11 +825,28 @@ function makeHomeEndHandler(modes: ModeSource, forward: boolean) {
   };
 }
 
+/**
+ * Backspace/Delete on a place a structural keypress just created cancel it,
+ * treating a provisional position as the empty node it stands for. Declines in
+ * every other case, so the merge rules and native gap editing are untouched —
+ * the guard is "this exact place, from this exact keypress, still on top of the
+ * history", not "the caret is on a blank line".
+ */
+function makeCancelHandler(modes: ModeSource, forward: boolean) {
+  return (view: EditorView): boolean => {
+    if (!outlinePathOf(modes, view)) return false;
+    return cancelOnDelete(view, forward);
+  };
+}
+
 export function grammarExtension(modes: ModeSource): Extension {
   return [
     tickCounter,
+    provisionalCleanup,
     Prec.highest(
       keymap.of([
+        { key: "Backspace", run: makeCancelHandler(modes, false) },
+        { key: "Delete", run: makeCancelHandler(modes, true) },
         { key: "Tab", run: probed("Tab", makeHandler(modes, "indent")) },
         { key: "Shift-Tab", run: makeHandler(modes, "outdent") },
         // Move up/down are deliberately NOT bound here. Tab/Enter must live in

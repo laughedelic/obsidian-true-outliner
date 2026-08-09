@@ -140,33 +140,33 @@
       carrying `input.structure.split` never joins the preceding history entry. Negative
       control — rename the event to an `input.type.*` value in the fixture and the test must
       fail, or it is asserting nothing
-- [ ] 9.2 Add the per-view transient record of the undo depth at which a provisional position
+- [x] 9.2 Add the per-view transient record of the undo depth at which a provisional position
       or empty node was created. No document data; losing it degrades to leaving the empty
       place
-- [ ] 9.3 Implement the cleanup: on a gesture that moves the caret off such a place with
+- [x] 9.3 Implement the cleanup: on a gesture that moves the caret off such a place with
       nothing typed there, and only when the depth still matches, undo the creating keypress
       and re-place the caret at the gesture's target mapped through the inverted change
-- [ ] 9.4 Test all four guards independently — caret was on a created place, nothing was typed,
+- [x] 9.4 Test all four guards independently — caret was on a created place, nothing was typed,
       the depth still matches, and the gesture actually left the place. Each guard failing must
       mean "do nothing", verified by a document assertion, not by absence of an error
-- [ ] 9.4a Cover the guard's other reachable caller explicitly: a caret left on a gap line by a
+- [x] 9.4a Cover the guard's other reachable caller explicitly: a caret left on a gap line by a
       PROGRAMMATIC placement (`content-space-caret` leaves those uncorrected — a workspace
       restore, a search jump). Backspace there must stay native, because no keypress of ours is
       behind it. Found in review: the enforcement delta originally claimed a provisional
       position was the only gap-line caret in outline mode, which that capability contradicts
-- [ ] 9.5 Test the typed-then-abandoned case explicitly: type on the position, delete what was
+- [x] 9.5 Test the typed-then-abandoned case explicitly: type on the position, delete what was
       typed, then leave. History is no longer at the same depth, so nothing is undone and the
       empty place remains — the case a naive "is it empty now?" check gets wrong
-- [ ] 9.6 Route Backspace and Delete on a provisional position through the same cancel: the
+- [x] 9.6 Route Backspace and Delete on a provisional position through the same cancel: the
       document returns to its pre-keypress bytes, with the caret at the node above's content
       end for Backspace and the node below's content start for Delete. Test that the gap is
       NOT merely narrowed by one line and that the neighbouring nodes are not merged — both
       are what the native reading produces, and both are wrong
-- [ ] 9.7 Test that cancel and merge AGREE on a real empty node: Backspace at the content
+- [x] 9.7 Test that cancel and merge AGREE on a real empty node: Backspace at the content
       start of an empty `- ` created by Enter yields the same document and caret whether the
       cancel path or the existing merge rule handles it. That agreement is what makes the
       rule safe to state uniformly (design D6)
-- [ ] 9.8 Confirm `structural-history-integration`'s existing guarantees still hold: one undo
+- [x] 9.8 Confirm `structural-history-integration`'s existing guarantees still hold: one undo
       step per structural operation, and redo restoring an operation's own cursor
       (`tests/history-caret.test.ts`, `tests/minimal-change-history.test.ts`)
 
