@@ -188,59 +188,59 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
  */
 export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean): Extension {
   return EditorView.updateListener.of((update) => {
-  const { view } = update;
+    const { view } = update;
 
-  // Outline mode only, and checked on EVERY update rather than once at
-  // registration: `registerEditorExtension` installs this in every editor view,
-  // including notes with the mode off and nested table-cell editors. Without
-  // the gate the recorder would fire on stock editing — CM6's own Enter carries
-  // `userEvent: 'input'` and inserts a line break, which is exactly the shape
-  // this module uses to spot Shift+Enter — and a plain newline in an ordinary
-  // note would be undone the moment the caret moved away. Reported by review.
-  if (!inOutlineMode(view)) {
-    created.delete(view);
-    return;
-  }
-
-  if (update.docChanged) {
-    // Any document change replaces whatever was remembered: either it IS the
-    // creating keypress (recorded below), or it is something else — including
-    // the user typing on the place, which USES it and must never be undone.
-    created.delete(view);
-
-    const last = update.transactions[update.transactions.length - 1];
-    const event = last?.annotation(Transaction.userEvent) ?? undefined;
-    if (last && isCreatingTransaction(event, changesInsertLineBreak(last.changes))) {
-      const line = emptyPlaceLine(view.state);
-      if (line !== null) {
-        created.set(view, {
-          depth: undoDepth(view.state),
-          line,
-          startHead: last.startState.selection.main.head,
-          inverted: last.changes.invert(last.startState.doc),
-        });
-      }
+    // Outline mode only, and checked on EVERY update rather than once at
+    // registration: `registerEditorExtension` installs this in every editor view,
+    // including notes with the mode off and nested table-cell editors. Without
+    // the gate the recorder would fire on stock editing — CM6's own Enter carries
+    // `userEvent: 'input'` and inserts a line break, which is exactly the shape
+    // this module uses to spot Shift+Enter — and a plain newline in an ordinary
+    // note would be undone the moment the caret moved away. Reported by review.
+    if (!inOutlineMode(view)) {
+      created.delete(view);
+      return;
     }
-    return;
-  }
 
-  if (!update.selectionSet) return;
-  const record = liveRecord(view);
-  if (!record) return;
-  const sel = view.state.selection.main;
-  const stillThere =
-    sel.empty &&
-    view.state.selection.ranges.length === 1 &&
-    view.state.doc.lineAt(sel.head).number - 1 === record.line;
-  if (stillThere) return;
+    if (update.docChanged) {
+      // Any document change replaces whatever was remembered: either it IS the
+      // creating keypress (recorded below), or it is something else — including
+      // the user typing on the place, which USES it and must never be undone.
+      created.delete(view);
 
-  const target = sel.head;
-  queueMicrotask(() => {
-    const live = liveRecord(view);
-    if (!live || live !== record) return;
-    if (view.state.doc.lineAt(view.state.selection.main.head).number - 1 === live.line) return;
-    cancel(view, live, target);
-  });
+      const last = update.transactions[update.transactions.length - 1];
+      const event = last?.annotation(Transaction.userEvent) ?? undefined;
+      if (last && isCreatingTransaction(event, changesInsertLineBreak(last.changes))) {
+        const line = emptyPlaceLine(view.state);
+        if (line !== null) {
+          created.set(view, {
+            depth: undoDepth(view.state),
+            line,
+            startHead: last.startState.selection.main.head,
+            inverted: last.changes.invert(last.startState.doc),
+          });
+        }
+      }
+      return;
+    }
+
+    if (!update.selectionSet) return;
+    const record = liveRecord(view);
+    if (!record) return;
+    const sel = view.state.selection.main;
+    const stillThere =
+      sel.empty &&
+      view.state.selection.ranges.length === 1 &&
+      view.state.doc.lineAt(sel.head).number - 1 === record.line;
+    if (stillThere) return;
+
+    const target = sel.head;
+    queueMicrotask(() => {
+      const live = liveRecord(view);
+      if (!live || live !== record) return;
+      if (view.state.doc.lineAt(view.state.selection.main.head).number - 1 === live.line) return;
+      cancel(view, live, target);
+    });
   });
 }
 
