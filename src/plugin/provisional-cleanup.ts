@@ -154,6 +154,42 @@ function liveRecord(view: EditorView): CreatedPlace | undefined {
   return record;
 }
 
+/**
+ * Enter ON an empty place moves past it: the user is saying "not here". The
+ * caret goes to the next node's content start, and the keypress that created
+ * the place is cancelled when it is still cancellable — so pressing Enter twice
+ * at a paragraph's end leaves the document exactly as it was and the caret in
+ * the node below, rather than widening the gap on every press.
+ *
+ * Declines when there is no next node: at the end of a document there is
+ * nowhere to advance to, and stock behaviour (which widens) is the only thing
+ * left to do.
+ *
+ * The cancel is conditional but the MOVE is not. A place left by the
+ * empty-item ladder's unwrap has no live record — undoing that would restore
+ * the bullet the user just left the list to escape — but Enter there should
+ * still move on rather than widen.
+ */
+export function advanceFromEmptyPlace(view: EditorView): boolean {
+  const line = emptyPlaceLine(view.state);
+  if (line === null) return false;
+
+  const { doc: outlineDoc } = parsedDoc(view.state.doc);
+  const node = nodeAtLine(outlineDoc, line);
+  const next = node ? nextNodeInOrder(outlineDoc, node) : undefined;
+  if (!next) return false;
+  const pos = nodeContentStart(outlineDoc, next);
+  const target = view.state.doc.line(pos.line + 1).from + pos.ch;
+
+  const record = liveRecord(view);
+  if (record && record.line === line) {
+    cancel(view, record, target);
+    return true;
+  }
+  view.dispatch({ selection: EditorSelection.cursor(target), scrollIntoView: true });
+  return true;
+}
+
 /** Backspace/Delete on the created place cancel it, treating the place as the
  * empty node it stands for rather than narrowing the gap around it by a line. */
 export function cancelOnDelete(view: EditorView, forward: boolean): boolean {

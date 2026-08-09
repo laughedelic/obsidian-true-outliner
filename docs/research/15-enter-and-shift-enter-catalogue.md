@@ -474,7 +474,48 @@ there does repair it into one node. Paragraphs and headings produce the same sha
 
 ---
 
-## D. What the catalogue found
+## C2. Found after the change shipped (real-vault pass, 2026-08-09)
+
+Five findings from using the implemented behavior. Three are fixed in the change; two
+are recorded here because they are not Enter's to fix.
+
+**Fixed.** A split at the start of a line a Shift+Enter had just made left the upper half
+with a blank last line — not a line of the node at all, it re-parses as a gap — so
+Shift+Enter-then-Enter produced an extra blank where Enter alone produced none. A block
+selection was removed by cutting its text out rather than by the structural delete, so an
+ordered run did not renumber around it, and the key acted at the range's START rather than
+at the caret the deletion produces: with the last items of a list selected that points at
+whatever FOLLOWS the list, so Enter created a node of that node's kind (a heading, in the
+reported case) instead of a list item, and at a document's end it pointed at a gap line and
+declined outright. And repeated Enter on a provisional position kept widening the gap; it
+now means "not here" — the caret advances to the next node and the keypress is cancelled.
+
+**Not fixed here — an ordered run misnumbers when its HEAD is deleted.** Measured directly
+against `deleteSubtrees`, with no Enter involved:
+
+```
+delete the first two of 1,2,3   →  "3. c"          (expected "1. c")
+delete the first of 5,6,7       →  "6. b" "7. c"   (expected "5. b" "6. c")
+```
+
+`renumberOrdered` takes a run's start number as the MINIMUM of what remains, which is right
+for a move (a `5. 6. 7.` list keeps starting at 5) and wrong for a deletion that removes the
+run's head. Plain Backspace over the same selection hits it, so it belongs to the delete
+operation's renumbering contract rather than to the keyboard grammar. Fixing it means
+capturing each ordered run's start BEFORE the removal and renumbering the survivors from it.
+
+**Not fixed here — a redone provisional position cannot be abandoned again.** Press Enter at
+a paragraph's end, move away (the keypress is undone), then REDO: the position comes back
+with the caret in it, but abandoning it a second time does nothing. The gap then persists and
+is unreachable, since caret motion skips gap lines — only another undo removes it.
+
+The cause is that `provisional-cleanup.ts` re-arms its record only for its own dispatches, and
+a redo is not one. Two attempts to recognise the redo failed: CodeMirror's own `redo`
+`userEvent` never arrived, and a history-depth test (`redoDepth` decreasing) did not fire
+either, which suggests the host's redo does not run through CodeMirror's history command at
+all. Both were reverted rather than shipped unverified. Whatever recognises it must stay
+narrow — re-arming on any change that leaves the caret on an empty place would also record a
+Backspace that empties an item, and then undo the user's own deletion.
 
 | # | Defect | Cases |
 |---|---|---|

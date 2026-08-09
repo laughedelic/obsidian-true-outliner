@@ -678,6 +678,18 @@ export function splitNode(
   const upperLines = isSetextHeading
     ? [line.slice(0, ch), node.lines[1]!]
     : [...node.lines.slice(0, lineIndex), line.slice(0, ch)];
+  // A split at (or before the content of) a CONTINUATION line leaves the upper
+  // half with a blank last line, which is not a line of the node at all: it
+  // re-parses as a gap. Splitting the line a Shift+Enter had just created
+  // therefore left an extra blank between the node and what followed, where
+  // pressing Enter from the original position produced none. Drop any such
+  // trailing line — never the setext underline, which is chrome and never
+  // blank, and never the node's only line.
+  if (!isSetextHeading) {
+    while (upperLines.length > 1 && (upperLines[upperLines.length - 1] ?? '').trim() === '') {
+      upperLines.pop();
+    }
+  }
   const remainderFirst = line.slice(ch);
   const lowerRest = isSetextHeading ? [] : node.lines.slice(lineIndex + 1);
   const emptyRemainder = remainderFirst.trim() === '' && lowerRest.length === 0;

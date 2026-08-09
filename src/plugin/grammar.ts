@@ -10,6 +10,7 @@ import { isAtom } from '../model';
 import { parse } from '../parse';
 import {
   contentColumnCh,
+  deleteSubtreeGroups,
   indent,
   insertSiblingHeading,
   itemContentIsEmpty,
@@ -23,6 +24,8 @@ import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits, diffLines } from '../result';
 import { nodeAtLine } from './locate';
+import { coveredForestOf } from '../escalate';
+import { groupRootsByParent } from '../enforce';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
@@ -256,6 +259,46 @@ function planOverSelection(
   fallbackIndentUnit?: string,
 ): GrammarOutcome {
   const lines = text === '' ? [] : text.split('\n');
+
+  // A BLOCK SELECTION — an exact cover of whole subtrees — is removed by the
+  // STRUCTURAL delete, not by cutting its text out, and the key then acts at
+  // the caret that deletion produces rather than at the range's start.
+  //
+  // Both halves were wrong before, and each broke a different case. A raw text
+  // cut does not renumber, so deleting the first two of `1. 2. 3.` left the
+  // survivor numbered 3 and the new item took 3 as well. And the range's start
+  // is not where a deletion leaves the caret: with the last items of a list
+  // selected it points at whatever FOLLOWS the list, so the key created a node
+  // of that node's kind — a heading, in the reported case — instead of a list
+  // item, and at the end of a document it pointed at a gap line and declined
+  // outright. `caret-placement-policy`'s deletion convention answers this
+  // exactly: following sibling, else preceding, else ancestor. That is what
+  // keeps the caret at the level of the selection's first root instead of
+  // jumping into the next subtree.
+  const doc = parse(text);
+  const forest = coveredForestOf(doc, { anchor: from, head: to });
+  if (forest) {
+    const groups = groupRootsByParent(forest.roots);
+    const deletion = deleteSubtreeGroups(doc, groups);
+    if (deletion.ok) {
+      const afterDelete = applyEdits(lines, deletion.value.edits);
+      const { caret } = planCaret(
+        { kind: 'deletion', removed: groups.flat() },
+        { before: doc, after: deletion.value.doc, anchor: deletion.value.anchor },
+      );
+      const inner = planKey(afterDelete.join('\n'), caret, key, fallbackIndentUnit);
+      if (inner === null || 'notice' in inner) return inner;
+      const finalLines = applyPlanChanges(afterDelete.join('\n'), inner.plan.changes).split('\n');
+      return {
+        plan: {
+          changes: editsToChanges(lines, diffLines(lines, finalLines)),
+          selection: inner.plan.selection,
+          userEvent: inner.plan.userEvent,
+        },
+      };
+    }
+  }
+
   // A WHOLE-LINE range takes its trailing newline with it. Without this the
   // removal leaves the line boundary behind as an empty line, the collapse
   // point lands on it, and the key declines because a gap line is not one of

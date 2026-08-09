@@ -6,6 +6,7 @@
 
 import { browser, expect } from '@wdio/globals';
 import { Key } from 'webdriverio';
+const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import { REJECTION_MESSAGES } from '../../src/plugin/messages';
@@ -441,6 +442,25 @@ describe('keyboard grammar', function () {
       timeout: 2000,
       timeoutMsg: 'the abandoned position was not cleaned up',
     });
+  });
+
+
+  it('Enter on a provisional position moves past it instead of widening the gap', async function () {
+    // Reported from real use: repeated Enter kept widening the gap. It now
+    // means "not here" — the caret advances to the next node and the keypress
+    // that made the place is cancelled, so the document is back to where it
+    // started.
+    const src = 'thought\n\nnext\n';
+    await grammarNote(src, 0, 7);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('thought\n\n\n\nnext\n');
+
+    await h.keys.enter();
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: 'the second Enter did not cancel the provisional position',
+    });
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 0 });
   });
 
   it('Backspace on the position cancels it instead of merging the neighbours', async function () {

@@ -61,7 +61,11 @@ import {
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { parsedDoc } from "./parsed-doc";
 import { isNestedEditor } from "./nested-editor";
-import { cancelOnDelete, provisionalCleanup } from "./provisional-cleanup";
+import {
+  advanceFromEmptyPlace,
+  cancelOnDelete,
+  provisionalCleanup,
+} from "./provisional-cleanup";
 
 export interface ModeSource {
   isOutline(path: string): boolean;
@@ -112,7 +116,14 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
       },
     );
 
-    if (outcome === null) return false;
+    if (outcome === null) {
+      // The grammar declines on a gap line. When that line is an empty place a
+      // structural keypress just made, Enter means "not here": move past it and
+      // cancel the keypress, instead of falling through to a stock newline that
+      // widens the gap on every press.
+      if (key === "split" && advanceFromEmptyPlace(view)) return true;
+      return false;
+    }
     if ("notice" in outcome) {
       new Notice(outcome.notice, 1500);
       return true; // consume: stock behavior must not fire on a rejected op

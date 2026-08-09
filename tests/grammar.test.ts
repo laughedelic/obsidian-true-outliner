@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
+import { escalateRange } from '../src/escalate';
 import { planKey, type GrammarKey, type TxPlan } from '../src/plugin/grammar';
 
 /** Apply a plan's changes (line/ch semantics) to text; return new text + cursor offset. */
@@ -432,5 +433,73 @@ describe('grammar planner: a whole-line selection takes its line boundary', () =
     const outcome = planKey(src, { line: 0, ch: 8 }, 'split', undefined, { line: 0, ch: 12 });
     if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
     expect(applyPlan(src, outcome.plan).text).toBe('- alpha \n- \n- next\n');
+  });
+});
+
+describe('grammar planner: a block selection is removed structurally', () => {
+  /** The cover the editor itself produces for a line span. */
+  function coverPlan(src: string, aLine: number, hLine: number) {
+    const doc = parse(src);
+    const cover = escalateRange(doc, {
+      anchor: { line: aLine, ch: 0 },
+      head: { line: hLine, ch: 0 },
+    });
+    return planKey(src, cover.anchor, 'split', undefined, cover.head);
+  }
+
+  it('the new node takes the KIND of what was selected, not of what follows', () => {
+    // Reported from real use: selecting the last items of a list and pressing
+    // Enter created a HEADING — the range's start pointed past the list, at the
+    // heading after it. The deletion's own caret convention lands on the
+    // preceding sibling instead, so the new node is a list item.
+    const src = '1. a\n2. b\n3. c\n\n# H\n';
+    const outcome = coverPlan(src, 1, 2);
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('1. a\n2. \n# H\n');
+  });
+
+  it('selecting to the end of a document no longer declines', () => {
+    // The range's start pointed at a gap line there, so the key fell through
+    // to stock behavior and the nodes were simply deleted.
+    const src = '1. a\n2. b\n3. c\n';
+    const outcome = coverPlan(src, 1, 2);
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('1. a\n2. ');
+  });
+
+  it('an ordered run renumbers around the replacement', () => {
+    const src = '1. a\n2. b\n3. c\n4. d\n';
+    const outcome = coverPlan(src, 1, 2);
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('1. a\n2. \n3. d\n');
+  });
+
+  it('a bullet run is replaced by one empty bullet', () => {
+    const src = '- a\n- b\n- c\n';
+    const outcome = coverPlan(src, 0, 1);
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('- \n- c\n');
+  });
+});
+
+describe('grammar planner: splitting a line a Shift+Enter just made', () => {
+  it('leaves no extra gap behind', () => {
+    // Shift+Enter then Enter used to leave the upper half with a blank last
+    // line — which is not a line of the node at all, it re-parses as a gap —
+    // so the result differed from pressing Enter directly at the same point.
+    const src = 'para text\n- child\n';
+    const shifted = plan(src, { line: 0, ch: 4 }, 'continue');
+    if (!shifted || !('plan' in shifted)) throw new Error('expected a plan');
+    const afterShift = applyPlan(src, shifted.plan).text;
+    expect(afterShift).toBe('para\ntext\n- child\n');
+
+    const split = plan(afterShift, { line: 1, ch: 0 }, 'split');
+    if (!split || !('plan' in split)) throw new Error('expected a plan');
+    const viaTwoKeys = applyPlan(afterShift, split.plan).text;
+
+    const direct = plan(src, { line: 0, ch: 4 }, 'split');
+    if (!direct || !('plan' in direct)) throw new Error('expected a plan');
+    expect(viaTwoKeys).toBe(applyPlan(src, direct.plan).text);
+    expect(viaTwoKeys).toBe('para\n- text\n- child\n');
   });
 });
