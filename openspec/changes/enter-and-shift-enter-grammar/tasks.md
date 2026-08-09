@@ -140,6 +140,11 @@
 - [ ] 9.4 Test all four guards independently — caret was on a created place, nothing was typed,
       the depth still matches, and the gesture actually left the place. Each guard failing must
       mean "do nothing", verified by a document assertion, not by absence of an error
+- [ ] 9.4a Cover the guard's other reachable caller explicitly: a caret left on a gap line by a
+      PROGRAMMATIC placement (`content-space-caret` leaves those uncorrected — a workspace
+      restore, a search jump). Backspace there must stay native, because no keypress of ours is
+      behind it. Found in review: the enforcement delta originally claimed a provisional
+      position was the only gap-line caret in outline mode, which that capability contradicts
 - [ ] 9.5 Test the typed-then-abandoned case explicitly: type on the position, delete what was
       typed, then leave. History is no longer at the same depth, so nothing is undone and the
       empty place remains — the case a naive "is it empty now?" check gets wrong

@@ -1,8 +1,15 @@
 ## MODIFIED Requirements
 
 ### Requirement: Node split
-`splitNode(doc, nodeId, position)` SHALL split a paragraph, list-item, or heading
-node at a document position within its text. For a paragraph or list-item node WITH
+`splitNode(doc, nodeId, position)` SHALL resolve a document position within a paragraph,
+list-item, or heading node into ONE of two outcomes: a SPLIT at that position, or — when
+the position is the node's own content start — an INSERTION BEFORE the node, which divides
+nothing. Both are specified below, and which one applies is a function of the position
+alone. The operation's name predates the second outcome; the two are one operation because
+a caller cannot tell in advance which its position will produce, and because both answer
+the same question, "what does a line break mean here".
+
+For an INTERIOR position, the node is split. For a paragraph or list-item node WITH
 children, the remainder SHALL become the node's new FIRST CHILD — the position
 content-adjacent to the split point — encoded per the child scope's kind rules (a
 paragraph parent's new child becomes a list item when its existing children are

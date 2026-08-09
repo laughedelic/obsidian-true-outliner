@@ -15,19 +15,26 @@ resolution anticipated when the gap escape hatch was first written
 (`docs/research/13`, "Gap-line cursor transparency": *the escape hatch stays the mode
 toggle, not an in-outline-mode exception*).
 
-The caret CAN rest on a gap line in one case: a PROVISIONAL POSITION, the blank line an
-accepted Enter or Shift+Enter leaves it on (`outline-keyboard-grammar`). An earlier version
-of this requirement asserted the precondition could no longer occur at all, because
-`content-space-caret` made gap lines unreachable — which was never true of the split
-operation, and is emphatically not true now that provisional positions are named. What holds
-instead: an edit made THERE is an edit at a place the user was sent to type, so text typed
-on a provisional position materializes the node or continuation line the position stands
-for, by the parse alone and with no rewrite. A DELETION gesture made there is not a gap edit
-at all: the position stands for an empty node, so Backspace or Delete removes the whole
-place by cancelling the keypress that created it
-(`structural-history-integration`), rather than narrowing the surrounding gap by one line.
-That is the chrome-transparent reading — the user is deleting the empty node they can see,
-not authoring whitespace they cannot.
+The caret CAN rest on a gap line, in two ways, and an earlier version of this requirement
+asserted that neither could occur — that `content-space-caret` made gap lines unreachable, so
+no in-mode gap edit was left to exempt. That was never true of the split operation, and is
+emphatically not true now that provisional positions are named:
+
+- A PROVISIONAL POSITION, the blank line an accepted Enter or Shift+Enter leaves the caret on
+  (`outline-keyboard-grammar`). Text typed there materializes the node or continuation line
+  the position stands for, by the parse alone and with no rewrite — it is a place the user
+  was sent to type. A DELETION gesture there is not a gap edit at all: the position stands
+  for an empty node, so Backspace or Delete removes the whole place by cancelling the
+  keypress that created it (`structural-history-integration`), rather than narrowing the
+  surrounding gap by one line. That is the chrome-transparent reading — the user is deleting
+  the empty node they can see, not authoring whitespace they cannot.
+- A `programmatic` placement that `content-space-caret` deliberately leaves uncorrected: a
+  workspace restore, a search-result jump, any unannotated transaction whose caret lands on a
+  gap line. No keypress of ours put it there and none is on top of the history, so an edit
+  made from it is left NATIVE and unrewritten — the pre-existing behavior, unchanged.
+
+The two are told apart by whether a structural keypress of ours created the position, which
+is the same guard the cleanup itself uses, not by anything about the gap.
 
 No editing semantic reads gap WIDTH even so. The distinction between Enter's provisional
 position and Shift+Enter's is carried by what SEPARATES the position from its neighbours,
@@ -58,9 +65,15 @@ the form that survives them.)*
   Delete to shrink the gap, with outline mode OFF for that note
 - **THEN** the edit applies exactly as stock — deliberate whitespace authoring is
   never rewritten
-- **AND** in outline mode the only caret that can be there is one a structural keypress
-  just placed on a provisional position, where a deletion cancels that keypress instead —
-  the in-mode precondition for a native gap edit still does not arise
+- **AND** in outline mode the same gesture stays native when the caret reached that gap line
+  through a `programmatic` placement `content-space-caret` leaves uncorrected — a workspace
+  restore or a search-result jump — because no keypress of ours is behind it to cancel
+
+#### Scenario: A deletion at a programmatic gap-line caret stays native
+- **WHEN** a workspace restore or a search-result jump leaves the caret on a gap line and the
+  user presses Backspace there
+- **THEN** the gap narrows exactly as stock, nothing is cancelled and nothing is rewritten —
+  the cancel path applies only to a position one of our own keypresses created
 
 #### Scenario: Typing on a provisional position needs no verdict
 - **WHEN** the user types on the blank line an Enter or a Shift+Enter left the caret on
