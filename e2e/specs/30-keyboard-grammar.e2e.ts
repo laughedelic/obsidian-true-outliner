@@ -339,6 +339,26 @@ describe('keyboard grammar', function () {
 
   // ------------------------------------------- enter-and-shift-enter-grammar
 
+
+  it('off-mode: a plain Enter survives the caret moving away', async function () {
+    // Regression (review of #43): the undo-on-abandon listener is installed in
+    // EVERY editor view, and stock CM6 Enter carries `userEvent: 'input'` with a
+    // line break — the same shape the recorder uses to spot Shift+Enter. Without
+    // an outline-mode gate it recorded ordinary newlines and undid them the
+    // moment the caret left, which is data loss in notes that never opted in.
+    await h.createNote(NOTE, 'alpha\n');
+    await modeOff();
+    await h.setCursor(0, 5);
+    await h.keys.enter();
+    const afterEnter = await h.getBuffer();
+    expect(afterEnter).not.toBe('alpha\n');
+
+    await h.clickAt(0, 2);
+    // Give the deferred cleanup every chance to fire before asserting it didn't.
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(afterEnter);
+  });
+
   it('the empty-item ladder walks out of the nesting, then out of the list', async function () {
     // The behavior whose value is only visible live: a run of Enters retraces
     // the nesting a run of Enters walked into, and the last one leaves prose.

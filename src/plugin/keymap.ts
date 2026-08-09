@@ -850,7 +850,9 @@ function makeCancelHandler(modes: ModeSource, forward: boolean) {
 export function grammarExtension(modes: ModeSource): Extension {
   return [
     tickCounter,
-    provisionalCleanup,
+    // Gated on outline mode per update: the listener is installed in every
+    // editor view, so without this it would act on stock editing too.
+    provisionalCleanup((view) => outlinePathOf(modes, view) !== undefined),
     Prec.highest(
       keymap.of([
         { key: "Backspace", run: makeCancelHandler(modes, false) },

@@ -28,6 +28,7 @@ import {
   Transaction,
   type ChangeSet,
   type EditorState,
+  type Extension,
 } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { undo, undoDepth } from '@codemirror/commands';
@@ -185,8 +186,21 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
  * the deferral safe rather than a race: the failure mode is "the empty place
  * stays", which is exactly the behaviour without this feature at all.
  */
-export const provisionalCleanup = EditorView.updateListener.of((update) => {
+export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean): Extension {
+  return EditorView.updateListener.of((update) => {
   const { view } = update;
+
+  // Outline mode only, and checked on EVERY update rather than once at
+  // registration: `registerEditorExtension` installs this in every editor view,
+  // including notes with the mode off and nested table-cell editors. Without
+  // the gate the recorder would fire on stock editing — CM6's own Enter carries
+  // `userEvent: 'input'` and inserts a line break, which is exactly the shape
+  // this module uses to spot Shift+Enter — and a plain newline in an ordinary
+  // note would be undone the moment the caret moved away. Reported by review.
+  if (!inOutlineMode(view)) {
+    created.delete(view);
+    return;
+  }
 
   if (update.docChanged) {
     // Any document change replaces whatever was remembered: either it IS the
@@ -227,7 +241,8 @@ export const provisionalCleanup = EditorView.updateListener.of((update) => {
     if (view.state.doc.lineAt(view.state.selection.main.head).number - 1 === live.line) return;
     cancel(view, live, target);
   });
-});
+  });
+}
 
 /** Whether a change set inserts a line break — Shift+Enter's signature, and
  * something no deletion can do. */
