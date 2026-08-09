@@ -6,12 +6,14 @@ consecutive ordered list items among those siblings SHALL be renumbered consecut
 that run's START NUMBER, and only the marker digits SHALL change — the rest of each item's
 line, its children, and its trailing gap are untouched.
 
-A run's start number is the number the run began with, NOT a number re-derived from the
-items that happen to remain. Concretely:
+A run's start number is the number the run began with. How that number is recovered depends
+on the SHAPE of the transformation, and the two cases differ precisely because a permutation
+or an insertion cannot lose it while a removal can:
 
 - For a PERMUTATION or an INSERTION — reordering siblings, splitting a node into two,
   merging one into its neighbour, or inserting subtrees — the start number SHALL be the
-  minimum still present in the run. A `5. 6. 7.` list keeps starting at 5, and a swap
+  minimum still present in the run — which IS the number the run began with, since none of
+  these shapes removes a run member. A `5. 6. 7.` list keeps starting at 5, and a swap
   SHALL NOT let the run inherit the moved item's own number.
 - For a REMOVAL of whole subtrees from a sibling list — subtree deletion, unwrapping a
   list item, and the departure side of an indent — the start number SHALL be taken from
@@ -22,6 +24,12 @@ items that happen to remain. Concretely:
 Where a removal deletes a non-ordered node standing between two ordered runs, the
 survivors become one run and SHALL take the EARLIER run's start number. A run whose
 members are all removed contributes nothing.
+
+The rule above is stated over removals in general. Subtree deletion is the shape it was
+measured on; unwrapping a list item and the departure side of an indent are removals by
+construction, and whether either can actually present a run whose head is removed is
+CONFIRMED BY MEASUREMENT before its scenario below is taken as a contract — a shape that
+turns out to be unreachable has its scenario dropped rather than asserted vacuously.
 
 Renumbering is the one documented exception to "edits touch only the lines the operation
 semantically requires", and renumbered output SHALL still satisfy operation closure: the
