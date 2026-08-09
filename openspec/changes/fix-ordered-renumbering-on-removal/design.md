@@ -44,6 +44,12 @@ is reached by walking forward from `first`, so at its own level it always has a 
   site and consumed immediately; it never becomes model state.
 - The insertion direction (a lower-numbered item pasted into a higher-numbered run) — see
   proposal.md — Out of scope.
+- **The siblings an outdent ADOPTS.** Measured while confirming D4: outdenting `1. a` out of
+  `- p` / `1. a` / `2. b` / `3. c` leaves `2. b` and `3. c` as children of `a`, and that
+  nested run starts at 2. It reads oddly, but the list is NEW at that level — nothing was
+  removed from it — so the removal rule has no start to restore, and renumbering it from 1
+  would be the renumber-always policy this project does not use. Recorded, not fixed: it is
+  the same open direction as the insertion case above.
 
 ## Decisions
 
@@ -101,6 +107,31 @@ operation, so the fix is verified against the reported symptom rather than again
 helper's internals — and so `indent`'s and `unwrapListItem`'s exposure is MEASURED rather
 than inferred from reading the call sites. If either turns out to be unreachable in
 practice, that is recorded and its scenario dropped, not asserted anyway.
+
+### D5. The child scope's marker comes from the donor that decided its kind
+
+Added after a real-vault report during review (see proposal.md — What Changes). The
+child-scope branch of `splitNode` asked `encodingKindAtDestination` which KIND to write and
+then hardcoded `- ` and a bullet `listStyle`. `encodingKindAtDestination` answers with a
+kind because that is all the reparenting callers need; here the answer came from a specific
+donor among the existing children, and that donor also knows the marker.
+
+Rather than widen `encodingKindAtDestination` to return a style — it is shared with
+`indent`, `outdent` and `insertSubtrees`, which re-encode EXISTING nodes and have their own
+style handling in `reencodeForDestination` — the split site looks the donor up itself:
+the first `list-item` among `node.children`, which is exactly the node the kind came from.
+
+`emptyItemPrefix` already encoded this rule for the SIBLING path, bundled with the donor's
+own indentation. It is split into `itemMarkerText` / `itemTaskMarker` / `itemStyleFrom` so
+the child path can take the marker while computing indentation from `destinationIndent`,
+and so both paths share one rule instead of each holding half of it. The task marker is
+deliberately excluded from the continuation-line pad: `[ ]` is content, so a continuation
+of `- [ ] text` aligns after `- `.
+
+Carrying the unchecked task marker into the child path is a behavior change beyond the
+reported bullet, and it is the same argument design D5 of `enter-and-shift-enter-grammar`
+made for siblings: a key that writes `- [ ] ` beside an item and `- ` above it is the
+shape-dependence the empty-position rule exists to remove.
 
 ## Risks / Trade-offs
 

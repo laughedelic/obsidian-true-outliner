@@ -480,6 +480,42 @@ describe('grammar planner: a block selection is removed structurally', () => {
     if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
     expect(applyPlan(src, outcome.plan).text).toBe('- \n- c\n');
   });
+
+  // Reported from real use: selecting the FIRST items of a numbered list and
+  // pressing Enter produced a bullet. Deleting the first item leaves no
+  // preceding sibling, so the deletion's caret convention falls back to the
+  // ANCESTOR — the heading, the paragraph, the parent item — and the key then
+  // acts at that node's END, placing into its CHILD scope. The child scope's
+  // KIND was read from the existing children and its MARKER was not.
+  it('selecting the FIRST items of a numbered list keeps the numbering', () => {
+    const src = '# H\n\n1. a\n2. b\n3. c\n';
+    const outcome = coverPlan(src, 2, 3);
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('# H\n\n1. \n2. c\n');
+  });
+
+  it('the same under a parent item, and after a paragraph', () => {
+    // A real block selection's cover ends at the last covered line's END, which
+    // is how ONE item is selected — `coverPlan`'s next-line-start head would
+    // escalate over the item after it.
+    const oneItem = (src: string, line: number) => {
+      const cover = escalateRange(parse(src), {
+        anchor: { line, ch: 0 },
+        head: { line, ch: src.split('\n')[line]!.length },
+      });
+      return planKey(src, cover.anchor, 'split', undefined, cover.head);
+    };
+
+    const nested = '- p\n\t1. a\n\t2. b\n\t3. c\n';
+    const a = oneItem(nested, 1);
+    if (!a || !('plan' in a)) throw new Error('expected a plan');
+    expect(applyPlan(nested, a.plan).text).toBe('- p\n\t1. \n\t2. b\n\t3. c\n');
+
+    const afterPara = 'Intro.\n\n1. a\n2. b\n';
+    const b = oneItem(afterPara, 2);
+    if (!b || !('plan' in b)) throw new Error('expected a plan');
+    expect(applyPlan(afterPara, b.plan).text).toBe('Intro.\n\n1. \n2. b\n');
+  });
 });
 
 describe('grammar planner: splitting a line a Shift+Enter just made', () => {

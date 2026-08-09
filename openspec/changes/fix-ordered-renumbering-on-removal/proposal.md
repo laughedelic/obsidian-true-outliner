@@ -47,6 +47,20 @@ at its own level. The minimum-present rule is correct for them and is what keeps
 from inheriting the moved item's number. Changing them is out of scope, and a test pins the
 swap case against regression.
 
+**A new FIRST CHILD takes the existing children's marker, not a fresh bullet.** Reported
+from a real vault while this change was in review: selecting the first elements of a
+numbered list and pressing Enter produced a bullet. Deleting the first item leaves no
+preceding sibling, so the caret falls back to the ANCESTOR — the heading, the paragraph,
+the parent item — and the key then acts at that node's end, placing into its CHILD scope.
+That scope read the existing children for its KIND and then wrote `- ` regardless of what
+they were. The donor that decides the kind now decides the style too: bullet character,
+ordered delimiter, and the unchecked task marker a new SIBLING item already carries. A new
+ordered first child takes the run's start and the rest renumber after it.
+
+Reachable with no selection at all — Enter at the end of a heading whose children are an
+ordered list has always produced `- ` — so it is stated as a requirement of the operation
+rather than fixed in the selection path.
+
 **The renumbering contract becomes a requirement of its own**, stating both halves — the
 start a permutation or insertion keeps, and the start a removal restores — so the next
 operation that touches a sibling list has a rule to read rather than a helper to imitate.
@@ -61,17 +75,26 @@ operation that touches a sibling list has a rule to read rather than a helper to
 - `structural-operations`: a new requirement states the ordered-run renumbering contract,
   including that a removal renumbers from the run's pre-removal start. Today the rule is
   mentioned only as an exception inside "Sibling reordering" and "Operation closure over
-  the mapping", and the removal case is unspecified.
+  the mapping", and the removal case is unspecified. A second new requirement states that a
+  node materialized in a CHILD scope takes the donating child's list STYLE, not only its
+  kind — "Node split" says which kind the child scope resolves to and has never said what
+  marker it is written with.
 
 ## Impact
 
 - `src/ops.ts`: `renumberOrdered` keeps its current meaning for permutations and
   insertions; a removal-aware form is added alongside it and used by `deleteSubtreeGroups`
-  (and therefore `deleteSubtrees`), `indent`, and `unwrapListItem`.
-- Tests: `tests/ops.test.ts` for the measured cases and the swap regression;
-  `tests/closure.test.ts` already exercises the delete operations under the property suite
-  and must keep passing — encoding a run that starts at 5 re-parses as a run that starts
-  at 5.
+  (and therefore `deleteSubtrees`), `indent`, and `unwrapListItem`. `splitNode`'s
+  child-scope branch reads its marker, task marker and style from the donating child, and
+  renumbers the child list it inserts into. `emptyItemPrefix` is decomposed so the sibling
+  and child paths share one marker rule instead of each having half of it.
+- Tests: `tests/edit-ops.test.ts` and `tests/ops.test.ts` for the measured removal cases and
+  the swap regression; `tests/split.test.ts` for the child-scope marker; `tests/grammar.test.ts`
+  for the reported gesture; `tests/closure.test.ts` already exercises the delete operations
+  under the property suite and must keep passing — encoding a run that starts at 5 re-parses
+  as a run that starts at 5.
+- `e2e/specs/30-keyboard-grammar.e2e.ts`: the reported gesture in a real vault, since what
+  was reported is a keystroke and not an operation call.
 - No plugin, editor, or decoration surface is touched: the change is entirely inside the
   pure operations layer, and no caller's signature changes.
 

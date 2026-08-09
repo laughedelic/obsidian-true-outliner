@@ -62,6 +62,57 @@ describe('splitNode', () => {
     expect(result.anchor).toEqual({ line: 1, ch: 3 });
   });
 
+  // The new first child joins a list that is ALREADY there, so it takes that
+  // list's marker — not a fresh bullet. Reported from a real vault as "I select
+  // the first elements of a numbered list, press Enter, and get a bullet".
+  describe('a new first child adopts the existing children’s marker style', () => {
+    it('an ordered child list continues as ordered, and the run renumbers', () => {
+      const { text, result } = splitOk('# H\n\n1. a\n2. b\n', '# H', { line: 0, ch: 3 });
+      expect(text).toBe('# H\n\n1. \n2. a\n3. b\n');
+      expect(result.anchor).toEqual({ line: 2, ch: 3 });
+    });
+
+    it('a run that starts at 5 keeps its start; the new item takes it', () => {
+      const { text } = splitOk('# H\n\n5. a\n6. b\n', '# H', { line: 0, ch: 3 });
+      expect(text).toBe('# H\n\n5. \n6. a\n7. b\n');
+    });
+
+    it('the delimiter and the bullet character come from the donor too', () => {
+      expect(splitOk('# H\n\n1) a\n2) b\n', '# H', { line: 0, ch: 3 }).text).toBe(
+        '# H\n\n1) \n2) a\n3) b\n',
+      );
+      expect(splitOk('# H\n\n* a\n* b\n', '# H', { line: 0, ch: 3 }).text).toBe(
+        '# H\n\n* \n* a\n* b\n',
+      );
+    });
+
+    it('a task donor carries an UNCHECKED marker, as the sibling path already did', () => {
+      const { text } = splitOk('# H\n\n- [x] a\n', '# H', { line: 0, ch: 3 });
+      expect(text).toBe('# H\n\n- [ ] \n- [x] a\n');
+    });
+
+    it('a NON-empty remainder takes the same marker', () => {
+      const { text } = splitOk('# Head\n\n1. a\n', '# Head', { line: 0, ch: 4 });
+      expect(text).toBe('# He\n\n1. ad\n2. a\n');
+    });
+
+    it('a plain bullet list is unchanged — the donor was already `- `', () => {
+      const { text, result } = splitOk('# H\n\n- a\n- b\n', '# H', { line: 0, ch: 3 });
+      expect(text).toBe('# H\n\n- \n- a\n- b\n');
+      expect(result.anchor).toEqual({ line: 2, ch: 2 });
+    });
+
+    it('a nested ordered list under an item takes the item’s indentation, donor’s marker', () => {
+      const { text } = splitOk('- p\n\t1. a\n\t2. b\n', '- p', { line: 0, ch: 3 });
+      expect(text).toBe('- p\n\t1. \n\t2. a\n\t3. b\n');
+    });
+
+    it('a paragraph’s adopted ordered list is the same shape', () => {
+      const { text } = splitOk('Intro.\n\n1. a\n2. b\n', 'Intro.', { line: 0, ch: 6 });
+      expect(text).toBe('Intro.\n\n1. \n2. a\n3. b\n');
+    });
+  });
+
   it('splits a paragraph mid-text with blank separation', () => {
     const { text, result } = splitOk('one two\n\nafter\n', 'one two', { line: 0, ch: 4 });
     expect(text).toBe('one \n\ntwo\n\nafter\n');

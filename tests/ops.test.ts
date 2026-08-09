@@ -179,6 +179,14 @@ describe('paragraph/list reparenting', () => {
     void doc;
   });
 
+  // Indent removes the node from its OWN level, so the level it leaves takes the
+  // removal rule: the run keeps the start the departing item carried. Measured,
+  // not inferred — the catalogue only reported the deletion shape.
+  it('indenting the head of an ordered run renumbers the level it leaves', () => {
+    const { text } = applyOk(indent, '- bullet\n1. one\n2. two\n3. three\n', '1. one');
+    expect(text).toBe('- bullet\n  1. one\n1. two\n2. three\n');
+  });
+
   it('rejections: no previous sibling, top level, atoms, heading escapes', () => {
     expectReject(indent, 'Only paragraph.\n', 'Only paragraph.', 'no-previous-sibling');
     expectReject(outdent, 'Top level.\n', 'Top level.', 'at-top-level');
@@ -317,6 +325,14 @@ describe('sibling reordering', () => {
     expect(text).toBe('1. two\n2. one\n3. three\n');
   });
 
+  // The behavior the minimum-present rule exists for: a swap is a permutation,
+  // so no member leaves and the run cannot lose the number it began with. This
+  // must be green both before and after the removal-aware rule.
+  it('a swap does not let a run inherit the moved item’s own number', () => {
+    const { text } = applyOk(moveDown, '5. one\n6. two\n7. three\n', '5. one');
+    expect(text).toBe('5. two\n6. one\n7. three\n');
+  });
+
   it('rejects reorder across the heading/content divide and level mismatch', () => {
     expectReject(moveUp, '# H\n\nPara after.\n\n## Sub\n', '## Sub', 'cannot-reorder-across-heading-boundary');
     expectReject(moveDown, '### Three\n\n## Two\n', '### Three', 'cannot-reorder-across-heading-boundary');
@@ -393,6 +409,13 @@ describe('list item unwrap', () => {
       ok: false,
       rejection: { reason: 'cannot-unwrap' },
     });
+  });
+
+  // Unwrapping is a removal from the item's own level, so it reaches the same
+  // renumbering rule subtree deletion does — measured, not inferred.
+  it('unwrapping the head of an ordered run renumbers from the run’s own start', () => {
+    expect(unwrapOk('1. \n2. b\n3. c\n', '1. ').text).toBe('\n1. b\n2. c\n');
+    expect(unwrapOk('5. \n6. b\n7. c\n', '5. ').text).toBe('\n5. b\n6. c\n');
   });
 });
 

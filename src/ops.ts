@@ -20,7 +20,7 @@
  *   levels) has no positional encoding and is rejected.
  */
 
-import type { NodePath, OutlineDoc, OutlineNode } from './model';
+import type { ListStyle, NodePath, OutlineDoc, OutlineNode } from './model';
 import { findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
 import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
@@ -242,33 +242,45 @@ function normalizeBoundaries(doc: OutlineDoc): OutlineDoc {
 
 const ORDERED_MARKER_RE = /^([ \t]*)\d{1,9}([.)])/;
 
-/**
- * Renumber maximal runs of ordered items. A run keeps its start number
- * (taken as the minimum present, so a swap doesn't inherit the moved item's
- * number while `5. 6. 7.`-style lists keep starting at 5).
- */
-function renumberOrdered(nodes: readonly OutlineNode[]): readonly OutlineNode[] {
-  const isOrdered = (n: OutlineNode): boolean =>
-    n.kind === 'list-item' && n.listStyle?.type === 'ordered';
+const isOrderedItem = (n: OutlineNode): boolean =>
+  n.kind === 'list-item' && n.listStyle?.type === 'ordered';
 
-  const out = [...nodes];
+/** The maximal runs of consecutive ordered items, with where each begins. */
+function orderedRuns(
+  nodes: readonly OutlineNode[],
+): { at: number; run: readonly OutlineNode[] }[] {
+  const runs: { at: number; run: readonly OutlineNode[] }[] = [];
   let i = 0;
-  while (i < out.length) {
-    if (!isOrdered(out[i]!)) {
+  while (i < nodes.length) {
+    if (!isOrderedItem(nodes[i]!)) {
       i++;
       continue;
     }
     let end = i;
-    while (end < out.length && isOrdered(out[end]!)) end++;
-    const run = out.slice(i, end);
-    const startNumber = Math.min(
-      ...run.map((n) => (n.listStyle as { number: number }).number),
-    );
+    while (end < nodes.length && isOrderedItem(nodes[end]!)) end++;
+    runs.push({ at: i, run: nodes.slice(i, end) });
+    i = end;
+  }
+  return runs;
+}
+
+/** A run's start number as the list itself carries it. */
+const lowestNumber = (run: readonly OutlineNode[]): number =>
+  Math.min(...run.map((n) => (n.listStyle as { number: number }).number));
+
+/** Renumber each run consecutively from whatever `startOf` says it begins at. */
+function renumberRuns(
+  nodes: readonly OutlineNode[],
+  startOf: (run: readonly OutlineNode[]) => number,
+): readonly OutlineNode[] {
+  const out = [...nodes];
+  for (const { at, run } of orderedRuns(nodes)) {
+    const startNumber = startOf(run);
     run.forEach((node, k) => {
       const number = startNumber + k;
       const style = node.listStyle as { type: 'ordered'; number: number; delimiter: '.' | ')' };
       if (style.number === number) return;
-      out[i + k] = {
+      out[at + k] = {
         ...node,
         listStyle: { ...style, number },
         lines: node.lines.map((line, li) =>
@@ -276,9 +288,51 @@ function renumberOrdered(nodes: readonly OutlineNode[]): readonly OutlineNode[] 
         ),
       };
     });
-    i = end;
   }
   return out;
+}
+
+/**
+ * Renumber maximal runs of ordered items for a PERMUTATION or an INSERTION —
+ * a swap, a split, a merge, an insertion of subtrees. A run keeps its start
+ * number, taken as the minimum present, which IS the number the run began with
+ * for these shapes because none of them removes a run member: so a swap doesn't
+ * inherit the moved item's number while `5. 6. 7.`-style lists keep starting
+ * at 5.
+ *
+ * For a REMOVAL, use `renumberOrderedAfterRemoval` — the minimum present is
+ * then the number of whatever survived, not the run's own start.
+ */
+function renumberOrdered(nodes: readonly OutlineNode[]): readonly OutlineNode[] {
+  return renumberRuns(nodes, lowestNumber);
+}
+
+/**
+ * The same, for a REMOVAL of whole subtrees from `before`. The start number
+ * comes from the sibling list as it was BEFORE the removal, because the item
+ * that carried it may be exactly what went away: deleting the first two of
+ * `1. 2. 3.` must leave `1.`, not `3.`.
+ *
+ * The lookup is by the surviving run's FIRST member, which is enough because a
+ * removal can only shrink or MERGE runs — never split one or reorder within it —
+ * so that member is the earliest survivor of the earliest contributing run.
+ * Where two runs merge across a removed non-ordered node, the earlier run's
+ * start therefore wins.
+ *
+ * A first member absent from `before` means the caller's transformation was not
+ * a pure removal; the fallback is deliberately the permutation rule, so a
+ * mis-routed call degrades to the older behavior rather than to a third one.
+ */
+function renumberOrderedAfterRemoval(
+  before: readonly OutlineNode[],
+  after: readonly OutlineNode[],
+): readonly OutlineNode[] {
+  const startByMember = new Map<number, number>();
+  for (const { run } of orderedRuns(before)) {
+    const start = lowestNumber(run);
+    for (const node of run) startByMember.set(node.id, start);
+  }
+  return renumberRuns(after, (run) => startByMember.get(run[0]!.id) ?? lowestNumber(run));
 }
 
 /**
@@ -396,7 +450,9 @@ export function indent(
 
   let surgery = updateSiblings(doc, parentPath, (nodes) => {
     const rest = nodes.filter((_, i) => i !== index);
-    return renumberOrdered(rest);
+    // The node LEAVES this level: a removal, so the run keeps the start it had
+    // before it went. The arrival side below is an insertion.
+    return renumberOrderedAfterRemoval(nodes, rest);
   });
   surgery = updateSiblings(surgery, [...parentPath, index - 1], (nodes) =>
     renumberOrdered([...nodes.slice(0, insertIndex), moved, ...nodes.slice(insertIndex)]),
@@ -480,6 +536,9 @@ export function outdent(
   }
 
   let surgery = updateSiblings(doc, parentPath, (nodes) =>
+    // A removal, but a PREFIX truncation: the survivors always include the
+    // run's own head (or the run is cut entirely and nothing survives to
+    // renumber), so the minimum present is still the start it began with.
     renumberOrdered(nodes.slice(0, index)),
   );
   surgery = updateSiblings(surgery, grandPath, (nodes) =>
@@ -551,10 +610,33 @@ const EMPTY_TASK_MARKER = '[ ] ';
  * before it (design D5).
  */
 function emptyItemPrefix(node: OutlineNode): string {
-  const match = LIST_MARKER_SPLIT_RE.exec(node.lines[0] ?? '');
-  const markerPrefix = match ? `${match[1]}${match[2]} ` : '- ';
-  const content = (node.lines[0] ?? '').slice(match?.[0].length ?? 0);
-  return TASK_MARKER_RE.test(content) ? `${markerPrefix}${EMPTY_TASK_MARKER}` : markerPrefix;
+  const indent = LIST_MARKER_SPLIT_RE.exec(node.lines[0] ?? '')?.[1] ?? '';
+  return `${indent}${itemMarkerText(node)}${itemTaskMarker(node)}`;
+}
+
+/**
+ * `- ` or `1. ` — the marker a new item alongside `donor` takes, WITHOUT the
+ * donor's own indentation, for a caller that computes its own (a new first
+ * child, whose indentation comes from the destination rather than from the
+ * donor's line). Also the width a continuation line pads to, which is why the
+ * task marker is not part of it: `[ ]` is content, and a continuation of
+ * `- [ ] text` aligns after `- `.
+ */
+function itemMarkerText(donor: OutlineNode | undefined): string {
+  const match = LIST_MARKER_SPLIT_RE.exec(donor?.lines[0] ?? '');
+  return match ? `${match[2]} ` : '- ';
+}
+
+/** `[ ] ` when a new item alongside `donor` carries a task marker, else ''. */
+function itemTaskMarker(donor: OutlineNode | undefined): string {
+  const first = donor?.lines[0] ?? '';
+  const content = first.slice(LIST_MARKER_SPLIT_RE.exec(first)?.[0].length ?? 0);
+  return TASK_MARKER_RE.test(content) ? EMPTY_TASK_MARKER : '';
+}
+
+/** The style a new item alongside `donor` takes; a bare bullet with no donor. */
+function itemStyleFrom(donor: OutlineNode | undefined): ListStyle {
+  return donor?.listStyle ?? { type: 'bullet', marker: '-' };
 }
 
 /**
@@ -727,13 +809,21 @@ export function splitNode(
       const indentText = destinationIndent(doc, node, node.children, fallbackIndentUnit);
       let lower: OutlineNode;
       if (childKind === 'list-item') {
-        const firstLine = emptyRemainder
-          ? `${indentText}- `
-          : `${indentText}- ${remainderFirst.trimStart()}`;
-        const contPad = `${indentText}  `;
+        // The new FIRST CHILD joins a list that is already there — the kind
+        // came from a donor among the existing children, so the MARKER must
+        // come from the same donor rather than being a fresh bullet. Inventing
+        // `- ` above an ordered run turned `1. 2. 3.` into a bullet followed by
+        // the run, which is the shape-dependence the empty-position rule exists
+        // to remove: the same key produced `1. ` beside the item and `- ` above
+        // it. The ordered numbers are settled by the renumbering below.
+        const donor = node.children.find((child) => child.kind === 'list-item');
+        const marker = itemMarkerText(donor);
+        const prefix = `${indentText}${marker}${itemTaskMarker(donor)}`;
+        const firstLine = emptyRemainder ? prefix : `${prefix}${remainderFirst.trimStart()}`;
+        const contPad = `${indentText}${' '.repeat(marker.length)}`;
         lower = makeNode({
           kind: 'list-item',
-          listStyle: { type: 'bullet', marker: '-' },
+          listStyle: itemStyleFrom(donor),
           lines: [firstLine, ...lowerRest.map((l) => `${contPad}${l.trimStart()}`)],
         });
       } else {
@@ -782,7 +872,9 @@ export function splitNode(
         ...node,
         lines: upperLines,
         trailingGap: separateFromHeading ? [''] : ownGap,
-        children: [lower, ...node.children],
+        // An INSERTION at the head of the child list: a new ordered first child
+        // takes the run's start and pushes the rest down.
+        children: renumberOrdered([lower, ...node.children]),
       };
       const surgery = updateSiblings(doc, parentPath, (nodes) =>
         nodes.map((n, i) => (i === index ? upper : n)),
@@ -907,7 +999,7 @@ export function unwrapListItem(doc: OutlineDoc, nodeId: number): OpResult<OpOutp
   const replacement = ['', ...node.trailingGap];
 
   const withoutNode = updateSiblings(doc, parentPath, (nodes) =>
-    renumberOrdered(nodes.filter((_, i) => i !== index)),
+    renumberOrderedAfterRemoval(nodes, nodes.filter((_, i) => i !== index)),
   );
   let surgery: OutlineDoc;
   if (index > 0) {
@@ -1100,7 +1192,12 @@ export function deleteSubtreeGroups(
   let surgery = doc;
   for (const { parentPath, ranges } of byParent.values()) {
     surgery = updateSiblings(surgery, parentPath, (nodes) =>
-      renumberOrdered(nodes.filter((_, i) => !ranges.some((r) => i >= r.lo && i <= r.hi))),
+      // `nodes` is this parent's list as it entered the ONE filtering pass, so
+      // it is the pre-removal list for every range at once — not per range.
+      renumberOrderedAfterRemoval(
+        nodes,
+        nodes.filter((_, i) => !ranges.some((r) => i >= r.lo && i <= r.hi)),
+      ),
     );
   }
 

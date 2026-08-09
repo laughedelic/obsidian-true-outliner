@@ -25,11 +25,10 @@ Where a removal deletes a non-ordered node standing between two ordered runs, th
 survivors become one run and SHALL take the EARLIER run's start number. A run whose
 members are all removed contributes nothing.
 
-The rule above is stated over removals in general. Subtree deletion is the shape it was
-measured on; unwrapping a list item and the departure side of an indent are removals by
-construction, and whether either can actually present a run whose head is removed is
-CONFIRMED BY MEASUREMENT before its scenario below is taken as a contract — a shape that
-turns out to be unreachable has its scenario dropped rather than asserted vacuously.
+The rule above is stated over removals in general, and all three named shapes are measured
+to reach it. A removal that truncates a sibling list to a PREFIX — the level an outdent
+leaves — is covered by the same rule and is indistinguishable under it, since the survivors
+always retain the run's own head.
 
 Renumbering is the one documented exception to "edits touch only the lines the operation
 semantically requires", and renumbered output SHALL still satisfy operation closure: the
@@ -67,3 +66,40 @@ encoded run re-parses to the same tree.
 - **WHEN** any accepted removal renumbers an ordered run
 - **THEN** encoding the resulting tree and re-parsing it yields an identical tree, and the
   emitted edits touch no lines beyond the removed subtrees and the renumbered markers
+
+### Requirement: A new first child adopts the child scope's list style
+Where an operation materializes a node in a parent's CHILD scope and that scope's kind
+resolves to `list-item` because an existing child donated it, the new node SHALL take that
+donor's LIST STYLE as well as its kind — bullet character, ordered delimiter, and an
+unchecked task marker where the donor carries one. It SHALL NOT be encoded as a plain
+bullet when the donor is an ordered item.
+
+The kind and the style come from the same donor because they answer the same question: the
+new node is joining a list that is already there. Taking only the kind produced a bullet at
+the head of an ordered run — the same key writing `1. ` beside an item and `- ` above it,
+which is the shape-dependence the empty-position rule exists to remove.
+
+A new ordered first child SHALL take the run's start number, and the existing items SHALL
+renumber after it, per the insertion half of the renumbering contract above.
+
+#### Scenario: An empty position at the end of a heading above an ordered list
+- **WHEN** `splitNode` acts at the content end of `# H` whose children are `1. a` / `2. b`
+- **THEN** the new first child is `1. ` and the existing items become `2. a` and `3. b`
+
+#### Scenario: The donor's delimiter and bullet character carry over
+- **WHEN** the donating child is `1) a`, or `* a`
+- **THEN** the new first child is `1) `, or `* ` — not `- `
+
+#### Scenario: A run that does not start at one
+- **WHEN** the donating children are `5. a` / `6. b`
+- **THEN** the new first child is `5. ` and the existing items become `6. a` and `7. b`
+
+#### Scenario: A task donor
+- **WHEN** the donating child is `- [x] a`
+- **THEN** the new first child is `- [ ] ` — the same unchecked carry-over a new SIBLING
+  item already makes
+
+#### Scenario: A bullet list is unaffected
+- **WHEN** the donating children are plain `- ` items
+- **THEN** the new first child is `- `, exactly as before
+

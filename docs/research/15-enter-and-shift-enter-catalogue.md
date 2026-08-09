@@ -504,6 +504,11 @@ run's head. Plain Backspace over the same selection hits it, so it belongs to th
 operation's renumbering contract rather than to the keyboard grammar. Fixing it means
 capturing each ordered run's start BEFORE the removal and renumbering the survivors from it.
 
+Taken up by `fix-ordered-renumbering-on-removal`, which also measured two more shapes the
+same rule reaches: `indent` (the node leaves its own level, so `- bullet` / `1. one` /
+`2. two` left `2. two` behind) and `unwrapListItem`. The outputs above are the pre-change
+record and stay as measured.
+
 **Not fixed here — abandoning a position opened OVER a block selection restores the
 selection.** Block-select a paragraph, press Enter, then move away: the paragraph comes
 back. The keypress did two things — remove the selection and open a position — and the

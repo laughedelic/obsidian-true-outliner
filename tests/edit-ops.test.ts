@@ -102,6 +102,45 @@ describe('deleteSubtrees', () => {
   });
 });
 
+describe('deleteSubtrees: ordered runs renumber from the run’s pre-removal start', () => {
+  function deleteOk(md: string, ...lines: string[]): string {
+    const doc = parse(md);
+    const result = deleteSubtrees(doc, lines.map((l) => byLine(doc, l).id));
+    if (!result.ok) throw new Error(result.rejection.reason);
+    // The edit list must reproduce the encoding exactly: renumbering is the one
+    // documented exception to "touch only the lines the operation requires", so
+    // its edits have to be in the list rather than only in the tree.
+    const text = encode(result.value.doc);
+    expect(applyEdits(md.split('\n'), result.value.edits).join('\n')).toBe(text);
+    return text;
+  }
+
+  // The two measurements the catalogue recorded (15-enter-and-shift-enter-catalogue,
+  // C2). Asserting the whole document, not the marker digits: the point is that the
+  // renumbering moved nothing else.
+  it('removing the head of 1,2,3 renumbers the survivor to 1', () => {
+    expect(deleteOk('1. a\n2. b\n3. c\n', '1. a', '2. b')).toBe('1. c\n');
+  });
+
+  it('a run that does not start at one keeps the start it was written with', () => {
+    expect(deleteOk('5. a\n6. b\n7. c\n', '5. a')).toBe('5. b\n6. c\n');
+  });
+
+  it('removing from the middle renumbers the tail, as it already did', () => {
+    expect(deleteOk('1. a\n2. b\n3. c\n', '2. b')).toBe('1. a\n2. c\n');
+  });
+
+  // A bullet, not a paragraph: a paragraph ADOPTS a following list as its children
+  // (measured), so the two runs would not be siblings at all.
+  it('a non-ordered node between two runs is removed: the survivors take the earlier start', () => {
+    expect(deleteOk('1. a\n2. b\n- x\n5. c\n6. d\n', '- x')).toBe('1. a\n2. b\n3. c\n4. d\n');
+  });
+
+  it('removing a whole run leaves nothing to renumber', () => {
+    expect(deleteOk('- x\n\n5. a\n6. b\n', '5. a', '6. b')).toBe('- x\n');
+  });
+});
+
 describe('mergeNodes', () => {
   it('joins two adjacent sibling paragraphs into one, minimal edit', () => {
     const md = 'First.\n\nSecond.\n';

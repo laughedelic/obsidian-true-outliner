@@ -423,6 +423,24 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('- a\n- \n- d\n');
   });
 
+  it('Enter over the FIRST items of a numbered list keeps the numbering', async function () {
+    // Reported from a real vault: selecting the first elements of a numbered
+    // list and pressing Enter produced a BULLET. Deleting the first item leaves
+    // no preceding sibling, so the caret falls back to the ancestor and the key
+    // places into its CHILD scope — which read the existing children for its
+    // KIND but not for its MARKER.
+    await grammarNote('# H\n\n1. a\n2. b\n3. c\n', 2, 3);
+    // One press selects the node the caret is in; the second adds "2. b".
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('# H\n\n1. \n2. c\n');
+
+    // The caret is in the new item, and typing there continues the run.
+    await h.keys.type('new');
+    expect(await h.getBuffer()).toBe('# H\n\n1. new\n2. c\n');
+  });
+
   it('a thematic break rejects Enter, so the stock newline never splits it', async function () {
     await grammarNote('---\n', 0, 2);
     await h.keys.enter();

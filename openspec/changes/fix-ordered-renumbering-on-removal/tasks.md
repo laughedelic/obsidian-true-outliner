@@ -1,63 +1,91 @@
 ## 1. Reproduce, at the operation layer (design D4)
 
-- [ ] 1.1 Failing tests in `tests/ops.test.ts` for the two catalogued measurements, driven
-      through `deleteSubtrees` rather than the helper: the first two of `1. 2. 3.` removed
-      must leave `1. c` (records `3. c` today), and the first of `5. 6. 7.` removed must
-      leave `5. b` / `6. c` (records `6. b` / `7. c`). Assert the whole encoded document,
-      not the marker digits alone — the point is that nothing else moved
-- [ ] 1.2 MEASURE, do not infer, whether `indent` and `unwrapListItem` reach the same
-      defect: indent `1. one` whose previous sibling is `- bullet`, with `2. two` after it;
-      unwrap an empty ordered first item. Record what each actually produces. If either is
-      unreachable, say so here and drop its scenario from the delta spec rather than
-      asserting a behavior nothing can produce
-- [ ] 1.3 Pin the permutation case BEFORE touching the helper: `moveDown` on the first of a
-      `5. 6. 7.` run leaves the run reading `5. 6. 7.` with the content exchanged. This is
-      the behavior the minimum rule exists for, and it must be green both before and after
+- [x] 1.1 Failing tests for the two catalogued measurements, driven through `deleteSubtrees`
+      rather than the helper: the first two of `1. 2. 3.` removed must leave `1. c` (records
+      `3. c` today), and the first of `5. 6. 7.` removed must leave `5. b` / `6. c` (records
+      `6. b` / `7. c`). Assert the whole encoded document, not the marker digits alone — the
+      point is that nothing else moved. Written in `tests/edit-ops.test.ts`, not
+      `tests/ops.test.ts` as this task first said: that is where the `deleteSubtrees` suite
+      and its property tests already live
+- [x] 1.2 MEASURE, do not infer, whether `indent` and `unwrapListItem` reach the same
+      defect. BOTH DO. `indent` on `1. one` whose previous sibling is `- bullet` left
+      `2. two` / `3. three` at the original level; `unwrapListItem` on an empty `1. ` left
+      `2. b` / `3. c`, and on an empty `5. ` left `6. b` / `7. c`. Both scenarios stay in the
+      delta spec. Measured alongside them: `mergeNodes` and `outdent`'s truncated level are
+      unaffected, as the design predicted, and the siblings an outdent ADOPTS start at 2 —
+      recorded in design.md's Non-Goals rather than changed
+- [x] 1.3 Pin the permutation case BEFORE touching the helper: `moveDown` on the first of a
+      `5. 6. 7.` run leaves the run reading `5. 6. 7.` with the content exchanged. Green both
+      before and after
 
 ## 2. The removal-aware rule (design D1, D2, D3)
 
-- [ ] 2.1 Extract the run walk in `renumberOrdered` into an internal helper parameterized by
-      how a run's start is chosen. `renumberOrdered(nodes)` keeps its exact current meaning
-      and its doc comment's reasoning — verify by running the suite before adding any caller
-- [ ] 2.2 Add `renumberOrderedAfterRemoval(before, after)`: build the ordered-node-id → run
-      start map from `before`, choose each surviving run's start by its FIRST member's id,
-      and fall back to the minimum present when the id is absent. Document at the definition
-      why the fallback is the OLD rule (a mis-routed caller degrades to today's behavior,
-      not to a third one)
-- [ ] 2.3 Document both functions against each other: which transformation shape each is
-      for, and the one-line reason the other exists. The defect was a correct rule applied
-      to the wrong shape, so the comment that prevents a repeat is the shape, not the math
+- [x] 2.1 Extract the run walk into `orderedRuns` + `renumberRuns`, parameterized by how a
+      run's start is chosen. `renumberOrdered(nodes)` keeps its exact current meaning — the
+      full suite was green after the extraction and before any caller changed
+- [x] 2.2 Add `renumberOrderedAfterRemoval(before, after)`: the ordered-member-id → run start
+      map built from `before`, each surviving run's start chosen by its FIRST member's id,
+      falling back to the minimum present when the id is absent. The fallback is documented
+      at the definition as the OLD rule, so a mis-routed caller degrades to today's behavior
+- [x] 2.3 Document both functions against each other: which transformation shape each is for,
+      and the one-line reason the other exists
 
 ## 3. Route the removal call sites (design D1 Context)
 
-- [ ] 3.1 `deleteSubtreeGroups`: pass the pre-filter sibling list as `before`. Note that
-      several ranges are filtered in ONE pass per parent — `before` is that parent's list as
-      it entered the pass, not per range
-- [ ] 3.2 `indent`'s departure side, and `unwrapListItem` — each only if 1.2 measured the
-      defect there. Leave the arrival side of `indent` and `outdent` on `renumberOrdered`:
-      they are insertions
-- [ ] 3.3 Leave `move`, `splitNode`, `insertSubtrees`, `mergeNodes` and `normalizeBoundaries`
-      untouched, and confirm by grep that every remaining `renumberOrdered` call is a
-      permutation or an insertion. A removal site missed here is the defect still shipping
+- [x] 3.1 `deleteSubtreeGroups`: pass the pre-filter sibling list as `before`, with the note
+      that several ranges are filtered in ONE pass per parent, so `before` is that parent's
+      list as it entered the pass
+- [x] 3.2 `indent`'s departure side and `unwrapListItem`, both confirmed by 1.2's measurement
+- [x] 3.3 Audited every remaining `renumberOrdered` call. Nine are permutations or insertions
+      (indent's arrival, outdent's adopted children and arrival, the swap, the empty-node
+      insert, the split, both merge paths, `insertSubtrees`). The tenth — outdent truncating
+      its level to a PREFIX — is a removal, and stays on the permutation rule because a
+      prefix always retains the run's head, which the call site now says in a comment rather
+      than leaving to be re-derived
 
 ## 4. Verification
 
-- [ ] 4.1 Turn 1.1's and 1.2's failing tests green, and re-run 1.3 unchanged
-- [ ] 4.2 Negative control: revert `deleteSubtreeGroups` to `renumberOrdered` and confirm
-      1.1 fails with exactly `3. c` and `6. b` / `7. c` — the recorded outputs. A test that
-      passes either way is asserting nothing
-- [ ] 4.3 Cover the run-merging removal (D3): a paragraph standing between `1. 2.` and
-      `5. 6.` is deleted, the survivors become one run, and it starts at 1
-- [ ] 4.4 Cover the removals that must NOT change: deleting from the middle of a run, and
-      deleting a whole run so nothing remains to renumber
-- [ ] 4.5 Run `tests/closure.test.ts` and read its output rather than assuming silence —
-      the property suite already generates removals over generated trees and is this
-      change's broadest check that renumbered markers still re-parse to the same tree
-- [ ] 4.6 Run the full unit suite, `npm run build` and `npm run lint`
+- [x] 4.1 1.1's and 1.2's tests are green, and 1.3 is unchanged
+- [x] 4.2 Negative control: reverting the three call sites to `renumberOrdered` fails exactly
+      four tests with exactly the recorded outputs — `3. c`, `6. b` / `7. c`, indent's
+      `2. two` / `3. three`, unwrap's `2. b` / `3. c`. Everything else stayed green, so the
+      call sites are what the tests are measuring
+- [x] 4.3 The run-merging removal (D3): a bullet standing between `1. 2.` and `5. 6.` is
+      deleted, the survivors become one run, and it starts at 1. Note the fixture is a
+      BULLET, not a paragraph: a paragraph ADOPTS a following list as its children
+      (measured), so two runs separated by one are not siblings at all
+- [x] 4.4 The removals that must NOT change: deleting from the middle of a run, and deleting
+      a whole run so nothing remains to renumber
+- [x] 4.5 Read `tests/closure.test.ts` and the `edit-ops` property suite output rather than
+      assuming silence: closure, minimal-edit and totality all green over generated removals
+- [x] 4.6 Full unit suite, `npm run build`, `npm run lint` — all clean (656 with section 5)
 
-## 5. Record
+## 5. The child scope's marker (design D5, added from a real-vault report)
 
-- [ ] 5.1 Update the catalogue's C2 entry
-      (`docs/research/15-enter-and-shift-enter-catalogue.md`) to point at this change for
-      the ordered-run finding, in one line. Leave the measured outputs themselves intact —
-      they are the pre-change record, and rewriting them destroys the evidence
+- [x] 5.1 Reproduce the reported gesture at the planner level before touching anything:
+      selecting the first items of a numbered list under a heading and pressing Enter
+      produced `- ` above the run. Located by measuring the post-deletion caret — it falls
+      back to the ANCESTOR when the first item goes, so the key acts at the heading's end
+      and places into its CHILD scope
+- [x] 5.2 Take the marker, task marker and `listStyle` from the donating child — the first
+      `list-item` among the parent's children, which is the node the KIND already came
+      from. Decompose `emptyItemPrefix` so the sibling and child paths share one rule
+- [x] 5.3 Renumber the child list on insertion, so a new ordered first child takes the run's
+      start and the rest shift down
+- [x] 5.4 Cover the shapes in `tests/split.test.ts`: ordered, a run starting at 5, the `)`
+      delimiter, `*` bullets, a task donor, a non-empty remainder, a nested list under an
+      item, a paragraph's adopted list — and plain bullets as the regression
+- [x] 5.5 Cover the reported GESTURE in `tests/grammar.test.ts`, over a block selection of
+      the first items, under a heading, under a parent item, and after a paragraph
+- [x] 5.6 Negative control: drop the donor lookup and confirm 9 tests fail with exactly the
+      reported bullet (`# H` / `- ` / `1. c`)
+- [x] 5.7 E2E in a real vault (`e2e/specs/30-keyboard-grammar.e2e.ts`): Shift+ArrowDown over
+      the first items, Enter, and the buffer keeps its numbering. Ran the whole
+      keyboard-grammar spec — 33 passing. The first run failed on the TEST's own assumption
+      (one Shift+ArrowDown selects one node, not two), not on the fix
+
+## 6. Record
+
+- [x] 6.1 The catalogue's C2 entry now points at this change and names the two further shapes
+      1.2 measured. The measured outputs themselves are untouched — they are the pre-change
+      record
