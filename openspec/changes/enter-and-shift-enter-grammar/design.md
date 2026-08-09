@@ -96,6 +96,15 @@ The caret goes to the empty position in both directions (chosen in review). For 
 list item and for a top-level paragraph, the content-start case produces the same document it
 produces today; only the caret and the with-children/heading cases change.
 
+**Corroborated by Logseq**, cross-checked after the rule was chosen (2026-08-09): pressing
+Enter at a block's start there shifts the block down and keeps the caret in the new empty
+block above — the same answer this rule gives, arrived at independently. That is worth
+recording precisely because the rule was chosen from an intuition rather than from a survey:
+an established outliner landing in the same place is evidence the intuition tracks something
+real about the gesture, not a personal preference this project would be alone in holding.
+Where we deliberately differ from the reference outliners, the reasoning is written down (the
+content-adjacent split, D2 above); where we agree, it is worth knowing we did not reinvent it.
+
 ### D3 — A heading may take a sibling, but only where nothing is being split
 
 `structural-operations` forbids heading siblings on the grounds that a plain-text split has no

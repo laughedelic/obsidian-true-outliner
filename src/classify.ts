@@ -127,6 +127,10 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   // boundary-crossing edit for enforcement to rewrite.
   'input.structure.unwrap',
   'input.structure.sibling-heading',
+  // The abandon edit: removing a place the user declined is our own surgery,
+  // and must short-circuit the verdict layer like every other structural
+  // dispatch — removing lines would otherwise read as boundary-crossing.
+  'input.structure.abandon',
   'move.structure',
   // node-edit-enforcement rewrites (design.md D7a): these carry the SAME
   // short-circuit grammar dispatches already rely on — a rewritten

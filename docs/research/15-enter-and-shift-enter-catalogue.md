@@ -504,6 +504,24 @@ run's head. Plain Backspace over the same selection hits it, so it belongs to th
 operation's renumbering contract rather than to the keyboard grammar. Fixing it means
 capturing each ordered run's start BEFORE the removal and renumbering the survivors from it.
 
+**Not fixed here — abandoning a position opened OVER a block selection restores the
+selection.** Block-select a paragraph, press Enter, then move away: the paragraph comes
+back. The keypress did two things — remove the selection and open a position — and the
+abandon reverses too much.
+
+The abandon was changed from an undo of the whole keypress to a reverse of the one
+sub-change that made the place, which is the right shape and fixes the rest. It does not
+reach this case, and the reason is worth recording: the plan's changes are a MINIMAL DIFF
+of the whole transformation, so the deletion and the insertion are not separate
+sub-changes at all — for `alpha`/`beta`/`gamma` the diff is a single replacement of
+`beta` with a blank line, and inverting it necessarily brings `beta` back.
+
+The information needed is real but lives one layer up: `planOverSelection` computes the
+intermediate text (after the removal, before the key acts), and the abandon edit is the
+diff from the final text back to THAT. So the fix is for the plan to carry its own abandon
+edit — computed where both states are known — and for the cleanup to apply it rather than
+derive one. That also removes the last piece of guessing from the module.
+
 **Not fixed here — a redone provisional position cannot be abandoned again.** Press Enter at
 a paragraph's end, move away (the keypress is undone), then REDO: the position comes back
 with the caret in it, but abandoning it a second time does nothing. The gap then persists and

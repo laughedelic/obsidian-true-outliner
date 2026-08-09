@@ -122,7 +122,7 @@ describe('the guards decide whether a cleanup may run', () => {
     return { line, ch: offset - (before.lastIndexOf('\n') + 1) };
   }
 
-  it('undo restores the document byte-for-byte and adds no history entry', () => {
+  it('the keypress is byte-exactly reversible, which is what the abandon edit applies', () => {
     const src = 'thought\n\nnext\n';
     const view = pressEnterAtEnd(src, 'thought'.length);
     expect(view.state.doc.toString()).toBe('thought\n\n\n\nnext\n');
@@ -130,8 +130,12 @@ describe('the guards decide whether a cleanup may run', () => {
 
     undo(view as never);
     expect(view.state.doc.toString()).toBe(src);
-    // One entry consumed, none added: the cleanup is the undo, not a new change.
     expect(undoDepth(view.state)).toBe(depthAfterPress - 1);
+    // The abandon no longer USES undo — it dispatches the reverse of the one
+    // sub-change that made the place, so a keypress that also did something
+    // else (removing a block selection) keeps that part. What this pins is the
+    // weaker property the reverse relies on: the keypress is byte-exactly
+    // reversible in the first place.
   });
 
   it('the depth guard rejects a cleanup once anything else has changed the document', () => {
@@ -191,7 +195,7 @@ describe('the guards decide whether a cleanup may run', () => {
     expect(view.state.doc.toString()).toBe(src);
   });
 
-  it('cancel and merge agree on a real empty node', () => {
+  it('cancelling an empty node reaches the same document a merge would', () => {
     // Backspace at the content start of an empty `- ` created by Enter yields
     // the same document either way — which is what makes the cancel safe to
     // state uniformly rather than as a special case (design D6).

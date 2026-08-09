@@ -463,6 +463,20 @@ describe('keyboard grammar', function () {
     expect(await h.getCursor()).toEqual({ line: 2, ch: 0 });
   });
 
+
+  it('leaving a list by Enter leaves no blank line behind', async function () {
+    // Reported: Enter to an empty item, Enter to leave the list, Enter again to
+    // move on — and a single blank line stayed, splitting the list.
+    await grammarNote('- a\n- b\n- c\n', 0, 3);
+    await h.keys.enter(); // empty item after "a"
+    await h.keys.enter(); // top level: unwrap, provisional position
+    await h.keys.enter(); // move on to the next node
+    await browser.waitUntil(async () => (await h.getBuffer()) === '- a\n- b\n- c\n', {
+      timeout: 2000,
+      timeoutMsg: `a blank line was left behind: ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
   it('Backspace on the position cancels it instead of merging the neighbours', async function () {
     const src = 'thought\n\nnext\n';
     await grammarNote(src, 0, 7);

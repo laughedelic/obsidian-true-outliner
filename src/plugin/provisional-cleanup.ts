@@ -26,12 +26,11 @@
 import {
   EditorSelection,
   Transaction,
-  type ChangeSet,
   type EditorState,
   type Extension,
 } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { undo, undoDepth } from '@codemirror/commands';
+import { undoDepth } from '@codemirror/commands';
 import { itemContentIsEmpty } from '../ops';
 import { nodeAtLine, nodeStartLine } from '../locate';
 import { nodeContentStart, nextNodeInOrder } from '../caret';
@@ -64,9 +63,18 @@ interface CreatedPlace {
   /** Where the caret was BEFORE the keypress — Backspace's landing spot, which
    * is exactly "where the cancelled keypress started". */
   readonly startHead: number;
-  /** The creating transaction's changes, inverted: the change set undo will
-   * apply, used to map a target position back through the removal. */
-  readonly inverted: ChangeSet;
+  /**
+   * The edit that removes the place and nothing else, in the post-keypress
+   * document's coordinates.
+   *
+   * Recorded rather than computed later, and applied as a NEW transaction
+   * rather than by undoing the keypress. Undo reverts the WHOLE keypress, which
+   * is wrong whenever it did more than create the place: Enter over a block
+   * selection deletes the selection AND opens a position, and abandoning the
+   * position brought the selected text back. Reversing only the sub-change that
+   * made the place leaves the rest of the keypress standing.
+   */
+  readonly reverse: { readonly from: number; readonly to: number; readonly insert: string };
 }
 
 const created = new WeakMap<EditorView, CreatedPlace>();
@@ -89,7 +97,18 @@ const CREATING_EVENTS: readonly string[] = [
   'input.structure.split',
   'input.structure.sibling-heading',
   'input.structure.continue',
+  // The unwrap is back, now that abandoning is a targeted reverse rather than
+  // an undo. Undoing it restored the `- ` the user left the list to escape;
+  // removing its blank LINE is what "abandon this place" means there, and that
+  // is a different edit from inverting its own change (see `reverseFor`).
+  'input.structure.unwrap',
 ];
+
+/** The userEvent the abandon edit carries: plugin-own, so the verdict layer
+ * short-circuits it (removing lines would otherwise read as a boundary-crossing
+ * edit), and outside the joinable families, so it forms its own history entry
+ * and one undo returns to the empty place rather than past the keypress. */
+const ABANDON_EVENT = 'input.structure.abandon';
 
 function headingTitleIsEmpty(lines: readonly string[]): boolean {
   const match = /^\s*#{1,6}[ \t]*(.*)$/.exec(lines[0] ?? '');
@@ -136,14 +155,65 @@ function isCreatingTransaction(userEvent: string | undefined): boolean {
   return userEvent !== undefined && CREATING_EVENTS.includes(userEvent);
 }
 
-/** Perform the cancel: undo the creating keypress, then place the caret at
- * `target`, mapped through the change undo is about to remove. */
+/**
+ * The edit that removes the place `line` occupies, in the coordinates of the
+ * document `tr` produced.
+ *
+ * For a keypress that ADDED the place, that is the inverse of the one
+ * sub-change covering it — which is not the same as inverting the whole
+ * transaction whenever the keypress also did something else, such as removing
+ * the block selection it was pressed over.
+ *
+ * The UNWRAP is the exception, and needs its own answer rather than an
+ * inversion: it converted an empty item into a blank line, so inverting it
+ * restores the `- ` the user pressed Enter to escape. Abandoning it means
+ * dropping the blank line altogether.
+ */
+function reverseFor(
+  tr: Transaction,
+  userEvent: string | undefined,
+  line: number,
+): { from: number; to: number; insert: string } | undefined {
+  const doc = tr.state.doc;
+  const placeLine = doc.line(line + 1);
+
+  if (userEvent === 'input.structure.unwrap') {
+    // Take the line's own break with it, so the neighbours close back up.
+    const to = Math.min(placeLine.to + 1, doc.length);
+    return { from: placeLine.from, to, insert: '' };
+  }
+
+  let found: { from: number; to: number; insert: string } | undefined;
+  tr.changes.iterChanges((fromA, toA, fromB, toB) => {
+    if (found) return;
+    if (fromB <= placeLine.from && placeLine.from <= toB) {
+      found = { from: fromB, to: toB, insert: tr.startState.doc.sliceString(fromA, toA) };
+    }
+  });
+  return found;
+}
+
+/**
+ * Remove the place, as its own undoable edit.
+ *
+ * NOT an undo of the keypress (design D6, revised): undo reverts everything the
+ * keypress did, and a keypress that replaced a block selection did more than
+ * open a position — abandoning it brought the deleted text back. It also makes
+ * the step invisible, where a real edit lets one undo return to the empty place,
+ * which is what a user who changes their mind twice expects.
+ */
 function cancel(view: EditorView, record: CreatedPlace, target: number): void {
-  const mapped = record.inverted.mapPos(target, 1);
   created.delete(view);
-  undo(view);
-  const clamped = Math.max(0, Math.min(mapped, view.state.doc.length));
-  view.dispatch({ selection: EditorSelection.cursor(clamped), scrollIntoView: true });
+  const { from, to, insert } = record.reverse;
+  if (to > view.state.doc.length) return; // the document moved under us: leave it
+  const shift = insert.length - (to - from);
+  const caret = target >= to ? target + shift : Math.min(target, from);
+  view.dispatch({
+    changes: { from, to, insert },
+    selection: EditorSelection.cursor(Math.max(0, Math.min(caret, view.state.doc.length + shift))),
+    userEvent: ABANDON_EVENT,
+    scrollIntoView: true,
+  });
 }
 
 /** The record for this view, but only when every guard still holds. */
@@ -253,12 +323,15 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
       const event = last?.annotation(Transaction.userEvent) ?? undefined;
       if (last && isCreatingTransaction(event)) {
         const line = emptyPlaceLine(view.state);
-        if (line !== null) {
+        const reverse = line === null ? undefined : reverseFor(last, event, line);
+        // No reverse means no exact way to remove the place, and a GUESSED
+        // removal is what this design exists to avoid — so record nothing.
+        if (line !== null && reverse) {
           created.set(view, {
             depth: undoDepth(view.state),
             line,
             startHead: last.startState.selection.main.head,
-            inverted: last.changes.invert(last.startState.doc),
+            reverse,
           });
         }
       }
