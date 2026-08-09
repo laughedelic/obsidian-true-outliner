@@ -39,6 +39,13 @@ Where the plugin cannot establish that the creating keypress is still the most r
 — anything else changed the document in between, or the record was lost — it SHALL do
 nothing. Leaving the empty place is the pre-existing behavior and is always safe.
 
+This cleanup SHALL apply only in outline mode, evaluated per editor and per update rather
+than once when the editor is set up. Stating it is not redundant with the mode gating every
+other capability has: the mechanism watches ordinary editing to notice what created a place,
+and the editor's own newline carries the same `userEvent` and the same line-break shape that
+Shift+Enter's continuation does. Ungated, the cleanup would recognise a plain newline in a
+note that never opted in and undo it when the caret moved away.
+
 KNOWN CONSEQUENCE: immediately after a cleanup, REDO re-applies the undone keypress and
 re-creates the empty place at a position the caret has left. Any other edit clears the redo
 branch, so this is reachable only when redo is the very next action. It is recorded rather
@@ -78,6 +85,11 @@ than specified away.
 - **WHEN** text is typed and Enter is pressed immediately afterwards, within the editor's
   history grouping window, and the created position is then abandoned
 - **THEN** only the Enter is undone — the typed text remains
+
+#### Scenario: A note without outline mode is never touched
+- **WHEN** the editor's own Enter inserts a newline in a note with outline mode off, and the
+  caret is then moved away
+- **THEN** the newline remains — no place was recorded, and nothing is undone
 
 #### Scenario: An intervening change disables the cleanup
 - **WHEN** anything else changes the document between the keypress and the caret moving
