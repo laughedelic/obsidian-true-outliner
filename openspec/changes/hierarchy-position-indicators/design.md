@@ -273,11 +273,16 @@ change's blast radius.
 - **Live Preview markup reveal changes the current line's own DOM** (decision 6) → the one line
   the marker accent targets is the least stable line in the document. Handle both mounted forms;
   cover both in e2e (caret on the line, caret elsewhere).
-- **Recomputation on every caret move** → the trail adds one ancestor-chain walk per update on top
-  of work `DecorationsPlugin` already does every update, with `docFacts` still cached on the
-  document `Text`. If it ever shows up, the memo is a single entry keyed on `(Text, line)` — but
-  it is not worth adding speculatively, matching the reasoning already recorded for
-  `selectedLineRootTargets`.
+- **Recomputation on every caret move** → the trail adds one ancestor-chain walk per update, on
+  top of work `DecorationsPlugin` already does every update, with `docFacts` still cached on the
+  document `Text`. This was left uncached at first as not worth adding speculatively — then
+  review pointed out the walk runs TWICE per render, once for the declarative decorations and
+  once for the widget DOM patch, since both read the same `view.state`. Measured before acting:
+  2.5µs at 110 lines, 16µs at 1.1k, 66µs at 5.2k — small against a 16.7ms frame, but the same
+  "same asymptotics, doubled constant" that `docFacts` was consolidated for, and one WeakMap
+  stops paying it. Keyed on the `EditorState` itself: a CM6 state is immutable, so one identity
+  fixes document and selection together, with no compound key to get wrong and no
+  `allRangesCovered` recomputation just to build it.
 - **Two features ship on by default** → existing guide/marker e2e specs now run against a document
   that also has a caret and therefore a trail. Re-check them and pin the settings explicitly
   wherever an assertion would otherwise become ambiguous, rather than letting a default change

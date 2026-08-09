@@ -263,16 +263,11 @@ function hasOverlay(guide: LineGuideFact, trail?: PositionTrailFact): boolean {
 /**
  * The caret-derived trail for the current state, or an empty one.
  *
- * Deliberately NOT cached, for the same reason `selectedLineRootTargets`
- * isn't: unlike `docFacts` (keyed on the doc `Text` alone) this also depends
- * on the selection, which changes far more often than the document, so a
- * cache would need a compound key for a walk that is O(tree) once per update.
- *
  * Suppressed entirely while every non-empty range is an escalated cover:
  * block-selection chrome already answers "where am I", and stacking an accent
  * trail on top of a filled rectangle just makes both harder to read.
  */
-function positionTrail(state: EditorState, modes: DecorationSource): PositionTrail {
+function computeTrail(state: EditorState, modes: DecorationSource): PositionTrail {
   if (modes.markerHighlight === 'off' && modes.guideHighlight === 'off') {
     return EMPTY_POSITION_TRAIL;
   }
@@ -287,6 +282,63 @@ function positionTrail(state: EditorState, modes: DecorationSource): PositionTra
     guides: modes.guideHighlight,
     markers: modes.markerHighlight,
   });
+}
+
+/**
+ * Two consumers need this on the same render — `computeDecorations` for the
+ * declarative line decorations, `MarginCompensation` for the widget DOM patch —
+ * and both read the same `view.state`, so the walk ran twice per caret move.
+ * Measured on this tree: 2.5µs at 110 lines, 16µs at 1.1k, 66µs at 5.2k. Small
+ * against a frame, but it is the same "same asymptotics, doubled constant"
+ * `docFacts` was consolidated for, and it costs one WeakMap to stop paying.
+ *
+ * Keyed on the `EditorState` ITSELF, not on a decomposition of it. A CM6 state
+ * is immutable, so one identity fixes the document AND the selection together —
+ * there is no compound key to get wrong, and a future dependency on some other
+ * part of the state (a second selection range, a facet) stays keyed for free
+ * rather than silently going stale. Keying on `(doc, main.head, …, whether the
+ * selection is covered)` would also have to recompute `allRangesCovered` just
+ * to build the key, giving back part of the saving.
+ *
+ * The settings are checked separately because they live outside the state, and
+ * that check is DEFENSIVE rather than load-bearing today: `forceRedraw`
+ * (main.ts) applies a settings change by dispatching a cursor transaction, so
+ * the next render always arrives on a new state and misses this cache anyway.
+ * Deliberately kept, and deliberately noted as untested — deleting it fails
+ * nothing in the suite, precisely because `forceRedraw` makes the case
+ * unreachable. It stops being unreachable the moment `forceRedraw` is replaced
+ * by a real refresh API, which docs/research/12 explicitly contemplates; the
+ * three lines are the difference between that swap being safe and it silently
+ * serving a stale trail.
+ *
+ * A WeakMap rather than a single slot, mirroring `docFactsCache`: entries die
+ * with the state they describe, and two editors alternating do not evict each
+ * other's.
+ */
+interface TrailCacheEntry {
+  readonly guides: GuideHighlight;
+  readonly markers: MarkerHighlight;
+  readonly trail: PositionTrail;
+}
+
+const trailCache = new WeakMap<EditorState, TrailCacheEntry>();
+
+function positionTrail(state: EditorState, modes: DecorationSource): PositionTrail {
+  const cached = trailCache.get(state);
+  if (
+    cached &&
+    cached.guides === modes.guideHighlight &&
+    cached.markers === modes.markerHighlight
+  ) {
+    return cached.trail;
+  }
+  const trail = computeTrail(state, modes);
+  trailCache.set(state, {
+    guides: modes.guideHighlight,
+    markers: modes.markerHighlight,
+    trail,
+  });
+  return trail;
 }
 
 /**
