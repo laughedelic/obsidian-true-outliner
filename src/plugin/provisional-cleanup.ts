@@ -70,13 +70,22 @@ interface CreatedPlace {
 
 const created = new WeakMap<EditorView, CreatedPlace>();
 
-/** The structural dispatches that can leave the caret on an empty place. An
- * `outdent` is deliberately absent: the ladder's outdent MOVES an item that was
- * already empty, so undoing it would restore that item one level deeper rather
- * than remove anything. */
+/**
+ * The dispatches whose UNDO removes an empty place and leaves the document as
+ * if the keypress had not happened. That is a narrower test than "leaves the
+ * caret on an empty place", and the difference matters.
+ *
+ * The empty-item ladder's two operations are both absent, for the same reason:
+ * neither CREATES the place. `outdent` moves an item that was already empty, so
+ * undoing it puts that item back one level deeper. `unwrap` converts an empty
+ * item into a blank position, so undoing it restores the `- ` — which would
+ * make abandoning an Enter-Enter (make an empty item, then leave the list)
+ * leave a bullet behind that would not be there without this feature at all.
+ * The blank line the unwrap leaves is the result of a deliberate act, not
+ * debris from an unused keypress.
+ */
 const CREATING_EVENTS: readonly string[] = [
   'input.structure.split',
-  'input.structure.unwrap',
   'input.structure.sibling-heading',
 ];
 
