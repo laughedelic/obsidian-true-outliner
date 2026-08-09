@@ -206,3 +206,31 @@ describe('the guards decide whether a cleanup may run', () => {
     expect(viaCancel).toBe(src);
   });
 });
+
+describe('the recorder keys on our own markers, never on a change’s shape', () => {
+  it("Shift+Enter's continuation carries its own userEvent", () => {
+    // Load-bearing for `provisional-cleanup.ts`. It previously carried the
+    // generic `input`, and the recorder matched "an `input` event inserting a
+    // line break" — a signature CodeMirror's OWN Enter also has. Stock Enter
+    // runs inside outline mode whenever the grammar declines (a gap-line caret
+    // left by a programmatic placement is exactly that), so its newline was
+    // recorded as ours and would be undone on the next caret move.
+    const outcome = planKey('- alpha beta\n', { line: 0, ch: 8 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(outcome.plan.userEvent).toBe('input.structure.continue');
+  });
+
+  it('the continuation event is still non-joinable, so the cleanup stays safe', () => {
+    // Renaming it into the input.type family would reintroduce the data loss
+    // the first test in this file guards against.
+    expect(/^(input\.type|delete)($|\.)/.test('input.structure.continue')).toBe(false);
+  });
+
+  it('Enter and Shift+Enter carry DIFFERENT events, so neither is mistaken for the other', () => {
+    const enter = planKey('- alpha\n', { line: 0, ch: 7 }, 'split');
+    const shiftEnter = planKey('- alpha\n', { line: 0, ch: 7 }, 'continue');
+    if (!enter || !('plan' in enter)) throw new Error('expected a plan');
+    if (!shiftEnter || !('plan' in shiftEnter)) throw new Error('expected a plan');
+    expect(enter.plan.userEvent).not.toBe(shiftEnter.plan.userEvent);
+  });
+});

@@ -109,10 +109,12 @@ export interface TransactionFacts {
 
 /** This plugin's own grammar/command userEvent values (grammar.ts) —D2
  * class 3, "already valid by construction." `move.structure` and the
- * `input.structure.*` family; Shift+Enter's continuation insert
- * deliberately reuses generic `input` (see design's D3 open-question note)
- * and is NOT in this list — it still lands correctly, as within-node-edit,
- * since a single-line insertion can never cross a boundary. */
+ * `input.structure.*` family. Shift+Enter's continuation is NOT in this
+ * list, deliberately: it carries `input.structure.continue` for the benefit
+ * of `provisional-cleanup.ts`, which must recognise its OWN dispatches
+ * without guessing from the change's shape, but it still classifies BY SHAPE
+ * here — a within-node edit, since a single-line change inside one node's own
+ * line cannot cross a boundary. The name is a marker, not a short-circuit. */
 const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   'input.structure.indent',
   'input.structure.outdent',

@@ -88,6 +88,7 @@ const created = new WeakMap<EditorView, CreatedPlace>();
 const CREATING_EVENTS: readonly string[] = [
   'input.structure.split',
   'input.structure.sibling-heading',
+  'input.structure.continue',
 ];
 
 function headingTitleIsEmpty(lines: readonly string[]): boolean {
@@ -120,15 +121,19 @@ function emptyPlaceLine(state: EditorState): number | null {
 /**
  * True when this transaction is one that can CREATE an empty place.
  *
- * Shift+Enter's continuation carries the generic `input` event on purpose (see
- * `classify.ts`), so it is identified by shape instead: it inserts a line
- * break. No deletion can, which is what keeps a Backspace that happens to empty
- * an item — leaving the caret in a genuinely empty node the user emptied
- * themselves — from being recorded and then silently undone.
+ * Keyed ONLY on this plugin's own markers — never on the shape of the change.
+ * An earlier version also matched "a generic `input` event that inserts a line
+ * break", to catch Shift+Enter's continuation while it still carried the
+ * generic event. That signature is indistinguishable from CodeMirror's OWN
+ * Enter, which runs inside outline mode whenever the grammar declines: a caret
+ * left on a gap line by a programmatic placement is exactly such a case, and
+ * `content-space-caret` deliberately permits it. The stock newline would have
+ * been recorded as ours and undone on the next caret move, deleting a blank
+ * line the user authored. Shift+Enter now carries `input.structure.continue`
+ * instead, so recognition needs no guessing. Reported by review.
  */
-function isCreatingTransaction(userEvent: string | undefined, inserted: boolean): boolean {
-  if (userEvent !== undefined && CREATING_EVENTS.includes(userEvent)) return true;
-  return userEvent === 'input' && inserted;
+function isCreatingTransaction(userEvent: string | undefined): boolean {
+  return userEvent !== undefined && CREATING_EVENTS.includes(userEvent);
 }
 
 /** Perform the cancel: undo the creating keypress, then place the caret at
@@ -210,7 +215,7 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
 
       const last = update.transactions[update.transactions.length - 1];
       const event = last?.annotation(Transaction.userEvent) ?? undefined;
-      if (last && isCreatingTransaction(event, changesInsertLineBreak(last.changes))) {
+      if (last && isCreatingTransaction(event)) {
         const line = emptyPlaceLine(view.state);
         if (line !== null) {
           created.set(view, {
@@ -242,14 +247,4 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
       cancel(view, live, target);
     });
   });
-}
-
-/** Whether a change set inserts a line break — Shift+Enter's signature, and
- * something no deletion can do. */
-function changesInsertLineBreak(changes: ChangeSet): boolean {
-  let found = false;
-  changes.iterChanges((_fromA, _toA, _fromB, _toB, insert) => {
-    if (insert.lines > 1) found = true;
-  });
-  return found;
 }

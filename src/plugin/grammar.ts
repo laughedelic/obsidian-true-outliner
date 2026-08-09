@@ -438,7 +438,17 @@ export function planKey(
                 : '';
             })()
           : (/^[ \t]*/.exec(lineText)?.[0] ?? '');
-      return insertionPlan(lines, at, `\n${prefix}`, 'input', consume);
+      // A DISTINCT event, not the generic `input` this used to carry. It is
+      // deliberately NOT in `classify.ts`'s plugin-own list, so the transaction
+      // still classifies by shape exactly as before — a single-line change
+      // inside one node's own line, which cannot cross a boundary. What the
+      // name buys is a marker `provisional-cleanup.ts` can key on: recognising
+      // this dispatch by its SHAPE (an `input` event inserting a line break)
+      // also matched CodeMirror's own Enter, which runs in outline mode
+      // whenever the grammar declines — on a gap line reached by a programmatic
+      // placement, for instance — and that stock newline would then be recorded
+      // as ours and undone when the caret moved.
+      return insertionPlan(lines, at, `\n${prefix}`, 'input.structure.continue', consume);
     }
   }
 }
