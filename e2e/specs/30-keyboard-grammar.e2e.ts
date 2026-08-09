@@ -464,6 +464,25 @@ describe('keyboard grammar', function () {
   });
 
 
+
+  it('walking out of a NESTED list by Enter leaves no blank line behind', async function () {
+    // The reported sequence, started where it was reported from: nested, then
+    // Enter until the item reaches the top level, Enter to leave the list, Enter
+    // to move on. The earlier test started already at the top level, so it
+    // exercised one outdent fewer.
+    const src = '- a\n\t- b\n\t\t- c\n- d\n';
+    await grammarNote(src, 2, 5);
+    await h.keys.enter(); // empty item, nested twice
+    await h.keys.enter(); // outdent
+    await h.keys.enter(); // outdent to top level
+    await h.keys.enter(); // unwrap: leaves the list
+    await h.keys.enter(); // move on to "- d"
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: `left behind: ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
   it('leaving a list by Enter leaves no blank line behind', async function () {
     // Reported: Enter to an empty item, Enter to leave the list, Enter again to
     // move on — and a single blank line stayed, splitting the list.
