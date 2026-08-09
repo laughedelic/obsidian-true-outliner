@@ -117,6 +117,14 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   'input.structure.indent',
   'input.structure.outdent',
   'input.structure.split',
+  // The two operations the Enter/Shift+Enter grammar reaches that are not
+  // splits: leaving a list from an empty item, and drafting the next heading.
+  // Both are structural dispatches and must short-circuit the verdict layer
+  // like every other one — without an entry here they would be classified by
+  // SHAPE, and a whole-line removal or a new heading line reads as a
+  // boundary-crossing edit for enforcement to rewrite.
+  'input.structure.unwrap',
+  'input.structure.sibling-heading',
   'move.structure',
   // node-edit-enforcement rewrites (design.md D7a): these carry the SAME
   // short-circuit grammar dispatches already rely on — a rewritten

@@ -19,4 +19,5 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   'would-orphan-children': "Joining here would leave a node's children without a parent.",
   'merge-not-expressible': "These blocks can't be joined into one.",
   'insertion-not-expressible': "Markdown can't express that content here.",
+  'cannot-unwrap': 'Only an empty list item can be unwrapped.',
 };

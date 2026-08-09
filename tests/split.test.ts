@@ -109,12 +109,16 @@ describe('splitNode', () => {
   });
 
   it('splits a childless heading mid-text into the heading plus a new paragraph child', () => {
+    // The blank line is the heading/first-paragraph-child separation this
+    // operation now creates (`enter-and-shift-enter-grammar`): required by
+    // convention rather than by the parse, and added HERE rather than by
+    // global normalization, which would rewrite boundaries the user wrote.
     const { text, result } = splitOk('# Hello world\n', '# Hello world', { line: 0, ch: 8 });
-    expect(text).toBe('# Hello \nworld\n');
+    expect(text).toBe('# Hello \n\nworld\n');
     const doc = parse(text);
     expect(doc.children[0]!.lines[0]).toBe('# Hello ');
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['world']);
-    expect(result.anchor).toEqual({ line: 1, ch: 0 });
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
   });
 
   it('splits a heading with an existing paragraph child, separated by a blank line', () => {
@@ -163,13 +167,13 @@ describe('splitNode', () => {
 
   it('splits a childless setext heading mid-title; the underline stays with the heading', () => {
     const { text, result } = splitOk('Hello world\n====\n', 'Hello world', { line: 0, ch: 6 });
-    expect(text).toBe('Hello \n====\nworld\n');
+    expect(text).toBe('Hello \n====\n\nworld\n');
     const doc = parse(text);
     const head = doc.children[0]!;
     expect(head.setext).toBe(true);
     expect(head.lines).toEqual(['Hello ', '====']);
     expect(head.children.map((n) => n.lines[0])).toEqual(['world']);
-    expect(result.anchor).toEqual({ line: 2, ch: 0 });
+    expect(result.anchor).toEqual({ line: 3, ch: 0 });
   });
 
   it('splits a setext heading with an existing paragraph child, underline stays attached, separator inserted', () => {
@@ -220,6 +224,179 @@ describe('splitNode', () => {
     const split = splitNode(freshDoc, nodeAtCursor.id, merged.value.anchor);
     if (!split.ok) throw new Error(`split rejected: ${split.rejection.reason}`);
     expect(encode(split.value.doc)).toBe('# Head\n\n- item1\n- item2\n');
+  });
+
+  // ---------------------------------------------- content start: insert before
+  //
+  // `enter-and-shift-enter-grammar`: a split position at a node's own content
+  // start inserts an empty node BEFORE it and divides nothing, so the node's
+  // own text never moves. The anchor is the inserted position, not the text.
+
+  it('content start of a CHILDLESS item produces the same document as before, only the anchor moves', () => {
+    // The byte-identity claim that makes this a generalization rather than a
+    // new behavior (design D2): this document is what the pre-change split
+    // already produced. If it changes, the branch is over-reaching.
+    const { text, result } = splitOk('- alpha\n', '- alpha', { line: 0, ch: 2 });
+    expect(text).toBe('- \n- alpha\n');
+    // Pre-change this was {line: 1, ch: 2} — the caret rode down with "alpha".
+    expect(result.anchor).toEqual({ line: 0, ch: 2 });
+  });
+
+  it('content start of a top-level PARAGRAPH produces the same document as before, only the anchor moves', () => {
+    const { text, result } = splitOk('thought\n\nnext\n', 'thought', { line: 0, ch: 0 });
+    expect(text).toBe('\n\nthought\n\nnext\n');
+    expect(result.anchor).toEqual({ line: 0, ch: 0 });
+  });
+
+  it('content start of an item WITH children inserts above; the child stays put', () => {
+    const { text, result } = splitOk('- alpha\n\t- child\n', '- alpha', { line: 0, ch: 2 });
+    expect(text).toBe('- \n- alpha\n\t- child\n');
+    const doc = parse(text);
+    // "alpha" keeps its own depth AND its child — it was not demoted.
+    expect(doc.children.map((n) => n.lines[0])).toEqual(['- ', '- alpha']);
+    expect(doc.children[1]!.children.map((n) => n.lines[0])).toEqual(['\t- child']);
+    expect(result.anchor).toEqual({ line: 0, ch: 2 });
+  });
+
+  it('content start of an ATX heading inserts an empty heading at the same level', () => {
+    const { text, result } = splitOk('## Hello\n', '## Hello', { line: 0, ch: 3 });
+    expect(text).toBe('## \n## Hello\n');
+    const doc = parse(text);
+    expect(doc.children.map((n) => n.lines[0])).toEqual(['## ', '## Hello']);
+    // Byte-identical, not merely "still a heading": no child, no demotion.
+    expect(doc.children[1]!.children).toEqual([]);
+    expect(doc.children[1]!.level).toBe(2);
+    expect(result.anchor).toEqual({ line: 0, ch: 3 });
+  });
+
+  it('a caret inside a heading’s marker reaches the same content-start case', () => {
+    // The clamp to the content column is what makes the marker interior need
+    // no rule of its own.
+    const { text } = splitOk('# Hello\n', '# Hello', { line: 0, ch: 1 });
+    expect(text).toBe('# \n# Hello\n');
+  });
+
+  it('content start of a SETEXT heading inserts an ATX sibling, original underline verbatim', () => {
+    // An empty setext heading has no encoding at all (design D3).
+    const { text } = splitOk('Hello\n====\n', 'Hello', { line: 0, ch: 0 });
+    expect(text).toBe('# \nHello\n====\n');
+    const doc = parse(text);
+    expect(doc.children[1]!.lines).toEqual(['Hello', '====']);
+    expect(doc.children[1]!.setext).toBe(true);
+  });
+
+  it('content start of a mid-document paragraph widens the gap above it', () => {
+    const { text, result } = splitOk('alpha\n\nbeta\n', 'beta', { line: 2, ch: 0 });
+    expect(text).toBe('alpha\n\n\n\nbeta\n');
+    // Blank-separated from "alpha" above and "beta" below.
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
+    expect([...walkNodes(result.doc)].length).toBe(2);
+  });
+
+  it('content start of a first CHILD paragraph widens the parent’s own gap', () => {
+    const { text, result } = splitOk('# H\n\nbody\n', 'body', { line: 2, ch: 0 });
+    expect(text).toBe('# H\n\n\n\nbody\n');
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
+  });
+
+  it('content start of an ordered item renumbers the run', () => {
+    const { text } = splitOk('1. one\n2. two\n', '2. two', { line: 1, ch: 3 });
+    expect(text).toBe('1. one\n2. \n3. two\n');
+  });
+
+  // ------------------------------------------------- end of node: one rule
+  //
+  // The destination scope's kind decides what the empty position becomes: a
+  // real node where that kind has an empty encoding, a widened gap where it
+  // does not. Four outcomes, one rule.
+
+  it('end of a childless item materializes a real empty sibling', () => {
+    const { text, result } = splitOk('- alpha\n', '- alpha', { line: 0, ch: 7 });
+    expect(text).toBe('- alpha\n- \n');
+    expect(result.anchor).toEqual({ line: 1, ch: 2 });
+  });
+
+  it('end of a heading whose children are list items materializes a real empty child', () => {
+    const { text, result } = splitOk('# Head\n- item\n', '# Head', { line: 0, ch: 6 });
+    expect(text).toBe('# Head\n- \n- item\n');
+    expect(result.anchor).toEqual({ line: 1, ch: 2 });
+  });
+
+  it('end of a heading whose child scope is a paragraph widens the gap', () => {
+    const { text, result } = splitOk('# Head\n\nBody.\n', '# Head', { line: 0, ch: 6 });
+    expect(text).toBe('# Head\n\n\n\nBody.\n');
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
+  });
+
+  it('end of an item whose first child is a paragraph widens the item’s OWN gap (E10)', () => {
+    // The fall-through this replaces put the new position after the entire
+    // subtree — below "para" — which is the jump-over-the-subtree shape the
+    // content-adjacent rule exists to prevent.
+    const md = '- item\n\n\tpara\n';
+    const { text, result } = splitOk(md, '- item', { line: 0, ch: 6 });
+    expect(text).toBe('- item\n\n\n\n\tpara\n');
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
+    // A position, not a node: the tree is unchanged in size.
+    expect([...walkNodes(result.doc)].length).toBe([...walkNodes(parse(md))].length);
+    // And "para" is still the item's child, not a sibling below it.
+    expect(result.doc.children.length).toBe(1);
+  });
+
+  // ------------------------------------------------------------- whitespace
+
+  it('the split point’s whitespace goes with neither half, for a PARAGRAPH too', () => {
+    // Pre-change a paragraph kept it, leaving an invisible leading space with
+    // the cursor behind it, while a list item dropped it at the same position.
+    const { text, result } = splitOk('one two\n', 'one two', { line: 0, ch: 3 });
+    expect(text).toBe('one\n\ntwo\n');
+    expect(result.anchor).toEqual({ line: 2, ch: 0 });
+  });
+
+  // ----------------------------------------------------------- task markers
+
+  it('a task split carries the marker to the new item, unchecked', () => {
+    const atEnd = splitOk('- [x] done\n', '- [x] done', { line: 0, ch: 10 });
+    expect(atEnd.text).toBe('- [x] done\n- [ ] \n');
+
+    const midText = splitOk('- [ ] alpha beta\n', '- [ ] alpha beta', { line: 0, ch: 11 });
+    expect(midText.text).toBe('- [ ] alpha\n- [ ] beta\n');
+
+    const atStart = splitOk('- [x] done\n', '- [x] done', { line: 0, ch: 2 });
+    expect(atStart.text).toBe('- [ ] \n- [x] done\n');
+  });
+
+  it('a plain item is unaffected by the task rule', () => {
+    const { text } = splitOk('- alpha\n', '- alpha', { line: 0, ch: 7 });
+    expect(text).toBe('- alpha\n- \n');
+  });
+
+  it('a new child adopts a non-list sibling’s indentation, so an existing child is not re-parented', () => {
+    // Measured defect (catalogue E11): `destinationIndent` consulted list-item
+    // siblings only, so with the vault set to spaces the new child was written
+    // at 2 columns beside a TAB-indented atom — leaving the atom deeper than
+    // the node it was a sibling of, which re-parses it as that node's child.
+    // The split changed the tree's shape beyond the split.
+    const md = '- item text\n\t```\n\tcode\n\t```\n';
+    const doc = parse(md);
+    const result = splitNode(doc, byLine(doc, '- item text'), { line: 0, ch: 6 }, '  ');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    const after = parse(encode(result.value.doc));
+    const item = after.children[0]!;
+    // The remainder is a child of "- item", and so is the code fence — the
+    // fence did not become a grandchild under it.
+    expect(item.children.map((n) => n.kind)).toEqual(['list-item', 'code']);
+    expect(item.children[0]!.children).toEqual([]);
+  });
+
+  it('a heading boundary the user wrote is never normalized by an unrelated operation', () => {
+    // The regression a GLOBAL heading-separation rule would have caused.
+    // `# H` directly followed by `body` is ordinary parsed markdown — a heading
+    // with a gap-0 paragraph child — unlike the list-item shape, whose gap-0
+    // form cannot come from the parser at all. Normalizing it on every op would
+    // rewrite lines belonging to a node the operation never touched.
+    const md = '# H\nbody\n\n- one two\n';
+    const { text } = splitOk(md, '- one two', { line: 3, ch: 6 });
+    expect(text).toBe('# H\nbody\n\n- one \n- two\n');
   });
 
   it('property: split closes over the mapping at any position', () => {

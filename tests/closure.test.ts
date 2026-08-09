@@ -3,14 +3,20 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
-import { indent, outdent, moveDown, moveUp } from '../src/ops';
+import { indent, outdent, moveDown, moveUp, unwrapListItem } from '../src/ops';
 import { applyEdits } from '../src/result';
 import { arbTree } from './generators';
 
-const OPS = { indent, outdent, moveUp, moveDown } as const;
+const OPS = { indent, outdent, moveUp, moveDown, unwrapListItem } as const;
 type OpName = keyof typeof OPS;
 
-const arbOp: fc.Arbitrary<OpName> = fc.constantFrom('indent', 'outdent', 'moveUp', 'moveDown');
+const arbOp: fc.Arbitrary<OpName> = fc.constantFrom(
+  'indent',
+  'outdent',
+  'moveUp',
+  'moveDown',
+  'unwrapListItem',
+);
 
 const KNOWN_REASONS = new Set([
   'node-not-found',
@@ -22,6 +28,8 @@ const KNOWN_REASONS = new Set([
   'no-sibling-below',
   'not-expressible-under-target',
   'cannot-reorder-across-heading-boundary',
+  'would-orphan-children',
+  'cannot-unwrap',
 ]);
 
 /** Pick the nth node (document order) — deterministic target selection. */

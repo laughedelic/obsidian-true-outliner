@@ -203,26 +203,39 @@ has evidence to act on — the fallback only ever governs the true no-evidence c
 
 ## ADDED Requirements
 
-### Requirement: Required separation at a heading's content boundary
-Boundary normalization SHALL insert a blank line between a heading and its first child
-when that child is a paragraph, exactly as it already does for a list item whose first
-child is a paragraph. The list-item case is required by the PARSE — without the blank
-line the indented text is a continuation line of the item rather than a child. The
-heading case is required by CONVENTION: `# Head` immediately followed by `line` parses
-correctly, and every operation that produces it still produces markdown a reader would
-call malformed.
+### Requirement: An operation that creates a heading's first paragraph child separates them
+An operation that ATTACHES a new paragraph as a heading's first child SHALL leave a blank
+line between the heading and that paragraph. `# Head` immediately followed by `line` parses
+correctly, so this separation is required by CONVENTION, not by the parse: it is the one
+place this codebase widens separation beyond what the encoding demands, adopted because an
+operation that omits it produces markdown a reader would call malformed.
 
-This is the one place separation is widened beyond what the parse demands. Every other
-gap SHALL stay at its minimum, so that "a blank line is here because something needs it"
-remains true of the encoding as a whole.
+The rule SHALL be applied by the OPERATION THAT CREATES the boundary, and SHALL NOT be added
+to global boundary normalization. Normalization runs on every operation's result, and the
+list-item version of this rule is safe there only because a list item with a gap-0 paragraph
+child cannot come from the parser at all — without the blank line the indented text is a
+CONTINUATION LINE of the item and there is no child. A heading with a gap-0 paragraph child
+is ordinary parsed markdown, so a global rule would rewrite boundaries the user wrote,
+anywhere in the file, on any unrelated edit. "Minimal re-encoding after tree edits" forbids
+exactly that: a heading's trailing gap is part of its own encoding, and the heading was not
+the node being operated on.
+
+Every other gap SHALL stay at its minimum, so "a blank line is here because something needs
+it" remains true of the encoding as a whole.
 
 #### Scenario: A heading split separates the new child
 - **WHEN** a heading is split mid-title and the remainder becomes a paragraph child
 - **THEN** a blank line separates the heading from that child
 
-#### Scenario: An existing heading boundary is not widened further
-- **WHEN** a heading already has a blank line before its first paragraph child and any
-  structural operation runs on that subtree
+#### Scenario: A boundary the user wrote is left alone
+- **WHEN** a document contains `# H` directly followed by `body`, and a structural operation
+  runs on some unrelated node
+- **THEN** that heading's own lines and trailing gap are byte-identical afterwards — the
+  operation normalizes nothing it did not create
+
+#### Scenario: An existing separated boundary is not widened further
+- **WHEN** a heading already has a blank line before its first paragraph child and an
+  operation attaches nothing there
 - **THEN** the gap stays exactly one blank line
 
 ### Requirement: List item unwrap

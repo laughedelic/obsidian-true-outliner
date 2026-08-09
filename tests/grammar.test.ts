@@ -146,8 +146,9 @@ describe('grammar planner: Enter (split)', () => {
     const outcome = plan('Hello world\n====\n', { line: 0, ch: 6 }, 'split');
     if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
     const { text, cursor } = applyPlan('Hello world\n====\n', outcome.plan);
-    expect(text).toBe('Hello \n====\nworld\n');
-    expect(cursor).toBe('Hello \n====\n'.length);
+    // The blank line separates the heading from the new paragraph child.
+    expect(text).toBe('Hello \n====\n\nworld\n');
+    expect(cursor).toBe('Hello \n====\n\n'.length);
     const doc = parse(text);
     expect(doc.children[0]!.lines).toEqual(['Hello ', '====']);
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['world']);
@@ -178,10 +179,13 @@ describe('grammar planner: Shift+Enter (continue)', () => {
     const outcome = plan(src, { line: 0, ch: 6 }, 'continue');
     if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
     const { text } = applyPlan(src, outcome.plan);
-    expect(text).toBe('- note\n   text\n');
+    // Exactly the content column: the whitespace at the break point goes with
+    // neither line, so the continuation is aligned rather than one column past
+    // it (`enter-and-shift-enter-grammar`; it read `   text` before).
+    expect(text).toBe('- note\n  text\n');
     const nodes = [...walkNodes(parse(text))];
     expect(nodes.length).toBe(1);
-    expect(nodes[0]!.lines).toEqual(['- note', '   text']);
+    expect(nodes[0]!.lines).toEqual(['- note', '  text']);
   });
 
   it('paragraph continuation is a plain newline, same node', () => {
@@ -189,11 +193,151 @@ describe('grammar planner: Shift+Enter (continue)', () => {
     const outcome = plan(src, { line: 0, ch: 5 }, 'continue');
     if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
     const { text } = applyPlan(src, outcome.plan);
-    expect(text).toBe('alpha\n beta\n'); // the space after "alpha" leads line 2
+    // The space after "alpha" is consumed rather than leading line 2.
+    expect(text).toBe('alpha\nbeta\n');
     expect([...walkNodes(parse(text))].length).toBe(1); // still one paragraph node
   });
 
   it('declines inside atoms', () => {
     expect(plan('```\ncode\n```\n', { line: 1, ch: 0 }, 'continue')).toBeNull();
+  });
+});
+
+describe('grammar planner: the empty-item ladder (Enter)', () => {
+  /** Re-parse between presses, exactly as the editor does — ids are not stable
+   * across ops, so each press must locate its target afresh. */
+  function press(text: string, cursor: { line: number; ch: number }) {
+    const outcome = plan(text, cursor, 'split');
+    if (!outcome) throw new Error('declined');
+    if ('notice' in outcome) return { notice: outcome.notice };
+    const applied = applyPlan(text, outcome.plan);
+    const before = applied.text.slice(0, applied.cursor);
+    const line = before.split('\n').length - 1;
+    return { text: applied.text, cursor: { line, ch: applied.cursor - (before.lastIndexOf('\n') + 1) } };
+  }
+
+  it('walks out one level per press, then leaves the list', () => {
+    // The sequence is the behavior; three independent cases would not catch a
+    // ladder that stops climbing.
+    let state = press('- a\n\t- b\n\t\t- c\n', { line: 2, ch: 5 });
+    expect(state.text).toBe('- a\n\t- b\n\t\t- c\n\t\t- \n');
+
+    state = press(state.text!, state.cursor!);
+    expect(state.text).toBe('- a\n\t- b\n\t\t- c\n\t- \n');
+
+    state = press(state.text!, state.cursor!);
+    expect(state.text).toBe('- a\n\t- b\n\t\t- c\n- \n');
+
+    // Top level: nowhere left to outdent, so the marker goes and the caret is
+    // left on a provisional position — prose from here on.
+    state = press(state.text!, state.cursor!);
+    expect(state.text).toBe('- a\n\t- b\n\t\t- c\n\n');
+    expect([...walkNodes(parse(state.text!))].map((n) => n.lines[0])).toEqual([
+      '- a',
+      '\t- b',
+      '\t\t- c',
+    ]);
+  });
+
+  it('an empty TASK item takes the ladder rather than splitting', () => {
+    const state = press('- a\n- [ ] \n', { line: 1, ch: 6 });
+    expect(state.text).toBe('- a\n\n');
+  });
+
+  it('an empty item that can neither outdent nor unwrap shows the cue', () => {
+    const state = press('- \n\t- kid\n', { line: 0, ch: 2 });
+    expect(state.notice).toBeTruthy();
+  });
+
+  it('a non-empty item still splits', () => {
+    const state = press('- alpha\n', { line: 0, ch: 7 });
+    expect(state.text).toBe('- alpha\n- \n');
+  });
+});
+
+describe('grammar planner: Shift+Enter on a heading drafts the next one', () => {
+  it('creates a sibling at the same level', () => {
+    const src = '## Foo\n';
+    const outcome = plan(src, { line: 0, ch: 6 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text, cursor } = applyPlan(src, outcome.plan);
+    expect(text).toBe('## Foo\n## \n');
+    expect(cursor).toBe('## Foo\n## '.length);
+  });
+
+  it('carries the remainder to the sibling', () => {
+    const src = '## Foo bar\n';
+    const outcome = plan(src, { line: 0, ch: 7 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('## Foo \n## bar\n');
+  });
+
+  it('a setext underline produces an ATX sibling too', () => {
+    const src = 'Head\n====\n';
+    const outcome = plan(src, { line: 1, ch: 2 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('Head\n====\n# \n');
+  });
+});
+
+describe('grammar planner: atoms and thematic breaks', () => {
+  it('a thematic break rejects both keys, so the stock newline never runs', () => {
+    for (const key of ['split', 'continue'] as const) {
+      const outcome = plan('---\n', { line: 0, ch: 2 }, key);
+      expect(outcome && 'notice' in outcome && outcome.notice.length > 0).toBe(true);
+    }
+  });
+
+  it('every other atom still declines, so stock supplies its own next line', () => {
+    for (const src of ['> quoted\n', '```\ncode\n```\n', '| a | b |\n| - | - |\n']) {
+      expect(plan(src, { line: 0, ch: 2 }, 'split')).toBeNull();
+      expect(plan(src, { line: 0, ch: 2 }, 'continue')).toBeNull();
+    }
+  });
+});
+
+describe('grammar planner: provisional positions are distinguishable', () => {
+  it('Enter and Shift+Enter at the same place produce different documents and different typed results', () => {
+    // The property the whole design rests on (design D1). If a "minimal gap"
+    // implementation ever lands, this is what fails: both keys leave the caret
+    // at column 0 of the line below, and only the separation tells them apart.
+    const src = 'thought\n\nnext\n';
+    const at = { line: 0, ch: 7 };
+
+    const enter = plan(src, at, 'split');
+    const shiftEnter = plan(src, at, 'continue');
+    if (!enter || !('plan' in enter)) throw new Error('expected plan');
+    if (!shiftEnter || !('plan' in shiftEnter)) throw new Error('expected plan');
+
+    const afterEnter = applyPlan(src, enter.plan);
+    const afterShift = applyPlan(src, shiftEnter.plan);
+    expect(afterEnter.text).not.toBe(afterShift.text);
+
+    // Neither keypress creates a node: both are positions.
+    const originalCount = [...walkNodes(parse(src))].length;
+    expect([...walkNodes(parse(afterEnter.text))].length).toBe(originalCount);
+    expect([...walkNodes(parse(afterShift.text))].length).toBe(originalCount);
+
+    // Typing the same character yields a NEW node in one and a CONTINUATION
+    // LINE in the other, decided by the parse alone.
+    const typedAfterEnter =
+      afterEnter.text.slice(0, afterEnter.cursor) + 'x' + afterEnter.text.slice(afterEnter.cursor);
+    const typedAfterShift =
+      afterShift.text.slice(0, afterShift.cursor) + 'x' + afterShift.text.slice(afterShift.cursor);
+
+    const enterNodes = [...walkNodes(parse(typedAfterEnter))];
+    expect(enterNodes.length).toBe(originalCount + 1);
+    expect(enterNodes.map((n) => n.lines[0])).toContain('x');
+
+    const shiftNodes = [...walkNodes(parse(typedAfterShift))];
+    expect(shiftNodes.length).toBe(originalCount);
+    expect(shiftNodes[0]!.lines).toEqual(['thought', 'x']);
+  });
+
+  it('a second press on a provisional position declines to stock, for both keys', () => {
+    const src = 'thought\n\n\n\nnext\n';
+    for (const key of ['split', 'continue'] as const) {
+      expect(plan(src, { line: 2, ch: 0 }, key)).toBeNull();
+    }
   });
 });

@@ -70,6 +70,14 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
   return (view: EditorView): boolean => {
     if (!outlinePathOf(modes, view)) return false;
 
+    // Multi-cursor: decline (design D7). This handler plans from
+    // `selection.main` alone and dispatches ONE cursor, so acting would
+    // silently discard every other range — with no document change to undo,
+    // since a selection change is not a document change. The same reason
+    // `soleCursor` guards the motion handlers. Stock behavior handles every
+    // range, and the enforcement funnel still sees whatever it produces.
+    if (view.state.selection.ranges.length !== 1) return false;
+
     const head = view.state.selection.main.head;
     const line = view.state.doc.lineAt(head);
     // Public CM6 facet — Obsidian sets it from its own "Indent using tabs"

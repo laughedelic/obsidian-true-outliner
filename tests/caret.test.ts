@@ -408,3 +408,26 @@ describe('contentBoundaryCh', () => {
     expect(contentBoundaryCh(para, para.lines[0]!)).toBe(0);
   });
 });
+
+/**
+ * Provisional positions (`content-space-caret`, as amended by
+ * `enter-and-shift-enter-grammar`). No code changed for these: the split
+ * operation has parked the caret on a gap line since it shipped, and the
+ * requirement previously read as forbidding it. These pin both halves of the
+ * exception so the specs and the behavior agree.
+ */
+describe('provisional positions', () => {
+  it('the position an accepted Enter leaves the caret on is a gap line', () => {
+    // Not addressable by the general rule — which is exactly why the
+    // requirement needed a named exception rather than silence.
+    const doc = parse('thought\n\n\n\nnext\n');
+    expect(isAddressable(doc, { line: 2, ch: 0 })).toBe(false);
+  });
+
+  it('a later gesture onto that same line resolves it like any other gap line', () => {
+    // The exception is scoped to the transaction that CREATES the position:
+    // it does not persist with the line.
+    const doc = parse('thought\n\n\n\nnext\n');
+    expect(resolvePlacement(doc, { line: 2, ch: 0 })).toEqual({ line: 0, ch: 'thought'.length });
+  });
+});
