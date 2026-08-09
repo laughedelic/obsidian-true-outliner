@@ -161,8 +161,8 @@ rule assumed for that line.
   "one level to the left"), but in a PURE list that margin is 0, so if Obsidian renders a
   whitespace-only line differently from a real continuation line there is a residual we have
   not measured. → Measure it first (task 1), against the column the same text occupies once
-  typed. If a residual exists, record it in `docs/research/12` rather than replicating native
-  list metrics, which the decoration layer deliberately never does.
+  typed. If a residual exists, record it in `docs/research/12-decoration-follow-ups.md` rather
+  than replicating native list metrics, which the decoration layer deliberately never does.
 - **An extra parse on caret moves onto a blank line.** → Only on blank lines, cached per
   editor state, and skipped entirely by a leading `trim()` test on the caret's line.
 - **A whitespace-only line can now be written to the file** (D6), where the destination is

@@ -5,10 +5,13 @@
 A PROVISIONAL POSITION (`outline-keyboard-grammar`) is a line the caret rests on that carries
 no node content of its own — a blank or whitespace-only line the parse assigns to a node's
 trailing gap. While the primary selection is a single empty cursor on such a line, and the
-line belongs to a node's gap rather than to the document preamble, that line SHALL be
-decorated exactly as the line the document's own parse would produce there if a character
-were typed at the caret: the same indentation regime (block padding, atom/list margin), the
-same depth or `supplementalDepth`, the same node kind, and the same marker treatment.
+line belongs to a node's gap rather than to the document preamble, that line SHALL take its
+INDENTATION AND MARKER facts from the line the document's own parse would produce there if a
+character were typed at the caret: the same indentation regime (block padding, atom/list
+margin), the same depth or `supplementalDepth`, the same node kind, and the same marker
+treatment. Those facts, and the position-indicator treatment covered below, are the whole of
+what this rule governs — the line's GUIDES are not among them, and continue to come from the
+document as it actually is (see below).
 
 The rendering SHALL be derived from the document text and the caret alone. It SHALL NOT
 depend on which key produced the position, on any editor state remembering it, or on the
