@@ -47,6 +47,49 @@ mechanism, `width: auto`). Needs its own investigation with Minimal (and ideally
 max-width-style theme) actually installed and screenshotted, not a guess from one data
 point.
 
+### A non-list-item child of a list item is indented twice
+
+Found while cataloguing Enter/Shift+Enter (2026-08-06,
+`15-enter-and-shift-enter-catalogue.md` E10/E11), from a real-vault report that indented
+text under a list item renders misaligned.
+
+The two indentation regimes disagree for exactly one shape. `styles.css` applies our
+depth-derived `padding-left` to every non-list-item line and deliberately leaves list
+items to Obsidian's native list indentation. A list item's own SOURCE indentation is
+therefore its only indentation, while a paragraph, code fence, table or callout that is a
+CHILD of a list item gets our depth padding **plus** its own literal leading whitespace
+rendered as characters. Two visual columns for one tree depth, and the amount depends on
+whether the file used a tab or spaces.
+
+Measured shapes that reach it (`parse.ts`): a blank line followed by indented text under
+an item (`- item` / `` / `  text`) parses as a paragraph CHILD, where the same text
+without the blank line is a continuation LINE of the item; an indented fence, table or
+nested quote under an item is a child with or without the blank line.
+
+Fixing it is a decoration decision, not a parse one: either subtract a child's own leading
+whitespace from its depth padding (the source whitespace already encodes the same depth),
+or render non-list children with the native regime the way list items are. Both need the
+guide-line and marker offsets re-derived, which is why this is a change of its own.
+
+### A provisional (gap) line has no decoration facts, so the caret visibly jumps
+
+Same catalogue, S10, and it explains a real-vault observation: Shift+Enter at the end of a
+nested list item puts the caret on the new line "without any indentation", and typing
+one character makes it "align correctly".
+
+`decorate()` emits facts only for nodes' own lines; a blank or whitespace-only line is a
+trailing-gap line and gets none — no depth, so no depth padding. The caret therefore
+renders at the document's left edge plus whatever literal whitespace the line holds, and
+the moment a character lands there the line becomes part of the node, gains its depth
+fact, and shifts right.
+
+This affects every provisional line the grammar produces (end-of-node Enter, end-of-node
+Shift+Enter, and the unwrap position `enter-and-shift-enter-grammar` adds), so it gets
+worse as those become first-class. The mechanism is available — give a gap line the
+owning node's depth — but which depth a gap line between two different depths should take
+is the open question, and it interacts with the guide-line rule that already covers gap
+lines.
+
 ### RTL-aware placement (openspec outline-decorations task 5.9)
 
 The marker's `left`-shift assumes the line's first character renders at the physical
