@@ -386,7 +386,12 @@ export function indent(
   const moved = reencodeForDestination(
     node,
     newKind,
-    destinationIndent(doc, target, target.children.slice(0, insertIndex), fallbackIndentUnit),
+    // Every sibling at the destination, not just those BEFORE the insertion
+    // point: inserting ahead of a tab-indented sibling would otherwise take the
+    // inferred unit and re-parent it, the same tree-shape defect the split path
+    // had. Document order puts preceding siblings first, so the existing
+    // preference is unchanged.
+    destinationIndent(doc, target, target.children, fallbackIndentUnit),
   );
 
   let surgery = updateSiblings(doc, parentPath, (nodes) => {
@@ -866,7 +871,10 @@ export function itemContentIsEmpty(node: OutlineNode): boolean {
   if (node.kind !== 'list-item' || node.lines.length !== 1) return false;
   const line = node.lines[0] ?? '';
   const content = line.slice(contentColumnCh(line)).trim();
-  return content === '' || /^\[[ xX]\]$/.test(content);
+  // UNCHECKED only. A checked box is something the user ticked — content, not
+  // the marker this grammar's own continuation rule writes — so an empty
+  // COMPLETED task must not be silently outdented away by the ladder.
+  return content === '' || content === '[ ]';
 }
 
 /**
@@ -1359,7 +1367,16 @@ export function reencodeBlocksForDestination(
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit?: string,
 ): readonly OutlineNode[] {
-  const indentText = destinationIndent(doc, parent, precedingSiblings, fallbackIndentUnit);
+  // Both sides, for the reason `encodingKindAtDestination` below already uses
+  // both: a payload landing BEFORE a tab-indented sibling has no preceding one
+  // to copy from, and the inferred unit can leave that sibling deeper than the
+  // block now above it — which re-parses it as that block's child.
+  const indentText = destinationIndent(
+    doc,
+    parent,
+    [...precedingSiblings, ...followingSiblings],
+    fallbackIndentUnit,
+  );
   const newContentKind = encodingKindAtDestination({
     parentKind: parent === 'root' ? 'root' : parent.kind,
     precedingSiblings,

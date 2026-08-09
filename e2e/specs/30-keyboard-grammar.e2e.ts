@@ -484,6 +484,22 @@ describe('keyboard grammar', function () {
   });
 
 
+
+  it('a position at the END of a document is removed on abandon, not left behind', async function () {
+    // The place is the last line, so it has no following newline to take and
+    // the removal span was empty — a silent no-op. Reported in review.
+    const src = '- a\n- b\n';
+    await grammarNote(src, 1, 3);
+    await h.keys.enter(); // empty item at the end
+    expect(await h.getBuffer()).toBe('- a\n- b\n- \n');
+
+    await h.clickAt(0, 3);
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: `left behind: ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
   it('leaving a list UNDER A PARAGRAPH leaves no blank line behind', async function () {
     // Reported: the fix worked for a top-level list and for one under a
     // heading, but not under a paragraph. The last press is a different

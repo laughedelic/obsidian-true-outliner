@@ -206,7 +206,12 @@ function reverseFor(tr: Transaction, line: number): { from: number; to: number; 
   const count = Math.max(1, added);
   const first = doc.line(line + 1);
   const last = doc.line(Math.min(line + count, doc.lines));
-  return { from: first.from, to: Math.min(last.to + 1, doc.length), insert: '' };
+  const to = Math.min(last.to + 1, doc.length);
+  // A place on the document's LAST line has no following newline to take, so
+  // the span above is empty and the deletion would silently do nothing. Take
+  // the PRECEDING newline instead — the ordinary way to remove a final line.
+  if (to <= first.from) return { from: Math.max(0, first.from - 1), to: doc.length, insert: '' };
+  return { from: first.from, to, insert: '' };
 }
 
 /**

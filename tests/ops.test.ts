@@ -10,6 +10,7 @@ import {
   splitNode,
   unwrapListItem,
   insertSiblingHeading,
+  insertSubtrees,
 } from '../src/ops';
 import { applyEdits } from '../src/result';
 
@@ -446,5 +447,40 @@ describe('sibling heading creation', () => {
     if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
     expect(result.value.doc.children.length).toBe(1);
     expect(result.value.doc.children[0]!.children.map((n) => n.kind)).toEqual(['paragraph']);
+  });
+});
+
+describe('review follow-ups (#43)', () => {
+  it('a CHECKED empty task is content, not an empty item', () => {
+    // The ladder's carve-out covers the marker this grammar writes — an
+    // UNCHECKED box. A ticked one is something the user did, so Enter must not
+    // outdent or unwrap a completed task away.
+    const doc = parse('- a\n- [x]\n');
+    expect(unwrapListItem(doc, byLine(doc, '- [x]'))).toMatchObject({
+      ok: false,
+      rejection: { reason: 'cannot-unwrap' },
+    });
+
+    const unchecked = parse('- a\n- [ ]\n');
+    const result = unwrapListItem(unchecked, byLine(unchecked, '- [ ]'));
+    expect(result.ok).toBe(true);
+  });
+
+  it('an insertion BEFORE a tab-indented sibling adopts its indentation', () => {
+    // `destinationIndent` consulted only the siblings PRECEDING the insertion
+    // point, so a payload landing first among tab-indented children took the
+    // configured unit instead — leaving the existing sibling deeper than the
+    // block now above it, which re-parses it as that block's child.
+    const doc = parse('- item\n\t```\n\tcode\n\t```\n');
+    // Anchor on the fence and insert BEFORE it: the payload lands first among
+    // "- item"'s children, so there is no PRECEDING sibling to copy from.
+    const fence = byLine(doc, '\t```');
+    const result = insertSubtrees(doc, fence, parse('pasted\n').children, 'before', '  ');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    const after = parse(encode(result.value.doc));
+    // The fence is still a SIBLING of the pasted block under "- item", not its
+    // child — which is what an indentation mismatch would have made it.
+    expect(after.children[0]!.children.map((n) => n.kind)).toEqual(['list-item', 'code']);
+    expect(after.children[0]!.children[0]!.children).toEqual([]);
   });
 });
