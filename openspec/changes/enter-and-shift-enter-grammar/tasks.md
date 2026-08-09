@@ -117,7 +117,7 @@
 - [x] 7.8 Reject both keys on a thematic break with `cannot-split`; leave every other atom
       declining. Test that the `hr` is byte-identical afterwards, since the point is that the
       stock newline never runs
-- [ ] 7.9 Selection handling (design D7): remove the selection as the Backspace gesture does,
+- [x] 7.9 Selection handling (design D7): remove the selection as the Backspace gesture does,
       then apply the key at the resulting caret. One code path for a character range and for a
       block selection
 - [x] 7.10 Decline both keys under multiple cursors, and test that every range survives — the

@@ -341,3 +341,70 @@ describe('grammar planner: provisional positions are distinguishable', () => {
     }
   });
 });
+
+describe('grammar planner: over a non-empty selection', () => {
+  function planRange(
+    text: string,
+    from: { line: number; ch: number },
+    to: { line: number; ch: number },
+    key: GrammarKey,
+  ) {
+    return planKey(text, from, key, undefined, to);
+  }
+
+  it('a text range inside one node is replaced, then the node splits there', () => {
+    const src = '- alpha beta gamma\n';
+    // Select "beta " and press Enter.
+    const outcome = planRange(src, { line: 0, ch: 8 }, { line: 0, ch: 13 }, 'split');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text, cursor } = applyPlan(src, outcome.plan);
+    expect(text).toBe('- alpha \n- gamma\n');
+    expect(cursor).toBe('- alpha \n- '.length);
+  });
+
+  it('a block selection of whole subtrees leaves one empty position where it was', () => {
+    // The spec scenario: `- a` / [`- b` `- c`] / `- d` becomes `- a` / `- |` / `- d`.
+    const src = '- a\n- b\n- c\n- d\n';
+    const outcome = planRange(src, { line: 1, ch: 0 }, { line: 3, ch: 0 }, 'split');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text, cursor } = applyPlan(src, outcome.plan);
+    expect(text).toBe('- a\n- \n- d\n');
+    expect(cursor).toBe('- a\n- '.length);
+  });
+
+  it('an ordered run is renumbered across the removal', () => {
+    // The raw removal does not renumber; the key's own operation does, because
+    // it lands in the same sibling list.
+    const src = '1. a\n2. b\n3. c\n';
+    const outcome = planRange(src, { line: 1, ch: 0 }, { line: 2, ch: 0 }, 'split');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('1. a\n2. \n3. c\n');
+  });
+
+  it('Shift+Enter over a selection replaces it and continues the node', () => {
+    const src = '- alpha beta gamma\n';
+    const outcome = planRange(src, { line: 0, ch: 8 }, { line: 0, ch: 13 }, 'continue');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    const { text } = applyPlan(src, outcome.plan);
+    expect(text).toBe('- alpha \n  gamma\n');
+    expect([...walkNodes(parse(text))].length).toBe(1);
+  });
+
+  it('the whole gesture declines when the collapse point is out of jurisdiction', () => {
+    // Stock behavior then replaces the selection itself, which is correct for a
+    // position the grammar has no say over.
+    const src = '```\ncode\nmore\n```\n';
+    expect(planRange(src, { line: 1, ch: 0 }, { line: 2, ch: 0 }, 'split')).toBeNull();
+  });
+
+  it('the change set is minimal — untouched lines are not rewritten', () => {
+    const src = '- keep\n- a\n- b\n- tail\n';
+    const outcome = planRange(src, { line: 1, ch: 0 }, { line: 3, ch: 0 }, 'split');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected plan');
+    // Neither the first nor the last line appears in any change's range.
+    for (const change of outcome.plan.changes) {
+      expect(change.from.line).toBeGreaterThan(0);
+      expect(change.to.line).toBeLessThan(3);
+    }
+  });
+});

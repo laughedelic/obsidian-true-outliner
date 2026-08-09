@@ -21,7 +21,7 @@ import {
 } from '../ops';
 import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
-import { applyEdits } from '../result';
+import { applyEdits, diffLines } from '../result';
 import { nodeAtLine } from './locate';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
@@ -211,12 +211,90 @@ function insertionPlan(
   };
 }
 
+/** Apply a plan's own changes to the text they were computed against. */
+function applyPlanChanges(text: string, changes: readonly EditorChange[]): string {
+  const lines = text === '' ? [] : text.split('\n');
+  const offsetOf = (pos: EditorPos): number => {
+    let acc = 0;
+    for (let i = 0; i < pos.line && i < lines.length; i++) acc += (lines[i] ?? '').length + 1;
+    return acc + pos.ch;
+  };
+  let out = text;
+  for (const change of [...changes].sort((a, b) => offsetOf(b.from) - offsetOf(a.from))) {
+    out = out.slice(0, offsetOf(change.from)) + change.text + out.slice(offsetOf(change.to));
+  }
+  return out;
+}
+
+/**
+ * Enter or Shift+Enter over a NON-EMPTY selection (design D7): remove the
+ * selection as the Backspace gesture does, then apply the key at the cursor
+ * that lands. One composed rule for a character range inside one node and for
+ * a block selection of whole subtrees alike.
+ *
+ * The two steps are composed in TEXT space and the result is diffed against the
+ * original, rather than concatenating two change sets. Concatenation would have
+ * to map the key's own changes out of post-deletion coordinates, where a
+ * line-granular edit that starts before the collapse point overlaps the
+ * deletion; diffing the final text produces one minimal, ordered change set by
+ * construction, and it is the same narrowing every structural dispatch uses.
+ *
+ * The removal is a contiguous text deletion rather than a call into
+ * `deleteSubtrees`. For a block selection that is the same thing — a cover
+ * already spans whole subtrees INCLUDING the trailing gaps they own — with one
+ * exception worth naming: the structural delete renumbers a following ordered
+ * run, and this does not. In practice the key's own operation renumbers the
+ * sibling list it lands in, which is the same run; the case where it would not
+ * is a selection whose removal leaves an ordered run that the key never
+ * touches.
+ */
+function planOverSelection(
+  text: string,
+  from: EditorPos,
+  to: EditorPos,
+  key: GrammarKey,
+  fallbackIndentUnit?: string,
+): GrammarOutcome {
+  const lines = text === '' ? [] : text.split('\n');
+  const fromOffset = offsetInNewText(lines, from);
+  const toOffset = offsetInNewText(lines, to);
+  const remaining = text.slice(0, fromOffset) + text.slice(toOffset);
+
+  // Everything before the cut is byte-identical, so the collapse point keeps
+  // its own line/ch coordinates in the shortened text.
+  const inner = planKey(remaining, from, key, fallbackIndentUnit);
+  // Declining here declines the whole gesture: stock behavior then replaces the
+  // selection itself, which is the correct fallback for a collapse point our
+  // grammar has no jurisdiction over (an atom, the preamble).
+  if (inner === null || 'notice' in inner) return inner;
+
+  const finalText = applyPlanChanges(remaining, inner.plan.changes);
+  const finalLines = finalText === '' ? [] : finalText.split('\n');
+  return {
+    plan: {
+      changes: editsToChanges(lines, diffLines(lines, finalLines)),
+      // Already an offset into the final document, which is the same document
+      // either way the changes are expressed.
+      selection: inner.plan.selection,
+      userEvent: inner.plan.userEvent,
+    },
+  };
+}
+
 export function planKey(
   text: string,
   cursor: EditorPos,
   key: GrammarKey,
   fallbackIndentUnit?: string,
+  selectionEnd?: EditorPos,
 ): GrammarOutcome {
+  if (
+    selectionEnd !== undefined &&
+    (selectionEnd.line !== cursor.line || selectionEnd.ch !== cursor.ch) &&
+    (key === 'split' || key === 'continue')
+  ) {
+    return planOverSelection(text, cursor, selectionEnd, key, fallbackIndentUnit);
+  }
   const doc = parse(text);
   const node = nodeAtLine(doc, cursor.line);
   if (!node) return null; // preamble or nothing: stock behavior

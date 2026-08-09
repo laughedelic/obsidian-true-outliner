@@ -78,8 +78,13 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
     // range, and the enforcement funnel still sees whatever it produces.
     if (view.state.selection.ranges.length !== 1) return false;
 
-    const head = view.state.selection.main.head;
-    const line = view.state.doc.lineAt(head);
+    // `from`/`to` are already ordered by CM6, so a backward selection needs no
+    // normalization here. With an empty selection they are the same position
+    // and `planKey` takes its ordinary cursor path; with a non-empty one it
+    // removes the range first and acts at the cursor that lands (design D7).
+    const sel = view.state.selection.main;
+    const fromLine = view.state.doc.lineAt(sel.from);
+    const toLine = view.state.doc.lineAt(sel.to);
     // Public CM6 facet — Obsidian sets it from its own "Indent using tabs"
     // editor setting, so reading it here respects that preference without
     // touching any Obsidian-private API (confirmed live: toggling the
@@ -87,11 +92,15 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
     const outcome = planKey(
       view.state.doc.toString(),
       {
-        line: line.number - 1,
-        ch: head - line.from,
+        line: fromLine.number - 1,
+        ch: sel.from - fromLine.from,
       },
       key,
       view.state.facet(indentUnit),
+      {
+        line: toLine.number - 1,
+        ch: sel.to - toLine.from,
+      },
     );
 
     if (outcome === null) return false;
