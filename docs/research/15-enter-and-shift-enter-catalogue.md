@@ -2,6 +2,11 @@
 
 Date: 2026-08-06. Produced for the `enter-and-shift-enter-grammar` change.
 
+> **Every output below is the behavior as it was BEFORE that change.** This is the evidence
+> that motivated it, not a description of what the keys do now — the cases marked ❌ and most
+> of those marked ⚠️ were changed deliberately, and the ones that were not are listed at the
+> end. Read `openspec/specs/outline-keyboard-grammar/spec.md` for current behavior.
+
 Every case below was produced by running the real planner — `planKey` in
 `src/plugin/grammar.ts`, which calls `splitNode` in `src/ops.ts` — over a cursor position,
 applying the resulting change set, and re-parsing the result. Nothing here is read off the
