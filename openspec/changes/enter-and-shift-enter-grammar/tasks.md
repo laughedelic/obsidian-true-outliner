@@ -181,13 +181,13 @@
 
 ## 11. Live verification
 
-- [ ] 11.1 E2E: the empty-item ladder in a real vault
+- [x] 11.1 E2E: the empty-item ladder in a real vault
       (`e2e/specs/30-keyboard-grammar.e2e.ts`) — Enter at an item's end, then repeated Enters
       walking out to prose
-- [ ] 11.2 E2E: Enter at a content start on a heading and on a parent item — the title and the
+- [x] 11.2 E2E: Enter at a content start on a heading and on a parent item — the title and the
       text stay put and the caret is in the new empty node above
-- [ ] 11.3 E2E: Shift+Enter drafting `## ` siblings down a document
-- [ ] 11.4 E2E: undo-on-abandon — press Enter at a paragraph's end, click elsewhere, and
+- [x] 11.3 E2E: Shift+Enter drafting `## ` siblings down a document
+- [x] 11.4 E2E: undo-on-abandon — press Enter at a paragraph's end, click elsewhere, and
       confirm the file is byte-identical to before the Enter and Ctrl+Z undoes whatever
       preceded it
 - [ ] 11.5 Manual real-vault pass over the catalogue's cases, re-running

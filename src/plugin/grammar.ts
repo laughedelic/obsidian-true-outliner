@@ -256,8 +256,17 @@ function planOverSelection(
   fallbackIndentUnit?: string,
 ): GrammarOutcome {
   const lines = text === '' ? [] : text.split('\n');
+  // A WHOLE-LINE range takes its trailing newline with it. Without this the
+  // removal leaves the line boundary behind as an empty line, the collapse
+  // point lands on it, and the key declines because a gap line is not one of
+  // the node's own — measured against a real block selection, whose cover ends
+  // at the last covered line's END rather than at the next line's start. Whole
+  // lines are also what the structural delete removes, so this is the shape
+  // "as the Backspace gesture does" already means.
+  const wholeLines = from.ch === 0 && to.ch === (lines[to.line]?.length ?? 0);
+  const cut = wholeLines && to.line + 1 < lines.length ? { line: to.line + 1, ch: 0 } : to;
   const fromOffset = offsetInNewText(lines, from);
-  const toOffset = offsetInNewText(lines, to);
+  const toOffset = offsetInNewText(lines, cut);
   const remaining = text.slice(0, fromOffset) + text.slice(toOffset);
 
   // Everything before the cut is byte-identical, so the collapse point keeps

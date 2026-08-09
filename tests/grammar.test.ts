@@ -408,3 +408,29 @@ describe('grammar planner: over a non-empty selection', () => {
     }
   });
 });
+
+describe('grammar planner: a whole-line selection takes its line boundary', () => {
+  it('a cover ending at the last line’s END behaves like one ending at the next line’s start', () => {
+    // The shape a real block selection produces (measured in e2e): the cover
+    // ends at the end of "- c", not at the start of "- d". Removing only that
+    // range leaves the newline behind as an empty line, the collapse point
+    // lands on it, and the key would decline — which is how this reached the
+    // browser as "the nodes vanish and no empty position appears".
+    const src = '- a\n- b\n- c\n- d\n';
+    const atLineEnd = planKey(src, { line: 1, ch: 0 }, 'split', undefined, { line: 2, ch: 3 });
+    const atNextStart = planKey(src, { line: 1, ch: 0 }, 'split', undefined, { line: 3, ch: 0 });
+    if (!atLineEnd || !('plan' in atLineEnd)) throw new Error('expected a plan');
+    if (!atNextStart || !('plan' in atNextStart)) throw new Error('expected a plan');
+    expect(applyPlan(src, atLineEnd.plan).text).toBe('- a\n- \n- d\n');
+    expect(applyPlan(src, atLineEnd.plan)).toEqual(applyPlan(src, atNextStart.plan));
+  });
+
+  it('a partial-line selection keeps its own bounds', () => {
+    // The extension is whole-line only: a character range must not swallow the
+    // newline after it.
+    const src = '- alpha beta\n- next\n';
+    const outcome = planKey(src, { line: 0, ch: 8 }, 'split', undefined, { line: 0, ch: 12 });
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyPlan(src, outcome.plan).text).toBe('- alpha \n- \n- next\n');
+  });
+});

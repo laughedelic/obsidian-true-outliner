@@ -5,6 +5,7 @@
  */
 
 import { browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import { REJECTION_MESSAGES } from '../../src/plugin/messages';
@@ -324,7 +325,9 @@ describe('keyboard grammar', function () {
   it('Enter mid-title of a setext heading splits it, underline stays with the heading', async function () {
     await grammarNote('Hello world\n====\n', 0, 6);
     await h.keys.enter();
-    expect(await h.getBuffer()).toBe('Hello \n====\nworld\n');
+    // The blank line is the heading/first-paragraph-child separation this
+    // operation creates (`enter-and-shift-enter-grammar`).
+    expect(await h.getBuffer()).toBe('Hello \n====\n\nworld\n');
 
     const doc = parse(await h.getBuffer());
     const head = doc.children[0]!;
@@ -333,17 +336,118 @@ describe('keyboard grammar', function () {
     expect(head.children.map((c) => c.lines[0])).toEqual(['world']);
   });
 
+
+  // ------------------------------------------- enter-and-shift-enter-grammar
+
+  it('the empty-item ladder walks out of the nesting, then out of the list', async function () {
+    // The behavior whose value is only visible live: a run of Enters retraces
+    // the nesting a run of Enters walked into, and the last one leaves prose.
+    await grammarNote('- a\n\t- b\n\t\t- c\n', 2, 5);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n\t\t- \n');
+
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n\t- \n');
+
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n- \n');
+
+    // Top level: the marker goes and the caret is left on a provisional
+    // position, so what is typed next is prose outside the list.
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n\n');
+    await h.keys.type('prose');
+    const doc = parse(await h.getBuffer());
+    expect([...walkNodes(doc)].some((n) => n.kind === 'paragraph' && n.lines[0] === 'prose')).toBe(
+      true,
+    );
+  });
+
+  it('Enter at a content start inserts above and never moves the text', async function () {
+    await grammarNote('- alpha\n\t- child\n', 0, 2);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- \n- alpha\n\t- child\n');
+    // The caret is in the NEW empty item, and "alpha" kept its own child.
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
+    const doc = parse(await h.getBuffer());
+    expect(doc.children[1]!.children.map((c) => c.lines[0])).toEqual(['\t- child']);
+  });
+
+  it('Enter at a heading’s content start leaves the title alone', async function () {
+    await grammarNote('## Hello\n', 0, 3);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('## \n## Hello\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 3 });
+    // Not demoted into a paragraph under an empty heading.
+    const doc = parse(await h.getBuffer());
+    expect(doc.children[1]!.children).toEqual([]);
+  });
+
+  it('Shift+Enter drafts the next heading at the same level', async function () {
+    await grammarNote('## Foo\n', 0, 6);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('## Foo\n## \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 3 });
+
+    await h.keys.type('Bar');
+    expect(await h.getBuffer()).toBe('## Foo\n## Bar\n');
+  });
+
+  it('Enter over a block selection replaces it with one empty position', async function () {
+    await grammarNote('- a\n- b\n- c\n- d\n', 1, 2);
+    // Two Shift+ArrowDown presses cover "- b" and "- c" as whole subtrees.
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n- \n- d\n');
+  });
+
+  it('a thematic break rejects Enter, so the stock newline never splits it', async function () {
+    await grammarNote('---\n', 0, 2);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('---\n');
+    await h.waitForNotice(REJECTION_MESSAGES['cannot-split']);
+  });
+
+  it('an unused Enter is undone when the caret leaves, restoring the file byte-for-byte', async function () {
+    const src = 'thought\n\nnext\n';
+    await grammarNote(src, 0, 7);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('thought\n\n\n\nnext\n');
+
+    // Walk away without typing: the keypress is undone, not patched over.
+    await h.clickAt(4, 2);
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: 'the abandoned position was not cleaned up',
+    });
+  });
+
+  it('Backspace on the position cancels it instead of merging the neighbours', async function () {
+    const src = 'thought\n\nnext\n';
+    await grammarNote(src, 0, 7);
+    await h.keys.enter();
+    await h.keys.backspace();
+    expect(await h.getBuffer()).toBe(src);
+    // Back where the cancelled keypress started — and "thought"/"next" are
+    // still two nodes, which a narrowed gap would not have left.
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 7 });
+    expect([...walkNodes(parse(await h.getBuffer()))].length).toBe(2);
+  });
+
   it('Shift+Enter: aligned continuation, still one node under structural ops', async function () {
     await grammarNote('- note text\n- z\n', 0, 6);
     await h.keys.shiftEnter();
-    expect(await h.getBuffer()).toBe('- note\n   text\n- z\n');
+    // Exactly the content column: the whitespace at the break point goes with
+    // neither line (it read `   text` before this change).
+    expect(await h.getBuffer()).toBe('- note\n  text\n- z\n');
     const doc = parse(await h.getBuffer());
-    expect(doc.children[0]!.lines).toEqual(['- note', '   text']);
+    expect(doc.children[0]!.lines).toEqual(['- note', '  text']);
 
     // A structural op treats item + continuation as one node.
     await h.setCursor(0, 2);
     await h.keys.moveNodeDown();
-    expect(await h.getBuffer()).toBe('- z\n- note\n   text\n');
+    expect(await h.getBuffer()).toBe('- z\n- note\n  text\n');
   });
 
   it('atom interiors behave stock; whole-fence ops from the first line', async function () {
