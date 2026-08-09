@@ -213,3 +213,259 @@ export function computeLineGuides(doc: OutlineDoc): LineGuideFact[] {
   doc.children.forEach((node) => walk(node, 0, []));
   return facts;
 }
+
+/**
+ * How much of the current node's ancestor GUIDES to accent (see the
+ * hierarchy-position-indicators change).
+ *
+ * - `'full'` accents each strict ancestor's guide along its whole extent —
+ *   "everything you are inside of", including the sibling subtrees below the
+ *   caret, since those are inside those ancestors too.
+ * - `'lineage'` accents only the part of each ancestor's guide that leads TO
+ *   the caret: from the row after that ancestor's own rows down to the row
+ *   where the next level starts.
+ *
+ * Both start on the same row — the one after the ancestor's own, where that
+ * ancestor's guide begins to exist at all. They differ only in where the accent
+ * ENDS. Anything drawn on an ancestor's own row would sit where its guide does
+ * not exist and land on top of its own marker, which is centered on that very
+ * column.
+ */
+export type GuideHighlight = 'off' | 'full' | 'lineage';
+
+/**
+ * Which MARKERS to accent — a separate axis from the guides, because "where am
+ * I" and "how did I get here" are separate questions and the useful
+ * combinations cross both. `'lineage'` markers with `'off'` guides, for
+ * instance, is the only rendering that says anything inside a pure list, where
+ * no guide column exists to draw on at all.
+ *
+ * - `'current'` accents the marker of the node the caret is in.
+ * - `'lineage'` accents that one AND every strict ancestor's, so the levels
+ *   read as a chain. This is what replaced the horizontal elbows an earlier
+ *   version drew at each level change: a marker is centered ON its own guide
+ *   column, so an elbow arriving at the next level ran straight through the
+ *   icon it was reaching for. Accenting the marker makes it the junction, with
+ *   nothing horizontal drawn.
+ */
+export type MarkerHighlight = 'off' | 'current' | 'lineage';
+
+/** The two independent axes, read together on every recompute. */
+export interface PositionHighlight {
+  readonly guides: GuideHighlight;
+  readonly markers: MarkerHighlight;
+}
+
+/**
+ * How much of a line's height an accent covers at one depth. `'full'` is the
+ * whole row (a `'full'` guide accent, or a `'lineage'` segment passing straight
+ * through); `'top'` is the upper half — a `'lineage'` segment arriving at the
+ * row where the next level starts and stopping there, which is the one place
+ * the two guide styles differ from each other.
+ *
+ * There is deliberately no `'bottom'`. It existed to draw the path "leaving" an
+ * ancestor's own marker, on that ancestor's own row — a row where that
+ * ancestor's guide does not exist at all (`computeLineGuides`), and where its
+ * marker sits centered on exactly that column. So it drew a line the base
+ * rendering had nothing underneath, straight through the icon. The accented
+ * ancestor marker already makes the connection it was reaching for.
+ */
+export type TrailExtent = 'full' | 'top';
+
+export interface TrailAccent {
+  /** Tree depth whose guide column this accent sits on. */
+  readonly depth: number;
+  readonly extent: TrailExtent;
+}
+
+export interface PositionTrailFact {
+  /** 0-indexed absolute line number in the document. */
+  readonly lineNumber: number;
+  /** Ascending by depth; at most one accent per depth, never two. */
+  readonly accents: readonly TrailAccent[];
+}
+
+export interface PositionTrail {
+  /**
+   * The current node's own FIRST line (0-indexed), or null when the caret
+   * resolves to no node at all (an empty document, or a caret in the inert
+   * preamble). Drives the current-marker accent; independent of the trail
+   * style, which may well be `'off'`.
+   */
+  readonly currentLine: number | null;
+  /**
+   * True when the current node is a list item, whose marker is Obsidian's
+   * own native bullet/number rather than one of our synthetic ones — the two
+   * need different CSS to accent, so the consumer has to know which.
+   */
+  readonly currentIsListItem: boolean;
+  /**
+   * Every strict ancestor's own first line, mapped to whether that ancestor is
+   * a list item (same native-vs-synthetic marker split as `currentIsListItem`).
+   * Populated by the `'path'` style only — it is what replaced the elbows, and
+   * the reason `'path'` says something in a pure list, where no ancestor owns a
+   * guide column this layer can draw on at all.
+   */
+  readonly ancestorLines: ReadonlyMap<number, boolean>;
+  /** Keyed by line number, like `computeLineGuides`'s own output. */
+  readonly byLine: ReadonlyMap<number, PositionTrailFact>;
+}
+
+const EMPTY_TRAIL: PositionTrail = {
+  currentLine: null,
+  currentIsListItem: false,
+  ancestorLines: new Map(),
+  byLine: new Map(),
+};
+
+/** One node on the path from the document root down to the current node. */
+interface ChainEntry {
+  readonly depth: number;
+  /** The node's own first line. */
+  readonly firstLine: number;
+  /** The node's own last line (its continuation lines included). */
+  readonly ownEnd: number;
+  /** Last line of the node's whole subtree, trailing gaps included. */
+  subtreeEnd: number;
+  readonly isListItem: boolean;
+}
+
+/**
+ * The chain of nodes from the document root down to, and including, the node
+ * the caret sits in — or null when the caret resolves to no node.
+ *
+ * A caret on a blank trailing-gap line resolves to the node that gap belongs
+ * to (blank-line ownership is already "a gap follows its node", per the
+ * model's own doc comment), so the trail stays put while the caret crosses the
+ * blank line between two blocks rather than blinking off for a row. That works
+ * out for free here: a node's own gap lines precede every one of its children's
+ * lines, so claiming the caret on the way DOWN — before descending — gives the
+ * gap to its owner and every child line to the child.
+ *
+ * `subtreeEnd` is the one field not known on the way down; it is filled in on
+ * the way back out, through the same entry objects the returned chain holds.
+ */
+function chainAtLine(doc: OutlineDoc, cursorLine: number): ChainEntry[] | null {
+  let current = doc.preamble.length;
+  if (cursorLine < current) return null; // the inert preamble owns no node
+
+  let found: ChainEntry[] | null = null;
+  const path: ChainEntry[] = [];
+
+  const walk = (node: OutlineNode, depth: number): void => {
+    const firstLine = current;
+    const ownEnd = firstLine + node.lines.length - 1;
+    current += node.lines.length;
+    const gapEnd = current + node.trailingGap.length - 1;
+    current += node.trailingGap.length;
+
+    const entry: ChainEntry = {
+      depth,
+      firstLine,
+      ownEnd,
+      subtreeEnd: Math.max(ownEnd, gapEnd),
+      isListItem: node.kind === 'list-item',
+    };
+    path.push(entry);
+    if (!found && cursorLine >= firstLine && cursorLine <= entry.subtreeEnd) found = [...path];
+    node.children.forEach((child) => walk(child, depth + 1));
+    entry.subtreeEnd = current - 1;
+    path.pop();
+  };
+
+  doc.children.forEach((node) => walk(node, 0));
+  return found;
+}
+
+function push(byLine: Map<number, PositionTrailFact>, lineNumber: number, accent: TrailAccent): void {
+  const existing = byLine.get(lineNumber);
+  if (!existing) {
+    byLine.set(lineNumber, { lineNumber, accents: [accent] });
+    return;
+  }
+  byLine.set(lineNumber, { ...existing, accents: [...existing.accents, accent] });
+}
+
+/**
+ * Per-line accents describing where the caret sits in the tree, plus the
+ * current node's own line and (under `markers: 'lineage'`) every ancestor's —
+ * the pure half of the position-indicator layer
+ * (hierarchy-position-indicators). Depends on the caret as a plain line number,
+ * so the whole "which levels are accented on which lines, and over how much of
+ * each row" question is testable without CM6 or Obsidian, the same split that
+ * made `computeLineGuides` cheap to get right.
+ *
+ * List-item ancestors never contribute a SEGMENT, for exactly the reason they
+ * never own a guide (`computeLineGuides`): their columns are Obsidian's own
+ * native list metrics, not our `depth × unit` ones, so an accent placed at our
+ * column for a list level would land beside the list rather than on it. Under
+ * `guides: 'full'` that costs nothing — a list ancestor owns no guide to
+ * accent. Under `guides: 'lineage'` a segment spans from one non-list ancestor
+ * to the next, passing THROUGH any list levels between them at the shallower
+ * column.
+ *
+ * Their MARKERS are a different matter, and are accented like any other
+ * ancestor's: a bullet is a real element at the real native column, so
+ * accenting it needs none of the geometry we cannot address. That is what lets
+ * `markers: 'lineage'` say something useful inside a deep list — the levels
+ * show up as a run of accented bullets even though no line can be drawn between
+ * them. Drawing those lines is still a deliberate gap, recorded in
+ * docs/research/14.
+ */
+export function computePositionTrail(
+  doc: OutlineDoc,
+  cursorLine: number,
+  highlight: PositionHighlight,
+): PositionTrail {
+  const chain = chainAtLine(doc, cursorLine);
+  if (!chain || chain.length === 0) return EMPTY_TRAIL;
+
+  const currentNode = chain[chain.length - 1]!;
+  const ancestors = chain.slice(0, -1);
+  const byLine = new Map<number, PositionTrailFact>();
+
+  if (highlight.guides === 'full') {
+    // A strict ancestor's guide is active on every line after that ancestor's
+    // own lines through the end of its subtree — the exact span
+    // `computeLineGuides` gives that depth, including the gap lines it
+    // deliberately covers for continuity.
+    for (const a of ancestors) {
+      if (a.isListItem) continue;
+      for (let line = a.ownEnd + 1; line <= a.subtreeEnd; line++) {
+        push(byLine, line, { depth: a.depth, extent: 'full' });
+      }
+    }
+  } else if (highlight.guides === 'lineage') {
+    // Only non-list ancestors own a column to draw a segment on; the current
+    // node is always the terminal, whatever its kind.
+    const rungs = [...ancestors.filter((a) => !a.isListItem), currentNode];
+    for (let i = 0; i < rungs.length - 1; i++) {
+      const from = rungs[i]!; // never a list item: only the terminal can be one
+      const to = rungs[i + 1]!;
+      // Starts at `ownEnd + 1`, the SAME row `'full'` starts on: a node's guide
+      // does not exist on its own rows at all (`computeLineGuides`), so
+      // accenting one there draws a line the base rendering has nothing
+      // underneath — and lands it right on top of that node's own marker, which
+      // is centered on this very column. An earlier version started half a row
+      // earlier to make the segment "leave" the marker; what it actually did was
+      // strike through the icon. So the two guide styles differ ONLY in where
+      // the accent ENDS.
+      for (let line = from.ownEnd + 1; line < to.firstLine; line++) {
+        push(byLine, line, { depth: from.depth, extent: 'full' });
+      }
+      push(byLine, to.firstLine, { depth: from.depth, extent: 'top' });
+    }
+  }
+
+  return {
+    currentLine: currentNode.firstLine,
+    currentIsListItem: currentNode.isListItem,
+    // Only `'lineage'` reaches past the current node; `'current'` and `'off'`
+    // are both fully described by `currentLine` plus the consumer's own gate.
+    ancestorLines:
+      highlight.markers === 'lineage'
+        ? new Map(ancestors.map((a) => [a.firstLine, a.isListItem]))
+        : new Map<number, boolean>(),
+    byLine,
+  };
+}

@@ -17,7 +17,13 @@ import { indent, moveDown, moveUp, outdent } from '../ops';
 import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits } from '../result';
-import { OutlineModeRegistry, DEFAULT_DATA, type PluginData } from './mode-registry';
+import {
+  OutlineModeRegistry,
+  DEFAULT_DATA,
+  type GuideHighlight,
+  type MarkerHighlight,
+  type PluginData,
+} from './mode-registry';
 import { nodeAtLine } from './locate';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
@@ -35,6 +41,18 @@ const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
   all: 'All eligible kinds (status quo)',
   'with-children': 'Only nodes that have children',
   'headings-and-paragraphs': 'Only headings and paragraphs',
+};
+
+const GUIDE_HIGHLIGHT_LABELS: Record<GuideHighlight, string> = {
+  off: 'No highlight',
+  full: 'Whole guide of every ancestor',
+  lineage: 'Only the part leading down to the cursor',
+};
+
+const MARKER_HIGHLIGHT_LABELS: Record<MarkerHighlight, string> = {
+  off: 'No highlight',
+  current: 'The current node only',
+  lineage: 'The current node and all its ancestors',
 };
 
 /**
@@ -223,6 +241,26 @@ export default class TrueOutlinerPlugin extends Plugin {
 
   async setMarkerVisibility(value: MarkerVisibility): Promise<void> {
     this.data.markerVisibility = value;
+    await this.saveData(this.data);
+    await this.forceRedraw();
+  }
+
+  get guideHighlight(): GuideHighlight {
+    return this.data.guideHighlight;
+  }
+
+  async setGuideHighlight(value: GuideHighlight): Promise<void> {
+    this.data.guideHighlight = value;
+    await this.saveData(this.data);
+    await this.forceRedraw();
+  }
+
+  get markerHighlight(): MarkerHighlight {
+    return this.data.markerHighlight;
+  }
+
+  async setMarkerHighlight(value: MarkerHighlight): Promise<void> {
+    this.data.markerHighlight = value;
     await this.saveData(this.data);
     await this.forceRedraw();
   }
@@ -506,6 +544,16 @@ const SETTING_MARKER_VISIBILITY = {
   desc: 'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
 } as const;
 
+const SETTING_GUIDE_HIGHLIGHT = {
+  name: 'Highlight guides at the cursor’s position',
+  desc: 'Which indentation guides to accent for the node the cursor is in. “Whole guide” accents each ancestor’s guide along its full length — everything the cursor is inside of. “Only the part leading down to the cursor” accents just the stretch of each guide between that ancestor and the next level, so the accent traces the route to the cursor instead.',
+} as const;
+
+const SETTING_MARKER_HIGHLIGHT = {
+  name: 'Highlight markers at the cursor’s position',
+  desc: 'Which block markers — or a list item’s native bullet or number — to accent. “The current node only” marks where the cursor is; adding the ancestors makes each level of the lineage visible, which is the only indication available inside a plain list, where there are no guides to accent.',
+} as const;
+
 class TrueOutlinerSettingTab extends PluginSettingTab {
   constructor(
     app: App,
@@ -537,6 +585,24 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           defaultValue: 'all',
         },
       },
+      {
+        ...SETTING_GUIDE_HIGHLIGHT,
+        control: {
+          type: 'dropdown',
+          key: 'guideHighlight',
+          options: GUIDE_HIGHLIGHT_LABELS,
+          defaultValue: 'full',
+        },
+      },
+      {
+        ...SETTING_MARKER_HIGHLIGHT,
+        control: {
+          type: 'dropdown',
+          key: 'markerHighlight',
+          options: MARKER_HIGHLIGHT_LABELS,
+          defaultValue: 'current',
+        },
+      },
     ];
   }
 
@@ -550,6 +616,10 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         return this.plugin.debugCrossCheck;
       case 'markerVisibility':
         return this.plugin.markerVisibility;
+      case 'guideHighlight':
+        return this.plugin.guideHighlight;
+      case 'markerHighlight':
+        return this.plugin.markerHighlight;
       default:
         return undefined;
     }
@@ -562,6 +632,12 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         break;
       case 'markerVisibility':
         await this.plugin.setMarkerVisibility(value as MarkerVisibility);
+        break;
+      case 'guideHighlight':
+        await this.plugin.setGuideHighlight(value as GuideHighlight);
+        break;
+      case 'markerHighlight':
+        await this.plugin.setMarkerHighlight(value as MarkerHighlight);
         break;
     }
   }
@@ -585,6 +661,24 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           .addOptions(MARKER_VISIBILITY_LABELS)
           .setValue(this.plugin.markerVisibility)
           .onChange((value) => void this.plugin.setMarkerVisibility(value as MarkerVisibility)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_GUIDE_HIGHLIGHT.name)
+      .setDesc(SETTING_GUIDE_HIGHLIGHT.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(GUIDE_HIGHLIGHT_LABELS)
+          .setValue(this.plugin.guideHighlight)
+          .onChange((value) => void this.plugin.setGuideHighlight(value as GuideHighlight)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_MARKER_HIGHLIGHT.name)
+      .setDesc(SETTING_MARKER_HIGHLIGHT.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(MARKER_HIGHLIGHT_LABELS)
+          .setValue(this.plugin.markerHighlight)
+          .onChange((value) => void this.plugin.setMarkerHighlight(value as MarkerHighlight)),
       );
   }
 }

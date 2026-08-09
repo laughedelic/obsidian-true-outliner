@@ -79,9 +79,15 @@ import { parse } from '../parse';
 import { coveredForestOf, coveredSubtreeRoots, type LinePos, type LineRange } from '../escalate';
 import {
   computeLineGuides,
+  computePositionTrail,
   decorate,
+  type GuideHighlight,
+  type MarkerHighlight,
   type LineDecorationFact,
   type LineGuideFact,
+  type PositionTrail,
+  type PositionTrailFact,
+  type TrailExtent,
 } from './decorate';
 import type { ModeSource } from './keymap';
 import { parsedDoc } from './parsed-doc';
@@ -169,13 +175,215 @@ const UNIT = 'var(--to-decor-unit, 1.5rem)';
 
 function guideLayer(depth: number): string {
   return (
-    `repeating-linear-gradient(to right, var(--text-faint) 0 1px, transparent 1px ${UNIT}) ` +
+    `repeating-linear-gradient(to right, var(--to-guide-color) 0 1px, transparent 1px ${UNIT}) ` +
     `calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat`
   );
 }
 
-function guideBackground(guideDepths: readonly number[]): string {
-  return guideDepths.map(guideLayer).join(', ');
+// ---- Position indicators (hierarchy-position-indicators) -------------------
+//
+// The caret-derived accents ride in the SAME comma-separated background list
+// as the guides above, on the same `::after`, rather than in a layer of their
+// own. Not a shortcut — it's the only place left: `::before` is spoken for
+// twice over (Obsidian's native blockquote bar owns it natively, escalated-
+// selection chrome owns ours), and appending a real DOM child to a plain
+// `.cm-line` is the thing that pegged the renderer at 100% CPU (see the module
+// doc comment). Sharing the list costs zero extra DOM nodes and lets an
+// accented level REPLACE its plain layer instead of stacking on top of it.
+//
+// Both variables resolve from the theme (styles.css declares the defaults), so
+// a snippet can retune color and weight without a plugin setting.
+const ACCENT = 'var(--to-decor-accent)';
+const TRAIL_WIDTH = 'var(--to-trail-width)';
+
+/**
+ * One accented vertical segment at `depth`. `'full'` covers the row; `'top'`
+ * arrives from the row's top and stops at the MARKER on that row, so the path
+ * visibly meets the thing it is pointing at.
+ *
+ * Where that marker is cannot be written as a CSS length. Measured
+ * (docs/research/14, finding 5): a marker's top edge sits at its line's
+ * CONTENT-box top, so its center is `padding-top + iconSize / 2` down from the
+ * row — and `padding-top` is Obsidian's, varying by kind (0 on a paragraph,
+ * 16px on a heading) with no way to read it into a `calc`. A fixed 50% of the
+ * row is a different anchor entirely: it overshoots the paragraph marker by
+ * ~5px and undershoots the heading one.
+ *
+ * So `MarginCompensation` measures the icon's own center per row and publishes
+ * `--to-accent-stop` — the same "read the native value live, never assume it"
+ * rule `nativeMarginBasePx` and the table widget's padding already follow. The
+ * `50%` fallback only applies on a row with no icon to measure (a list item, or
+ * one whose marker `markerVisibility` hides).
+ *
+ * A previous attempt spent this on CSS instead: draw from the `content-box`
+ * origin, with the `::after` inheriting the line's `padding-top` to establish
+ * it. That put the segment's END in the right place and its START in the wrong
+ * one — the layer began at the content box, so the row's whole padding region
+ * went unaccented and the path visibly broke into two pieces with a gap the
+ * size of that padding. Which is why the gap "varied": it WAS the padding.
+ */
+function accentLayer(depth: number, extent: TrailExtent): string {
+  const gradient = `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH})`;
+  const height = extent === 'full' ? '100%' : 'var(--to-accent-stop, 50%)';
+  return `${gradient} calc(${depth} * ${UNIT}) top / ${UNIT} ${height} no-repeat`;
+}
+
+/**
+ * The full background list for one line: the caret-derived accents first
+ * (topmost), then the plain guides underneath.
+ *
+ * A plain guide is dropped only where a `'full'` accent covers the same
+ * column — a half-height accent deliberately leaves its plain layer in place,
+ * so the base guide stays continuous through the row and the accent merely
+ * brightens half of it. Dropping it there would punch a visible gap into a
+ * guide the trail is only supposed to be highlighting.
+ *
+ * Nothing horizontal is ever drawn here. An earlier version linked each level
+ * change with an elbow (the Logseq bullet-threading shape); since a marker is
+ * centered ON its own guide column, that elbow ran straight through the
+ * marker's icon on arrival. The accented ancestor marker is the junction
+ * instead — see `MarkerHighlight` in decorate.ts.
+ */
+function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFact): string {
+  if (!trail) return guideDepths.map(guideLayer).join(', ');
+  const accents = new Map(trail.accents.map((a) => [a.depth, a.extent]));
+  const layers: string[] = [];
+  for (const [depth, extent] of accents) layers.push(accentLayer(depth, extent));
+  for (const depth of guideDepths) {
+    if (accents.get(depth) !== 'full') layers.push(guideLayer(depth));
+  }
+  return layers.join(', ');
+}
+
+/** Whether a line renders the `::after` overlay at all. */
+function hasOverlay(guide: LineGuideFact, trail?: PositionTrailFact): boolean {
+  return guide.guideDepths.length > 0 || trail !== undefined;
+}
+
+/**
+ * The caret-derived trail for the current state, or an empty one.
+ *
+ * Suppressed entirely while every non-empty range is an escalated cover:
+ * block-selection chrome already answers "where am I", and stacking an accent
+ * trail on top of a filled rectangle just makes both harder to read.
+ */
+function computeTrail(state: EditorState, modes: DecorationSource): PositionTrail {
+  if (modes.markerHighlight === 'off' && modes.guideHighlight === 'off') {
+    return EMPTY_POSITION_TRAIL;
+  }
+  if (allRangesCovered(state)) return EMPTY_POSITION_TRAIL;
+  const { doc } = parsedDoc(state.doc);
+  // The HEAD of the PRIMARY range: head so the trail follows where the user is
+  // steering, primary so multiple cursors draw one trail rather than N
+  // competing ones.
+  const head = state.selection.main.head;
+  const cursorLine = state.doc.lineAt(head).number - 1;
+  return computePositionTrail(doc, cursorLine, {
+    guides: modes.guideHighlight,
+    markers: modes.markerHighlight,
+  });
+}
+
+/**
+ * Two consumers need this on the same render — `computeDecorations` for the
+ * declarative line decorations, `MarginCompensation` for the widget DOM patch —
+ * and both read the same `view.state`, so the walk ran twice per caret move.
+ * Measured on this tree: 2.5µs at 110 lines, 16µs at 1.1k, 66µs at 5.2k. Small
+ * against a frame, but it is the same "same asymptotics, doubled constant"
+ * `docFacts` was consolidated for, and it costs one WeakMap to stop paying.
+ *
+ * Keyed on the `EditorState` ITSELF, not on a decomposition of it. A CM6 state
+ * is immutable, so one identity fixes the document AND the selection together —
+ * there is no compound key to get wrong, and a future dependency on some other
+ * part of the state (a second selection range, a facet) stays keyed for free
+ * rather than silently going stale. Keying on `(doc, main.head, …, whether the
+ * selection is covered)` would also have to recompute `allRangesCovered` just
+ * to build the key, giving back part of the saving.
+ *
+ * The settings are checked separately because they live outside the state, and
+ * that check is DEFENSIVE rather than load-bearing today: `forceRedraw`
+ * (main.ts) applies a settings change by dispatching a cursor transaction, so
+ * the next render always arrives on a new state and misses this cache anyway.
+ * Deliberately kept, and deliberately noted as untested — deleting it fails
+ * nothing in the suite, precisely because `forceRedraw` makes the case
+ * unreachable. It stops being unreachable the moment `forceRedraw` is replaced
+ * by a real refresh API, which docs/research/12 explicitly contemplates; the
+ * three lines are the difference between that swap being safe and it silently
+ * serving a stale trail.
+ *
+ * A WeakMap rather than a single slot, mirroring `docFactsCache`: entries die
+ * with the state they describe, and two editors alternating do not evict each
+ * other's.
+ */
+interface TrailCacheEntry {
+  readonly guides: GuideHighlight;
+  readonly markers: MarkerHighlight;
+  readonly trail: PositionTrail;
+}
+
+const trailCache = new WeakMap<EditorState, TrailCacheEntry>();
+
+function positionTrail(state: EditorState, modes: DecorationSource): PositionTrail {
+  const cached = trailCache.get(state);
+  if (
+    cached &&
+    cached.guides === modes.guideHighlight &&
+    cached.markers === modes.markerHighlight
+  ) {
+    return cached.trail;
+  }
+  const trail = computeTrail(state, modes);
+  trailCache.set(state, {
+    guides: modes.guideHighlight,
+    markers: modes.markerHighlight,
+    trail,
+  });
+  return trail;
+}
+
+/**
+ * The classes that accent a marker. Two per role, not one, because the two
+ * markers are entirely different DOM: our own icon element (whose `color` the
+ * SVG's `currentColor` follows) versus Obsidian's native list bullet (a
+ * `.list-bullet` span we only ever restyle, never replace — the same "target
+ * the existing native element" discipline `obsidian-outliner` uses). Naming
+ * which one a line carries keeps the CSS explicit about which mechanism it is
+ * reaching for.
+ *
+ * Current and ancestor are also kept apart, even though styles.css gives them
+ * the same accent today: the DOM then says which role a marker is playing, so
+ * a snippet can tell them apart and an assertion can name one without
+ * accidentally matching the other.
+ *
+ * The "first line only" half of the contract needs no guard here: both
+ * `currentLine` and every `ancestorLines` key ARE nodes' own first lines
+ * (`computePositionTrail`), so a continuation or gap line can never match. A
+ * redundant `isFirstLine` check was tried and removed — a mutation that deleted
+ * it changed no test's outcome, which is the definition of logic that isn't
+ * doing anything.
+ */
+const CURRENT_MARKER_CLASS = 'to-decor-current';
+const CURRENT_NATIVE_MARKER_CLASS = 'to-decor-current-native';
+const ANCESTOR_MARKER_CLASS = 'to-decor-ancestor';
+const ANCESTOR_NATIVE_MARKER_CLASS = 'to-decor-ancestor-native';
+
+/**
+ * Both roles now answer to one setting, so only the current node needs a gate
+ * here: `ancestorLines` is populated by `computePositionTrail` only under
+ * `markers: 'lineage'`, which already encodes "and the ancestors too". A node
+ * is never both roles, so the two can never collide on one line.
+ */
+function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: boolean): string {
+  if (markerAccent && trail.currentLine === lineNumber) {
+    return trail.currentIsListItem
+      ? ` ${CURRENT_NATIVE_MARKER_CLASS}`
+      : ` ${CURRENT_MARKER_CLASS}`;
+  }
+  const ancestorIsListItem = trail.ancestorLines.get(lineNumber);
+  if (ancestorIsListItem === undefined) return '';
+  return ancestorIsListItem
+    ? ` ${ANCESTOR_NATIVE_MARKER_CLASS}`
+    : ` ${ANCESTOR_MARKER_CLASS}`;
 }
 
 // ---- Block markers (Experiment 5a: icon markers) ---------------------------
@@ -204,7 +412,19 @@ import type { MarkerVisibility } from './mode-registry';
  * outline mode already does (see main.ts's refreshDecorations). */
 export interface DecorationSource extends ModeSource {
   readonly markerVisibility: MarkerVisibility;
+  /** Which markers to accent (hierarchy-position-indicators). Read fresh per
+   * recompute, same as the settings above. */
+  readonly markerHighlight: MarkerHighlight;
+  /** How much of the ancestor guides to accent, if any. */
+  readonly guideHighlight: GuideHighlight;
 }
+
+const EMPTY_POSITION_TRAIL: PositionTrail = {
+  currentLine: null,
+  currentIsListItem: false,
+  ancestorLines: new Map(),
+  byLine: new Map(),
+};
 
 /**
  * Whether a given node's marker should render at all (Experiment 5a
@@ -540,7 +760,12 @@ function plainOwnShiftExpr(fact: LineDecorationFact): string {
   return '0px'; // padding-left never shifts a block line's own box
 }
 
-function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decoration {
+function lineDecoration(
+  fact: LineDecorationFact,
+  guide: LineGuideFact,
+  trail: PositionTrail,
+  markerAccent: boolean,
+): Decoration {
   const styles: string[] = [];
   let cls: string;
 
@@ -557,9 +782,12 @@ function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decorat
     styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
   }
 
-  if (guide.guideDepths.length > 0) {
+  cls += markerClasses(trail, fact.lineNumber, markerAccent);
+
+  const lineTrail = trail.byLine.get(fact.lineNumber);
+  if (hasOverlay(guide, lineTrail)) {
     cls += ' to-decor-guides';
-    styles.push(`--to-guides: ${guideBackground(guide.guideDepths)}`);
+    styles.push(`--to-guides: ${guideBackground(guide.guideDepths, lineTrail)}`);
     styles.push(`--to-own-shift: ${plainOwnShiftExpr(fact)}`);
   }
 
@@ -569,11 +797,13 @@ function lineDecoration(fact: LineDecorationFact, guide: LineGuideFact): Decorat
 // A blank trailingGap line carrying a guide (see computeLineGuides's doc
 // comment) has no decorate() fact at all — no depth, no kind, nothing to
 // indent — so it gets a minimal decoration with just the guide class/style,
-// not the full lineDecoration() treatment.
-function gapLineDecoration(guide: LineGuideFact): Decoration {
+// not the full lineDecoration() treatment. A trail accent can land on such a
+// line too (a path segment passing through the gap between two blocks), so the
+// background is built from both sources here as well.
+function gapLineDecoration(guide: LineGuideFact, lineTrail?: PositionTrailFact): Decoration {
   return Decoration.line({
     class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guideBackground(guide.guideDepths)}` },
+    attributes: { style: `--to-guides: ${guideBackground(guide.guideDepths, lineTrail)}` },
   });
 }
 
@@ -588,19 +818,21 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // number instead of assuming index alignment, since gap lines have no
   // corresponding entry there at all.
   const { factsByLine, guides } = docFacts(state);
+  const trail = positionTrail(state, modes);
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
   for (const guide of guides) {
     if (guide.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const from = state.doc.line(guide.lineNumber + 1).from; // CM6 lines are 1-indexed
+    const lineTrail = trail.byLine.get(guide.lineNumber);
     if (guide.isGapLine) {
-      if (guide.guideDepths.length === 0) continue; // nothing to draw
-      builder.add(from, from, gapLineDecoration(guide));
+      if (!hasOverlay(guide, lineTrail)) continue; // nothing to draw
+      builder.add(from, from, gapLineDecoration(guide, lineTrail));
       continue;
     }
     const fact = factsByLine.get(guide.lineNumber);
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
-    builder.add(from, from, lineDecoration(fact, guide));
+    builder.add(from, from, lineDecoration(fact, guide, trail, modes.markerHighlight !== 'off'));
   }
   return builder.finish();
 }
@@ -1004,6 +1236,8 @@ const WIDGET_PATCHED_CLASS = 'to-decor-widget-line';
 function clearWidgetPatch(el: HTMLElement): void {
   el.style.removeProperty('margin-left');
   el.classList.remove('to-decor-guides');
+  el.classList.remove(CURRENT_MARKER_CLASS);
+  el.classList.remove(ANCESTOR_MARKER_CLASS);
   el.classList.remove(SELECTED_NODE_CLASS);
   el.classList.remove(WIDGET_PATCHED_CLASS);
   el.style.removeProperty('--to-guides');
@@ -1489,6 +1723,60 @@ class MarginCompensation implements PluginValue {
    */
   private lastDeadRight = '';
 
+  /**
+   * Lines currently carrying a measured `--to-accent-stop`, kept so the next
+   * render can clear exactly those instead of rescanning every line. Elements
+   * CM6 has since detached are harmless to call `removeProperty` on.
+   */
+  private accentStopLines: HTMLElement[] = [];
+
+  /**
+   * Publishes, per row where the `path` style's segment arrives, how far down
+   * that row the row's own marker sits — the one number `accentLayer` cannot
+   * express in CSS, because it is `Obsidian's padding-top + half our icon` and
+   * that padding varies by kind with no way to read it into a `calc`.
+   *
+   * Measured from the icon itself rather than reconstructed from the padding:
+   * it is the thing the segment has to meet, so measuring it directly cannot
+   * drift from it. Rows with no icon to measure (a list item, or a marker
+   * `markerVisibility` hides) get nothing and fall back to the CSS `50%`.
+   *
+   * Measures the SVG, NOT its wrapper span — they are not in the same place.
+   * The wrapper is an `inline-block` sized to the icon; the SVG inside it is an
+   * inline box that gets baseline-aligned WITHIN that wrapper, so it renders
+   * offset downward and overflowing (measured: wrapper top 0 / glyph top 4.4 on
+   * a paragraph row, 16 / 24.9 on an H2 — see docs/research/14, finding 6). The
+   * wrapper's box is therefore not where the user sees the marker, and aiming
+   * at it lands the segment near the glyph's TOP edge rather than its middle.
+   */
+  private measureAccentStops(trail: PositionTrail): void {
+    for (const el of this.accentStopLines) el.style.removeProperty('--to-accent-stop');
+    this.accentStopLines = [];
+
+    const doc = this.view.state.doc;
+    for (const [lineNumber, fact] of trail.byLine) {
+      if (!fact.accents.some((a) => a.extent === 'top')) continue;
+      if (lineNumber >= doc.lines) continue; // stale fact past a shrunk doc
+      const from = doc.line(lineNumber + 1).from;
+      // Only rendered lines can be measured; CM6 keeps just the viewport (plus
+      // a margin) in the DOM.
+      if (!this.view.visibleRanges.some((r) => from >= r.from && from <= r.to)) continue;
+      const node = this.view.domAtPos(from).node;
+      const host = node.nodeType === 1 ? (node as HTMLElement) : node.parentElement;
+      const line = host?.closest<HTMLElement>('.cm-line');
+      const icon = line?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+      // The painted glyph, falling back to its wrapper only if the SVG is
+      // somehow absent — never the other way round.
+      const glyph = icon?.querySelector('svg') ?? icon;
+      if (!line || !glyph) continue;
+      const glyphRect = glyph.getBoundingClientRect();
+      if (glyphRect.height === 0) continue; // not laid out yet
+      const stop = glyphRect.top + glyphRect.height / 2 - line.getBoundingClientRect().top;
+      line.style.setProperty('--to-accent-stop', `${stop}px`);
+      this.accentStopLines.push(line);
+    }
+  }
+
   private measureChevron(): void {
     const wrapper = this.view.contentDOM.querySelector<HTMLElement>(
       '.cm-fold-indicator .collapse-indicator',
@@ -1557,6 +1845,11 @@ class MarginCompensation implements PluginValue {
     const { factsByLine, guidesByLine } = docFacts(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
     const selectedLineTargets = selectedLineRootTargets(this.view.state);
+    // Position indicators reach widget atoms the same way everything else
+    // does — through this imperative patch, since a CM6 decoration has no
+    // effect on them at all (module doc comment).
+    const trail = positionTrail(this.view.state, this.modes);
+    this.measureAccentStops(trail);
     // The right edge every plain `.cm-line` naturally reaches — read live
     // (not assumed to be `right: 0` relative to a widget's OWN box), since
     // a widget atom's own box can be WIDER than that on the right (a table
@@ -1715,10 +2008,36 @@ class MarginCompensation implements PluginValue {
           clearWidgetMarker(el);
         }
 
+        // Toggled (not just added) so an accent clears the moment the caret
+        // leaves, on the very next render.
+        //
+        // BOTH roles apply here, not just the current node. That was not true
+        // while this loop gated on `fact.isAtom`: an atom is a leaf by
+        // construction, so a widget could never be an ancestor. Deciding by
+        // rendered form instead (decorate-widget-rendered-lines) admits
+        // widget-rendered PARAGRAPHS — a whole-line embed is one — and the
+        // attachment rule (`listAttachesTo`) makes a following list that
+        // paragraph's children. So a widget line genuinely can be an ancestor,
+        // and skipping that here left `markerHighlight: 'lineage'` silently
+        // unable to accent an embed it had descended from.
+        //
+        // Only the synthetic-marker classes are reachable: `isMarkerEligible`
+        // excludes list items, so the native-bullet variants never apply.
+        const markerAccent = this.modes.markerHighlight !== 'off';
+        el.classList.toggle(
+          CURRENT_MARKER_CLASS,
+          markerAccent && trail.currentLine === lineNumber,
+        );
+        el.classList.toggle(
+          ANCESTOR_MARKER_CLASS,
+          markerAccent && trail.ancestorLines.has(lineNumber),
+        );
+
         const guide = guidesByLine.get(lineNumber);
-        if (guide && guide.guideDepths.length > 0) {
+        const lineTrail = trail.byLine.get(lineNumber);
+        if (guide && hasOverlay(guide, lineTrail)) {
           el.classList.add('to-decor-guides');
-          el.style.setProperty('--to-guides', guideBackground(guide.guideDepths));
+          el.style.setProperty('--to-guides', guideBackground(guide.guideDepths, lineTrail));
           el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
         } else {
           el.classList.remove('to-decor-guides');
@@ -1885,6 +2204,8 @@ class MarginCompensation implements PluginValue {
       this.view.contentDOM.querySelectorAll<HTMLElement>(PLAIN_MARGIN_SELECTOR),
     );
     for (const el of plainLines) el.style.removeProperty('margin-left');
+    for (const el of this.accentStopLines) el.style.removeProperty('--to-accent-stop');
+    this.accentStopLines = [];
   }
 }
 
