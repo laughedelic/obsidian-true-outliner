@@ -483,6 +483,26 @@ describe('keyboard grammar', function () {
     });
   });
 
+
+  it('leaving a list UNDER A PARAGRAPH leaves no blank line behind', async function () {
+    // Reported: the fix worked for a top-level list and for one under a
+    // heading, but not under a paragraph. The last press is a different
+    // operation there — the item outdents to become a sibling of the paragraph,
+    // where the reparent rule makes it a paragraph, and an empty paragraph has
+    // no encoding, so it dissolves into a blank line under `outdent` rather
+    // than `unwrap`. Recording now keys on where the caret landed, not on which
+    // event ran.
+    const src = 'para\n- a\n- b\n- c\n\nnext\n';
+    await grammarNote(src, 2, 5);
+    await h.keys.enter(); // empty item after "- b"
+    await h.keys.enter(); // dissolves out of the paragraph into a blank line
+    await h.keys.enter(); // move on
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: `left behind: ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
   it('leaving a list by Enter leaves no blank line behind', async function () {
     // Reported: Enter to an empty item, Enter to leave the list, Enter again to
     // move on — and a single blank line stayed, splitting the list.

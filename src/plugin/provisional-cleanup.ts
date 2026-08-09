@@ -93,15 +93,35 @@ const created = new WeakMap<EditorView, CreatedPlace>();
  * The blank line the unwrap leaves is the result of a deliberate act, not
  * debris from an unused keypress.
  */
-const CREATING_EVENTS: readonly string[] = [
+/**
+ * A dispatch of ours that leaves the caret on a GAP line necessarily created
+ * that position — a gap line is a place, not a node, so there was nothing there
+ * to move the caret onto. Any structural event qualifies, and the list is
+ * deliberately broad for a measured reason: which event dissolves a node into a
+ * blank line depends on the node's PARENT, not on the gesture. Enter on an empty
+ * item at the top of a list unwraps it, but the same item under a PARAGRAPH
+ * outdents instead — the reparent rule makes it a paragraph, an empty paragraph
+ * has no encoding, and it dissolves into a blank line under a different event.
+ * Keying on the event name left that case unrecorded, so the blank line stayed
+ * behind; keying on where the caret landed covers every parent.
+ */
+const GAP_PLACE_EVENTS: readonly string[] = [
   'input.structure.split',
   'input.structure.sibling-heading',
   'input.structure.continue',
-  // The unwrap is back, now that abandoning is a targeted reverse rather than
-  // an undo. Undoing it restored the `- ` the user left the list to escape;
-  // removing its blank LINE is what "abandon this place" means there, and that
-  // is a different edit from inverting its own change (see `reverseFor`).
   'input.structure.unwrap',
+  'input.structure.outdent',
+];
+
+/**
+ * An EMPTY NODE is different: it can pre-exist the keypress. Only the dispatches
+ * that MATERIALIZE one qualify, or an outdent that merely moved an already-empty
+ * item would be recorded and then removed out from under the user.
+ */
+const NODE_PLACE_EVENTS: readonly string[] = [
+  'input.structure.split',
+  'input.structure.sibling-heading',
+  'input.structure.continue',
 ];
 
 /** The userEvent the abandon edit carries: plugin-own, so the verdict layer
@@ -123,7 +143,7 @@ function headingTitleIsEmpty(lines: readonly string[]): boolean {
  * the user has not used", which is the only distinction the cleanup needs — and
  * the reason it never has to answer whether a marker is chrome or content.
  */
-function emptyPlaceLine(state: EditorState): number | null {
+function emptyPlaceAt(state: EditorState): { line: number; kind: 'gap' | 'node' } | null {
   const sel = state.selection.main;
   if (!sel.empty || state.selection.ranges.length !== 1) return null;
   const { doc: outlineDoc } = parsedDoc(state.doc);
@@ -131,10 +151,14 @@ function emptyPlaceLine(state: EditorState): number | null {
   const node = nodeAtLine(outlineDoc, line);
   if (!node) return null;
   const lineIndex = line - nodeStartLine(outlineDoc, node.id);
-  if (lineIndex >= node.lines.length) return line; // a gap line: provisional
-  if (node.kind === 'list-item' && itemContentIsEmpty(node)) return line;
-  if (node.kind === 'heading' && headingTitleIsEmpty(node.lines)) return line;
+  if (lineIndex >= node.lines.length) return { line, kind: 'gap' };
+  if (node.kind === 'list-item' && itemContentIsEmpty(node)) return { line, kind: 'node' };
+  if (node.kind === 'heading' && headingTitleIsEmpty(node.lines)) return { line, kind: 'node' };
   return null;
+}
+
+function emptyPlaceLine(state: EditorState): number | null {
+  return emptyPlaceAt(state)?.line ?? null;
 }
 
 /**
@@ -151,46 +175,38 @@ function emptyPlaceLine(state: EditorState): number | null {
  * line the user authored. Shift+Enter now carries `input.structure.continue`
  * instead, so recognition needs no guessing. Reported by review.
  */
-function isCreatingTransaction(userEvent: string | undefined): boolean {
-  return userEvent !== undefined && CREATING_EVENTS.includes(userEvent);
+function isCreatingTransaction(
+  userEvent: string | undefined,
+  kind: 'gap' | 'node',
+): boolean {
+  if (userEvent === undefined) return false;
+  return (kind === 'gap' ? GAP_PLACE_EVENTS : NODE_PLACE_EVENTS).includes(userEvent);
 }
 
 /**
  * The edit that removes the place `line` occupies, in the coordinates of the
- * document `tr` produced.
+ * document `tr` produced: delete the place's own line, plus however many lines
+ * the keypress ADDED beyond it.
  *
- * For a keypress that ADDED the place, that is the inverse of the one
- * sub-change covering it — which is not the same as inverting the whole
- * transaction whenever the keypress also did something else, such as removing
- * the block selection it was pressed over.
+ * One rule for every creator, replacing a set of per-event special cases that
+ * kept growing as new parents were tried:
  *
- * The UNWRAP is the exception, and needs its own answer rather than an
- * inversion: it converted an empty item into a blank line, so inverting it
- * restores the `- ` the user pressed Enter to escape. Abandoning it means
- * dropping the blank line altogether.
+ * - an end-of-node Enter widens a gap by two lines → both go;
+ * - a materialized `- ` or `## ` occupies one line → it goes;
+ * - an unwrap, and an outdent that DISSOLVES an empty item into a blank line,
+ *   add no lines at all → the one line they left goes.
+ *
+ * Always a deletion, never an inversion. Inverting the change would restore
+ * what the keypress removed — the `- ` the user pressed Enter to escape — which
+ * is the opposite of abandoning the place it left behind.
  */
-function reverseFor(
-  tr: Transaction,
-  userEvent: string | undefined,
-  line: number,
-): { from: number; to: number; insert: string } | undefined {
+function reverseFor(tr: Transaction, line: number): { from: number; to: number; insert: string } {
   const doc = tr.state.doc;
-  const placeLine = doc.line(line + 1);
-
-  if (userEvent === 'input.structure.unwrap') {
-    // Take the line's own break with it, so the neighbours close back up.
-    const to = Math.min(placeLine.to + 1, doc.length);
-    return { from: placeLine.from, to, insert: '' };
-  }
-
-  let found: { from: number; to: number; insert: string } | undefined;
-  tr.changes.iterChanges((fromA, toA, fromB, toB) => {
-    if (found) return;
-    if (fromB <= placeLine.from && placeLine.from <= toB) {
-      found = { from: fromB, to: toB, insert: tr.startState.doc.sliceString(fromA, toA) };
-    }
-  });
-  return found;
+  const added = doc.lines - tr.startState.doc.lines;
+  const count = Math.max(1, added);
+  const first = doc.line(line + 1);
+  const last = doc.line(Math.min(line + count, doc.lines));
+  return { from: first.from, to: Math.min(last.to + 1, doc.length), insert: '' };
 }
 
 /**
@@ -321,17 +337,14 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
 
       const last = update.transactions[update.transactions.length - 1];
       const event = last?.annotation(Transaction.userEvent) ?? undefined;
-      if (last && isCreatingTransaction(event)) {
-        const line = emptyPlaceLine(view.state);
-        const reverse = line === null ? undefined : reverseFor(last, event, line);
-        // No reverse means no exact way to remove the place, and a GUESSED
-        // removal is what this design exists to avoid — so record nothing.
-        if (line !== null && reverse) {
+      if (last) {
+        const place = emptyPlaceAt(view.state);
+        if (place && isCreatingTransaction(event, place.kind)) {
           created.set(view, {
             depth: undoDepth(view.state),
-            line,
+            line: place.line,
             startHead: last.startState.selection.main.head,
-            reverse,
+            reverse: reverseFor(last, place.line),
           });
         }
       }
