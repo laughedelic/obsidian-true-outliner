@@ -79,13 +79,21 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
     // range, and the enforcement funnel still sees whatever it produces.
     if (view.state.selection.ranges.length !== 1) return false;
 
+    // Only Enter and Shift+Enter act on a non-empty selection (design D7);
+    // every other key keeps planning from the selection HEAD exactly as before.
+    // That distinction is load-bearing: with a multi-node block cover the head
+    // is the cover's END, so planning Tab from `from` instead would silently
+    // change which node it indents, and would feed the mapped-cursor rule a
+    // different position than the one its gap-line fallback was written for.
+    //
     // `from`/`to` are already ordered by CM6, so a backward selection needs no
-    // normalization here. With an empty selection they are the same position
-    // and `planKey` takes its ordinary cursor path; with a non-empty one it
-    // removes the range first and acts at the cursor that lands (design D7).
+    // normalization. With an empty selection they equal the head, and `planKey`
+    // takes its ordinary cursor path either way.
     const sel = view.state.selection.main;
-    const fromLine = view.state.doc.lineAt(sel.from);
-    const toLine = view.state.doc.lineAt(sel.to);
+    const actsOnSelection = !sel.empty && (key === 'split' || key === 'continue');
+    const planFrom = actsOnSelection ? sel.from : sel.head;
+    const fromLine = view.state.doc.lineAt(planFrom);
+    const toLine = view.state.doc.lineAt(actsOnSelection ? sel.to : planFrom);
     // Public CM6 facet — Obsidian sets it from its own "Indent using tabs"
     // editor setting, so reading it here respects that preference without
     // touching any Obsidian-private API (confirmed live: toggling the
@@ -94,13 +102,13 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
       view.state.doc.toString(),
       {
         line: fromLine.number - 1,
-        ch: sel.from - fromLine.from,
+        ch: planFrom - fromLine.from,
       },
       key,
       view.state.facet(indentUnit),
       {
         line: toLine.number - 1,
-        ch: sel.to - toLine.from,
+        ch: (actsOnSelection ? sel.to : planFrom) - toLine.from,
       },
     );
 
