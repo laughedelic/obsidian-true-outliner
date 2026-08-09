@@ -106,7 +106,19 @@
  * Neither `!important` nor Obsidian's own ancestor-chain specificity
  * workaround is needed for `position`/`background` themselves (unlike
  * padding-left/margin-left above): those aren't contested by any of
- * Obsidian's own rules on `.cm-line`/`.cm-embed-block` — confirmed live.
+ * Obsidian's own rules on the elements this targets — confirmed live.
+ *
+ * Matched on OUR OWN class alone (`> .to-decor-guides`), with no Obsidian
+ * class qualifying it. An earlier version wrote out
+ * `> .cm-line.to-decor-guides, > .cm-embed-block.to-decor-guides`, which
+ * silently meant "plain lines and the atom kinds" — a wiki embed carries
+ * neither class, so its guide class was set by the ViewPlugin and then
+ * matched nothing at all (measured: the element had `to-decor-guides` and a
+ * resolved `::after` background of `none`). Since we only ever set this
+ * class on an element that renders a whole line, the direct-child
+ * combinator alone already says everything that needs saying, and it stays
+ * true for whatever Obsidian widget-renders next. Same reasoning applies to
+ * the `.to-decor-node-selected` rules below.
  *
  * Uses `::after`, not `::before`: Obsidian implements a blockquote's own
  * colored side-bar via a NATIVE `::before` (`border-left`, `position:
@@ -118,13 +130,11 @@
  * unused (`content: none`) by every kind this rule targets, including all
  * four widget kinds, before switching to it.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guides,
-.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-guides {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides {
   position: relative;
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guides::after,
-.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-guides::after {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides::after {
   content: '';
   position: absolute;
   top: 0;
@@ -413,14 +423,12 @@
  * above and below) — `width: auto` closes it explicitly rather than
  * relying on an absence of conflict.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-node-selected,
-.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-node-selected {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-node-selected {
   position: relative;
   z-index: 0;
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-node-selected::before,
-.markdown-source-view.mod-cm6 .cm-content > .cm-embed-block.to-decor-node-selected::before {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-node-selected::before {
   content: '';
   position: absolute;
   top: 0;

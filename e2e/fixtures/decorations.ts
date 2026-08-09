@@ -170,10 +170,87 @@ export const QUOTE_NOTE = 'Scratch/decorations-quote.md';
 // decoratable kinds, quote included.
 export const QUOTE_MD = ['# Section', '', '> A quoted line', '> continuation', ''].join('\n');
 
+export const EMBED_TARGET_NOTE = 'Scratch/decorations-embed-target.md';
+// The note every embed in EMBED_MD points at. Its own content is
+// deliberately boring — what matters is that it exists, so Obsidian
+// resolves the wikilink and actually renders an embed widget rather than
+// an unresolved-link span.
+export const EMBED_TARGET_MD = [
+  'Embedded target note.',
+  '',
+  'Second line of the embedded note.',
+  '',
+].join('\n');
+
+export const EMBED_NOTE = 'Scratch/decorations-embed.md';
+// A wiki embed is NOT a node kind — the parser has no embed concept, and
+// `![[…]]` is just paragraph (or list-item) text. It is a RENDERING
+// phenomenon: Obsidian renders the line as an opaque
+// `internal-embed markdown-embed` element in place of the usual
+// `.cm-line`. Two measured details, both the opposite of what this
+// change's first diagnosis assumed:
+//
+//   - the element carries NO `cm-embed-block` class, so the selector that
+//     covers the atom kinds never matched it;
+//   - the cursor does not swap it back to a plain `.cm-line`. With the
+//     cursor on the line Obsidian ADDS the raw source as its own
+//     `.cm-line` and KEEPS the rendered element, so one document line then
+//     has two elements.
+//
+// This fixture covers all four placements an embed can occupy, so the
+// decoration layer can be checked against each:
+//
+//   1. its own whole paragraph line (`![[…]]` alone) — the reported bug,
+//      a widget-replaced line whose node is a PARAGRAPH, not an atom;
+//   2. one line of a multi-line paragraph — a widget-replaced
+//      CONTINUATION line, which must take its node's indentation and no
+//      marker of its own;
+//   3. a list-item line (`- ![[…]]`) — must keep native list rendering and
+//      take `supplementalDepth`, with no synthetic marker;
+//   4. inline among other text — the host line stays a real `.cm-line`
+//      that is decorated declaratively, so any widget element nested
+//      inside it must be left alone rather than shifted a second time.
+//
+// The plain paragraph and plain list item are controls: same tree depth as
+// their embed neighbours, so a test can compare resolved geometry directly
+// instead of asserting a hardcoded pixel value.
+export const EMBED_MD = [
+  '# Section',
+  '',
+  'Plain sibling paragraph.',
+  '',
+  '![[decorations-embed-target]]',
+  '',
+  'Some paragraph text.',
+  '![[decorations-embed-target]]',
+  'More text after.',
+  '',
+  '- plain list item',
+  '- ![[decorations-embed-target]]',
+  '',
+  'An inline embed ![[decorations-embed-target]] among text.',
+  '',
+].join('\n');
+
 export interface DecorationFixture {
   readonly note: string;
   readonly md: string;
   readonly label: string;
+  /**
+   * Other notes that must exist before `note` renders correctly (an embed
+   * target, a link destination). Created first, in order; `note` is
+   * created — and opened — last, so the corpus loops still end up on the
+   * fixture's own note.
+   */
+  readonly deps?: readonly { readonly note: string; readonly md: string }[];
+  /**
+   * Extra settling time, in ms, this fixture's own ASYNCHRONOUS rendering
+   * needs before the DOM is stable enough to screenshot or assert against.
+   * Zero for anything Obsidian renders synchronously from the buffer; an
+   * embed has to resolve its link and render another note's markdown, and
+   * a shorter wait captures the pre-embed line instead.
+   */
+  readonly settleMs?: number;
 }
 
 export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
@@ -192,4 +269,20 @@ export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
     md: SPACE_INDENTED_PARAGRAPH_MD,
     label: 'space-indented-paragraph',
   },
+  {
+    note: EMBED_NOTE,
+    md: EMBED_MD,
+    label: 'embed',
+    deps: [{ note: EMBED_TARGET_NOTE, md: EMBED_TARGET_MD }],
+    settleMs: 600,
+  },
 ];
+
+/** Create a fixture's dependency notes (if any), then the fixture note itself. */
+export async function createFixture(
+  fixture: DecorationFixture,
+  createNote: (note: string, md: string) => Promise<void>,
+): Promise<void> {
+  for (const dep of fixture.deps ?? []) await createNote(dep.note, dep.md);
+  await createNote(fixture.note, fixture.md);
+}

@@ -609,6 +609,119 @@ interface Rect {
   height: number;
 }
 
+/**
+ * Everything a decoration assertion needs about whichever element actually
+ * renders a given DOCUMENT line — `.cm-line` or not.
+ *
+ * `getLineRect`/`getLineComputedStyle` index into `:scope > .cm-line`, which
+ * silently means "the Nth plain line", not "document line N". That is fine
+ * for a document Obsidian renders entirely as plain lines, but as soon as
+ * one line is replaced by a widget (a table, a callout, a wiki embed) every
+ * index past it is off by one, and the assertion reads a neighbouring line
+ * while looking perfectly healthy. This resolves by document position
+ * instead (`posAtDOM` over every direct child of `contentDOM`), so it is
+ * correct regardless of how Obsidian chose to render the line.
+ */
+export interface LineElementInfo {
+  /** className of the element rendering this line. */
+  cls: string;
+  isCmLine: boolean;
+  rect: Rect;
+  marginLeft: number;
+  paddingLeft: number;
+  /**
+   * The COLUMN this line's indentation places it at: border-box left plus
+   * the element's own native left padding. The single quantity a same-depth
+   * comparison should use — plain lines carry their indentation as
+   * `padding-left` (box stays put, content moves) while widgets carry it as
+   * `margin-left` (the whole box moves), so neither `rect.left` nor
+   * `padding-left` alone is comparable across the two; their sum is exactly
+   * what `widgetOwnShiftExpr` is defined to hold constant across kinds.
+   *
+   * NOT "where the text starts", and deliberately does NOT add
+   * `border-left-width`. Measured at depth 1, with a plain paragraph's text
+   * at x=334.9: paragraph rect+pad 334.9 (text 334.9), callout 334.9 (text
+   * 380.9), table 334.9 (text 343.9), embed 334.9 (text 336.9). Every kind
+   * agrees on rect+pad and disagrees on text origin by up to 46px, because
+   * each draws its own internal chrome (a callout's icon, a table's cell
+   * padding, an embed's 2px left border) inside that shared column. The
+   * border is the embed's own visible left edge, the counterpart of a
+   * callout's bar, and belongs ON the column rather than inset from it.
+   */
+  alignedLeft: number;
+  hasMarker: boolean;
+  /** Absolute left edge of the marker icon, or null when there is none. */
+  markerLeft: number | null;
+  hasGuides: boolean;
+  /** Resolved background of the guide layer ('' when no guide renders). */
+  guideBackground: string;
+  hasSelectedChrome: boolean;
+}
+
+export function getLineElementInfo(lineIndex: number): Promise<LineElementInfo> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const content: HTMLElement = cm.contentDOM;
+      const matches: HTMLElement[] = [];
+      for (const child of Array.from(content.children)) {
+        try {
+          if (cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1 === lineIndex) {
+            matches.push(child as HTMLElement);
+          }
+        } catch {
+          // Scaffolding (a viewport gap placeholder) has no document
+          // position of its own — never the element we're looking for.
+        }
+      }
+      if (matches.length === 0) throw new Error(`no element renders document line ${lineIndex}`);
+      // Fail loudly rather than silently picking whichever came first in DOM
+      // order. One document line really can be rendered by TWO direct
+      // children at once — with the cursor on it, Obsidian reveals the raw
+      // source as a `.cm-line` while KEEPING the rendered widget — and in
+      // that state "the element for line N" is an ambiguous question this
+      // helper has no business answering by accident. Every caller today
+      // parks the cursor elsewhere so exactly one element exists; a caller
+      // that genuinely wants the doubly-rendered state should ask for the
+      // rendering it means, not inherit a DOM-order coin flip.
+      if (matches.length > 1) {
+        throw new Error(
+          `document line ${lineIndex} is rendered by ${matches.length} elements ` +
+            `(${matches.map((m) => `"${m.className}"`).join(', ')}) — ` +
+            `move the cursor off the line, or assert against the specific rendering you mean`,
+        );
+      }
+      const found = matches[0]!;
+      const cs = getComputedStyle(found);
+      const r = found.getBoundingClientRect();
+      const marginLeft = parseFloat(cs.marginLeft) || 0;
+      const paddingLeft = parseFloat(cs.paddingLeft) || 0;
+      const marker = found.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+      // The guide renders as an ::after layer; read the resolved value so a
+      // pass proves something actually painted, not just that a custom
+      // property was set (the postmortem's false-confidence rule).
+      const guideBg = getComputedStyle(found, '::after').backgroundImage;
+      return {
+        cls: found.className,
+        isCmLine: found.classList.contains('cm-line'),
+        rect: { left: r.left, top: r.top, width: r.width, height: r.height },
+        marginLeft,
+        paddingLeft,
+        alignedLeft: r.left + paddingLeft,
+        hasMarker: !!marker,
+        markerLeft: marker ? marker.getBoundingClientRect().left : null,
+        hasGuides: found.classList.contains('to-decor-guides'),
+        guideBackground: guideBg && guideBg !== 'none' ? guideBg : '',
+        hasSelectedChrome: found.classList.contains('to-decor-node-selected'),
+      };
+    },
+    lineIndex,
+  );
+}
+
 /** getBoundingClientRect() of the Nth (0-indexed) `.cm-line` in the active editor. */
 export function getLineRect(lineIndex: number): Promise<Rect> {
   return browser.executeObsidian(
