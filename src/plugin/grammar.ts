@@ -591,11 +591,14 @@ export function planKey(
                 : '';
             })()
           : (/^[ \t]*/.exec(lineText)?.[0] ?? '');
-      // A DISTINCT event, not the generic `input` this used to carry. It is
-      // deliberately NOT in `classify.ts`'s plugin-own list, so the transaction
-      // still classifies by shape exactly as before — a single-line change
-      // inside one node's own line, which cannot cross a boundary. What the
-      // name buys is a marker `provisional-cleanup.ts` can key on: recognising
+      // A DISTINCT event, not the generic `input` this used to carry. It IS in
+      // `classify.ts`'s plugin-own list — it was excluded at first, on the
+      // grounds that a continuation is always a single-line change inside one
+      // node's own line and so cannot cross a boundary, which stopped being
+      // true when this key started acting on a selection first: over a block
+      // cover the composed change set deletes whole subtrees, classifies as
+      // boundary-crossing, and gets REWRITTEN. What the name buys beyond the
+      // short-circuit is a marker `provisional-cleanup.ts` can key on: recognising
       // this dispatch by its SHAPE (an `input` event inserting a line break)
       // also matched CodeMirror's own Enter, which runs in outline mode
       // whenever the grammar declines — on a gap line reached by a programmatic

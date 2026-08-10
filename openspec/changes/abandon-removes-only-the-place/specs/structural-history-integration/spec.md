@@ -12,9 +12,17 @@ Two gestures count as declining, and both resolve the same way:
 - DELETING it — Backspace or Delete with the caret on it. A provisional position is treated
   as the empty node it stands for, so a deletion gesture removes the WHOLE place rather than
   narrowing the gap around it. After Backspace the caret goes where the cancelled keypress
-  started, which is the content end of the node above; after Delete it goes to the content
-  start of the node below. Without this, Delete would shrink the separation that makes the
-  position typeable and leave a caret on a blank line that silently joins its neighbour.
+  STARTED; after Delete it goes to the content start of the node below. Without this, Delete
+  would shrink the separation that makes the position typeable and leave a caret on a blank
+  line that silently joins its neighbour.
+
+  Where the keypress started is a fact about the KEYPRESS, not about the resulting document,
+  and SHALL be treated as one. It is the content end of the node above the place for the
+  common shapes, and that coincidence SHALL NOT be relied on: a drafted sibling heading is
+  written after the original heading's whole section, so the node above the place is that
+  section's last node while the keypress started at the heading. Where the keypress had NO
+  caret to start from — it replaced a non-empty selection — there is nothing to return to,
+  and the caret SHALL go to the content end of the node above the place instead.
 
 A REMOVAL, not an undo of the keypress. Undoing was specified first and withdrawn: it
 reverts everything the keypress did, and a keypress can do more than open a place — Enter
@@ -140,6 +148,12 @@ as well as one that only deletes them.
 - **THEN** the document is byte-identical to what it was before the Enter and the caret is at
   the content end of the paragraph above — the gap is not narrowed by one line, and the two
   paragraphs around it are not merged
+
+#### Scenario: Backspace after drafting a sibling heading returns to the heading
+- **WHEN** Shift+Enter at the end of a heading that HAS a section drafts the next heading
+  after that section, and Backspace is pressed on the empty heading it made
+- **THEN** the caret is at the content end of the ORIGINAL heading, where the keypress
+  started — not at the end of the section's last node, which is the node above the place
 
 #### Scenario: Backspace cancels an empty node the same way
 - **WHEN** Enter at the end of a list item creates an empty `- ` and Backspace is pressed at

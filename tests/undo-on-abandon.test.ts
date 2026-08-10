@@ -540,3 +540,56 @@ describe('the removal is its own history entry', () => {
     expect(view.state.doc.toString()).toBe(src);
   });
 });
+
+/**
+ * Where Backspace returns to. The origin is RECORDED, not derived, because no
+ * rule over the resulting parse recovers it in general.
+ */
+describe('Backspace returns to where the keypress started', () => {
+  /** The pre-keypress caret, in the coordinates the record keeps it in. */
+  function originOf(src: string, cursor: [number, number], key: GrammarKey = 'split') {
+    const outcome = planKey(src, { line: cursor[0], ch: cursor[1] }, key);
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    const base = makeState(src);
+    const head = base.doc.line(cursor[0] + 1).from + cursor[1];
+    const withCaret = base.update({ selection: EditorSelection.cursor(head) }).state;
+    const tr = withCaret.update({
+      changes: outcome.plan.changes.map((c) => ({
+        from: withCaret.doc.line(c.from.line + 1).from + c.from.ch,
+        to: withCaret.doc.line(c.to.line + 1).from + c.to.ch,
+        insert: c.text,
+      })),
+      selection: EditorSelection.cursor(outcome.plan.selection),
+      userEvent: outcome.plan.userEvent,
+    });
+    // What the recorder stores, and what `cancel` then maps through the removal.
+    const startedAt = tr.changes.mapPos(head, -1);
+    const abandon = tr.state.changes(
+      outcome.plan.abandon!.map((c) => ({
+        from: tr.state.doc.line(c.from.line + 1).from + c.from.ch,
+        to: tr.state.doc.line(c.to.line + 1).from + c.to.ch,
+        insert: c.text,
+      })),
+    );
+    const finalText = tr.state.update({ changes: abandon }).state.doc.toString();
+    const landed = abandon.mapPos(startedAt, 1);
+    return { finalText, landed, before: finalText.slice(0, landed) };
+  }
+
+  it('a drafted sibling heading returns to the HEADING, not to its section', () => {
+    // `insertSiblingHeading` writes the new heading after the original's whole
+    // section, so the node ABOVE the place is `body` while the keypress started
+    // at `## Foo`. Deriving "the node above" gets this wrong; the recorded
+    // origin gets it right, which is why it is recorded.
+    const { finalText, before } = originOf('## Foo\n\nbody\n', [0, 6], 'continue');
+    expect(finalText).toBe('## Foo\n\nbody\n');
+    expect(before).toBe('## Foo');
+  });
+
+  it('the shapes where the two readings coincide are unchanged', () => {
+    expect(originOf('thought\n\nnext\n', [0, 7]).before).toBe('thought');
+    expect(originOf('- alpha\n', [0, 7]).before).toBe('- alpha');
+    expect(originOf('1. a\n2. b\n3. c\n', [0, 4]).before).toBe('1. a');
+    expect(originOf('## Foo\n', [0, 6], 'continue').before).toBe('## Foo');
+  });
+});

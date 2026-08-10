@@ -75,6 +75,21 @@ interface CreatedPlace {
   /** The line the empty place occupies, in the post-keypress document. */
   readonly line: number;
   /**
+   * Where the caret was BEFORE the keypress — Backspace's landing spot — in
+   * the POST-keypress document's coordinates, or `undefined` when the keypress
+   * had no caret to start from because it replaced a non-empty selection.
+   *
+   * Mapped forward rather than stored raw: the raw offset belongs to a document
+   * that no longer exists, and `cancel` maps its target through the removal
+   * edit, which is expressed against the post-keypress document.
+   *
+   * Recorded rather than derived, because "the node above the place" is NOT the
+   * origin in general. `insertSiblingHeading` writes the new heading after the
+   * original's whole section, so for `## Foo` / `body` the node above the place
+   * is `body` while the keypress started at `## Foo`. Only the dispatch knows.
+   */
+  readonly startedAt?: number | undefined;
+  /**
    * The edit that removes the place and nothing else, in the post-keypress
    * document's coordinates — STATED BY THE PLAN that made the place, never
    * derived here.
@@ -316,13 +331,17 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
   const place = emptyPlaceAt(view.state);
   if (!place || place.line !== record.line) return false;
 
-  // Both directions are DERIVED from the document the keypress produced, never
-  // from a position recorded before it. Backspace used to reuse the pre-keypress
-  // caret, which is right only when the keypress started from one: over a block
-  // selection that offset is the cover's END, in the coordinates of a document
-  // that no longer exists, and mapping it forward put the caret inside the node
-  // BELOW the place. Reading "the node above" off the parse says the same thing
-  // for a plain caret and the right thing for every other shape.
+  // Backspace returns to where the keypress STARTED, which the recorder keeps
+  // in this document's coordinates. It is a recorded fact rather than a derived
+  // one because no rule over the parse recovers it: a drafted sibling heading
+  // lands after the original's whole section, so the node above the place is
+  // that section's last node while the keypress started at the heading.
+  //
+  // Only where there was no caret to start from — the keypress replaced a
+  // non-empty selection — is there nothing to return to, and the caret goes to
+  // the node above the place instead. Deriving that for EVERY shape was tried
+  // and regressed the sibling-heading case; deriving it for none put the caret
+  // inside the node BELOW the place after a block selection.
   const { doc: outlineDoc } = parsedDoc(view.state.doc);
   const node = nodeAtLine(outlineDoc, record.line);
   const offsetOf = (pos: { line: number; ch: number }): number =>
@@ -335,6 +354,8 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
     const next = node ? nextNodeInOrder(outlineDoc, node) : undefined;
     if (next) target = offsetOf(nodeContentStart(outlineDoc, next));
     else if (node) target = offsetOf(nodeContentEnd(outlineDoc, node));
+  } else if (record.startedAt !== undefined) {
+    target = record.startedAt;
   } else if (node) {
     // A GAP place is owned by the node above it, so that node IS the one the
     // caret returns to; an empty NODE place has the node above as its
@@ -390,9 +411,11 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
         const stated = last.annotation(abandonEdit);
         const place = recordablePlace(view.state, event);
         if (stated && place) {
+          const before = last.startState.selection.main;
           created.set(view, {
             depth: undoDepth(view.state),
             line: place.line,
+            startedAt: before.empty ? last.changes.mapPos(before.head, -1) : undefined,
             abandon: ChangeSet.of(stated, view.state.doc.length),
           });
         }
