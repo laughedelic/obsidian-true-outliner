@@ -522,3 +522,35 @@ function lineIdentityDiffers(doc: ReturnType<typeof parse>, a: number, b: number
   const nb = nodeAtLine(doc, b);
   return na !== nb;
 }
+
+describe('classify: an abandon that RESTORES text is still plugin-own', () => {
+  // The removal edit an abandon applies is no longer always a deletion. Where
+  // the keypress renumbered an ordered run on the way in, reversing it puts the
+  // original markers BACK — so the transaction rewrites several whole lines and
+  // by shape reads as a boundary-crossing edit for enforcement to "fix".
+  //
+  // It must not be classified by shape at all: `input.structure.abandon` is a
+  // plugin-own event, and the short-circuit is what the name exists for. Pinned
+  // here rather than assumed, because the shape it can carry widened.
+  const doc = parse('1. a\n2. \n3. b\n4. c\n');
+
+  it('restoring several lines does not read as boundary-crossing', () => {
+    const restoring = facts({
+      userEvent: 'input.structure.abandon',
+      changedLineSpans: [span(1, 3)],
+    });
+    expect(classify(restoring, doc)).toBe('plugin-own');
+    // Negative control: the SAME shape without our marker is exactly what the
+    // verdict layer is supposed to catch, so the short-circuit is doing the
+    // work rather than the shape happening to be benign.
+    expect(classify(facts({ ...restoring, userEvent: 'input.type' }), doc)).toBe(
+      'boundary-crossing-edit',
+    );
+  });
+
+  it('a deleting abandon classifies the same way, so the two shapes agree', () => {
+    expect(
+      classify(facts({ userEvent: 'input.structure.abandon', changedLineSpans: [span(1, 1)] }), doc),
+    ).toBe('plugin-own');
+  });
+});

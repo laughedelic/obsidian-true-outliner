@@ -523,23 +523,52 @@ Left open and filed separately: renumbering can push a marker past the parser's 
 ceiling (`999999999.` → `1000000000.`), which re-parses as a paragraph. Pre-existing on
 every insert path, and closing it means deciding what an operation does at the ceiling.
 
-**Not fixed here — abandoning a position opened OVER a block selection restores the
-selection.** Block-select a paragraph, press Enter, then move away: the paragraph comes
-back. The keypress did two things — remove the selection and open a position — and the
-abandon reverses too much.
+**Not fixed here — abandoning a position opened OVER a block selection leaves debris.**
+Block-select a paragraph, press Enter, then move away.
 
-The abandon was changed from an undo of the whole keypress to a reverse of the one
-sub-change that made the place, which is the right shape and fixes the rest. It does not
-reach this case, and the reason is worth recording: the plan's changes are a MINIMAL DIFF
-of the whole transformation, so the deletion and the insertion are not separate
-sub-changes at all — for `alpha`/`beta`/`gamma` the diff is a single replacement of
-`beta` with a blank line, and inverting it necessarily brings `beta` back.
+The symptom recorded here first was "the paragraph comes back", written while the abandon
+was still an undo of the whole keypress. It did not survive the change to a reverse edit,
+and re-measuring against the planner and a real `EditorState` found the defect alive in a
+milder form — one stray blank line, not a restored paragraph:
+
+```
+alpha/beta/gamma, beta block-selected   →  "alpha␤␤␤gamma␤"   (expected "alpha␤␤gamma␤")
+the same at the document's end          →  "alpha␤␤"          (expected "alpha␤")
+the same between wide gaps              →  "alpha␤␤␤␤gamma␤"  (expected "alpha␤␤␤gamma␤")
+```
+
+The cause is worth recording exactly, because it is why no better formula exists. The
+plan's changes are a MINIMAL DIFF of the whole transformation, so the deletion and the
+insertion are not separate sub-changes at all — for `alpha`/`beta`/`gamma` the diff is a
+single replacement of `beta` by a blank line. `provisional-cleanup.ts` read the place's
+extent back out of that shape, as the transaction's net line growth, and the removal
+cancels exactly one line of the growth the position added.
 
 The information needed is real but lives one layer up: `planOverSelection` computes the
 intermediate text (after the removal, before the key acts), and the abandon edit is the
 diff from the final text back to THAT. So the fix is for the plan to carry its own abandon
 edit — computed where both states are known — and for the cleanup to apply it rather than
 derive one. That also removes the last piece of guessing from the module.
+
+Taken up by `abandon-removes-only-the-place`, which found two more shapes the same
+derivation reaches, both with a plain caret and no selection involved:
+
+```
+Enter at the end of `1. a` in 1,2,3     →  "1. a␤3. b␤4. c␤"  (expected 1,2,3 restored)
+Enter at the end of `alpha␤␤beta`       →  "alpha␤␤beta␤"     (expected "alpha␤␤beta")
+```
+
+The first is worse than debris: the keypress renumbered the run on the way in, and a
+removal that only deletes a line leaves the renumbering standing. The second is the
+end-of-document extent — the layout there is `[separator][position]`, so the caret sits on
+the SECOND of the two lines, and a span counted forward from it runs off the end. A
+last-line guard added with `decorate-provisional-positions` fixed only the sub-case where
+that made the computed range empty ("removes nothing" became "removes one line"), which is
+why all three end-of-document shapes still left a blank line behind.
+
+Stating the edit rather than deriving it answers all five at once, because a reversal is
+expressed in bytes rather than reasoned about in categories: whatever the operation wrote,
+renumbering included, is what comes back out.
 
 **Not fixed here — a redone provisional position cannot be abandoned again.** Press Enter at
 a paragraph's end, move away (the keypress is undone), then REDO: the position comes back
@@ -553,6 +582,11 @@ either, which suggests the host's redo does not run through CodeMirror's history
 all. Both were reverted rather than shipped unverified. Whatever recognises it must stay
 narrow — re-arming on any change that leaves the caret on an empty place would also record a
 Backspace that empties an item, and then undo the user's own deletion.
+
+Still open after `abandon-removes-only-the-place`, and untouched by it. That change moves the
+removal edit onto the dispatch that made the place; a redo replays the CHANGES without it, so
+there is nothing for the recorder to pick up and the recognition problem above is exactly as
+it was.
 
 | # | Defect | Cases |
 |---|---|---|

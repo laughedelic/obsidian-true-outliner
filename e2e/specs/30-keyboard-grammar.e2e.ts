@@ -463,6 +463,37 @@ describe('keyboard grammar', function () {
   });
 
 
+  it('abandoning a position opened over a block selection keeps the deletion', async function () {
+    // The keypress does two things — remove the selection and open a position —
+    // and only the second is abandoned. Before the plan carried its own removal
+    // edit this left a stray blank line where the position had been.
+    await grammarNote('alpha\n\nbeta\n\ngamma\n', 2, 0);
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('alpha\n\n\n\ngamma\n');
+
+    await h.clickAt(0, 2);
+    await browser.waitUntil(async () => (await h.getBuffer()) === 'alpha\n\ngamma\n', {
+      timeout: 2000,
+      timeoutMsg: 'the position was not removed cleanly over a block selection',
+    });
+  });
+
+  it('abandoning a position at the document’s end leaves no blank line', async function () {
+    // No node below to separate from, so the position is the LAST line and the
+    // removal has no following line break to take.
+    const src = 'alpha\n\nbeta\n';
+    await grammarNote(src, 2, 4);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('alpha\n\nbeta\n\n\n');
+
+    await h.clickAt(0, 2);
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: 'a blank line was left behind at the document end',
+    });
+  });
+
   it('Enter on a provisional position moves past it instead of widening the gap', async function () {
     // Reported from real use: repeated Enter kept widening the gap. It now
     // means "not here" — the caret advances to the next node and the keypress

@@ -64,7 +64,40 @@ export interface TxPlan {
    */
   selection: number;
   userEvent: string;
+  /**
+   * The edit that removes the empty place this operation would leave the caret
+   * on, in the coordinates of the document `changes` produces. Absent when the
+   * operation can leave no place at all.
+   *
+   * Stated here rather than derived by `provisional-cleanup.ts` because it
+   * CANNOT be derived downstream: `changes` is a minimal diff of the whole
+   * transformation, and where a keypress removed a selection before acting, the
+   * removal and the insertion touch the same lines and are one replacement in
+   * it. The two steps exist separately only here, while the plan is composed.
+   *
+   * Stating it does NOT mean a place was made — that is `provisional-cleanup`'s
+   * own question, answered from where the caret landed, and the two answers are
+   * deliberately independent (`structural-history-integration`). A plan states
+   * how to remove a place if there is one; the module decides if there is.
+   */
+  abandon?: EditorChange[] | undefined;
 }
+
+/**
+ * How a plan's `abandon` edit is formed — a per-operation decision, because the
+ * two forms mean different things:
+ *
+ * - `reverse`: the operation's PURPOSE was to open the place, so abandoning it
+ *   returns the document to the text it acted on. Everything the operation did
+ *   goes, INCLUDING any renumbering or re-indentation it performed on the way
+ *   in, because the edit is stated in bytes rather than reasoned about in
+ *   categories.
+ * - `drop-line`: the operation DISSOLVED a node into a blank line and the place
+ *   is that residue. Reversing it would restore the `- ` the user pressed Enter
+ *   to escape, so the line goes and the departure stands.
+ * - `none`: the operation cannot leave a place to abandon.
+ */
+type AbandonForm = 'reverse' | 'drop-line' | 'none';
 
 export type GrammarOutcome = { plan: TxPlan } | { notice: string } | null;
 
@@ -144,6 +177,7 @@ function planFromOp(
   userEvent: string,
   op: CaretOp,
   before: OutlineDoc,
+  abandonForm: AbandonForm,
   mapCursorFrom?: EditorPos,
 ): GrammarOutcome {
   if (!result.ok) return { notice: REJECTION_MESSAGES[result.rejection.reason] };
@@ -159,8 +193,40 @@ function planFromOp(
   const { caret } = planCaret(op, { before, after, anchor: result.value.anchor, mapped });
 
   return {
-    plan: { changes, selection: offsetInNewText(newLines, caret), userEvent },
+    plan: {
+      changes,
+      selection: offsetInNewText(newLines, caret),
+      userEvent,
+      abandon: abandonEdit(abandonForm, lines, newLines, caret.line),
+    },
   };
+}
+
+/**
+ * The `abandon` edit for a plan whose operation turned `lines` into `newLines`
+ * and left the caret on `caretLine` of the result.
+ *
+ * Both forms are line-level and go through `editsToChanges`, the same converter
+ * every structural dispatch uses. That is deliberate: it already knows how to
+ * express a whole-line removal at a document's END, where there is no following
+ * line break to take, so neither form needs arithmetic of its own for it.
+ */
+function abandonEdit(
+  form: AbandonForm,
+  lines: readonly string[],
+  newLines: readonly string[],
+  caretLine: number,
+): EditorChange[] | undefined {
+  switch (form) {
+    case 'none':
+      return undefined;
+    case 'reverse':
+      return editsToChanges(newLines, diffLines(newLines, lines));
+    case 'drop-line':
+      return editsToChanges(newLines, [
+        { fromLine: caretLine, toLine: caretLine + 1, insert: [] },
+      ]);
+  }
 }
 
 /**
@@ -210,6 +276,10 @@ function insertionPlan(
       changes,
       selection: offsetInNewText(newLines, { line: newCursorLine, ch: newCh }),
       userEvent,
+      // A continuation's whole purpose is the position it opens, so abandoning
+      // it is the reversal of this insertion — which also puts back the
+      // whitespace run the split-point rule consumed.
+      abandon: abandonEdit('reverse', lines, newLines, newCursorLine),
     },
   };
 }
@@ -294,6 +364,14 @@ function planOverSelection(
           changes: editsToChanges(lines, diffLines(lines, finalLines)),
           selection: inner.plan.selection,
           userEvent: inner.plan.userEvent,
+          // Carried through VERBATIM, and this pass-through is the whole reason
+          // a place opened over a block selection can be abandoned at all. The
+          // outer `changes` are a fresh diff against the ORIGINAL text, but the
+          // document they and the inner plan's changes produce is the same one,
+          // so the inner edit is already in the right coordinate space. It
+          // returns to the post-REMOVAL text, which is what abandoning means
+          // here: the selection stays deleted, only the place goes.
+          abandon: inner.plan.abandon,
         },
       };
     }
@@ -329,6 +407,11 @@ function planOverSelection(
       // either way the changes are expressed.
       selection: inner.plan.selection,
       userEvent: inner.plan.userEvent,
+      // Same reasoning as the cover branch above: the inner edit is already in
+      // the final document's coordinates, and it returns to the text with the
+      // character range removed — so abandoning an Enter that replaced a word
+      // leaves the word deleted, which is the same rule rather than a case.
+      abandon: inner.plan.abandon,
     },
   };
 }
@@ -380,6 +463,7 @@ export function planKey(
         'input.structure.indent',
         { kind: 'derived' },
         doc,
+        'none',
         cursor,
       );
     case 'outdent':
@@ -389,12 +473,32 @@ export function planKey(
         'input.structure.outdent',
         { kind: 'derived' },
         doc,
+        // Shift+Tab reaches the same operation the empty-item ladder does, and
+        // an outdent that lands an empty item under a paragraph dissolves it
+        // into a blank line. Stating the form by OPERATION rather than by key
+        // is what keeps the two agreeing — the module that consumes this
+        // already keys on where the caret landed, not on which key ran.
+        'drop-line',
         cursor,
       );
     case 'move-up':
-      return planFromOp(lines, moveUp(doc, node.id), 'move.structure', { kind: 'subject' }, doc);
+      return planFromOp(
+        lines,
+        moveUp(doc, node.id),
+        'move.structure',
+        { kind: 'subject' },
+        doc,
+        'none',
+      );
     case 'move-down':
-      return planFromOp(lines, moveDown(doc, node.id), 'move.structure', { kind: 'subject' }, doc);
+      return planFromOp(
+        lines,
+        moveDown(doc, node.id),
+        'move.structure',
+        { kind: 'subject' },
+        doc,
+        'none',
+      );
     case 'split': {
       // ORDER IS LOAD-BEARING (design D4): an empty item's content start IS its
       // end, so the ladder and `splitNode`'s own content-start rule overlap on
@@ -415,6 +519,7 @@ export function planKey(
             'input.structure.outdent',
             { kind: 'derived' },
             doc,
+            'drop-line',
             cursor,
           );
         }
@@ -424,6 +529,9 @@ export function planKey(
           'input.structure.unwrap',
           { kind: 'exact' },
           doc,
+          // Leaving the list is what the user asked for; only the blank line it
+          // left behind is debris. A reversal here would put the `- ` back.
+          'drop-line',
         );
       }
       return planFromOp(
@@ -432,6 +540,7 @@ export function planKey(
         'input.structure.split',
         { kind: 'exact' },
         doc,
+        'reverse',
       );
     }
     case 'continue': {
@@ -453,6 +562,7 @@ export function planKey(
           'input.structure.sibling-heading',
           { kind: 'exact' },
           doc,
+          'reverse',
         );
       }
 

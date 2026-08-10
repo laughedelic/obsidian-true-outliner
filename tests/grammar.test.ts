@@ -3,6 +3,7 @@ import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
 import { escalateRange } from '../src/escalate';
 import { planKey, type GrammarKey, type TxPlan } from '../src/plugin/grammar';
+import type { EditorChange } from '../src/plugin/dispatch';
 
 /** Apply a plan's changes (line/ch semantics) to text; return new text + cursor offset. */
 function applyPlan(text: string, plan: TxPlan): { text: string; cursor: number } {
@@ -20,6 +21,23 @@ function applyPlan(text: string, plan: TxPlan): { text: string; cursor: number }
     out = out.slice(0, toOffset(change.from)) + change.text + out.slice(toOffset(change.to));
   }
   return { text: out, cursor: plan.selection };
+}
+
+/** Apply a plan's `abandon` edit (line/ch, in the plan's RESULT document). */
+function applyChanges(text: string, changes: readonly EditorChange[]): string {
+  const lines = text === '' ? [''] : text.split('\n');
+  const offsets: number[] = [];
+  let acc = 0;
+  for (const line of lines) {
+    offsets.push(acc);
+    acc += line.length + 1;
+  }
+  const toOffset = (pos: { line: number; ch: number }): number => (offsets[pos.line] ?? 0) + pos.ch;
+  let out = text;
+  for (const change of [...changes].sort((a, b) => toOffset(b.from) - toOffset(a.from))) {
+    out = out.slice(0, toOffset(change.from)) + change.text + out.slice(toOffset(change.to));
+  }
+  return out;
 }
 
 function plan(text: string, cursor: { line: number; ch: number }, key: GrammarKey) {
@@ -537,5 +555,90 @@ describe('grammar planner: splitting a line a Shift+Enter just made', () => {
     if (!direct || !('plan' in direct)) throw new Error('expected a plan');
     expect(viaTwoKeys).toBe(applyPlan(src, direct.plan).text);
     expect(viaTwoKeys).toBe('para\n- text\n- child\n');
+  });
+});
+
+/**
+ * `TxPlan.abandon` — the edit that removes the empty place an operation would
+ * leave the caret on, stated by the plan because it cannot be recovered from
+ * the change set afterwards (`structural-history-integration`).
+ *
+ * These assert the FIELD, per branch. What the edit actually does to a document
+ * is pinned end to end in `tests/undo-on-abandon.test.ts`; the point here is
+ * that every branch states an answer, and states the right KIND of answer.
+ */
+describe('grammar planner: a plan states how to abandon the place it makes', () => {
+  function planOf(text: string, cursor: { line: number; ch: number }, key: GrammarKey) {
+    const outcome = planKey(text, cursor, key);
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    return outcome.plan;
+  }
+
+  it('an operation that OPENS a place states its own reversal', () => {
+    // Applying it to the plan's own result gives back the text the key acted
+    // on — which is what "reversal" means, and what a `drop-line` form could
+    // not produce here (the split renumbers nothing, but it adds two lines).
+    const src = 'thought\n\nnext\n';
+    const plan = planOf(src, { line: 0, ch: 7 }, 'split');
+    const after = applyPlan(src, plan).text;
+    expect(after).toBe('thought\n\n\n\nnext\n');
+    expect(applyChanges(after, plan.abandon!)).toBe(src);
+  });
+
+  it('an operation that DISSOLVES a node states a one-line removal, not a reversal', () => {
+    // The `- ` must NOT come back: leaving the list was the point of the press.
+    const src = '- \n\nbeta\n';
+    const plan = planOf(src, { line: 0, ch: 2 }, 'split');
+    const after = applyPlan(src, plan).text;
+    expect(after).toBe('\n\nbeta\n');
+    expect(applyChanges(after, plan.abandon!)).toBe('\nbeta\n');
+    expect(applyChanges(after, plan.abandon!)).not.toContain('- ');
+  });
+
+  it('Shift+Enter states a reversal too', () => {
+    const src = '- alpha beta\n';
+    const plan = planOf(src, { line: 0, ch: 8 }, 'continue');
+    expect(applyChanges(applyPlan(src, plan).text, plan.abandon!)).toBe(src);
+  });
+
+  it('a sibling heading states a reversal', () => {
+    const src = '## Foo\n';
+    const plan = planOf(src, { line: 0, ch: 6 }, 'continue');
+    expect(applyPlan(src, plan).text).toBe('## Foo\n## \n');
+    expect(applyChanges(applyPlan(src, plan).text, plan.abandon!)).toBe(src);
+  });
+
+  it('the operations that can leave no place state nothing', () => {
+    // Absent rather than empty: there is no place to abandon, which is a
+    // different claim from "abandoning it changes nothing".
+    expect(planOf('First.\n\nSecond.\n', { line: 2, ch: 3 }, 'indent').abandon).toBeUndefined();
+    expect(planOf('- a\n- b\n', { line: 1, ch: 3 }, 'move-up').abandon).toBeUndefined();
+    expect(planOf('- a\n- b\n', { line: 0, ch: 3 }, 'move-down').abandon).toBeUndefined();
+  });
+
+  it('Shift+Tab states the same form the empty-item ladder does', () => {
+    // One operation, two keys. Stating the form by operation is what keeps them
+    // agreeing — the consumer keys on where the caret landed, not on the key.
+    const viaLadder = planOf('para\n\n- \n', { line: 2, ch: 2 }, 'split');
+    const viaShiftTab = planOf('para\n\n- \n', { line: 2, ch: 2 }, 'outdent');
+    expect(viaLadder.userEvent).toBe('input.structure.outdent');
+    expect(viaShiftTab.userEvent).toBe('input.structure.outdent');
+    expect(viaShiftTab.abandon).toEqual(viaLadder.abandon);
+  });
+
+  it('a composed plan carries the INNER plan’s edit, unchanged', () => {
+    // The outer changes are a fresh diff against the original text, but the
+    // document is the same one, so the inner edit needs no mapping. Compared
+    // against the inner plan computed directly on the post-removal text.
+    const src = 'alpha\n\nbeta\n\ngamma\n';
+    const doc = parse(src);
+    const cover = escalateRange(doc, { anchor: { line: 2, ch: 0 }, head: { line: 3, ch: 0 } });
+    const composed = planKey(src, cover.anchor, 'split', undefined, cover.head);
+    if (!composed || !('plan' in composed)) throw new Error('expected a plan');
+
+    // The removal alone produces `alpha\n\ngamma\n`; the key then acts there.
+    const inner = planKey('alpha\n\ngamma\n', { line: 2, ch: 0 }, 'split');
+    if (!inner || !('plan' in inner)) throw new Error('expected a plan');
+    expect(composed.plan.abandon).toEqual(inner.plan.abandon);
   });
 });
