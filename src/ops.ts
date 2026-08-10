@@ -1358,8 +1358,13 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
     ...first,
     lines: [...mergedLines],
     trailingGap,
+    // Absorbing `first`'s own first child REMOVES it from that child list, so
+    // an ordered run among the children loses its head and must renumber from
+    // the start it had BEFORE the absorption. `adopted` are `second`'s own
+    // children arriving from another level, so they are not in `before` and
+    // take the fallback.
     children: secondIsFirstChild
-      ? [...adopted, ...first.children.slice(1)]
+      ? renumberOrderedAfterRemoval(first.children, [...adopted, ...first.children.slice(1)])
       : adopted,
   };
 
@@ -1369,8 +1374,12 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
       nodes.map((n, i) => (i === firstIndex ? merged : n)),
     );
   } else if (arraysEqual(firstParentPath, secondParentPath)) {
+    // A REMOVAL as well as a replacement: `second` and anything between it and
+    // `first` leave this level. Keeping `first`'s index does NOT keep the run's
+    // head — `merged` keeps `first`'s id, so the lookup finds the run `first`
+    // was in, which is what a joined-across-a-separator run must resume from.
     surgery = updateSiblings(doc, firstParentPath, (nodes) =>
-      renumberOrdered([
+      renumberOrderedAfterRemoval(nodes, [
         ...nodes.slice(0, firstIndex),
         merged,
         ...nodes.slice(firstIndex + 1, secondIndex),
@@ -1382,8 +1391,16 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
     // (which is childless in this branch — a node with children always has
     // its own first child as successor): remove `second` from its own level
     // first, then replace `first` in place at its own level.
+    //
+    // `second` always has a PREDECESSOR at its own level, but that predecessor
+    // need not be part of its run — `- p` / `1. a` / `2. b` merges the nested
+    // `- kid` with `1. a`, whose predecessor is the bullet — so this removes a
+    // run head like any other.
     surgery = updateSiblings(doc, secondParentPath, (nodes) =>
-      renumberOrdered([...nodes.slice(0, secondIndex), ...nodes.slice(secondIndex + 1)]),
+      renumberOrderedAfterRemoval(nodes, [
+        ...nodes.slice(0, secondIndex),
+        ...nodes.slice(secondIndex + 1),
+      ]),
     );
     surgery = updateSiblings(surgery, firstParentPath, (nodes) =>
       nodes.map((n, i) => (i === firstIndex ? merged : n)),

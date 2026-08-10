@@ -10,16 +10,24 @@ A run's start number is the number the run began with. How that number is recove
 on the SHAPE of the transformation, and the two cases differ precisely because a permutation
 or an insertion cannot lose it while a removal can:
 
-- For a PERMUTATION or an INSERTION — reordering siblings, splitting a node into two,
-  merging one into its neighbour, or inserting subtrees — the start number SHALL be the
-  minimum still present in the run — which IS the number the run began with, since none of
-  these shapes removes a run member. A `5. 6. 7.` list keeps starting at 5, and a swap
-  SHALL NOT let the run inherit the moved item's own number.
-- For a REMOVAL of whole subtrees from a sibling list — subtree deletion, unwrapping a
-  list item, and the departure side of an indent — the start number SHALL be taken from
-  the sibling list AS IT WAS BEFORE the removal: the start number of the run that the
-  surviving run's FIRST member belonged to. Deriving it from the survivors is wrong
-  exactly when the removal took the item that carried the run's start.
+- For a PERMUTATION or an INSERTION — reordering siblings, splitting a node into two, or
+  inserting subtrees — the start number SHALL be the minimum still present in the run,
+  which IS the number the run began with, since these shapes remove no run member. A
+  `5. 6. 7.` list keeps starting at 5, and a swap SHALL NOT let the run inherit the moved
+  item's own number.
+- For a REMOVAL of nodes from a sibling list — subtree deletion, unwrapping a list item,
+  the departure side of an indent, and the absorbed side of a merge — the start number
+  SHALL be taken from the sibling list AS IT WAS BEFORE the removal: the start number of
+  the run that the surviving run's FIRST member belonged to. Deriving it from the
+  survivors is wrong exactly when the removal took the item that carried the run's start.
+
+A merge is a removal for this purpose in all three of its shapes, and none of them is
+saved by the survivor keeping its index. Absorbing a non-ordered node standing between two
+runs JOINS them, and the joined run SHALL keep the SURVIVOR's own start rather than adopt
+the lower number of the run it swallowed. Absorbing a node's own first child removes that
+child from the CHILD list, which SHALL renumber from the same pre-merge start. And a node
+absorbed from an outer scope may head a run whose predecessor at that level is not part of
+it, so having a predecessor is not the same as keeping a run's head.
 
 Where a removal deletes a non-ordered node standing between two ordered runs, the
 survivors become one run and SHALL take the EARLIER run's start number. A run whose
@@ -56,6 +64,20 @@ encoded run re-parses to the same tree.
 - **WHEN** `unwrapListItem` removes the empty first item of an ordered run
 - **THEN** the surviving items renumber from the run's original start number, and the
   blank line left in the item's place is unchanged by the renumbering
+
+#### Scenario: A merge absorbs a separator and joins two runs
+- **WHEN** `mergeNodes` joins `5. a` with the `- x` that separates it from `1. c`
+- **THEN** the result is `5. ax` and `6. c` — the survivor keeps its own start rather than
+  taking the swallowed run's `1.`
+
+#### Scenario: A merge absorbs a node's ordered first child
+- **WHEN** `mergeNodes` joins `- p` with its first child `1. a`, leaving `2. b` and `3. c`
+- **THEN** the remaining children renumber to `1. b` and `2. c`
+
+#### Scenario: A merge reaches its neighbour from an outer scope
+- **WHEN** `mergeNodes` joins a nested `- kid` with the top-level `1. a` that follows it,
+  where `1. a`'s own predecessor is a bullet
+- **THEN** the item left at the top level is `1. b`
 
 #### Scenario: A swap does not inherit the moved item's number
 - **WHEN** `moveDown` swaps the first two items of a `5. 6. 7.` run

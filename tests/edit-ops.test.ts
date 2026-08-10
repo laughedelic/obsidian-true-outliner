@@ -325,6 +325,44 @@ describe('mergeNodes', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.rejection.reason).toBe('merge-not-expressible');
   });
+
+  // A merge REMOVES `second` from a sibling list, and the survivor's index is
+  // not the run's head: found in review after the audit classified every merge
+  // path as an insertion. Each of the three surgery branches can lose a head.
+  describe('a merge removes a node, so its level renumbers from the pre-merge start', () => {
+    function mergeOk(md: string, first: string): string {
+      const doc = parse(md);
+      const result = mergeNodes(doc, byLine(doc, first).id);
+      if (!result.ok) throw new Error(result.rejection.reason);
+      const text = encode(result.value.doc);
+      expect(applyEdits(md.split('\n'), result.value.edits).join('\n')).toBe(text);
+      return text;
+    }
+
+    it('absorbing a bullet SEPARATOR joins two runs at the earlier one’s start', () => {
+      // The survivor's own `5.` would otherwise be rewritten to `1.` — the
+      // minimum of the run it just joined.
+      expect(mergeOk('5. a\n- x\n1. c\n', '5. a')).toBe('5. ax\n6. c\n');
+      expect(mergeOk('1. a\n- x\n5. c\n6. d\n', '1. a')).toBe('1. ax\n2. c\n3. d\n');
+    });
+
+    it('absorbing an ordered FIRST CHILD renumbers the children left behind', () => {
+      // This branch renumbered nothing at all, so the survivors kept 2 and 3.
+      expect(mergeOk('- p\n\t1. a\n\t2. b\n\t3. c\n', '- p')).toBe('- pa\n\t1. b\n\t2. c\n');
+      expect(mergeOk('- p\n\t5. a\n\t6. b\n', '- p')).toBe('- pa\n\t5. b\n');
+    });
+
+    it('a CROSS-SCOPE merge removes a head whose predecessor is not in its run', () => {
+      // `1. a`'s predecessor at the top level is `- p`, so having one is not
+      // the same as keeping the run's head — the claim the audit rested on.
+      expect(mergeOk('- p\n\t- kid\n1. a\n2. b\n', '\t- kid')).toBe('- p\n\t- kida\n1. b\n');
+    });
+
+    it('a plain same-level merge is unchanged — the head stays', () => {
+      expect(mergeOk('1. a\n2. b\n3. c\n', '1. a')).toBe('1. ab\n2. c\n');
+      expect(mergeOk('5. a\n6. b\n7. c\n', '5. a')).toBe('5. ab\n6. c\n');
+    });
+  });
 });
 
 describe('insertSubtrees', () => {

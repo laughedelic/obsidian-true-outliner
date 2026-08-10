@@ -11,9 +11,11 @@
       defect. BOTH DO. `indent` on `1. one` whose previous sibling is `- bullet` left
       `2. two` / `3. three` at the original level; `unwrapListItem` on an empty `1. ` left
       `2. b` / `3. c`, and on an empty `5. ` left `6. b` / `7. c`. Both scenarios stay in the
-      delta spec. Measured alongside them: `mergeNodes` and `outdent`'s truncated level are
-      unaffected, as the design predicted, and the siblings an outdent ADOPTS start at 2 —
-      recorded in design.md's Non-Goals rather than changed
+      delta spec. Measured alongside them: `outdent`'s truncated level is unaffected, and
+      the siblings an outdent ADOPTS start at 2 — recorded in design.md's Non-Goals rather
+      than changed. `mergeNodes` was probed here too and read as unaffected: the probe used
+      `1. a` / `2. b` / `3. c`, where the survivor IS the run's head, so it could not show
+      the defect. Task 6 has the shapes that do
 - [x] 1.3 Pin the permutation case BEFORE touching the helper: `moveDown` on the first of a
       `5. 6. 7.` run leaves the run reading `5. 6. 7.` with the content exchanged. Green both
       before and after
@@ -36,12 +38,17 @@
       that several ranges are filtered in ONE pass per parent, so `before` is that parent's
       list as it entered the pass
 - [x] 3.2 `indent`'s departure side and `unwrapListItem`, both confirmed by 1.2's measurement
-- [x] 3.3 Audited every remaining `renumberOrdered` call. Nine are permutations or insertions
-      (indent's arrival, outdent's adopted children and arrival, the swap, the empty-node
-      insert, the split, both merge paths, `insertSubtrees`). The tenth — outdent truncating
-      its level to a PREFIX — is a removal, and stays on the permutation rule because a
-      prefix always retains the run's head, which the call site now says in a comment rather
-      than leaving to be re-derived
+- [x] 3.3 Audited every remaining `renumberOrdered` call. Seven are permutations or
+      insertions (indent's arrival, outdent's adopted children and arrival, the swap, the
+      empty-node insert, the split, `insertSubtrees`). Outdent truncating its level to a
+      PREFIX is a removal that stays on the permutation rule because a prefix always
+      retains the run's head — stated in a comment at the call site rather than left to be
+      re-derived
+- [x] 3.4 CORRECTION, found in review: this audit classified all three `mergeNodes`
+      branches as insertions, on the argument that `second` always has a predecessor at its
+      own level. Having a predecessor is not keeping the run's HEAD — the predecessor need
+      not be in the run. All three branches are measured to lose one and are routed through
+      the removal rule; the child-absorbing branch renumbered nothing at all. See task 7
 
 ## 4. Verification
 
@@ -84,8 +91,24 @@
       keyboard-grammar spec — 33 passing. The first run failed on the TEST's own assumption
       (one Shift+ArrowDown selects one node, not two), not on the fix
 
-## 6. Record
+## 6. Merge is a removal too (found in review, correcting task 3.3)
 
-- [x] 6.1 The catalogue's C2 entry now points at this change and names the two further shapes
+- [x] 6.1 Measure all three `mergeNodes` surgery branches before changing any of them, and
+      record what each produced: the separator join gave `1. ax` / `2. c` where the survivor
+      was `5. a`; absorbing an ordered first child gave `2. b` / `3. c` (no renumber at all);
+      the cross-scope merge left `2. b` at the top level
+- [x] 6.2 Route all three through `renumberOrderedAfterRemoval`. `merged` keeps `first`'s
+      id, so the lookup finds the run `first` was in — which is what a run joined across an
+      absorbed separator must resume from
+- [x] 6.3 Regression tests per branch in `tests/edit-ops.test.ts`, plus the plain same-level
+      merge that must NOT change
+- [x] 6.4 Negative control: reverting the three branches fails exactly those three tests
+      with exactly the measured outputs
+- [x] 6.5 Full suite (660), build, lint; `tests/edit-ops.test.ts`'s own merge property suite
+      (closure, totality, unchanged-on-reject) still green
+
+## 7. Record
+
+- [x] 7.1 The catalogue's C2 entry now points at this change and names the two further shapes
       1.2 measured. The measured outputs themselves are untouched — they are the pre-change
       record

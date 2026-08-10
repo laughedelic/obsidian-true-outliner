@@ -41,11 +41,17 @@ mechanism is one function's contract; fixing it for one caller and not its sibli
 be arbitrary.
 
 **Permutations and insertions keep today's rule, deliberately.** `moveUp`/`moveDown`,
-`insertSubtrees`, `splitNode` and `mergeNodes` do not remove a run's head — a swap is a
-permutation of the same numbers, and a merge removes a node that always has a predecessor
-at its own level. The minimum-present rule is correct for them and is what keeps a swap
-from inheriting the moved item's number. Changing them is out of scope, and a test pins the
-swap case against regression.
+`insertSubtrees` and `splitNode` remove no run member — a swap is a permutation of the same
+numbers — so the minimum present is still the number the run began with, and it is what
+keeps a swap from inheriting the moved item's number. A test pins the swap case against
+regression.
+
+`mergeNodes` was in that list until review: a merge removes the absorbed node, and the
+survivor's index is not the run's head. All three of its shapes lose one — absorbing a
+non-ordered separator JOINS two runs and rewrote the survivor's own number to the swallowed
+run's minimum, absorbing a node's own first child renumbered the remaining children not at
+all, and a node absorbed from an outer scope can head a run whose predecessor at that level
+is a bullet. All three take the removal rule, each with its own regression.
 
 **A new FIRST CHILD takes the existing children's marker, not a fresh bullet.** Reported
 from a real vault while this change was in review: selecting the first elements of a
@@ -84,7 +90,8 @@ operation that touches a sibling list has a rule to read rather than a helper to
 
 - `src/ops.ts`: `renumberOrdered` keeps its current meaning for permutations and
   insertions; a removal-aware form is added alongside it and used by `deleteSubtreeGroups`
-  (and therefore `deleteSubtrees`), `indent`, and `unwrapListItem`. `splitNode`'s
+  (and therefore `deleteSubtrees`), `indent`, `unwrapListItem`, and all three of
+  `mergeNodes`' surgery branches. `splitNode`'s
   child-scope branch reads its marker, task marker and style from the donating child, and
   renumbers the child list it inserts into. `emptyItemPrefix` is decomposed so the sibling
   and child paths share one marker rule instead of each having half of it.

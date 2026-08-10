@@ -16,15 +16,28 @@ line before it is needed.
 Callers fall into three shapes:
 
 - **Removal from a sibling list** — `deleteSubtreeGroups` (the general form `deleteSubtrees`
-  delegates to), `unwrapListItem`, and `indent`'s departure side (the node leaves its old
-  level to become a child of its previous sibling).
+  delegates to), `unwrapListItem`, `indent`'s departure side (the node leaves its old level
+  to become a child of its previous sibling), and all three of `mergeNodes`' surgery
+  branches.
 - **Permutation** — `move`'s swap.
 - **Insertion or replacement** — `splitNode`, `insertSubtrees`, `outdent`'s arrival side,
-  `mergeNodes`, `indent`'s arrival side.
+  `indent`'s arrival side.
 
-Only the first shape can lose a run's head. `mergeNodes` removes a node too, but `second`
-is reached by walking forward from `first`, so at its own level it always has a predecessor;
-`outdent` truncates the child list at the outdented node's index, which keeps index 0.
+`outdent` truncates the child list at the outdented node's index, which keeps index 0, so
+its departure side cannot lose a head.
+
+`mergeNodes` was classified as an insertion in this design's first draft, on the argument
+that `second` is reached by walking forward from `first` and so always has a predecessor at
+its own level. **That argument is wrong**, and review caught it. Having a predecessor is
+not the same as keeping the run's HEAD: the predecessor need not be in the run. Measured,
+all three branches lose one:
+
+- Absorbing a non-ordered SEPARATOR joins two runs — `5. a` / `- x` / `1. c` produced
+  `1. ax` / `2. c`, rewriting the survivor's own number to the swallowed run's minimum.
+- Absorbing a node's own first child renumbered NOTHING — `- p` with `1. a` / `2. b` /
+  `3. c` produced `- pa` with `2. b` / `3. c`.
+- A cross-scope merge removes `second` at index ≥ 1 whose predecessor is a bullet —
+  `- p` / `- kid` / `1. a` / `2. b` left `2. b` at the top level.
 
 ## Goals / Non-Goals
 
@@ -138,6 +151,12 @@ shape-dependence the empty-position rule exists to remove.
 - **The `indent` and `unwrapListItem` cases are inferred from the code, not yet measured.**
   → D4 makes measurement the first task. Whatever it finds is what ships; the delta spec's
   scenarios are adjusted to match rather than the measurement to the spec.
+- **Reading a call site is how the `mergeNodes` misclassification happened**, and D4's
+  measurement rule was applied only to the sites this design expected to be defective, not
+  to the ones it argued were safe. → Every call site classified as safe now carries a
+  measured example or a stated structural reason at the call site itself, and the merge
+  branches have regression coverage. The general lesson is the narrower one: an argument
+  that a run's head survives must be about the RUN, not about indices.
 - **Two functions with near-identical names invite the wrong one at a new call site.** →
   The fallback in D2 makes the wrong choice degrade to today's behavior, and the doc comment
   on each names the shape it is for, with the reason the other exists.
