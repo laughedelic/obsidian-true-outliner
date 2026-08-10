@@ -479,6 +479,37 @@ describe('keyboard grammar', function () {
     });
   });
 
+  it('Shift+Enter over a block selection survives the enforcement funnel', async function () {
+    // Through the REAL extension stack, which is the only place this failed:
+    // the composed change set deletes whole subtrees, so it classified as
+    // boundary-crossing and the verdict layer rewrote the transaction —
+    // dropping both the continuation and the removal edit it carried.
+    await grammarNote('alpha\n\nbeta\n\ngamma\n', 2, 0);
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('alpha\n\n\ngamma\n');
+
+    await h.clickAt(0, 2);
+    await browser.waitUntil(async () => (await h.getBuffer()) === 'alpha\n\ngamma\n', {
+      timeout: 2000,
+      timeoutMsg: 'the continuation position was not removed',
+    });
+  });
+
+  it('Backspace on a position opened over a block selection lands above it', async function () {
+    // The Backspace target used to be the pre-keypress caret. With a block
+    // selection that offset is the cover's END, in a document that no longer
+    // exists, so the caret landed inside the node BELOW the place.
+    await grammarNote('alpha\n\nbeta\n\ngamma\n', 2, 0);
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await h.keys.enter();
+    await h.keys.backspace();
+
+    expect(await h.getBuffer()).toBe('alpha\n\ngamma\n');
+    // The content end of the node ABOVE the place, not a column inside gamma.
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 5 });
+  });
+
   it('abandoning a position at the document’s end leaves no blank line', async function () {
     // No node below to separate from, so the position is the LAST line and the
     // removal has no following line break to take.

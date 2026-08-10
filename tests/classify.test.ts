@@ -554,3 +554,50 @@ describe('classify: an abandon that RESTORES text is still plugin-own', () => {
     ).toBe('plugin-own');
   });
 });
+
+describe('classify: Shift+Enter over a block selection is plugin-own', () => {
+  // `input.structure.continue` was once left OUT of the plugin-own list, on the
+  // grounds that it is always a single-line change inside one node's own line.
+  // That stopped being true when the key started acting on a selection first:
+  // over a block cover the composed change set deletes whole subtrees, and the
+  // measured classification was `boundary-crossing-edit` with a `rewrite`
+  // verdict — which replaces the transaction and drops the removal edit it
+  // carried, so the position could never be abandoned.
+  const doc = parse('alpha\n\nbeta\n\ngamma\n');
+  // The real span, from the real transaction: replacing `beta` and its owned
+  // gap with the continuation position.
+  const blockSpan: ChangedLineSpan = {
+    fromLine: 2,
+    toLine: 2,
+    insertedText: '',
+    deletesLineBoundary: false,
+    fromCh: 0,
+    toCh: 5,
+    rangeEnd: { line: 3, ch: 0 },
+  };
+
+  it('the composed continuation short-circuits the verdict layer', () => {
+    expect(
+      classify(facts({ userEvent: 'input.structure.continue', changedLineSpans: [blockSpan] }), doc),
+    ).toBe('plugin-own');
+  });
+
+  it('NEGATIVE CONTROL: the same change without our marker is boundary-crossing', () => {
+    // What the continuation classified as before it joined the list — so the
+    // entry is doing the work, not the shape happening to be benign.
+    expect(classify(facts({ userEvent: 'input.type', changedLineSpans: [blockSpan] }), doc)).toBe(
+      'boundary-crossing-edit',
+    );
+  });
+
+  it('the caret-path continuation is unaffected', () => {
+    // A single-line change inside one node: plugin-own now, `within-node-edit`
+    // before — and neither triggers any filter action, so nothing changed here.
+    expect(
+      classify(
+        facts({ userEvent: 'input.structure.continue', changedLineSpans: [span(2, 2)] }),
+        doc,
+      ),
+    ).toBe('plugin-own');
+  });
+});

@@ -42,7 +42,12 @@ import { EditorView } from '@codemirror/view';
 import { undoDepth } from '@codemirror/commands';
 import { itemContentIsEmpty } from '../ops';
 import { nodeAtLine, nodeStartLine } from '../locate';
-import { nodeContentStart, nextNodeInOrder } from '../caret';
+import {
+  nextNodeInOrder,
+  nodeContentEnd,
+  nodeContentStart,
+  previousNodeInOrder,
+} from '../caret';
 import { parsedDoc } from './parsed-doc';
 
 /**
@@ -69,9 +74,6 @@ interface CreatedPlace {
   readonly depth: number;
   /** The line the empty place occupies, in the post-keypress document. */
   readonly line: number;
-  /** Where the caret was BEFORE the keypress — Backspace's landing spot, which
-   * is exactly "where the cancelled keypress started". */
-  readonly startHead: number;
   /**
    * The edit that removes the place and nothing else, in the post-keypress
    * document's coordinates — STATED BY THE PLAN that made the place, never
@@ -311,20 +313,34 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
   const sel = view.state.selection.main;
   if (!sel.empty) return false;
   if (view.state.doc.lineAt(sel.head).number - 1 !== record.line) return false;
-  if (emptyPlaceLine(view.state) !== record.line) return false;
+  const place = emptyPlaceAt(view.state);
+  if (!place || place.line !== record.line) return false;
 
-  let target = record.startHead;
+  // Both directions are DERIVED from the document the keypress produced, never
+  // from a position recorded before it. Backspace used to reuse the pre-keypress
+  // caret, which is right only when the keypress started from one: over a block
+  // selection that offset is the cover's END, in the coordinates of a document
+  // that no longer exists, and mapping it forward put the caret inside the node
+  // BELOW the place. Reading "the node above" off the parse says the same thing
+  // for a plain caret and the right thing for every other shape.
+  const { doc: outlineDoc } = parsedDoc(view.state.doc);
+  const node = nodeAtLine(outlineDoc, record.line);
+  const offsetOf = (pos: { line: number; ch: number }): number =>
+    view.state.doc.line(pos.line + 1).from + pos.ch;
+
+  let target = 0;
   if (forward) {
     // Delete reaches for what FOLLOWS, so the caret lands at the next node's
     // content start rather than back where the keypress began.
-    const { doc: outlineDoc } = parsedDoc(view.state.doc);
-    const node = nodeAtLine(outlineDoc, record.line);
     const next = node ? nextNodeInOrder(outlineDoc, node) : undefined;
-    if (next) {
-      const pos = nodeContentStart(outlineDoc, next);
-      const line = view.state.doc.line(pos.line + 1);
-      target = line.from + pos.ch;
-    }
+    if (next) target = offsetOf(nodeContentStart(outlineDoc, next));
+    else if (node) target = offsetOf(nodeContentEnd(outlineDoc, node));
+  } else if (node) {
+    // A GAP place is owned by the node above it, so that node IS the one the
+    // caret returns to; an empty NODE place has the node above as its
+    // predecessor in document order.
+    const above = place.kind === 'gap' ? node : previousNodeInOrder(outlineDoc, node);
+    if (above) target = offsetOf(nodeContentEnd(outlineDoc, above));
   }
   cancel(view, record, target);
   return true;
@@ -377,7 +393,6 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
           created.set(view, {
             depth: undoDepth(view.state),
             line: place.line,
-            startHead: last.startState.selection.main.head,
             abandon: ChangeSet.of(stated, view.state.doc.length),
           });
         }
