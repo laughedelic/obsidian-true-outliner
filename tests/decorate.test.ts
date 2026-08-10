@@ -4,6 +4,7 @@ import {
   computeLineGuides,
   computePositionTrail,
   decorate,
+  provisionalFact,
   type PositionHighlight,
 } from '../src/plugin/decorate';
 
@@ -722,5 +723,128 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       ]);
       expect(ancestors(trail(md, 2, FULL))).toEqual([]);
     });
+  });
+});
+
+describe('provisionalFact: what a caret-occupied blank line would become', () => {
+  // Enter's provisional position is blank-separated on both sides; Shift+Enter's
+  // is adjacent to the node above. The layer never has to know which key ran —
+  // the two shapes parse differently, which is exactly what
+  // enter-and-shift-enter-grammar's D1 chose the encoding to guarantee.
+
+  it('reports a new node at the destination depth for Enter’s position', () => {
+    const md = ['# H', '', 'para', '', '', '', 'next', ''].join('\n');
+    const fact = provisionalFact(md, 4)!;
+    expect(fact).toBeTruthy();
+    expect(fact.kind).toBe('paragraph');
+    expect(fact.isFirstLine).toBe(true);
+    // A sibling of `para`, which sits one level down inside the heading — not
+    // the depth 0 the undecorated line renders at today.
+    expect(fact.depth).toBe(1);
+    expect(fact.isListItem).toBe(false);
+  });
+
+  it('reports the same depth a real node at that position has', () => {
+    const md = ['# H', '', 'para', '', '', '', 'next', ''].join('\n');
+    const provisional = provisionalFact(md, 4)!;
+    const real = decorate(parse(md)).find((f) => f.lineNumber === 2)!;
+    expect(provisional.depth).toBe(real.depth);
+    expect(provisional.kind).toBe(real.kind);
+    expect(provisional.isFirstLine).toBe(real.isFirstLine);
+  });
+
+  it('reports a CONTINUATION line for Shift+Enter’s position, carrying supplementalDepth', () => {
+    const md = ['# H', '', '- alpha', '  - beta', '    ', ''].join('\n');
+    const fact = provisionalFact(md, 4)!;
+    expect(fact.isListItem).toBe(true);
+    // Not a first line: a continuation renders no marker, exactly as the real
+    // one it is about to become does not.
+    expect(fact.isFirstLine).toBe(false);
+    expect(fact.depth).toBe(2);
+    // The whole of the reported defect: this is what the gap line renders
+    // without, putting the caret at the list's PARENT column.
+    expect(fact.supplementalDepth).toBe(1);
+  });
+
+  it('matches the fact the same line has once a character is actually typed', () => {
+    const blank = ['# H', '', '- alpha', '  - beta', '    ', ''].join('\n');
+    const typed = ['# H', '', '- alpha', '  - beta', '    x', ''].join('\n');
+    expect(provisionalFact(blank, 4)).toEqual(
+      decorate(parse(typed)).find((f) => f.lineNumber === 4),
+    );
+  });
+
+  it('contributes no geometry inside a pure list', () => {
+    // The byte-identical invariant: with no non-list ancestor there is nothing
+    // for this layer to add, so the position renders as stock.
+    const md = ['- alpha', '  - beta', '    ', ''].join('\n');
+    const fact = provisionalFact(md, 2)!;
+    expect(fact.isListItem).toBe(true);
+    expect(fact.supplementalDepth).toBe(0);
+    expect(fact.isFirstLine).toBe(false);
+  });
+
+  it('declines a line that already has a fact of its own', () => {
+    const md = ['# H', '', 'para', ''].join('\n');
+    expect(provisionalFact(md, 0)).toBeNull();
+    expect(provisionalFact(md, 2)).toBeNull();
+  });
+
+  it('declines a blank line INSIDE an atom, which is a node’s own line', () => {
+    const md = ['```', 'code', '', 'more', '```', ''].join('\n');
+    // Line 2 is blank but belongs to the fence; it already renders as the fence.
+    expect(decorate(parse(md)).some((f) => f.lineNumber === 2)).toBe(true);
+    expect(provisionalFact(md, 2)).toBeNull();
+  });
+
+  it('declines the preamble and documents with no node at all', () => {
+    const withFrontmatter = ['---', 'title: x', '---', '', '', 'para', ''].join('\n');
+    expect(provisionalFact(withFrontmatter, 3)).toBeNull();
+    expect(provisionalFact('', 0)).toBeNull();
+    expect(provisionalFact('\n', 0)).toBeNull();
+    expect(provisionalFact(['---', 'title: x', '---', ''].join('\n'), 3)).toBeNull();
+  });
+
+  it('declines a line past the end of the document', () => {
+    expect(provisionalFact('para\n', 9)).toBeNull();
+  });
+
+  it('claims the document’s own trailing blank line, which a node does own', () => {
+    // Not a provisional position any keypress makes, but the caret can rest
+    // there, and typing continues the node above — so that is what it renders as.
+    const md = ['# H', '', 'para', ''].join('\n');
+    const fact = provisionalFact(md, 3)!;
+    expect(fact.isFirstLine).toBe(false);
+    expect(fact.depth).toBe(1);
+  });
+
+  it('leaves the line’s GUIDES exactly where they were (design D8)', () => {
+    // The fact and the guide come from different documents — the probe's and
+    // the real one's — so the two must agree about this line, or the guide
+    // column would shift as the fact appears.
+    for (const [md, line] of [
+      [['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4],
+      [['# H', '', '- alpha', '  - beta', '    ', ''].join('\n'), 4],
+      [['- item', '', '\t', '', '\tpara', ''].join('\n'), 2],
+    ] as const) {
+      const real = computeLineGuides(parse(md)).find((g) => g.lineNumber === line)!;
+      const probe = md.split('\n');
+      probe[line] = `${probe[line]}x`;
+      const previewed = computeLineGuides(parse(probe.join('\n'))).find(
+        (g) => g.lineNumber === line,
+      )!;
+      expect(previewed.guideDepths).toEqual(real.guideDepths);
+    }
+  });
+
+  it('reports the item’s CHILD scope for a position an indented Enter opened', () => {
+    // The shape splitNode's indentation fix exists for: at column 0 this same
+    // position reports depth 0 — truthfully, since that is what typing there
+    // would produce, which is why the encoding had to be fixed rather than the
+    // rendering made to lie about it.
+    const indented = ['- item', '', '\t', '', '\tpara', ''].join('\n');
+    expect(provisionalFact(indented, 2)!.depth).toBe(1);
+    const flat = ['- item', '', '', '', '\tpara', ''].join('\n');
+    expect(provisionalFact(flat, 2)!.depth).toBe(0);
   });
 });

@@ -288,4 +288,77 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     // Fold icon's right edge must not extend past the marker's left edge.
     expect(foldRects[0]!.left + foldRects[0]!.width).toBeLessThanOrEqual(textRects[0]!.left + 2);
   });
+  // --- Provisional positions (decorate-provisional-positions) --------------
+  //
+  // A blank/whitespace-only line the caret rests on renders as the node the
+  // parse would make of it if a character were typed there. Measured against
+  // the column that character actually lands in — the jump this closes.
+
+  it('Enter’s provisional position puts the caret at the new node’s own column', async function () {
+    const note = 'Scratch/provisional-enter.md';
+    await h.createNote(note, '# Heading\n\npara\n\nnext\n');
+    if (!(await h.isOutlineMode(note))) {
+      await h.toggleOutlineMode();
+      await h.waitForNotice('Outline mode on');
+      await h.dismissNotices();
+    }
+    // Where a real depth-1 paragraph's text sits.
+    const realX = (await h.posToCoords(2, 0)).left;
+
+    await h.setCursor(2, 'para'.length);
+    await h.keys.enter();
+    await browser.pause(150);
+    const cursor = await h.getCursor();
+    // The keypress opens a blank-separated position below the paragraph.
+    expect((await h.getBuffer()).split('\n')[cursor.line]!.trim()).toBe('');
+
+    const caretX = (await h.posToCoords(cursor.line, cursor.ch)).left;
+    expect(caretX).toBeCloseTo(realX, 0);
+    // And it is a real shift: the undecorated line rendered at the box's own
+    // left edge, where the depth-0 guide column is drawn.
+    expect(caretX).toBeGreaterThan((await h.getLineRect(cursor.line)).left + 1);
+  });
+
+  it('Shift+Enter’s provisional position stays inside the list block', async function () {
+    const note = 'Scratch/provisional-shift-enter.md';
+    await h.createNote(note, '# Heading\n\n- alpha\n  - beta\n');
+    if (!(await h.isOutlineMode(note))) {
+      await h.toggleOutlineMode();
+      await h.waitForNotice('Outline mode on');
+      await h.dismissNotices();
+    }
+    const itemLeft = (await h.getLineRect(3)).left;
+
+    await h.setCursor(3, '  - beta'.length);
+    await h.keys.shiftEnter();
+    await browser.pause(150);
+    const cursor = await h.getCursor();
+    expect((await h.getBuffer()).split('\n')[cursor.line]!.trim()).toBe('');
+
+    // The reported defect: without the fact the line has no margin at all, so
+    // it renders one whole unit left — at the list's PARENT column.
+    expect((await h.getLineRect(cursor.line)).left).toBeCloseTo(itemLeft, 0);
+    expect(await h.getLineClassList(cursor.line)).toContain('to-decor-list');
+  });
+
+  it('typing on a provisional position does not move the line', async function () {
+    const note = 'Scratch/provisional-no-jump.md';
+    await h.createNote(note, '# Heading\n\npara\n\nnext\n');
+    if (!(await h.isOutlineMode(note))) {
+      await h.toggleOutlineMode();
+      await h.waitForNotice('Outline mode on');
+      await h.dismissNotices();
+    }
+    await h.setCursor(2, 'para'.length);
+    await h.keys.enter();
+    await browser.pause(150);
+    const cursor = await h.getCursor();
+    const before = await h.getLineComputedStyle(cursor.line, 'padding-left');
+    const caretBefore = (await h.posToCoords(cursor.line, cursor.ch)).left;
+
+    await h.keys.type('x');
+    await browser.pause(150);
+    expect(await h.getLineComputedStyle(cursor.line, 'padding-left')).toBe(before);
+    expect((await h.posToCoords(cursor.line, cursor.ch)).left).toBeCloseTo(caretBefore, 0);
+  });
 });

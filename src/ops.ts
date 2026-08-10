@@ -169,12 +169,12 @@ function subtreeFinalNode(node: OutlineNode): OutlineNode {
   return last ? subtreeFinalNode(last) : node;
 }
 
-function appendFinalGap(node: OutlineNode): OutlineNode {
+function appendFinalGap(node: OutlineNode, line = ''): OutlineNode {
   const last = node.children[node.children.length - 1];
-  if (!last) return { ...node, trailingGap: [...node.trailingGap, ''] };
+  if (!last) return { ...node, trailingGap: [...node.trailingGap, line] };
   return {
     ...node,
-    children: [...node.children.slice(0, -1), appendFinalGap(last)],
+    children: [...node.children.slice(0, -1), appendFinalGap(last, line)],
   };
 }
 
@@ -701,20 +701,27 @@ function insertEmptyBefore(
   // Which node OWNS that gap depends on where this one sits — a preceding
   // sibling's own trailing gap, the parent's (when this is a first child), or
   // the document preamble (when it is the first node of all).
+  //
+  // The position's own line — the FIRST of the two — carries this node's own
+  // indentation, since a position above is a SIBLING position and siblings share
+  // a level. Same reason as the end-of-node branch below: at column 0 a position
+  // whose scope lies inside a list item materializes outside it. Empty for a
+  // top-level node, so nothing changes there.
+  const positionIndent = leadingWhitespace(node.lines[0] ?? '');
   let surgery: OutlineDoc;
   if (index > 0) {
     surgery = updateSiblings(doc, parentPath, (nodes) =>
-      nodes.map((n, i) => (i === index - 1 ? appendFinalGap(appendFinalGap(n)) : n)),
+      nodes.map((n, i) => (i === index - 1 ? appendFinalGap(appendFinalGap(n, positionIndent)) : n)),
     );
   } else if (parentPath.length > 0) {
     const parentIndex = parentPath[parentPath.length - 1]!;
     surgery = updateSiblings(doc, parentPath.slice(0, -1), (nodes) =>
       nodes.map((n, i) =>
-        i === parentIndex ? { ...n, trailingGap: [...n.trailingGap, '', ''] } : n,
+        i === parentIndex ? { ...n, trailingGap: [...n.trailingGap, positionIndent, ''] } : n,
       ),
     );
   } else {
-    surgery = { ...doc, preamble: [...doc.preamble, '', ''] };
+    surgery = { ...doc, preamble: [...doc.preamble, positionIndent, ''] };
   }
   const result = finalize(doc, surgery, node.id);
   if (!result.ok) return result;
@@ -722,7 +729,7 @@ function insertEmptyBefore(
   // exactly the two lines inserted directly above it.
   return accept({
     ...result.value,
-    anchor: { line: result.value.anchor.line - 2, ch: 0 },
+    anchor: { line: result.value.anchor.line - 2, ch: positionIndent.length },
   });
 }
 
@@ -910,14 +917,39 @@ export function splitNode(
     // The condition reads as "everything except a childless list item" because
     // that is the only end-of-node case whose destination kind IS encodable
     // empty (`- `), and it is handled by the sibling path below.
+    //
+    // The position's own line carries the DESTINATION's indentation, not column
+    // 0. Without it a position whose scope lies inside a list item materializes
+    // outside it: a column-0 line after an item starts a new top-level block, so
+    // typing there placed the node at the top level AND left the item's existing
+    // children following a top-level sibling instead of the item — the subtree
+    // flattened. Measured, not theorised: `- item` with a paragraph child, Enter
+    // at its end, then one character.
+    //
+    // Which scope, by the same split this branch's own comment already makes:
+    // the child scope for a node with children (and for a heading, which always
+    // takes the child branch above and falls through to here only when its child
+    // scope is a paragraph); the node's own level otherwise. At the top level and
+    // under a heading the required indentation is '' and the output is
+    // byte-identical to what this branch produced before.
+    //
+    // Only the position's own line is indented. The blank lines around it are
+    // SEPARATION — they are what makes the position blank-separated on both
+    // sides — and whitespace on them would be invisible debris with no reader.
+    const positionIndent =
+      node.children.length > 0 || node.kind === 'heading'
+        ? destinationIndent(doc, node, node.children, fallbackIndentUnit)
+        : leadingWhitespace(node.lines[0] ?? '');
     const surgery = updateSiblings(doc, parentPath, (nodes) =>
-      nodes.map((n, i) => (i === index ? { ...n, trailingGap: ['', '', ...n.trailingGap] } : n)),
+      nodes.map((n, i) =>
+        i === index ? { ...n, trailingGap: ['', positionIndent, ...n.trailingGap] } : n,
+      ),
     );
     const result = finalize(doc, surgery, nodeId);
     if (!result.ok) return result;
     return accept({
       ...result.value,
-      anchor: { line: startLine + node.lines.length + 1, ch: 0 },
+      anchor: { line: startLine + node.lines.length + 1, ch: positionIndent.length },
     });
   }
 

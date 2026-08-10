@@ -383,14 +383,58 @@ describe('splitNode', () => {
     // The fall-through this replaces put the new position after the entire
     // subtree — below "para" — which is the jump-over-the-subtree shape the
     // content-adjacent rule exists to prevent.
+    //
+    // The position's own line carries the destination's indentation. At column 0
+    // it landed in the right PLACE and the wrong SCOPE: see the materialization
+    // test below, which is what that costs.
     const md = '- item\n\n\tpara\n';
     const { text, result } = splitOk(md, '- item', { line: 0, ch: 6 });
-    expect(text).toBe('- item\n\n\n\n\tpara\n');
-    expect(result.anchor).toEqual({ line: 2, ch: 0 });
+    expect(text).toBe('- item\n\n\t\n\n\tpara\n');
+    expect(result.anchor).toEqual({ line: 2, ch: 1 });
     // A position, not a node: the tree is unchanged in size.
     expect([...walkNodes(result.doc)].length).toBe([...walkNodes(parse(md))].length);
     // And "para" is still the item's child, not a sibling below it.
     expect(result.doc.children.length).toBe(1);
+  });
+
+  it('typing on that position materializes the item’s new FIRST child, keeping the old one', () => {
+    // The reason the position is indented at all. At column 0, typing there
+    // produced a TOP-LEVEL paragraph and left "para" following it as another
+    // top-level node — the item's subtree flattened by one keystroke.
+    const md = '- item\n\n\tpara\n';
+    const { text, result } = splitOk(md, '- item', { line: 0, ch: 6 });
+    const lines = text.split('\n');
+    lines[result.anchor.line] = `${lines[result.anchor.line]}x`;
+    const typed = parse(lines.join('\n'));
+    expect(typed.children.length).toBe(1);
+    expect(typed.children[0]!.lines[0]).toBe('- item');
+    expect(typed.children[0]!.children.map((n) => n.lines[0])).toEqual(['\tx', '\tpara']);
+  });
+
+  it('a position ABOVE a child paragraph is a sibling of it, not a top-level node', () => {
+    // Same rule at the content-START branch: Enter there opens a position above,
+    // which is a SIBLING position, so it sits at this node's own level.
+    const md = '- item\n\n\tpara\n';
+    const { text, result } = splitOk(md, '\tpara', { line: 2, ch: 1 });
+    expect(text).toBe('- item\n\n\t\n\n\tpara\n');
+    expect(result.anchor).toEqual({ line: 2, ch: 1 });
+    const lines = text.split('\n');
+    lines[result.anchor.line] = `${lines[result.anchor.line]}x`;
+    const typed = parse(lines.join('\n'));
+    expect(typed.children.length).toBe(1);
+    expect(typed.children[0]!.children.map((n) => n.lines[0])).toEqual(['\tx', '\tpara']);
+  });
+
+  it('a top-level position is byte-identical to an unindented one', () => {
+    // `destinationIndent` is '' at the top level and under a heading, so the two
+    // shapes this branch has always produced are unchanged.
+    expect(splitOk('thought\n\nnext\n', 'thought', { line: 0, ch: 7 }).text).toBe(
+      'thought\n\n\n\nnext\n',
+    );
+    expect(splitOk('thought\n\nnext\n', 'thought', { line: 0, ch: 7 }).result.anchor).toEqual({
+      line: 2,
+      ch: 0,
+    });
   });
 
   // ------------------------------------------------------------- whitespace

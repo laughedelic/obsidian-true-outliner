@@ -73,6 +73,10 @@ guide-line and marker offsets re-derived, which is why this is a change of its o
 
 ### A provisional (gap) line has no decoration facts, so the caret visibly jumps
 
+**Graduated** — closed by the `decorate-provisional-positions` change, which renders the
+caret's own gap line as the node the parse would make of it if a character were typed there.
+One residual is NOT ours and stays deferred; it is recorded below.
+
 Same catalogue, S10, and it explains a real-vault observation: Shift+Enter at the end of a
 nested list item puts the caret on the new line "without any indentation", and typing
 one character makes it "align correctly".
@@ -89,6 +93,46 @@ worse as those become first-class. The mechanism is available — give a gap lin
 owning node's depth — but which depth a gap line between two different depths should take
 is the open question, and it interacts with the guide-line rule that already covers gap
 lines.
+
+**How it was closed.** The open question dissolved rather than being answered: the layer asks
+what the line WOULD BE if a character were typed at the caret, which the parse already knows,
+instead of what depth a gap "is". That also covers the shape the depth framing cannot express
+— Shift+Enter's position is not a node at any depth, it is a continuation line of the node
+above.
+
+Measured live before building (16px font, `--to-decor-unit` 24px, marker gutter 20px; x
+values relative to the line's own box):
+
+| Shape | Caret today | Caret once a character is typed |
+|---|---|---|
+| Enter's position under a depth-1 paragraph | +0px | +44px (= 1 × 24 + 20 gutter) |
+| Shift+Enter's position, list under a heading | +16.75px, no margin | +36px, `margin-left: 24px` |
+| Shift+Enter's position, PURE list | +16.75px | +36px |
+
+Enter's case closes exactly: the injected fact gives the line the same `padding-left` a real
+depth-1 paragraph has, and the caret lands on 44px instead of 0 — where it previously sat on
+the depth-0 guide column. The list case closes the 24px our own layer was withholding (the
+`supplementalDepth` margin, which is exactly the "one level left, outside the list block"
+users report).
+
+### A caret at the end of a list-indent run measures by text, not by the run's own width
+
+The 19.25px left over from the row above, and NOT ours: measured byte-identical with outline
+mode **off**.
+
+Obsidian wraps a list line's leading whitespace in `<span class="cm-hmd-list-indent
+cm-hmd-list-indent-N"><span class="cm-indent">…</span></span>` and gives that span an explicit
+width per nesting level (36px for two levels, above). The literal spaces inside it measure
+their own natural width (~16.75px for four). Both DOM trees are identical whether the line
+holds only whitespace or whitespace plus text — the difference is only where the caret is
+measured: at end-of-line CM6 places it by the text run's own metrics, inside the wider span,
+while a following character's own span starts at the span's right edge.
+
+So a caret on a whitespace-only list line sits ~19px left of where the first typed character
+will appear, in stock Obsidian, with or without this plugin. Closing it would mean making the
+whitespace MEASURE as wide as the span that contains it (per-line `word-spacing` computed from
+a live measurement of both), which is theme-dependent, fragile, and squarely inside the native
+list metrics the decoration layer deliberately never computes. Recorded rather than attempted.
 
 ### RTL-aware placement (openspec outline-decorations task 5.9)
 

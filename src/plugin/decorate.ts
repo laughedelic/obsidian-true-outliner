@@ -18,6 +18,8 @@
 
 import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
 import { isAtom } from '../model';
+import { nodeAtLine } from '../locate';
+import { parse } from '../parse';
 
 export interface LineDecorationFact {
   /** 0-indexed absolute line number in the document. */
@@ -112,6 +114,75 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
 
   doc.children.forEach((node) => walk(node, 0, null));
   return facts;
+}
+
+/**
+ * One character, appended to a provisional line to ask the parse what that line
+ * would BE. Deliberately a plain letter: it starts no block of its own at any
+ * indentation the grammar can produce, so the answer is about the line's
+ * position in the document, never about the probe.
+ */
+const MATERIALIZE_PROBE = 'x';
+
+/**
+ * The decoration fact a PROVISIONAL POSITION would have — the fact of the line
+ * the parse produces there once a character is typed at the caret
+ * (`outline-keyboard-grammar`'s "Provisional positions"; see the
+ * decorate-provisional-positions change).
+ *
+ * A blank or whitespace-only line belongs to a node's trailing gap, so
+ * `decorate()` gives it no fact at all: no depth, no kind, nothing to indent by.
+ * The caret then renders at the line box's left edge plus whatever literal
+ * whitespace the line holds, and jumps the moment a character lands there. This
+ * answers where it should render instead.
+ *
+ * It asks the QUESTION rather than restating the rules: the probe is parsed, not
+ * pattern-matched. Enter's position is blank-separated from its neighbours and
+ * comes back a new node; Shift+Enter's is adjacent to the node above and comes
+ * back that node's own continuation line. Re-deriving that distinction here
+ * would mean a second copy of the content-column test, the blank-separation
+ * rule, and the list-stack popping that `parse.ts` already owns — each one a
+ * place to drift from it silently.
+ *
+ * Returns `null` — meaning "render this line exactly as before" — for a line
+ * that already has a fact of its own (including a blank line INSIDE an atom,
+ * which is a node's own line), for the inert preamble, and for a document with
+ * no node owning the line at all.
+ */
+export function provisionalFact(text: string, line: number): LineDecorationFact | null {
+  const probe = materializeProbe(text, line);
+  if (probe === null) return null;
+  return decorate(parse(probe)).find((fact) => fact.lineNumber === line) ?? null;
+}
+
+/**
+ * The document `provisionalFact` asks its question of — `text` with one
+ * character typed at the end of `line` — or `null` when that line is not a
+ * provisional position at all.
+ *
+ * Exported so a consumer that needs more than the one fact (the position-
+ * indicator layer needs the whole materialized tree, to accent the ancestors the
+ * new node WOULD have rather than those of whichever node owns the gap) can
+ * derive everything from a single parse, without restating the gate here.
+ */
+export function materializeProbe(text: string, line: number): string | null {
+  const lines = text === '' ? [] : text.split('\n');
+  const own = lines[line];
+  if (own === undefined || own.trim() !== '') return null;
+
+  const doc = parse(text);
+  // The preamble is outside this layer's jurisdiction (`content-space-caret`
+  // keeps motion and placement there byte-for-byte stock), and a line no node
+  // owns has no scope to materialize into.
+  if (!nodeAtLine(doc, line)) return null;
+  // A blank line that is one of a node's OWN lines — inside a fenced code block,
+  // say — already renders as that node; it is not a place, and probing it would
+  // answer a question nobody asked.
+  if (decorate(doc).some((fact) => fact.lineNumber === line)) return null;
+
+  const probe = [...lines];
+  probe[line] = `${own}${MATERIALIZE_PROBE}`;
+  return probe.join('\n');
 }
 
 /**

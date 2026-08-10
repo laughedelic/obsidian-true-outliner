@@ -125,4 +125,31 @@ describe('outline decorations: contracts (nested editors, non-mutation)', functi
     await browser.pause(150);
     expect(await h.getBuffer()).toBe(original);
   });
+  it('a provisional position renders without dispatching anything', async function () {
+    // The layer is a pure projection of buffer plus caret. Opening a position,
+    // letting it render, and abandoning it must leave exactly the keypress and
+    // its abandonment in history — no interposed transaction of the renderer's.
+    const note = 'Scratch/provisional-no-mutation.md';
+    await h.createNote(note, '# Heading\n\npara\n\nnext\n');
+    await ensureOutlineMode(note);
+
+    const before = await h.getBuffer();
+    await h.setCursor(2, 'para'.length);
+    await h.keys.enter();
+    await browser.pause(200);
+    const opened = await h.getBuffer();
+    const cursor = await h.getCursor();
+    expect(opened).not.toBe(before);
+    // It renders as a node — the thing that could have needed a transaction.
+    expect(await h.getLineClassList(cursor.line)).toContain('to-decor-block');
+
+    // Abandon by moving away: the position goes, and ONE undo returns to it
+    // rather than consuming some entry the renderer interposed.
+    await h.setCursor(0, 1);
+    await browser.pause(200);
+    expect(await h.getBuffer()).toBe(before);
+    await h.keys.undo();
+    await browser.pause(200);
+    expect(await h.getBuffer()).toBe(opened);
+  });
 });
