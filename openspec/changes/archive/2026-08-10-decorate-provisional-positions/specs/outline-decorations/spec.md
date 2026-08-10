@@ -48,7 +48,7 @@ own text metric, and is not claimed here. On a list continuation position spanni
 one nesting level, stock Obsidian measures a caret at the end of an indent run by that run's
 text rather than by the width of the span containing it, so the caret still shifts as the
 first character lands — byte-identical with this plugin disabled, measured and recorded in
-[docs/research/12-decoration-follow-ups.md](../../../../docs/research/12-decoration-follow-ups.md).
+[docs/research/12-decoration-follow-ups.md](../../../../../docs/research/12-decoration-follow-ups.md).
 Closing it would mean overriding the width of DOM this layer does not own, which is a change
 of its own.
 

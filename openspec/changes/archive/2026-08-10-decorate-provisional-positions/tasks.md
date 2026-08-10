@@ -103,7 +103,7 @@ still needs anything after the fact is restored.
       half and the E10 encoding defect are answered here, so the catalogue stays the record of
       where each finding landed.
 - [x] 6.3 Run `npm test`, `npm run lint`, `npm run build`, and `npm run test:e2e`.
-- [ ] 6.4 Manual real-vault pass over both reported gestures at several depths, in a pure list
+- [x] 6.4 Manual real-vault pass over both reported gestures at several depths, in a pure list
       and under a heading, with each `markerVisibility` value. Left for a human: the automated
       coverage measures columns and classes, which is not the same as the gesture reading right
       under the hand.
