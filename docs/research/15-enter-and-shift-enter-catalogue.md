@@ -504,10 +504,24 @@ run's head. Plain Backspace over the same selection hits it, so it belongs to th
 operation's renumbering contract rather than to the keyboard grammar. Fixing it means
 capturing each ordered run's start BEFORE the removal and renumbering the survivors from it.
 
-Taken up by `fix-ordered-renumbering-on-removal`, which also measured two more shapes the
-same rule reaches: `indent` (the node leaves its own level, so `- bullet` / `1. one` /
-`2. two` left `2. two` behind) and `unwrapListItem`. The outputs above are the pre-change
-record and stay as measured.
+Fixed by `fix-ordered-renumbering-on-removal` (archived 2026-08-10). The outputs above are
+the pre-change record and stay as measured. What that change found beyond this entry, each
+measured before being changed:
+
+- **The same rule reaches `indent` and `unwrapListItem`** — a node leaving its own level is
+  a removal too, so `- bullet` / `1. one` / `2. two` left `2. two` behind.
+- **A merge is a removal in all three of its shapes**, which the change's own first draft
+  got wrong: absorbing a non-ordered separator JOINS two runs and rewrote the survivor's own
+  number, absorbing a node's first child renumbered nothing at all, and a node absorbed from
+  an outer scope can head a run whose predecessor at that level is a bullet.
+- **A new node materialized in a CHILD scope was written as a plain bullet** whatever the
+  existing children were, so Enter at the end of a heading above a numbered list produced
+  `- `. Reported from a real vault against the shipped Enter behavior; the donor that
+  decides the child scope's KIND now decides its marker too.
+
+Left open and filed separately: renumbering can push a marker past the parser's nine-digit
+ceiling (`999999999.` → `1000000000.`), which re-parses as a paragraph. Pre-existing on
+every insert path, and closing it means deciding what an operation does at the ceiling.
 
 **Not fixed here — abandoning a position opened OVER a block selection restores the
 selection.** Block-select a paragraph, press Enter, then move away: the paragraph comes
