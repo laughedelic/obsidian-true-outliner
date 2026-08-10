@@ -1,7 +1,14 @@
 # caret-placement-policy Specification
 
 ## Purpose
-TBD - created by archiving change caret-placement-policy. Update Purpose after archive.
+Defines the single decision procedure that places the caret after every structural operation,
+whichever entry point invoked it — keyboard, command palette, or an enforcement rewrite. Names
+the cases an operation falls into (a position mapped forward, the subject's own new location,
+an interior position only the operation knows, the seam after a deletion), states when a
+dispatched caret must be recorded because mapping cannot reproduce it, and states the one
+exception to every caret being addressable. It exists because the answer was previously spread
+across seven places that disagreed, and most review rounds found an inconsistency BETWEEN two
+of them rather than a wrong decision inside any one.
 ## Requirements
 ### Requirement: One decision procedure places every structural operation's caret
 A single pure decision procedure SHALL answer, for every structural operation: given the

@@ -91,9 +91,11 @@ over multi-range inputs.
 ### Requirement: Chrome composes with existing decorations without displacing them
 The block-level selected-node chrome SHALL render alongside indentation, guide-line,
 and marker decorations on the same lines without removing, overriding, or visually
-replacing them, and SHALL apply to widget-replaced atom lines (tables, callouts, raw
-HTML, horizontal rules) exactly as it applies to plain `.cm-line`s, using whichever
-mechanism (declarative decoration or direct DOM patch) already reaches that line kind.
+replacing them, and SHALL apply to every line Obsidian replaces with an opaque widget —
+whatever that line's node kind is, not only the always-widget-replaced atom kinds (tables,
+callouts, raw HTML, horizontal rules) — exactly as it applies to plain `.cm-line`s, using
+whichever mechanism (declarative decoration or direct DOM patch) already reaches that line's
+rendered form.
 A line or widget that sets its OWN opaque background directly (e.g. a code fence) SHALL
 still show the chrome tint blended with that background, the same as a line that stays
 transparent. A line with its own native decorative element positioned at a fixed column
@@ -110,6 +112,12 @@ that cover.
 - **WHEN** an escalated cover includes a table (a widget-replaced atom)
 - **THEN** the table's rendered element receives the same selected-node chrome as
   plain lines in the same cover, alongside its existing margin and marker
+
+#### Scenario: A covered widget-replaced non-atom line gets chrome too
+- **WHEN** an escalated cover includes a paragraph consisting of a note embed, rendered as
+  an opaque replacement element rather than a plain `.cm-line`
+- **THEN** that element receives the same selected-node chrome as every plain line in the
+  same cover, reaching the same left edge
 
 #### Scenario: A widget atom's chrome matches the right edge every plain line reaches
 - **WHEN** an escalated cover includes a widget atom (e.g. a table) whose own rendered
@@ -140,7 +148,8 @@ regression check (asserting the selected line's own resolved `z-index`, since co
 background-color/z-index values on the chrome pseudo alone look correct even when the
 actual paint order is wrong); a dedicated blockquote regression check comparing the
 side-bar's resolved absolute position across two covers with very different shift
-amounts on the same blockquote line.
+amounts on the same blockquote line; and this change's embed-fixture coverage asserting
+chrome on a widget-replaced embed line in both cursor states.
 
 ### Requirement: Chrome anchors one level beyond the covered root's own column, not each line's own
 The chrome's left edge SHALL align to the same column for every line of a COVERED ROOT's
