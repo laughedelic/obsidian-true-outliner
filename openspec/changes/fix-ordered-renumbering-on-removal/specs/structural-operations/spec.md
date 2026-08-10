@@ -18,8 +18,13 @@ or an insertion cannot lose it while a removal can:
 - For a REMOVAL of nodes from a sibling list — subtree deletion, unwrapping a list item,
   the departure side of an indent, and the absorbed side of a merge — the start number
   SHALL be taken from the sibling list AS IT WAS BEFORE the removal: the start number of
-  the run that the surviving run's FIRST member belonged to. Deriving it from the
-  survivors is wrong exactly when the removal took the item that carried the run's start.
+  the run that the surviving run's first member THAT WAS ALREADY THERE belonged to.
+  Deriving it from the survivors is wrong exactly when the removal took the item that
+  carried the run's start.
+
+  A run may begin with nodes that were not in the list before — a merge adopts `second`'s
+  own children into it, carrying their old level's numbers — so the member the start is
+  read from SHALL be the first one present beforehand, not the first one positionally.
 
 A merge is a removal for this purpose in all three of its shapes, and none of them is
 saved by the survivor keeping its index. Absorbing a non-ordered node standing between two

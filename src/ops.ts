@@ -294,14 +294,16 @@ function renumberRuns(
 
 /**
  * Renumber maximal runs of ordered items for a PERMUTATION or an INSERTION —
- * a swap, a split, a merge, an insertion of subtrees. A run keeps its start
- * number, taken as the minimum present, which IS the number the run began with
- * for these shapes because none of them removes a run member: so a swap doesn't
+ * a swap, a split, an insertion of subtrees. A run keeps its start number,
+ * taken as the minimum present, which IS the number the run began with for
+ * these shapes because none of them removes a run member: so a swap doesn't
  * inherit the moved item's number while `5. 6. 7.`-style lists keep starting
  * at 5.
  *
  * For a REMOVAL, use `renumberOrderedAfterRemoval` — the minimum present is
- * then the number of whatever survived, not the run's own start.
+ * then the number of whatever survived, not the run's own start. A MERGE is a
+ * removal for this purpose (it absorbs a node), which this comment got wrong
+ * until all three of its branches were measured.
  */
 function renumberOrdered(nodes: readonly OutlineNode[]): readonly OutlineNode[] {
   return renumberRuns(nodes, lowestNumber);
@@ -313,15 +315,22 @@ function renumberOrdered(nodes: readonly OutlineNode[]): readonly OutlineNode[] 
  * that carried it may be exactly what went away: deleting the first two of
  * `1. 2. 3.` must leave `1.`, not `3.`.
  *
- * The lookup is by the surviving run's FIRST member, which is enough because a
- * removal can only shrink or MERGE runs — never split one or reorder within it —
- * so that member is the earliest survivor of the earliest contributing run.
- * Where two runs merge across a removed non-ordered node, the earlier run's
- * start therefore wins.
+ * The lookup is by the run's first member that was ALREADY THERE, which is
+ * enough because a removal can only shrink or MERGE runs — never split one or
+ * reorder within it — so that member is the earliest survivor of the earliest
+ * contributing run. Where two runs merge across a removed non-ordered node, the
+ * earlier run's start therefore wins.
  *
- * A first member absent from `before` means the caller's transformation was not
- * a pure removal; the fallback is deliberately the permutation rule, so a
- * mis-routed call degrades to the older behavior rather than to a third one.
+ * "That was already there" rather than simply `run[0]`: a merge can PREPEND
+ * nodes that arrived from another level (`second`'s own children, adopted into
+ * the list `first` absorbed it from). Those carry their old level's numbers and
+ * were never in `before`, so reading the start off one of them fell back to the
+ * minimum and lost the run's start — `- p` / `5. a` / (`10. kid`) / `6. b`
+ * produced `6. kid` / `7. b` instead of `5.` / `6.`.
+ *
+ * A run with NO member from `before` is not a removal's output at all; the
+ * fallback is deliberately the permutation rule, so a mis-routed call degrades
+ * to the older behavior rather than to a third one.
  */
 function renumberOrderedAfterRemoval(
   before: readonly OutlineNode[],
@@ -332,7 +341,10 @@ function renumberOrderedAfterRemoval(
     const start = lowestNumber(run);
     for (const node of run) startByMember.set(node.id, start);
   }
-  return renumberRuns(after, (run) => startByMember.get(run[0]!.id) ?? lowestNumber(run));
+  return renumberRuns(after, (run) => {
+    const known = run.find((node) => startByMember.has(node.id));
+    return known ? startByMember.get(known.id)! : lowestNumber(run);
+  });
 }
 
 /**

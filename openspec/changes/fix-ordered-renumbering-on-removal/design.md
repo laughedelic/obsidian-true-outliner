@@ -57,6 +57,17 @@ all three branches lose one:
   site and consumed immediately; it never becomes model state.
 - The insertion direction (a lower-numbered item pasted into a higher-numbered run) — see
   proposal.md — Out of scope.
+- **Renumbering past the parser's nine-digit marker ceiling.** Raised in review against
+  this change's child-scope insert, and measured: `LIST_ITEM_RE` accepts at most nine
+  digits, so incrementing `999999999.` yields `1000000000. b`, which re-parses as a
+  PARAGRAPH — the item silently stops being a list item. Closure is NOT broken (the
+  operation re-parses its own result, so the tree it returns already says `paragraph`, and
+  `treesEqual(result, parse(encode(result)))` holds), and the same thing happens on the
+  sibling-insert path this change does not touch — split at the end of `999999998. a` above
+  `999999999. b` produces it identically. So it is a pre-existing property of renumbering,
+  not something introduced here, and closing it means deciding what an operation DOES at
+  the ceiling — reject, clamp, or leave the run unrenumbered — at every renumber call site.
+  That is a change of its own.
 - **The siblings an outdent ADOPTS.** Measured while confirming D4: outdenting `1. a` out of
   `- p` / `1. a` / `2. b` / `3. c` leaves `2. b` and `3. c` as children of `a`, and that
   nested run starts at 2. It reads oddly, but the list is NEW at that level — nothing was
@@ -92,7 +103,12 @@ Build, from `before`, a map of ordered-node id → the start number of the maxim
 node was in. For each maximal ordered run in `after`, use `map.get(run[0].id)`; where the id
 is absent, fall back to the minimum present.
 
-Why the first member rather than, say, the lowest surviving id: a removal can only shrink or
+Refined in review: the first member **that was in `before`**, not the first positionally.
+A merge PREPENDS `second`'s adopted children into the list, and they carry their old
+level's numbers — `- p` / `5. a` / (`10. kid`) / `6. b` read its start off `10. kid`, missed
+the map, and fell back to the minimum, producing `6. kid` / `7. b`.
+
+Why the first such member rather than, say, the lowest surviving id: a removal can only shrink or
 MERGE runs, never split one or reorder within it, so the first survivor is the earliest
 remaining member of the earliest contributing run — exactly the item whose original run
 start the survivors should resume from. That is what makes `5. 6. 7.` minus its head come

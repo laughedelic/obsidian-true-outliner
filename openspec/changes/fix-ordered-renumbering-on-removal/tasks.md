@@ -104,7 +104,15 @@
       merge that must NOT change
 - [x] 6.4 Negative control: reverting the three branches fails exactly those three tests
       with exactly the measured outputs
-- [x] 6.5 Full suite (660), build, lint; `tests/edit-ops.test.ts`'s own merge property suite
+- [x] 6.5 REFINEMENT, found in review: a merge PREPENDS `second`'s adopted children into
+      the list, and they were never in `before` — so the start must be read from the run's
+      first member that WAS there, not the first positionally. Measured:
+      `- p` / `5. a` / (`10. kid`) / `6. b` gave `6. kid` / `7. b`. Fixed, with a
+      regression and a negative control that reproduces exactly that string
+- [x] 6.6 Correct `renumberOrdered`'s own doc comment, which still listed a merge as a
+      permutation/insertion after the call sites moved — the comment that would send the
+      next merge to the wrong rule
+- [x] 6.7 Full suite (663), build, lint; `tests/edit-ops.test.ts`'s own merge property suite
       (closure, totality, unchanged-on-reject) still green
 
 ## 7. Record

@@ -358,6 +358,16 @@ describe('mergeNodes', () => {
       expect(mergeOk('- p\n\t- kid\n1. a\n2. b\n', '\t- kid')).toBe('- p\n\t- kida\n1. b\n');
     });
 
+    it('adopted grandchildren prepended before a survivor keep the run’s start', () => {
+      // `second`'s own children are adopted into the list `first` absorbed it
+      // from, and land BEFORE the survivors. They were never in the pre-merge
+      // list, so reading the start off the run's literal first member fell back
+      // to the minimum: `6. kid` / `7. b` instead of `5.` / `6.`.
+      expect(mergeOk('- p\n\t5. a\n\t\t10. kid\n\t6. b\n', '- p')).toBe(
+        '- pa\n\t5. kid\n\t6. b\n',
+      );
+    });
+
     it('a plain same-level merge is unchanged — the head stays', () => {
       expect(mergeOk('1. a\n2. b\n3. c\n', '1. a')).toBe('1. ab\n2. c\n');
       expect(mergeOk('5. a\n6. b\n7. c\n', '5. a')).toBe('5. ab\n6. c\n');
