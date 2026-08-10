@@ -67,49 +67,119 @@ placement when the mapped position would not be caret-addressable.
   matching where Home lands on that line
 
 ### Requirement: Enter splits the node
-In outline mode, Enter SHALL split the node at the cursor. For a node WITH
-children, the remainder becomes the node's new FIRST CHILD — content-adjacent to
-the split point, never jumping over the existing subtree — encoded per the child
-scope's kind rules. For a node with NO children, the remainder becomes a sibling of
-the same kind (empty lower half when the cursor is at the node's end), as before.
-The cursor lands at the remainder's content start. On a heading line, Enter SHALL
-split the heading's text at the cursor: the heading keeps the text before the
-cursor (same level, marker, and setext-ness unchanged) and the text after the
-cursor becomes a new paragraph, landing as the heading's new FIRST child —
-regardless of whether the heading already has children, since a heading's only
-possible SIBLING is another heading and a plain-text split has no such encoding.
-When the cursor is at the heading's end (or only trailing whitespace follows),
-Enter SHALL widen the heading's own trailing gap and place the cursor on a line
-blank-separated from both the heading and whatever follows, per the same
-gap-widening rule a childless paragraph's end-of-node split already uses — the new
-child materializes only once text is typed there. For a setext heading, a mid-title
-Enter SHALL keep the underline attached to the (truncated) heading, never treating it
-as part of the split-off remainder. Enter with the cursor on a setext heading's
-underline line SHALL decline with the rejection cue (`cannot-split`), since the
-underline carries no title text to split. On an atom's interior, Enter SHALL decline
-the key (stock newline).
+In outline mode, Enter SHALL act on the EMPTY POSITION adjacent to the cursor:
+
+- At a node's content END — the empty position BELOW it, in its CHILD scope when it has
+  children and in its SIBLING scope when it does not.
+- At a node's content START — its first line, at or before its content column, marker
+  interior included — the empty position ABOVE it, in its SIBLING scope. The node's own
+  lines, children and depth SHALL NOT change. The start of a CONTINUATION line is an
+  ordinary interior position, not a content start.
+- Anywhere between — an ordinary split. For a node WITH children the remainder becomes the
+  node's new FIRST CHILD, content-adjacent to the split point and never jumping over the
+  existing subtree, encoded per the child scope's kind rules. For a node with NO children
+  the remainder becomes the next sibling of the same kind. The cursor lands at the
+  remainder's content start.
+
+The cursor SHALL land on the empty position, never on the node's own text. Where the
+destination scope's kind has an empty markdown encoding, a real empty node SHALL be
+materialized there: a list item in the original's marker style, with ordered runs
+renumbered, or — in the content-start case only — a heading at the same level. Where it has
+none, the adjacent gap SHALL widen into a provisional position.
+
+On a heading line, an interior Enter SHALL split the heading's text at the cursor: the
+heading keeps the text before it, unchanged in level, marker and setext-ness, and the text
+after it lands as the heading's new FIRST child, encoded per the same child-scope kind rules
+every other parent uses — which resolves to a paragraph unless the heading's existing
+children establish another kind. A heading's split remainder is always a CHILD, because a
+plain-text split has no heading-sibling encoding to produce; the content-start case is not a
+split and is not covered by that restriction. For a setext heading, a mid-title Enter SHALL
+keep the underline attached to the truncated heading, and Enter on the underline line SHALL
+be rejected with `cannot-split`.
+
+Enter on a list item whose own content is EMPTY SHALL NOT split. It SHALL OUTDENT the item,
+on the same terms as Shift+Tab, so a run of Enters walks back out of the nesting a run of
+Enters walked into. Where outdent is not available — at the top level, or directly under a
+heading, where markdown has no sibling spot — the item SHALL be UNWRAPPED: its marker goes
+and the cursor is left on a provisional position. An empty item that has CHILDREN and cannot
+outdent SHALL be rejected with the cue rather than orphaning them. An item whose only content
+is an unchecked task marker counts as empty, because that marker was written by this
+grammar's own continuation rule and requiring its deletion first would be a wart.
+
+A split of a task item SHALL carry the task marker to the new item, unchecked, whatever the
+original's checked state.
+
+The horizontal whitespace run immediately following the split point SHALL be consumed, for
+every node kind: it separated two words now on different lines and belongs to neither half.
+
+On an atom, Enter SHALL decline the key, because stock behavior is already the next line of
+the same type — a `> ` line in a quote, a row in a table, a plain line in a code fence. On a
+THEMATIC BREAK it SHALL be rejected with `cannot-split` instead: an `hr` has no text to
+split and no next line of its own kind, and the stock newline turns `---` into a paragraph
+and an empty list item.
+
+With a NON-EMPTY selection, Enter SHALL remove the selection exactly as the Backspace
+gesture does — a character range within a node, whole subtrees for a block selection — and
+then apply the rules above at the cursor that results. With MULTIPLE cursors it SHALL
+decline the key; planning only the main range while dispatching a single cursor discards
+every other range with no document change to undo.
 
 #### Scenario: Split a list item mid-text
-- **WHEN** Enter is pressed with the cursor inside a childless `- alpha beta`,
-  after "alpha "
-- **THEN** the text becomes two sibling items `- alpha ` and `- beta` and the
-  cursor sits after the new item's marker (narrowed by this change: a list item
-  WITH children splits differently — see the scenario below)
+- **WHEN** Enter is pressed with the cursor inside a childless `- alpha beta`, after "alpha "
+- **THEN** the text becomes two sibling items `- alpha ` and `- beta` and the cursor sits
+  after the new item's marker
 
 #### Scenario: Split a parent lands the remainder as first child
 - **WHEN** Enter is pressed mid-text in a list item that has children
-- **THEN** the remainder becomes the item's new first child, sitting directly
-  below the split point and above the existing children
+- **THEN** the remainder becomes the item's new first child, directly below the split point
+  and above the existing children
 
 #### Scenario: Enter at end creates an empty sibling
 - **WHEN** Enter is pressed at the end of a childless list item's text
 - **THEN** a new empty sibling item appears below and the cursor sits on it
 
+#### Scenario: Enter at a parent item's content start inserts an empty item above
+- **WHEN** Enter is pressed at the content start of `- alpha`, which has a child `- child`
+- **THEN** an empty `- ` appears above it, `alpha` keeps its own depth and its child
+  verbatim, and the cursor is in the new empty item
+
+#### Scenario: Enter at a heading's content start inserts an empty heading above
+- **WHEN** Enter is pressed before the "H" of `# Hello`, or anywhere inside its `#` marker
+- **THEN** an empty `# ` at the same level appears above it, `# Hello` is byte-identical,
+  and the cursor is in the new empty heading — the title is not demoted into a paragraph
+
+#### Scenario: Enter at a paragraph's content start widens the gap above
+- **WHEN** Enter is pressed at the content start of a paragraph
+- **THEN** the gap above it widens into a provisional position holding the cursor, and the
+  paragraph's own text is unchanged and unmoved
+
+#### Scenario: Enter on an empty nested item outdents it
+- **WHEN** Enter is pressed on an empty `- ` nested under another list item
+- **THEN** the item moves out one level, exactly as Shift+Tab would move it, and the cursor
+  stays at its content start
+
+#### Scenario: Enter on an empty top-level item leaves the list
+- **WHEN** Enter is pressed on an empty `- ` at the top level
+- **THEN** the marker is removed, the cursor is left on a provisional position, and typing
+  there produces a paragraph
+
+#### Scenario: Enter on an empty task item leaves the list too
+- **WHEN** Enter is pressed on a top-level `- [ ] ` with no text of its own
+- **THEN** it behaves exactly as the empty `- ` above — the task marker does not make the
+  item non-empty
+
+#### Scenario: Enter on an empty item that cannot outdent or unwrap is rejected
+- **WHEN** Enter is pressed on an empty top-level `- ` that has children
+- **THEN** the document, selection and undo history are unchanged and the cue appears
+
+#### Scenario: A task split continues the task, unchecked
+- **WHEN** Enter is pressed at the end of `- [x] done`
+- **THEN** the new item is `- [ ] `, not `- `
+
 #### Scenario: Enter mid-heading-text splits the title
-- **WHEN** Enter is pressed with the cursor mid-text inside `# Hello world`
-  (after "Hello ")
-- **THEN** the heading becomes `# Hello ` and a new paragraph child `world`
-  appears directly below it, with the cursor at the new paragraph's content start
+- **WHEN** Enter is pressed mid-text inside `# Hello world`, after "Hello "
+- **THEN** the heading becomes `# Hello ` and a new paragraph child `world` appears below
+  it, separated by a blank line, with the cursor at the paragraph's content start
 
 #### Scenario: Enter mid-heading-text with an existing paragraph child
 - **WHEN** Enter is pressed mid-text in a heading whose existing first child is
@@ -118,13 +188,32 @@ the key (stock newline).
   existing paragraph child by a blank line so the two stay distinct nodes on
   re-parse (they do not merge into one paragraph)
 
+#### Scenario: Enter mid-heading-text with an existing list child
+- **WHEN** Enter is pressed mid-text in a heading whose existing first child is a list item
+- **THEN** the remainder is encoded as a list item too, matching the child scope, and lands
+  above the existing one
+
 #### Scenario: Enter at the end of a heading widens the gap
-- **WHEN** Enter is pressed at the end of a heading's text (cursor after the last
-  character, no trailing whitespace)
-- **THEN** the heading's trailing gap widens by two blank lines (one more than
-  this behavior inserted before this change) and the cursor lands on the first
-  one, blank-separated from the heading above and from whatever follows below,
-  ready for a real child paragraph to materialize once text is typed
+- **WHEN** Enter is pressed at the end of a heading's text whose child scope resolves to a
+  paragraph
+- **THEN** the heading's trailing gap widens by two blank lines and the cursor lands on the
+  first, blank-separated from the heading above and from whatever follows, ready for a
+  child paragraph to materialize once text is typed
+
+#### Scenario: Enter at the end of a heading whose children are list items
+- **WHEN** Enter is pressed at the end of a heading whose first child is a list item
+- **THEN** the empty position is materialized as a real empty `- ` first child instead,
+  because that scope's kind has an empty encoding
+
+#### Scenario: Enter at the end of an item whose first child is a paragraph
+- **WHEN** Enter is pressed at the end of a list item whose first child is an indented
+  paragraph
+- **THEN** the item's own gap widens into a provisional position between the item and that
+  paragraph — the new position is not placed after the whole subtree
+
+#### Scenario: The split point's whitespace goes with neither half
+- **WHEN** Enter is pressed in a paragraph `one two` with the cursor after "one"
+- **THEN** the two paragraphs read `one` and `two`, with no leading space on the second
 
 #### Scenario: Enter mid-title of a setext heading keeps the underline attached
 - **WHEN** Enter is pressed mid-text inside a setext heading `Hello world`
@@ -134,20 +223,91 @@ the key (stock newline).
   part of the split-off remainder
 
 #### Scenario: Enter on a setext heading's underline declines
-- **WHEN** Enter is pressed with the cursor on a setext heading's underline line
-  (`===` or `---`)
-- **THEN** the key is declined with the rejection cue and nothing changes
+- **WHEN** Enter is pressed with the cursor on a setext heading's underline (`===` or `---`)
+- **THEN** the key is rejected with the cue and nothing changes
+
+#### Scenario: Enter on a thematic break is rejected
+- **WHEN** Enter is pressed with the cursor anywhere on a `---` thematic break
+- **THEN** the document is unchanged and the cue appears — the stock newline, which would
+  split it into a paragraph and an empty list item, never runs
+
+#### Scenario: Enter over a text selection replaces it first
+- **WHEN** Enter is pressed with a character range selected inside one node
+- **THEN** the selected text is gone and the node is split at that position, as though the
+  selection had been deleted and Enter pressed at the resulting cursor
+
+#### Scenario: Enter over a block selection replaces it first
+- **WHEN** Enter is pressed with whole subtrees selected
+- **THEN** those subtrees are removed and Enter acts at the cursor the removal leaves, so
+  the result is one empty position where the selection was
+
+#### Scenario: Enter with multiple cursors declines
+- **WHEN** Enter is pressed with more than one cursor
+- **THEN** the grammar declines and stock behavior runs for every range — no range is
+  silently discarded
 
 ### Requirement: Shift+Enter continues the node
-In outline mode, Shift+Enter SHALL insert a newline that keeps the cursor inside the SAME
-node as a continuation line — indented to the content column for list items, a plain
-continuation line for paragraphs. The result SHALL re-parse as one (multiline) node. On
-atoms it SHALL decline the key.
+In outline mode, Shift+Enter SHALL insert a line break that keeps the cursor inside the SAME
+node as a continuation line, prefixed so the new line starts at the node's own content
+column: a list item's continuation indent, an indented paragraph's own leading whitespace,
+nothing for a paragraph at column 0. A continuation line's prefix is read from the line the
+cursor is on, so a node already broken across lines keeps its established alignment.
+
+The insertion point SHALL be clamped to the node's content column, never landing inside a
+marker or the node's indentation — the same clamp Enter applies — and the horizontal
+whitespace run immediately following it SHALL be consumed.
+
+Where content follows the cursor, the result SHALL re-parse as ONE multiline node. At a
+node's END there is nothing to carry down, so the inserted line is blank: a provisional
+position, ADJACENT to the node's last content line rather than blank-separated from it,
+which is what makes text typed there the node's own continuation line rather than a new
+node. That adjacency is required, not incidental — see the provisional-position requirement.
+
+On a HEADING, Shift+Enter SHALL create a new SIBLING heading at the same level, carrying any
+text after the cursor, with the cursor at its content start. A heading has no continuation
+line of its own, so the key is free for the gesture that drafts a document's structure. The
+new heading SHALL be written ATX whatever the original's form, because an empty setext
+heading has no encoding. This applies on a setext heading's underline line as well, where
+Enter is rejected.
+
+On an atom Shift+Enter SHALL decline the key, and on a THEMATIC BREAK it SHALL be rejected,
+for the same reasons Enter is.
+
+With a non-empty selection or multiple cursors, Shift+Enter SHALL behave as Enter does:
+remove the selection first and act at the resulting cursor, or decline under multi-cursor.
 
 #### Scenario: Multiline list item
 - **WHEN** Shift+Enter is pressed inside `- note text`
-- **THEN** the new line is indented to the item's content column and the item re-parses
-  as a single two-line node
+- **THEN** the new line is indented to the item's content column and the item re-parses as a
+  single two-line node
+
+#### Scenario: An indented paragraph keeps its own indentation
+- **WHEN** Shift+Enter is pressed mid-text in a paragraph indented under a list item
+- **THEN** the continuation line carries that paragraph's own leading whitespace, so the
+  source stays aligned with the tree rather than relying on a lazy continuation from column 0
+
+#### Scenario: The insertion point is clamped out of chrome
+- **WHEN** Shift+Enter is pressed with the cursor inside a list item's marker
+- **THEN** the break happens at the item's content column and the marker is left whole
+
+#### Scenario: Shift+Enter at a node's end leaves an adjacent provisional line
+- **WHEN** Shift+Enter is pressed at the end of a list item's text
+- **THEN** the cursor lands on a blank line at the item's content column with no blank line
+  between it and the item, and typing there makes it the item's second line — one node
+
+#### Scenario: Shift+Enter on a heading drafts the next one
+- **WHEN** Shift+Enter is pressed at the end of `## Foo`
+- **THEN** a new `## ` appears directly below it as a sibling at the same level, with the
+  cursor at its content start
+
+#### Scenario: Shift+Enter mid-heading-title carries the remainder
+- **WHEN** Shift+Enter is pressed mid-title in `## Foo bar`, after "Foo "
+- **THEN** the heading becomes `## Foo ` and a sibling `## bar` follows it
+
+#### Scenario: Shift+Enter on a setext heading produces an ATX sibling
+- **WHEN** Shift+Enter is pressed on a setext heading, on its title or on its underline
+- **THEN** the new sibling is written `# ` or `## ` at the same level, and the original
+  heading keeps its setext form
 
 ### Requirement: Bindings decline inside a nested editor
 Every key this capability binds SHALL decline when the view is a nested editor (a table
@@ -172,4 +332,52 @@ structural COMMANDS, which read the host note through the public `Editor` API.
 - **WHEN** the caret is inside a table cell's nested editor and the move node up command
   runs
 - **THEN** the whole table moves as one node in the host document
+
+### Requirement: Provisional positions
+An accepted structural keypress MAY leave the cursor on a blank or whitespace-only line that
+belongs to no node's own lines. Such a line is a PROVISIONAL POSITION: it holds the place
+where a node, or a node's continuation line, materializes as soon as text is typed there,
+and until then it is blank space in the file. A provisional position is a cursor position,
+not a node — the tree SHALL have the same node count before and after the keypress that
+created it.
+
+The two kinds SHALL be distinguishable from the DOCUMENT ALONE, with no editor state and no
+record of which key was pressed:
+
+- Enter's provisional position SHALL be blank-separated from the content above it and below
+  it, so text typed there parses as a node distinct from both neighbours.
+- Shift+Enter's provisional position SHALL be ADJACENT to the node above it, so text typed
+  there parses as that node's own continuation line.
+
+This is the reason an end-of-node Enter widens a gap by two lines rather than reusing the
+single blank line that already separates two nodes. The narrower encoding was evaluated and
+is provably ambiguous: at the end of a top-level paragraph both keys leave the cursor at
+column 0 of the line below, and the only remaining difference is gap width, which
+`node-edit-enforcement` forbids reading editing intent from. Resolving it would require
+remembering which key ran — the editor state this design does not have.
+
+A provisional position SHALL behave as the empty node it stands for whenever the user acts on
+it as one. Moving the caret away without typing, and deleting it with Backspace or Delete,
+both cancel the keypress that created it — `structural-history-integration`'s undo-on-abandon
+requirement — rather than leaving debris or editing the surrounding gap by one line.
+
+#### Scenario: The keypress creates no node
+- **WHEN** Enter is pressed at the end of a childless paragraph
+- **THEN** the document's node count is unchanged, and the cursor sits on a blank line with
+  a blank line between it and each neighbour
+
+#### Scenario: Typing materializes a new node
+- **WHEN** text is typed on Enter's provisional position
+- **THEN** it becomes a node distinct from the nodes above and below it, with no further
+  keypress and no rewrite
+
+#### Scenario: Typing materializes a continuation line
+- **WHEN** text is typed on Shift+Enter's provisional position
+- **THEN** it becomes the second line of the node above it, which stays one node
+
+#### Scenario: The two are distinguishable without state
+- **WHEN** the same document position is reached by Enter and by Shift+Enter at the end of
+  the same top-level paragraph
+- **THEN** the two documents differ, and typing the same character into each yields a new
+  node in the first case and a continuation line in the second
 
