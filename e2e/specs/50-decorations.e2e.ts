@@ -341,7 +341,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     expect(await h.getLineClassList(cursor.line)).toContain('to-decor-list');
   });
 
-  it('typing on a provisional position does not move the line', async function () {
+  it('typing on Enter’s provisional position does not move the line', async function () {
     const note = 'Scratch/provisional-no-jump.md';
     await h.createNote(note, '# Heading\n\npara\n\nnext\n');
     if (!(await h.isOutlineMode(note))) {
@@ -360,5 +360,29 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     await browser.pause(150);
     expect(await h.getLineComputedStyle(cursor.line, 'padding-left')).toBe(before);
     expect((await h.posToCoords(cursor.line, cursor.ch)).left).toBeCloseTo(caretBefore, 0);
+  });
+
+  it('typing on Shift+Enter’s provisional position does not move the line', async function () {
+    // The other half of the same transition, and a different mechanism: the
+    // previewed CONTINUATION fact is replaced by the real continuation line's,
+    // where Enter's is replaced by a new node's.
+    const note = 'Scratch/provisional-no-jump-continuation.md';
+    await h.createNote(note, '# Heading\n\n- alpha\n  - beta\n');
+    if (!(await h.isOutlineMode(note))) {
+      await h.toggleOutlineMode();
+      await h.waitForNotice('Outline mode on');
+      await h.dismissNotices();
+    }
+    await h.setCursor(3, '  - beta'.length);
+    await h.keys.shiftEnter();
+    await browser.pause(150);
+    const cursor = await h.getCursor();
+    const marginBefore = await h.getLineComputedStyle(cursor.line, 'margin-left');
+    const leftBefore = (await h.getLineRect(cursor.line)).left;
+
+    await h.keys.type('x');
+    await browser.pause(150);
+    expect(await h.getLineComputedStyle(cursor.line, 'margin-left')).toBe(marginBefore);
+    expect((await h.getLineRect(cursor.line)).left).toBeCloseTo(leftBefore, 0);
   });
 });

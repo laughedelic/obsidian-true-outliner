@@ -149,23 +149,33 @@ const MATERIALIZE_PROBE = 'x';
  * which is a node's own line), for the inert preamble, and for a document with
  * no node owning the line at all.
  */
-export function provisionalFact(text: string, line: number): LineDecorationFact | null {
-  const probe = materializeProbe(text, line);
+export function provisionalFact(text: string, line: number, ch?: number): LineDecorationFact | null {
+  const probe = materializeProbe(text, line, ch);
   if (probe === null) return null;
   return decorate(parse(probe)).find((fact) => fact.lineNumber === line) ?? null;
 }
 
 /**
  * The document `provisionalFact` asks its question of — `text` with one
- * character typed at the end of `line` — or `null` when that line is not a
+ * character typed at column `ch` of `line` — or `null` when that line is not a
  * provisional position at all.
+ *
+ * `ch` is where the CARET is, not the end of the line, and the difference is
+ * load-bearing on a whitespace-only line: `    ` with the caret after the
+ * whitespace continues the list item above, while the same line with the caret
+ * at column 0 puts the character BEFORE that whitespace and starts a top-level
+ * node instead. Both are reachable — the second by a programmatic placement,
+ * which `content-space-caret` deliberately leaves where it lands — and the whole
+ * value of this layer is that it shows what typing right here would produce.
+ * Defaults to the end of the line, which is where every position the grammar
+ * itself opens puts the caret.
  *
  * Exported so a consumer that needs more than the one fact (the position-
  * indicator layer needs the whole materialized tree, to accent the ancestors the
  * new node WOULD have rather than those of whichever node owns the gap) can
  * derive everything from a single parse, without restating the gate here.
  */
-export function materializeProbe(text: string, line: number): string | null {
+export function materializeProbe(text: string, line: number, ch?: number): string | null {
   const lines = text === '' ? [] : text.split('\n');
   const own = lines[line];
   if (own === undefined || own.trim() !== '') return null;
@@ -180,8 +190,9 @@ export function materializeProbe(text: string, line: number): string | null {
   // answer a question nobody asked.
   if (decorate(doc).some((fact) => fact.lineNumber === line)) return null;
 
+  const at = Math.max(0, Math.min(ch ?? own.length, own.length));
   const probe = [...lines];
-  probe[line] = `${own}${MATERIALIZE_PROBE}`;
+  probe[line] = `${own.slice(0, at)}${MATERIALIZE_PROBE}${own.slice(at)}`;
   return probe.join('\n');
 }
 

@@ -837,6 +837,34 @@ describe('provisionalFact: what a caret-occupied blank line would become', () =>
     }
   });
 
+  it('probes at the CARET, not at the end of the line', () => {
+    // A whitespace-only line is two different places depending on where the
+    // caret is in it: after the whitespace the character continues the item
+    // above, before it the character starts a top-level node. Both are
+    // reachable — the second by a programmatic placement, which
+    // content-space-caret deliberately leaves where it lands.
+    const md = ['- alpha', '  ', ''].join('\n');
+    const afterWhitespace = provisionalFact(md, 1, 2)!;
+    expect(afterWhitespace.isListItem).toBe(true);
+    expect(afterWhitespace.isFirstLine).toBe(false);
+
+    const atColumnZero = provisionalFact(md, 1, 0)!;
+    expect(atColumnZero.isListItem).toBe(false);
+    expect(atColumnZero.kind).toBe('paragraph');
+    expect(atColumnZero.isFirstLine).toBe(true);
+    expect(atColumnZero.depth).toBe(0);
+    // And each matches what typing at that column actually produces.
+    expect(atColumnZero).toEqual(
+      decorate(parse(['- alpha', 'x  ', ''].join('\n'))).find((f) => f.lineNumber === 1),
+    );
+  });
+
+  it('clamps a caret column past the line’s own end', () => {
+    const md = ['- alpha', '  ', ''].join('\n');
+    expect(provisionalFact(md, 1, 99)).toEqual(provisionalFact(md, 1, 2));
+    expect(provisionalFact(md, 1, -5)).toEqual(provisionalFact(md, 1, 0));
+  });
+
   it('reports the item’s CHILD scope for a position an indented Enter opened', () => {
     // The shape splitNode's indentation fix exists for: at column 0 this same
     // position reports depth 0 — truthfully, since that is what typing there

@@ -301,7 +301,7 @@ function computeProvisional(state: EditorState): Provisional | null {
   if (!sel.empty || state.selection.ranges.length !== 1) return null;
   const line = state.doc.lineAt(sel.head);
   if (line.text.trim() !== '') return null;
-  const probe = materializeProbe(state.doc.toString(), line.number - 1);
+  const probe = materializeProbe(state.doc.toString(), line.number - 1, sel.head - line.from);
   if (probe === null) return null;
   const doc = parse(probe);
   const fact = decorate(doc).find((f) => f.lineNumber === line.number - 1);
