@@ -102,6 +102,45 @@ describe('deleteSubtrees', () => {
   });
 });
 
+describe('deleteSubtrees: ordered runs renumber from the run’s pre-removal start', () => {
+  function deleteOk(md: string, ...lines: string[]): string {
+    const doc = parse(md);
+    const result = deleteSubtrees(doc, lines.map((l) => byLine(doc, l).id));
+    if (!result.ok) throw new Error(result.rejection.reason);
+    // The edit list must reproduce the encoding exactly: renumbering is the one
+    // documented exception to "touch only the lines the operation requires", so
+    // its edits have to be in the list rather than only in the tree.
+    const text = encode(result.value.doc);
+    expect(applyEdits(md.split('\n'), result.value.edits).join('\n')).toBe(text);
+    return text;
+  }
+
+  // The two measurements the catalogue recorded (15-enter-and-shift-enter-catalogue,
+  // C2). Asserting the whole document, not the marker digits: the point is that the
+  // renumbering moved nothing else.
+  it('removing the head of 1,2,3 renumbers the survivor to 1', () => {
+    expect(deleteOk('1. a\n2. b\n3. c\n', '1. a', '2. b')).toBe('1. c\n');
+  });
+
+  it('a run that does not start at one keeps the start it was written with', () => {
+    expect(deleteOk('5. a\n6. b\n7. c\n', '5. a')).toBe('5. b\n6. c\n');
+  });
+
+  it('removing from the middle renumbers the tail, as it already did', () => {
+    expect(deleteOk('1. a\n2. b\n3. c\n', '2. b')).toBe('1. a\n2. c\n');
+  });
+
+  // A bullet, not a paragraph: a paragraph ADOPTS a following list as its children
+  // (measured), so the two runs would not be siblings at all.
+  it('a non-ordered node between two runs is removed: the survivors take the earlier start', () => {
+    expect(deleteOk('1. a\n2. b\n- x\n5. c\n6. d\n', '- x')).toBe('1. a\n2. b\n3. c\n4. d\n');
+  });
+
+  it('removing a whole run leaves nothing to renumber', () => {
+    expect(deleteOk('- x\n\n5. a\n6. b\n', '5. a', '6. b')).toBe('- x\n');
+  });
+});
+
 describe('mergeNodes', () => {
   it('joins two adjacent sibling paragraphs into one, minimal edit', () => {
     const md = 'First.\n\nSecond.\n';
@@ -285,6 +324,54 @@ describe('mergeNodes', () => {
     const result = mergeNodes(doc, intro.id);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.rejection.reason).toBe('merge-not-expressible');
+  });
+
+  // A merge REMOVES `second` from a sibling list, and the survivor's index is
+  // not the run's head: found in review after the audit classified every merge
+  // path as an insertion. Each of the three surgery branches can lose a head.
+  describe('a merge removes a node, so its level renumbers from the pre-merge start', () => {
+    function mergeOk(md: string, first: string): string {
+      const doc = parse(md);
+      const result = mergeNodes(doc, byLine(doc, first).id);
+      if (!result.ok) throw new Error(result.rejection.reason);
+      const text = encode(result.value.doc);
+      expect(applyEdits(md.split('\n'), result.value.edits).join('\n')).toBe(text);
+      return text;
+    }
+
+    it('absorbing a bullet SEPARATOR joins two runs at the earlier one’s start', () => {
+      // The survivor's own `5.` would otherwise be rewritten to `1.` — the
+      // minimum of the run it just joined.
+      expect(mergeOk('5. a\n- x\n1. c\n', '5. a')).toBe('5. ax\n6. c\n');
+      expect(mergeOk('1. a\n- x\n5. c\n6. d\n', '1. a')).toBe('1. ax\n2. c\n3. d\n');
+    });
+
+    it('absorbing an ordered FIRST CHILD renumbers the children left behind', () => {
+      // This branch renumbered nothing at all, so the survivors kept 2 and 3.
+      expect(mergeOk('- p\n\t1. a\n\t2. b\n\t3. c\n', '- p')).toBe('- pa\n\t1. b\n\t2. c\n');
+      expect(mergeOk('- p\n\t5. a\n\t6. b\n', '- p')).toBe('- pa\n\t5. b\n');
+    });
+
+    it('a CROSS-SCOPE merge removes a head whose predecessor is not in its run', () => {
+      // `1. a`'s predecessor at the top level is `- p`, so having one is not
+      // the same as keeping the run's head — the claim the audit rested on.
+      expect(mergeOk('- p\n\t- kid\n1. a\n2. b\n', '\t- kid')).toBe('- p\n\t- kida\n1. b\n');
+    });
+
+    it('adopted grandchildren prepended before a survivor keep the run’s start', () => {
+      // `second`'s own children are adopted into the list `first` absorbed it
+      // from, and land BEFORE the survivors. They were never in the pre-merge
+      // list, so reading the start off the run's literal first member fell back
+      // to the minimum: `6. kid` / `7. b` instead of `5.` / `6.`.
+      expect(mergeOk('- p\n\t5. a\n\t\t10. kid\n\t6. b\n', '- p')).toBe(
+        '- pa\n\t5. kid\n\t6. b\n',
+      );
+    });
+
+    it('a plain same-level merge is unchanged — the head stays', () => {
+      expect(mergeOk('1. a\n2. b\n3. c\n', '1. a')).toBe('1. ab\n2. c\n');
+      expect(mergeOk('5. a\n6. b\n7. c\n', '5. a')).toBe('5. ab\n6. c\n');
+    });
   });
 });
 
