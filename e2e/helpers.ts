@@ -1104,6 +1104,7 @@ export const keys = {
   down: () => browser.keys(Key.ArrowDown),
   home: () => browser.keys(Key.Home),
   end: () => browser.keys(Key.End),
+  backspace: () => browser.keys(Key.Backspace),
 };
 
 /** A real clipboard paste (Ctrl/Cmd+V after writing to the OS clipboard) —

@@ -61,6 +61,11 @@ import {
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { parsedDoc } from "./parsed-doc";
 import { isNestedEditor } from "./nested-editor";
+import {
+  advanceFromEmptyPlace,
+  cancelOnDelete,
+  provisionalCleanup,
+} from "./provisional-cleanup";
 
 export interface ModeSource {
   isOutline(path: string): boolean;
@@ -70,8 +75,29 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
   return (view: EditorView): boolean => {
     if (!outlinePathOf(modes, view)) return false;
 
-    const head = view.state.selection.main.head;
-    const line = view.state.doc.lineAt(head);
+    // Multi-cursor: decline (design D7). This handler plans from
+    // `selection.main` alone and dispatches ONE cursor, so acting would
+    // silently discard every other range — with no document change to undo,
+    // since a selection change is not a document change. The same reason
+    // `soleCursor` guards the motion handlers. Stock behavior handles every
+    // range, and the enforcement funnel still sees whatever it produces.
+    if (view.state.selection.ranges.length !== 1) return false;
+
+    // Only Enter and Shift+Enter act on a non-empty selection (design D7);
+    // every other key keeps planning from the selection HEAD exactly as before.
+    // That distinction is load-bearing: with a multi-node block cover the head
+    // is the cover's END, so planning Tab from `from` instead would silently
+    // change which node it indents, and would feed the mapped-cursor rule a
+    // different position than the one its gap-line fallback was written for.
+    //
+    // `from`/`to` are already ordered by CM6, so a backward selection needs no
+    // normalization. With an empty selection they equal the head, and `planKey`
+    // takes its ordinary cursor path either way.
+    const sel = view.state.selection.main;
+    const actsOnSelection = !sel.empty && (key === 'split' || key === 'continue');
+    const planFrom = actsOnSelection ? sel.from : sel.head;
+    const fromLine = view.state.doc.lineAt(planFrom);
+    const toLine = view.state.doc.lineAt(actsOnSelection ? sel.to : planFrom);
     // Public CM6 facet — Obsidian sets it from its own "Indent using tabs"
     // editor setting, so reading it here respects that preference without
     // touching any Obsidian-private API (confirmed live: toggling the
@@ -79,14 +105,25 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
     const outcome = planKey(
       view.state.doc.toString(),
       {
-        line: line.number - 1,
-        ch: head - line.from,
+        line: fromLine.number - 1,
+        ch: planFrom - fromLine.from,
       },
       key,
       view.state.facet(indentUnit),
+      {
+        line: toLine.number - 1,
+        ch: (actsOnSelection ? sel.to : planFrom) - toLine.from,
+      },
     );
 
-    if (outcome === null) return false;
+    if (outcome === null) {
+      // The grammar declines on a gap line. When that line is an empty place a
+      // structural keypress just made, Enter means "not here": move past it and
+      // cancel the keypress, instead of falling through to a stock newline that
+      // widens the gap on every press.
+      if (key === "split" && advanceFromEmptyPlace(view)) return true;
+      return false;
+    }
     if ("notice" in outcome) {
       new Notice(outcome.notice, 1500);
       return true; // consume: stock behavior must not fire on a rejected op
@@ -807,11 +844,30 @@ function makeHomeEndHandler(modes: ModeSource, forward: boolean) {
   };
 }
 
+/**
+ * Backspace/Delete on a place a structural keypress just created cancel it,
+ * treating a provisional position as the empty node it stands for. Declines in
+ * every other case, so the merge rules and native gap editing are untouched —
+ * the guard is "this exact place, from this exact keypress, still on top of the
+ * history", not "the caret is on a blank line".
+ */
+function makeCancelHandler(modes: ModeSource, forward: boolean) {
+  return (view: EditorView): boolean => {
+    if (!outlinePathOf(modes, view)) return false;
+    return cancelOnDelete(view, forward);
+  };
+}
+
 export function grammarExtension(modes: ModeSource): Extension {
   return [
     tickCounter,
+    // Gated on outline mode per update: the listener is installed in every
+    // editor view, so without this it would act on stock editing too.
+    provisionalCleanup((view) => outlinePathOf(modes, view) !== undefined),
     Prec.highest(
       keymap.of([
+        { key: "Backspace", run: makeCancelHandler(modes, false) },
+        { key: "Delete", run: makeCancelHandler(modes, true) },
         { key: "Tab", run: probed("Tab", makeHandler(modes, "indent")) },
         { key: "Shift-Tab", run: makeHandler(modes, "outdent") },
         // Move up/down are deliberately NOT bound here. Tab/Enter must live in

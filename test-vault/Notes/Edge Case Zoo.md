@@ -11,6 +11,8 @@ This column-0 paragraph closes the group above.
 
 ## Atoms
 
+
+
 ```python
 # whole fence moves as one node; Enter inside = plain newline
 def atom():

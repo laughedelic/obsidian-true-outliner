@@ -16,7 +16,8 @@ export type RejectionReason =
   | 'no-following-neighbor'
   | 'would-orphan-children'
   | 'merge-not-expressible'
-  | 'insertion-not-expressible';
+  | 'insertion-not-expressible'
+  | 'cannot-unwrap';
 
 export interface Rejection {
   readonly reason: RejectionReason;

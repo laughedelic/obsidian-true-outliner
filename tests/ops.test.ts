@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { walkNodes, type OutlineDoc } from '../src/model';
-import { indent, outdent, moveDown, moveUp, splitNode } from '../src/ops';
+import {
+  indent,
+  outdent,
+  moveDown,
+  moveUp,
+  splitNode,
+  unwrapListItem,
+  insertSiblingHeading,
+  insertSubtrees,
+} from '../src/ops';
 import { applyEdits } from '../src/result';
 
 /** Find the node whose first line matches. */
@@ -218,21 +227,34 @@ describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
     expect(text).toBe('- x\n\t- y\n\n- a\n\t- b\n');
   });
 
-  it("splitNode's content-adjacent split honors the fallback too", () => {
-    // "a" already has a paragraph child ("child para"), so splitting inside
-    // "a"'s own text lands the remainder as a NEW first-child paragraph —
-    // no list-item sibling at that landing spot to copy indentation from,
-    // so the fallback governs its indentation (see destinationIndent).
-    const src = '- a\n\n  child para\n';
+  it("a destination sibling's own indentation beats the fallback for a content-adjacent split", () => {
+    // "ab" already has a paragraph child ("child para"), so splitting inside
+    // "ab"'s own text lands the remainder as a NEW first-child paragraph,
+    // alongside that existing child.
+    //
+    // Two things changed here with `enter-and-shift-enter-grammar`, and the
+    // test now pins the result of both:
+    //
+    // 1. The split point is INTERIOR (after "a"). It used to be ch 2, the
+    //    item's own content START, which now inserts an empty item before the
+    //    node instead of splitting it — the old expectation (`- ` above, "a"
+    //    demoted into a child) was the demotion defect that change removes.
+    // 2. `destinationIndent` now copies a destination sibling of ANY kind, so
+    //    the existing paragraph child's two spaces win over a tab fallback.
+    //    This test previously asserted the opposite. The fallback is not
+    //    reachable from a content-adjacent split at all any more: that path
+    //    requires the node to HAVE children, which means a sibling always
+    //    exists to copy from. `indent` still exercises the fallback, above.
+    const src = '- ab\n\n  child para\n';
     const doc = parse(src);
-    const a = byLine(doc, '- a');
-    const withoutFallback = splitNode(doc, a, { line: 0, ch: 2 });
+    const a = byLine(doc, '- ab');
+    const withoutFallback = splitNode(doc, a, { line: 0, ch: 3 });
     if (!withoutFallback.ok) throw new Error(`unexpected rejection: ${withoutFallback.rejection.reason}`);
-    expect(encode(withoutFallback.value.doc)).toBe('- \n\n  a\n\n  child para\n');
+    expect(encode(withoutFallback.value.doc)).toBe('- a\n\n  b\n\n  child para\n');
 
-    const withTab = splitNode(doc, a, { line: 0, ch: 2 }, '\t');
+    const withTab = splitNode(doc, a, { line: 0, ch: 3 }, '\t');
     if (!withTab.ok) throw new Error(`unexpected rejection: ${withTab.rejection.reason}`);
-    expect(encode(withTab.value.doc)).toBe('- \n\n\ta\n\n  child para\n');
+    expect(encode(withTab.value.doc)).toBe('- a\n\n  b\n\n  child para\n');
   });
 });
 
@@ -300,5 +322,165 @@ describe('sibling reordering', () => {
     expectReject(moveDown, '### Three\n\n## Two\n', '### Three', 'cannot-reorder-across-heading-boundary');
     expectReject(moveUp, '- a\n- b\n', '- a', 'no-sibling-above');
     expectReject(moveDown, '- a\n- b\n', '- b', 'no-sibling-below');
+  });
+});
+
+describe('list item unwrap', () => {
+  function unwrapOk(md: string, target: string) {
+    const doc = parse(md);
+    const result = unwrapListItem(doc, byLine(doc, target));
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    return { text: encode(result.value.doc), result: result.value };
+  }
+
+  it('an empty item between two items leaves a position, not a node', () => {
+    const { text, result } = unwrapOk('- a\n- \n- b\n', '- ');
+    expect(text).toBe('- a\n\n- b\n');
+    expect(result.anchor).toEqual({ line: 1, ch: 0 });
+    // The node count drops by exactly one, and the neighbours are verbatim.
+    expect([...walkNodes(result.doc)].map((n) => n.lines[0])).toEqual(['- a', '- b']);
+  });
+
+  it('an empty item as the last node', () => {
+    const { text, result } = unwrapOk('- item\n- \n', '- ');
+    expect(text).toBe('- item\n\n');
+    expect(result.anchor).toEqual({ line: 1, ch: 0 });
+  });
+
+  it('an empty item as the only node', () => {
+    const { text, result } = unwrapOk('- \n', '- ');
+    expect(text).toBe('\n');
+    expect(result.anchor).toEqual({ line: 0, ch: 0 });
+    expect([...walkNodes(result.doc)].length).toBe(0);
+  });
+
+  it('an empty TASK item unwraps like any other empty item', () => {
+    // The marker was written by our own continuation rule, so it does not make
+    // the item non-empty (design D5).
+    const { text } = unwrapOk('- a\n- [ ] \n', '- [ ] ');
+    expect(text).toBe('- a\n\n');
+  });
+
+  it('typing at the anchor produces a paragraph joined to neither neighbour', () => {
+    // The requirement's real content. Asserting the blank-line count alone
+    // would pass on a layout that still merges into a neighbour.
+    const { text, result } = unwrapOk('- a\n- \n- b\n', '- ');
+    const lines = text.split('\n');
+    lines[result.anchor.line] = 'typed';
+    const after = parse(lines.join('\n'));
+    // "typed" is its own paragraph node — not merged into the item above and
+    // not part of the item below, which is what the requirement asks.
+    expect(after.children.map((n) => [n.kind, n.lines[0]])).toEqual([
+      ['list-item', '- a'],
+      ['paragraph', 'typed'],
+    ]);
+    // `- b` becomes that paragraph's CHILD rather than staying top-level, which
+    // is the list-after-paragraph attachment rule (`document-tree-mapping`)
+    // doing its job, not an artifact of the unwrap: typing a paragraph directly
+    // above any list does this. Asserted so the behavior is recorded rather
+    // than discovered again.
+    expect(after.children[1]!.children.map((n) => n.lines[0])).toEqual(['- b']);
+  });
+
+  it('rejects an item with children, and a non-empty item', () => {
+    const withKids = parse('- a\n- \n\t- kid\n');
+    expect(unwrapListItem(withKids, byLine(withKids, '- '))).toMatchObject({
+      ok: false,
+      rejection: { reason: 'would-orphan-children' },
+    });
+    const nonEmpty = parse('- a\n- text\n');
+    expect(unwrapListItem(nonEmpty, byLine(nonEmpty, '- text'))).toMatchObject({
+      ok: false,
+      rejection: { reason: 'cannot-unwrap' },
+    });
+  });
+});
+
+describe('sibling heading creation', () => {
+  function siblingOk(md: string, target: string, remainder: string) {
+    const doc = parse(md);
+    const result = insertSiblingHeading(doc, byLine(doc, target), remainder);
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    return { text: encode(result.value.doc), result: result.value };
+  }
+
+  it('creates an empty sibling at the same level', () => {
+    const { text, result } = siblingOk('## Foo\n', '## Foo', '');
+    expect(text).toBe('## Foo\n## \n');
+    expect(result.anchor).toEqual({ line: 1, ch: 3 });
+    expect(result.doc.children.map((n) => n.level)).toEqual([2, 2]);
+  });
+
+  it('moves a remainder to the sibling', () => {
+    const { text } = siblingOk('## Foo bar\n', '## Foo bar', 'bar');
+    expect(text).toBe('## Foo \n## bar\n');
+  });
+
+  it('a setext original keeps its underline; the sibling is ATX', () => {
+    const { text, result } = siblingOk('Head\n====\n', 'Head', '');
+    expect(text).toBe('Head\n====\n# \n');
+    expect(result.doc.children[0]!.lines).toEqual(['Head', '====']);
+    expect(result.doc.children[0]!.setext).toBe(true);
+    expect(result.doc.children[1]!.setext).toBeUndefined();
+  });
+
+  it("the original's children stay with it, so the sibling follows the section", () => {
+    // Heading scope is positional: content already under the heading belongs
+    // to it, so the new sibling can only go after that content.
+    const { text } = siblingOk('## Foo\n\nbody\n', '## Foo', '');
+    expect(text).toBe('## Foo\n\nbody\n## \n');
+  });
+
+  it('rejects a non-heading', () => {
+    const doc = parse('- item\n');
+    expect(insertSiblingHeading(doc, byLine(doc, '- item'), '')).toMatchObject({
+      ok: false,
+      rejection: { reason: 'cannot-split' },
+    });
+  });
+
+  it('an interior heading split still produces a CHILD, never a sibling', () => {
+    // The no-heading-siblings restriction is NARROWED to the two new entry
+    // points, not dropped. This is the guard against the split path drifting.
+    const doc = parse('# Hello world\n');
+    const result = splitNode(doc, byLine(doc, '# Hello world'), { line: 0, ch: 8 });
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(result.value.doc.children.length).toBe(1);
+    expect(result.value.doc.children[0]!.children.map((n) => n.kind)).toEqual(['paragraph']);
+  });
+});
+
+describe('review follow-ups (#43)', () => {
+  it('a CHECKED empty task is content, not an empty item', () => {
+    // The ladder's carve-out covers the marker this grammar writes — an
+    // UNCHECKED box. A ticked one is something the user did, so Enter must not
+    // outdent or unwrap a completed task away.
+    const doc = parse('- a\n- [x]\n');
+    expect(unwrapListItem(doc, byLine(doc, '- [x]'))).toMatchObject({
+      ok: false,
+      rejection: { reason: 'cannot-unwrap' },
+    });
+
+    const unchecked = parse('- a\n- [ ]\n');
+    const result = unwrapListItem(unchecked, byLine(unchecked, '- [ ]'));
+    expect(result.ok).toBe(true);
+  });
+
+  it('an insertion BEFORE a tab-indented sibling adopts its indentation', () => {
+    // `destinationIndent` consulted only the siblings PRECEDING the insertion
+    // point, so a payload landing first among tab-indented children took the
+    // configured unit instead — leaving the existing sibling deeper than the
+    // block now above it, which re-parses it as that block's child.
+    const doc = parse('- item\n\t```\n\tcode\n\t```\n');
+    // Anchor on the fence and insert BEFORE it: the payload lands first among
+    // "- item"'s children, so there is no PRECEDING sibling to copy from.
+    const fence = byLine(doc, '\t```');
+    const result = insertSubtrees(doc, fence, parse('pasted\n').children, 'before', '  ');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    const after = parse(encode(result.value.doc));
+    // The fence is still a SIBLING of the pasted block under "- item", not its
+    // child — which is what an indentation mismatch would have made it.
+    expect(after.children[0]!.children.map((n) => n.kind)).toEqual(['list-item', 'code']);
+    expect(after.children[0]!.children[0]!.children).toEqual([]);
   });
 });

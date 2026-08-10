@@ -163,7 +163,7 @@ function coverGroups(
  * Reads `ForestRoot.path` rather than calling `findPath` per root, which was
  * a full-tree search per root (Θ(n²) for a forest of n roots).
  */
-function groupRootsByParent(roots: readonly ForestRoot[]): readonly (readonly number[])[] {
+export function groupRootsByParent(roots: readonly ForestRoot[]): readonly (readonly number[])[] {
   const groups: number[][] = [];
   let currentParent: string | undefined;
   for (const root of roots) {

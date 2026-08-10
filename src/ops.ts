@@ -299,7 +299,15 @@ export function destinationIndent(
   siblingsAtDestination: readonly OutlineNode[],
   fallbackIndentUnit?: string,
 ): string {
-  const sibling = siblingsAtDestination.find((n) => n.kind === 'list-item');
+  // A sibling at the destination, of ANY kind. Siblings share an indentation
+  // level by construction, so their own whitespace is better evidence than an
+  // inferred unit — and the inferred unit is what produced a measured
+  // tree-shape bug: a new 2-space child landing beside a tab-indented atom
+  // sibling left that atom DEEPER than the new node, which re-parsed it as the
+  // new node's own child. The list-item preference is kept ahead of the general
+  // case so nothing that already had a list-item donor changes.
+  const sibling =
+    siblingsAtDestination.find((n) => n.kind === 'list-item') ?? siblingsAtDestination[0];
   if (sibling) return leadingWhitespace(sibling.lines[0] ?? '');
   if (parent === 'root' || parent.kind === 'heading') return '';
   const parentIndent = leadingWhitespace(parent.lines[0] ?? '');
@@ -378,7 +386,12 @@ export function indent(
   const moved = reencodeForDestination(
     node,
     newKind,
-    destinationIndent(doc, target, target.children.slice(0, insertIndex), fallbackIndentUnit),
+    // Every sibling at the destination, not just those BEFORE the insertion
+    // point: inserting ahead of a tab-indented sibling would otherwise take the
+    // inferred unit and re-parent it, the same tree-shape defect the split path
+    // had. Document order puts preceding siblings first, so the existing
+    // preference is unchanged.
+    destinationIndent(doc, target, target.children, fallbackIndentUnit),
   );
 
   let surgery = updateSiblings(doc, parentPath, (nodes) => {
@@ -521,6 +534,104 @@ export const moveDown = (doc: OutlineDoc, nodeId: number): OpResult<OpOutput> =>
 
 const LIST_MARKER_SPLIT_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]*)/;
 
+/** An unchecked task marker, and the shape that identifies one on a line. */
+const TASK_MARKER_RE = /^\[[ xX]\][ \t]+/;
+const EMPTY_TASK_MARKER = '[ ] ';
+
+/**
+ * `- ` (or `1. `, or `- [ ] `) for a new EMPTY item alongside `node` — the
+ * item's own indentation and marker style, with a task marker carried over
+ * UNCHECKED whatever the original's state.
+ *
+ * Carrying the task marker in BOTH directions is deliberate: an item created
+ * above and one created below are the same "a new empty item next to this one",
+ * and having Enter-at-start produce `- ` while Enter-at-end produces `- [ ] `
+ * would be exactly the shape-dependence this change removes. It does NOT make
+ * `[ ]` chrome anywhere else — the caret still reaches it, Home still lands
+ * before it (design D5).
+ */
+function emptyItemPrefix(node: OutlineNode): string {
+  const match = LIST_MARKER_SPLIT_RE.exec(node.lines[0] ?? '');
+  const markerPrefix = match ? `${match[1]}${match[2]} ` : '- ';
+  const content = (node.lines[0] ?? '').slice(match?.[0].length ?? 0);
+  return TASK_MARKER_RE.test(content) ? `${markerPrefix}${EMPTY_TASK_MARKER}` : markerPrefix;
+}
+
+/**
+ * The content-start outcome of `splitNode`: an empty node of the SAME KIND
+ * immediately BEFORE `node`, which keeps its own lines, children and depth
+ * verbatim. The node's own kind IS its sibling scope's kind, so no destination
+ * lookup is needed here — unlike the end-of-node case, which places into the
+ * CHILD scope whenever the node has children.
+ *
+ * A paragraph has no empty encoding, so its case widens the gap ABOVE instead
+ * and anchors on a blank-separated line, exactly as the end-of-node case does
+ * below it. `normalizeBoundaries` cannot add a third line there: every rule it
+ * has bails out when the boundary already carries a gap, which this one now
+ * does.
+ */
+function insertEmptyBefore(
+  doc: OutlineDoc,
+  path: NodePath,
+  node: OutlineNode,
+): OpResult<OpOutput> {
+  const parentPath = path.slice(0, -1);
+  const index = path[path.length - 1]!;
+
+  if (node.kind === 'list-item' || node.kind === 'heading') {
+    const empty =
+      node.kind === 'list-item'
+        ? makeNode({
+            kind: 'list-item',
+            ...(node.listStyle ? { listStyle: node.listStyle } : {}),
+            lines: [emptyItemPrefix(node)],
+          })
+        : // ATX whatever the original's form: an empty setext heading has no
+          // encoding at all (design D3).
+          makeNode({
+            kind: 'heading',
+            level: node.level ?? 1,
+            // The trailing space is what makes this an empty heading rather
+            // than a bare marker: `contentColumnCh` reads the content start
+            // from `#{1,6}[ \t]+`, so without it the anchor lands at column 0,
+            // before the marker, instead of where a title would be typed.
+            lines: [`${'#'.repeat(node.level ?? 1)} `],
+          });
+    const surgery = updateSiblings(doc, parentPath, (nodes) =>
+      renumberOrdered([...nodes.slice(0, index), empty, ...nodes.slice(index)]),
+    );
+    return finalize(doc, surgery, empty.id);
+  }
+
+  // Paragraph: widen the gap above by two and anchor on the first of them.
+  // Which node OWNS that gap depends on where this one sits — a preceding
+  // sibling's own trailing gap, the parent's (when this is a first child), or
+  // the document preamble (when it is the first node of all).
+  let surgery: OutlineDoc;
+  if (index > 0) {
+    surgery = updateSiblings(doc, parentPath, (nodes) =>
+      nodes.map((n, i) => (i === index - 1 ? appendFinalGap(appendFinalGap(n)) : n)),
+    );
+  } else if (parentPath.length > 0) {
+    const parentIndex = parentPath[parentPath.length - 1]!;
+    surgery = updateSiblings(doc, parentPath.slice(0, -1), (nodes) =>
+      nodes.map((n, i) =>
+        i === parentIndex ? { ...n, trailingGap: [...n.trailingGap, '', ''] } : n,
+      ),
+    );
+  } else {
+    surgery = { ...doc, preamble: [...doc.preamble, '', ''] };
+  }
+  const result = finalize(doc, surgery, node.id);
+  if (!result.ok) return result;
+  // `finalize` anchored on the node itself, whose start line has moved down by
+  // exactly the two lines inserted directly above it.
+  return accept({
+    ...result.value,
+    anchor: { line: result.value.anchor.line - 2, ch: 0 },
+  });
+}
+
 /**
  * Split a paragraph/list-item node at a document position into two adjacent
  * same-kind siblings; children stay with the original (upper) node.
@@ -552,6 +663,14 @@ export function splitNode(
   // Never split inside indentation or a list marker.
   const ch = Math.min(Math.max(position.ch, contentColumnCh(line)), line.length);
 
+  // CONTENT START: insert before, divide nothing (structural-operations' "Node
+  // split", 2026-08-07 amendment). The clamp above is what makes a caret inside
+  // a marker reach this test as a content-start position, so the marker-interior
+  // case needs no rule of its own.
+  if (lineIndex === 0 && ch === contentColumnCh(line)) {
+    return insertEmptyBefore(doc, path, node);
+  }
+
   // A setext heading's underline (its own line 1) is structural chrome, not a
   // continuation line of the title — it must stay attached to the truncated
   // heading (upper), never travel with the split-off remainder (lower). A
@@ -564,6 +683,18 @@ export function splitNode(
   const upperLines = isSetextHeading
     ? [line.slice(0, ch), node.lines[1]!]
     : [...node.lines.slice(0, lineIndex), line.slice(0, ch)];
+  // A split at (or before the content of) a CONTINUATION line leaves the upper
+  // half with a blank last line, which is not a line of the node at all: it
+  // re-parses as a gap. Splitting the line a Shift+Enter had just created
+  // therefore left an extra blank between the node and what followed, where
+  // pressing Enter from the original position produced none. Drop any such
+  // trailing line — never the setext underline, which is chrome and never
+  // blank, and never the node's only line.
+  if (!isSetextHeading) {
+    while (upperLines.length > 1 && (upperLines[upperLines.length - 1] ?? '').trim() === '') {
+      upperLines.pop();
+    }
+  }
   const remainderFirst = line.slice(ch);
   const lowerRest = isSetextHeading ? [] : node.lines.slice(lineIndex + 1);
   const emptyRemainder = remainderFirst.trim() === '' && lowerRest.length === 0;
@@ -587,8 +718,11 @@ export function splitNode(
       followingSiblings: node.children,
     });
     // An empty paragraph has no markdown encoding, so an end-of-node split
-    // whose child scope demands a paragraph can't materialize a first child
-    // — fall through to the childless sibling behavior for that edge.
+    // whose child scope demands a paragraph can't materialize a first child.
+    // It falls to the gap-widening branch below — NOT to the sibling path,
+    // which placed the new position after the entire subtree (the shape this
+    // amendment exists to prevent, and the one the fall-through left open for
+    // any node whose first child is an indented paragraph).
     if (!(emptyRemainder && childKind === 'paragraph')) {
       const indentText = destinationIndent(doc, node, node.children, fallbackIndentUnit);
       let lower: OutlineNode;
@@ -630,10 +764,24 @@ export function splitNode(
       if (node.children.length === 0 && node.trailingGap.length > 0) {
         lower = { ...lower, trailingGap: [...lower.trailingGap, ...node.trailingGap] };
       }
+      // A heading and a paragraph child it did not have before are separated by
+      // a blank line — required by CONVENTION, not by the parse (`# Head` then
+      // `line` re-parses correctly either way).
+      //
+      // Applied HERE, where the boundary is created, and deliberately not in
+      // `normalizeBoundaries`: that runs on every operation's result, and a
+      // heading with a gap-0 paragraph child is ordinary parsed markdown, so a
+      // global rule would rewrite heading boundaries the user wrote anywhere in
+      // the file on any unrelated edit. The list-item version of the same rule
+      // IS global and IS safe, because without the blank line its indented text
+      // is a continuation line and there is no child at all.
+      const ownGap = node.children.length === 0 ? [] : node.trailingGap;
+      const separateFromHeading =
+        node.kind === 'heading' && childKind === 'paragraph' && ownGap.length === 0;
       const upper: OutlineNode = {
         ...node,
         lines: upperLines,
-        trailingGap: node.children.length === 0 ? [] : node.trailingGap,
+        trailingGap: separateFromHeading ? [''] : ownGap,
         children: [lower, ...node.children],
       };
       const surgery = updateSiblings(doc, parentPath, (nodes) =>
@@ -643,11 +791,21 @@ export function splitNode(
     }
   }
 
-  if ((node.kind === 'paragraph' || node.kind === 'heading') && emptyRemainder) {
-    // End-of-paragraph (or end-of-heading) split: no empty-paragraph encoding
-    // exists, so widen the gap and put the cursor on a line that is
-    // blank-separated on BOTH sides — typing there materializes the sibling
-    // (or, for a heading, the first child) instead of rejoining a neighbor.
+  if (emptyRemainder && (node.kind !== 'list-item' || node.children.length > 0)) {
+    // END of a node whose destination scope's kind has no empty encoding: no
+    // empty-paragraph encoding exists, so widen the gap and put the cursor on
+    // a line that is blank-separated on BOTH sides — typing there materializes
+    // the node instead of rejoining a neighbor.
+    //
+    // ONE gap serves both scopes, which is why this branch needs no split of
+    // its own: for a childless node its trailing gap is what separates it from
+    // its next SIBLING, and for a node with children the same gap separates it
+    // from its first CHILD. Either way the position lands content-adjacent,
+    // directly below the node's own last line.
+    //
+    // The condition reads as "everything except a childless list item" because
+    // that is the only end-of-node case whose destination kind IS encodable
+    // empty (`- `), and it is handled by the sibling path below.
     const surgery = updateSiblings(doc, parentPath, (nodes) =>
       nodes.map((n, i) => (i === index ? { ...n, trailingGap: ['', '', ...n.trailingGap] } : n)),
     );
@@ -661,8 +819,11 @@ export function splitNode(
 
   let lower: OutlineNode;
   if (node.kind === 'list-item') {
-    const match = LIST_MARKER_SPLIT_RE.exec(node.lines[0] ?? '')!;
-    const markerPrefix = `${match[1]}${match[2]} `;
+    // Task-aware: a new SIBLING of a task item is itself a task, unchecked.
+    // The child-scope path above deliberately does not do this — a child is a
+    // different scope with its own encoding rule, and it already ignores the
+    // parent's marker style entirely.
+    const markerPrefix = emptyItemPrefix(node);
     const firstLine = emptyRemainder
       ? markerPrefix
       : `${markerPrefix}${remainderFirst.trimStart()}`;
@@ -672,9 +833,14 @@ export function splitNode(
       lines: [firstLine, ...lowerRest],
     });
   } else {
+    // `trimStart` here is what makes the whitespace rule uniform: the child
+    // path above and the list-item path beside it already dropped the run at
+    // the split point, and a paragraph keeping it left an invisible leading
+    // space with the cursor behind it. Only the FIRST line is trimmed — a
+    // continuation line's own indentation is content of the paragraph.
     lower = makeNode({
       kind: 'paragraph',
-      lines: [remainderFirst, ...lowerRest],
+      lines: [remainderFirst.trimStart(), ...lowerRest],
     });
   }
 
@@ -688,6 +854,141 @@ export function splitNode(
   const surgery = updateSiblings(doc, parentPath, (nodes) =>
     renumberOrdered([...nodes.slice(0, index), upper, lower, ...nodes.slice(index + 1)]),
   );
+  return finalize(doc, surgery, lower.id);
+}
+
+/**
+ * True when a list item carries no content of its own — the shape the keyboard
+ * grammar's empty-item ladder acts on.
+ *
+ * An unchecked OR checked task marker alone counts as empty. That is a
+ * deliberate carve-out and not a claim that `[ ]` is chrome: this grammar's own
+ * continuation rule writes that marker when it creates an item, so requiring
+ * the user to delete it before the ladder works would punish them for our
+ * output. Nothing else in the codebase reads task-ness (design D5).
+ */
+export function itemContentIsEmpty(node: OutlineNode): boolean {
+  if (node.kind !== 'list-item' || node.lines.length !== 1) return false;
+  const line = node.lines[0] ?? '';
+  const content = line.slice(contentColumnCh(line)).trim();
+  // UNCHECKED only. A checked box is something the user ticked — content, not
+  // the marker this grammar's own continuation rule writes — so an empty
+  // COMPLETED task must not be silently outdented away by the ladder.
+  return content === '' || content === '[ ]';
+}
+
+/**
+ * Removes an empty list item's marker, leaving the position it occupied
+ * available to ordinary prose (`structural-operations`' "List item unwrap").
+ *
+ * The result is a POSITION, not a node: an empty paragraph has no markdown
+ * encoding, so the item's line becomes a blank line owned as a gap by whatever
+ * precedes it, and the node count drops by one. Typing at the anchor produces a
+ * paragraph distinct from both neighbours — a column-0 line after a list item
+ * already starts a new block, so no extra separation is needed for that side.
+ *
+ * Exists for the one place the grammar must LEAVE a list rather than restructure
+ * it: an empty item that cannot outdent, at the top level or directly under a
+ * heading where markdown has no sibling spot for it.
+ */
+export function unwrapListItem(doc: OutlineDoc, nodeId: number): OpResult<OpOutput> {
+  const path = findPath(doc, nodeId);
+  if (!path) return reject('node-not-found');
+  const node = nodeAt(doc, path)!;
+  if (node.children.length > 0) return reject('would-orphan-children');
+  if (!itemContentIsEmpty(node)) return reject('cannot-unwrap');
+
+  // Captured before the surgery: everything above this line is untouched, so
+  // the blank line that replaces the item sits exactly where the item was.
+  const anchorLine = startLineOf(doc, nodeId);
+  const parentPath = path.slice(0, -1);
+  const index = path[path.length - 1]!;
+  // One blank line in the item's place, plus whatever gap the item itself owned.
+  const replacement = ['', ...node.trailingGap];
+
+  const withoutNode = updateSiblings(doc, parentPath, (nodes) =>
+    renumberOrdered(nodes.filter((_, i) => i !== index)),
+  );
+  let surgery: OutlineDoc;
+  if (index > 0) {
+    surgery = updateSiblings(withoutNode, parentPath, (nodes) =>
+      nodes.map((n, i) =>
+        i === index - 1 ? setFinalGap(n, [...subtreeFinalNode(n).trailingGap, ...replacement]) : n,
+      ),
+    );
+  } else if (parentPath.length > 0) {
+    const parentIndex = parentPath[parentPath.length - 1]!;
+    surgery = updateSiblings(withoutNode, parentPath.slice(0, -1), (nodes) =>
+      nodes.map((n, i) =>
+        i === parentIndex ? { ...n, trailingGap: [...n.trailingGap, ...replacement] } : n,
+      ),
+    );
+  } else {
+    surgery = { ...withoutNode, preamble: [...withoutNode.preamble, ...replacement] };
+  }
+
+  // The subject is gone, so `finalize`'s own anchor is meaningless here and is
+  // replaced — the same shape the end-of-node split uses for its gap position.
+  const result = finalize(doc, surgery, undefined);
+  if (!result.ok) return result;
+  return accept({ ...result.value, anchor: { line: anchorLine, ch: 0 } });
+}
+
+/**
+ * Inserts a heading at the SAME LEVEL as an existing one, directly after it,
+ * carrying `remainder` as its title — the operation behind Shift+Enter on a
+ * heading, and the only path by which a heading gains a sibling from a
+ * keystroke (`structural-operations`' "Sibling heading creation").
+ *
+ * `remainder` is the text after the cursor, so the original's title is
+ * truncated by exactly its length. The original's CHILDREN stay with it:
+ * heading scope is positional, so content already under it belongs to it, and
+ * `encode` therefore writes the new sibling after that content rather than
+ * between the heading and its own section.
+ */
+export function insertSiblingHeading(
+  doc: OutlineDoc,
+  nodeId: number,
+  remainder: string,
+): OpResult<OpOutput> {
+  const path = findPath(doc, nodeId);
+  if (!path) return reject('node-not-found');
+  const node = nodeAt(doc, path)!;
+  if (node.kind !== 'heading') return reject('cannot-split');
+
+  const level = node.level ?? 1;
+  const marker = '#'.repeat(level);
+  // ATX whatever the original's form: an empty setext heading has no encoding
+  // at all, so a setext original cannot yield a setext sibling in the common
+  // case, and one rule beats two that differ by the author's underline (D3).
+  const title = remainder.trimStart();
+  const sibling = makeNode({
+    kind: 'heading',
+    level,
+    lines: [title === '' ? `${marker} ` : `${marker} ${title}`],
+  });
+
+  const titleLine = node.lines[0] ?? '';
+  const upperLines = [
+    titleLine.slice(0, Math.max(0, titleLine.length - remainder.length)),
+    ...node.lines.slice(1),
+  ];
+  // The gap that separated this heading's SUBTREE from what follows now
+  // precedes the next sibling instead — the same handover the sibling split
+  // does, for the same reason.
+  let upper: OutlineNode = { ...node, lines: upperLines };
+  const finalGap = subtreeFinalNode(upper).trailingGap;
+  upper = stripFinalGap(upper);
+  const lower = { ...sibling, trailingGap: [...finalGap] };
+
+  const parentPath = path.slice(0, -1);
+  const index = path[path.length - 1]!;
+  const surgery = updateSiblings(doc, parentPath, (nodes) => [
+    ...nodes.slice(0, index),
+    upper,
+    lower,
+    ...nodes.slice(index + 1),
+  ]);
   return finalize(doc, surgery, lower.id);
 }
 
@@ -1066,7 +1367,16 @@ export function reencodeBlocksForDestination(
   parsedBlocks: readonly OutlineNode[],
   fallbackIndentUnit?: string,
 ): readonly OutlineNode[] {
-  const indentText = destinationIndent(doc, parent, precedingSiblings, fallbackIndentUnit);
+  // Both sides, for the reason `encodingKindAtDestination` below already uses
+  // both: a payload landing BEFORE a tab-indented sibling has no preceding one
+  // to copy from, and the inferred unit can leave that sibling deeper than the
+  // block now above it — which re-parses it as that block's child.
+  const indentText = destinationIndent(
+    doc,
+    parent,
+    [...precedingSiblings, ...followingSiblings],
+    fallbackIndentUnit,
+  );
   const newContentKind = encodingKindAtDestination({
     parentKind: parent === 'root' ? 'root' : parent.kind,
     precedingSiblings,

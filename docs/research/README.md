@@ -21,6 +21,10 @@ Research date: July 2026.
 | [09-experiment-2-guide-lines.md](09-experiment-2-guide-lines.md) | Experiment 2: guide lines — 2a (pixel-measured overlay) vs. 2b (CSS stacked-gradient) head to head. **2b chosen** |
 | [10-experiment-5-block-markers.md](10-experiment-5-block-markers.md) | Experiment 5: per-kind block markers — 5a (SVG icons, DOM mechanism) vs. 5b (CSS shapes → uniform dot) head to head. **5a chosen**; includes the comparison verdict and the 5a hardening checklist |
 | [11-decoration-lessons.md](11-decoration-lessons.md) | Accumulated cross-experiment findings (CSS cascade/box model, CodeMirror 6, Obsidian internals, verification discipline) — read before touching decorations or CM6 extensions |
+| [12-decoration-follow-ups.md](12-decoration-follow-ups.md) | **Parking lot** for decoration work deliberately deferred: diagnosed gaps, mechanisms that work but have better shapes known, and design ideas. Items land here with enough diagnosis that picking one up later needs no re-discovery |
+| [13-selection-follow-ups.md](13-selection-follow-ups.md) | The same, for selection: what `selection-as-subtree-set` and `node-selection-extension` left open, including modal block selection and cherry-picking |
+| [14-experiment-position-indicators.md](14-experiment-position-indicators.md) | Experiment: showing where the cursor sits in the outline — guide and marker highlighting, the axes they split on, and what real use settled |
+| [15-enter-and-shift-enter-catalogue.md](15-enter-and-shift-enter-catalogue.md) | Measured catalogue of Enter / Shift+Enter across 49 cursor positions, the ten defects it found, and what the `enter-and-shift-enter-grammar` change did with each. A **pre-change** record: read the specs for current behavior |
 
 ## TL;DR
 

@@ -5,6 +5,8 @@
  */
 
 import { browser, expect } from '@wdio/globals';
+import { Key } from 'webdriverio';
+const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import { REJECTION_MESSAGES } from '../../src/plugin/messages';
@@ -324,7 +326,9 @@ describe('keyboard grammar', function () {
   it('Enter mid-title of a setext heading splits it, underline stays with the heading', async function () {
     await grammarNote('Hello world\n====\n', 0, 6);
     await h.keys.enter();
-    expect(await h.getBuffer()).toBe('Hello \n====\nworld\n');
+    // The blank line is the heading/first-paragraph-child separation this
+    // operation creates (`enter-and-shift-enter-grammar`).
+    expect(await h.getBuffer()).toBe('Hello \n====\n\nworld\n');
 
     const doc = parse(await h.getBuffer());
     const head = doc.children[0]!;
@@ -333,17 +337,226 @@ describe('keyboard grammar', function () {
     expect(head.children.map((c) => c.lines[0])).toEqual(['world']);
   });
 
+
+  // ------------------------------------------- enter-and-shift-enter-grammar
+
+
+  it('off-mode: a plain Enter survives the caret moving away', async function () {
+    // Regression (review of #43): the undo-on-abandon listener is installed in
+    // EVERY editor view, and stock CM6 Enter carries `userEvent: 'input'` with a
+    // line break — the same shape the recorder uses to spot Shift+Enter. Without
+    // an outline-mode gate it recorded ordinary newlines and undid them the
+    // moment the caret left, which is data loss in notes that never opted in.
+    await h.createNote(NOTE, 'alpha\n');
+    await modeOff();
+    await h.setCursor(0, 5);
+    await h.keys.enter();
+    const afterEnter = await h.getBuffer();
+    expect(afterEnter).not.toBe('alpha\n');
+
+    await h.clickAt(0, 2);
+    // Give the deferred cleanup every chance to fire before asserting it didn't.
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe(afterEnter);
+  });
+
+  it('the empty-item ladder walks out of the nesting, then out of the list', async function () {
+    // The behavior whose value is only visible live: a run of Enters retraces
+    // the nesting a run of Enters walked into, and the last one leaves prose.
+    await grammarNote('- a\n\t- b\n\t\t- c\n', 2, 5);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n\t\t- \n');
+
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n\t- \n');
+
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n- \n');
+
+    // Top level: the marker goes and the caret is left on a provisional
+    // position, so what is typed next is prose outside the list.
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n\t- b\n\t\t- c\n\n');
+    await h.keys.type('prose');
+    const doc = parse(await h.getBuffer());
+    expect([...walkNodes(doc)].some((n) => n.kind === 'paragraph' && n.lines[0] === 'prose')).toBe(
+      true,
+    );
+  });
+
+  it('Enter at a content start inserts above and never moves the text', async function () {
+    await grammarNote('- alpha\n\t- child\n', 0, 2);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- \n- alpha\n\t- child\n');
+    // The caret is in the NEW empty item, and "alpha" kept its own child.
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
+    const doc = parse(await h.getBuffer());
+    expect(doc.children[1]!.children.map((c) => c.lines[0])).toEqual(['\t- child']);
+  });
+
+  it('Enter at a heading’s content start leaves the title alone', async function () {
+    await grammarNote('## Hello\n', 0, 3);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('## \n## Hello\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 3 });
+    // Not demoted into a paragraph under an empty heading.
+    const doc = parse(await h.getBuffer());
+    expect(doc.children[1]!.children).toEqual([]);
+  });
+
+  it('Shift+Enter drafts the next heading at the same level', async function () {
+    await grammarNote('## Foo\n', 0, 6);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('## Foo\n## \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 3 });
+
+    await h.keys.type('Bar');
+    expect(await h.getBuffer()).toBe('## Foo\n## Bar\n');
+  });
+
+  it('Enter over a block selection replaces it with one empty position', async function () {
+    await grammarNote('- a\n- b\n- c\n- d\n', 1, 2);
+    // Two Shift+ArrowDown presses cover "- b" and "- c" as whole subtrees.
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await browser.keys([Key.Shift, Key.ArrowDown]);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- a\n- \n- d\n');
+  });
+
+  it('a thematic break rejects Enter, so the stock newline never splits it', async function () {
+    await grammarNote('---\n', 0, 2);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('---\n');
+    await h.waitForNotice(REJECTION_MESSAGES['cannot-split']);
+  });
+
+  it('an unused Enter is undone when the caret leaves, restoring the file byte-for-byte', async function () {
+    const src = 'thought\n\nnext\n';
+    await grammarNote(src, 0, 7);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('thought\n\n\n\nnext\n');
+
+    // Walk away without typing: the keypress is undone, not patched over.
+    await h.clickAt(4, 2);
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: 'the abandoned position was not cleaned up',
+    });
+  });
+
+
+  it('Enter on a provisional position moves past it instead of widening the gap', async function () {
+    // Reported from real use: repeated Enter kept widening the gap. It now
+    // means "not here" — the caret advances to the next node and the keypress
+    // that made the place is cancelled, so the document is back to where it
+    // started.
+    const src = 'thought\n\nnext\n';
+    await grammarNote(src, 0, 7);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('thought\n\n\n\nnext\n');
+
+    await h.keys.enter();
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: 'the second Enter did not cancel the provisional position',
+    });
+    expect(await h.getCursor()).toEqual({ line: 2, ch: 0 });
+  });
+
+
+
+  it('walking out of a NESTED list by Enter leaves no blank line behind', async function () {
+    // The reported sequence, started where it was reported from: nested, then
+    // Enter until the item reaches the top level, Enter to leave the list, Enter
+    // to move on. The earlier test started already at the top level, so it
+    // exercised one outdent fewer.
+    const src = '- a\n\t- b\n\t\t- c\n- d\n';
+    await grammarNote(src, 2, 5);
+    await h.keys.enter(); // empty item, nested twice
+    await h.keys.enter(); // outdent
+    await h.keys.enter(); // outdent to top level
+    await h.keys.enter(); // unwrap: leaves the list
+    await h.keys.enter(); // move on to "- d"
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: `left behind: ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
+
+
+  it('a position at the END of a document is removed on abandon, not left behind', async function () {
+    // The place is the last line, so it has no following newline to take and
+    // the removal span was empty — a silent no-op. Reported in review.
+    const src = '- a\n- b\n';
+    await grammarNote(src, 1, 3);
+    await h.keys.enter(); // empty item at the end
+    expect(await h.getBuffer()).toBe('- a\n- b\n- \n');
+
+    await h.clickAt(0, 3);
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: `left behind: ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
+  it('leaving a list UNDER A PARAGRAPH leaves no blank line behind', async function () {
+    // Reported: the fix worked for a top-level list and for one under a
+    // heading, but not under a paragraph. The last press is a different
+    // operation there — the item outdents to become a sibling of the paragraph,
+    // where the reparent rule makes it a paragraph, and an empty paragraph has
+    // no encoding, so it dissolves into a blank line under `outdent` rather
+    // than `unwrap`. Recording now keys on where the caret landed, not on which
+    // event ran.
+    const src = 'para\n- a\n- b\n- c\n\nnext\n';
+    await grammarNote(src, 2, 5);
+    await h.keys.enter(); // empty item after "- b"
+    await h.keys.enter(); // dissolves out of the paragraph into a blank line
+    await h.keys.enter(); // move on
+    await browser.waitUntil(async () => (await h.getBuffer()) === src, {
+      timeout: 2000,
+      timeoutMsg: `left behind: ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
+  it('leaving a list by Enter leaves no blank line behind', async function () {
+    // Reported: Enter to an empty item, Enter to leave the list, Enter again to
+    // move on — and a single blank line stayed, splitting the list.
+    await grammarNote('- a\n- b\n- c\n', 0, 3);
+    await h.keys.enter(); // empty item after "a"
+    await h.keys.enter(); // top level: unwrap, provisional position
+    await h.keys.enter(); // move on to the next node
+    await browser.waitUntil(async () => (await h.getBuffer()) === '- a\n- b\n- c\n', {
+      timeout: 2000,
+      timeoutMsg: `a blank line was left behind: ${JSON.stringify(await h.getBuffer())}`,
+    });
+  });
+
+  it('Backspace on the position cancels it instead of merging the neighbours', async function () {
+    const src = 'thought\n\nnext\n';
+    await grammarNote(src, 0, 7);
+    await h.keys.enter();
+    await h.keys.backspace();
+    expect(await h.getBuffer()).toBe(src);
+    // Back where the cancelled keypress started — and "thought"/"next" are
+    // still two nodes, which a narrowed gap would not have left.
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 7 });
+    expect([...walkNodes(parse(await h.getBuffer()))].length).toBe(2);
+  });
+
   it('Shift+Enter: aligned continuation, still one node under structural ops', async function () {
     await grammarNote('- note text\n- z\n', 0, 6);
     await h.keys.shiftEnter();
-    expect(await h.getBuffer()).toBe('- note\n   text\n- z\n');
+    // Exactly the content column: the whitespace at the break point goes with
+    // neither line (it read `   text` before this change).
+    expect(await h.getBuffer()).toBe('- note\n  text\n- z\n');
     const doc = parse(await h.getBuffer());
-    expect(doc.children[0]!.lines).toEqual(['- note', '   text']);
+    expect(doc.children[0]!.lines).toEqual(['- note', '  text']);
 
     // A structural op treats item + continuation as one node.
     await h.setCursor(0, 2);
     await h.keys.moveNodeDown();
-    expect(await h.getBuffer()).toBe('- z\n- note\n   text\n');
+    expect(await h.getBuffer()).toBe('- z\n- note\n  text\n');
   });
 
   it('atom interiors behave stock; whole-fence ops from the first line', async function () {

@@ -19,16 +19,31 @@ caret behavior stays byte-for-byte native.
 The scope is caret PLACEMENT, not editing. Where a caret may rest is this capability's
 concern; what an edit at that position means belongs to `node-edit-enforcement`, and how
 a non-empty selection expands belongs to `node-selection-enforcement`.
-
 ## Requirements
 ### Requirement: Only content positions are caret-addressable in outline mode
 In outline mode, within the plugin's jurisdiction, the set of document positions the caret
 may occupy SHALL be the union of every node's own content spans, TOGETHER WITH the entire
-document preamble. A blank gap line SHALL NOT be an addressable position. A list item's
+document preamble, TOGETHER WITH any PROVISIONAL POSITION a structural keypress has just
+created. A blank gap line SHALL NOT otherwise be an addressable position. A list item's
 marker prefix — its leading indentation, marker character, and any whitespace after it, the
 span `contentBoundaryCh` identifies as non-content — SHALL NOT be
 addressable, on the item's first line or as alignment whitespace on a continuation line. A
 heading's `#` prefix and an atom's own lines ARE content and remain fully addressable.
+
+**Provisional positions.** `outline-keyboard-grammar` defines a provisional position: the
+blank line an accepted Enter or Shift+Enter leaves the caret on, holding the place where a
+node or a continuation line materializes when text is typed. It is a gap line, and the caret
+resting there is deliberate. The exception is narrow in exactly the way the rest of this
+requirement is: it covers the transaction that CREATES the position, which is `plugin-own`
+and already passes through untouched, and it does not make gap lines reachable by anything
+else. A later gesture that moves the caret onto that same line resolves it like any other
+gap line, and moving the caret away from it — or deleting it — triggers
+`structural-history-integration`'s undo-on-abandon rather than leaving a caret behind.
+
+This is stated rather than left implicit because the split operation has parked the caret on
+a gap line since it shipped, which the previous wording — "a blank gap line SHALL NOT be an
+addressable position" — read as forbidding. The behavior was never wrong; the requirement
+was silent about the one case that needs it.
 
 **Jurisdiction.** This property SHALL hold for positions produced by user gestures in
 outline mode. Transactions classified `plugin-own` or `composition` SHALL pass through
@@ -60,6 +75,17 @@ bindings.
 - **WHEN** any arrow key, Home, End, mouse click, or selection collapse would place the
   caret on a blank gap line
 - **THEN** the caret occupies a content position instead
+
+#### Scenario: A structural keypress may leave the caret on its own provisional position
+- **WHEN** Enter at the end of a paragraph, or Shift+Enter at the end of a list item, places
+  the caret on the blank line it just created
+- **THEN** the caret rests there and is not resolved into content space, because that
+  position is where the user is about to type
+
+#### Scenario: A provisional position is not reachable a second time
+- **WHEN** the caret has moved away from a provisional line and an arrow key or click would
+  put it back on that same blank line
+- **THEN** it resolves like any other gap line — the exception does not persist with the line
 
 #### Scenario: The preamble stays stock
 - **WHEN** the caret is in a note's frontmatter, or on a blank line between the frontmatter

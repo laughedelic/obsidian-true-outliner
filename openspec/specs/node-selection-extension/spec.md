@@ -1,7 +1,12 @@
 # node-selection-extension Specification
 
 ## Purpose
-TBD - created by archiving change node-selection-extension. Update Purpose after archive.
+Defines keyboard selection extension in outline mode: Shift+Arrow steps along an ordered
+sequence of node covers — one node per press, in every document shape, in both directions —
+rather than moving a character cursor and letting per-transaction escalation correct whatever
+crossing that produced. Covers symmetric shrinking, how a block selection is told from a
+multi-cursor one by shape alone, and how extension composes with progressive select-all
+through the current selection and nothing about how it was produced.
 ## Requirements
 ### Requirement: Shift+Arrow extends by exactly one node per press
 In outline mode, `Shift+ArrowDown` and `Shift+ArrowUp` SHALL be intercepted before the native
