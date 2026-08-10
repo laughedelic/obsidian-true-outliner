@@ -115,24 +115,39 @@ the depth-0 guide column. The list case closes the 24px our own layer was withho
 `supplementalDepth` margin, which is exactly the "one level left, outside the list block"
 users report).
 
-### A caret at the end of a list-indent run measures by text, not by the run's own width
+### A list item's continuation line does not align with the item's own content
 
-The 19.25px left over from the row above, and NOT ours: measured byte-identical with outline
-mode **off**.
+Two separate stock-Obsidian offsets, found while closing the row above and confirmed
+byte-identical with outline mode **off** — neither is this plugin's to cause or to fix.
 
-Obsidian wraps a list line's leading whitespace in `<span class="cm-hmd-list-indent
-cm-hmd-list-indent-N"><span class="cm-indent">…</span></span>` and gives that span an explicit
-width per nesting level (36px for two levels, above). The literal spaces inside it measure
-their own natural width (~16.75px for four). Both DOM trees are identical whether the line
-holds only whitespace or whitespace plus text — the difference is only where the caret is
-measured: at end-of-line CM6 places it by the text run's own metrics, inside the wider span,
-while a following character's own span starts at the span's right edge.
+Obsidian wraps a continuation line's leading whitespace in `<span class="cm-hmd-list-indent
+cm-hmd-list-indent-N">` and gives that span its own width. That width is derived from the
+whitespace, not from the width of the MARKER the continuation is supposed to sit under, and
+the two disagree:
 
-So a caret on a whitespace-only list line sits ~19px left of where the first typed character
-will appear, in stock Obsidian, with or without this plugin. Closing it would mean making the
-whitespace MEASURE as wide as the span that contains it (per-line `word-spacing` computed from
-a live measurement of both), which is theme-dependent, fragile, and squarely inside the native
-list metrics the decoration layer deliberately never computes. Recorded rather than attempted.
+| Line | Marker's own width | Continuation indent span | Continuation sits |
+|---|---|---|---|
+| `- alpha` | 23.42px | 24.38px | 0.96px right |
+| `1. alpha` | 30.39px | 28.56px | **1.82px left** |
+| `10. alpha` | 40.16px | 36.00px | **4.16px left** |
+
+So an ordered list's continuation hangs slightly LEFT of its own text, worse the wider the
+number — reported from real-vault use during the `decorate-provisional-positions` pass, where
+it was visible on the newly-decorated provisional line and then found to predate it.
+
+The second offset is about the CARET rather than the text, and appears only once the run
+spans more than one nesting level: at end-of-line CM6 measures the caret by the text run's own
+metrics, inside the wider span, while a following character's own span starts at the span's
+right edge. A caret on `    ` (two levels) sits at +16.75px where the first typed character
+lands at +36px. At one level the two agree exactly, which is why this shows up as "the caret
+is fine here and jumps there".
+
+Neither is closable from where this layer stands. Both would mean overriding the width of
+`.cm-hmd-list-indent` — DOM we do not own — from a live measurement of the marker beside it,
+per line and per theme. More decisively, it would make a list render differently with the
+plugin on than off, which is the one hard invariant `outline-decorations` states about pure
+lists. Doing it anyway is a change of its own, with that requirement amended deliberately
+rather than broken in passing.
 
 ### RTL-aware placement (openspec outline-decorations task 5.9)
 

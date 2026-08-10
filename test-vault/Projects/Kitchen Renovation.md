@@ -11,6 +11,7 @@ The 2026 project. Sarah leads design, I lead logistics, [[Tomás Rivera|Tomás]]
 ## Plan
 
 1. demolition weekend (booked: August 1–2)
+   lkjdfglkjdfg
 2. electrics and plumbing rough-in
 3. floor patch, then tile
    the terracotta from the reclaimed yard — see [[2026-07-12]]
@@ -20,9 +21,11 @@ The 2026 project. Sarah leads design, I lead logistics, [[Tomás Rivera|Tomás]]
 ## Materials
 
 - tile: reclaimed terracotta, 1962 ✅
+  dlfgkjdlfgkj
 - paint: "cloud" (which is also "oat milk")
 - handles: undecided
 	- brass ages well but shows prints
+	  ldfkgjdlfkgj
 	- steel matches the range
 
 > The best kitchens look inevitable, not designed.
