@@ -357,9 +357,13 @@ column 0 of the line below, and the only remaining difference is gap width, whic
 remembering which key ran — the editor state this design does not have.
 
 A provisional position SHALL behave as the empty node it stands for whenever the user acts on
-it as one. Moving the caret away without typing, and deleting it with Backspace or Delete,
-both cancel the keypress that created it — `structural-history-integration`'s undo-on-abandon
-requirement — rather than leaving debris or editing the surrounding gap by one line.
+it as one. Moving the cursor away without typing, and deleting it with Backspace or Delete,
+both remove the position and everything the operation that opened it did — and NOTHING the
+same keypress did before that operation — rather than leaving debris or editing the
+surrounding gap by one line. Where the keypress removed a non-empty selection first, that
+removal stands. `structural-history-integration`'s "An unused structural keypress has its
+place removed" states the rule, including the case where the position is not opened but left
+behind as the residue of leaving a list, which is removed rather than reversed.
 
 #### Scenario: The keypress creates no node
 - **WHEN** Enter is pressed at the end of a childless paragraph
@@ -380,4 +384,9 @@ requirement — rather than leaving debris or editing the surrounding gap by one
   the same top-level paragraph
 - **THEN** the two documents differ, and typing the same character into each yields a new
   node in the first case and a continuation line in the second
+
+#### Scenario: A position opened over a selection is abandoned without restoring it
+- **WHEN** a non-empty selection is replaced by a provisional position, and the cursor is then
+  moved away with nothing typed
+- **THEN** the position is gone in full and the selection stays removed
 
