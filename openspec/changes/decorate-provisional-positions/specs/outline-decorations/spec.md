@@ -42,6 +42,16 @@ entry. When the caret leaves the position, the decoration SHALL disappear with i
 residue in the document or in the rendering — the same "without a trace" property
 `structural-history-integration`'s undo-on-abandon gives the position itself.
 
+**Bounded to this layer's own contribution.** What is required above is the indentation,
+marker, and guide the line renders with. Where the caret sits WITHIN that line is Obsidian's
+own text metric, and is not claimed here. On a list continuation position spanning more than
+one nesting level, stock Obsidian measures a caret at the end of an indent run by that run's
+text rather than by the width of the span containing it, so the caret still shifts as the
+first character lands — byte-identical with this plugin disabled, measured and recorded in
+[docs/research/12-decoration-follow-ups.md](../../../../docs/research/12-decoration-follow-ups.md).
+Closing it would mean overriding the width of DOM this layer does not own, which is a change
+of its own.
+
 #### Scenario: Enter's position renders at the depth of the node it will become
 - **WHEN** the caret sits on the provisional position an end-of-node Enter opened below a
   paragraph nested two levels deep
@@ -55,10 +65,16 @@ residue in the document or in the rendering — the same "without a trace" prope
   renders inside the list block at the item's content column rather than at the list's parent
   column, and no synthetic marker is added
 
-#### Scenario: Typing changes nothing about the line's position
+#### Scenario: Typing changes nothing this layer contributes
 - **WHEN** a character is typed on a provisional position
 - **THEN** the line's rendered indentation, marker, and guides are identical to what they were
-  the instant before, and the caret does not jump
+  the instant before — nothing this layer contributes changes as the line stops being
+  provisional
+
+#### Scenario: A materialized BLOCK line does not move the caret either
+- **WHEN** a character is typed on a position whose materialized line is a block line, where
+  the whole contribution is `padding-left` and no native list metric is involved
+- **THEN** the caret is where it was before the character landed, to the pixel
 
 #### Scenario: A pure list's geometry is unchanged
 - **WHEN** the caret sits on a provisional position inside a list with no non-list ancestor
@@ -99,9 +115,12 @@ residue in the document or in the rendering — the same "without a trace" prope
 **Covered by**: `tests/decorate.test.ts` (the pure "what would this line become" fact: the
 new-node case at depth, the continuation case in a list, the pure-list zero contribution, the
 preamble and end-of-document edges, and that a non-blank line is never treated as
-provisional); `e2e/specs/50-decorations.e2e.ts` (the rendered caret column on both positions,
-measured against the column the same text occupies once typed);
-`e2e/specs/52-block-markers-icons.e2e.ts` (the paragraph marker on Enter's position, its
+provisional, and that the probe lands at the CARET's column rather than the line's end);
+`e2e/specs/50-decorations.e2e.ts` (Enter's position measured as a caret column against the
+column the same text occupies once typed, since its contribution is `padding-left` alone;
+Shift+Enter's measured as the line's own box and `margin-left`, which is the whole of what
+this layer contributes there — see the bound above for why the caret is not asserted on that
+one); `e2e/specs/52-block-markers-icons.e2e.ts` (the paragraph marker on Enter's position, its
 absence on a continuation position, and the `markerVisibility` setting governing it);
 `e2e/specs/53-decoration-contracts.e2e.ts` (buffer, cursor, and undo stack unchanged by the
 rendering).
