@@ -28,8 +28,8 @@ it as one. Moving the caret away without typing, and deleting it with Backspace 
 both remove the position and everything the operation that opened it did — and NOTHING the
 same keypress did before that operation — rather than leaving debris or editing the
 surrounding gap by one line. Where the keypress removed a non-empty selection first, that
-removal stands. `structural-history-integration`'s "Abandoning an empty place removes exactly
-what opened it" states the rule, including the case where the position is not opened but left
+removal stands. `structural-history-integration`'s "An unused structural keypress has its
+place removed" states the rule, including the case where the position is not opened but left
 behind as the residue of leaving a list, which is removed rather than reversed.
 
 #### Scenario: The keypress creates no node
