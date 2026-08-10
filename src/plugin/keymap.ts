@@ -145,15 +145,19 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
     // one. `provisional-cleanup` cannot derive it from the change set: a
     // keypress that removed a selection first fuses both steps into one
     // replacement there.
-    const resulting = ChangeSet.of(changes, doc.length).apply(doc);
+    //
+    // Building that resulting text is the only reason to apply the change set
+    // twice, so it happens only for the operations that state a removal —
+    // indent and the moves state none, and they are the keys held down in runs.
+    const annotations = outcome.plan.abandon
+      ? abandonEdit.of(toOffsets(outcome.plan.abandon, ChangeSet.of(changes, doc.length).apply(doc)))
+      : undefined;
     view.dispatch({
       changes,
       selection: { anchor: outcome.plan.selection },
       userEvent: outcome.plan.userEvent,
       scrollIntoView: true,
-      ...(outcome.plan.abandon
-        ? { annotations: abandonEdit.of(toOffsets(outcome.plan.abandon, resulting)) }
-        : {}),
+      ...(annotations ? { annotations } : {}),
     });
     return true;
   };
