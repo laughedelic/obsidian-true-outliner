@@ -190,10 +190,12 @@
 - [x] 11.4 E2E: undo-on-abandon — press Enter at a paragraph's end, click elsewhere, and
       confirm the file is byte-identical to before the Enter and Ctrl+Z undoes whatever
       preceded it
-- [ ] 11.5 Manual real-vault pass over the catalogue's cases. Left for a human: the automated
-      e2e covers the headline behaviors live, but the catalogue was built from real-vault use
-      and its remaining value is in the shapes a scripted run does not think to try.
-      The catalogue itself is now framed as a PRE-change record rather than rewritten — the
-      outputs are the evidence that motivated the change, and updating them in place would
-      destroy that while claiming to describe current behavior. Its closing section already
-      states which findings landed and which were deliberately left
+- [x] 11.5 Manual real-vault pass over the catalogue's cases. DONE by the author across
+      several rounds, and it was the highest-yield verification of the change: it found the
+      Shift+Enter-then-Enter extra gap, three separate block-selection defects, the
+      widening-on-repeated-Enter, the block-selection abandon restoring its selection, the
+      redo soft-lock, and — the subtlest — that leaving a list left a blank line behind ONLY
+      when the list sat under a paragraph, which is what showed the recorder was keyed on the
+      wrong thing. Findings and their dispositions are recorded in
+      `docs/research/15-enter-and-shift-enter-catalogue.md`; the catalogue itself stays a
+      PRE-change record rather than being rewritten

@@ -150,47 +150,52 @@ deciding that `[ ]` is chrome — the caret still reaches it, Home still lands b
 decorations are untouched. That larger question stays out of scope, and this change must not
 smuggle it in by making any other behavior depend on task-ness.
 
-### D6 — Abandonment is undone, not deleted
+### D6 — Abandonment REMOVES the place; undo was tried first and withdrawn
 
-The complaint D1 could not answer — an unused keypress leaves debris — is answered here, and
-the mechanism came out of review: rather than dispatching a change that deletes what the
-keypress made, UNDO the keypress.
+An unused keypress leaves debris, and the fix is to remove the place it made as its own
+undoable edit.
 
-Every objection to a deletion evaporates. A deletion adds an undo step the user did not ask
-for (or is unundoable if it suppresses one); it has to decide what counts as removable
-content, which drags in whether `#` is content and a bullet is chrome — a question with a real
-answer that has nothing to do with abandonment; and it can only narrow a gap to what the rule
-believes is minimal, where an undo restores the original bytes.
+Undo was the first answer, and it was wrong for a reason only implementation exposed: it
+reverts everything the keypress did, and a keypress can do more than open a place. Enter
+over a block selection removes the selection AND opens one, so abandoning brought the
+deleted text back. A targeted removal keeps the rest of the keypress standing.
 
-The mechanism rests on a property that had to be checked rather than assumed:
-`@codemirror/commands` joins a change into the previous history entry only when the
-`userEvent` matches `/^(input\.type|delete)($|\.)/` (`joinableUserEvent`, dist/index.js:471).
-`input.structure.split` cannot match, so a structural keypress is ALWAYS its own history
-entry and undoing it can never swallow the typing that preceded it. That is a dependency on
-our own naming, so it is pinned by a test — renaming a structural event into the `input.type`
-family would silently turn this cleanup into data loss.
+The three objections that originally argued against "just delete it" were objections to
+COMPUTING a deletion, not to deleting: a recorded span needs no decision about what counts
+as removable content (whether a `#` is content and a bullet is chrome), and no guess at a
+gap's minimal width. The extra history entry, which the undo design treated as a cost, is
+what makes ONE undo return to the empty place — the behaviour a user who changes their mind
+twice expects.
 
-The one piece of state is a per-view transient record of the undo depth at which a provisional
-position was created, used to confirm the keypress is still the top of the history. It holds
-no document data, and losing it degrades to today's behavior (leave the empty place), so it is
-fail-safe by construction rather than by careful invalidation. After the undo the caret target
-is mapped through the inverted change, since the lines the gesture was aimed past may be the
-ones removed.
+**What gets removed** is one rule: the place's own line, plus however many lines the
+keypress added beyond it. That covers the two-line gap widen, a materialized `- ` or `## `,
+and the single line an unwrap leaves — replacing per-operation special cases that had been
+growing once per parent shape. A place on the last line takes the PRECEDING line break,
+since it has no following one and the removal would otherwise be a silent no-op.
 
-Known consequence, recorded rather than mitigated: Redo immediately after a cleanup re-applies
-the keypress. Any other edit clears the redo branch first.
+**What counts as creating a place** is decided by where the caret lands, not by which
+operation ran — and that is the subtlest thing this change learned. A dispatch of ours that
+leaves the caret on a GAP LINE necessarily created that position, because a gap line is a
+place and not a node: there was nothing there to land on. An EMPTY NODE can pre-exist the
+keypress, so only the dispatches that materialize one qualify.
 
-**Deleting the place is the same gesture as leaving it.** A provisional position stands for an
-empty node, so Backspace and Delete on it act on that node, not on the gap around it: they
-cancel the keypress through the same undo path, differing only in where the caret lands
-afterward (the node above's content end for Backspace, the node below's content start for
-Delete). Narrowing the gap by one line instead — the native reading — leaves a caret on a
-blank line that silently joins a neighbour, which is a broken state reachable by one keystroke.
+Keying on the operation was tried and failed in real use, because WHICH operation dissolves
+an empty item into a blank line depends on the item's PARENT. At the top of a list, or under
+a heading, Enter unwraps it. Under a paragraph the same press OUTDENTS it — the item becomes
+a sibling of the paragraph, the reparent rule encodes it as a paragraph, and an empty
+paragraph has no encoding. Identical place, different event, and the whitelist missed one.
 
-For a REAL empty node the two readings already agree: Backspace at the content start of an
-empty `- ` merges it into the previous item, which produces exactly the document and caret the
-cancel produces. That agreement is worth a test rather than a comment, because it is what
-makes the rule safe to state uniformly.
+**The history-join property** the undo design rested on — a structural `userEvent` is never
+joined into the entry before it — is no longer safety-critical, since nothing pops history.
+Its test stays: the removal's own event must also stay outside those families, or one undo
+would rewind past the keypress instead of returning to the place.
+
+**Two shapes remain uncovered**, both specified as known limitations rather than glossed: a
+place opened over a block selection (the plan's changes are a minimal diff in which the
+deletion and the insertion are not separable — the fix is for the planner to carry the exact
+removal edit, computed where the intermediate state is known), and a place restored by redo
+(the recorder re-arms only for our own dispatches, and two ways to recognise a redo both
+failed to fire).
 
 ### D7 — Selection handling is one composed rule
 
