@@ -138,6 +138,21 @@ describe('the guards decide whether a cleanup may run', () => {
     // reversible in the first place.
   });
 
+  it('an INDENTED position is reversible too, leaving no whitespace-only line', () => {
+    // The position a list item's child scope opens carries that scope's own
+    // indentation, so abandoning it has to remove a line that is not empty. The
+    // reverse is line-granular, so it does — but a whitespace-only leftover is
+    // exactly the kind of invisible debris "without a trace" is about, and
+    // nothing else in the file would notice it.
+    const src = '- item\n\n\tpara\n';
+    const view = pressEnterAtEnd(src, '- item'.length);
+    expect(view.state.doc.toString()).toBe('- item\n\n\t\n\n\tpara\n');
+
+    undo(view as never);
+    expect(view.state.doc.toString()).toBe(src);
+    expect(view.state.doc.toString()).not.toMatch(/^[ \t]+$/m);
+  });
+
   it('the depth guard rejects a cleanup once anything else has changed the document', () => {
     const view = pressEnterAtEnd('thought\n\nnext\n', 'thought'.length);
     const recorded = undoDepth(view.state);

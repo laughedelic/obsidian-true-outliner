@@ -603,4 +603,21 @@ describe('keyboard grammar', function () {
     await h.keys.undo(); // exactly one step back
     expect(await h.getBuffer()).toBe('- alpha\n- beta\n');
   });
+
+  it('Enter at the end of an item with a child opens a position INSIDE the item', async function () {
+    // The position a child scope opens carries that scope's indentation. At
+    // column 0 the character typed there started a new top-level block, which
+    // placed the node at the wrong depth AND left the item's existing child
+    // following a top-level sibling — the subtree flattened by one keystroke.
+    await grammarNote('- item\n\n\tpara\n', 0, '- item'.length);
+    await h.keys.enter();
+    const cursor = await h.getCursor();
+    expect(await h.getBuffer()).toBe('- item\n\n\t\n\n\tpara\n');
+    expect(cursor).toEqual({ line: 2, ch: 1 });
+
+    await h.keys.type('x');
+    const doc = parse(await h.getBuffer());
+    expect(doc.children.length).toBe(1);
+    expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['\tx', '\tpara']);
+  });
 });

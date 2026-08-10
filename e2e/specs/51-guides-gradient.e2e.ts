@@ -304,6 +304,11 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'deep-nesting')!;
     await h.createNote(fixture.note, fixture.md);
     await ensureOutlineMode(fixture.note);
+    // Pinned into content space deliberately: a caret resting on a blank line is
+    // a PROVISIONAL POSITION, which is a caret-derived layer and may decorate
+    // that one line. This assertion is about the base layers, so it measures
+    // with the caret where a base-layer assertion means it to be.
+    await h.setCursor(0, 1);
     await browser.pause(150);
     for (let line = 0; line < 4; line++) {
       expect(await h.getLineClassList(line)).not.toContain('to-decor-guides');

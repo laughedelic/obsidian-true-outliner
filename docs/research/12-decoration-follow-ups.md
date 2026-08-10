@@ -73,6 +73,10 @@ guide-line and marker offsets re-derived, which is why this is a change of its o
 
 ### A provisional (gap) line has no decoration facts, so the caret visibly jumps
 
+**Graduated** — closed by the `decorate-provisional-positions` change, which renders the
+caret's own gap line as the node the parse would make of it if a character were typed there.
+One residual is NOT ours and stays deferred; it is recorded below.
+
 Same catalogue, S10, and it explains a real-vault observation: Shift+Enter at the end of a
 nested list item puts the caret on the new line "without any indentation", and typing
 one character makes it "align correctly".
@@ -89,6 +93,61 @@ worse as those become first-class. The mechanism is available — give a gap lin
 owning node's depth — but which depth a gap line between two different depths should take
 is the open question, and it interacts with the guide-line rule that already covers gap
 lines.
+
+**How it was closed.** The open question dissolved rather than being answered: the layer asks
+what the line WOULD BE if a character were typed at the caret, which the parse already knows,
+instead of what depth a gap "is". That also covers the shape the depth framing cannot express
+— Shift+Enter's position is not a node at any depth, it is a continuation line of the node
+above.
+
+Measured live before building (16px font, `--to-decor-unit` 24px, marker gutter 20px; x
+values relative to the line's own box):
+
+| Shape | Caret today | Caret once a character is typed |
+|---|---|---|
+| Enter's position under a depth-1 paragraph | +0px | +44px (= 1 × 24 + 20 gutter) |
+| Shift+Enter's position, list under a heading | +16.75px, no margin | +36px, `margin-left: 24px` |
+| Shift+Enter's position, PURE list | +16.75px | +36px |
+
+Enter's case closes exactly: the injected fact gives the line the same `padding-left` a real
+depth-1 paragraph has, and the caret lands on 44px instead of 0 — where it previously sat on
+the depth-0 guide column. The list case closes the 24px our own layer was withholding (the
+`supplementalDepth` margin, which is exactly the "one level left, outside the list block"
+users report).
+
+### A list item's continuation line does not align with the item's own content
+
+Two separate stock-Obsidian offsets, found while closing the row above and confirmed
+byte-identical with outline mode **off** — neither is this plugin's to cause or to fix.
+
+Obsidian wraps a continuation line's leading whitespace in `<span class="cm-hmd-list-indent
+cm-hmd-list-indent-N">` and gives that span its own width. That width is derived from the
+whitespace, not from the width of the MARKER the continuation is supposed to sit under, and
+the two disagree:
+
+| Line | Marker's own width | Continuation indent span | Continuation sits |
+|---|---|---|---|
+| `- alpha` | 23.42px | 24.38px | 0.96px right |
+| `1. alpha` | 30.39px | 28.56px | **1.82px left** |
+| `10. alpha` | 40.16px | 36.00px | **4.16px left** |
+
+So an ordered list's continuation hangs slightly LEFT of its own text, worse the wider the
+number — reported from real-vault use during the `decorate-provisional-positions` pass, where
+it was visible on the newly-decorated provisional line and then found to predate it.
+
+The second offset is about the CARET rather than the text, and appears only once the run
+spans more than one nesting level: at end-of-line CM6 measures the caret by the text run's own
+metrics, inside the wider span, while a following character's own span starts at the span's
+right edge. A caret on `    ` (two levels) sits at +16.75px where the first typed character
+lands at +36px. At one level the two agree exactly, which is why this shows up as "the caret
+is fine here and jumps there".
+
+Neither is closable from where this layer stands. Both would mean overriding the width of
+`.cm-hmd-list-indent` — DOM we do not own — from a live measurement of the marker beside it,
+per line and per theme. More decisively, it would make a list render differently with the
+plugin on than off, which is the one hard invariant `outline-decorations` states about pure
+lists. Doing it anyway is a change of its own, with that requirement amended deliberately
+rather than broken in passing.
 
 ### RTL-aware placement (openspec outline-decorations task 5.9)
 

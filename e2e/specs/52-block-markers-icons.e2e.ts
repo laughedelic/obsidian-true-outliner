@@ -648,4 +648,80 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
       expect(paddingWithoutMarker).toBe(paddingWithMarker);
     });
   });
+  describe('provisional positions', function () {
+    // A position stands for a node, so it carries that node's marker — under the
+    // same eligibility and visibility gates, never as a special case.
+
+    async function openEnterPosition(note: string, md: string): Promise<number> {
+      await h.createNote(note, md);
+      await ensureOutlineMode(note);
+      const lines = md.split('\n');
+      await h.setCursor(2, lines[2]!.length);
+      await h.keys.enter();
+      await browser.pause(150);
+      return (await h.getCursor()).line;
+    }
+
+    it('Enter’s position carries exactly one paragraph marker', async function () {
+      const line = await openEnterPosition(
+        'Scratch/provisional-marker.md',
+        '# Heading\n\npara\n\nnext\n',
+      );
+      expect((await h.getLineChildRects(line, MARKER_ICON_SELECTOR)).length).toBe(1);
+    });
+
+    it('a continuation position carries none — it is not a first line', async function () {
+      const note = 'Scratch/provisional-marker-continuation.md';
+      await h.createNote(note, '# Heading\n\n- alpha\n  - beta\n');
+      await ensureOutlineMode(note);
+      await h.setCursor(3, '  - beta'.length);
+      await h.keys.shiftEnter();
+      await browser.pause(150);
+      const line = (await h.getCursor()).line;
+      expect((await h.getLineChildRects(line, MARKER_ICON_SELECTOR)).length).toBe(0);
+    });
+
+    it('a neighbouring line is not rendered as though the node already existed', async function () {
+      // Design D3: only the caret's own line takes the previewed fact. The
+      // preview makes this childless heading a PARENT, so computing every line
+      // from it would blink the heading's marker on under 'with-children' and
+      // off again the moment the position is abandoned.
+      const note = 'Scratch/provisional-no-neighbour-flicker.md';
+      await h.createNote(note, '# Childless heading\n');
+      await ensureOutlineMode(note);
+      await browser.executeObsidian(async ({ plugins }) => {
+        await (plugins.trueOutliner as any).setMarkerVisibility('with-children');
+      });
+      await browser.pause(150);
+      expect((await h.getLineChildRects(0, MARKER_ICON_SELECTOR)).length).toBe(0);
+
+      await h.setCursor(0, '# Childless heading'.length);
+      await h.keys.enter();
+      await browser.pause(150);
+      expect((await h.getLineChildRects(0, MARKER_ICON_SELECTOR)).length).toBe(0);
+
+      await browser.executeObsidian(async ({ plugins }) => {
+        await (plugins.trueOutliner as any).setMarkerVisibility('all');
+      });
+      await browser.pause(150);
+    });
+
+    it('markerVisibility governs it exactly as it governs a real leaf paragraph', async function () {
+      await browser.executeObsidian(async ({ plugins }) => {
+        await (plugins.trueOutliner as any).setMarkerVisibility('with-children');
+      });
+      await browser.pause(150);
+      const line = await openEnterPosition(
+        'Scratch/provisional-marker-visibility.md',
+        '# Heading\n\npara\n\nnext\n',
+      );
+      // A leaf, like the paragraph it will become — so no marker, and the
+      // reserved gutter is untouched either way.
+      expect((await h.getLineChildRects(line, MARKER_ICON_SELECTOR)).length).toBe(0);
+      await browser.executeObsidian(async ({ plugins }) => {
+        await (plugins.trueOutliner as any).setMarkerVisibility('all');
+      });
+      await browser.pause(150);
+    });
+  });
 });

@@ -581,3 +581,22 @@ withdrawn when it turned out to need editor state (that change's design.md D1). 
 in the complaint — debris from an unused keypress — is answered by undoing the keypress rather
 than by writing less. And the decoration half of E10/E11 is not a split defect at all; both
 decoration findings are recorded in `12-decoration-follow-ups.md`.
+
+## Where S10 and E10 finally landed (`decorate-provisional-positions`, 2026-08-10)
+
+Both were closed together, by the change that made a provisional position render as the node
+the parse would make of it if a character were typed there.
+
+**S10's decoration half.** The caret on a whitespace-only continuation position now carries
+the same `supplementalDepth` contribution the line gets once text lands, so it renders inside
+the list block instead of at the list's parent column. One residual is NOT ours and stays
+open: a caret at the end of a list-indent run measures by the run's own text rather than by
+the fixed width Obsidian gives the span containing it, byte-identical with the plugin
+disabled. Measured, and recorded in `12-decoration-follow-ups.md`.
+
+**E10's other half.** Building the rendering rule turned up an encoding defect underneath it,
+which the catalogue's own entry could not have seen: the routing landed the position in the
+right PLACE, but wrote it at column 0. Typing there produced a top-level paragraph and left
+the item's existing child following it as another top-level node — the subtree flattened. The
+position now carries its destination scope's indentation, so what materializes is the child
+the routing intended.

@@ -74,13 +74,14 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
-import type { NodeKind } from '../model';
+import type { NodeKind, OutlineDoc } from '../model';
 import { parse } from '../parse';
 import { coveredForestOf, coveredSubtreeRoots, type LinePos, type LineRange } from '../escalate';
 import {
   computeLineGuides,
   computePositionTrail,
   decorate,
+  materializeProbe,
   type GuideHighlight,
   type MarkerHighlight,
   type LineDecorationFact,
@@ -261,6 +262,53 @@ function hasOverlay(guide: LineGuideFact, trail?: PositionTrailFact): boolean {
 }
 
 /**
+ * The PROVISIONAL POSITION the caret currently occupies, if any: the line, the
+ * fact it would have once a character is typed there, and the tree that would
+ * result (which the trail needs — design D4).
+ *
+ * The trigger is where the caret IS, not a record of the keypress that put it
+ * there. `provisional-cleanup.ts` tracks the created place precisely, but
+ * reaching that record from here would mean threading view state into a
+ * state-derived computation — and it is unnecessary: the only ways a caret comes
+ * to rest on a line with no node content are this plugin's own provisional
+ * dispatch and a programmatic placement `content-space-caret` deliberately does
+ * not correct. Both get the same truthful rendering, and the decoration
+ * disappearing when the caret leaves is then a property of the computation
+ * rather than a second mechanism to keep in step with undo-on-abandon.
+ *
+ * Cached per `EditorState` for the same reason the trail is, and gated first on
+ * the cheap tests (one empty cursor, on a line that is blank) so a caret in
+ * content space — every caret, almost always — costs a `trim()`.
+ */
+interface Provisional {
+  readonly line: number;
+  readonly fact: LineDecorationFact;
+  readonly doc: OutlineDoc;
+}
+
+const provisionalCache = new WeakMap<EditorState, Provisional | null>();
+
+function provisionalAt(state: EditorState): Provisional | null {
+  const cached = provisionalCache.get(state);
+  if (cached !== undefined) return cached;
+  const computed = computeProvisional(state);
+  provisionalCache.set(state, computed);
+  return computed;
+}
+
+function computeProvisional(state: EditorState): Provisional | null {
+  const sel = state.selection.main;
+  if (!sel.empty || state.selection.ranges.length !== 1) return null;
+  const line = state.doc.lineAt(sel.head);
+  if (line.text.trim() !== '') return null;
+  const probe = materializeProbe(state.doc.toString(), line.number - 1, sel.head - line.from);
+  if (probe === null) return null;
+  const doc = parse(probe);
+  const fact = decorate(doc).find((f) => f.lineNumber === line.number - 1);
+  return fact ? { line: line.number - 1, fact, doc } : null;
+}
+
+/**
  * The caret-derived trail for the current state, or an empty one.
  *
  * Suppressed entirely while every non-empty range is an escalated cover:
@@ -272,7 +320,14 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
     return EMPTY_POSITION_TRAIL;
   }
   if (allRangesCovered(state)) return EMPTY_POSITION_TRAIL;
-  const { doc } = parsedDoc(state.doc);
+  // On a provisional position the trail describes the node the position stands
+  // for. Against the real document a caret on a gap line resolves to the node
+  // that OWNS the gap — deliberately, so the trail does not blink off while the
+  // caret crosses a blank line between blocks — but for a position opened at the
+  // end of a paragraph that is the new node's SIBLING, and accenting it reads as
+  // "you are inside this", which is the opposite of true.
+  const provisional = provisionalAt(state);
+  const doc = provisional ? provisional.doc : parsedDoc(state.doc).doc;
   // The HEAD of the PRIMARY range: head so the trail follows where the user is
   // steering, primary so multiple cursors draw one trail rather than N
   // competing ones.
@@ -713,7 +768,16 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
 
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
-  for (const fact of docFacts(state).facts) {
+  // The provisional fact joins the document's own, in line order — a marker on
+  // the caret's position is not a special case, it is the marker the line it
+  // stands for would carry, under the same eligibility and visibility gates. A
+  // continuation position is not a first line, so it gets none, exactly as the
+  // real continuation line it is about to become gets none.
+  const provisional = provisionalAt(state);
+  const facts = provisional
+    ? [...docFacts(state).facts, provisional.fact].sort((a, b) => a.lineNumber - b.lineNumber)
+    : docFacts(state).facts;
+  for (const fact of facts) {
     // List items keep their fully native marker, untouched (same exclusion
     // guides already use); continuation lines never repeat the marker. The
     // same predicate gates the widget path (see isMarkerEligible), so the
@@ -819,18 +883,26 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // corresponding entry there at all.
   const { factsByLine, guides } = docFacts(state);
   const trail = positionTrail(state, modes);
+  const provisional = provisionalAt(state);
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
   for (const guide of guides) {
     if (guide.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const from = state.doc.line(guide.lineNumber + 1).from; // CM6 lines are 1-indexed
     const lineTrail = trail.byLine.get(guide.lineNumber);
-    if (guide.isGapLine) {
+    // The caret's own provisional line takes the full treatment, from the fact
+    // it would have once a character lands there. Every OTHER gap line keeps the
+    // guide-only decoration: this layer renders where the user currently is, not
+    // every blank line in the document.
+    const fact =
+      provisional && provisional.line === guide.lineNumber
+        ? provisional.fact
+        : factsByLine.get(guide.lineNumber);
+    if (guide.isGapLine && !fact) {
       if (!hasOverlay(guide, lineTrail)) continue; // nothing to draw
       builder.add(from, from, gapLineDecoration(guide, lineTrail));
       continue;
     }
-    const fact = factsByLine.get(guide.lineNumber);
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
     builder.add(from, from, lineDecoration(fact, guide, trail, modes.markerHighlight !== 'off'));
   }
