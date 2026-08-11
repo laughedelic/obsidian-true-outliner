@@ -120,5 +120,6 @@ None. Both halves refine existing requirements.
   base decoration layer's geometry. A pure list's byte-identity invariant holds — the facts a
   displaced line regains are the ones it had, which in a pure list contribute nothing.
 - **Depends on** `decorate-provisional-positions` (archived), whose rule this extends, and on
-  `abandon-removes-only-the-place` (complete, unarchived) for the abandon behavior the leftover
-  note measures against.
+  `abandon-removes-only-the-place` (archived 2026-08-11) for the abandon behavior the leftover
+  note measures against and for the wording of the requirement this change's grammar delta
+  restates.

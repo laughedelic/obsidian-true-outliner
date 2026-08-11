@@ -169,6 +169,8 @@ reading the created-place record and giving up D5.
 - **A position left behind by a structural key still splits the node on disk** → Out of scope
   and recorded. It is byte-identical to stock Obsidian, and the rendering fix makes it
   invisible only while the caret rests there — a deliberate limit, not an oversight.
-- **Two pending changes touch `outline-keyboard-grammar`** → `abandon-removes-only-the-place` is
-  complete but unarchived, and this change's delta restates its version of the requirement. It
-  must be synced or archived first; the delta says so in a comment at the top.
+- **The `outline-keyboard-grammar` delta must restate the current requirement** →
+  `abandon-removes-only-the-place` amended the same one and was archived on 2026-08-11, so the
+  main spec already carries its wording and this change's delta is written on top of it. The
+  ordering risk this recorded is settled; what remains is the ordinary one, that a third change
+  amending the same requirement before this lands would need the same check.

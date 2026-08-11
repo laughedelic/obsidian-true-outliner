@@ -110,6 +110,7 @@ Findings.
       the document-and-caret-alone derivation.
 - [ ] 5.5 Run `npm run build`, `npm test`, `npm run lint`, and `npm run test:e2e`; confirm the
       full suite is green.
-- [ ] 5.6 Confirm `abandon-removes-only-the-place` is synced or archived before this change's
-      `outline-keyboard-grammar` delta is, so its version of the "Provisional positions"
-      requirement is the one this restates on top of (design — Risks).
+- [ ] 5.6 Re-diff this change's `outline-keyboard-grammar` delta against the main spec before
+      archiving, so nothing another change amended in the meantime is dropped by the restatement.
+      `abandon-removes-only-the-place` archived on 2026-08-11 and its wording is already carried
+      through; the check is for whatever lands next.

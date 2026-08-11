@@ -1,9 +1,5 @@
 ## MODIFIED Requirements
 
-<!-- Restated on top of `abandon-removes-only-the-place`'s own version of this requirement,
-     which is complete but not yet synced into the main spec. That change must be synced or
-     archived first; the paragraph on abandonment below is its text, carried through unedited. -->
-
 ### Requirement: Provisional positions
 An accepted structural keypress MAY leave the cursor on a blank or whitespace-only line that
 belongs to no node's own lines. Such a line is a PROVISIONAL POSITION: it holds the place
