@@ -265,25 +265,54 @@ Two gestures count as declining, and both resolve the same way:
 - DELETING it — Backspace or Delete with the caret on it. A provisional position is treated
   as the empty node it stands for, so a deletion gesture removes the WHOLE place rather than
   narrowing the gap around it. After Backspace the caret goes where the cancelled keypress
-  started, which is the content end of the node above; after Delete it goes to the content
-  start of the node below. Without this, Delete would shrink the separation that makes the
-  position typeable and leave a caret on a blank line that silently joins its neighbour.
+  STARTED; after Delete it goes to the content start of the node below. Without this, Delete
+  would shrink the separation that makes the position typeable and leave a caret on a blank
+  line that silently joins its neighbour.
+
+  Where the keypress started is a fact about the KEYPRESS, not about the resulting document,
+  and SHALL be treated as one. It is the content end of the node above the place for the
+  common shapes, and that coincidence SHALL NOT be relied on: a drafted sibling heading is
+  written after the original heading's whole section, so the node above the place is that
+  section's last node while the keypress started at the heading. Where the keypress had NO
+  caret to start from — it replaced a non-empty selection — there is nothing to return to,
+  and the caret SHALL go to the content end of the node above the place instead.
 
 A REMOVAL, not an undo of the keypress. Undoing was specified first and withdrawn: it
 reverts everything the keypress did, and a keypress can do more than open a place — Enter
 over a block selection removes the selection AND opens one, so undoing it brought the
 deleted text back. Removal also leaves a real history entry, so ONE undo returns to the
-empty place, which is what a user who changes their mind twice expects. The three objections
-that originally argued for undo are answered by removing a RECORDED span rather than a
-computed one: nothing has to decide what counts as removable content, and nothing has to
-guess a gap's minimal width.
+empty place, which is what a user who changes their mind twice expects.
 
-The removal SHALL delete the place's own line plus however many lines the keypress added
-beyond it. One rule covers every producer: an end-of-node Enter widens a gap by two lines
-and both go; a materialized empty item or heading occupies one line and it goes; an unwrap,
-or an outdent that DISSOLVES an empty item into a blank line, adds no line at all and the
-one it left goes. A place on the document's last line has no following line break to take,
-so the removal SHALL take the preceding one instead.
+THE REMOVAL EDIT IS STATED BY THE OPERATION THAT MADE THE PLACE, from the document as that
+operation found it, and carried to the point of removal. It SHALL NOT be derived from the
+resulting document — not from how many lines the transaction grew by, not from where the
+caret came to rest, not from the shape of the change set.
+
+Deriving it is not merely fragile, it is impossible in the general case. A keypress may do
+more than open a place, and what reaches the editor is a MINIMAL DIFF of the whole
+transformation, in which a removal and an insertion touching the same lines are one
+replacement. The two steps cannot be recovered from it afterwards; they exist separately
+only while the operation is being composed.
+
+Two forms, chosen by what the operation MEANT and not by which key ran:
+
+- An operation whose PURPOSE was to open the place SHALL state its own REVERSAL — the edit
+  returning the document to the text that operation acted on. Everything that operation did
+  goes, INCLUDING any renumbering or re-indentation it performed on its way in; everything
+  the same keypress did BEFORE it stands. Stating it in bytes is what makes this exact
+  without anything having to decide which of those effects counts as part of the place.
+- An operation that DISSOLVED A NODE into a blank line, leaving the place as its residue,
+  SHALL state the REMOVAL OF THAT LINE instead. Reversing such an operation would restore
+  the node the user deliberately dissolved — the item they pressed Enter to leave — which is
+  the opposite of abandoning the blank it left behind.
+
+Where a keypress removed a non-empty selection before acting, abandoning SHALL return the
+document to the state THE REMOVAL produced, not to the state before the keypress. The
+selection stays deleted; only the place opened over it goes.
+
+The removal SHALL be exact wherever the place sits, including on the document's last line
+and in a file that does not end with a line break. Neither is a special case to be handled
+by its own arithmetic: a stated edit already describes the bytes it removes.
 
 WHICH DISPATCHES CREATE A PLACE is decided by where the caret lands, not by which key ran.
 A dispatch of this plugin's that leaves the caret on a GAP LINE necessarily created that
@@ -291,6 +320,10 @@ position — a gap line is a place and not a node, so there was nothing there to
 EMPTY NODE is different: it can pre-exist the keypress, so only the dispatches that
 materialize one qualify, or an outdent that merely moved an already-empty item would be
 recorded and then removed out from under the user.
+
+This test SHALL remain independent of whether an operation stated a removal edit. The two
+answer different questions — one whether a place was left, the other how to remove it — and
+where they disagree the result SHALL be no cleanup, which is the safe direction.
 
 Keying on the operation instead was tried and is wrong, for a reason worth stating: which
 operation dissolves an empty item into a blank line depends on the item's PARENT, not on
@@ -313,7 +346,8 @@ opted in and remove it when the caret moved away.
 The removal SHALL carry a plugin-own `userEvent`, so the verdict layer short-circuits it —
 deleting lines would otherwise read as a boundary-crossing edit — and one outside the
 editor's joinable history families, so it forms its own entry and a single undo returns to
-the empty place rather than past the keypress.
+the empty place rather than past the keypress. This holds for a removal that RESTORES bytes
+as well as one that only deletes them.
 
 #### Scenario: An unused blank position is removed on leaving
 - **WHEN** Enter at the end of a paragraph widens the gap, and the caret is then moved
@@ -331,10 +365,23 @@ the empty place rather than past the keypress.
   moved elsewhere with nothing typed
 - **THEN** the empty item is gone
 
+#### Scenario: A place opened over a block selection leaves the removal standing
+- **WHEN** whole subtrees are block-selected, Enter replaces them with one empty position,
+  and the caret is then moved away with nothing typed
+- **THEN** the selected subtrees are still gone, the position is gone with no blank line left
+  where it was, and the document is exactly what the removal alone would have produced
+
+#### Scenario: Removal restores an ordered run's numbering
+- **WHEN** Enter at the end of `1. a` in a `1.` `2.` `3.` list creates an empty item, which
+  renumbers the items below it, and the position is then abandoned
+- **THEN** the list reads `1.` `2.` `3.` again, not `1.` `3.` `4.` — the renumbering the
+  keypress performed is part of what the removal reverses
+
 #### Scenario: A place at the document's end is removed too
-- **WHEN** the place occupies the last line, so there is no following line break to take,
-  and it is abandoned
-- **THEN** it is removed by taking the preceding line break — the removal is never a no-op
+- **WHEN** the place occupies the document's last lines, whether or not the file ends with a
+  line break, and it is abandoned
+- **THEN** the file is byte-identical to what it was before the keypress — the removal is
+  never a no-op and never leaves a blank line behind
 
 #### Scenario: Leaving a list leaves no blank line, whatever the list's parent
 - **WHEN** a run of Enters walks an item out of a list and past it, for a list at the top
@@ -342,12 +389,24 @@ the empty place rather than past the keypress.
 - **THEN** no blank line remains in any of the three, even though the operation that
   dissolves the item differs between them
 
+#### Scenario: Leaving a list is not undone by abandoning its residue
+- **WHEN** Enter on an empty list item leaves the list, dissolving the item into a blank
+  line, and the caret is then moved away
+- **THEN** the blank line is gone and the list item is NOT restored — the departure was
+  deliberate, and only its residue is abandonable
+
 #### Scenario: Backspace cancels the position it is on
 - **WHEN** Enter at the end of a paragraph widens the gap and Backspace is pressed with the
   caret still on the resulting blank line
 - **THEN** the document is byte-identical to what it was before the Enter and the caret is at
   the content end of the paragraph above — the gap is not narrowed by one line, and the two
   paragraphs around it are not merged
+
+#### Scenario: Backspace after drafting a sibling heading returns to the heading
+- **WHEN** Shift+Enter at the end of a heading that HAS a section drafts the next heading
+  after that section, and Backspace is pressed on the empty heading it made
+- **THEN** the caret is at the content end of the ORIGINAL heading, where the keypress
+  started — not at the end of the section's last node, which is the node above the place
 
 #### Scenario: Backspace cancels an empty node the same way
 - **WHEN** Enter at the end of a list item creates an empty `- ` and Backspace is pressed at
@@ -376,34 +435,36 @@ the empty place rather than past the keypress.
 - **THEN** the behavior is unchanged from before this requirement: one undo step, restoring
   the pre-operation document and cursor
 
-### Requirement: Known limitations of place removal
-Two shapes are NOT covered, both found by real-vault use. They are recorded rather than
-specified away: knowing which shapes the guarantee holds for is worth more than a
-requirement that quietly overstates it. Neither SHALL be read as permitted behaviour — each
-is a defect with a known cause and a known fix, and the requirement above continues to
-state what the removal is FOR.
+### Requirement: Known limitation — a redone place cannot be declined again
+One shape is NOT covered, found by real-vault use. It is recorded rather than specified
+away: knowing which shapes the guarantee holds for is worth more than a requirement that
+quietly overstates it. It SHALL NOT be read as permitted behaviour — it is a defect with a
+known cause, and the requirement above continues to state what the removal is FOR.
 
-A place opened OVER A BLOCK SELECTION is not removed cleanly: the keypress removed the
-selection and opened the place in one transaction, and the plan's changes are a MINIMAL DIFF
-in which those two are not separable — for a paragraph between two others the whole edit is a
-single replacement of its text by a blank line. The removal therefore cannot subtract only
-the place. Closing this means the PLANNER carrying the exact removal edit, computed where the
-intermediate state (after the selection went, before the key acted) is still known, instead
-of the cleanup deriving one.
+A place restored by REDO cannot be declined a second time. The sequence is Enter, UNDO, REDO:
+the position comes back with the caret in it, and moving away then leaves it, since the
+recorder re-arms only for this plugin's own dispatches and a redo is not one — it replays the
+changes without the removal edit the original dispatch carried. Two ways to recognise it were
+tried — the editor's own `redo` user event, and a history-depth test — and neither fired,
+which suggests the host's redo does not run through the editor library's history command at
+all.
 
-A place restored by REDO cannot be declined a second time. Abandoning it once removes it;
-redoing brings it back with the caret in it, and abandoning again does nothing, leaving a gap
-that ordinary caret motion skips over. The recorder re-arms only for this plugin's own
-dispatches, and a redo is not one. Two ways to recognise it were tried — the editor's own
-`redo` user event, and a history-depth test — and neither fired, which suggests the host's
-redo does not run through the editor library's history command at all.
+The sequence is NOT "abandon, then redo", which is what this limitation said while the removal
+was still an undo of the keypress. Since it became a real edit there is no redo branch to
+reach: measured in the real editor, redo after an abandon does nothing at all. Recorded
+because the correction is the interesting part — a limitation is a claim about behaviour and
+ages with the mechanism it describes.
 
-#### Scenario: A block-selection place is not removed cleanly
-- **WHEN** a block selection is replaced by Enter and the resulting place is abandoned
-- **THEN** the outcome is not the specified one, and the limitation is documented rather
-  than the requirement being weakened to match it
+Abandoning is also NOT the gesture that brings a place back. UNDO after an abandon restores
+it, by design ("One undo returns to the empty place" above), and it correctly stays: re-arming
+there would delete it again the moment the caret moved, so a deliberate undo would flash the
+place back and lose it.
 
 #### Scenario: A redone place cannot be declined again
-- **WHEN** an abandoned place is restored by redo and abandoned a second time
-- **THEN** nothing happens, and removing it requires an explicit undo
+- **WHEN** a place is undone and then restored by redo, and the caret is moved away
+- **THEN** the place remains — removing it requires an explicit undo
+
+#### Scenario: Redo after an abandon has nothing to redo
+- **WHEN** a place is abandoned and redo is pressed immediately
+- **THEN** nothing happens: the removal is a real edit, so it left no redo branch
 

@@ -109,12 +109,7 @@ export interface TransactionFacts {
 
 /** This plugin's own grammar/command userEvent values (grammar.ts) —D2
  * class 3, "already valid by construction." `move.structure` and the
- * `input.structure.*` family. Shift+Enter's continuation is NOT in this
- * list, deliberately: it carries `input.structure.continue` for the benefit
- * of `provisional-cleanup.ts`, which must recognise its OWN dispatches
- * without guessing from the change's shape, but it still classifies BY SHAPE
- * here — a within-node edit, since a single-line change inside one node's own
- * line cannot cross a boundary. The name is a marker, not a short-circuit. */
+ * `input.structure.*` family. */
 const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   'input.structure.indent',
   'input.structure.outdent',
@@ -127,6 +122,16 @@ const PLUGIN_OWN_USER_EVENTS: readonly string[] = [
   // boundary-crossing edit for enforcement to rewrite.
   'input.structure.unwrap',
   'input.structure.sibling-heading',
+  // Shift+Enter's continuation. It was deliberately EXCLUDED at first, on the
+  // grounds that it is always "a single-line change inside one node's own line
+  // and so cannot cross a boundary" — true of the caret path, and false since
+  // `enter-and-shift-enter-grammar` made the key act on a selection first. Over
+  // a block selection the composed change set deletes whole subtrees; measured,
+  // it classifies as boundary-crossing and the verdict layer REWRITES it,
+  // dropping the continuation and the removal edit the dispatch carried with it.
+  // It is this plugin's own planner output like every other entry here, so it
+  // short-circuits like every other entry here.
+  'input.structure.continue',
   // The abandon edit: removing a place the user declined is our own surgery,
   // and must short-circuit the verdict layer like every other structural
   // dispatch — removing lines would otherwise read as boundary-crossing.

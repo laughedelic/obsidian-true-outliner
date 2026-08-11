@@ -1,31 +1,40 @@
 /**
- * Undo-on-abandon (`structural-history-integration`): a structural keypress
- * that creates an EMPTY PLACE — a provisional gap line, an empty list item, an
- * empty heading — and is then declined is removed by UNDOING that keypress,
- * never by dispatching a new change that deletes what it made.
+ * Place removal on abandonment (`structural-history-integration`): a structural
+ * keypress that creates an EMPTY PLACE — a provisional gap line, an empty list
+ * item, an empty heading — and is then declined has that place removed, leaving
+ * everything else the keypress did standing.
  *
  * Declining is either gesture: moving the caret away without typing there, or
  * deleting the place with Backspace/Delete.
  *
- * Undo rather than a deletion because a deletion fails three ways (design D6):
- * it adds an undo step the user did not ask for, or is unundoable if it
- * suppresses one; it has to decide what counts as removable content, which asks
- * whether a `#` is content and a bullet is chrome — a question with a real
- * answer that has nothing to do with abandonment; and it can only narrow a gap
- * to what the rule believes is minimal, where an undo restores the exact bytes.
+ * This module decides WHETHER to remove and WHEN. It does not decide WHAT: the
+ * plan that made the place states the removal edit and the dispatch carries it
+ * here (`abandonEdit`). That split is not stylistic — the edit cannot be
+ * recovered downstream. A transaction carries a MINIMAL DIFF of the whole
+ * transformation, so a keypress that removed a selection before acting fuses
+ * both steps into one replacement, and any extent read back out of that shape
+ * under-counts by exactly what the removal cancelled.
  *
- * The whole mechanism rests on a property of this plugin's own `userEvent`
- * values: `@codemirror/commands` joins a change into the previous history entry
- * only for the `input.type` and `delete` families, so a structural keypress is
- * always its own entry and undoing it can never swallow the typing before it.
- * That is pinned by `tests/undo-on-abandon.test.ts` with a negative control,
- * because renaming an event into those families would silently turn this
- * cleanup into data loss.
+ * A removal rather than an undo of the keypress, for the same reason: undo
+ * reverts everything, including a block selection the same keypress deleted. It
+ * also leaves a real history entry, so one undo returns to the empty place.
+ *
+ * The safety of the whole mechanism rests on a property of this plugin's own
+ * `userEvent` values: `@codemirror/commands` joins a change into the previous
+ * history entry only for the `input.type` and `delete` families, so a structural
+ * keypress is always its own entry and a removal can never swallow the typing
+ * before it. That is pinned by `tests/undo-on-abandon.test.ts` with a negative
+ * control, because renaming an event into those families would silently turn
+ * this cleanup into data loss.
  */
 
+
 import {
+  Annotation,
+  ChangeSet,
   EditorSelection,
   Transaction,
+  type ChangeSpec,
   type EditorState,
   type Extension,
 } from '@codemirror/state';
@@ -33,7 +42,12 @@ import { EditorView } from '@codemirror/view';
 import { undoDepth } from '@codemirror/commands';
 import { itemContentIsEmpty } from '../ops';
 import { nodeAtLine, nodeStartLine } from '../locate';
-import { nodeContentStart, nextNodeInOrder } from '../caret';
+import {
+  nextNodeInOrder,
+  nodeContentEnd,
+  nodeContentStart,
+  previousNodeInOrder,
+} from '../caret';
 import { parsedDoc } from './parsed-doc';
 
 /**
@@ -60,21 +74,37 @@ interface CreatedPlace {
   readonly depth: number;
   /** The line the empty place occupies, in the post-keypress document. */
   readonly line: number;
-  /** Where the caret was BEFORE the keypress — Backspace's landing spot, which
-   * is exactly "where the cancelled keypress started". */
-  readonly startHead: number;
+  /**
+   * Where the caret was BEFORE the keypress — Backspace's landing spot — in
+   * the POST-keypress document's coordinates, or `undefined` when the keypress
+   * had no caret to start from because it replaced a non-empty selection.
+   *
+   * Mapped forward rather than stored raw: the raw offset belongs to a document
+   * that no longer exists, and `cancel` maps its target through the removal
+   * edit, which is expressed against the post-keypress document.
+   *
+   * Recorded rather than derived, because "the node above the place" is NOT the
+   * origin in general. `insertSiblingHeading` writes the new heading after the
+   * original's whole section, so for `## Foo` / `body` the node above the place
+   * is `body` while the keypress started at `## Foo`. Only the dispatch knows.
+   */
+  readonly startedAt?: number | undefined;
   /**
    * The edit that removes the place and nothing else, in the post-keypress
-   * document's coordinates.
+   * document's coordinates — STATED BY THE PLAN that made the place, never
+   * derived here.
    *
-   * Recorded rather than computed later, and applied as a NEW transaction
-   * rather than by undoing the keypress. Undo reverts the WHOLE keypress, which
-   * is wrong whenever it did more than create the place: Enter over a block
-   * selection deletes the selection AND opens a position, and abandoning the
-   * position brought the selected text back. Reversing only the sub-change that
-   * made the place leaves the rest of the keypress standing.
+   * Deriving it was the previous design and is impossible in the general case:
+   * the transaction carries a MINIMAL DIFF of the whole transformation, so where
+   * a keypress removed a selection before acting, the removal and the insertion
+   * touch the same lines and are one replacement in it. Reading an extent back
+   * out of that shape under-counts by exactly the lines the removal cancelled.
+   *
+   * A change SET rather than a single change, because a reversal may RESTORE
+   * text as well as delete it — abandoning an Enter that renumbered an ordered
+   * run puts the original numbers back.
    */
-  readonly reverse: { readonly from: number; readonly to: number; readonly insert: string };
+  readonly abandon: ChangeSet;
 }
 
 const created = new WeakMap<EditorView, CreatedPlace>();
@@ -184,34 +214,38 @@ function isCreatingTransaction(
 }
 
 /**
- * The edit that removes the place `line` occupies, in the coordinates of the
- * document `tr` produced: delete the place's own line, plus however many lines
- * the keypress ADDED beyond it.
+ * The removal edit a dispatch carries for the place it just made.
  *
- * One rule for every creator, replacing a set of per-event special cases that
- * kept growing as new parents were tried:
+ * An annotation rather than a call into this module, because the fact belongs
+ * to the transaction: it is expressed in the coordinates of the document that
+ * transaction produces, and it travels with it wherever it is dispatched from.
  *
- * - an end-of-node Enter widens a gap by two lines → both go;
- * - a materialized `- ` or `## ` occupies one line → it goes;
- * - an unwrap, and an outdent that DISSOLVES an empty item into a blank line,
- *   add no lines at all → the one line they left goes.
- *
- * Always a deletion, never an inversion. Inverting the change would restore
- * what the keypress removed — the `- ` the user pressed Enter to escape — which
- * is the opposite of abandoning the place it left behind.
+ * It does NOT survive undo/redo, which is honest rather than a gap to paper
+ * over — a redone place genuinely has no record here, and the limitation is
+ * specified (`structural-history-integration`, known limitations).
  */
-function reverseFor(tr: Transaction, line: number): { from: number; to: number; insert: string } {
-  const doc = tr.state.doc;
-  const added = doc.lines - tr.startState.doc.lines;
-  const count = Math.max(1, added);
-  const first = doc.line(line + 1);
-  const last = doc.line(Math.min(line + count, doc.lines));
-  const to = Math.min(last.to + 1, doc.length);
-  // A place on the document's LAST line has no following newline to take, so
-  // the span above is empty and the deletion would silently do nothing. Take
-  // the PRECEDING newline instead — the ordinary way to remove a final line.
-  if (to <= first.from) return { from: Math.max(0, first.from - 1), to: doc.length, insert: '' };
-  return { from: first.from, to, insert: '' };
+export const abandonEdit = Annotation.define<readonly ChangeSpec[]>();
+
+/**
+ * The empty place this state's caret is on that `userEvent` could have created,
+ * or `null`.
+ *
+ * Deliberately INDEPENDENT of whether the dispatch stated a removal edit, and
+ * the spec requires it to stay that way. The two answer different questions —
+ * this one whether a place was left, the edit how to remove one — and keeping
+ * them apart is what stops a removal edit from being read as proof of a place.
+ * Shift+Tab and the empty-item ladder run the SAME outdent and both state a
+ * removal, but an outdent that merely relocates an already-empty item created
+ * nothing; only this test excludes it. Where the two disagree the caller does
+ * nothing, which is the safe direction.
+ */
+export function recordablePlace(
+  state: EditorState,
+  userEvent: string | undefined,
+): { line: number } | null {
+  const place = emptyPlaceAt(state);
+  if (!place) return null;
+  return isCreatingTransaction(userEvent, place.kind) ? { line: place.line } : null;
 }
 
 /**
@@ -225,13 +259,18 @@ function reverseFor(tr: Transaction, line: number): { from: number; to: number; 
  */
 function cancel(view: EditorView, record: CreatedPlace, target: number): void {
   created.delete(view);
-  const { from, to, insert } = record.reverse;
-  if (to > view.state.doc.length) return; // the document moved under us: leave it
-  const shift = insert.length - (to - from);
-  const caret = target >= to ? target + shift : Math.min(target, from);
+  const { abandon } = record;
+  // The document moved under us: leave it. The record is dropped on any change,
+  // so this is a belt-and-braces check against a stale span rather than a
+  // reachable path — and leaving the place alone is always safe.
+  if (abandon.length !== view.state.doc.length) return;
+  // Mapped rather than shifted by one change's length: a reversal can be
+  // several changes and can restore text as well as remove it, so there is no
+  // single displacement to add.
+  const caret = abandon.mapPos(Math.max(0, Math.min(target, view.state.doc.length)), 1);
   view.dispatch({
-    changes: { from, to, insert },
-    selection: EditorSelection.cursor(Math.max(0, Math.min(caret, view.state.doc.length + shift))),
+    changes: abandon,
+    selection: EditorSelection.cursor(caret),
     userEvent: ABANDON_EVENT,
     scrollIntoView: true,
   });
@@ -289,20 +328,40 @@ export function cancelOnDelete(view: EditorView, forward: boolean): boolean {
   const sel = view.state.selection.main;
   if (!sel.empty) return false;
   if (view.state.doc.lineAt(sel.head).number - 1 !== record.line) return false;
-  if (emptyPlaceLine(view.state) !== record.line) return false;
+  const place = emptyPlaceAt(view.state);
+  if (!place || place.line !== record.line) return false;
 
-  let target = record.startHead;
+  // Backspace returns to where the keypress STARTED, which the recorder keeps
+  // in this document's coordinates. It is a recorded fact rather than a derived
+  // one because no rule over the parse recovers it: a drafted sibling heading
+  // lands after the original's whole section, so the node above the place is
+  // that section's last node while the keypress started at the heading.
+  //
+  // Only where there was no caret to start from — the keypress replaced a
+  // non-empty selection — is there nothing to return to, and the caret goes to
+  // the node above the place instead. Deriving that for EVERY shape was tried
+  // and regressed the sibling-heading case; deriving it for none put the caret
+  // inside the node BELOW the place after a block selection.
+  const { doc: outlineDoc } = parsedDoc(view.state.doc);
+  const node = nodeAtLine(outlineDoc, record.line);
+  const offsetOf = (pos: { line: number; ch: number }): number =>
+    view.state.doc.line(pos.line + 1).from + pos.ch;
+
+  let target = 0;
   if (forward) {
     // Delete reaches for what FOLLOWS, so the caret lands at the next node's
     // content start rather than back where the keypress began.
-    const { doc: outlineDoc } = parsedDoc(view.state.doc);
-    const node = nodeAtLine(outlineDoc, record.line);
     const next = node ? nextNodeInOrder(outlineDoc, node) : undefined;
-    if (next) {
-      const pos = nodeContentStart(outlineDoc, next);
-      const line = view.state.doc.line(pos.line + 1);
-      target = line.from + pos.ch;
-    }
+    if (next) target = offsetOf(nodeContentStart(outlineDoc, next));
+    else if (node) target = offsetOf(nodeContentEnd(outlineDoc, node));
+  } else if (record.startedAt !== undefined) {
+    target = record.startedAt;
+  } else if (node) {
+    // A GAP place is owned by the node above it, so that node IS the one the
+    // caret returns to; an empty NODE place has the node above as its
+    // predecessor in document order.
+    const above = place.kind === 'gap' ? node : previousNodeInOrder(outlineDoc, node);
+    if (above) target = offsetOf(nodeContentEnd(outlineDoc, above));
   }
   cancel(view, record, target);
   return true;
@@ -341,15 +400,23 @@ export function provisionalCleanup(inOutlineMode: (view: EditorView) => boolean)
       created.delete(view);
 
       const last = update.transactions[update.transactions.length - 1];
-      const event = last?.annotation(Transaction.userEvent) ?? undefined;
       if (last) {
-        const place = emptyPlaceAt(view.state);
-        if (place && isCreatingTransaction(event, place.kind)) {
+        const event = last.annotation(Transaction.userEvent) ?? undefined;
+        // BOTH must agree, and they are independent by contract: the dispatch
+        // states how to remove a place, this module decides whether one was
+        // left. Neither is evidence for the other — Shift+Tab states a removal
+        // for an outdent that may only have relocated an already-empty item,
+        // and `recordablePlace` is what excludes that. Disagreement means no
+        // cleanup, which leaves the place standing: the safe direction.
+        const stated = last.annotation(abandonEdit);
+        const place = recordablePlace(view.state, event);
+        if (stated && place) {
+          const before = last.startState.selection.main;
           created.set(view, {
             depth: undoDepth(view.state),
             line: place.line,
-            startHead: last.startState.selection.main.head,
-            reverse: reverseFor(last, place.line),
+            startedAt: before.empty ? last.changes.mapPos(before.head, -1) : undefined,
+            abandon: ChangeSet.of(stated, view.state.doc.length),
           });
         }
       }

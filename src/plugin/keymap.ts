@@ -37,6 +37,7 @@
  */
 
 import {
+  ChangeSet,
   EditorSelection,
   Prec,
   type Extension,
@@ -61,7 +62,9 @@ import {
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { parsedDoc } from "./parsed-doc";
 import { isNestedEditor } from "./nested-editor";
+import type { EditorChange } from "./dispatch";
 import {
+  abandonEdit,
   advanceFromEmptyPlace,
   cancelOnDelete,
   provisionalCleanup,
@@ -129,15 +132,32 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
       return true; // consume: stock behavior must not fire on a rejected op
     }
     const doc = view.state.doc;
-    view.dispatch({
-      changes: outcome.plan.changes.map((change) => ({
-        from: doc.line(change.from.line + 1).from + change.from.ch,
-        to: doc.line(change.to.line + 1).from + change.to.ch,
+    const toOffsets = (changes: readonly EditorChange[], target: Text) =>
+      changes.map((change) => ({
+        from: target.line(change.from.line + 1).from + change.from.ch,
+        to: target.line(change.to.line + 1).from + change.to.ch,
         insert: change.text,
-      })),
+      }));
+    const changes = toOffsets(outcome.plan.changes, doc);
+    // The plan's removal edit rides along, converted against the document this
+    // transaction PRODUCES — the coordinate space the plan states it in, which
+    // is why the conversion needs the resulting text rather than the current
+    // one. `provisional-cleanup` cannot derive it from the change set: a
+    // keypress that removed a selection first fuses both steps into one
+    // replacement there.
+    //
+    // Building that resulting text is the only reason to apply the change set
+    // twice, so it happens only for the operations that state a removal —
+    // indent and the moves state none, and they are the keys held down in runs.
+    const annotations = outcome.plan.abandon
+      ? abandonEdit.of(toOffsets(outcome.plan.abandon, ChangeSet.of(changes, doc.length).apply(doc)))
+      : undefined;
+    view.dispatch({
+      changes,
       selection: { anchor: outcome.plan.selection },
       userEvent: outcome.plan.userEvent,
       scrollIntoView: true,
+      ...(annotations ? { annotations } : {}),
     });
     return true;
   };

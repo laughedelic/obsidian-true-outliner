@@ -522,3 +522,82 @@ function lineIdentityDiffers(doc: ReturnType<typeof parse>, a: number, b: number
   const nb = nodeAtLine(doc, b);
   return na !== nb;
 }
+
+describe('classify: an abandon that RESTORES text is still plugin-own', () => {
+  // The removal edit an abandon applies is no longer always a deletion. Where
+  // the keypress renumbered an ordered run on the way in, reversing it puts the
+  // original markers BACK — so the transaction rewrites several whole lines and
+  // by shape reads as a boundary-crossing edit for enforcement to "fix".
+  //
+  // It must not be classified by shape at all: `input.structure.abandon` is a
+  // plugin-own event, and the short-circuit is what the name exists for. Pinned
+  // here rather than assumed, because the shape it can carry widened.
+  const doc = parse('1. a\n2. \n3. b\n4. c\n');
+
+  it('restoring several lines does not read as boundary-crossing', () => {
+    const restoring = facts({
+      userEvent: 'input.structure.abandon',
+      changedLineSpans: [span(1, 3)],
+    });
+    expect(classify(restoring, doc)).toBe('plugin-own');
+    // Negative control: the SAME shape without our marker is exactly what the
+    // verdict layer is supposed to catch, so the short-circuit is doing the
+    // work rather than the shape happening to be benign.
+    expect(classify(facts({ ...restoring, userEvent: 'input.type' }), doc)).toBe(
+      'boundary-crossing-edit',
+    );
+  });
+
+  it('a deleting abandon classifies the same way, so the two shapes agree', () => {
+    expect(
+      classify(facts({ userEvent: 'input.structure.abandon', changedLineSpans: [span(1, 1)] }), doc),
+    ).toBe('plugin-own');
+  });
+});
+
+describe('classify: Shift+Enter over a block selection is plugin-own', () => {
+  // `input.structure.continue` was once left OUT of the plugin-own list, on the
+  // grounds that it is always a single-line change inside one node's own line.
+  // That stopped being true when the key started acting on a selection first:
+  // over a block cover the composed change set deletes whole subtrees, and the
+  // measured classification was `boundary-crossing-edit` with a `rewrite`
+  // verdict — which replaces the transaction and drops the removal edit it
+  // carried, so the position could never be abandoned.
+  const doc = parse('alpha\n\nbeta\n\ngamma\n');
+  // The real span, from the real transaction: replacing `beta` and its owned
+  // gap with the continuation position.
+  const blockSpan: ChangedLineSpan = {
+    fromLine: 2,
+    toLine: 2,
+    insertedText: '',
+    deletesLineBoundary: false,
+    fromCh: 0,
+    toCh: 5,
+    rangeEnd: { line: 3, ch: 0 },
+  };
+
+  it('the composed continuation short-circuits the verdict layer', () => {
+    expect(
+      classify(facts({ userEvent: 'input.structure.continue', changedLineSpans: [blockSpan] }), doc),
+    ).toBe('plugin-own');
+  });
+
+  it('NEGATIVE CONTROL: the same change without our marker is boundary-crossing', () => {
+    // What the continuation classified as before it joined the list — so the
+    // entry is doing the work, not the shape happening to be benign.
+    expect(classify(facts({ userEvent: 'input.type', changedLineSpans: [blockSpan] }), doc)).toBe(
+      'boundary-crossing-edit',
+    );
+  });
+
+  it('the caret-path continuation is unaffected', () => {
+    // A single-line change inside one node: plugin-own now, `within-node-edit`
+    // before — and neither triggers any filter action, so nothing changed here.
+    expect(
+      classify(
+        facts({ userEvent: 'input.structure.continue', changedLineSpans: [span(2, 2)] }),
+        doc,
+      ),
+    ).toBe('plugin-own');
+  });
+});
