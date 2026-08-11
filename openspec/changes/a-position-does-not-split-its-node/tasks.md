@@ -26,37 +26,38 @@ any operation.
       the finding — the grammar delta's two operation scenarios then stand as regression guards
       over behavior that is already correct.
 
-## 2. The overlay: one accessor, scoped to what the position displaced
+## 2. The overlay: one accessor, one gate
 
-- [ ] 2.1 In `src/plugin/decorate.ts`, add the pure fact alongside `provisionalFact` /
-      `materializeProbe`: given the document text and the caret's line and column, return the
-      facts of the tree the position stands for TOGETHER WITH the line span they apply to — the
-      position's own line, plus the own lines below it of the node that owns the position in
-      that tree. Return nothing when the position is not interior, which is the whole of the
-      "is this a bisection" test (design D1).
-- [ ] 2.2 Cover it in `tests/decorate.test.ts`: the span is empty for an end-of-node position
-      and for Enter's blank-separated position; it is the tail lines for each shape in 1.1; and
-      a node that already has real children keeps them at their own depths, with only its own
-      lines in the span.
-- [ ] 2.3 Add the differential property test design D1 commits to, using `fast-check` and
-      `tests/generators.ts`: for a generated document and every line a position can occupy, the
-      raw facts and the resolved facts differ ONLY on the position's line and on the reported
-      span. Assert `guideDepths` identical for every line as part of the same pass, which is
-      design D2's claim.
-- [ ] 2.4 In `src/plugin/decorations.ts`, introduce the single `factsFor(state)` accessor: raw
-      `docFacts` unless a position is open, otherwise raw facts with the position's own line and
-      the span from 2.1 replaced. Route the marker pass (`:776`), the line-decoration pass
-      (`:884`), and `MarginCompensation`'s widget loop (`:1917`) through it, deleting the two
-      ad-hoc provisional merges. Leave the escalated-selection passes on `docFacts` and say why
-      in a comment — a cover and a position cannot coexist.
-- [ ] 2.5 Negative control: disable the span half of 2.4 (keep only the caret line's own fact,
-      which is today's behavior) and confirm every test from 1.1 and 2.2 fails for the stated
-      reason, then restore it.
-- [ ] 2.6 Negative control the other way: widen 2.4 to take the resolved facts for EVERY line and
-      confirm the childless-heading e2e guard
-      (`e2e/specs/52-block-markers-icons.e2e.ts:684`, "a neighbouring line is not rendered as
-      though the node already existed") fails, then restore the scoped version. That test is the
-      guard design D1 relies on; this proves it is still live.
+Rewritten from the span this group first described. The span was measured wrong twice — see
+design D1 and the Findings — and what shipped is a gate: a position that JOINS a node hands the
+whole document to the tree it stands for, a position that INVENTS one changes nothing but its
+own line.
+
+- [x] 2.1 In `src/plugin/decorate.ts`, add `positionJoinsANode(materializedFacts, line)` beside
+      `provisionalFact` / `materializeProbe`: true when the position's own materialized line is
+      not a first line, which is the whole of the "did this bisect a node" test (design D1).
+- [x] 2.2 Cover it in `tests/decorate.test.ts` for each shape in 1.1, plus the two the gate must
+      refuse (Enter's blank-separated position, and the adoption shape `# H` / blank / blank /
+      `beta`), the upper half that loses a child, the line an artifact swallows beyond the node,
+      and an end-of-node position, where the gate opens and costs nothing.
+- [x] 2.3 Add the differential property test design D1 commits to, using `fast-check` and
+      `tests/generators.ts`: run the real Shift+Enter over generated documents and assert the
+      overlay reproduces, for every line, the facts and guides that line had BEFORE the keypress.
+      A second property asserts an inventing position leaves every other line on the raw parse.
+      The skip predicate is written inline rather than calling `positionJoinsANode`, so breaking
+      the gate cannot make the property vacuous.
+- [x] 2.4 In `src/plugin/decorations.ts`, introduce the single `factsFor(state)` accessor: raw
+      `docFacts` unless a position is open; the resolved tree's facts AND guides when it joins a
+      node; raw facts plus the position's own otherwise. Route the marker pass, the
+      line-decoration pass, and `MarginCompensation`'s widget loop through it, deleting the two
+      ad-hoc provisional merges. Leave the escalated-selection passes on `docFacts` with a comment
+      — a cover and a position cannot coexist.
+- [x] 2.5 Negative control: force the gate shut (today's behaviour) and confirm the failures are
+      the measured ones — nine tests, both properties among them — then restore it.
+- [x] 2.6 Negative control the other way: force the gate open for every position and confirm the
+      invented-node property fails, which is the unit-level twin of the childless-heading e2e
+      guard (`e2e/specs/52-block-markers-icons.e2e.ts:684`). Three tests fail; restore it. The
+      e2e itself runs in 5.5.
 
 ## 3. Live coverage
 

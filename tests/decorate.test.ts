@@ -1,10 +1,13 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
+import { arbMarkdownText } from './generators';
+import { planKey } from '../src/plugin/grammar';
 import {
   computeLineGuides,
   computePositionTrail,
   decorate,
-  displacedByProvisional,
+  positionJoinsANode,
   materializeProbe,
   provisionalFact,
   type LineDecorationFact,
@@ -880,14 +883,11 @@ describe('provisionalFact: what a caret-occupied blank line would become', () =>
   });
 });
 
-describe('displacedByProvisional: the lines a position bisected out of their node', () => {
-  // A position opened INTERIOR to a multi-line node — Shift+Enter at the end of
-  // a line that is not the node's last — writes a blank line between lines that
-  // were the node's own. The RAW parse then reads those lines as a separate
-  // node, one level deeper where the bisected node is a list item. They are the
-  // node's own lines in the tree the position stands for, and that is what they
-  // render as (`outline-decorations`, "No line renders differently because a
-  // position is open").
+describe('positionJoinsANode: which parse the document’s facts come from', () => {
+  // The gate that decides whether an open provisional position leaves every
+  // other line on the raw parse (it stands for a NEW node, so nothing else may
+  // move) or hands the whole document to the tree it stands for (it JOINS an
+  // existing node, whose bisection made the raw parse wrong).
 
   /** The facts of the tree a position at `line`/`ch` stands for. */
   function materialized(md: string, line: number, ch?: number): LineDecorationFact[] {
@@ -896,27 +896,27 @@ describe('displacedByProvisional: the lines a position bisected out of their nod
     return decorate(parse(probe!));
   }
 
-  function displaced(md: string, line: number, ch?: number): readonly LineDecorationFact[] {
-    return displacedByProvisional(materialized(md, line, ch), line);
+  function joins(md: string, line: number, ch?: number): boolean {
+    return positionJoinsANode(materialized(md, line, ch), line);
   }
 
-  it('keeps a bisected item’s second line a CONTINUATION, not a paragraph child', () => {
+  it('a bisected item’s second line stops being a paragraph child', () => {
     // The reported shape: Shift+Enter at the end of `- foo` in `- foo` / `  bar`.
     const md = ['- foo', '  ', '  bar', ''].join('\n');
     // What the raw parse makes of it, and what the report describes seeing: a
-    // first-line paragraph one level deeper, which renders `depth * unit` right
-    // of where it was and carries a marker.
+    // first-line paragraph one level deeper, which renders `depth * unit` to the
+    // right of where it was and carries a marker.
     const raw = decorate(parse(md)).find((f) => f.lineNumber === 2)!;
     expect(raw.kind).toBe('paragraph');
     expect(raw.depth).toBe(1);
     expect(raw.isFirstLine).toBe(true);
 
-    const facts = displaced(md, 1, 2);
-    expect(facts.map((f) => f.lineNumber)).toEqual([2]);
-    expect(facts[0]!.isListItem).toBe(true);
-    expect(facts[0]!.isFirstLine).toBe(false);
-    expect(facts[0]!.depth).toBe(0);
-    expect(facts[0]!.supplementalDepth).toBe(0);
+    expect(joins(md, 1, 2)).toBe(true);
+    const tail = materialized(md, 1, 2).find((f) => f.lineNumber === 2)!;
+    expect(tail.isListItem).toBe(true);
+    expect(tail.isFirstLine).toBe(false);
+    expect(tail.depth).toBe(0);
+    expect(tail.supplementalDepth).toBe(0);
   });
 
   it('restores the item’s own supplementalDepth under a heading', () => {
@@ -926,79 +926,303 @@ describe('displacedByProvisional: the lines a position bisected out of their nod
     const md = ['# H', '', '- foo', '  ', '  bar', ''].join('\n');
     expect(decorate(parse(md)).find((f) => f.lineNumber === 4)!.depth).toBe(2);
 
-    const facts = displaced(md, 3, 2);
-    expect(facts.map((f) => f.lineNumber)).toEqual([4]);
-    expect(facts[0]!.isListItem).toBe(true);
-    expect(facts[0]!.supplementalDepth).toBe(1);
-    expect(facts[0]!.isFirstLine).toBe(false);
+    expect(joins(md, 3, 2)).toBe(true);
+    const tail = materialized(md, 3, 2).find((f) => f.lineNumber === 4)!;
+    expect(tail.isListItem).toBe(true);
+    expect(tail.supplementalDepth).toBe(1);
+    expect(tail.isFirstLine).toBe(false);
   });
 
   it('handles a nested item, where the raw parse displaces it two levels', () => {
     const md = ['- top', '\t- foo', '\t  ', '\t  bar', ''].join('\n');
     expect(decorate(parse(md)).find((f) => f.lineNumber === 3)!.depth).toBe(2);
 
-    const facts = displaced(md, 2, 4);
-    expect(facts.map((f) => f.lineNumber)).toEqual([3]);
-    expect(facts[0]!.isListItem).toBe(true);
-    expect(facts[0]!.depth).toBe(1);
-    expect(facts[0]!.isFirstLine).toBe(false);
-  });
-
-  it('reports every line below the position, not just the first', () => {
-    const md = ['- foo', '  ', '  bar', '  baz', ''].join('\n');
-    const facts = displaced(md, 1, 2);
-    expect(facts.map((f) => f.lineNumber)).toEqual([2, 3]);
-    expect(facts.every((f) => f.isListItem && !f.isFirstLine)).toBe(true);
+    expect(joins(md, 2, 4)).toBe(true);
+    const tail = materialized(md, 2, 4).find((f) => f.lineNumber === 3)!;
+    expect(tail.isListItem).toBe(true);
+    expect(tail.depth).toBe(1);
+    expect(tail.isFirstLine).toBe(false);
   });
 
   it('takes a bisected PARAGRAPH’s marker back off its second line', () => {
     // No depth change here — both halves sit at the same level. What the
-    // bisection does is make the second line a FIRST line, which is what makes
-    // a marker appear on it.
+    // bisection does is make the second line a FIRST line, which is what makes a
+    // marker appear on it.
     const md = ['alpha', '', 'beta', ''].join('\n');
     expect(decorate(parse(md)).find((f) => f.lineNumber === 2)!.isFirstLine).toBe(true);
 
-    const facts = displaced(md, 1, 0);
-    expect(facts.map((f) => f.lineNumber)).toEqual([2]);
-    expect(facts[0]!.isFirstLine).toBe(false);
-    expect(facts[0]!.kind).toBe('paragraph');
-    expect(facts[0]!.depth).toBe(0);
+    expect(joins(md, 1, 0)).toBe(true);
+    const tail = materialized(md, 1, 0).find((f) => f.lineNumber === 2)!;
+    expect(tail.isFirstLine).toBe(false);
+    expect(tail.kind).toBe('paragraph');
+    expect(tail.depth).toBe(0);
   });
 
-  it('reports nothing for an end-of-node position — there is nothing below it', () => {
-    expect(displaced(['- foo', '  ', ''].join('\n'), 1, 2)).toEqual([]);
-    expect(displaced(['# H', '', '- foo', '  ', ''].join('\n'), 3, 2)).toEqual([]);
-    expect(displaced(['alpha', '', ''].join('\n'), 1, 0)).toEqual([]);
+  it('gives the upper half its child back', () => {
+    // The bisection does not only displace the tail: the tail TAKES the node's
+    // child with it, because the attachment rule now reaches the lower half.
+    // Under `markerVisibility: 'with-children'` the upper half's marker
+    // disappears for as long as the position is open.
+    const md = ['  continuation', '  ', 'code inside', '- item', ''].join('\n');
+    expect(decorate(parse(md)).find((f) => f.lineNumber === 0)!.hasChildren).toBe(false);
+    expect(joins(md, 1, 2)).toBe(true);
+    expect(materialized(md, 1, 2).find((f) => f.lineNumber === 0)!.hasChildren).toBe(true);
   });
 
-  it('reports nothing for Enter’s blank-separated position', () => {
-    const md = ['# H', '', 'para', '', '', '', 'next', ''].join('\n');
-    expect(displaced(md, 4)).toEqual([]);
+  it('reaches a line the artifact node swallowed, beyond the node entirely', () => {
+    // `⇥tab lead` becomes a paragraph when the item is bisected, and a paragraph
+    // absorbs the following line — so `plain text` stops being a node of its own,
+    // two removes from anything the keypress touched. A line SPAN cannot express
+    // this, which is why the gate hands over the whole document.
+    const md = ['- item', '  ', '\ttab lead', 'plain text', ''].join('\n');
+    const raw = decorate(parse(md)).find((f) => f.lineNumber === 3)!;
+    expect(raw.isFirstLine).toBe(false);
+    expect(raw.depth).toBe(1);
+
+    expect(joins(md, 1, 2)).toBe(true);
+    const swallowed = materialized(md, 1, 2).find((f) => f.lineNumber === 3)!;
+    expect(swallowed.isFirstLine).toBe(true);
+    expect(swallowed.depth).toBe(0);
   });
 
-  it('never claims a line the position would ADOPT rather than restore', () => {
-    // `# H` / blank / blank / `beta`: the caret on the first blank line. Typing
-    // there makes a NEW paragraph that takes `beta` as its continuation line —
-    // so `beta` would lose the marker it has today. That is the materialized
-    // node rendering as though it already existed, which
-    // `outline-decorations` forbids and design D3's childless-heading guard is
-    // the other face of. The position's own line is a FIRST line in the
-    // materialized tree, which is exactly what tells the two apart.
-    const md = ['# H', '', '', 'beta', ''].join('\n');
-    const facts = materialized(md, 2);
-    expect(facts.find((f) => f.lineNumber === 2)!.isFirstLine).toBe(true);
-    expect(displacedByProvisional(facts, 2)).toEqual([]);
-    // And the line keeps the first-line fact it has in the real document.
-    expect(decorate(parse(md)).find((f) => f.lineNumber === 3)!.isFirstLine).toBe(true);
+  it('an end-of-node position joins its node too, and changes nothing', () => {
+    // Nothing below it to displace, so the gate opening costs nothing — the
+    // resolved facts and the raw ones agree everywhere else.
+    for (const [md, line, ch] of [
+      [['- foo', '  ', ''].join('\n'), 1, 2],
+      [['# H', '', '- foo', '  ', ''].join('\n'), 3, 2],
+    ] as const) {
+      expect(joins(md, line, ch)).toBe(true);
+      const resolved = new Map(materialized(md, line, ch).map((f) => [f.lineNumber, f]));
+      for (const raw of decorate(parse(md))) {
+        expect({ line: raw.lineNumber, fact: resolved.get(raw.lineNumber) }).toEqual({
+          line: raw.lineNumber,
+          fact: raw,
+        });
+      }
+    }
   });
 
-  it('leaves a node’s real children alone, reporting only its own lines', () => {
-    const md = ['- foo', '  ', '  bar', '\t- kid', ''].join('\n');
-    const facts = displaced(md, 1, 2);
-    expect(facts.map((f) => f.lineNumber)).toEqual([2]);
-    // The real child keeps the depth it has either way — it was never displaced.
-    const rawKid = decorate(parse(md)).find((f) => f.lineNumber === 3)!;
-    const materializedKid = materialized(md, 1, 2).find((f) => f.lineNumber === 3)!;
-    expect(materializedKid.depth).toBe(rawKid.depth);
+  it('declines a position that would materialize a NEW node', () => {
+    // Enter's blank-separated position: the node it stands for does not exist
+    // yet, so nothing else may render as though it did.
+    expect(joins(['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4)).toBe(false);
+    // And the adoption shape: typing on the first blank line makes a paragraph
+    // that takes `beta` as its continuation, which would strip the marker `beta`
+    // really has. Design D3's childless-heading guard is the same case.
+    expect(joins(['# H', '', '', 'beta', ''].join('\n'), 2)).toBe(false);
+    expect(joins(['# H', '', '', ''].join('\n'), 2)).toBe(false);
+  });
+});
+
+
+/** Apply a plan's changes to the text they were computed against. */
+function applyPlanChanges(
+  text: string,
+  changes: readonly { from: { line: number; ch: number }; to: { line: number; ch: number }; text: string }[],
+): string {
+  const lines = text === '' ? [] : text.split('\n');
+  const offsetOf = (pos: { line: number; ch: number }): number => {
+    let acc = 0;
+    for (let i = 0; i < pos.line && i < lines.length; i++) acc += (lines[i] ?? '').length + 1;
+    return acc + pos.ch;
+  };
+  let out = text;
+  for (const change of [...changes].sort((a, b) => offsetOf(b.from) - offsetOf(a.from))) {
+    out = out.slice(0, offsetOf(change.from)) + change.text + out.slice(offsetOf(change.to));
+  }
+  return out;
+}
+
+describe('the overlay reproduces the facts the keypress displaced (design D1/D2)', () => {
+  // The invariant `outline-decorations` states — "No line renders differently
+  // because a position is open" — tested against the document as it was BEFORE
+  // the keypress, which is the only thing that can settle it. Shift+Enter is run
+  // for real rather than approximated, so the property is about the grammar's
+  // own output and not about a fixture's idea of it.
+
+  /** The facts a consumer sees, exactly as `factsFor` composes them. */
+  function overlay(open: string, position: number): Map<number, LineDecorationFact> {
+    const raw = new Map(decorate(parse(open)).map((f) => [f.lineNumber, f]));
+    const probe = materializeProbe(open, position);
+    if (probe === null) return raw;
+    const materializedFacts = decorate(parse(probe));
+    if (positionJoinsANode(materializedFacts, position)) {
+      return new Map(materializedFacts.map((f) => [f.lineNumber, f]));
+    }
+    const own = materializedFacts.find((f) => f.lineNumber === position);
+    if (own) raw.set(position, own);
+    return raw;
+  }
+
+  /** The guides a consumer sees, through the same gate. */
+  function overlayGuides(open: string, position: number): Map<number, readonly number[]> {
+    const probe = materializeProbe(open, position);
+    const source =
+      probe !== null && positionJoinsANode(decorate(parse(probe)), position) ? probe : open;
+    return new Map(computeLineGuides(parse(source)).map((g) => [g.lineNumber, g.guideDepths]));
+  }
+
+  /** Every line that is one of a node's own lines but not that node's last. */
+  function interiorLines(md: string): number[] {
+    const facts = decorate(parse(md));
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    return facts
+      .filter((f) => byLine.get(f.lineNumber + 1)?.isFirstLine === false)
+      .map((f) => f.lineNumber);
+  }
+
+  /**
+   * Shift+Enter at the end of `line`, as the grammar actually writes it — or
+   * null when the key produced something other than an interior position, which
+   * the reconstruction below CHECKS rather than assumes. A heading's Shift+Enter
+   * drafts a sibling instead of continuing (`insertSiblingHeading`), and a
+   * `==` / `---` setext heading reaches that branch from a line that looks
+   * interior; without this check the property would compare two documents that
+   * are not the same document one keypress apart.
+   */
+  function openPositionAt(md: string, line: number): string | null {
+    const outcome = planKey(md, { line, ch: (md.split('\n')[line] ?? '').length }, 'continue');
+    if (outcome === null || 'notice' in outcome) return null;
+    const lines = md.split('\n');
+    const open = applyPlanChanges(md, outcome.plan.changes);
+    const openLines = open.split('\n');
+    const inserted = openLines.length === lines.length + 1;
+    const headSame = openLines.slice(0, line + 1).join('\n') === lines.slice(0, line + 1).join('\n');
+    const tailSame = openLines.slice(line + 2).join('\n') === lines.slice(line + 1).join('\n');
+    const blank = (openLines[line + 1] ?? 'x').trim() === '';
+    return inserted && headSame && tailSame && blank ? open : null;
+  }
+
+  function check(md: string, line: number): void {
+    const open = openPositionAt(md, line);
+    if (open === null) return;
+    const position = line + 1;
+    // The invariant is about a position that JOINS the node it was opened
+    // inside. Where the grammar writes one that does not — an item whose marker
+    // has no trailing space gets no continuation indent, so `-` / `⇥tab lead`
+    // opens a column-0 line that parses as a top-level paragraph — there is no
+    // tree in which the node is whole, and no overlay can repair it. Measured
+    // and recorded as a follow-up; see the test below.
+    // Read INLINE rather than through `positionJoinsANode`: calling the
+    // implementation's own gate here would make this property vacuous the moment
+    // that gate is broken, which is exactly when it needs to fail.
+    const probe = materializeProbe(open, position);
+    if (probe === null) return;
+    const positionFact = decorate(parse(probe)).find((f) => f.lineNumber === position);
+    if (!positionFact || positionFact.isFirstLine) return;
+    const before = new Map(decorate(parse(md)).map((f) => [f.lineNumber, f]));
+    const after = overlay(open, position);
+
+    for (const [l, was] of before) {
+      const now = after.get(l <= line ? l : l + 1);
+      if (!now) continue; // the keypress moved text off this line entirely
+      const shape = (f: LineDecorationFact): unknown => ({
+        depth: f.depth,
+        kind: f.kind,
+        isFirstLine: f.isFirstLine,
+        isListItem: f.isListItem,
+        isAtom: f.isAtom,
+        supplementalDepth: f.supplementalDepth,
+        hasNativeMarker: f.hasNativeMarker,
+      });
+      // Everything that reaches the rendering. `hasChildren` is deliberately
+      // excluded and checked separately below.
+      expect({ md, position, line: l, fact: shape(now) }).toEqual({
+        md,
+        position,
+        line: l,
+        fact: shape(was),
+      });
+      // A bisection can give the bisected node an artifact CHILD — the tail
+      // attaches to it, which is the same rule that makes the tail a child
+      // rather than a sibling. That only ever happens to a LIST ITEM, whose
+      // marker is Obsidian's own bullet and never one this layer draws, so it
+      // reaches nothing rendered. Asserted rather than argued.
+      if (now.hasChildren !== was.hasChildren) expect(now.isListItem).toBe(true);
+    }
+
+    // Guides ride the same gate (design D2): a bisection can REMOVE an ancestor
+    // as well as add one — `####### seven` / `<div>` / `- item` is the measured
+    // shape, where the item attaches to the paragraph and stops attaching once
+    // the paragraph's tail becomes an html block — so the guide column would
+    // otherwise blink out on a line the keypress never touched.
+    const beforeGuides = computeLineGuides(parse(md));
+    const afterGuides = overlayGuides(open, position);
+    for (const g of beforeGuides) {
+      const now = afterGuides.get(g.lineNumber <= line ? g.lineNumber : g.lineNumber + 1);
+      if (now === undefined) continue;
+      expect({ md, position, line: g.lineNumber, guides: now }).toEqual({
+        md,
+        position,
+        line: g.lineNumber,
+        guides: g.guideDepths,
+      });
+    }
+  }
+
+  it('holds over the shapes this change was reported for', () => {
+    for (const md of [
+      ['- foo', '  bar', ''].join('\n'),
+      ['# H', '', '- foo', '  bar', ''].join('\n'),
+      ['- top', '\t- foo', '\t  bar', ''].join('\n'),
+      ['- foo', '  bar', '  baz', ''].join('\n'),
+      ['alpha', 'beta', ''].join('\n'),
+      ['# H', '', 'first', '', 'alpha', 'beta', ''].join('\n'),
+      ['- foo', '  bar', '\t- kid', ''].join('\n'),
+    ]) {
+      const lines = interiorLines(md);
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) check(md, line);
+    }
+  });
+
+  it('a position the grammar writes OUTSIDE its node is not one this can repair', () => {
+    // `-` has no space after its marker, so `LIST_CONT_RE` does not match it and
+    // Shift+Enter writes an empty line rather than the item's content column —
+    // while `parse` reads `-` as an item whose content column is 2. Typing on
+    // that position makes a TOP-LEVEL paragraph, so the position stands for no
+    // continuation and the gate stays shut. The node below it stays displaced.
+    // A buffer defect, out of this change's scope (proposal.md — Non-Goals) and
+    // recorded in docs/research/12.
+    const md = ['-', '\ttab lead', ''].join('\n');
+    const open = openPositionAt(md, 0)!;
+    expect(open).toBe(['-', '', '\ttab lead', ''].join('\n'));
+    expect(positionJoinsANode(decorate(parse(materializeProbe(open, 1)!)), 1)).toBe(false);
+  });
+
+  it('holds over generated documents', () => {
+    fc.assert(
+      fc.property(arbMarkdownText, (md) => {
+        for (const line of interiorLines(md)) check(md, line);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('leaves every other line on the raw parse when the position invents a node', () => {
+    // The other half of the gate: an invented node must not reach any line but
+    // the position's own, which is what keeps `hasChildren` on a childless
+    // heading from flipping while a position is open (design D3's e2e guard).
+    fc.assert(
+      fc.property(arbMarkdownText, (md) => {
+        const lines = md === '' ? [] : md.split('\n');
+        for (let line = 0; line < lines.length; line++) {
+          const probe = materializeProbe(md, line);
+          if (probe === null) continue;
+          const facts = decorate(parse(probe));
+          if (facts.find((f) => f.lineNumber === line)?.isFirstLine !== true) continue;
+          expect(positionJoinsANode(facts, line)).toBe(false);
+          const composed = overlay(md, line);
+          for (const raw of decorate(parse(md))) {
+            expect({ line: raw.lineNumber, fact: composed.get(raw.lineNumber) }).toEqual({
+              line: raw.lineNumber,
+              fact: raw,
+            });
+          }
+        }
+      }),
+      { numRuns: 300 },
+    );
   });
 });

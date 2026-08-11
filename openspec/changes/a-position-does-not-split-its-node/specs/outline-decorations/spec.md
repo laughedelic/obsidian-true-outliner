@@ -10,8 +10,9 @@ INDENTATION AND MARKER facts from the line the document's own parse would produc
 character were typed at the caret: the same indentation regime (block padding, atom/list
 margin), the same depth or `supplementalDepth`, the same node kind, and the same marker
 treatment. Those facts, and the position-indicator treatment covered below, are the whole of
-what this rule governs — the line's GUIDES are not among them, and continue to come from the
-document as it actually is (see below).
+what this rule governs for that line — its own GUIDES are not among them, and continue to come
+from the document as it actually is. What happens to every OTHER line is a separate rule, stated
+below.
 
 The rendering SHALL be derived from the document text and the caret alone. It SHALL NOT
 depend on which key produced the position, on any editor state remembering it, or on the
@@ -27,12 +28,16 @@ remove any other line's marker, or change any other line's depth. Which facts sa
 depends on what the position did to the parse, and there are exactly two cases:
 
 - A position that BISECTS a node — one opened interior to a multi-line node, where the blank
-  line falls between lines that were the node's own — makes the raw parse of the buffer wrong
-  about every line below it: those lines re-parse as a separate node, one level deeper and
-  marker-eligible where the bisected node is a list item. Those lines SHALL render from the
-  outline the position stands for (`outline-keyboard-grammar`), in which they are still the
-  node's own lines, so they keep the indentation, marker treatment, and depth they had before
-  the keypress.
+  line falls between lines that were the node's own — makes the raw parse of the buffer wrong,
+  and not only about the lines below it. Those re-parse as a separate node, one level deeper and
+  marker-eligible where the bisected node is a list item; the lines ABOVE can lose a child the
+  lower half takes with them; a line BEYOND the node can be swallowed by the artifact; and a
+  guide can appear or vanish on any of them. Every line SHALL render from the outline the
+  position stands for (`outline-keyboard-grammar`), in which none of that has happened, so each
+  keeps the indentation, marker treatment, depth, and guides it had before the keypress. The
+  scope is the whole document deliberately: the differences are the position's own doing, the
+  resolved outline is right about all of them at once, and enumerating them was measured wrong
+  twice.
 - A position that would MATERIALIZE a node contributes nothing to any other line. The node it
   stands for does not exist yet, and SHALL NOT be rendered as though it did — including
   through any fact ABOUT another node that its existence would change, such as whether the
@@ -48,8 +53,9 @@ Marker rules apply unchanged rather than as a special case: the position renders
 only where a real line of the same shape would — a new-node position is a first line and is
 marker-eligible, subject to the `markerVisibility` setting; a continuation position is not a
 first line and renders no marker; a position whose materialized line would be a list item
-renders no synthetic marker at all. Guides on the line SHALL continue to render from the
-document's own gap-line guide rule, unchanged.
+renders no synthetic marker at all. Guides on the POSITION'S OWN line SHALL continue to render
+from the document's own gap-line guide rule, unchanged; where a bisection has moved another
+line's guides, those come from the resolved outline with that line's other facts.
 
 This is a caret-derived layer, in the sense the pure-list invariant already carves out for
 such layers: it renders only where the user currently is, and it SHALL leave every base-layer
@@ -84,6 +90,23 @@ of its own.
 - **THEN** the line carries the item's own `supplementalDepth` contribution, so the caret
   renders inside the list block at the item's content column rather than at the list's parent
   column, and no synthetic marker is added
+
+#### Scenario: A bisected node keeps a child the artifact would have taken
+- **WHEN** a provisional position is open interior to a paragraph that a list item attaches to,
+  so the raw parse hands that item to the half below the position
+- **THEN** the paragraph still renders as a node with children — under a marker-visibility
+  setting that hides leaf markers, its marker does not disappear
+
+#### Scenario: A line the artifact swallowed is unaffected
+- **WHEN** a bisection turns a list item's tail into a paragraph that absorbs the line after the
+  item, so that line stops being a node of its own in the raw parse
+- **THEN** that line renders exactly as it did before the keypress, at its own depth and with its
+  own marker
+
+#### Scenario: A guide does not blink out on an untouched line
+- **WHEN** a bisection changes which node a following list attaches to, so an ancestor's guide
+  would stop reaching it
+- **THEN** the guide renders on that line exactly as it did before the keypress
 
 #### Scenario: A bisected node's lines below the position do not move
 - **WHEN** the caret sits on a position opened at the end of the first line of a two-line list

@@ -197,6 +197,62 @@ export function materializeProbe(text: string, line: number, ch?: number): strin
 }
 
 /**
+ * Whether a provisional position JOINS an existing node rather than standing for
+ * a new one — the single gate that decides which parse the whole document's
+ * facts come from while the position is open (`outline-decorations`, "No line
+ * renders differently because a position is open").
+ *
+ * A position opened INTERIOR to a multi-line node — Shift+Enter at the end of a
+ * line that is not the node's last — writes a blank line between lines that were
+ * the node's own. A blank line ends a node's own lines, so the raw parse of the
+ * buffer reads that node as two, and the damage is not confined to the node:
+ *
+ * - The lines BELOW the position become a node of their own — a paragraph CHILD
+ *   of a list item, one level deeper and marker-eligible, or a sibling paragraph.
+ *   The visible half: the line moves right and grows a marker.
+ * - The lines ABOVE it can lose a CHILD, which the lower half takes with it.
+ *   `␣␣continuation` / `code inside` / `- item`: the item attaches to the
+ *   paragraph by the attachment rule, and once bisected it attaches to the LOWER
+ *   half. The upper half's `hasChildren` flips, and under `markerVisibility:
+ *   'with-children'` its marker disappears while the position is open.
+ * - Lines BEYOND the node can be swallowed by the artifact. `- item` /
+ *   `⇥tab lead` / `plain text`: bisected, `⇥tab lead` becomes a paragraph, and a
+ *   paragraph absorbs the following line, so `plain text` stops being a node of
+ *   its own — a line two removed from anything the keypress touched.
+ *
+ * Which is why this answers with a GATE rather than a line span. Every one of
+ * those differences is the bisection's, and the tree the position stands for is
+ * right about all of them at once, so when the position joins a node its facts
+ * are used for the WHOLE document. Three attempts at a span — the tail lines, the
+ * node's own lines, the node's own lines plus its subtree — were each measured
+ * wrong by the differential property test in `tests/decorate.test.ts`, in that
+ * order, which is the argument for not trying to enumerate them a fourth time.
+ *
+ * The gate itself is the one thing that must NOT be widened. When the position's
+ * own materialized line IS a first line, the node it stands for is NEW — it
+ * begins at the position — and the resolved tree then contains something that
+ * does not exist yet. Two measured shapes: an Enter position below a childless
+ * heading makes that heading a parent, whose marker would blink on under
+ * `markerVisibility: 'with-children'`; and `# H` / blank / blank / `beta` makes a
+ * paragraph that ADOPTS `beta` as its continuation, stripping the marker `beta`
+ * really has. `outline-decorations` forbids both, and this is where that is
+ * enforced: an inventing position leaves every other line on the raw parse, which
+ * is exactly today's behaviour.
+ *
+ * Takes the MATERIALIZED facts — `decorate(parse(materializeProbe(...)))` — rather
+ * than the document text, so a caller that already has that parse pays for it
+ * once. `materializeProbe`'s own doc comment states the same contract for the
+ * same reason.
+ */
+export function positionJoinsANode(
+  materialized: readonly LineDecorationFact[],
+  line: number,
+): boolean {
+  const own = materialized.find((f) => f.lineNumber === line);
+  return own !== undefined && !own.isFirstLine;
+}
+
+/**
  * One line's active guide-line ancestor depths (Experiment 2b, see
  * docs/research/09-experiment-2-guide-lines.md) — the CSS
  * stacked-gradient alternative to Experiment 2a's pixel-measured overlay.

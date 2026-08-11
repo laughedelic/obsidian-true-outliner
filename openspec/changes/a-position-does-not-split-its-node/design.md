@@ -42,56 +42,60 @@ The structural keys read their own parse, through `parsedDoc(state.doc)`, and pa
 
 ## Decisions
 
-### D1 — The overlay is scoped to the bisected node's own lines, not applied document-wide
+### D1 — A gate, not a line span: when a position joins a node, the whole document is resolved
 
-The rule is stated over facts, in one place: `factsFor(state)` returns the facts every consumer
-should use, and it is the raw `docFacts(state)` unless a position is open. When one is, the
-caret's own line takes its resolved fact (unchanged), and the OWN LINES OF THE NODE THAT OWNS
-THE POSITION IN THE RESOLVED TREE, below the position, take their resolved facts too. Every
-other line keeps the raw fact it has today.
+`factsFor(state)` returns the facts and guides every consumer should use. It is the raw
+`docFacts(state)` unless a provisional position is open, and then one question decides
+everything: does the position JOIN an existing node, or does it stand for a NEW one?
 
-"The position is interior" is exactly "that resolved node has own lines below the position", so
-the predicate and the overlay's extent are the same fact, read once.
+- **Joins** (its own materialized line is not a first line) — the position BISECTED a node, so
+  the raw parse of the buffer is wrong, and the tree the position stands for supplies the whole
+  document: every fact, every guide.
+- **Stands for a new node** — nothing but its own line changes, which is exactly today's
+  behaviour: raw facts everywhere, plus the position's own.
 
-*Alternative — resolved facts for every line, minus the node the position materializes.* The
-more general statement of the same invariant, and the first one drafted: the raw parse and the
-resolved parse differ in exactly two ways, one the position destroys and one it invents, so
-removing the invented node makes the resolved tree equal to the pre-keypress outline. Rejected
-as the implementation, kept as the framing. Removing a node is only clean while it is a leaf,
-and the materialized node need not be one: a paragraph materialized inside a list item's scope
-can capture a following list through the paragraph-attachment rule, which would reparent lines
-the position never touched. D1 needs no such reasoning — it never consults the resolved tree for
-a line the position did not displace, so `hasChildren` on a childless heading cannot leak by
-construction, and the e2e guard at `52-block-markers-icons.e2e.ts:684` holds without depending
-on an argument.
+*This started as a line span and was wrong three times.* Each attempt was killed by the
+differential property test below, in this order, and the sequence is the argument for the gate:
 
-*Alternative — keep the raw parse and carve out `hasChildren`.* Equal on every shape measured,
-because that is the only fact the materialized node changes about another node today. Rejected:
-it states the exception as a list of fact names, so every per-node fact added later (a fold
-state, a child count) silently joins the carve-out or silently breaks it.
+1. *The tail lines below the position.* Wrong: the tail TAKES the node's child with it.
+   `␣␣continuation` / `code inside` / `- item` — the item attaches to the paragraph by the
+   attachment rule, and once bisected it attaches to the lower half, so the UPPER half's
+   `hasChildren` flips and its marker disappears under `markerVisibility: 'with-children'`.
+2. *The bisected node's own lines, both sides.* Wrong: the artifact can swallow a line beyond
+   the node. `- item` / `⇥tab lead` / `plain text` — bisected, `⇥tab lead` becomes a paragraph,
+   and a paragraph absorbs the following line, so `plain text` stops being a node of its own.
+3. *Those, plus the node's subtree.* Not attempted. By then the pattern was clear: every
+   difference between the two parses is the bisection's doing, and enumerating them is a losing
+   game against a parser with attachment rules, lazy paragraph continuation, and list stacks.
 
-**The extent claim is testable, and is tested rather than argued.** A property test over
-generated documents asserts that raw and resolved facts differ ONLY on the position's line and
-on the resolved node's own lines below it. If a shape violates it, D1's scope is wrong and the
-generator will say so — `tests/generators.ts` and `fast-check` are already in the tree for
-exactly this kind of claim.
+The gate is what must not be widened, and it is narrow for two measured reasons. An Enter
+position below a childless heading makes that heading a parent in the resolved tree, so its
+marker would blink on; and `# H` / blank / blank / `beta` materializes a paragraph that ADOPTS
+`beta` as its continuation, stripping the marker `beta` really has. Both are the invented node
+rendering as though it existed, which `outline-decorations` forbids. Reading the gate off the
+position's own materialized `isFirstLine` separates the two directions exactly.
 
-### D2 — Guides are left on the raw document, and that is consistent rather than an omission
+**The claim is tested, not argued.** A property test runs the real Shift+Enter over generated
+documents and asserts that the overlay reproduces, for every line, the facts that line had
+BEFORE the keypress — the invariant as `outline-decorations` states it, checked against the only
+document that can settle it. A second property asserts that an inventing position leaves every
+other line on the raw parse. Both have negative controls: closing the gate fails nine tests,
+widening it fails three. The property's own skip predicate is written inline rather than calling
+`positionJoinsANode`, so breaking the gate cannot make the property vacuous.
 
-`outline-decorations` says a provisional position does not govern its line's guides, and the
-same holds for the lines it displaces — no delta is needed, because a bisection provably cannot
-change any guide.
+### D2 — Guides ride the same gate
 
-A guide is owned by a strict NON-LIST-ITEM ancestor (`computeLineGuides`). For the tail of a
-bisected node to acquire an ancestor it did not have, the bisected node must adopt it as a
-child, and the parse only does that when the tail's indent reaches the bisected node's content
-column — which is the list-item rule. A bisected paragraph's tail becomes a SIBLING, with the
-same ancestors it had. So every line a bisection displaces is displaced INTO a list item, and a
-list item owns no guide. Measured on the reported shapes and the nested and under-a-heading
-variants: `guideDepths` identical before and after in all of them.
+An earlier draft of this design argued that a bisection provably could not move a guide: a guide
+is owned by a strict non-list-item ancestor, only a list item adopts a bisected tail as a child,
+and list items own no guide. The argument was sound about acquiring an ancestor and blind to
+LOSING one. `####### seven` / `<div>` / `- item`: the item attaches to the paragraph; bisect the
+paragraph and its tail becomes an html block, which a list does not attach to, so the item drops
+to the top level and its guide column blinks out — on a line the keypress never touched.
 
-The task list verifies this rather than trusting it, as part of the same differential test D1
-uses.
+So guides come from the same tree as the facts, under the same gate. The rule this replaces —
+"the line's GUIDES are not among them, and continue to come from the document as it actually is"
+— was written for the CARET's own line, where it still holds and is unchanged; it was never a
+statement about the rest of the document, and the delta says so now.
 
 ### D3 — One accessor, three call sites, no second merge
 
