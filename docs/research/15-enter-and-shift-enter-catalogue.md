@@ -583,10 +583,13 @@ all. Both were reverted rather than shipped unverified. Whatever recognises it m
 narrow — re-arming on any change that leaves the caret on an empty place would also record a
 Backspace that empties an item, and then undo the user's own deletion.
 
-Still open after `abandon-removes-only-the-place`, and untouched by it. That change moves the
-removal edit onto the dispatch that made the place; a redo replays the CHANGES without it, so
-there is nothing for the recorder to pick up and the recognition problem above is exactly as
-it was.
+Still open after `abandon-removes-only-the-place`, and untouched by it — but the SEQUENCE
+above is stale, and was re-measured in the real editor while archiving that change. "Move
+away, then REDO" only worked while the cleanup was an undo of the keypress. Since it became a
+real edit it leaves no redo branch, and redo after an abandon does nothing at all. The
+reachable sequence is Enter, UNDO, REDO: the position returns with the caret in it and is no
+longer recorded. Undo after an abandon also returns it, which is deliberate rather than a
+defect — re-arming there would delete it again the moment the caret moved.
 
 | # | Defect | Cases |
 |---|---|---|

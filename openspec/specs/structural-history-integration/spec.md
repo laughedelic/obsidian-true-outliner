@@ -441,15 +441,30 @@ away: knowing which shapes the guarantee holds for is worth more than a requirem
 quietly overstates it. It SHALL NOT be read as permitted behaviour — it is a defect with a
 known cause, and the requirement above continues to state what the removal is FOR.
 
-A place restored by REDO cannot be declined a second time. Abandoning it once removes it;
-redoing brings it back with the caret in it, and abandoning again does nothing, leaving a gap
-that ordinary caret motion skips over. The recorder re-arms only for this plugin's own
-dispatches, and a redo is not one — it replays the changes without the removal edit the
-original dispatch carried. Two ways to recognise it were tried — the editor's own `redo`
-user event, and a history-depth test — and neither fired, which suggests the host's redo does
-not run through the editor library's history command at all.
+A place restored by REDO cannot be declined a second time. The sequence is Enter, UNDO, REDO:
+the position comes back with the caret in it, and moving away then leaves it, since the
+recorder re-arms only for this plugin's own dispatches and a redo is not one — it replays the
+changes without the removal edit the original dispatch carried. Two ways to recognise it were
+tried — the editor's own `redo` user event, and a history-depth test — and neither fired,
+which suggests the host's redo does not run through the editor library's history command at
+all.
+
+The sequence is NOT "abandon, then redo", which is what this limitation said while the removal
+was still an undo of the keypress. Since it became a real edit there is no redo branch to
+reach: measured in the real editor, redo after an abandon does nothing at all. Recorded
+because the correction is the interesting part — a limitation is a claim about behaviour and
+ages with the mechanism it describes.
+
+Abandoning is also NOT the gesture that brings a place back. UNDO after an abandon restores
+it, by design ("One undo returns to the empty place" above), and it correctly stays: re-arming
+there would delete it again the moment the caret moved, so a deliberate undo would flash the
+place back and lose it.
 
 #### Scenario: A redone place cannot be declined again
-- **WHEN** an abandoned place is restored by redo and abandoned a second time
-- **THEN** nothing happens, and removing it requires an explicit undo
+- **WHEN** a place is undone and then restored by redo, and the caret is moved away
+- **THEN** the place remains — removing it requires an explicit undo
+
+#### Scenario: Redo after an abandon has nothing to redo
+- **WHEN** a place is abandoned and redo is pressed immediately
+- **THEN** nothing happens: the removal is a real edit, so it left no redo branch
 
