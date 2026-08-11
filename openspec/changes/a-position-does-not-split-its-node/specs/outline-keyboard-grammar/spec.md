@@ -41,9 +41,12 @@ column 0 of the line below, and the only remaining difference is gap width, whic
 `node-edit-enforcement` forbids reading editing intent from. Resolving it would require
 remembering which key ran — the editor state this design does not have.
 
-The same reading answers the interior position without a new rule: the line below an interior
-position is ADJACENT to the position, so the parse says it belongs to the node the position is
-in, exactly as the position's own line does.
+The same reading answers the interior position without a new rule. Nothing separates the line
+below an interior position from the position itself, so a character typed there joins the two:
+in the MATERIALIZED parse — the parse of the document with the position's own line filled in,
+which is the outline the position stands for — that line is one of the node's own lines,
+exactly as the position's own line is. The RAW parse of the buffer, with the position still
+blank, is the one that says otherwise, and it is that discrepancy the outline resolves.
 
 A provisional position SHALL behave as the empty node it stands for whenever the user acts on
 it as one. Moving the cursor away without typing, and deleting it with Backspace or Delete,
