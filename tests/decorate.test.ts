@@ -4,7 +4,10 @@ import {
   computeLineGuides,
   computePositionTrail,
   decorate,
+  displacedByProvisional,
+  materializeProbe,
   provisionalFact,
+  type LineDecorationFact,
   type PositionHighlight,
 } from '../src/plugin/decorate';
 
@@ -874,5 +877,128 @@ describe('provisionalFact: what a caret-occupied blank line would become', () =>
     expect(provisionalFact(indented, 2)!.depth).toBe(1);
     const flat = ['- item', '', '', '', '\tpara', ''].join('\n');
     expect(provisionalFact(flat, 2)!.depth).toBe(0);
+  });
+});
+
+describe('displacedByProvisional: the lines a position bisected out of their node', () => {
+  // A position opened INTERIOR to a multi-line node — Shift+Enter at the end of
+  // a line that is not the node's last — writes a blank line between lines that
+  // were the node's own. The RAW parse then reads those lines as a separate
+  // node, one level deeper where the bisected node is a list item. They are the
+  // node's own lines in the tree the position stands for, and that is what they
+  // render as (`outline-decorations`, "No line renders differently because a
+  // position is open").
+
+  /** The facts of the tree a position at `line`/`ch` stands for. */
+  function materialized(md: string, line: number, ch?: number): LineDecorationFact[] {
+    const probe = materializeProbe(md, line, ch);
+    expect(probe).not.toBeNull();
+    return decorate(parse(probe!));
+  }
+
+  function displaced(md: string, line: number, ch?: number): readonly LineDecorationFact[] {
+    return displacedByProvisional(materialized(md, line, ch), line);
+  }
+
+  it('keeps a bisected item’s second line a CONTINUATION, not a paragraph child', () => {
+    // The reported shape: Shift+Enter at the end of `- foo` in `- foo` / `  bar`.
+    const md = ['- foo', '  ', '  bar', ''].join('\n');
+    // What the raw parse makes of it, and what the report describes seeing: a
+    // first-line paragraph one level deeper, which renders `depth * unit` right
+    // of where it was and carries a marker.
+    const raw = decorate(parse(md)).find((f) => f.lineNumber === 2)!;
+    expect(raw.kind).toBe('paragraph');
+    expect(raw.depth).toBe(1);
+    expect(raw.isFirstLine).toBe(true);
+
+    const facts = displaced(md, 1, 2);
+    expect(facts.map((f) => f.lineNumber)).toEqual([2]);
+    expect(facts[0]!.isListItem).toBe(true);
+    expect(facts[0]!.isFirstLine).toBe(false);
+    expect(facts[0]!.depth).toBe(0);
+    expect(facts[0]!.supplementalDepth).toBe(0);
+  });
+
+  it('restores the item’s own supplementalDepth under a heading', () => {
+    // The margin the displaced line loses is the whole visible jump here: the
+    // raw parse gives it `padding-left: depth * unit`, the item's own regime
+    // gives it `margin-left: supplementalDepth * unit`.
+    const md = ['# H', '', '- foo', '  ', '  bar', ''].join('\n');
+    expect(decorate(parse(md)).find((f) => f.lineNumber === 4)!.depth).toBe(2);
+
+    const facts = displaced(md, 3, 2);
+    expect(facts.map((f) => f.lineNumber)).toEqual([4]);
+    expect(facts[0]!.isListItem).toBe(true);
+    expect(facts[0]!.supplementalDepth).toBe(1);
+    expect(facts[0]!.isFirstLine).toBe(false);
+  });
+
+  it('handles a nested item, where the raw parse displaces it two levels', () => {
+    const md = ['- top', '\t- foo', '\t  ', '\t  bar', ''].join('\n');
+    expect(decorate(parse(md)).find((f) => f.lineNumber === 3)!.depth).toBe(2);
+
+    const facts = displaced(md, 2, 4);
+    expect(facts.map((f) => f.lineNumber)).toEqual([3]);
+    expect(facts[0]!.isListItem).toBe(true);
+    expect(facts[0]!.depth).toBe(1);
+    expect(facts[0]!.isFirstLine).toBe(false);
+  });
+
+  it('reports every line below the position, not just the first', () => {
+    const md = ['- foo', '  ', '  bar', '  baz', ''].join('\n');
+    const facts = displaced(md, 1, 2);
+    expect(facts.map((f) => f.lineNumber)).toEqual([2, 3]);
+    expect(facts.every((f) => f.isListItem && !f.isFirstLine)).toBe(true);
+  });
+
+  it('takes a bisected PARAGRAPH’s marker back off its second line', () => {
+    // No depth change here — both halves sit at the same level. What the
+    // bisection does is make the second line a FIRST line, which is what makes
+    // a marker appear on it.
+    const md = ['alpha', '', 'beta', ''].join('\n');
+    expect(decorate(parse(md)).find((f) => f.lineNumber === 2)!.isFirstLine).toBe(true);
+
+    const facts = displaced(md, 1, 0);
+    expect(facts.map((f) => f.lineNumber)).toEqual([2]);
+    expect(facts[0]!.isFirstLine).toBe(false);
+    expect(facts[0]!.kind).toBe('paragraph');
+    expect(facts[0]!.depth).toBe(0);
+  });
+
+  it('reports nothing for an end-of-node position — there is nothing below it', () => {
+    expect(displaced(['- foo', '  ', ''].join('\n'), 1, 2)).toEqual([]);
+    expect(displaced(['# H', '', '- foo', '  ', ''].join('\n'), 3, 2)).toEqual([]);
+    expect(displaced(['alpha', '', ''].join('\n'), 1, 0)).toEqual([]);
+  });
+
+  it('reports nothing for Enter’s blank-separated position', () => {
+    const md = ['# H', '', 'para', '', '', '', 'next', ''].join('\n');
+    expect(displaced(md, 4)).toEqual([]);
+  });
+
+  it('never claims a line the position would ADOPT rather than restore', () => {
+    // `# H` / blank / blank / `beta`: the caret on the first blank line. Typing
+    // there makes a NEW paragraph that takes `beta` as its continuation line —
+    // so `beta` would lose the marker it has today. That is the materialized
+    // node rendering as though it already existed, which
+    // `outline-decorations` forbids and design D3's childless-heading guard is
+    // the other face of. The position's own line is a FIRST line in the
+    // materialized tree, which is exactly what tells the two apart.
+    const md = ['# H', '', '', 'beta', ''].join('\n');
+    const facts = materialized(md, 2);
+    expect(facts.find((f) => f.lineNumber === 2)!.isFirstLine).toBe(true);
+    expect(displacedByProvisional(facts, 2)).toEqual([]);
+    // And the line keeps the first-line fact it has in the real document.
+    expect(decorate(parse(md)).find((f) => f.lineNumber === 3)!.isFirstLine).toBe(true);
+  });
+
+  it('leaves a node’s real children alone, reporting only its own lines', () => {
+    const md = ['- foo', '  ', '  bar', '\t- kid', ''].join('\n');
+    const facts = displaced(md, 1, 2);
+    expect(facts.map((f) => f.lineNumber)).toEqual([2]);
+    // The real child keeps the depth it has either way — it was never displaced.
+    const rawKid = decorate(parse(md)).find((f) => f.lineNumber === 3)!;
+    const materializedKid = materialized(md, 1, 2).find((f) => f.lineNumber === 3)!;
+    expect(materializedKid.depth).toBe(rawKid.depth);
   });
 });

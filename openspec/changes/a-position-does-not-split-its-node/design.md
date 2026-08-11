@@ -117,7 +117,15 @@ the tree is visible, and records the document each produces beside the document 
 produces with no position open.
 
 The decision rule: an operation is DEFECTIVE when those two documents differ in anything but the
-position's own line. Anything defective is fixed in this change.
+PRESENCE of the position's line, or when the position stops standing for a continuation of the
+same node. Anything defective is fixed in this change.
+
+*(Amended after the measurement ran. The rule first read "differ in anything but the position's
+own line", which passes an operation that leaves that line behind at its old indentation — and
+`indent` does exactly that: after `- one`/`- foo`/`  bar` is indented, the position still holds
+two spaces while the item's content column has moved to four, so typing there makes a paragraph
+child of `- one` instead of continuing the item. The document is identical and the position is
+ruined. Both halves of the amended rule are satisfied by the same fix.)*
 
 The mechanism, if one is needed, is to give the grammar the RESOLVED tree for its targeting
 decisions while it keeps expressing edits against the buffer's own lines. Line numbers align

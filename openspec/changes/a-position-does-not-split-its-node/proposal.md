@@ -91,10 +91,18 @@ None. Both halves refine existing requirements.
   what is true and enforceable — the outline the plugin presents and acts on has the same nodes
   before and after, while the raw parse of the buffer does gain one — and to name the interior
   position as a first-class shape alongside the end-of-node one.
-- `structural-operations`, `node-selection-extension`, `node-edit-enforcement`: candidates,
-  pending the measurement pass. Each governs a consumer that reads the tree while a position is
-  open. A delta is added for whichever the measurement shows acting on the bisected parse in a
-  way the user can observe; a consumer measured correct gets no delta and its result is recorded.
+- `node-selection-extension`: the measurement (tasks.md — Findings) shows an extension press
+  covering only the part of a bisected node above the position, where the bisection produces a
+  sibling. "Extends by exactly one node per press" is the promise that breaks, so the rule is
+  stated where that promise lives.
+- `progressive-select-all`: the ladder's CONTENT rung is a node's own lines, which a bisection
+  halves in every shape — list and paragraph alike, since that rung never included children.
+- `structural-operations` and `node-edit-enforcement` were named as candidates and get NO delta,
+  each for its own measured reason. Every `structural-operations` requirement is about what an
+  operation does to a GIVEN tree, and none changes: `indent` and `moveUp` are correct functions
+  handed the wrong argument, and the caller's rule is already stated in `outline-keyboard-grammar`.
+  The enforcement verdict path is not reachable from an open position at all — Backspace and
+  Delete are intercepted by the abandon path, and typing is a single-line insert.
 
 ## Impact
 
