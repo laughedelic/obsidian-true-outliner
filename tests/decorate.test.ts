@@ -1,13 +1,15 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
+import { encode } from '../src/encode';
 import { arbMarkdownText } from './generators';
 import { planKey } from '../src/plugin/grammar';
 import {
   computeLineGuides,
   computePositionTrail,
   decorate,
-  positionJoinsANode,
+  positionBisectsANode,
+  resolvedOutline,
   materializeProbe,
   provisionalFact,
   type LineDecorationFact,
@@ -883,11 +885,11 @@ describe('provisionalFact: what a caret-occupied blank line would become', () =>
   });
 });
 
-describe('positionJoinsANode: which parse the document’s facts come from', () => {
+describe('positionBisectsANode: which parse the document’s facts come from', () => {
   // The gate that decides whether an open provisional position leaves every
-  // other line on the raw parse (it stands for a NEW node, so nothing else may
-  // move) or hands the whole document to the tree it stands for (it JOINS an
-  // existing node, whose bisection made the raw parse wrong).
+  // other line on the raw parse (it stands for a NEW node, or bisected nothing,
+  // so nothing else may move) or hands the whole document to the tree it stands
+  // for (it BISECTED an existing node, which made the raw parse wrong).
 
   /** The facts of the tree a position at `line`/`ch` stands for. */
   function materialized(md: string, line: number, ch?: number): LineDecorationFact[] {
@@ -896,8 +898,8 @@ describe('positionJoinsANode: which parse the document’s facts come from', () 
     return decorate(parse(probe!));
   }
 
-  function joins(md: string, line: number, ch?: number): boolean {
-    return positionJoinsANode(materialized(md, line, ch), line);
+  function bisects(md: string, line: number, ch?: number): boolean {
+    return positionBisectsANode(materialized(md, line, ch), line);
   }
 
   it('a bisected item’s second line stops being a paragraph child', () => {
@@ -911,7 +913,7 @@ describe('positionJoinsANode: which parse the document’s facts come from', () 
     expect(raw.depth).toBe(1);
     expect(raw.isFirstLine).toBe(true);
 
-    expect(joins(md, 1, 2)).toBe(true);
+    expect(bisects(md, 1, 2)).toBe(true);
     const tail = materialized(md, 1, 2).find((f) => f.lineNumber === 2)!;
     expect(tail.isListItem).toBe(true);
     expect(tail.isFirstLine).toBe(false);
@@ -926,7 +928,7 @@ describe('positionJoinsANode: which parse the document’s facts come from', () 
     const md = ['# H', '', '- foo', '  ', '  bar', ''].join('\n');
     expect(decorate(parse(md)).find((f) => f.lineNumber === 4)!.depth).toBe(2);
 
-    expect(joins(md, 3, 2)).toBe(true);
+    expect(bisects(md, 3, 2)).toBe(true);
     const tail = materialized(md, 3, 2).find((f) => f.lineNumber === 4)!;
     expect(tail.isListItem).toBe(true);
     expect(tail.supplementalDepth).toBe(1);
@@ -937,7 +939,7 @@ describe('positionJoinsANode: which parse the document’s facts come from', () 
     const md = ['- top', '\t- foo', '\t  ', '\t  bar', ''].join('\n');
     expect(decorate(parse(md)).find((f) => f.lineNumber === 3)!.depth).toBe(2);
 
-    expect(joins(md, 2, 4)).toBe(true);
+    expect(bisects(md, 2, 4)).toBe(true);
     const tail = materialized(md, 2, 4).find((f) => f.lineNumber === 3)!;
     expect(tail.isListItem).toBe(true);
     expect(tail.depth).toBe(1);
@@ -951,7 +953,7 @@ describe('positionJoinsANode: which parse the document’s facts come from', () 
     const md = ['alpha', '', 'beta', ''].join('\n');
     expect(decorate(parse(md)).find((f) => f.lineNumber === 2)!.isFirstLine).toBe(true);
 
-    expect(joins(md, 1, 0)).toBe(true);
+    expect(bisects(md, 1, 0)).toBe(true);
     const tail = materialized(md, 1, 0).find((f) => f.lineNumber === 2)!;
     expect(tail.isFirstLine).toBe(false);
     expect(tail.kind).toBe('paragraph');
@@ -965,7 +967,7 @@ describe('positionJoinsANode: which parse the document’s facts come from', () 
     // disappears for as long as the position is open.
     const md = ['  continuation', '  ', 'code inside', '- item', ''].join('\n');
     expect(decorate(parse(md)).find((f) => f.lineNumber === 0)!.hasChildren).toBe(false);
-    expect(joins(md, 1, 2)).toBe(true);
+    expect(bisects(md, 1, 2)).toBe(true);
     expect(materialized(md, 1, 2).find((f) => f.lineNumber === 0)!.hasChildren).toBe(true);
   });
 
@@ -979,20 +981,26 @@ describe('positionJoinsANode: which parse the document’s facts come from', () 
     expect(raw.isFirstLine).toBe(false);
     expect(raw.depth).toBe(1);
 
-    expect(joins(md, 1, 2)).toBe(true);
+    expect(bisects(md, 1, 2)).toBe(true);
     const swallowed = materialized(md, 1, 2).find((f) => f.lineNumber === 3)!;
     expect(swallowed.isFirstLine).toBe(true);
     expect(swallowed.depth).toBe(0);
   });
 
-  it('an end-of-node position joins its node too, and changes nothing', () => {
-    // Nothing below it to displace, so the gate opening costs nothing — the
-    // resolved facts and the raw ones agree everywhere else.
+  it('declines an end-of-node position, which bisected nothing', () => {
+    // The gate needs a line of the node still BELOW the position. Rendering
+    // would not care either way — the two parses agree about every line here,
+    // asserted below — but an operation would: the document's own final blank
+    // line joins the node above it, and `indent` re-emits a node's lines, so Tab
+    // would write trailing whitespace at the end of the file.
     for (const [md, line, ch] of [
       [['- foo', '  ', ''].join('\n'), 1, 2],
       [['# H', '', '- foo', '  ', ''].join('\n'), 3, 2],
+      [['First.', '', 'Second.', ''].join('\n'), 3, 0],
     ] as const) {
-      expect(joins(md, line, ch)).toBe(true);
+      expect(bisects(md, line, ch)).toBe(false);
+      // And nothing is lost by declining: apart from the position's own line,
+      // the resolved facts and the raw ones agree everywhere.
       const resolved = new Map(materialized(md, line, ch).map((f) => [f.lineNumber, f]));
       for (const raw of decorate(parse(md))) {
         expect({ line: raw.lineNumber, fact: resolved.get(raw.lineNumber) }).toEqual({
@@ -1006,15 +1014,55 @@ describe('positionJoinsANode: which parse the document’s facts come from', () 
   it('declines a position that would materialize a NEW node', () => {
     // Enter's blank-separated position: the node it stands for does not exist
     // yet, so nothing else may render as though it did.
-    expect(joins(['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4)).toBe(false);
+    expect(bisects(['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4)).toBe(false);
     // And the adoption shape: typing on the first blank line makes a paragraph
     // that takes `beta` as its continuation, which would strip the marker `beta`
     // really has. Design D3's childless-heading guard is the same case.
-    expect(joins(['# H', '', '', 'beta', ''].join('\n'), 2)).toBe(false);
-    expect(joins(['# H', '', '', ''].join('\n'), 2)).toBe(false);
+    expect(bisects(['# H', '', '', 'beta', ''].join('\n'), 2)).toBe(false);
+    expect(bisects(['# H', '', '', ''].join('\n'), 2)).toBe(false);
   });
 });
 
+
+describe('resolvedOutline: the tree a position stands for, in the buffer’s own text', () => {
+  it('holds the bisected node whole, with the position among its own lines', () => {
+    const md = ['- one', '- foo', '  ', '  bar', ''].join('\n');
+    const doc = resolvedOutline(md, 2, 2)!;
+    expect(doc).not.toBeNull();
+    expect(doc.children.map((n) => n.lines)).toEqual([['- one'], ['- foo', '  ', '  bar']]);
+    expect(doc.children[1]!.children).toEqual([]);
+  });
+
+  it('carries no probe character anywhere, so an operation cannot write one', () => {
+    // The reason this is a function and not `parse(materializeProbe(...))` at
+    // each call site: operations re-emit a node's lines.
+    for (const [md, line, ch] of [
+      [['- one', '- foo', '  ', '  bar', ''].join('\n'), 2, 2],
+      [['# H', '', '- foo', '  ', '  bar', ''].join('\n'), 3, 2],
+      [['alpha', '', 'beta', ''].join('\n'), 1, 0],
+    ] as const) {
+      const doc = resolvedOutline(md, line, ch)!;
+      expect(doc).not.toBeNull();
+      // Byte-identity against the BUFFER, which is the property that makes an
+      // operation's edits correct against it.
+      expect(encode(doc)).toBe(md);
+    }
+  });
+
+  it('declines a position that stands for a new node, and a line that is not one', () => {
+    expect(resolvedOutline(['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4)).toBeNull();
+    expect(resolvedOutline(['# H', '', '', 'beta', ''].join('\n'), 2)).toBeNull();
+    expect(resolvedOutline(['- foo', '  bar', ''].join('\n'), 0)).toBeNull();
+  });
+
+  it('keeps a real child attached to the node it belongs to', () => {
+    const md = ['- foo', '  ', '  bar', '\t- kid', ''].join('\n');
+    const doc = resolvedOutline(md, 1, 2)!;
+    expect(doc.children).toHaveLength(1);
+    expect(doc.children[0]!.lines).toEqual(['- foo', '  ', '  bar']);
+    expect(doc.children[0]!.children.map((n) => n.lines)).toEqual([['\t- kid']]);
+  });
+});
 
 /** Apply a plan's changes to the text they were computed against. */
 function applyPlanChanges(
@@ -1047,7 +1095,7 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
     const probe = materializeProbe(open, position);
     if (probe === null) return raw;
     const materializedFacts = decorate(parse(probe));
-    if (positionJoinsANode(materializedFacts, position)) {
+    if (positionBisectsANode(materializedFacts, position)) {
       return new Map(materializedFacts.map((f) => [f.lineNumber, f]));
     }
     const own = materializedFacts.find((f) => f.lineNumber === position);
@@ -1059,7 +1107,7 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
   function overlayGuides(open: string, position: number): Map<number, readonly number[]> {
     const probe = materializeProbe(open, position);
     const source =
-      probe !== null && positionJoinsANode(decorate(parse(probe)), position) ? probe : open;
+      probe !== null && positionBisectsANode(decorate(parse(probe)), position) ? probe : open;
     return new Map(computeLineGuides(parse(source)).map((g) => [g.lineNumber, g.guideDepths]));
   }
 
@@ -1104,7 +1152,7 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
     // opens a column-0 line that parses as a top-level paragraph — there is no
     // tree in which the node is whole, and no overlay can repair it. Measured
     // and recorded as a follow-up; see the test below.
-    // Read INLINE rather than through `positionJoinsANode`: calling the
+    // Read INLINE rather than through `positionBisectsANode`: calling the
     // implementation's own gate here would make this property vacuous the moment
     // that gate is broken, which is exactly when it needs to fail.
     const probe = materializeProbe(open, position);
@@ -1188,7 +1236,7 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
     const md = ['-', '\ttab lead', ''].join('\n');
     const open = openPositionAt(md, 0)!;
     expect(open).toBe(['-', '', '\ttab lead', ''].join('\n'));
-    expect(positionJoinsANode(decorate(parse(materializeProbe(open, 1)!)), 1)).toBe(false);
+    expect(positionBisectsANode(decorate(parse(materializeProbe(open, 1)!)), 1)).toBe(false);
   });
 
   it('holds over generated documents', () => {
@@ -1212,7 +1260,7 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
           if (probe === null) continue;
           const facts = decorate(parse(probe));
           if (facts.find((f) => f.lineNumber === line)?.isFirstLine !== true) continue;
-          expect(positionJoinsANode(facts, line)).toBe(false);
+          expect(positionBisectsANode(facts, line)).toBe(false);
           const composed = overlay(md, line);
           for (const raw of decorate(parse(md))) {
             expect({ line: raw.lineNumber, fact: composed.get(raw.lineNumber) }).toEqual({

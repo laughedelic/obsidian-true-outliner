@@ -197,10 +197,11 @@ export function materializeProbe(text: string, line: number, ch?: number): strin
 }
 
 /**
- * Whether a provisional position JOINS an existing node rather than standing for
- * a new one — the single gate that decides which parse the whole document's
- * facts come from while the position is open (`outline-decorations`, "No line
- * renders differently because a position is open").
+ * Whether a provisional position BISECTED a node — joined one, with lines of
+ * that node still below it — the single gate that decides which parse the whole
+ * document's facts come from while the position is open (`outline-decorations`,
+ * "No line renders differently because a position is open") and which tree the
+ * structural keys act on (`resolvedOutline`).
  *
  * A position opened INTERIOR to a multi-line node — Shift+Enter at the end of a
  * line that is not the node's last — writes a blank line between lines that were
@@ -244,12 +245,77 @@ export function materializeProbe(text: string, line: number, ch?: number): strin
  * once. `materializeProbe`'s own doc comment states the same contract for the
  * same reason.
  */
-export function positionJoinsANode(
+export function positionBisectsANode(
   materialized: readonly LineDecorationFact[],
   line: number,
 ): boolean {
   const own = materialized.find((f) => f.lineNumber === line);
-  return own !== undefined && !own.isFirstLine;
+  if (!own || own.isFirstLine) return false;
+  // And something of the node's must remain BELOW it — otherwise the position is
+  // at the node's end, the blank line is that node's trailing gap, and nothing
+  // was bisected. Rendering would not care (measured: the two parses agree about
+  // every line there), but an OPERATION would: the document's own final blank
+  // line joins the node above it under the test so far, and `indent` re-emits a
+  // node's lines, so Tab would write trailing whitespace at the end of the file
+  // where there was none.
+  const next = materialized.find((f) => f.lineNumber === line + 1);
+  return next !== undefined && !next.isFirstLine;
+}
+
+/**
+ * The OUTLINE a provisional position stands for (`outline-keyboard-grammar`'s
+ * "Provisional positions"): the tree in which the node the position bisected is
+ * whole again — or null when the caret is not on such a position.
+ *
+ * This is `positionJoinsANode`'s tree, for the consumers that need the TREE and
+ * not just the per-line facts: the structural keys, node-granular selection, and
+ * the select-all ladder all read a parse and get the bisected one, so an
+ * operation moves half a node past the other half and a cover stops at the
+ * position (measured — see the change's Findings).
+ *
+ * The position's own line is restored to the BUFFER's text before the tree is
+ * returned, and that is the whole reason this exists as its own function rather
+ * than as `parse(materializeProbe(...))` at each call site. Operations rewrite a
+ * node's lines — `indent` re-emits every line of the subtree with one more unit
+ * of indentation — so a tree still carrying the probe character would write that
+ * character into the document. With the line restored, the tree's STRUCTURE is
+ * the resolved one while every line it holds is a real line of the buffer, and an
+ * operation's edits are correct against the buffer by construction.
+ *
+ * The position's line being one of the node's own lines is then a feature rather
+ * than a wrinkle: an indent re-indents it along with the rest, so the position
+ * stays at the node's content column and keeps standing for a continuation of it.
+ * Without that, Tab leaves the position two columns left of where the item's
+ * content moved to, and typing there makes a paragraph child of the node above
+ * instead — the document is right and the place is ruined.
+ */
+export function resolvedOutline(text: string, line: number, ch?: number): OutlineDoc | null {
+  const probe = materializeProbe(text, line, ch);
+  if (probe === null) return null;
+  const doc = parse(probe);
+  if (!positionBisectsANode(decorate(doc), line)) return null;
+
+  const own = (text === '' ? [] : text.split('\n'))[line];
+  if (own === undefined) return null;
+  return restoreLine(doc, line, own);
+}
+
+/** `doc` with the line at `target` replaced by `text`, in whichever node owns it. */
+function restoreLine(doc: OutlineDoc, target: number, text: string): OutlineDoc {
+  let current = doc.preamble.length;
+
+  const walk = (node: OutlineNode): OutlineNode => {
+    const start = current;
+    current += node.lines.length + node.trailingGap.length;
+    const index = target - start;
+    const own = index >= 0 && index < node.lines.length;
+    const lines = own
+      ? node.lines.map((line, i) => (i === index ? text : line))
+      : node.lines;
+    return { ...node, lines, children: node.children.map(walk) };
+  };
+
+  return { ...doc, children: doc.children.map(walk) };
 }
 
 /**

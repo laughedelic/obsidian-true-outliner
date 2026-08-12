@@ -82,28 +82,36 @@ own line.
 Six consumers, one cause: each reads `parse(text)` / `parsedDoc(state.doc)` and gets the bisected
 tree. One resolved tree, threaded to all of them, is the fix (design D4).
 
-- [ ] 4.1 In `src/plugin/decorate.ts`, add the tree half of the resolved outline beside the facts
-      half from 2.1: the parse of the probe with the position's own line restored to the BUFFER's
-      text, so the tree's structure is the resolved one while every line it holds is a real line
-      of the document. Operations rewrite `node.lines`, so a tree carrying the probe character
-      would write that character into the document.
-- [ ] 4.2 Cover the patched tree in `tests/decorate.test.ts`: the bisected node's own lines are
+- [x] 4.1 In `src/plugin/decorate.ts`, add `resolvedOutline`: the parse of the probe with the
+      position's own line restored to the BUFFER's text, so the tree's structure is the resolved
+      one while every line it holds is a real line of the document. Operations rewrite
+      `node.lines`, so a tree carrying the probe character would write that character into the
+      document. Also narrows the gate to a real BISECTION — a line of the node must remain below
+      the position — because an end-of-node position joins its node too, and the document's own
+      final blank line would otherwise make Tab write trailing whitespace at the end of the file.
+      Rendering is unaffected either way (the two parses agree there, asserted).
+- [x] 4.2 Cover the patched tree in `tests/decorate.test.ts`: the bisected node's own lines are
       the buffer's own (no probe character anywhere in the tree), the node's line span includes
       the position, and `encode` of the patched tree round-trips to the buffer's text.
-- [ ] 4.3 In `src/plugin/grammar.ts`, use the resolved tree for the `indent` / `outdent` /
+- [x] 4.2b In `src/reencode.ts`, scope `shiftLine`'s "leave a blank line alone" guard to ATOMS.
+      A blank line inside a fence is content and must not move; a blank line among a STRUCTURAL
+      node's own lines cannot come from a real parse at all — `parse` ends a paragraph's, an
+      item's, and a heading's own lines at a blank — so it is always a provisional position, and
+      it must move with the node or an indent leaves the place at the old content column.
+- [x] 4.3 In `src/plugin/grammar.ts`, use the resolved tree for the `indent` / `outdent` /
       `move-up` / `move-down` branches' targeting, keeping the raw parse for the gates that decide
       whether the key is declined at all. Declining is load-bearing: `split` and `continue` decline
       on a gap line today, and the resolved tree would make the position one of the node's own
       lines, so Enter on a position would start splitting instead of advancing past it
       (`advanceFromEmptyPlace`). That gate stays on the raw parse.
-- [ ] 4.4 Cover the four keys in `tests/grammar.test.ts` against the documents the Findings table
+- [x] 4.4 Cover the four keys in `tests/grammar.test.ts` against the documents the Findings table
       records, asserting the open result equals the plain result plus the position's line — and,
       for `indent` and `outdent`, that typing at the position still continues the same node.
-- [ ] 4.5 In `src/plugin/keymap.ts`, give the node-extension and select-all handlers the resolved
+- [x] 4.5 In `src/plugin/keymap.ts`, give the node-extension and select-all handlers the resolved
       tree the same way, so a press covers the whole node rather than the part above the position.
-- [ ] 4.6 Cover both in `tests/select-extend.test.ts` and `tests/select-all-ladder.test.ts` with
+- [x] 4.6 Cover both in `tests/select-extend.test.ts` and `tests/select-all-ladder.test.ts` with
       the Findings' C and D shapes for extension and all four for the ladder.
-- [ ] 4.7 Negative control for each of 4.3 and 4.5: revert the fix locally, confirm the new tests
+- [x] 4.7 Negative control for each of 4.3 and 4.5: revert the fix locally, confirm the new tests
       fail with the exact documents and ranges the Findings recorded, restore it.
 - [ ] 4.8 Add live coverage in `e2e/specs/30-keyboard-grammar.e2e.ts` for the gesture a real user
       reaches this through, at minimum Shift+Enter then Tab, plus Shift+Enter then Mod-A.

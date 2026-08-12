@@ -9,6 +9,7 @@ import {
   subtreeCoverOf,
 } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
+import { resolvedOutline } from '../src/plugin/decorate';
 import { arbTree } from './generators';
 import { rangesEqual, type LinePos, type LineRange } from '../src/line-pos';
 
@@ -405,5 +406,35 @@ describe('NEGATIVE CONTROL: the path this change replaces', () => {
     const up = extendSelection(doc, caret(anchorLine, 3), 'up')!;
     const down = extendSelection(doc, up, 'down')!;
     expect(span(down)).not.toBe(span(up));
+  });
+});
+
+describe('a provisional position does not halve the node a press extends over', () => {
+  // The pure function is correct given the right tree; what it must be GIVEN
+  // while a position is open is `resolvedOutline`'s, not the buffer's raw parse
+  // (keymap.ts's `outlineFor`). Measured in the change's Findings: where the
+  // bisection makes the tail a SIBLING, the raw parse stops the cover at the
+  // position — half a node, from a press whose promise is exactly one node.
+
+  const span = (r: LineRange | null): [number, number] | null =>
+    r ? [Math.min(r.anchor.line, r.head.line), Math.max(r.anchor.line, r.head.line)] : null;
+
+  it('covers both halves of a bisected paragraph', () => {
+    const plain = '# H\n\nalpha\nbeta\n\n# I\n';
+    const open = '# H\n\nalpha\n\nbeta\n\n# I\n';
+    const from = caret(2, 5);
+    expect(span(extendSelection(parse(plain), from, 'down'))).toEqual([2, 4]);
+    // The raw parse of the open document stops at the position…
+    expect(span(extendSelection(parse(open), from, 'down'))).toEqual([2, 3]);
+    // …and the outline the position stands for does not.
+    expect(span(extendSelection(resolvedOutline(open, 3, 0)!, from, 'down'))).toEqual([2, 5]);
+  });
+
+  it('is unchanged where the bisection makes a CHILD, which a cover already spans', () => {
+    const open = '- one\n- foo\n  \n  bar\n';
+    const from = caret(1, 5);
+    expect(span(extendSelection(parse(open), from, 'down'))).toEqual(
+      span(extendSelection(resolvedOutline(open, 2, 2)!, from, 'down')),
+    );
   });
 });

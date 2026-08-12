@@ -24,6 +24,7 @@ import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits, diffLines } from '../result';
 import { nodeAtLine, nodeStartLine } from '../locate';
+import { resolvedOutline } from './decorate';
 import { coveredForestOf } from '../escalate';
 import { groupRootsByParent } from '../enforce';
 import { planCaret, type CaretOp } from '../caret-policy';
@@ -439,24 +440,42 @@ export function planKey(
   // keys behave stock.
   if (!onOwnLines && (key === 'split' || key === 'continue')) return null;
 
+  // A structural operation acts on the OUTLINE, which is not the raw parse while
+  // a provisional position is open interior to a node: the blank line bisects
+  // that node, so `moveDown` walks half a paragraph past the other half, `indent`
+  // turns half of one into a list item, and a cover stops at the position (all
+  // measured — see the change's Findings). `resolvedOutline` is that tree, in the
+  // buffer's own text so the edits it produces are correct against the buffer.
+  //
+  // Deliberately NOT used for the gates above. They decide whether the key is
+  // declined at all, and the resolved tree makes the position one of the node's
+  // own lines — so `onOwnLines` would become true there, and Enter on a position
+  // would start splitting it instead of advancing past it
+  // (`provisional-cleanup.ts`'s `advanceFromEmptyPlace`). What the key targets
+  // changes; whether the key applies does not.
+  const outline = resolvedOutline(text, cursor.line, cursor.ch);
+  const opDoc = outline ?? doc;
+  const opNode = outline ? nodeAtLine(outline, cursor.line) : node;
+  if (!opNode) return null;
+
   switch (key) {
     case 'indent':
       return planFromOp(
         lines,
-        indent(doc, node.id, fallbackIndentUnit),
+        indent(opDoc, opNode.id, fallbackIndentUnit),
         'input.structure.indent',
         { kind: 'derived' },
-        doc,
+        opDoc,
         'none',
         cursor,
       );
     case 'outdent':
       return planFromOp(
         lines,
-        outdent(doc, node.id, fallbackIndentUnit),
+        outdent(opDoc, opNode.id, fallbackIndentUnit),
         'input.structure.outdent',
         { kind: 'derived' },
-        doc,
+        opDoc,
         // Shift+Tab reaches the same operation the empty-item ladder does, and
         // an outdent that lands an empty item under a paragraph dissolves it
         // into a blank line. Stating the form by OPERATION rather than by key
@@ -468,19 +487,19 @@ export function planKey(
     case 'move-up':
       return planFromOp(
         lines,
-        moveUp(doc, node.id),
+        moveUp(opDoc, opNode.id),
         'move.structure',
         { kind: 'subject' },
-        doc,
+        opDoc,
         'none',
       );
     case 'move-down':
       return planFromOp(
         lines,
-        moveDown(doc, node.id),
+        moveDown(opDoc, opNode.id),
         'move.structure',
         { kind: 'subject' },
-        doc,
+        opDoc,
         'none',
       );
     case 'split': {

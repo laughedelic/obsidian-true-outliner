@@ -642,3 +642,86 @@ describe('grammar planner: a plan states how to abandon the place it makes', () 
     expect(composed.plan.abandon).toEqual(inner.plan.abandon);
   });
 });
+
+describe('grammar planner: a structural key acts on the node a position is inside', () => {
+  // The measured half of this change (its tasks.md — Findings). Each case is the
+  // same key on the same node, with and without an interior provisional position
+  // open, and the two must agree apart from the position's own line.
+
+  function press(text: string, cursor: { line: number; ch: number }, key: GrammarKey): string {
+    const outcome = planKey(text, cursor, key);
+    if (outcome === null) return '<declined>';
+    if ('notice' in outcome) return `<notice>`;
+    return applyPlan(text, outcome.plan).text;
+  }
+
+  /** The result with the position's own line taken back out, for comparison. */
+  function withoutLine(text: string, predicate: (line: string) => boolean): string {
+    const lines = text.split('\n');
+    const at = lines.findIndex(predicate);
+    if (at !== -1) lines.splice(at, 1);
+    return lines.join('\n');
+  }
+
+  it('indent moves the whole item, and carries the position with it', () => {
+    const plain = '- one\n- foo\n  bar\n';
+    const open = '- one\n- foo\n  \n  bar\n';
+    expect(press(plain, { line: 1, ch: 5 }, 'indent')).toBe('- one\n  - foo\n    bar\n');
+    const after = press(open, { line: 2, ch: 2 }, 'indent');
+    // The position is re-indented along with the node's other lines, so it still
+    // stands for a continuation of the item: typing there continues `  - foo`,
+    // whose content column is now 4. Before this change it stayed at column 2 and
+    // typing made a paragraph child of `- one`.
+    expect(after).toBe('- one\n  - foo\n    \n    bar\n');
+    expect(withoutLine(after, (l) => l.trim() === '')).toBe('- one\n  - foo\n    bar\n');
+  });
+
+  it('outdent likewise', () => {
+    const plain = '- top\n\t- foo\n\t  bar\n- next\n';
+    const open = '- top\n\t- foo\n\t  \n\t  bar\n- next\n';
+    expect(press(plain, { line: 1, ch: 6 }, 'outdent')).toBe('- top\n- foo\n  bar\n- next\n');
+    const after = press(open, { line: 2, ch: 4 }, 'outdent');
+    expect(after).toBe('- top\n- foo\n  \n  bar\n- next\n');
+    expect(withoutLine(after, (l) => l.trim() === '')).toBe('- top\n- foo\n  bar\n- next\n');
+  });
+
+  it('move-down does not walk half a paragraph past the other half', () => {
+    // The sharpest of the measured shapes: with no position open the key
+    // declines, because the paragraph is the heading's only child. With one open
+    // the raw parse sees two nodes and swaps them, reordering the user's text.
+    const plain = '# H\n\nalpha\nbeta\n\n# I\n';
+    const open = '# H\n\nalpha\n\nbeta\n\n# I\n';
+    expect(press(plain, { line: 2, ch: 5 }, 'move-down')).toBe('<notice>');
+    expect(press(open, { line: 3, ch: 0 }, 'move-down')).toBe('<notice>');
+  });
+
+  it('move-up moves the whole paragraph, not its upper half', () => {
+    const plain = '# H\n\nfirst\n\nalpha\nbeta\n';
+    const open = '# H\n\nfirst\n\nalpha\n\nbeta\n';
+    expect(press(plain, { line: 4, ch: 5 }, 'move-up')).toBe('# H\n\nalpha\nbeta\n\nfirst\n');
+    const after = press(open, { line: 5, ch: 0 }, 'move-up');
+    expect(withoutLine(after, (l) => l === '')).not.toBe('# H\n\nalpha\n\nfirst\n\nbeta\n');
+    expect(after).toBe('# H\n\nalpha\n\nbeta\n\nfirst\n');
+  });
+
+  it('indent does not turn half a paragraph into a list item', () => {
+    const plain = '# H\n\nfirst\n\nalpha\nbeta\n';
+    const open = '# H\n\nfirst\n\nalpha\n\nbeta\n';
+    expect(press(plain, { line: 4, ch: 5 }, 'indent')).toBe('# H\n\nfirst\n\n- alpha\n  beta\n');
+    // Both lines convert together, and the position takes the new item's
+    // continuation pad — so it still stands for a continuation of the item.
+    const after = press(open, { line: 5, ch: 0 }, 'indent');
+    expect(after).toBe('# H\n\nfirst\n\n- alpha\n  \n  beta\n');
+    expect(withoutLine(after, (l) => l.trim() === '' && l !== '')).toBe(
+      '# H\n\nfirst\n\n- alpha\n  beta\n',
+    );
+  });
+
+  it('leaves an end-of-node position alone — it bisected nothing', () => {
+    // The gate needs a line of the node below the position. Without this, Tab at
+    // the end of a document writes trailing whitespace onto its final blank line.
+    expect(press('First.\n\nSecond.\n', { line: 3, ch: 0 }, 'indent')).toBe(
+      'First.\n\n- Second.\n',
+    );
+  });
+});

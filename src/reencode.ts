@@ -5,6 +5,7 @@
  */
 
 import type { OutlineNode } from './model';
+import { isAtom } from './model';
 import { indentWidth } from './parse';
 
 const LIST_MARKER_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]?)/;
@@ -26,8 +27,22 @@ export function leadingWhitespace(line: string): string {
   return /^[ \t]*/.exec(line)?.[0] ?? '';
 }
 
-function shiftLine(line: string, delta: number): string {
-  if (line.trim() === '') return line;
+/**
+ * `keepBlank` — leave a whitespace-only line exactly as it is — is for ATOMS,
+ * where a blank line is the node's own content: shifting one inside a fenced
+ * code block changes the code, and inside a quote or table it invents leading
+ * whitespace nobody wrote.
+ *
+ * A STRUCTURAL node cannot reach that case from a real parse at all: a blank
+ * line ENDS a paragraph's, a list item's, or a heading's own lines
+ * (`parse.ts`), so a whitespace-only line among them exists in exactly one
+ * tree — the one `resolvedOutline` builds for an open PROVISIONAL POSITION,
+ * where the blank line is the place itself. That line must move with the node,
+ * or an indent leaves the place at the old content column and typing there
+ * makes a node somewhere else entirely.
+ */
+function shiftLine(line: string, delta: number, keepBlank: boolean): string {
+  if (keepBlank && line.trim() === '') return line;
   if (delta === 0) return line;
   const ws = leadingWhitespace(line);
   if (delta > 0) {
@@ -50,7 +65,7 @@ export function shiftSubtree(node: OutlineNode, delta: number): OutlineNode {
   if (delta === 0) return node;
   return {
     ...node,
-    lines: node.lines.map((line) => shiftLine(line, delta)),
+    lines: node.lines.map((line) => shiftLine(line, delta, isAtom(node))),
     children: node.children.map((child) => shiftSubtree(child, delta)),
   };
 }

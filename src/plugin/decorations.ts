@@ -84,7 +84,7 @@ import {
   computePositionTrail,
   decorate,
   materializeProbe,
-  positionJoinsANode,
+  positionBisectsANode,
   type GuideHighlight,
   type MarkerHighlight,
   type LineDecorationFact,
@@ -289,7 +289,7 @@ interface Provisional {
   readonly doc: OutlineDoc;
   /**
    * True when the position JOINS an existing node rather than standing for a new
-   * one (`positionJoinsANode`). It is the gate that decides whether the WHOLE
+   * one (`positionBisectsANode`). It is the gate that decides whether the WHOLE
    * document's facts come from `doc` — see `factsFor`.
    */
   readonly joins: boolean;
@@ -320,14 +320,14 @@ function computeProvisional(state: EditorState): Provisional | null {
     line: line.number - 1,
     fact,
     doc,
-    joins: positionJoinsANode(facts, line.number - 1),
+    joins: positionBisectsANode(facts, line.number - 1),
   };
 }
 
 /**
  * The per-line facts and guides every consumer renders from — `docFacts` unless
  * a provisional position is open, and the tree that position stands for when one
- * is and it JOINS a node (`positionJoinsANode`).
+ * is and it JOINS a node (`positionBisectsANode`).
  *
  * The gate is the whole rule. A position that joins a node BISECTED it, so the
  * raw parse of the buffer is wrong about that node, about what it still has as a

@@ -40,6 +40,7 @@ import {
   ChangeSet,
   EditorSelection,
   Prec,
+  type EditorState,
   type Extension,
   type SelectionRange,
   type Text,
@@ -59,9 +60,11 @@ import {
   planHorizontal,
 } from "../caret";
 import type { LinePos } from "../line-pos";
+import type { OutlineDoc } from "../model";
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
+import { resolvedOutline } from "./decorate";
 import { isNestedEditor } from "./nested-editor";
 import type { EditorChange } from "./dispatch";
 import {
@@ -236,6 +239,38 @@ function notAnOutlineGesture(
 }
 
 /**
+ * The outline these handlers act on: the raw parse, unless a PROVISIONAL POSITION
+ * is open and bisected a node, in which case the tree that position stands for
+ * (`resolvedOutline`).
+ *
+ * Measured (the a-position-does-not-split-its-node change's Findings): against
+ * the raw parse, a bisected node reads as two, so node-granular extension covers
+ * only the half above the position wherever the tail becomes a SIBLING, and
+ * select-all's content rung — a node's OWN lines — covers half in every shape,
+ * list and paragraph alike.
+ *
+ * Gated on the cheap tests first (one empty cursor, on a blank line) so an
+ * ordinary press costs a `trim()` rather than a second parse. A position needs a
+ * single empty cursor by definition, so a multi-range selection keeps the raw
+ * parse without a special case.
+ */
+function outlineFor(state: EditorState): OutlineDoc {
+  const sel = state.selection.main;
+  if (sel.empty && state.selection.ranges.length === 1) {
+    const line = state.doc.lineAt(sel.head);
+    if (line.text.trim() === "") {
+      const resolved = resolvedOutline(
+        state.doc.toString(),
+        line.number - 1,
+        sel.head - line.from,
+      );
+      if (resolved) return resolved;
+    }
+  }
+  return parsedDoc(state.doc).doc;
+}
+
+/**
  * Shift+ArrowUp/Shift+ArrowDown (node-selection-extension): intercepts
  * keyboard extension in outline mode and replaces every range with the next
  * cover along `select-extend.ts`'s sequence — one node per press, in both
@@ -271,7 +306,7 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     if (!outlinePathOf(modes, view)) return false;
 
     const doc = view.state.doc;
-    const { doc: outlineDoc } = parsedDoc(doc);
+    const outlineDoc = outlineFor(view.state);
 
     // A press that only moves within one node's own text is ordinary text
     // selection, not an outline gesture (design.md D11). Decided HERE rather
@@ -359,7 +394,7 @@ function makeSelectAllHandler(modes: ModeSource) {
     if (!outlinePathOf(modes, view)) return false;
 
     const doc = view.state.doc;
-    const { doc: outlineDoc } = parsedDoc(doc);
+    const outlineDoc = outlineFor(view.state);
     const before = view.state.selection.ranges.map((range) =>
       toLineRange(doc, range),
     );
