@@ -67,14 +67,18 @@ describe('forEachNodeWithLine', () => {
   it('depth counts ancestors', () => {
     fc.assert(
       fc.property(arbTree(), (doc) => {
-        const depthOf = new Map<number, number>();
-        for (const { node, depth } of visitAll(doc)) {
-          depthOf.set(node.id, depth);
-          for (const child of node.children) {
-            expect(depthOf.get(child.id) ?? depth + 1).toBe(depth + 1);
-          }
-        }
+        // The map has to be COMPLETE before any of it is asserted against.
+        // Building it while walking reads naturally and proves nothing: the
+        // traversal is pre-order, so a child is never in the map yet when its
+        // parent is visited, and a `?? depth + 1` fallback then supplies
+        // exactly the value under test.
+        const visited = visitAll(doc);
+        const depthOf = new Map(visited.map(({ node, depth }) => [node.id, depth]));
+        expect(depthOf.size).toBe(visited.length);
         for (const node of doc.children) expect(depthOf.get(node.id)).toBe(0);
+        for (const { node, depth } of visited) {
+          for (const child of node.children) expect(depthOf.get(child.id)).toBe(depth + 1);
+        }
       }),
     );
   });
