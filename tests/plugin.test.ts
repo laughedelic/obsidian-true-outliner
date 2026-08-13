@@ -15,7 +15,7 @@ import {
 } from '../src/ops';
 import { applyEdits, diffLines, type Edit } from '../src/result';
 import { OutlineModeRegistry } from '../src/plugin/mode-registry';
-import { nodeAtLine } from '../src/plugin/locate';
+import { nodeAtLine } from '../src/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
 import { planKey } from '../src/plugin/grammar';
 import { REJECTION_MESSAGES } from '../src/plugin/messages';

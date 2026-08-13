@@ -13,9 +13,9 @@ import {
   previousNodeInOrder,
   resolvePlacement,
   resolveMarkerPlacement,
-  type LinePos,
 } from '../src/caret';
 import { arbTree } from './generators';
+import { type LinePos } from '../src/line-pos';
 
 const pos = (line: number, ch: number): LinePos => ({ line, ch });
 

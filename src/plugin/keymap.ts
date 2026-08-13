@@ -50,16 +50,17 @@ import { Notice, editorInfoField } from "obsidian";
 import { planKey, type GrammarKey } from "./grammar";
 import { nextRungs } from "../select-all-ladder";
 import { extendSelections, type ExtendDirection } from "../select-extend";
-import { coveredForestOf, type LineRange } from "../escalate";
+import { coveredForestOf } from "../escalate";
 import {
   contentBoundaryCh,
   resolvePlacement,
   nodeContentEnd,
   nodeContentStart,
   planHorizontal,
-  type LinePos,
 } from "../caret";
+import type { LinePos } from "../line-pos";
 import { nodeAtLine, nodeStartLine } from "../locate";
+import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
 import { isNestedEditor } from "./nested-editor";
 import type { EditorChange } from "./dispatch";
@@ -160,22 +161,6 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
       ...(annotations ? { annotations } : {}),
     });
     return true;
-  };
-}
-
-function offsetToLinePos(doc: Text, pos: number): LinePos {
-  const line = doc.lineAt(pos);
-  return { line: line.number - 1, ch: pos - line.from };
-}
-
-function linePosToOffset(doc: Text, pos: LinePos): number {
-  return doc.line(pos.line + 1).from + pos.ch;
-}
-
-function toLineRange(doc: Text, range: SelectionRange): LineRange {
-  return {
-    anchor: offsetToLinePos(doc, range.anchor),
-    head: offsetToLinePos(doc, range.head),
   };
 }
 

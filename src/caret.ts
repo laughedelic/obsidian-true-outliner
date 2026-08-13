@@ -25,12 +25,9 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
+import { ownSpan } from './model';
+import type { LinePos } from './line-pos';
 import { nodeAtLine, nodeStartLine } from './locate';
-
-export interface LinePos {
-  readonly line: number;
-  readonly ch: number;
-}
 
 /**
  * The character offset where `line` (one of `node`'s own lines) becomes
@@ -101,7 +98,7 @@ export function previousNodeInOrder(doc: OutlineDoc, node: OutlineNode): Outline
  */
 export function nextNodeInOrder(doc: OutlineDoc, node: OutlineNode): OutlineNode | undefined {
   const start = nodeStartLine(doc, node.id);
-  return nodeAtLine(doc, start + node.lines.length + node.trailingGap.length);
+  return nodeAtLine(doc, start + ownSpan(node));
 }
 
 /**

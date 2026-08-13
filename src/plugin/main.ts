@@ -24,7 +24,7 @@ import {
   type MarkerHighlight,
   type PluginData,
 } from './mode-registry';
-import { nodeAtLine } from './locate';
+import { nodeAtLine } from '../locate';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';

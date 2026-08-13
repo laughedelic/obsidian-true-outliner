@@ -17,7 +17,7 @@
  */
 
 import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
-import { isAtom } from '../model';
+import { isAtom, ownSpan } from '../model';
 import { nodeAtLine } from '../locate';
 import { parse } from '../parse';
 
@@ -108,7 +108,7 @@ export function decorate(doc: OutlineDoc): LineDecorationFact[] {
         hasChildren: node.children.length > 0,
       });
     }
-    current += node.lines.length + node.trailingGap.length;
+    current += ownSpan(node);
     node.children.forEach((child) => walk(child, depth + 1, rootDepth));
   };
 

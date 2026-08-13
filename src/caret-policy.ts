@@ -31,8 +31,8 @@ import {
   nodeContentStart,
   nextNodeInOrder,
   previousNodeInOrder,
-  type LinePos,
 } from './caret';
+import type { LinePos } from './line-pos';
 
 /**
  * Which case an operation's caret falls into. The dispatch site knows which

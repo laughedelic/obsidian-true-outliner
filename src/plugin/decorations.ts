@@ -76,7 +76,9 @@ import {
 import { editorInfoField } from 'obsidian';
 import type { NodeKind, OutlineDoc } from '../model';
 import { parse } from '../parse';
-import { coveredForestOf, coveredSubtreeRoots, type LinePos, type LineRange } from '../escalate';
+import { coveredForestOf, coveredSubtreeRoots } from '../escalate';
+import type { LineRange } from '../line-pos';
+import { offsetToLinePos } from './cm-pos';
 import {
   computeLineGuides,
   computePositionTrail,
@@ -993,11 +995,6 @@ const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
   'Hyper',
   'Super',
 ]);
-
-function offsetToLinePos(doc: Text, offset: number): LinePos {
-  const line = doc.lineAt(offset);
-  return { line: line.number - 1, ch: offset - line.from };
-}
 
 /**
  * Every physical line (0-based) covered by an escalated-selection-cover

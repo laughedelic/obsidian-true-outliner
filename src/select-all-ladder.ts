@@ -24,23 +24,12 @@
  * ladder across repeated identical keypresses).
  */
 
-import type { OutlineDoc, OutlineNode, NodePath } from './model';
-import { findPath, nodeAt } from './model';
+import type { OutlineDoc, OutlineNode } from './model';
+import { childrenAt, findPath, nodeAt } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
 import { contentColumnCh } from './ops';
-import { subtreeCoverOf, type Cover, type LinePos, type LineRange } from './escalate';
-
-function posBefore(a: LinePos, b: LinePos): boolean {
-  return a.line < b.line || (a.line === b.line && a.ch < b.ch);
-}
-
-function posEqual(a: LinePos, b: LinePos): boolean {
-  return a.line === b.line && a.ch === b.ch;
-}
-
-function isBackward(range: LineRange): boolean {
-  return posBefore(range.head, range.anchor);
-}
+import { subtreeCoverOf, type Cover } from './escalate';
+import { isBackward, posBefore, posEqual, type LinePos, type LineRange } from './line-pos';
 
 function coverEqual(a: Cover, b: Cover): boolean {
   return posEqual(a.start, b.start) && posEqual(a.end, b.end);
@@ -77,12 +66,6 @@ function ownContentCover(doc: OutlineDoc, node: OutlineNode): Cover {
   };
 }
 
-function childrenAtScope(doc: OutlineDoc, scopePath: NodePath): readonly OutlineNode[] {
-  let list: readonly OutlineNode[] = doc.children;
-  for (const index of scopePath) list = list[index]!.children;
-  return list;
-}
-
 /** The combined cover of every node in `siblings` (a non-empty sibling
  * list at one scope) — first sibling's subtree start through last
  * sibling's subtree end. At the top level this is the whole outline body;
@@ -113,7 +96,7 @@ function ladderFor(doc: OutlineDoc, node: OutlineNode): readonly Cover[] {
     const levelNode = nodeAt(doc, path.slice(0, len));
     if (!levelNode) continue;
     covers.push(subtreeCoverOf(doc, levelNode));
-    const siblings = childrenAtScope(doc, path.slice(0, len - 1));
+    const siblings = childrenAt(doc, path.slice(0, len - 1));
     if (siblings.length > 0) covers.push(siblingsRunCover(doc, siblings));
   }
 

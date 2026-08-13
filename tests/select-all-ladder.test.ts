@@ -3,11 +3,11 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { nextRung, nextRungs } from '../src/select-all-ladder';
-import { coveredSubtreeRoots, escalateRange, rangesEqual } from '../src/escalate';
-import type { LinePos, LineRange } from '../src/escalate';
+import { coveredSubtreeRoots, escalateRange } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
 import { extendSelection, type ExtendDirection } from '../src/select-extend';
 import { arbTree } from './generators';
+import { rangesEqual, type LinePos, type LineRange } from '../src/line-pos';
 
 const pos = (line: number, ch: number): LinePos => ({ line, ch });
 const range = (anchor: LinePos, head: LinePos): LineRange => ({ anchor, head });

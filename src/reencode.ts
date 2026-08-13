@@ -120,17 +120,6 @@ export function reencodeForDestination(
 
 const ATX_RE = /^( {0,3})(#{1,6})([ \t]*)(.*)$/;
 
-/** All heading nodes in a subtree (including the root node if a heading). */
-export function subtreeHeadings(node: OutlineNode): OutlineNode[] {
-  const out: OutlineNode[] = [];
-  const walk = (n: OutlineNode): void => {
-    if (n.kind === 'heading') out.push(n);
-    n.children.forEach(walk);
-  };
-  walk(node);
-  return out;
-}
-
 /**
  * A heading's lines at a new level. Setext headings are rewritten to ATX
  * whenever the level changes (an op-touched line; still lossless).

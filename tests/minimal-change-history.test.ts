@@ -53,7 +53,7 @@ import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
 import { indent, outdent } from '../src/ops';
 import { editsToChanges, mapCursorForward, type EditorChange } from '../src/plugin/dispatch';
-import { nodeAtLine } from '../src/plugin/locate';
+import { nodeAtLine } from '../src/locate';
 import { arbTree } from './generators';
 
 /** Minimal `{state, dispatch}` — all `undo`/`redo` need from a view. */

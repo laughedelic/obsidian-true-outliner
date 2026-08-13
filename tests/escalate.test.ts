@@ -7,12 +7,10 @@ import {
   escalateRange,
   escalateRanges,
   forestCoverOf,
-  rangesEqual,
-  type LinePos,
-  type LineRange,
 } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
 import { arbTree } from './generators';
+import { rangesEqual, type LinePos, type LineRange } from '../src/line-pos';
 
 const pos = (line: number, ch: number): LinePos => ({ line, ch });
 const range = (anchor: LinePos, head: LinePos): LineRange => ({ anchor, head });

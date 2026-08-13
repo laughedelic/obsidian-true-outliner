@@ -5,7 +5,7 @@
  * is a thin adapter, and this module is unit-testable.
  */
 
-import type { OutlineDoc, OutlineNode } from '../model';
+import type { OutlineDoc } from '../model';
 import { isAtom } from '../model';
 import { parse } from '../parse';
 import {
@@ -23,7 +23,7 @@ import {
 import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits, diffLines } from '../result';
-import { nodeAtLine } from './locate';
+import { nodeAtLine, nodeStartLine } from '../locate';
 import { coveredForestOf } from '../escalate';
 import { groupRootsByParent } from '../enforce';
 import { planCaret, type CaretOp } from '../caret-policy';
@@ -107,22 +107,6 @@ function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
     offset += (newLines[i] ?? '').length + 1;
   }
   return offset + pos.ch;
-}
-
-function startLine(doc: OutlineDoc, target: OutlineNode): number {
-  let line = doc.preamble.length;
-  let found = -1;
-  const walk = (node: OutlineNode): void => {
-    if (found !== -1) return;
-    if (node === target) {
-      found = line;
-      return;
-    }
-    line += node.lines.length + node.trailingGap.length;
-    node.children.forEach(walk);
-  };
-  doc.children.forEach(walk);
-  return found;
 }
 
 const LIST_CONT_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+)/;
@@ -434,7 +418,7 @@ export function planKey(
   const node = nodeAtLine(doc, cursor.line);
   if (!node) return null; // preamble or nothing: stock behavior
   const lines = text === '' ? [] : text.split('\n');
-  const nodeStart = startLine(doc, node);
+  const nodeStart = nodeStartLine(doc, node.id);
   const onFirstLine = cursor.line === nodeStart;
   const onOwnLines = cursor.line < nodeStart + node.lines.length;
 

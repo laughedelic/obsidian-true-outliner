@@ -4,7 +4,8 @@
  * turned into corpus fixtures. Pure comparison; the plugin feeds it data.
  */
 
-import type { OutlineDoc, OutlineNode } from '../model';
+import type { OutlineDoc } from '../model';
+import { forEachNodeWithLine } from '../locate';
 
 /** Obsidian's SectionCache, reduced to what the comparison needs. */
 export interface SectionInfo {
@@ -16,21 +17,17 @@ export interface SectionInfo {
 /** Our top-level block spans (heading scoping flattened away). */
 export function topLevelSpans(doc: OutlineDoc): SectionInfo[] {
   const out: SectionInfo[] = [];
-  let line = doc.preamble.length;
-  const walk = (node: OutlineNode, top: boolean): void => {
+  forEachNodeWithLine(doc, (node, startLine, depth) => {
     // Obsidian sections are flat top-level blocks; lists collapse into one
     // section, so only compare non-list block starts.
-    if (top || node.kind === 'heading') {
+    if (depth === 0 || node.kind === 'heading') {
       out.push({
         type: node.kind,
-        startLine: line,
-        endLine: line + node.lines.length - 1,
+        startLine,
+        endLine: startLine + node.lines.length - 1,
       });
     }
-    line += node.lines.length + node.trailingGap.length;
-    node.children.forEach((child) => walk(child, false));
-  };
-  doc.children.forEach((node) => walk(node, true));
+  });
   return out;
 }
 
