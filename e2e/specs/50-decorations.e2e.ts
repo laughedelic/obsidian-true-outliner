@@ -385,4 +385,99 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     expect(await h.getLineComputedStyle(cursor.line, 'margin-left')).toBe(marginBefore);
     expect((await h.getLineRect(cursor.line)).left).toBeCloseTo(leftBefore, 0);
   });
+  // --- An interior position does not split its node ------------------------
+  //
+  // Shift+Enter at the end of a line that is not its node's last bisects that
+  // node in the raw parse, so every line below it re-parses one level deeper
+  // and marker-eligible. Measured against the same line in the same note the
+  // instant BEFORE the keypress, which is the only thing that settles it.
+
+  async function outlineNote(note: string, md: string): Promise<void> {
+    await h.createNote(note, md);
+    if (!(await h.isOutlineMode(note))) {
+      await h.toggleOutlineMode();
+      await h.waitForNotice('Outline mode on');
+      await h.dismissNotices();
+    }
+  }
+
+  it('a bisected item’s second line does not move', async function () {
+    const note = 'Scratch/interior-position-flat.md';
+    await outlineNote(note, '- foo\n  bar\n');
+    const before = {
+      left: (await h.getLineRect(1)).left,
+      margin: await h.getLineComputedStyle(1, 'margin-left'),
+      padding: await h.getLineComputedStyle(1, 'padding-left'),
+    };
+
+    await h.setCursor(0, '- foo'.length);
+    await h.keys.shiftEnter();
+    await browser.pause(150);
+    // The item's own second line is now one lower, with the position above it.
+    expect((await h.getBuffer()).split('\n')[1]!.trim()).toBe('');
+    expect(await h.getLineRect(2)).toBeTruthy();
+    expect((await h.getLineRect(2)).left).toBeCloseTo(before.left, 0);
+    expect(await h.getLineComputedStyle(2, 'margin-left')).toBe(before.margin);
+    expect(await h.getLineComputedStyle(2, 'padding-left')).toBe(before.padding);
+  });
+
+  it('the same under a heading, where the item carries a supplementalDepth margin', async function () {
+    // Distinguishes "kept its own margin" from "lost all margin": the item's
+    // contribution here is nonzero, so a wrong answer is visible either way.
+    const note = 'Scratch/interior-position-heading.md';
+    await outlineNote(note, '# Heading\n\n- foo\n  bar\n');
+    const before = {
+      left: (await h.getLineRect(3)).left,
+      margin: await h.getLineComputedStyle(3, 'margin-left'),
+    };
+    expect(before.margin).not.toBe('0px');
+
+    await h.setCursor(2, '- foo'.length);
+    await h.keys.shiftEnter();
+    await browser.pause(150);
+    expect((await h.getLineRect(4)).left).toBeCloseTo(before.left, 0);
+    expect(await h.getLineComputedStyle(4, 'margin-left')).toBe(before.margin);
+  });
+
+  it('typing on an interior position moves no line at all', async function () {
+    const note = 'Scratch/interior-position-typing.md';
+    await outlineNote(note, '# Heading\n\n- foo\n  bar\n');
+    await h.setCursor(2, '- foo'.length);
+    await h.keys.shiftEnter();
+    await browser.pause(150);
+
+    const before = await Promise.all(
+      [0, 2, 3, 4].map(async (line) => ({
+        line,
+        left: (await h.getLineRect(line)).left,
+        margin: await h.getLineComputedStyle(line, 'margin-left'),
+      })),
+    );
+    await h.keys.type('x');
+    await browser.pause(150);
+    for (const was of before) {
+      expect((await h.getLineRect(was.line)).left).toBeCloseTo(was.left, 0);
+      expect(await h.getLineComputedStyle(was.line, 'margin-left')).toBe(was.margin);
+    }
+  });
+
+  it('a pure list is byte-identical to outline-mode-off with a position open', async function () {
+    const note = 'Scratch/interior-position-pure-list.md';
+    await outlineNote(note, '- foo\n  bar\n- next\n');
+    await h.toggleOutlineMode();
+    await h.waitForNotice('Outline mode off');
+    await h.dismissNotices();
+    const off = await Promise.all([0, 1, 2].map(async (l) => (await h.getLineRect(l)).left));
+    await h.toggleOutlineMode();
+    await h.waitForNotice('Outline mode on');
+    await h.dismissNotices();
+
+    await h.setCursor(0, '- foo'.length);
+    await h.keys.shiftEnter();
+    await browser.pause(150);
+    // Lines 0, 2, 3 are the same three lines, one lower from line 2 on.
+    for (const [line, expected] of [[0, off[0]!], [2, off[1]!], [3, off[2]!]] as const) {
+      expect((await h.getLineRect(line)).left).toBeCloseTo(expected, 0);
+    }
+  });
 });

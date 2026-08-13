@@ -29,13 +29,13 @@ any operation.
 ## 2. The overlay: one accessor, one gate
 
 Rewritten from the span this group first described. The span was measured wrong twice — see
-design D1 and the Findings — and what shipped is a gate: a position that JOINS a node hands the
-whole document to the tree it stands for, a position that INVENTS one changes nothing but its
-own line.
+design D1 and the Findings — and what shipped is a gate: a position that BISECTED a node hands
+the whole document to the tree it stands for; one that invents a node, or bisected nothing,
+changes nothing but its own line.
 
-- [x] 2.1 In `src/plugin/decorate.ts`, add `positionJoinsANode(materializedFacts, line)` beside
+- [x] 2.1 In `src/plugin/decorate.ts`, add `positionBisectsANode(materializedFacts, line)` beside
       `provisionalFact` / `materializeProbe`: true when the position's own materialized line is
-      not a first line, which is the whole of the "did this bisect a node" test (design D1).
+      not a first line AND a line of that node remains below it (design D1, narrowed in 4.1).
 - [x] 2.2 Cover it in `tests/decorate.test.ts` for each shape in 1.1, plus the two the gate must
       refuse (Enter's blank-separated position, and the adoption shape `# H` / blank / blank /
       `beta`), the upper half that loses a child, the line an artifact swallows beyond the node,
@@ -44,11 +44,11 @@ own line.
       `tests/generators.ts`: run the real Shift+Enter over generated documents and assert the
       overlay reproduces, for every line, the facts and guides that line had BEFORE the keypress.
       A second property asserts an inventing position leaves every other line on the raw parse.
-      The skip predicate is written inline rather than calling `positionJoinsANode`, so breaking
-      the gate cannot make the property vacuous.
+      The skip predicate is written inline rather than calling `positionBisectsANode`, so
+      breaking the gate cannot make the property vacuous.
 - [x] 2.4 In `src/plugin/decorations.ts`, introduce the single `factsFor(state)` accessor: raw
-      `docFacts` unless a position is open; the resolved tree's facts AND guides when it joins a
-      node; raw facts plus the position's own otherwise. Route the marker pass, the
+      `docFacts` unless a position is open; the resolved tree's facts AND guides when it bisected
+      a node; raw facts plus the position's own otherwise. Route the marker pass, the
       line-decoration pass, and `MarginCompensation`'s widget loop through it, deleting the two
       ad-hoc provisional merges. Leave the escalated-selection passes on `docFacts` with a comment
       — a cover and a position cannot coexist.
@@ -61,20 +61,20 @@ own line.
 
 ## 3. Live coverage
 
-- [ ] 3.1 Extend `e2e/specs/50-decorations.e2e.ts`: open an interior position on a two-line list
+- [x] 3.1 Extend `e2e/specs/50-decorations.e2e.ts`: open an interior position on a two-line list
       item and assert the second line's rendered box and computed `margin-left` are what they
       were the instant before the keypress, measured against the same line in the same note
       before Shift+Enter rather than against a hardcoded pixel value.
-- [ ] 3.2 Repeat under a heading, where the item carries a nonzero `supplementalDepth`, so the
+- [x] 3.2 Repeat under a heading, where the item carries a nonzero `supplementalDepth`, so the
       assertion distinguishes "kept its own margin" from "lost all margin".
-- [ ] 3.3 Extend `e2e/specs/52-block-markers-icons.e2e.ts`: the displaced line carries no marker
+- [x] 3.3 Extend `e2e/specs/52-block-markers-icons.e2e.ts`: the displaced line carries no marker
       while the position is open, and the two-line paragraph's second line likewise gains none.
-- [ ] 3.4 Assert the typing transition live: type one character on an interior position and
+- [x] 3.4 Assert the typing transition live: type one character on an interior position and
       confirm no line's box moves, which is the spec's "Typing changes nothing this layer
       contributes" scenario extended to the displaced lines.
-- [ ] 3.5 Confirm `e2e/specs/53-decoration-contracts.e2e.ts` still holds with an interior
+- [x] 3.5 Confirm `e2e/specs/53-decoration-contracts.e2e.ts` still holds with an interior
       position open — no transaction, no cursor movement, no history entry from the rendering.
-- [ ] 3.6 Pure-list invariant: with an interior position open in a list that has no non-list
+- [x] 3.6 Pure-list invariant: with an interior position open in a list that has no non-list
       ancestor, every line's rendered position is identical to outline-mode-off.
 
 ## 4. What the measurement found
@@ -113,29 +113,29 @@ tree. One resolved tree, threaded to all of them, is the fix (design D4).
       the Findings' C and D shapes for extension and all four for the ladder.
 - [x] 4.7 Negative control for each of 4.3 and 4.5: revert the fix locally, confirm the new tests
       fail with the exact documents and ranges the Findings recorded, restore it.
-- [ ] 4.8 Add live coverage in `e2e/specs/30-keyboard-grammar.e2e.ts` for the gesture a real user
+- [x] 4.8 Add live coverage in `e2e/specs/30-keyboard-grammar.e2e.ts` for the gesture a real user
       reaches this through, at minimum Shift+Enter then Tab, plus Shift+Enter then Mod-A.
 
 ## 5. Close the loop
 
-- [ ] 5.1 Add the interior position to `docs/research/15-enter-and-shift-enter-catalogue.md`
+- [x] 5.1 Add the interior position to `docs/research/15-enter-and-shift-enter-catalogue.md`
       under C2 ("The result SHALL re-parse as one (multiline) node"), beside S10 — same
       mechanism, measured at a node's middle rather than its end, with the node counts and the
       displacement table from the proposal.
-- [ ] 5.2 Record the leftover blank line in `docs/research/12-decoration-follow-ups.md`: any
+- [x] 5.2 Record the leftover blank line in `docs/research/12-decoration-follow-ups.md`: any
       document change drops the abandon record, so a structural key pressed on a position leaves
       it in the file and the node split on disk. Include that it is byte-identical to stock and
       what closing it would cost.
-- [ ] 5.3 Note in the same file's "A non-list-item child of a list item is indented twice" entry
+- [x] 5.3 Note in the same file's "A non-list-item child of a list item is indented twice" entry
       that this change removes the transient way into that shape while the deliberate one — text
       the user themselves indented under an item, blank-separated — stays open and unchanged.
-- [ ] 5.4 Record design D5's known edge there too: a blank line the user authored inside what
+- [x] 5.4 Record design D5's known edge there too: a blank line the user authored inside what
       would otherwise be one node renders its following line as a continuation while a caret is
       parked on it, reachable only by a programmatic placement, and closing it means giving up
       the document-and-caret-alone derivation.
-- [ ] 5.5 Run `npm run build`, `npm test`, `npm run lint`, and `npm run test:e2e`; confirm the
+- [x] 5.5 Run `npm run build`, `npm test`, `npm run lint`, and `npm run test:e2e`; confirm the
       full suite is green.
-- [ ] 5.6 Re-diff this change's `outline-keyboard-grammar` delta against the main spec before
+- [x] 5.6 Re-diff this change's `outline-keyboard-grammar` delta against the main spec before
       archiving, so nothing another change amended in the meantime is dropped by the restatement.
       `abandon-removes-only-the-place` archived on 2026-08-11 and its wording is already carried
       through; the check is for whatever lands next.
@@ -207,6 +207,20 @@ operation is defective when the two documents differ in anything but the PRESENC
 position's line, OR when the position stops standing for a continuation of the same node. Both
 halves are satisfied by the same fix — the resolved tree includes the position's line among the
 node's own lines, so an operation that rewrites those lines rewrites it too.
+
+**Reachability, found while writing the live coverage.** The two SELECTION consumers are
+dominated by a rule that predates them: a selection that leaves the position is the abandon
+gesture (`structural-history-integration`), and both Mod-A and Shift+Arrow dispatch a selection.
+Measured live — Shift+Enter then Mod-A removes the place and returns the document to
+`- one␤- foo␤  bar␤`, with no node selection shown at all. So the ladder's own answer is reached
+only where no live record exists, which that requirement's own known limitations already name: a
+place restored by REDO carries no record, and neither does one whose record a later document
+change dropped. The fix is still right and still tested at the tree level; what the e2e pins is
+the interaction that decides when it applies.
+
+The four STRUCTURAL keys have no such qualification. They change the document, and the cleanup
+drops its record on any document change rather than cancelling, so the place survives the
+keypress and their fix is live on the first gesture. Confirmed by the Tab e2e.
 
 **Deltas this adds** (task 1.5): `node-selection-extension` and `progressive-select-all`. Not
 `structural-operations`, which the proposal named as a candidate: every requirement there is

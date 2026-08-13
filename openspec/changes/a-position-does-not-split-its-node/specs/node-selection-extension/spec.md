@@ -15,13 +15,20 @@ This is measurable only where the bisection produces a SIBLING rather than a chi
 list item's tail attaches to it as a child, so a subtree cover contains it either way; a bisected
 paragraph's tail is its own sibling, and the cover stops short. Both are the same defect.
 
+**When this is reached.** A selection that leaves a provisional position is itself the abandon
+gesture (`structural-history-integration`), and an extension press dispatches a selection — so on
+the first press after the keypress that opened the position, the place is removed and the document
+returns to what it was. This requirement governs the case where no live record exists to abandon:
+a position restored by REDO, or one whose record a later document change dropped. The rule is the
+same either way; only one of the two paths reaches it.
+
 #### Scenario: A bisected paragraph extends as one node
-- **WHEN** a provisional position is open interior to a two-line paragraph and the selection is
-  extended by one node from that paragraph's own first line
+- **WHEN** the selection is extended by one node from a caret on a position interior to a
+  two-line paragraph, and no live record exists to abandon
 - **THEN** the cover spans both of the paragraph's own lines and the position between them, not
   only the line above the position
 
 #### Scenario: A bisected list item is unchanged
-- **WHEN** the same press is made on a two-line list item with an interior position open
+- **WHEN** the same press is made from a position interior to a two-line list item
 - **THEN** the cover spans the item and its owned gap exactly as it does with no position open,
   one line longer for the position itself

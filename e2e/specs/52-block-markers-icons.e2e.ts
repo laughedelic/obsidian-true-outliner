@@ -706,6 +706,36 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
       await browser.pause(150);
     });
 
+    it('a bisected node’s displaced line gains no marker', async function () {
+      // The other half of the reported defect: the line below an interior
+      // position re-parses as a FIRST line in the raw parse, and a first line is
+      // marker-eligible. It is a continuation line in the outline the position
+      // stands for, and continuation lines carry none.
+      const note = 'Scratch/interior-position-marker.md';
+      await h.createNote(note, '- foo\n  bar\n');
+      await ensureOutlineMode(note);
+      expect((await h.getLineChildRects(1, MARKER_ICON_SELECTOR)).length).toBe(0);
+
+      await h.setCursor(0, '- foo'.length);
+      await h.keys.shiftEnter();
+      await browser.pause(150);
+      expect((await h.getLineChildRects(2, MARKER_ICON_SELECTOR)).length).toBe(0);
+    });
+
+    it('a bisected PARAGRAPH’s second line gains none either', async function () {
+      // No depth change here — what the bisection does is make the second line a
+      // first line, which is exactly what puts a marker on it.
+      const note = 'Scratch/interior-position-marker-para.md';
+      await h.createNote(note, '# Heading\n\nalpha\nbeta\n');
+      await ensureOutlineMode(note);
+      expect((await h.getLineChildRects(3, MARKER_ICON_SELECTOR)).length).toBe(0);
+
+      await h.setCursor(2, 'alpha'.length);
+      await h.keys.shiftEnter();
+      await browser.pause(150);
+      expect((await h.getLineChildRects(4, MARKER_ICON_SELECTOR)).length).toBe(0);
+    });
+
     it('markerVisibility governs it exactly as it governs a real leaf paragraph', async function () {
       await browser.executeObsidian(async ({ plugins }) => {
         await (plugins.trueOutliner as any).setMarkerVisibility('with-children');

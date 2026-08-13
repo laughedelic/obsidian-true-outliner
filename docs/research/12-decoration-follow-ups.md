@@ -71,6 +71,15 @@ whitespace from its depth padding (the source whitespace already encodes the sam
 or render non-list children with the native regime the way list items are. Both need the
 guide-line and marker offsets re-derived, which is why this is a change of its own.
 
+**Amended 2026-08-11** (`a-position-does-not-split-its-node`): the first measured shape above —
+a blank line followed by indented text under an item — had a TRANSIENT way in as well as the
+deliberate one. Shift+Enter at the end of a line that is not its node's last wrote exactly that
+blank line, so the item's own continuation re-parsed as a paragraph child and picked up this
+entry's double indentation for as long as the caret stayed there. That way in is closed: the
+rendering now reads the outline the position stands for. The entry itself stands unchanged for
+the deliberate shape — text the user themselves indented under an item, blank-separated — which
+is a real document rather than a place, and still renders with both indentations.
+
 ### A provisional (gap) line has no decoration facts, so the caret visibly jumps
 
 **Graduated** — closed by the `decorate-provisional-positions` change, which renders the
@@ -148,6 +157,58 @@ per line and per theme. More decisively, it would make a list render differently
 plugin on than off, which is the one hard invariant `outline-decorations` states about pure
 lists. Doing it anyway is a change of its own, with that requirement amended deliberately
 rather than broken in passing.
+
+### A structural key pressed on a provisional position leaves the blank line in the file
+
+Found while closing `a-position-does-not-split-its-node`, and out of its scope deliberately.
+
+`provisional-cleanup.ts` drops its record of the created place on ANY document change, so a
+keypress that edits the document — Tab, Shift+Tab, Alt+Arrow — takes the place out of the
+cleanup's hands. Nothing is wrong at the moment it happens: the operation now acts on the whole
+node, the place moves with it, and typing there still continues the node. But if the user walks
+away instead, the blank line stays in the file, and a blank line inside what they see as one node
+is a real split on disk — the item's continuation becomes a paragraph child the next time the file
+is opened.
+
+Byte-identical to stock Obsidian, which also leaves the line. What makes it worth recording is
+that the outline model now asserts something about that line where stock only stores it.
+
+Closing it means deciding what a structural key should do to a place it did not create: carry the
+record forward through the operation (the record is per-view and the operation's own dispatch
+could re-state it), or cancel the place first — which is not available, because Enter-then-Tab is
+the canonical outliner gesture for "new node, one level in" and cancelling would destroy it.
+
+### Shift+Enter on an item whose marker has no trailing space opens a position outside the node
+
+`parse.ts` reads `-` as a list item with content column 2 (`LIST_ITEM_RE` allows a marker at
+end-of-line); `grammar.ts`'s `LIST_CONT_RE` requires whitespace after the marker, so it finds no
+match and Shift+Enter writes an empty line instead of the item's continuation indent. Typing there
+produces a TOP-LEVEL paragraph, so the position stands for no continuation of anything, and the
+`a-position-does-not-split-its-node` overlay correctly declines to repair it — there is no tree in
+which that node is whole.
+
+A buffer defect rather than a rendering one, which is why it was left out of that change. Found by
+its differential property test, and pinned by a test of its own
+(`tests/decorate.test.ts`, "a position the grammar writes OUTSIDE its node is not one this can
+repair"). The fix is to derive the continuation prefix from the same rule the parser uses for the
+content column, rather than from a second regex that disagrees with it about a marker at
+end-of-line.
+
+### A caret parked on a blank line the user authored reads it as a bisection
+
+Design D5 of `a-position-does-not-split-its-node`, recorded as the price of deriving the layer
+from document and caret alone.
+
+`alpha` / blank / `beta` with the caret on the blank line: the tree that caret stands for merges
+all three into one paragraph, so the overlay renders `beta` as a continuation line and drops its
+marker. Truthful about what typing there would do, and wrong about the document the user has.
+
+Reachable only by a programmatic placement — `content-space-caret` redirects a click on a blank
+line to the node above and keeps every motion in content space — so no user gesture arrives here.
+Closing it means reading `provisional-cleanup.ts`'s created-place record from the decoration
+layer, which is exactly the view state D5 keeps out of a state-derived computation, and which
+`node-edit-enforcement` already accepts for its own gap-line rule. That precedent is the argument
+for revisiting it; the cost is that the rendering stops being a pure function of the document.
 
 ### RTL-aware placement (openspec outline-decorations task 5.9)
 

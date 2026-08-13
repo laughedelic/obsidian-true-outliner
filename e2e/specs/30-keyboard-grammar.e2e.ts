@@ -682,4 +682,55 @@ describe('keyboard grammar', function () {
     expect(doc.children.length).toBe(1);
     expect(doc.children[0]!.children.map((n) => n.lines[0])).toEqual(['\tx', '\tpara']);
   });
+  it('Tab on an interior position indents the whole item and carries the place', async function () {
+    // Shift+Enter then Tab, which is how a real user reaches this. Against the
+    // raw parse the item reads as two nodes, and the place is left at the old
+    // content column — so typing there made a paragraph child of whatever was
+    // above instead of continuing the item.
+    //
+    // Asserted through the TREE rather than byte-exactly: the indent unit comes
+    // from the vault's own "Indent using tabs" setting, and what this is about
+    // is which lines stayed one node's.
+    await grammarNote('- one\n- foo\n  bar\n', 1, '- foo'.length);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('- one\n- foo\n  \n  bar\n');
+
+    await h.keys.tab();
+    const indented = (await h.getBuffer()).split('\n');
+    // Every one of the item's own lines moved together, the place included: it
+    // still carries the item's continuation indent, which is what keeps it
+    // standing for a continuation.
+    const contIndent = /^[ \t]*/.exec(indented[3] ?? '')![0];
+    expect(indented[2]).toBe(contIndent);
+    expect(indented[3]!.trim()).toBe('bar');
+
+    await h.setCursor(2, contIndent.length);
+    await h.keys.type('x');
+    const doc = parse(await h.getBuffer());
+    expect(doc.children.length).toBe(1);
+    expect(doc.children[0]!.lines).toEqual(['- one']);
+    expect(doc.children[0]!.children.map((n) => n.lines.length)).toEqual([3]);
+    expect(doc.children[0]!.children[0]!.lines.map((l) => l.trim())).toEqual([
+      '- foo',
+      'x',
+      'bar',
+    ]);
+  });
+
+  it('Mod-A on an interior position abandons the place rather than selecting half a node', async function () {
+    // The tree-level fix for the ladder is covered in
+    // `tests/select-all-ladder.test.ts`; what this pins is the interaction that
+    // decides whether it is ever reached. Mod-A dispatches a SELECTION, and a
+    // selection that leaves the position is the abandon gesture
+    // (`structural-history-integration`), so the place goes and the document
+    // returns to what it was before the Shift+Enter. The ladder's own answer
+    // matters only where no live record exists — after a redo, per that
+    // requirement's known limitations.
+    await grammarNote('- one\n- foo\n  bar\n', 1, '- foo'.length);
+    await h.keys.shiftEnter();
+    expect(await h.getBuffer()).toBe('- one\n- foo\n  \n  bar\n');
+
+    await h.pressSelectAll();
+    expect(await h.getBuffer()).toBe('- one\n- foo\n  bar\n');
+  });
 });

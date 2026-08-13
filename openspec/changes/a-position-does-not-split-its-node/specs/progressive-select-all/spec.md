@@ -17,12 +17,17 @@ The ladder stays stateless: nothing is remembered about the position, and the ru
 function of the current selection and the current document — read through the outline that
 document stands for.
 
+**When this is reached.** Mod-A dispatches a selection, and a selection that leaves a provisional
+position is the abandon gesture (`structural-history-integration`) — so the first press after the
+keypress removes the place instead. This requirement governs the case where no live record exists
+to abandon: a position restored by REDO, or one whose record a later document change dropped.
+
 #### Scenario: The content rung covers the whole node
-- **WHEN** a provisional position is open interior to a two-line list item and Mod-A is pressed
-  with the caret on the item's own first line
-- **THEN** the rung covers the item's content across both of its own lines, not only the line
-  above the position
+- **WHEN** Mod-A is pressed with the caret on a provisional position interior to a two-line list
+  item, and no live record exists to abandon
+- **THEN** the rung covers the item's content across both of its own lines and the position
+  between them, not only the line above the position
 
 #### Scenario: The same holds for a bisected paragraph
-- **WHEN** the same press is made inside a two-line paragraph with an interior position open
+- **WHEN** the same press is made with the caret on a position interior to a two-line paragraph
 - **THEN** the rung covers both of the paragraph's own lines

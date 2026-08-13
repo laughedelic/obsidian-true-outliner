@@ -469,22 +469,29 @@ describe('property: extension and the ladder compose through the selection alone
 describe('a provisional position does not halve the content rung', () => {
   // The first rung is a node's OWN lines — never its children — so a bisection
   // halves it in every shape, list and paragraph alike (the change's Findings).
+  // The caret is ON the position: moving it off abandons the place, so this is
+  // the only state the defect is reachable from.
   const covered = (md: string, r: LineRange | null): string[] | null =>
-    r ? md.split('\n').slice(Math.min(r.anchor.line, r.head.line), Math.max(r.anchor.line, r.head.line) + 1) : null;
+    r
+      ? md
+          .split('\n')
+          .slice(Math.min(r.anchor.line, r.head.line), Math.max(r.anchor.line, r.head.line) + 1)
+      : null;
 
   it('covers the whole node in each measured shape', () => {
-    for (const [open, positionLine, ch, from, expected] of [
-      ['- one\n- foo\n  \n  bar\n', 2, 2, cursor(pos(1, 5)), ['- foo', '  ', '  bar']],
-      ['- top\n\t- foo\n\t  \n\t  bar\n', 2, 4, cursor(pos(1, 6)), ['\t- foo', '\t  ', '\t  bar']],
-      ['# H\n\nalpha\n\nbeta\n\n# I\n', 3, 0, cursor(pos(2, 5)), ['alpha', '', 'beta']],
-      ['# H\n\nfirst\n\nalpha\n\nbeta\n', 5, 0, cursor(pos(4, 5)), ['alpha', '', 'beta']],
+    for (const [open, line, ch, expected] of [
+      ['- one\n- foo\n  \n  bar\n', 2, 2, ['- foo', '  ', '  bar']],
+      ['- top\n\t- foo\n\t  \n\t  bar\n', 2, 4, ['\t- foo', '\t  ', '\t  bar']],
+      ['# H\n\nalpha\n\nbeta\n\n# I\n', 3, 0, ['alpha', '', 'beta']],
+      ['# H\n\nfirst\n\nalpha\n\nbeta\n', 5, 0, ['alpha', '', 'beta']],
     ] as const) {
-      // The raw parse halves it…
-      expect(covered(open, nextRung(parse(open), from))!.length).toBe(1);
-      // …and the outline the position stands for does not.
-      const outline = resolvedOutline(open, positionLine, ch)!;
+      const at = cursor(pos(line, ch));
+      const outline = resolvedOutline(open, line, ch)!;
       expect(outline).not.toBeNull();
-      expect(covered(open, nextRung(outline, from))).toEqual(expected);
+      expect(covered(open, nextRung(outline, at))).toEqual(expected);
+      // And the raw parse does not: it stops at the position, or climbs past
+      // the content rung entirely because the caret sits on a gap line.
+      expect(covered(open, nextRung(parse(open), at))).not.toEqual(expected);
     }
   });
 });
