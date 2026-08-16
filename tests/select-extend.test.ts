@@ -9,7 +9,6 @@ import {
   subtreeCoverOf,
 } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
-import { resolvedOutline } from '../src/plugin/decorate';
 import { arbTree } from './generators';
 import { rangesEqual, type LinePos, type LineRange } from '../src/line-pos';
 
@@ -406,39 +405,5 @@ describe('NEGATIVE CONTROL: the path this change replaces', () => {
     const up = extendSelection(doc, caret(anchorLine, 3), 'up')!;
     const down = extendSelection(doc, up, 'down')!;
     expect(span(down)).not.toBe(span(up));
-  });
-});
-
-describe('a provisional position does not halve the node a press extends over', () => {
-  // The pure function is correct given the right tree; what it must be GIVEN
-  // while a position is open is `resolvedOutline`'s, not the buffer's raw parse
-  // (keymap.ts's `outlineFor`). The caret is ON the position, which is the only
-  // state this is reachable from: moving it off abandons the place.
-
-  const span = (r: LineRange | null): [number, number] | null =>
-    r ? [Math.min(r.anchor.line, r.head.line), Math.max(r.anchor.line, r.head.line)] : null;
-
-  it('covers both halves of a bisected paragraph', () => {
-    const plain = '# H\n\nalpha\nbeta\n\n# I\n';
-    const open = '# H\n\nalpha\n\nbeta\n\n# I\n';
-    // With no position open, one press covers the paragraph and its owned gap.
-    expect(span(extendSelection(parse(plain), caret(2, 5), 'down'))).toEqual([2, 4]);
-
-    const onPosition = caret(3, 0);
-    // The raw parse of the open document stops at the position…
-    expect(span(extendSelection(parse(open), onPosition, 'down'))).toEqual([2, 3]);
-    // …and the outline the position stands for carries on past it.
-    expect(span(extendSelection(resolvedOutline(open, 3, 0)!, onPosition, 'down'))).toEqual([2, 5]);
-  });
-
-  it('is unchanged where the bisection makes a CHILD, which a cover already spans', () => {
-    // A bisected list item's tail attaches to it, so the subtree cover contains
-    // it either way. Same defect, invisible in this shape — which is why the
-    // paragraph case above is the one that pins it.
-    const open = '- one\n- foo\n  \n  bar\n';
-    const onPosition = caret(2, 2);
-    expect(span(extendSelection(parse(open), onPosition, 'down'))).toEqual(
-      span(extendSelection(resolvedOutline(open, 2, 2)!, onPosition, 'down')),
-    );
   });
 });

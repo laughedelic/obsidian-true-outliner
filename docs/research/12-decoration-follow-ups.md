@@ -194,6 +194,47 @@ repair"). The fix is to derive the continuation prefix from the same rule the pa
 content column, rather than from a second regex that disagrees with it about a marker at
 end-of-line.
 
+### Node-granular selection halves a bisected node, and cannot be fixed without provenance
+
+Measured while closing `a-position-does-not-split-its-node`, attempted, and withdrawn — the most
+useful part is why.
+
+Against the raw parse a node bisected by a provisional position reads as two, so Shift+Arrow
+extension covers only the half above the position wherever the tail becomes a SIBLING, and
+select-all's CONTENT rung — a node's own lines, never its children — covers half in every shape,
+list and paragraph alike. Measured, with the caret on the position:
+
+| Shape | rung 1, raw | rung 1, resolved |
+|---|---|---|
+| `- one` / `- foo` / place / `␣␣bar` | `- foo` and the place only | the item's three own lines |
+| `# H` / `alpha` / place / `beta` | `alpha` and the place | both of the paragraph's own lines |
+
+The pure functions are right when handed `resolvedOutline`'s tree. What is missing is an adapter
+that knows when to hand it to them, and the reason it is missing is structural rather than
+incidental.
+
+Resolving the outline requires knowing the blank line is a PLACE. The document cannot say: a blank
+line the user authored between two paragraphs is byte-identical to one Shift+Enter opened inside
+one paragraph, and reading it wrong is not a cosmetic error — measured, Tab with the caret on that
+gap treated the two paragraphs as one node and indented both. So the structural keys are TOLD,
+from `provisional-cleanup`'s per-view record. The selection handlers cannot use that record:
+
+- With the record LIVE, either handler's own dispatch is a selection that leaves the position,
+  which is the abandon gesture — the place is removed and the caret collapses before any cover is
+  visible. Pinned in `e2e/specs/30-keyboard-grammar.e2e.ts`.
+- With no record — after a redo, or once a document change dropped it, which is exactly the state
+  where a half-node cover is visible and STICKS — there is nothing to read.
+
+The one state where the fix would show is the one state where the record is gone. A first pass
+wired both handlers to the record anyway; the branch was unreachable and was removed rather than
+left implying a fix (`keymap.ts` carries the note where it would go).
+
+Closing it means giving a provisional position provenance that outlives the per-view record: a
+`StateField` holding the place's position, mapped through changes so it survives undo and redo,
+which is what `structural-history-integration`'s own "does NOT survive undo/redo" limitation
+already contemplates. That field would serve the abandon path too, so it is worth doing once
+rather than twice — and it is a change of its own, not a patch to this one.
+
 ### Outdent leaves the caret off the place it just moved
 
 Found while closing `a-position-does-not-split-its-node`. Tab on a provisional position interior

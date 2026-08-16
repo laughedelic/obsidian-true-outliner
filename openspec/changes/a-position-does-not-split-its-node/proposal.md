@@ -55,11 +55,13 @@ preview INVENTING structure — and blind to the opposite one, the position DEST
   as the rule it always was: the node a position would MATERIALIZE contributes nothing to any
   other line — a childless heading with an Enter position below it stays childless, and its
   marker does not blink on. That is now the single exception rather than the whole policy.
-- **The same tree governs what the structural keys act on.** A structural operation dispatched
-  while a position is open currently reads the bisected parse: the artifact child moves with the
-  node, node-granular selection counts it as its own node, and enforcement computes verdicts
-  against it. One case (Tab) was traced and survives; the rest are measured in this change and
-  whatever the measurement finds broken is fixed here rather than deferred (`tasks.md`, Findings).
+- **The same tree governs what the structural keys act on.** Tab, Shift+Tab and both moves read
+  the outline the position stands for rather than the bisected parse, so an operation moves a
+  whole node and carries the place with it. Which line holds a place is TOLD to the planner by the
+  adapter, from `provisional-cleanup`'s record: the document alone cannot tell a place from a
+  blank line the user authored, and measured, guessing indented a paragraph the user never
+  touched. The two SELECTION consumers are wrong in the same way and are NOT fixed here — see
+  Capabilities for why no adapter can currently reach them.
 - **A leftover position is a document-level consequence, recorded rather than fixed.** Any
   document change drops the abandon record (`provisional-cleanup.ts`), so Shift+Enter followed by
   a structural key leaves the blank line in the file and the node split on disk. Byte-identical
@@ -91,18 +93,23 @@ None. Both halves refine existing requirements.
   what is true and enforceable — the outline the plugin presents and acts on has the same nodes
   before and after, while the raw parse of the buffer does gain one — and to name the interior
   position as a first-class shape alongside the end-of-node one.
-- `node-selection-extension`: the measurement (tasks.md — Findings) shows an extension press
-  covering only the part of a bisected node above the position, where the bisection produces a
-  sibling. "Extends by exactly one node per press" is the promise that breaks, so the rule is
-  stated where that promise lives.
-- `progressive-select-all`: the ladder's CONTENT rung is a node's own lines, which a bisection
-  halves in every shape — list and paragraph alike, since that rung never included children.
-- `structural-operations` and `node-edit-enforcement` were named as candidates and get NO delta,
-  each for its own measured reason. Every `structural-operations` requirement is about what an
-  operation does to a GIVEN tree, and none changes: `indent` and `moveUp` are correct functions
-  handed the wrong argument, and the caller's rule is already stated in `outline-keyboard-grammar`.
-  The enforcement verdict path is not reachable from an open position at all — Backspace and
-  Delete are intercepted by the abandon path, and typing is a single-line insert.
+- None beyond the two above. Four capabilities were named as candidates pending the measurement
+  (tasks.md — Findings) and each gets NO delta, for its own measured reason.
+  - `structural-operations`: every requirement there is about what an operation does to a GIVEN
+    tree, and none changes. `indent` and `moveUp` are correct functions handed the wrong argument,
+    and the caller's rule is stated in `outline-keyboard-grammar`.
+  - `node-edit-enforcement`: the verdict path is not reachable from an open position at all —
+    Backspace and Delete are intercepted by the abandon path, and typing is a single-line insert.
+  - `node-selection-extension` and `progressive-select-all`: both are measurably wrong on a
+    bisected node, and neither can be fixed here. Resolving the outline needs to know the blank
+    line is a place, which only `provisional-cleanup`'s per-view record can say — and that record
+    is exactly what these two cannot use. With it live, either handler's own dispatch is a
+    selection that LEAVES the position, which is the abandon gesture, so the place is gone before
+    a cover is visible. Without it — after a redo, or once a document change dropped it — there is
+    no provenance to read. The one state where the fix would show is the one state where the
+    record is gone, so a delta here would state a requirement nothing satisfies. The defect and
+    what closing it needs are recorded in
+    [docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).
 
 ## Impact
 

@@ -109,10 +109,15 @@ tree. One resolved tree, threaded to all of them, is the fix (design D4).
 - [x] 4.4 Cover the four keys in `tests/grammar.test.ts` against the documents the Findings table
       records, asserting the open result equals the plain result plus the position's line — and,
       for `indent` and `outdent`, that typing at the position still continues the same node.
-- [x] 4.5 In `src/plugin/keymap.ts`, give the node-extension and select-all handlers the resolved
-      tree the same way, so a press covers the whole node rather than the part above the position.
-- [x] 4.6 Cover both in `tests/select-extend.test.ts` and `tests/select-all-ladder.test.ts` with
-      the Findings' C and D shapes for extension and all four for the ladder.
+- [x] 4.5 NOT DONE, deliberately, and the reason is recorded rather than the code left half-wired.
+      Both selection handlers were given the resolved tree behind the same `createdPlaceLine` gate
+      the structural keys use, and review showed the gate cannot open in the case it is for: with
+      a live record the handler's own dispatch is a selection that leaves the position, which is
+      the abandon gesture; without one there is no provenance to read. The wiring is removed and
+      `keymap.ts` carries a note where it would have gone.
+- [x] 4.6 Withdrawn with 4.5. The two unit blocks asserted `nextRung`/`extendSelection` against a
+      tree no adapter supplies — a contract with no holder — so they went with the deltas. The
+      measurements they were written from stay in the Findings and in docs/research/12.
 - [x] 4.7 Negative control for each of 4.3 and 4.5: revert the fix locally, confirm the new tests
       fail with the exact documents and ranges the Findings recorded, restore it.
 - [x] 4.8 Add live coverage in `e2e/specs/30-keyboard-grammar.e2e.ts` for the gesture a real user
@@ -210,15 +215,23 @@ position's line, OR when the position stops standing for a continuation of the s
 halves are satisfied by the same fix — the resolved tree includes the position's line among the
 node's own lines, so an operation that rewrites those lines rewrites it too.
 
-**Reachability, found while writing the live coverage.** The two SELECTION consumers are
-dominated by a rule that predates them: a selection that leaves the position is the abandon
-gesture (`structural-history-integration`), and both Mod-A and Shift+Arrow dispatch a selection.
-Measured live — Shift+Enter then Mod-A removes the place and returns the document to
-`- one␤- foo␤  bar␤`, with no node selection shown at all. So the ladder's own answer is reached
-only where no live record exists, which that requirement's own known limitations already name: a
-place restored by REDO carries no record, and neither does one whose record a later document
-change dropped. The fix is still right and still tested at the tree level; what the e2e pins is
-the interaction that decides when it applies.
+**Reachability, found while writing the live coverage and sharpened by review.** The two SELECTION
+consumers cannot be fixed here at all, and the argument closes both ways.
+
+A selection that leaves the position is the abandon gesture
+(`structural-history-integration`), and both Mod-A and Shift+Arrow dispatch a selection. Measured
+live: Shift+Enter then Mod-A removes the place and returns the document to `- one␤- foo␤  bar␤`,
+with no node selection shown. So with a LIVE record, the resolved tree changes nothing observable.
+
+Without one — after a redo, or once a document change dropped it, which is precisely where the
+half-node selection is visible and sticks — `createdPlaceLine` returns null, and the document
+alone cannot supply what it would have said. So the gate that makes the structural keys safe is
+shut in exactly the case the selection fix is for. A first version of this change wired both
+handlers to that gate anyway; the wiring was unreachable and is removed.
+
+Closing it needs a provisional position to carry provenance that survives undo and redo — a
+`StateField` mapped through changes rather than a per-view record — which is a change of its own.
+Recorded with these measurements in docs/research/12.
 
 The four STRUCTURAL keys have no such qualification. They change the document, and the cleanup
 drops its record on any document change rather than cancelling, so the place survives the
@@ -242,13 +255,15 @@ keypress and their fix is live on the first gesture. Confirmed by the Tab e2e.
   which is the mapping's assoc rule rather than this change's, and is asserted as measured rather
   than papered over.
 
-**Deltas this adds** (task 1.5): `node-selection-extension` and `progressive-select-all`. Not
-`structural-operations`, which the proposal named as a candidate: every requirement there is
-about what an operation does to a GIVEN tree, and none of them changes — `indent` and `moveUp`
-are correct functions handed the wrong argument. The wrongness is the caller's, and the
-`outline-keyboard-grammar` delta already states it for the keys. The two selection capabilities
-are different: their requirements are written as user-visible promises ("extends by exactly one
-node per press", "climbs a node-aware ladder"), and a press that covers half a node breaks the
-promise as stated, so each gets a scenario of its own. The select-all defect belongs to
-`progressive-select-all` rather than `node-selection-extension`, which the proposal named — the
-ladder's first rung is that capability's, not the extension's.
+**Deltas this adds** (task 1.5): none beyond the two the proposal already declared.
+`structural-operations` gets none — every requirement there is about what an operation does to a
+GIVEN tree, and none of them changes; `indent` and `moveUp` are correct functions handed the wrong
+argument, and the caller's rule is stated in the `outline-keyboard-grammar` delta. Nor does
+`node-edit-enforcement`, which is unreachable from an open position.
+
+`node-selection-extension` and `progressive-select-all` DID each get a delta at first, on the
+grounds that their requirements are user-visible promises ("extends by exactly one node per
+press", "climbs a node-aware ladder") that a half-node cover breaks. Both were withdrawn once the
+reachability argument above closed: a requirement whose only implementation path cannot be
+reached is a requirement nothing satisfies, and stating it would leave the main specs describing
+behaviour the plugin does not have.

@@ -59,11 +59,9 @@ import {
   planHorizontal,
 } from "../caret";
 import type { LinePos } from "../line-pos";
-import type { OutlineDoc } from "../model";
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
-import { resolvedOutline } from "./decorate";
 import { isNestedEditor } from "./nested-editor";
 import type { EditorChange } from "./dispatch";
 import {
@@ -240,41 +238,33 @@ function notAnOutlineGesture(
 }
 
 /**
- * The outline these handlers act on: the raw parse, unless a PROVISIONAL POSITION
- * is open and bisected a node, in which case the tree that position stands for
- * (`resolvedOutline`).
+ * NOTE — the node-extension and select-all handlers deliberately read the RAW
+ * parse, even while a provisional position is open interior to a node.
  *
- * Measured (the a-position-does-not-split-its-node change's Findings): against
- * the raw parse, a bisected node reads as two, so node-granular extension covers
- * only the half above the position wherever the tail becomes a SIBLING, and
- * select-all's content rung — a node's OWN lines — covers half in every shape,
- * list and paragraph alike.
+ * Both are measurably wrong there: a bisected node reads as two, so extension
+ * covers only the half above the position wherever the tail becomes a sibling,
+ * and the select-all content rung — a node's OWN lines — covers half in every
+ * shape (the a-position-does-not-split-its-node change's Findings). The pure
+ * functions are correct given `resolvedOutline`'s tree; the problem is that no
+ * adapter can currently decide when to hand it to them.
  *
- * Gated on `createdPlaceLine` — a place OUR keypress made — and not on the shape
- * of the line, for the reason that function's own comment gives: a blank line the
- * user authored between two paragraphs is byte-identical to one Shift+Enter
- * opened inside one, and guessing changes what the press covers. It is also the
- * cheap test, so an ordinary press costs a WeakMap lookup rather than a second
- * parse. A place needs a single empty cursor by definition, so a multi-range
- * selection keeps the raw parse without a special case.
+ * Resolving the outline requires knowing the blank line is a PLACE, which the
+ * document cannot say — an authored blank line between two paragraphs is
+ * byte-identical to one Shift+Enter opened inside one — so the structural keys
+ * are told, from `provisional-cleanup`'s per-view record. That record is exactly
+ * what these two handlers cannot use: with it live, either handler's own
+ * dispatch is a selection that LEAVES the position, which is the abandon
+ * gesture, so the place is removed before any cover is visible (measured, and
+ * pinned in `e2e/specs/30-keyboard-grammar.e2e.ts`). Without it — after a redo,
+ * or once a document change has dropped it — there is no provenance to read.
+ * The one state where the fix would show is the one state where the record is
+ * gone.
+ *
+ * So this is left as it is rather than wired to a gate that cannot open.
+ * Closing it means giving a provisional position provenance that survives undo
+ * and redo, which is a change of its own; recorded with its measurements in
+ * docs/research/12-decoration-follow-ups.md.
  */
-function outlineFor(view: EditorView): OutlineDoc {
-  const { state } = view;
-  const sel = state.selection.main;
-  const place = createdPlaceLine(view);
-  if (place !== null && sel.empty && state.selection.ranges.length === 1) {
-    const line = state.doc.lineAt(sel.head);
-    if (line.number - 1 === place) {
-      const resolved = resolvedOutline(
-        state.doc.toString(),
-        line.number - 1,
-        sel.head - line.from,
-      );
-      if (resolved) return resolved;
-    }
-  }
-  return parsedDoc(state.doc).doc;
-}
 
 /**
  * Shift+ArrowUp/Shift+ArrowDown (node-selection-extension): intercepts
@@ -312,7 +302,7 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     if (!outlinePathOf(modes, view)) return false;
 
     const doc = view.state.doc;
-    const outlineDoc = outlineFor(view);
+    const { doc: outlineDoc } = parsedDoc(doc);
 
     // A press that only moves within one node's own text is ordinary text
     // selection, not an outline gesture (design.md D11). Decided HERE rather
@@ -400,7 +390,7 @@ function makeSelectAllHandler(modes: ModeSource) {
     if (!outlinePathOf(modes, view)) return false;
 
     const doc = view.state.doc;
-    const outlineDoc = outlineFor(view);
+    const { doc: outlineDoc } = parsedDoc(doc);
     const before = view.state.selection.ranges.map((range) =>
       toLineRange(doc, range),
     );

@@ -5,7 +5,6 @@ import { encode } from '../src/encode';
 import { nextRung, nextRungs } from '../src/select-all-ladder';
 import { coveredSubtreeRoots, escalateRange } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
-import { resolvedOutline } from '../src/plugin/decorate';
 import { extendSelection, type ExtendDirection } from '../src/select-extend';
 import { arbTree } from './generators';
 import { rangesEqual, type LinePos, type LineRange } from '../src/line-pos';
@@ -463,35 +462,5 @@ describe('property: extension and the ladder compose through the selection alone
     const ladder = await fs.readFile('src/select-all-ladder.ts', 'utf8');
     expect(extend).not.toMatch(/from '\.\/select-all-ladder'/);
     expect(ladder).not.toMatch(/from '\.\/select-extend'/);
-  });
-});
-
-describe('a provisional position does not halve the content rung', () => {
-  // The first rung is a node's OWN lines — never its children — so a bisection
-  // halves it in every shape, list and paragraph alike (the change's Findings).
-  // The caret is ON the position: moving it off abandons the place, so this is
-  // the only state the defect is reachable from.
-  const covered = (md: string, r: LineRange | null): string[] | null =>
-    r
-      ? md
-          .split('\n')
-          .slice(Math.min(r.anchor.line, r.head.line), Math.max(r.anchor.line, r.head.line) + 1)
-      : null;
-
-  it('covers the whole node in each measured shape', () => {
-    for (const [open, line, ch, expected] of [
-      ['- one\n- foo\n  \n  bar\n', 2, 2, ['- foo', '  ', '  bar']],
-      ['- top\n\t- foo\n\t  \n\t  bar\n', 2, 4, ['\t- foo', '\t  ', '\t  bar']],
-      ['# H\n\nalpha\n\nbeta\n\n# I\n', 3, 0, ['alpha', '', 'beta']],
-      ['# H\n\nfirst\n\nalpha\n\nbeta\n', 5, 0, ['alpha', '', 'beta']],
-    ] as const) {
-      const at = cursor(pos(line, ch));
-      const outline = resolvedOutline(open, line, ch)!;
-      expect(outline).not.toBeNull();
-      expect(covered(open, nextRung(outline, at))).toEqual(expected);
-      // And the raw parse does not: it stops at the position, or climbs past
-      // the content rung entirely because the caret sits on a gap line.
-      expect(covered(open, nextRung(parse(open), at))).not.toEqual(expected);
-    }
   });
 });
