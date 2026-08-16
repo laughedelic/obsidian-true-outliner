@@ -39,7 +39,9 @@ changes nothing but its own line.
 - [x] 2.2 Cover it in `tests/decorate.test.ts` for each shape in 1.1, plus the two the gate must
       refuse (Enter's blank-separated position, and the adoption shape `# H` / blank / blank /
       `beta`), the upper half that loses a child, the line an artifact swallows beyond the node,
-      and an end-of-node position, where the gate opens and costs nothing.
+      and an end-of-node position, which 4.1 narrowed the gate to refuse as well — asserting
+      alongside it that refusing costs the rendering nothing, since the two parses agree about
+      every line there.
 - [x] 2.3 Add the differential property test design D1 commits to, using `fast-check` and
       `tests/generators.ts`: run the real Shift+Enter over generated documents and assert the
       overlay reproduces, for every line, the facts and guides that line had BEFORE the keypress.

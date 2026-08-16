@@ -38,11 +38,14 @@ depends on what the position did to the parse, and there are exactly two cases:
   scope is the whole document deliberately: the differences are the position's own doing, the
   resolved outline is right about all of them at once, and enumerating them was measured wrong
   twice.
-- A position that would MATERIALIZE a node contributes nothing to any other line. The node it
-  stands for does not exist yet, and SHALL NOT be rendered as though it did — including
-  through any fact ABOUT another node that its existence would change, such as whether the
-  node it would attach to has children. A childless heading with an Enter position below it
-  renders as childless.
+- A position that BISECTED NOTHING contributes nothing to any other line, and there are two ways
+  to be in that case. One is a position that would MATERIALIZE a node: the node it stands for
+  does not exist yet, and SHALL NOT be rendered as though it did — including through any fact
+  ABOUT another node that its existence would change, such as whether the node it would attach to
+  has children. A childless heading with an Enter position below it renders as childless. The
+  other is a position at a node's END, which joins that node but leaves none of its lines below
+  it; there the two parses agree about every other line anyway, so rendering from either is the
+  same rendering, and the rule takes the raw one for one answer rather than two.
 
 An earlier version of this rule said "only the caret's own line is affected" and derived every
 other line from the raw parse. That is correct for the second case and false for the first: the
