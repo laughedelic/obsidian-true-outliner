@@ -40,7 +40,6 @@ import {
   ChangeSet,
   EditorSelection,
   Prec,
-  type EditorState,
   type Extension,
   type SelectionRange,
   type Text,
@@ -71,6 +70,7 @@ import {
   abandonEdit,
   advanceFromEmptyPlace,
   cancelOnDelete,
+  createdPlaceLine,
   provisionalCleanup,
 } from "./provisional-cleanup";
 
@@ -121,6 +121,7 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
         line: toLine.number - 1,
         ch: (actsOnSelection ? sel.to : planFrom) - toLine.from,
       },
+      createdPlaceLine(view) ?? undefined,
     );
 
     if (outcome === null) {
@@ -249,16 +250,21 @@ function notAnOutlineGesture(
  * select-all's content rung — a node's OWN lines — covers half in every shape,
  * list and paragraph alike.
  *
- * Gated on the cheap tests first (one empty cursor, on a blank line) so an
- * ordinary press costs a `trim()` rather than a second parse. A position needs a
- * single empty cursor by definition, so a multi-range selection keeps the raw
- * parse without a special case.
+ * Gated on `createdPlaceLine` — a place OUR keypress made — and not on the shape
+ * of the line, for the reason that function's own comment gives: a blank line the
+ * user authored between two paragraphs is byte-identical to one Shift+Enter
+ * opened inside one, and guessing changes what the press covers. It is also the
+ * cheap test, so an ordinary press costs a WeakMap lookup rather than a second
+ * parse. A place needs a single empty cursor by definition, so a multi-range
+ * selection keeps the raw parse without a special case.
  */
-function outlineFor(state: EditorState): OutlineDoc {
+function outlineFor(view: EditorView): OutlineDoc {
+  const { state } = view;
   const sel = state.selection.main;
-  if (sel.empty && state.selection.ranges.length === 1) {
+  const place = createdPlaceLine(view);
+  if (place !== null && sel.empty && state.selection.ranges.length === 1) {
     const line = state.doc.lineAt(sel.head);
-    if (line.text.trim() === "") {
+    if (line.number - 1 === place) {
       const resolved = resolvedOutline(
         state.doc.toString(),
         line.number - 1,
@@ -306,7 +312,7 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     if (!outlinePathOf(modes, view)) return false;
 
     const doc = view.state.doc;
-    const outlineDoc = outlineFor(view.state);
+    const outlineDoc = outlineFor(view);
 
     // A press that only moves within one node's own text is ordinary text
     // selection, not an outline gesture (design.md D11). Decided HERE rather
@@ -394,7 +400,7 @@ function makeSelectAllHandler(modes: ModeSource) {
     if (!outlinePathOf(modes, view)) return false;
 
     const doc = view.state.doc;
-    const outlineDoc = outlineFor(view.state);
+    const outlineDoc = outlineFor(view);
     const before = view.state.selection.ranges.map((range) =>
       toLineRange(doc, range),
     );

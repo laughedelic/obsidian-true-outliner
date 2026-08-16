@@ -222,6 +222,24 @@ The four STRUCTURAL keys have no such qualification. They change the document, a
 drops its record on any document change rather than cancelling, so the place survives the
 keypress and their fix is live on the first gesture. Confirmed by the Tab e2e.
 
+**Two things the review caught after the fix landed**, both measured.
+
+- **An operation may not derive the place from the document.** A blank line the user authored
+  between two paragraphs is byte-identical to one Shift+Enter opened inside one paragraph. Reading
+  the outline from document-and-caret alone, as the rendering does, made Tab with the caret on the
+  gap in `first␤␤para␤␤last␤` treat the two paragraphs as one node: `first␤␤- para␤  ␤  last␤`,
+  indenting a paragraph the user never touched. The planner is now TOLD which line holds a place
+  (`provisional-cleanup`'s `createdPlaceLine`, read by the adapter), which is the same rule
+  `node-edit-enforcement` already states for its own gap-line case. Pinned by a test that asserts
+  both halves — without the place line the gap stays a gap, with it the node resolves.
+- **The caret left the place on Tab.** `planFromOp` re-parsed the result raw, where the place is a
+  trailing gap again, so `caret-policy`'s addressability test refused it and fell back to the
+  moved node's content start. Resolving the RESULT through the same outline fixes indent: the
+  caret stays on the place at its new content column. Outdent still lands at the start of the line
+  below — its line-level edit maps a column at the end of the place onto the next line's start,
+  which is the mapping's assoc rule rather than this change's, and is asserted as measured rather
+  than papered over.
+
 **Deltas this adds** (task 1.5): `node-selection-extension` and `progressive-select-all`. Not
 `structural-operations`, which the proposal named as a candidate: every requirement there is
 about what an operation does to a GIVEN tree, and none of them changes — `indent` and `moveUp`

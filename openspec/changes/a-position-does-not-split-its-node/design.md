@@ -27,8 +27,8 @@ The structural keys read their own parse, through `parsedDoc(state.doc)`, and pa
 
 - One source of per-line facts while a position is open, shared by every consumer, so a
   widget-rendered displaced line cannot disagree with a plain one.
-- A change to the rendering that is provably identity outside the bisected node's own lines,
-  so the existing `markerVisibility` guard cannot regress.
+- A rendering that reproduces, for every line, the facts that line had before the keypress —
+  which is wider than the bisected node's own lines, and measured to be so.
 - A decision rule for the structural-key half that the measurement pass can apply without
   re-opening the design.
 
@@ -48,11 +48,18 @@ The structural keys read their own parse, through `parsedDoc(state.doc)`, and pa
 `docFacts(state)` unless a provisional position is open, and then one question decides
 everything: does the position JOIN an existing node, or does it stand for a NEW one?
 
-- **Joins** (its own materialized line is not a first line) — the position BISECTED a node, so
-  the raw parse of the buffer is wrong, and the tree the position stands for supplies the whole
-  document: every fact, every guide.
-- **Stands for a new node** — nothing but its own line changes, which is exactly today's
-  behaviour: raw facts everywhere, plus the position's own.
+- **Bisected a node** — its own materialized line is not a first line, AND a line of that node
+  remains below it. The raw parse of the buffer is wrong, and the tree the position stands for
+  supplies the whole document: every fact, every guide.
+- **Anything else** — a position standing for a NEW node, or one at a node's END that bisected
+  nothing — changes nothing but its own line, which is exactly today's behaviour: raw facts
+  everywhere, plus the position's own.
+
+The second half of the first test was added after the measurement (task 4.1): an end-of-node
+position joins its node too, and the rendering cannot tell the difference — the two parses agree
+about every line there — but an OPERATION can. A document's own final blank line joins the node
+above it, and `indent` re-emits that node's lines, so Tab at the end of a file wrote trailing
+whitespace onto it.
 
 *This started as a line span and was wrong three times.* Each attempt was killed by the
 differential property test below, in this order, and the sequence is the argument for the gate:
@@ -132,7 +139,16 @@ child of `- one` instead of continuing the item. The document is identical and t
 ruined. Both halves of the amended rule are satisfied by the same fix.)*
 
 The mechanism, if one is needed, is to give the grammar the RESOLVED tree for its targeting
-decisions while it keeps expressing edits against the buffer's own lines. Line numbers align
+decisions while it keeps expressing edits against the buffer's own lines.
+
+*(Amended after implementing it: the operation path may NOT derive the tree from document and
+caret alone, the way the rendering does. A blank line the user authored between two paragraphs is
+byte-identical to one Shift+Enter opened inside one paragraph, and measured, Tab with the caret on
+that gap read the two paragraphs as one node and indented both. So the planner is TOLD which line
+holds a place, by the adapter, from `provisional-cleanup`'s own record — the same "told apart by
+whether a structural keypress of ours created the position" rule `node-edit-enforcement` already
+states. D5's document-and-caret-alone derivation stands for the rendering, where the cost is a
+truthful preview rather than a wrong edit.)* Line numbers align
 exactly — the probe adds a character, never a line — so a node's line span in the resolved tree
 addresses the same lines in the buffer, with the position's line included in the bisected node's
 span. That inclusion is a feature for the operations that rewrite a node's lines: an indent that

@@ -704,7 +704,11 @@ describe('keyboard grammar', function () {
     expect(indented[2]).toBe(contIndent);
     expect(indented[3]!.trim()).toBe('bar');
 
-    await h.setCursor(2, contIndent.length);
+    // The caret is left exactly where the place moved to — asserted rather than
+    // set, since setting it here would mask a caret that had been dropped on the
+    // item's first line instead.
+    expect(await h.getCursor()).toEqual({ line: 2, ch: contIndent.length });
+
     await h.keys.type('x');
     const doc = parse(await h.getBuffer());
     expect(doc.children.length).toBe(1);

@@ -194,6 +194,25 @@ repair"). The fix is to derive the continuation prefix from the same rule the pa
 content column, rather than from a second regex that disagrees with it about a marker at
 end-of-line.
 
+### Outdent leaves the caret off the place it just moved
+
+Found while closing `a-position-does-not-split-its-node`. Tab on a provisional position interior
+to a node now leaves the caret ON the place, at its new content column — the operation's result is
+read through the same outline the operation acted on, so `caret-policy` sees the place as one of
+the node's own lines rather than as a trailing gap. Shift+Tab does not: its edit is line-level, so
+a pre-op column at the END of the place's line maps with assoc=1 onto the START of the line below,
+and the resolution is deliberately not consulted once the mapped position has left the place's own
+line.
+
+Measured: `- top` / `⇥- foo` / `⇥␣␣` (place) / `⇥␣␣bar`, Shift+Tab leaves the caret at line 3
+column 0 — the start of `␣␣bar` — where it belongs at line 2 column 2. Asserted as measured in
+`tests/grammar.test.ts` so a fix has to change it deliberately.
+
+Closing it means either clamping a mapped caret that leaves a place back onto it, which puts a
+placement rule in `grammar.ts` where `caret-placement-policy` says placement rules live, or giving
+`caret-policy` the place as a fact so it can own the rule. The second is the shape the rest of that
+policy already has.
+
 ### A caret parked on a blank line the user authored reads it as a bisection
 
 Design D5 of `a-position-does-not-split-its-node`, recorded as the price of deriving the layer
@@ -205,6 +224,12 @@ marker. Truthful about what typing there would do, and wrong about the document 
 
 Reachable only by a programmatic placement — `content-space-caret` redirects a click on a blank
 line to the node above and keeps every motion in content space — so no user gesture arrives here.
+
+**The operation path does NOT take this reading**, and the difference is worth stating: measured,
+Tab with the caret on that gap treated `alpha` and `beta` as one node and indented both. A wrong
+preview costs a redraw; a wrong edit costs the user's document. So the structural keys and the
+selection consumers are told which line holds a place, from `provisional-cleanup`'s own record,
+while the rendering keeps deriving it. The asymmetry is deliberate.
 Closing it means reading `provisional-cleanup.ts`'s created-place record from the decoration
 layer, which is exactly the view state D5 keeps out of a state-derived computation, and which
 `node-edit-enforcement` already accepts for its own gap-line rule. That precedent is the argument
