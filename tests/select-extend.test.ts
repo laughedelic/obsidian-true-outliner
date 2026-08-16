@@ -6,13 +6,11 @@ import { extendSelection, extendSelections, type ExtendDirection } from '../src/
 import {
   coveredForestOf,
   escalateRange,
-  rangesEqual,
   subtreeCoverOf,
-  type LinePos,
-  type LineRange,
 } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
 import { arbTree } from './generators';
+import { rangesEqual, type LinePos, type LineRange } from '../src/line-pos';
 
 const pos = (line: number, ch: number): LinePos => ({ line, ch });
 const caret = (line: number, ch: number): LineRange => ({ anchor: pos(line, ch), head: pos(line, ch) });

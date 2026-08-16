@@ -57,6 +57,7 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
+import { ownSpan } from './model';
 import { nodeAtLine } from './locate';
 import {
   coveredForestOf,
@@ -64,27 +65,12 @@ import {
   forestCoverOf,
   type Cover,
   type ForestCover,
-  type LinePos,
-  type LineRange,
 } from './escalate';
+import { isBackward, isEmptyRange, type LineRange } from './line-pos';
 
 /** Which way a press extends. Not CodeMirror's `Direction` (that one is
  * bidi text direction) — this is document order. */
 export type ExtendDirection = 'up' | 'down';
-
-function posBefore(a: LinePos, b: LinePos): boolean {
-  return a.line < b.line || (a.line === b.line && a.ch < b.ch);
-}
-
-function isEmpty(range: LineRange): boolean {
-  return range.anchor.line === range.head.line && range.anchor.ch === range.head.ch;
-}
-
-/** A backward range's head sits before its anchor: the selection grew
- * UPWARD, so its fixed end is the bottom one. */
-function isBackward(range: LineRange): boolean {
-  return posBefore(range.head, range.anchor);
-}
 
 /** Orient a cover as a range growing in `direction`: the head is the end
  * the next press would move, so growing down puts it at the bottom and
@@ -147,7 +133,7 @@ function normalize(
   doc: OutlineDoc,
   range: LineRange,
 ): { forest: ForestCover; normalized: boolean } | null {
-  if (!isEmpty(range)) {
+  if (!isEmptyRange(range)) {
     const forest = coveredForestOf(doc, range);
     if (forest) return { forest, normalized: false };
   }
@@ -171,13 +157,6 @@ function neighbourNode(
 ): OutlineNode | undefined {
   const line = direction === 'down' ? cover.end.line + 1 : cover.start.line - 1;
   return line < 0 ? undefined : nodeAtLine(doc, line);
-}
-
-/** A node's own line footprint — its own lines plus its owned trailing gap,
- * excluding descendants. The line just past it is its PREORDER successor,
- * which for a node with children is its own first child. */
-function ownSpanOf(node: OutlineNode): number {
-  return node.lines.length + node.trailingGap.length;
 }
 
 /**
@@ -211,7 +190,7 @@ function inwardCandidate(
   const { roots } = forest;
   if (backward) {
     const first = roots[0]!;
-    return nodeAtLine(doc, first.cover.start.line + ownSpanOf(first.node));
+    return nodeAtLine(doc, first.cover.start.line + ownSpan(first.node));
   }
   const last = roots[roots.length - 1]!;
   const line = last.cover.start.line - 1;

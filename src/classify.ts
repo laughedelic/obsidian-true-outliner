@@ -16,7 +16,8 @@ import type { OutlineDoc } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
 import { parse } from './parse';
 import { contentColumnCh } from './ops';
-import { coveredSubtreeRoots, type LinePos, type LineRange } from './escalate';
+import { coveredSubtreeRoots } from './escalate';
+import type { LinePos, LineRange } from './line-pos';
 
 export type TransactionClass =
   | 'programmatic'

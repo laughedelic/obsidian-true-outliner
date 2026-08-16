@@ -21,7 +21,6 @@ import {
   Transaction,
   type ChangeSpec,
   type Extension,
-  type SelectionRange,
   type Text,
   type TransactionSpec,
 } from '@codemirror/state';
@@ -31,8 +30,10 @@ import { editorInfoField, Notice } from 'obsidian';
 import type { OutlineDoc } from '../model';
 import { encodeLines } from '../encode';
 import { classify, type ChangedLineSpan, type TransactionFacts } from '../classify';
-import { escalateRanges, rangesEqual, type LinePos, type LineRange } from '../escalate';
+import { escalateRanges } from '../escalate';
+import { rangesEqual } from '../line-pos';
 import { resolvePlacement, resolveMarkerPlacement } from '../caret';
+import { linePosToOffset, offsetToLinePos, toLineRange } from './cm-pos';
 import { computeVerdictForRanges, type EditFact, type RewriteVerdict } from '../enforce';
 import type { Edit, RejectionReason } from '../result';
 import { applyEdits } from '../result';
@@ -50,15 +51,6 @@ export interface ClassificationSource extends ModeSource {
 /** Carries a veto's rejection reason to the update listener (design.md D6):
  * the filter attaches it, never shows the cue itself. */
 export const vetoEffect = StateEffect.define<RejectionReason>();
-
-function offsetToLinePos(doc: Text, pos: number): LinePos {
-  const line = doc.lineAt(pos);
-  return { line: line.number - 1, ch: pos - line.from };
-}
-
-function linePosToOffset(doc: Text, pos: LinePos): number {
-  return doc.line(pos.line + 1).from + pos.ch;
-}
 
 /** Old-document (`tr.startState.doc`) line spans touched by this
  * transaction's changes — inclusive on both ends (classify.ts's
@@ -127,10 +119,6 @@ function offsetInLines(lines: readonly string[], pos: { line: number; ch: number
   let offset = 0;
   for (let i = 0; i < pos.line && i < lines.length; i++) offset += (lines[i] ?? '').length + 1;
   return offset + pos.ch;
-}
-
-function toLineRange(doc: Text, range: SelectionRange): LineRange {
-  return { anchor: offsetToLinePos(doc, range.anchor), head: offsetToLinePos(doc, range.head) };
 }
 
 /**

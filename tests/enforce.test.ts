@@ -8,12 +8,12 @@ import { computeVerdict, computeVerdictForRanges, type EditFact, type Verdict } 
 import {
   coveredSubtreeRoots,
   escalateRange,
-  rangesEqual,
   subtreeCoverOf,
 } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
 import type { TransactionClass } from '../src/classify';
 import { arbTree } from './generators';
+import { rangesEqual } from '../src/line-pos';
 
 const pos = (line: number, ch: number) => ({ line, ch });
 

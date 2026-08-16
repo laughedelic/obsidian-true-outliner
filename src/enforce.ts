@@ -12,16 +12,15 @@
  */
 
 import type { OutlineDoc, OutlineNode } from './model';
-import { findPath, nodeAt } from './model';
-import { nodeAtLine } from './locate';
+import { childrenAt, findPath, nodeAt } from './model';
+import { nodeAtLine, nodeStartLine } from './locate';
 import {
   coveredForestOf,
   escalateRange,
   forestCoverOf,
   type ForestRoot,
-  type LinePos,
-  type LineRange,
 } from './escalate';
+import type { LinePos, LineRange } from './line-pos';
 import { parse } from './parse';
 import { encode, encodeLines } from './encode';
 import {
@@ -105,28 +104,6 @@ function vetoFrom(result: OpResult<OpOutput>): Verdict {
   return { kind: 'veto', reason: result.rejection.reason };
 }
 
-function startLineOf(doc: OutlineDoc, id: number): number {
-  let line = doc.preamble.length;
-  let found = -1;
-  const walk = (node: OutlineNode): void => {
-    if (found !== -1) return;
-    if (node.id === id) {
-      found = line;
-      return;
-    }
-    line += node.lines.length + node.trailingGap.length;
-    node.children.forEach(walk);
-  };
-  doc.children.forEach(walk);
-  return found;
-}
-
-function childrenAtScope(doc: OutlineDoc, scopePath: readonly number[]): readonly OutlineNode[] {
-  let list: readonly OutlineNode[] = doc.children;
-  for (const index of scopePath) list = list[index]!.children;
-  return list;
-}
-
 /**
  * The forest cover spanning `startNode`..`endNode`, as DELETION GROUPS —
  * one contiguous sibling run per parent, in document order, `groups[0]`
@@ -202,10 +179,10 @@ function contentSpacePredecessor(doc: OutlineDoc, nodeId: number): OutlineNode |
   if (!path) return undefined;
   const index = path[path.length - 1]!;
   if (index > 0) {
-    return deepestLastDescendant(childrenAtScope(doc, path.slice(0, -1))[index - 1]!);
+    return deepestLastDescendant(childrenAt(doc, path.slice(0, -1))[index - 1]!);
   }
   if (path.length === 1) return undefined;
-  return childrenAtScope(doc, path.slice(0, -2))[path[path.length - 2]!];
+  return childrenAt(doc, path.slice(0, -2))[path[path.length - 2]!];
 }
 
 /**
@@ -229,7 +206,7 @@ function recognizeMergeIntent(
     const node = nodeAtLine(doc, edit.from.line);
     if (
       node?.kind === 'list-item' &&
-      startLineOf(doc, node.id) === edit.from.line &&
+      nodeStartLine(doc, node.id) === edit.from.line &&
       edit.to.ch === contentColumnCh(node.lines[0] ?? '') &&
       posEq(edit.cursorBefore, edit.to)
     ) {
@@ -249,7 +226,7 @@ function recognizeMergeIntent(
   // boundary (gap owner or content node — same node either way) is the
   // content-space predecessor whose successor this is.
   const afterIsNodeStart =
-    after !== undefined && startLineOf(doc, after.id) === edit.to.line;
+    after !== undefined && nodeStartLine(doc, after.id) === edit.to.line;
   if (afterIsNodeStart && posEq(edit.cursorBefore, edit.to)) {
     return before ? before.id : 'native'; // preamble above: D5 jurisdiction, stock
   }
@@ -258,7 +235,7 @@ function recognizeMergeIntent(
   // trailing gap (or directly at a zero-gap boundary), cursor at content
   // end.
   if (before !== undefined && posEq(edit.cursorBefore, edit.from)) {
-    const lastContentLine = startLineOf(doc, before.id) + before.lines.length - 1;
+    const lastContentLine = nodeStartLine(doc, before.id) + before.lines.length - 1;
     if (edit.from.line === lastContentLine) return before.id;
   }
 
@@ -266,7 +243,7 @@ function recognizeMergeIntent(
   // shape — both sides content, zero gap — so cursor-less callers keep the
   // old, conservative behavior.
   if (edit.cursorBefore === undefined && before !== undefined && afterIsNodeStart) {
-    const lastContentLine = startLineOf(doc, before.id) + before.lines.length - 1;
+    const lastContentLine = nodeStartLine(doc, before.id) + before.lines.length - 1;
     if (edit.from.line === lastContentLine && before.trailingGap.length === 0) {
       return before.id;
     }
@@ -325,7 +302,7 @@ function survivorsOf(doc: OutlineDoc, ids: readonly number[]): Survivors {
   const indices = paths.map((p) => p[p.length - 1]!).sort((a, b) => a - b);
   const lo = indices[0]!;
   const hi = indices[indices.length - 1]!;
-  const siblings = childrenAtScope(doc, parentPath);
+  const siblings = childrenAt(doc, parentPath);
   return { parentPath, before: lo > 0 ? siblings[lo - 1] : undefined, after: siblings[hi + 1] };
 }
 
@@ -369,7 +346,7 @@ function deepestLastDescendant(node: OutlineNode): OutlineNode {
 
 function endOfSubtree(doc: OutlineDoc, node: OutlineNode): { line: number; ch: number } {
   const leaf = deepestLastDescendant(node);
-  const leafStart = startLineOf(doc, leaf.id);
+  const leafStart = nodeStartLine(doc, leaf.id);
   const lastLine = leaf.lines[leaf.lines.length - 1] ?? '';
   return { line: leafStart + leaf.lines.length - 1, ch: lastLine.length };
 }
@@ -392,7 +369,7 @@ function endOfInsertedRun(
   const firstNode = nodeAtLine(doc, firstBlockAnchor.line);
   if (!firstNode) return firstBlockAnchor; // defensive: shouldn't happen
   const path = findPath(doc, firstNode.id)!;
-  const siblings = childrenAtScope(doc, path.slice(0, -1));
+  const siblings = childrenAt(doc, path.slice(0, -1));
   const lastNode = siblings[path[path.length - 1]! + blockCount - 1] ?? firstNode;
   return endOfSubtree(doc, lastNode);
 }

@@ -21,7 +21,8 @@
  */
 
 import type { ListStyle, NodePath, OutlineDoc, OutlineNode } from './model';
-import { findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
+import { childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
+import { nodeStartLine } from './locate';
 import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
@@ -66,31 +67,10 @@ export interface OpOutput {
 const isContent = (node: OutlineNode): boolean =>
   node.kind === 'paragraph' || node.kind === 'list-item';
 
-function childrenAt(doc: OutlineDoc, path: readonly number[]): readonly OutlineNode[] {
-  return path.length === 0 ? doc.children : (nodeAt(doc, path)?.children ?? []);
-}
-
 /** Char offset where a line's content starts (after indent + marker). */
 export function contentColumnCh(line: string): number {
   const match = /^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+)?(?:#{1,6}[ \t]+)?/.exec(line);
   return match ? match[0].length : 0;
-}
-
-/** Start line of a node in a doc's encoding (ids preserved from surgery). */
-function startLineOf(doc: OutlineDoc, id: number): number {
-  let line = doc.preamble.length;
-  let found = -1;
-  const walk = (node: OutlineNode): void => {
-    if (found !== -1) return;
-    if (node.id === id) {
-      found = line;
-      return;
-    }
-    line += node.lines.length + node.trailingGap.length;
-    node.children.forEach(walk);
-  };
-  doc.children.forEach(walk);
-  return found; // -1 when absent; callers decide, rather than a silent line 0
 }
 
 /**
@@ -111,7 +91,7 @@ export function finalize(
   // at whatever occupied that line (in a note with frontmatter, the preamble).
   // Degrade to the same scope start `subjectId === undefined` produces, so an
   // absent subject is never mistaken for a located one.
-  const located = subjectId === undefined ? -1 : startLineOf(normalized, subjectId);
+  const located = subjectId === undefined ? -1 : nodeStartLine(normalized, subjectId);
   if (located === -1) {
     // No subject at all: the scope start. `preamble.length` is one PAST the
     // last line whenever the preamble has no trailing blank (frontmatter
@@ -755,7 +735,7 @@ export function splitNode(
     return reject('cannot-split');
   }
 
-  const startLine = startLineOf(doc, nodeId);
+  const startLine = nodeStartLine(doc, nodeId);
   const lineIndex = position.line - startLine;
   if (lineIndex < 0 || lineIndex >= node.lines.length) return reject('cannot-split');
   // A setext heading's second line is its underline, not text — no split point.
@@ -1036,7 +1016,7 @@ export function unwrapListItem(doc: OutlineDoc, nodeId: number): OpResult<OpOutp
 
   // Captured before the surgery: everything above this line is untouched, so
   // the blank line that replaces the item sits exactly where the item was.
-  const anchorLine = startLineOf(doc, nodeId);
+  const anchorLine = nodeStartLine(doc, nodeId);
   const parentPath = path.slice(0, -1);
   const index = path[path.length - 1]!;
   // One blank line in the item's place, plus whatever gap the item itself owned.

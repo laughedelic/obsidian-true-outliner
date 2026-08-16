@@ -13,10 +13,10 @@ import {
   coveredSubtreeRoots,
   forestCoverOf,
   subtreeCoverOf,
-  type LinePos,
 } from '../src/escalate';
 import { walkNodes } from '../src/model';
 import { nodeAtLine } from '../src/locate';
+import { type LinePos } from '../src/line-pos';
 
 const ALL_CLASSES: readonly TransactionClass[] = [
   'programmatic',

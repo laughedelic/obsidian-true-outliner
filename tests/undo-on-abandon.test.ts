@@ -16,10 +16,11 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 import { history, undo, undoDepth } from '@codemirror/commands';
 import { planKey, type GrammarKey } from '../src/plugin/grammar';
 import { parse } from '../src/parse';
-import { forestCoverOf, subtreeCoverOf, type LineRange } from '../src/escalate';
-import { nodeAtLine } from '../src/plugin/locate';
+import { forestCoverOf, subtreeCoverOf } from '../src/escalate';
+import { nodeAtLine } from '../src/locate';
 import type { EditorChange } from '../src/plugin/dispatch';
 import { recordablePlace } from '../src/plugin/provisional-cleanup';
+import { type LineRange } from '../src/line-pos';
 
 function makeState(doc: string): EditorState {
   return EditorState.create({ doc, extensions: [history()] });

@@ -15,7 +15,7 @@ import {
 } from '../src/ops';
 import { applyEdits, diffLines, type Edit } from '../src/result';
 import { OutlineModeRegistry } from '../src/plugin/mode-registry';
-import { nodeAtLine } from '../src/plugin/locate';
+import { nodeAtLine } from '../src/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
 import { planKey } from '../src/plugin/grammar';
 import { REJECTION_MESSAGES } from '../src/plugin/messages';
@@ -1075,6 +1075,31 @@ describe('rejection messages', () => {
 });
 
 describe('metadata cross-check', () => {
+  // `compareWithSections` only ever compares headings, so it cannot see a
+  // `topLevelSpans` that emits nested blocks too. Both of its clauses need
+  // pinning on docs where nesting is the point: depth 0, plus the escape that
+  // keeps a heading even when a shallower heading scopes it.
+  it('emits depth-0 blocks, excluding nested ones', () => {
+    // `- list` attaches to the paragraph above it (rules.ts), so only the
+    // paragraph and the heading sit at the top level.
+    const doc = parse('para one\n\n- list\n\t- nested\n\n# H\n\nunder\n');
+    expect(topLevelSpans(doc).map((s) => [s.type, s.startLine])).toEqual([
+      ['paragraph', 0],
+      ['heading', 5],
+    ]);
+  });
+
+  it('keeps a heading that a shallower heading scopes', () => {
+    // `## B` is `# A`'s child at depth 1; headings are the anchors both
+    // parsers must agree on, so it is emitted regardless of depth, while the
+    // section content under either heading is not.
+    const doc = parse('# A\n\ntext\n\n- list\n\t- nested\n\n## B\n');
+    expect(topLevelSpans(doc).map((s) => [s.type, s.startLine])).toEqual([
+      ['heading', 0],
+      ['heading', 7],
+    ]);
+  });
+
   it('agrees with itself on heading positions', () => {
     const doc = parse('# A\n\ntext\n\n## B\n\n- list\n');
     const sections = topLevelSpans(doc);

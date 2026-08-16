@@ -47,63 +47,22 @@
  */
 
 import type { NodePath, OutlineDoc, OutlineNode } from './model';
-import { findPath, nodeAt } from './model';
-import { nodeAtLine } from './locate';
-
-export interface LinePos {
-  readonly line: number;
-  readonly ch: number;
-}
-
-/** A selection range with orientation preserved: `anchor` is the drag/
- * extend origin, `head` is the current end — `head` may be before or after
- * `anchor` in document order ("backward" vs "forward"). */
-export interface LineRange {
-  readonly anchor: LinePos;
-  readonly head: LinePos;
-}
-
-function isEmpty(range: LineRange): boolean {
-  return range.anchor.line === range.head.line && range.anchor.ch === range.head.ch;
-}
-
-function posBefore(a: LinePos, b: LinePos): boolean {
-  return a.line < b.line || (a.line === b.line && a.ch < b.ch);
-}
-
-function isBackward(range: LineRange): boolean {
-  return posBefore(range.head, range.anchor);
-}
-
-function posEqual(a: LinePos, b: LinePos): boolean {
-  return a.line === b.line && a.ch === b.ch;
-}
-
-export function rangesEqual(a: LineRange, b: LineRange): boolean {
-  return posEqual(a.anchor, b.anchor) && posEqual(a.head, b.head);
-}
-
-/** A node's own absolute start line (0-based) in `doc`. */
-function startLineOf(doc: OutlineDoc, target: OutlineNode): number {
-  let line = doc.preamble.length;
-  let found = -1;
-  const walk = (node: OutlineNode): void => {
-    if (found !== -1) return;
-    if (node === target) {
-      found = line;
-      return;
-    }
-    line += node.lines.length + node.trailingGap.length;
-    node.children.forEach(walk);
-  };
-  doc.children.forEach(walk);
-  return found;
-}
+import { childrenAt, findPath, nodeAt, ownSpan } from './model';
+import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
+import {
+  isBackward,
+  isEmptyRange,
+  posBefore,
+  posEqual,
+  rangesEqual,
+  type LinePos,
+  type LineRange,
+} from './line-pos';
 
 /** Total line count of a node's own subtree (its lines + gap, plus every
  * descendant's), for skipping past a preceding sibling wholesale. */
 function subtreeLineCount(node: OutlineNode): number {
-  let count = node.lines.length + node.trailingGap.length;
+  let count = ownSpan(node);
   for (const child of node.children) count += subtreeLineCount(child);
   return count;
 }
@@ -124,27 +83,21 @@ function subtreeCoverEnd(node: OutlineNode, startLine: number): LinePos {
       // stored verbatim — `ch: 0` here, not the stored line's length, so
       // matching (`coveredSubtreeRoots`) doesn't depend on incidental
       // trailing whitespace within a "blank" gap line.
-      return { line: startLine + node.lines.length + node.trailingGap.length - 1, ch: 0 };
+      return { line: startLine + ownSpan(node) - 1, ch: 0 };
     }
     const lastLine = node.lines[node.lines.length - 1] ?? '';
     return { line: startLine + node.lines.length - 1, ch: lastLine.length };
   }
-  let line = startLine + node.lines.length + node.trailingGap.length;
+  let line = startLine + ownSpan(node);
   // Preceding siblings must be skipped by their FULL subtree size — a
-  // sibling's own lines+gap alone undercounts it if it has descendants of
-  // its own (the bug a naive `sibling.lines.length + sibling.trailingGap.
-  // length` sum would introduce: it silently landed inside an earlier
-  // sibling's subtree instead of at the actual last child).
+  // sibling's own lines+gap alone undercounts it if it has descendants of its
+  // own (the bug a naive `ownSpan(sibling)` sum would introduce: it silently
+  // landed inside an earlier sibling's subtree instead of at the actual last
+  // child).
   for (let i = 0; i < node.children.length - 1; i++) {
     line += subtreeLineCount(node.children[i]!);
   }
   return subtreeCoverEnd(node.children[node.children.length - 1]!, line);
-}
-
-function childrenAtScope(doc: OutlineDoc, scopePath: NodePath): readonly OutlineNode[] {
-  let list: readonly OutlineNode[] = doc.children;
-  for (const index of scopePath) list = list[index]!.children;
-  return list;
 }
 
 /** A contiguous line-range cover, `start` inclusive through `end` inclusive
@@ -160,26 +113,22 @@ export interface Cover {
  * descendant's content end, INCLUDING that leaf's own trailing gap in full
  * (see `subtreeCoverEnd`). Exported for `select-all-ladder.ts`. */
 export function subtreeCoverOf(doc: OutlineDoc, node: OutlineNode): Cover {
-  const start = startLineOf(doc, node);
+  const start = nodeStartLine(doc, node.id);
   return { start: { line: start, ch: 0 }, end: subtreeCoverEnd(node, start) };
 }
 
-/** Every node's own absolute start line, in ONE traversal. `startLineOf`
+/** Every node's own absolute start line, in ONE traversal. `nodeStartLine`
  * rescans the document per call, which is fine for the two lookups the
  * single-subtree paths need but quadratic for a forest whose root count
  * grows with the document (Select All being the limiting case). The
  * classification gate that now consumes this geometry runs inside the
- * keystroke-latency budget (`transaction-classification`), so the walk
- * below stays linear. */
+ * keystroke-latency budget (`transaction-classification`), so this stays
+ * linear. */
 function startLineIndex(doc: OutlineDoc): Map<number, number> {
   const index = new Map<number, number>();
-  let line = doc.preamble.length;
-  const walk = (node: OutlineNode): void => {
-    index.set(node.id, line);
-    line += node.lines.length + node.trailingGap.length;
-    node.children.forEach(walk);
-  };
-  doc.children.forEach(walk);
+  forEachNodeWithLine(doc, (node, startLine) => {
+    index.set(node.id, startLine);
+  });
   return index;
 }
 
@@ -193,7 +142,7 @@ function subtreeSuccessorPath(doc: OutlineDoc, path: NodePath): NodePath | undef
   while (p.length > 0) {
     const parentPath = p.slice(0, -1);
     const index = p[p.length - 1]!;
-    if (index + 1 < childrenAtScope(doc, parentPath).length) return [...parentPath, index + 1];
+    if (index + 1 < childrenAt(doc, parentPath).length) return [...parentPath, index + 1];
     p = parentPath;
   }
   return undefined;
@@ -372,7 +321,7 @@ function expandToCover(range: LineRange, cover: Cover): LineRange {
  * preserved.
  */
 export function escalateRange(doc: OutlineDoc, range: LineRange): LineRange {
-  if (isEmpty(range)) return range;
+  if (isEmptyRange(range)) return range;
 
   const anchorNode = nodeAtLine(doc, range.anchor.line);
   const headNode = nodeAtLine(doc, range.head.line);
@@ -382,7 +331,7 @@ export function escalateRange(doc: OutlineDoc, range: LineRange): LineRange {
     // Same node: untouched while both ends stay on the node's own content
     // lines; an end on a trailing gap line escalates to this one node's
     // subtree (the drag-past-the-end-selects-the-node gesture).
-    const start = startLineOf(doc, anchorNode);
+    const start = nodeStartLine(doc, anchorNode.id);
     const firstGapLine = start + anchorNode.lines.length;
     if (range.anchor.line < firstGapLine && range.head.line < firstGapLine) return range;
     return expandToCover(range, subtreeCoverOf(doc, anchorNode));
@@ -408,7 +357,7 @@ export function escalateRanges(doc: OutlineDoc, ranges: readonly LineRange[]): L
 
   return escalated.map((range, i) => {
     if (!rangesEqual(range, ranges[i]!)) return range; // already escalated
-    if (isEmpty(range)) return range; // cursors never move (this function's own scope — see ./caret.ts's resolvePlacement for cursor placement)
+    if (isEmptyRange(range)) return range; // cursors never move (this function's own scope — see ./caret.ts's resolvePlacement for cursor placement)
     const anchorNode = nodeAtLine(doc, range.anchor.line);
     const headNode = nodeAtLine(doc, range.head.line);
     if (!anchorNode || !headNode) return range; // preamble jurisdiction
@@ -454,7 +403,7 @@ export function escalateRanges(doc: OutlineDoc, ranges: readonly LineRange[]): L
  * escalated one, and is meant to be: the same thing is selected either way.
  */
 export function coveredForestOf(doc: OutlineDoc, range: LineRange): ForestCover | null {
-  if (isEmpty(range)) return null;
+  if (isEmptyRange(range)) return null;
 
   const lo = isBackward(range) ? range.head : range.anchor;
   const hi = isBackward(range) ? range.anchor : range.head;
@@ -464,7 +413,7 @@ export function coveredForestOf(doc: OutlineDoc, range: LineRange): ForestCover 
 
   const forest =
     anchorNode === headNode
-      ? singleRootCover(anchorNode, findPath(doc, anchorNode.id)!, startLineOf(doc, anchorNode))
+      ? singleRootCover(anchorNode, findPath(doc, anchorNode.id)!, nodeStartLine(doc, anchorNode.id))
       : forestCoverOf(doc, anchorNode, headNode);
 
   return posEqual(lo, forest.cover.start) && !posBefore(hi, forest.cover.end) ? forest : null;

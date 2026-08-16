@@ -81,6 +81,16 @@ export function isAtom(node: OutlineNode): boolean {
   return ATOM_KINDS.has(node.kind);
 }
 
+/**
+ * A node's own line footprint: its own lines plus the trailing gap it owns,
+ * excluding descendants — the blank-line-ownership rule above expressed once.
+ * The line just past it is its PREORDER successor, which for a node with
+ * children is its own first child.
+ */
+export function ownSpan(node: OutlineNode): number {
+  return node.lines.length + node.trailingGap.length;
+}
+
 /** Path from the root to a node: indices into successive `children` arrays. */
 export type NodePath = readonly number[];
 
@@ -106,6 +116,15 @@ export function findPath(doc: OutlineDoc, id: number): NodePath | undefined {
     return undefined;
   };
   return walk(doc.children, []);
+}
+
+/**
+ * The children list at `path` — the document's own top level for the empty
+ * path. A path resolving to nothing yields no children rather than throwing,
+ * so a stale path degrades to an empty scope.
+ */
+export function childrenAt(doc: OutlineDoc, path: NodePath): readonly OutlineNode[] {
+  return path.length === 0 ? doc.children : (nodeAt(doc, path)?.children ?? []);
 }
 
 /** Replace the children array at `path`'s parent level via a pure update. */
