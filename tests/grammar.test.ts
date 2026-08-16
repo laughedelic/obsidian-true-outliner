@@ -642,3 +642,137 @@ describe('grammar planner: a plan states how to abandon the place it makes', () 
     expect(composed.plan.abandon).toEqual(inner.plan.abandon);
   });
 });
+
+describe('grammar planner: a structural key acts on the node a position is inside', () => {
+  // The measured half of this change (its tasks.md — Findings). Each case is the
+  // same key on the same node, with and without an interior provisional position
+  // open, and the two must agree apart from the position's own line.
+
+  // The caret's own line is the PLACE — the line a structural keypress of ours
+  // opened, which the adapter reads from `provisional-cleanup` and the planner
+  // cannot derive. Passing it here is the precondition, not a convenience: the
+  // document alone cannot tell this blank line from one the user authored
+  // between two paragraphs, and an operation that guesses indents both of them
+  // (`createdPlaceLine`).
+  function press(text: string, cursor: { line: number; ch: number }, key: GrammarKey): string {
+    const outcome = planKey(text, cursor, key, undefined, undefined, cursor.line);
+    if (outcome === null) return '<declined>';
+    if ('notice' in outcome) return `<notice>`;
+    return applyPlan(text, outcome.plan).text;
+  }
+
+  /** Where the caret lands, as `{line, ch}` in the result. */
+  function caretAfter(
+    text: string,
+    cursor: { line: number; ch: number },
+    key: GrammarKey,
+  ): { line: number; ch: number } {
+    const outcome = planKey(text, cursor, key, undefined, undefined, cursor.line);
+    if (!outcome || 'notice' in outcome) throw new Error('expected a plan');
+    const { text: after, cursor: offset } = applyPlan(text, outcome.plan);
+    const head = after.slice(0, offset);
+    return { line: head.split('\n').length - 1, ch: offset - (head.lastIndexOf('\n') + 1) };
+  }
+
+  /** The result with the position's own line taken back out, for comparison. */
+  function withoutLine(text: string, predicate: (line: string) => boolean): string {
+    const lines = text.split('\n');
+    const at = lines.findIndex(predicate);
+    if (at !== -1) lines.splice(at, 1);
+    return lines.join('\n');
+  }
+
+  it('indent moves the whole item, and carries the position with it', () => {
+    const plain = '- one\n- foo\n  bar\n';
+    const open = '- one\n- foo\n  \n  bar\n';
+    expect(press(plain, { line: 1, ch: 5 }, 'indent')).toBe('- one\n  - foo\n    bar\n');
+    const after = press(open, { line: 2, ch: 2 }, 'indent');
+    // The position is re-indented along with the node's other lines, so it still
+    // stands for a continuation of the item: typing there continues `  - foo`,
+    // whose content column is now 4. Before this change it stayed at column 2 and
+    // typing made a paragraph child of `- one`.
+    expect(after).toBe('- one\n  - foo\n    \n    bar\n');
+    expect(withoutLine(after, (l) => l.trim() === '')).toBe('- one\n  - foo\n    bar\n');
+    // And the caret stays ON the place, at its new content column. The result is
+    // read through the same outline the operation acted on for exactly this
+    // reason: against the raw parse the position is a trailing gap, which
+    // `caret-policy` refuses as a caret target, and the caret fell back to the
+    // item's own first line — off the line the user was about to type into.
+    expect(caretAfter(open, { line: 2, ch: 2 }, 'indent')).toEqual({ line: 2, ch: 4 });
+  });
+
+  it('outdent likewise', () => {
+    const plain = '- top\n\t- foo\n\t  bar\n- next\n';
+    const open = '- top\n\t- foo\n\t  \n\t  bar\n- next\n';
+    expect(press(plain, { line: 1, ch: 6 }, 'outdent')).toBe('- top\n- foo\n  bar\n- next\n');
+    const after = press(open, { line: 2, ch: 4 }, 'outdent');
+    expect(after).toBe('- top\n- foo\n  \n  bar\n- next\n');
+    expect(withoutLine(after, (l) => l.trim() === '')).toBe('- top\n- foo\n  bar\n- next\n');
+    // The caret does NOT stay on the place here, and the reason is the mapping
+    // rather than this change: outdent's edit is line-level, so a pre-op column
+    // at the END of the place's line maps with assoc=1 onto the START of the
+    // line below it, and the after-resolution is deliberately not consulted for
+    // a mapped position that has left the place's own line. Measured, asserted
+    // so a future fix has to change it on purpose, and recorded in
+    // docs/research/12 beside the indent case this change does close.
+    expect(caretAfter(open, { line: 2, ch: 4 }, 'outdent')).toEqual({ line: 3, ch: 0 });
+  });
+
+  it('move-down does not walk half a paragraph past the other half', () => {
+    // The sharpest of the measured shapes: with no position open the key
+    // declines, because the paragraph is the heading's only child. With one open
+    // the raw parse sees two nodes and swaps them, reordering the user's text.
+    const plain = '# H\n\nalpha\nbeta\n\n# I\n';
+    const open = '# H\n\nalpha\n\nbeta\n\n# I\n';
+    expect(press(plain, { line: 2, ch: 5 }, 'move-down')).toBe('<notice>');
+    expect(press(open, { line: 3, ch: 0 }, 'move-down')).toBe('<notice>');
+  });
+
+  it('move-up moves the whole paragraph, not its upper half', () => {
+    const plain = '# H\n\nfirst\n\nalpha\nbeta\n';
+    const open = '# H\n\nfirst\n\nalpha\n\nbeta\n';
+    expect(press(plain, { line: 4, ch: 5 }, 'move-up')).toBe('# H\n\nalpha\nbeta\n\nfirst\n');
+    const after = press(open, { line: 5, ch: 0 }, 'move-up');
+    expect(withoutLine(after, (l) => l === '')).not.toBe('# H\n\nalpha\n\nfirst\n\nbeta\n');
+    expect(after).toBe('# H\n\nalpha\n\nbeta\n\nfirst\n');
+  });
+
+  it('indent does not turn half a paragraph into a list item', () => {
+    const plain = '# H\n\nfirst\n\nalpha\nbeta\n';
+    const open = '# H\n\nfirst\n\nalpha\n\nbeta\n';
+    expect(press(plain, { line: 4, ch: 5 }, 'indent')).toBe('# H\n\nfirst\n\n- alpha\n  beta\n');
+    // Both lines convert together, and the position takes the new item's
+    // continuation pad — so it still stands for a continuation of the item.
+    const after = press(open, { line: 5, ch: 0 }, 'indent');
+    expect(after).toBe('# H\n\nfirst\n\n- alpha\n  \n  beta\n');
+    expect(withoutLine(after, (l) => l.trim() === '' && l !== '')).toBe(
+      '# H\n\nfirst\n\n- alpha\n  beta\n',
+    );
+  });
+
+  it('will not treat a blank line the user AUTHORED as a place', () => {
+    // The document cannot tell the two apart, so the planner is told: without a
+    // place line from `provisional-cleanup`, the gap between two paragraphs is
+    // just a gap. Measured before the gate existed — Tab here read `para` and
+    // `last` as one node and produced `first␤␤- para␤  ␤  last␤`, indenting a
+    // paragraph the user never selected.
+    const text = 'first\n\npara\n\nlast\n';
+    const coverHead = { line: 3, ch: 0 };
+    const outcome = planKey(text, coverHead, 'indent');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyPlan(text, outcome.plan).text).toBe('first\n\n- para\n\nlast\n');
+    // And with a place line saying otherwise, the same call resolves the node —
+    // which is exactly why the adapter must not guess it.
+    const guessed = planKey(text, coverHead, 'indent', undefined, undefined, coverHead.line);
+    if (!guessed || !('plan' in guessed)) throw new Error('expected a plan');
+    expect(applyPlan(text, guessed.plan).text).toBe('first\n\n- para\n  \n  last\n');
+  });
+
+  it('leaves an end-of-node position alone — it bisected nothing', () => {
+    // The gate needs a line of the node below the position. Without this, Tab at
+    // the end of a document writes trailing whitespace onto its final blank line.
+    expect(press('First.\n\nSecond.\n', { line: 3, ch: 0 }, 'indent')).toBe(
+      'First.\n\n- Second.\n',
+    );
+  });
+});

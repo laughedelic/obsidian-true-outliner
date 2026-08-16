@@ -465,6 +465,48 @@ The new line is whitespace-only, so it re-parses as a gap rather than as part of
 the "one node" guarantee does not hold, and the caret is on a non-addressable line. Typing
 there does repair it into one node. Paragraphs and headings produce the same shape.
 
+**S11** at the end of a line that is not the node's LAST ❌ — S10's mechanism, at a node's middle
+instead of its end, where the same blank line bisects the node rather than trailing it. Measured
+2026-08-11 from a real-vault report ("the second line jumps to the right with a paragraph icon").
+
+```
+- foo|
+  bar
+────────
+- foo
+  |
+  bar        ← now a paragraph CHILD of the item, at depth 1
+```
+
+Node counts go 1→2 for a flat item and for a two-line paragraph, 2→3 for an item that already
+has children — so this is where "the tree SHALL have the same node count before and after the
+keypress" (`outline-keyboard-grammar`) is actually false. The trigger is exact: the caret at the
+END of a line that is not the node's last. Mid-text is unaffected, since the new line carries the
+text after the caret and is not blank.
+
+The displacement, measured with a 24px `--to-decor-unit` and a 20px marker gutter:
+
+| Shape | The line below the position | Before | While the position is open |
+|---|---|---|---|
+| `- foo` / `␣␣bar` | `␣␣bar` | list continuation, `margin-left: 0` | paragraph at depth 1, `padding-left: 44px`, ¶ marker |
+| the same under a heading | `␣␣bar` | list continuation, `margin-left: 24px` | paragraph at depth 2, `padding-left: 68px`, ¶ marker |
+| `- top` / `⇥- foo` / `⇥␣␣bar` | `⇥␣␣bar` | list continuation, `margin-left: 0` | paragraph at depth 2, `padding-left: 68px`, ¶ marker |
+| `alpha` / `beta` | `beta` | continuation, no marker | its own paragraph node, ¶ marker |
+
+Closed by `a-position-does-not-split-its-node`, which leaves the buffer as it is and resolves the
+outline above it: the rendering, the four structural keys, node extension, and the select-all
+ladder all read the tree the position stands for. What that change measured beyond the rendering
+is in its own tasks.md Findings — six of seven consumers were acting on the bisected parse, and a
+list bisection hides the defect a paragraph bisection exposes, because a list attaches the tail as
+a CHILD (carried along by any subtree operation) where a paragraph leaves it a SIBLING.
+
+**S12** at the end of a line whose marker has no trailing space ❌ — left open. `-` parses as an
+item with content column 2, but `LIST_CONT_RE` in `grammar.ts` requires whitespace after the
+marker, so Shift+Enter writes a column-0 line. Typing there makes a TOP-LEVEL paragraph, so the
+position belongs to no node and nothing downstream can repair it. Found by the differential
+property test in `tests/decorate.test.ts`, which pins it; recorded in
+[docs/research/12-decoration-follow-ups.md](12-decoration-follow-ups.md).
+
 ### C3. Atoms, gaps, preamble ✅ — declined.
 
 ### C4. Unspecified

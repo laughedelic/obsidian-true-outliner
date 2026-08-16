@@ -68,6 +68,7 @@ import {
   abandonEdit,
   advanceFromEmptyPlace,
   cancelOnDelete,
+  createdPlaceLine,
   provisionalCleanup,
 } from "./provisional-cleanup";
 
@@ -118,6 +119,7 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
         line: toLine.number - 1,
         ch: (actsOnSelection ? sel.to : planFrom) - toLine.from,
       },
+      createdPlaceLine(view) ?? undefined,
     );
 
     if (outcome === null) {
@@ -234,6 +236,35 @@ function notAnOutlineGesture(
   // line to move to, rather than snapping every unrendered range to a cover.
   return doc.lineAt(moved.head).number !== doc.lineAt(range.head).number;
 }
+
+/**
+ * NOTE — the node-extension and select-all handlers deliberately read the RAW
+ * parse, even while a provisional position is open interior to a node.
+ *
+ * Both are measurably wrong there: a bisected node reads as two, so extension
+ * covers only the half above the position wherever the tail becomes a sibling,
+ * and the select-all content rung — a node's OWN lines — covers half in every
+ * shape (the a-position-does-not-split-its-node change's Findings). The pure
+ * functions are correct given `resolvedOutline`'s tree; the problem is that no
+ * adapter can currently decide when to hand it to them.
+ *
+ * Resolving the outline requires knowing the blank line is a PLACE, which the
+ * document cannot say — an authored blank line between two paragraphs is
+ * byte-identical to one Shift+Enter opened inside one — so the structural keys
+ * are told, from `provisional-cleanup`'s per-view record. That record is exactly
+ * what these two handlers cannot use: with it live, either handler's own
+ * dispatch is a selection that LEAVES the position, which is the abandon
+ * gesture, so the place is removed before any cover is visible (measured, and
+ * pinned in `e2e/specs/30-keyboard-grammar.e2e.ts`). Without it — after a redo,
+ * or once a document change has dropped it — there is no provenance to read.
+ * The one state where the fix would show is the one state where the record is
+ * gone.
+ *
+ * So this is left as it is rather than wired to a gate that cannot open.
+ * Closing it means giving a provisional position provenance that survives undo
+ * and redo, which is a change of its own; recorded with its measurements in
+ * docs/research/12-decoration-follow-ups.md.
+ */
 
 /**
  * Shift+ArrowUp/Shift+ArrowDown (node-selection-extension): intercepts

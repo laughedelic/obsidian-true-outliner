@@ -285,6 +285,31 @@ function liveRecord(view: EditorView): CreatedPlace | undefined {
 }
 
 /**
+ * The line holding the place THIS view's last structural keypress created, or
+ * null — the same guard the cleanup itself uses, exposed for the one other
+ * question that needs it.
+ *
+ * A structural operation acting on a bisected node has to know that the blank
+ * line inside it is a PLACE, and the document cannot say: a blank line the user
+ * authored between two paragraphs is byte-identical to one Shift+Enter opened
+ * inside one paragraph. `enter-and-shift-enter-grammar`'s D1 met the same
+ * ambiguity between Enter's position and Shift+Enter's and answered it by
+ * making the two documents differ; here they cannot be made to differ, because
+ * one of them is a document the user already wrote.
+ *
+ * The RENDERING layer can live with that (`decorate-provisional-positions` D5
+ * takes the truthful reading either way, and the cost is recorded in
+ * docs/research/12). An OPERATION cannot: measured, Tab with the caret on the
+ * gap between `para` and `last` treated the two paragraphs as one node and
+ * indented both. So the operation path asks this instead, which is the same
+ * "told apart by whether a structural keypress of ours created the position"
+ * rule `node-edit-enforcement` already states for its own gap-line case.
+ */
+export function createdPlaceLine(view: EditorView): number | null {
+  return liveRecord(view)?.line ?? null;
+}
+
+/**
  * Enter ON an empty place moves past it: the user is saying "not here". The
  * caret goes to the next node's content start, and the keypress that created
  * the place is cancelled when it is still cancellable — so pressing Enter twice

@@ -84,6 +84,7 @@ import {
   computePositionTrail,
   decorate,
   materializeProbe,
+  positionBisectsANode,
   type GuideHighlight,
   type MarkerHighlight,
   type LineDecorationFact,
@@ -286,6 +287,12 @@ interface Provisional {
   readonly line: number;
   readonly fact: LineDecorationFact;
   readonly doc: OutlineDoc;
+  /**
+   * True when the position JOINS an existing node rather than standing for a new
+   * one (`positionBisectsANode`). It is the gate that decides whether the WHOLE
+   * document's facts come from `doc` — see `factsFor`.
+   */
+  readonly joins: boolean;
 }
 
 const provisionalCache = new WeakMap<EditorState, Provisional | null>();
@@ -306,8 +313,73 @@ function computeProvisional(state: EditorState): Provisional | null {
   const probe = materializeProbe(state.doc.toString(), line.number - 1, sel.head - line.from);
   if (probe === null) return null;
   const doc = parse(probe);
-  const fact = decorate(doc).find((f) => f.lineNumber === line.number - 1);
-  return fact ? { line: line.number - 1, fact, doc } : null;
+  const facts = decorate(doc);
+  const fact = facts.find((f) => f.lineNumber === line.number - 1);
+  if (!fact) return null;
+  return {
+    line: line.number - 1,
+    fact,
+    doc,
+    joins: positionBisectsANode(facts, line.number - 1),
+  };
+}
+
+/**
+ * The per-line facts and guides every consumer renders from — `docFacts` unless
+ * a provisional position is open, and the tree that position stands for when one
+ * is and it JOINS a node (`positionBisectsANode`).
+ *
+ * The gate is the whole rule. A position that joins a node BISECTED it, so the
+ * raw parse of the buffer is wrong about that node, about what it still has as a
+ * child, about a line the artifact swallowed beyond it, and about which guides
+ * reach any of them. All of those are the position's doing and the resolved tree
+ * is right about all of them at once, so it supplies the whole document. A
+ * position that stands for a NEW node changes nothing but its own line, and gets
+ * exactly the treatment it has always had: the raw facts, plus its own.
+ *
+ * Guides ride the gate too, though an earlier draft of this change argued they
+ * provably could not need to. They can: `####### seven` / `<div>` / `- item`
+ * attaches the item to the paragraph, and bisecting the paragraph turns its tail
+ * into an html block that a list does not attach to — so the item's guide column
+ * would blink out on a line the keypress never touched. The claim survived
+ * reasoning and died to the differential property test in
+ * `tests/decorate.test.ts`, which is the reason that test exists.
+ *
+ * Cached per `EditorState`, like the trail and for the same reason: three
+ * consumers read it on the same render, and a CM6 state is immutable, so one
+ * identity fixes the document and the selection together.
+ */
+const overlayCache = new WeakMap<EditorState, DocFacts>();
+
+function factsFor(state: EditorState): DocFacts {
+  const cached = overlayCache.get(state);
+  if (cached) return cached;
+
+  const provisional = provisionalAt(state);
+  let computed: DocFacts;
+  if (!provisional) {
+    computed = docFacts(state);
+  } else if (provisional.joins) {
+    const facts = decorate(provisional.doc);
+    const guides = computeLineGuides(provisional.doc);
+    computed = {
+      facts,
+      factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
+      guides,
+      guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
+    };
+  } else {
+    const base = docFacts(state);
+    const facts = [...base.facts, provisional.fact].sort((a, b) => a.lineNumber - b.lineNumber);
+    computed = {
+      ...base,
+      facts,
+      factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
+    };
+  }
+
+  overlayCache.set(state, computed);
+  return computed;
 }
 
 /**
@@ -770,15 +842,11 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
 
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
-  // The provisional fact joins the document's own, in line order — a marker on
-  // the caret's position is not a special case, it is the marker the line it
-  // stands for would carry, under the same eligibility and visibility gates. A
-  // continuation position is not a first line, so it gets none, exactly as the
-  // real continuation line it is about to become gets none.
-  const provisional = provisionalAt(state);
-  const facts = provisional
-    ? [...docFacts(state).facts, provisional.fact].sort((a, b) => a.lineNumber - b.lineNumber)
-    : docFacts(state).facts;
+  // A marker on the caret's position is not a special case, it is the marker the
+  // line it stands for would carry, under the same eligibility and visibility
+  // gates — and so is the marker a bisected node's displaced line must NOT carry.
+  // `factsFor` answers both.
+  const { facts } = factsFor(state);
   for (const fact of facts) {
     // List items keep their fully native marker, untouched (same exclusion
     // guides already use); continuation lines never repeat the marker. The
@@ -883,23 +951,20 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // RangeSetBuilder) and look up the matching decorate() fact by line
   // number instead of assuming index alignment, since gap lines have no
   // corresponding entry there at all.
-  const { factsByLine, guides } = docFacts(state);
+  // `factsFor` has already put the caret's own provisional line among the facts,
+  // so a position takes the full treatment here rather than the guide-only one,
+  // and a bisected node's displaced lines take the facts they had. Every OTHER
+  // gap line still keeps the guide-only decoration: this layer renders where the
+  // user currently is, not every blank line in the document.
+  const { factsByLine, guides } = factsFor(state);
   const trail = positionTrail(state, modes);
-  const provisional = provisionalAt(state);
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
   for (const guide of guides) {
     if (guide.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const from = state.doc.line(guide.lineNumber + 1).from; // CM6 lines are 1-indexed
     const lineTrail = trail.byLine.get(guide.lineNumber);
-    // The caret's own provisional line takes the full treatment, from the fact
-    // it would have once a character lands there. Every OTHER gap line keeps the
-    // guide-only decoration: this layer renders where the user currently is, not
-    // every blank line in the document.
-    const fact =
-      provisional && provisional.line === guide.lineNumber
-        ? provisional.fact
-        : factsByLine.get(guide.lineNumber);
+    const fact = factsByLine.get(guide.lineNumber);
     if (guide.isGapLine && !fact) {
       if (!hasOverlay(guide, lineTrail)) continue; // nothing to draw
       builder.add(from, from, gapLineDecoration(guide, lineTrail));
@@ -1025,6 +1090,9 @@ const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
  */
 function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string> {
   const { doc } = parsedDoc(state.doc);
+  // `docFacts`, not `factsFor`: a provisional position requires a single empty
+  // cursor and a cover requires a non-empty one, so the two cannot coexist and
+  // routing this through the overlay would imply a case that cannot happen.
   const { factsByLine } = docFacts(state);
   const totalLines = state.doc.lines;
   const targets = new Map<number, string>();
@@ -1113,6 +1181,7 @@ function computeSelectionDecorations(state: EditorState, modes: DecorationSource
   if (!path || !modes.isOutline(path)) return Decoration.none;
 
   const totalLines = state.doc.lines;
+  // Raw facts here too, for the reason `selectedLineRootTargets` states.
   const { factsByLine } = docFacts(state);
   const builder = new RangeSetBuilder<Decoration>();
   const targets = Array.from(selectedLineRootTargets(state).entries()).sort((a, b) => a[0] - b[0]);
@@ -1911,7 +1980,11 @@ class MarginCompensation implements PluginValue {
     this.measureChevron();
     this.measureSelectionColor();
 
-    const { factsByLine, guidesByLine } = docFacts(this.view.state);
+    // `factsFor`, not `docFacts`: a line Obsidian renders as a widget takes the
+    // same overlay a plain one does, or a displaced line would move here while
+    // its plain neighbour did not (`decorate-widget-rendered-lines`' own rule,
+    // applied to this change's facts).
+    const { factsByLine, guidesByLine } = factsFor(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
     const selectedLineTargets = selectedLineRootTargets(this.view.state);
     // Position indicators reach widget atoms the same way everything else

@@ -24,6 +24,7 @@ import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits, diffLines } from '../result';
 import { nodeAtLine, nodeStartLine } from '../locate';
+import { resolvedOutline } from './decorate';
 import { coveredForestOf } from '../escalate';
 import { groupRootsByParent } from '../enforce';
 import { planCaret, type CaretOp } from '../caret-policy';
@@ -163,16 +164,32 @@ function planFromOp(
   before: OutlineDoc,
   abandonForm: AbandonForm,
   mapCursorFrom?: EditorPos,
+  placeLine?: number,
 ): GrammarOutcome {
   if (!result.ok) return { notice: REJECTION_MESSAGES[result.rejection.reason] };
   const changes = editsToChanges(lines, result.value.edits);
   const newLines = applyEdits(lines, result.value.edits);
-  const after = parse(newLines.join('\n'));
+  const afterText = newLines.join('\n');
 
   const mapped =
     mapCursorFrom === undefined
       ? undefined
       : posInLines(newLines, mapCursorForward(lines, changes, mapCursorFrom));
+
+  // The RESULT is read through the same outline the operation acted on, or the
+  // caret cannot stay where it was. A place the operation carried along is still
+  // a blank line in the raw parse of the result, so `caret-policy`'s
+  // addressability test rejects it as a trailing gap and falls back to the moved
+  // node's content start — Tab on an interior position moved the caret to the
+  // item's first line, off the line the user was about to type into.
+  //
+  // Gated on the place's own line, and on the mapped caret still being on it:
+  // indent and outdent add and remove no lines, so the place keeps its index,
+  // and anywhere else this would be guessing that a blank line is a place.
+  const after =
+    (placeLine !== undefined && mapped?.line === placeLine
+      ? resolvedOutline(afterText, mapped.line, mapped.ch)
+      : null) ?? parse(afterText);
 
   const { caret } = planCaret(op, { before, after, anchor: result.value.anchor, mapped });
 
@@ -406,6 +423,7 @@ export function planKey(
   key: GrammarKey,
   fallbackIndentUnit?: string,
   selectionEnd?: EditorPos,
+  placeLine?: number,
 ): GrammarOutcome {
   if (
     selectionEnd !== undefined &&
@@ -439,24 +457,53 @@ export function planKey(
   // keys behave stock.
   if (!onOwnLines && (key === 'split' || key === 'continue')) return null;
 
+  // A structural operation acts on the OUTLINE, which is not the raw parse while
+  // a provisional position is open interior to a node: the blank line bisects
+  // that node, so `moveDown` walks half a paragraph past the other half, `indent`
+  // turns half of one into a list item, and a cover stops at the position (all
+  // measured — see the change's Findings). `resolvedOutline` is that tree, in the
+  // buffer's own text so the edits it produces are correct against the buffer.
+  //
+  // `placeLine` — the line a structural keypress of OURS put a place on, which
+  // only the adapter can know (`provisional-cleanup.ts`'s `createdPlaceLine`) —
+  // is what makes this safe. The document alone cannot tell a place from a blank
+  // line the user authored between two paragraphs, and here the difference has
+  // teeth: measured, Tab with the caret on the gap between `para` and `last`
+  // read the two as one node and indented both. The rendering layer takes the
+  // truthful reading either way (`decorate-provisional-positions` D5); an
+  // operation may not guess.
+  //
+  // Deliberately NOT used for the gates above. They decide whether the key is
+  // declined at all, and the resolved tree makes the position one of the node's
+  // own lines — so `onOwnLines` would become true there, and Enter on a position
+  // would start splitting it instead of advancing past it
+  // (`provisional-cleanup.ts`'s `advanceFromEmptyPlace`). What the key targets
+  // changes; whether the key applies does not.
+  const outline =
+    placeLine === cursor.line ? resolvedOutline(text, cursor.line, cursor.ch) : null;
+  const opDoc = outline ?? doc;
+  const opNode = outline ? nodeAtLine(outline, cursor.line) : node;
+  if (!opNode) return null;
+
   switch (key) {
     case 'indent':
       return planFromOp(
         lines,
-        indent(doc, node.id, fallbackIndentUnit),
+        indent(opDoc, opNode.id, fallbackIndentUnit),
         'input.structure.indent',
         { kind: 'derived' },
-        doc,
+        opDoc,
         'none',
         cursor,
+        placeLine,
       );
     case 'outdent':
       return planFromOp(
         lines,
-        outdent(doc, node.id, fallbackIndentUnit),
+        outdent(opDoc, opNode.id, fallbackIndentUnit),
         'input.structure.outdent',
         { kind: 'derived' },
-        doc,
+        opDoc,
         // Shift+Tab reaches the same operation the empty-item ladder does, and
         // an outdent that lands an empty item under a paragraph dissolves it
         // into a blank line. Stating the form by OPERATION rather than by key
@@ -464,23 +511,24 @@ export function planKey(
         // already keys on where the caret landed, not on which key ran.
         'drop-line',
         cursor,
+        placeLine,
       );
     case 'move-up':
       return planFromOp(
         lines,
-        moveUp(doc, node.id),
+        moveUp(opDoc, opNode.id),
         'move.structure',
         { kind: 'subject' },
-        doc,
+        opDoc,
         'none',
       );
     case 'move-down':
       return planFromOp(
         lines,
-        moveDown(doc, node.id),
+        moveDown(opDoc, opNode.id),
         'move.structure',
         { kind: 'subject' },
-        doc,
+        opDoc,
         'none',
       );
     case 'split': {
