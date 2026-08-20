@@ -1,0 +1,1 @@
+/openspec-apply-change use unit tests and scoped narrow e2e tests during implementation, push to the PR for the full e2e CI run (slow, >10m)
