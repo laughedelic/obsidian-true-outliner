@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
-import { walkNodes, type OutlineDoc } from '../src/model';
+import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import {
   indent,
   outdent,
@@ -20,6 +20,23 @@ function byLine(doc: OutlineDoc, line: string): number {
     if (node.lines[0] === line) return node.id;
   }
   throw new Error(`no node with line: ${line}`);
+}
+
+/** The first line of the node whose child has this first line; `null` at the
+ * top level. Pins a subject's PLACE IN THE TREE, which is what an indent that
+ * falls short of its destination's content column silently fails to change. */
+function parentLineOf(doc: OutlineDoc, childLine: string): string | null {
+  function search(nodes: readonly OutlineNode[], parent: string | null): string | null | undefined {
+    for (const node of nodes) {
+      if (node.lines[0] === childLine) return parent;
+      const found = search(node.children, node.lines[0] ?? '');
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+  const found = search(doc.children, null);
+  if (found === undefined) throw new Error(`no node with line: ${childLine}`);
+  return found;
 }
 
 function applyOk(
@@ -226,6 +243,41 @@ describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
   it('a caller-supplied space width is used for brand-new indentation', () => {
     const { text } = applyWithUnit(indent, '- a\n- b\n', '- b', '    ');
     expect(text).toBe('- a\n    - b\n');
+  });
+
+  // The chosen unit is evidence about WIDTH, and no source of that evidence —
+  // a sibling, the document, the caller — knows how wide the destination
+  // parent's own marker is. These pin the resulting PARENT rather than the
+  // text: the defect they cover emitted a plausible-looking document whose
+  // re-parse left the subject exactly where it started, with the op reporting
+  // success and consuming an undo step.
+  it('an indent reaches an ordered parent\'s content column, not just the inferred unit', () => {
+    // `1. a` has no children, so the unit is inferred from `  - y` elsewhere:
+    // two spaces, one short of `1. a`'s content column of 3.
+    const { text, doc } = applyWithUnit(indent, '- x\n  - y\n1. a\n- b\n', '- b', undefined);
+    expect(parentLineOf(doc, '   - b')).toBe('1. a');
+    expect(text).toBe('- x\n  - y\n1. a\n   - b\n');
+  });
+
+  it("a wide ordered marker widens the indentation to match", () => {
+    // `10. ` is four columns; two-space and tab evidence alike must clear it.
+    const { doc } = applyWithUnit(indent, '- x\n  - y\n10. a\n- b\n', '- b', undefined);
+    expect(parentLineOf(doc, '    - b')).toBe('10. a');
+  });
+
+  it('an outdent re-parents following siblings at the new parent\'s content column', () => {
+    // `1. a` leaves p for the top level and adopts its former following
+    // sibling `- b` as a child — under its own content column of 3.
+    const { text, doc } = applyOk(outdent, '- p\n  1. a\n  - b\n', '  1. a');
+    expect(parentLineOf(doc, '   - b')).toBe('1. a');
+    expect(text).toBe('- p\n1. a\n   - b\n');
+  });
+
+  it('indentation that already clears the content column keeps its own unit', () => {
+    // A tab is four columns, wider than `1. a` needs: it stays a tab rather
+    // than being rewritten to the minimum.
+    const { text } = applyWithUnit(indent, '- x\n\t- y\n\n1. a\n- b\n', '- b', undefined);
+    expect(text).toBe('- x\n\t- y\n\n1. a\n\t- b\n');
   });
 
   it("existing document indentation still wins over the fallback (doesn't override an established style)", () => {

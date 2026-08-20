@@ -130,6 +130,27 @@ When no fallback is supplied, the existing two-space default SHALL still apply.
 Existing-document inference SHALL still take priority over the fallback whenever it
 has evidence to act on — the fallback only ever governs the true no-evidence case.
 
+Whatever the chosen unit, the resulting indentation SHALL REACH the destination
+parent's own content column. Every source of the unit — a sibling, the document,
+the fallback — is evidence about width alone, and none of it knows how wide the
+destination parent's marker is: a two-space unit under an ordered parent whose
+content column is three left the new node SHORT of the column, so the re-parse
+kept it a SIBLING of that parent. The operation reported success and consumed an
+undo step while changing nothing structurally. This is the mirror of the
+too-deep case above, and only a shortfall is repaired — indentation that already
+clears the column keeps the unit the evidence chose.
+
+#### Scenario: Indentation short of the destination's content column is widened
+- **WHEN** a node is indented under a parent whose content column is wider than the
+  unit the document infers (an ordered item, a wide marker)
+- **THEN** the new indentation reaches that content column, and the re-parsed tree
+  has the node as a CHILD of that parent rather than its sibling
+
+#### Scenario: Indentation that already clears the column keeps its unit
+- **WHEN** the inferred or supplied unit is wider than the destination parent's
+  content column
+- **THEN** that unit is used unchanged rather than narrowed to the column
+
 #### Scenario: A destination sibling's indentation wins, whatever its kind
 - **WHEN** a node is placed among children that are indented with a tab and none
   of them is a list item

@@ -345,6 +345,42 @@ export function destinationIndent(
   siblingsAtDestination: readonly OutlineNode[],
   fallbackIndentUnit?: string,
 ): string {
+  return reachContentColumn(
+    chooseIndent(doc, parent, siblingsAtDestination, fallbackIndentUnit),
+    parent,
+  );
+}
+
+/**
+ * Indentation that actually REACHES the destination parent's content column.
+ *
+ * Every source `chooseIndent` draws on — a sibling's whitespace, the
+ * document's inferred unit, the caller's fallback — is evidence about WIDTH,
+ * and none of it knows how wide the destination parent's own marker is.
+ * Indenting `- b` under `1. a` (content column 3) with two spaces inferred
+ * from elsewhere in the document emitted `  - b`, one column short: the
+ * re-parse left the node a SIBLING of `1. a`, so the op reported success and
+ * consumed an undo step while moving nothing structurally.
+ *
+ * The requirement's existing reasoning covers the other direction — an indent
+ * too DEEP re-parents destination siblings under the new node — and this is
+ * its mirror. Only a shortfall is repaired: an indent that already clears the
+ * column keeps whatever the evidence chose (a tab stays a tab).
+ */
+function reachContentColumn(indentText: string, parent: OutlineNode | 'root'): string {
+  const shortfall = childBaseCol(parent) - indentWidth(indentText);
+  // Spaces AFTER the chosen indentation, never before it: padding ahead of a
+  // tab vanishes into the tab stop. `shiftLine` in reencode.ts makes the same
+  // choice for the same reason.
+  return shortfall > 0 ? indentText + ' '.repeat(shortfall) : indentText;
+}
+
+function chooseIndent(
+  doc: OutlineDoc,
+  parent: OutlineNode | 'root',
+  siblingsAtDestination: readonly OutlineNode[],
+  fallbackIndentUnit?: string,
+): string {
   // A sibling at the destination, of ANY kind. Siblings share an indentation
   // level by construction, so their own whitespace is better evidence than an
   // inferred unit — and the inferred unit is what produced a measured
