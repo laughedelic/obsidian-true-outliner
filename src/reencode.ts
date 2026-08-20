@@ -61,6 +61,26 @@ function shiftLine(line: string, delta: number, keepBlank: boolean): string {
   return (remaining < 0 ? ' '.repeat(-remaining) : '') + line.slice(i);
 }
 
+/**
+ * Shift everything a node's CONTENT COLUMN governs — its continuation lines
+ * and its whole subtree — while its own first line stays where it is.
+ *
+ * For a marker that changes WIDTH rather than position: renumbering `9.` to
+ * `10.` moves the content column one to the right without moving the line the
+ * marker sits on. Measured, the children left behind stop being children —
+ * they no longer reach the column, so the re-parse reads them as siblings of
+ * the item they belonged to. Narrowing (`10.` to `9.`) strands them one column
+ * too deep instead, which keeps the tree but drifts the indentation.
+ */
+export function shiftBelowMarker(node: OutlineNode, delta: number): OutlineNode {
+  if (delta === 0) return node;
+  return {
+    ...node,
+    lines: node.lines.map((line, i) => (i === 0 ? line : shiftLine(line, delta, isAtom(node)))),
+    children: node.children.map((child) => shiftSubtree(child, delta)),
+  };
+}
+
 export function shiftSubtree(node: OutlineNode, delta: number): OutlineNode {
   if (delta === 0) return node;
   return {

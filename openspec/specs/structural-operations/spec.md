@@ -198,7 +198,18 @@ reordering, except ordered-list markers which are renumbered.
 When an operation changes the membership or order of a sibling list, every maximal run of
 consecutive ordered list items among those siblings SHALL be renumbered consecutively from
 that run's START NUMBER, and only the marker digits SHALL change — the rest of each item's
-line, its children, and its trailing gap are untouched.
+line and its trailing gap are untouched.
+
+Where the new digits differ in COUNT from the old ones, the marker changes WIDTH, and the
+item's content column moves while the line the marker sits on does not. The item's
+continuation lines and its whole subtree SHALL move with that column. Leaving them behind
+breaks the closure this requirement already demands: measured, `9.` renumbered to `10.`
+left the item's children a column short, so they no longer reached it and the re-parse
+returned them as its SIBLINGS — the subtree the operation never touched, silently
+reshaped. Narrowing (`10.` to `9.`) strands them a column too deep instead, which keeps
+the tree and drifts the indentation. This clause and "its children are untouched", as the
+requirement first read, cannot both hold at a digit boundary; the implementation followed
+the narrower one and lost the tree.
 
 A run's start number is the number the run began with. How that number is recovered depends
 on the SHAPE of the transformation, and the two cases differ precisely because a permutation
@@ -240,6 +251,16 @@ always retain the run's own head.
 Renumbering is the one documented exception to "edits touch only the lines the operation
 semantically requires", and renumbered output SHALL still satisfy operation closure: the
 encoded run re-parses to the same tree.
+
+#### Scenario: A widening marker carries its subtree
+- **WHEN** a renumbering makes an item with children `10.` where it was `9.`
+- **THEN** the children are re-indented to the item's new content column and remain its
+  children in the re-parsed tree
+
+#### Scenario: A narrowing marker brings its subtree back in
+- **WHEN** a renumbering makes an item with children `9.` where it was `10.`
+- **THEN** the children are re-indented to the narrower content column rather than being
+  left a column deeper than the item requires
 
 #### Scenario: Deleting the head of an ordered run
 - **WHEN** `deleteSubtrees` removes the first two items of `1. a` / `2. b` / `3. c`

@@ -393,6 +393,32 @@ describe('sibling reordering', () => {
     expect(text).toBe('5. two\n6. one\n7. three\n');
   });
 
+  // A renumbering that crosses a DIGIT BOUNDARY changes the marker's WIDTH,
+  // which moves the item's content column while the marker's own line stays
+  // put. Pinned by the resulting PARENT: children left at the old column stop
+  // reaching it and the re-parse hands them back as siblings.
+  describe('renumbering across a digit boundary carries the subtree', () => {
+    const RUN = ['1. p1', '2. p2', '3. p3', '4. p4', '5. p5', '6. p6', '7. p7', '8. p8', '9. p9'];
+
+    it('widening 9. to 10. keeps the children children', () => {
+      // `1. a` outdents into the run, becoming its tenth member; its former
+      // sibling `- b` comes with it as a child. Both moved correctly, and then
+      // the marker grew a digit underneath them.
+      const { text, doc } = applyOk(outdent, `${RUN.join('\n')}\n   1. a\n   - b\n`, '   1. a');
+      expect(parentLineOf(doc, '    - b')).toBe('10. a');
+      expect(text).toBe(`${RUN.join('\n')}\n10. a\n    - b\n`);
+    });
+
+    it('narrowing 10. to 9. pulls the children in with it', () => {
+      // The mirror: indenting the run's head removes a member, so `10. ten`
+      // becomes `9. ten`. Its child stays a child either way — one column too
+      // deep is still nested — so this pins the indentation itself.
+      const md = ['- x', ...RUN, '10. ten', '    - kid'].join('\n') + '\n';
+      const { text } = applyOk(indent, md, '1. p1');
+      expect(text).toContain('9. ten\n   - kid\n');
+    });
+  });
+
   it('rejects reorder across the heading/content divide and level mismatch', () => {
     expectReject(moveUp, '# H\n\nPara after.\n\n## Sub\n', '## Sub', 'cannot-reorder-across-heading-boundary');
     expectReject(moveDown, '### Three\n\n## Two\n', '### Three', 'cannot-reorder-across-heading-boundary');

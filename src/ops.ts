@@ -34,6 +34,7 @@ import {
   leadingWhitespace,
   markerWidth,
   reencodeForDestination,
+  shiftBelowMarker,
   shiftSubtree,
 } from './reencode';
 
@@ -260,13 +261,19 @@ function renumberRuns(
       const number = startNumber + k;
       const style = node.listStyle as { type: 'ordered'; number: number; delimiter: '.' | ')' };
       if (style.number === number) return;
-      out[at + k] = {
+      const renumbered: OutlineNode = {
         ...node,
         listStyle: { ...style, number },
         lines: node.lines.map((line, li) =>
           li === 0 ? line.replace(ORDERED_MARKER_RE, `$1${number}$2`) : line,
         ),
       };
+      // A renumbering that crosses a DIGIT BOUNDARY changes the marker's width,
+      // which moves the item's content column without moving the line the
+      // marker is on. Everything that column governs — continuation lines and
+      // the whole subtree — moves with it, or the children stop reaching the
+      // column and the re-parse hands them back as siblings.
+      out[at + k] = shiftBelowMarker(renumbered, `${number}`.length - `${style.number}`.length);
     });
   }
   return out;
