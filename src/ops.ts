@@ -379,8 +379,17 @@ export function destinationIndent(
  * too DEEP re-parents destination siblings under the new node — and this is
  * its mirror. Only a shortfall is repaired: an indent that already clears the
  * column keeps whatever the evidence chose (a tab stays a tab).
+ *
+ * A LIST ITEM only. Its content column is what the parse requires of a child,
+ * so falling short of it is what un-nests the node. A paragraph's child list
+ * attaches by ADJACENCY instead (`listAttachesTo`), and its column is free:
+ * an indented paragraph can own a flush-left list, so `   Para.` owning `- x`
+ * would clamp a new sibling of `- x` out to three columns and bury it
+ * underneath `- x` rather than beside it. Measured — and `childBaseCol`'s
+ * paragraph branch is the approximation it warns about, not a requirement.
  */
 function reachContentColumn(indentText: string, parent: OutlineNode | 'root'): string {
+  if (parent === 'root' || parent.kind !== 'list-item') return indentText;
   const shortfall = childBaseCol(parent) - indentWidth(indentText);
   // Spaces AFTER the chosen indentation, never before it: padding ahead of a
   // tab vanishes into the tab stop. `shiftLine` in reencode.ts makes the same

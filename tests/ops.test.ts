@@ -291,6 +291,16 @@ describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
     expect(text).toBe('1. a\n   - b\n');
   });
 
+  it('a paragraph parent keeps its destination sibling, unclamped', () => {
+    // An indented paragraph can own a FLUSH-LEFT list: `- x` attaches to
+    // `   Para.` by adjacency, not by column. So the paragraph's own indent is
+    // not a floor — clamping `B` out to it would bury the new item underneath
+    // `- x` instead of placing it beside `- x`.
+    const { text, doc } = applyWithUnit(indent, '   Para.\n- x\n\nB.\n', 'B.', undefined);
+    expect(parentLineOf(doc, '- B.')).toBe('   Para.');
+    expect(text).toBe('   Para.\n- x\n\n- B.\n');
+  });
+
   it('indentation that already clears the content column keeps its own unit', () => {
     // A tab is four columns, wider than `1. a` needs: it stays a tab rather
     // than being rewritten to the minimum.
