@@ -6,7 +6,7 @@
 
 import type { OutlineNode } from './model';
 import { isAtom } from './model';
-import { indentWidth } from './parse';
+import { indentWidth, TAB_WIDTH } from './parse';
 
 const LIST_MARKER_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]?)/;
 
@@ -50,21 +50,32 @@ function shiftLine(line: string, delta: number, keepBlank: boolean): string {
     // vanish into the tab stop and corrupt the width arithmetic.
     return ws + ' '.repeat(delta) + line.slice(ws.length);
   }
-  // Dedent: drop leading whitespace characters until what REMAINS sits at or
-  // before the target column, then make up the difference with spaces.
+  // Dedent: keep as much of the original indentation as FITS inside the target
+  // column, then make up the remainder with spaces. One forward pass, and the
+  // result is exactly `target` columns by construction.
   //
-  // Both halves have to be measured rather than counted. A tab's width depends
-  // on where it starts, so subtracting a flat 4 per tab is wrong the moment
-  // spaces precede one: ` \t` is four columns, and dropping the space leaves a
-  // tab that re-expands from zero to four again — the line had not moved at
-  // all. And the repair goes AFTER the surviving whitespace, never before it,
-  // for the reason the indent path above already gives: spaces in front of a
-  // tab vanish into the tab stop, so prepending one to `\t` bought nothing.
+  // The column has to be measured as the line is walked rather than counted
+  // per character. A tab's width depends on where it starts, so subtracting a
+  // flat 4 per tab is wrong the moment anything precedes one: ` \t` is four
+  // columns, and dropping the space leaves a tab that re-expands from zero to
+  // four again — the line had not moved at all.
+  //
+  // Keeping a PREFIX rather than dropping one is what makes this a single
+  // pass, and it suits a tab-indented vault better besides: dropping from the
+  // left destroys whole tabs first, where keeping from the left retains them
+  // and spends the odd remainder on spaces. The padding therefore lands AFTER
+  // the kept whitespace, never before it — the same reason the indent path
+  // above gives, that a space in front of a tab vanishes into the tab stop.
   const target = Math.max(0, indentWidth(line) + delta);
+  let width = 0;
   let i = 0;
-  while (i < ws.length && indentWidth(ws.slice(i)) > target) i++;
-  const kept = ws.slice(i);
-  return kept + ' '.repeat(target - indentWidth(kept)) + line.slice(ws.length);
+  while (i < ws.length) {
+    const next = ws[i] === '\t' ? width + TAB_WIDTH - (width % TAB_WIDTH) : width + 1;
+    if (next > target) break;
+    width = next;
+    i++;
+  }
+  return ws.slice(0, i) + ' '.repeat(target - width) + line.slice(ws.length);
 }
 
 /**

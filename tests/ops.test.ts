@@ -260,9 +260,19 @@ describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
   });
 
   it("a wide ordered marker widens the indentation to match", () => {
-    // `10. ` is four columns; two-space and tab evidence alike must clear it.
+    // `10. ` is four columns, wider than the two spaces inferred from `  - y`.
     const { doc } = applyWithUnit(indent, '- x\n  - y\n10. a\n- b\n', '- b', undefined);
     expect(parentLineOf(doc, '    - b')).toBe('10. a');
+  });
+
+  it('a TAB that falls short of the content column is padded after the tab', () => {
+    // `1000. ` is six columns and a tab is four, so even tab evidence has a
+    // shortfall here — the case the two-space tests above cannot reach, and
+    // the one that pins WHERE the padding goes. Two spaces before the tab
+    // would vanish into its tab stop and leave the line four columns wide.
+    const { text, doc } = applyWithUnit(indent, '- x\n\t- y\n\n1000. a\n- b\n', '- b', undefined);
+    expect(parentLineOf(doc, '\t  - b')).toBe('1000. a');
+    expect(text).toBe('- x\n\t- y\n\n1000. a\n\t  - b\n');
   });
 
   it('an outdent re-parents following siblings at the new parent\'s content column', () => {
