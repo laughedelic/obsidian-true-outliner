@@ -273,6 +273,14 @@ describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
     expect(text).toBe('- p\n1. a\n   - b\n');
   });
 
+  it("a supplied fallback under an ordered parent is padded, not replaced", () => {
+    // The caller asked for spaces and still gets spaces — the shortfall is
+    // made up from the same unit rather than the choice being overridden.
+    const { text, doc } = applyWithUnit(indent, '1. a\n- b\n', '- b', '  ');
+    expect(parentLineOf(doc, '   - b')).toBe('1. a');
+    expect(text).toBe('1. a\n   - b\n');
+  });
+
   it('indentation that already clears the content column keeps its own unit', () => {
     // A tab is four columns, wider than `1. a` needs: it stays a tab rather
     // than being rewritten to the minimum.

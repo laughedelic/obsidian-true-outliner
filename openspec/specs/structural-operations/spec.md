@@ -158,14 +158,24 @@ clears the column keeps the unit the evidence chose.
   keeps its own depth in the re-parsed tree
 
 #### Scenario: No fallback supplied keeps the existing two-space default
-- **WHEN** a node is indented under a list-item parent with no existing indented list
-  item anywhere in the document, and no fallback indent unit is supplied
-- **THEN** the new indentation is two spaces, exactly as before this requirement existed
+- **WHEN** a node is indented under a bulleted list-item parent with no existing
+  indented list item anywhere in the document, and no fallback indent unit is supplied
+- **THEN** the unit chosen is two spaces, exactly as before this requirement existed,
+  and it is also the final indentation — a bullet's content column is two, so there
+  is nothing to pad
 
 #### Scenario: A supplied fallback governs brand-new indentation
 - **WHEN** the same indent is performed with a caller-supplied fallback of a tab
   character (or a specific space width)
-- **THEN** the new indentation uses that exact unit instead of the two-space default
+- **THEN** the unit chosen is that exact unit instead of the two-space default, and
+  under a bulleted parent it is the final indentation unchanged
+
+#### Scenario: A chosen unit narrower than the content column is padded, not replaced
+- **WHEN** either of the two scenarios above is performed under an ORDERED parent,
+  whose content column is wider than the chosen unit
+- **THEN** the chosen unit still governs — the fallback is not overridden by some
+  other unit — and the final indentation is that unit padded out to the content
+  column, because a unit that stops short of it does not nest the node at all
 
 #### Scenario: Existing document indentation still wins over the fallback
 - **WHEN** the document already has an indented list item using tabs elsewhere, and a
