@@ -72,6 +72,13 @@ selected and a repeated press keeps acting on them. This selection SHALL be an e
 under `node-selection-enforcement`'s geometry, so the transaction filter's escalation leaves
 it unchanged and no correction follows the dispatch.
 
+It SHALL be a SINGLE range. That is not an extra constraint on this rule but a consequence of
+`structural-operations`' operand rules: indent and outdent leave a cover's roots adjacent at any
+depth, and the reorders accept only a single sibling run — the restriction that exists precisely
+because a multi-scope reorder scatters the roots. A block selection is told from a multi-cursor
+one by holding exactly one range, so an operation that returned several would leave the editor in
+a state neither this capability nor `node-selection-extension` can read back.
+
 Where the pre-operation selection was NOT a cover — a bare caret, or a character range within
 one node — the dispatch SHALL state a CARET decided by `caret-placement-policy`, exactly as
 today. The discriminator is the shape of the selection the operation acted on, not the number
@@ -105,6 +112,12 @@ covered subtree.
 - **WHEN** a character range inside one node is selected and indent is invoked
 - **THEN** the dispatch states a caret from `caret-placement-policy` — the mapped pre-operation
   position — and no block chrome appears
+
+#### Scenario: A rejected operation leaves the selection alone
+- **WHEN** move up is invoked over a cover whose roots sit under two different parents, and the
+  operation is rejected
+- **THEN** the document and the selection are both unchanged and one cue appears — the cover the
+  user built is still selected afterward
 
 #### Scenario: Re-parented nodes join the recomputed cover
 - **WHEN** a node with following siblings under the same parent is outdented from a

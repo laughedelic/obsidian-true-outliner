@@ -16,6 +16,33 @@ each covered root IN TURN, each step evaluated against the tree the previous ste
   forest cover is a document-order interval closed under descendants, so no group's parent can
   be a member of another group.
 
+Move up and move down SHALL additionally require the operand to be a SINGLE group — one
+contiguous sibling run under one parent — and SHALL reject a multi-parent forest with
+`cannot-reorder-across-scopes`. Indent and outdent carry no such restriction and apply to a
+forest of any shape.
+
+The asymmetry is measured, not stylistic. A reorder moves each group WITHIN ITS OWN SCOPE, so
+a cover whose roots sit at different depths is scattered rather than moved: on
+
+    L0
+    - L1
+      - L2
+      - L3   <- covered
+      - L4   <- covered
+
+    L5       <- covered
+
+move up carries `L5` to the top of the document while `L3` and `L4` shuffle inside `L1`. The
+roots end up separated by content that was never selected, which is not a weaker version of
+the requested gesture but a different one. Measured over generated documents biased toward
+multi-parent covers: every accepted multi-parent move up left the roots torn apart (13 of 13),
+while indent and outdent left them adjacent in every accepted case (101 of 101). Multi-parent
+move down was never accepted at all — its last root is its scope's last child — so it is
+restricted on the same rule rather than on its own evidence.
+
+Indent and outdent are unaffected because their destination is derived per group from that
+group's own previous sibling or parent, and a group's roots stay adjacent under it.
+
 Stating the algebra as a composition rather than as new rules is what keeps the two-regime
 per-kind algebra intact without restating it. A heading root still level-shifts and a
 non-heading root still reparents under the run's previous sibling; a sibling run mixing the
@@ -59,6 +86,17 @@ included, so no existing behaviour changes when the operand resolves to one node
   so the operand holds two groups
 - **THEN** each group outdents within its own parent's scope, and the result equals applying
   the single-node outdent to every root in document order
+
+#### Scenario: A reorder across scopes is rejected
+- **WHEN** the group move up is invoked for a cover whose roots sit under two different
+  parents
+- **THEN** the operation is rejected with `cannot-reorder-across-scopes` and the document is
+  unchanged — neither group is moved within its own scope
+
+#### Scenario: A reorder within one scope is unaffected
+- **WHEN** the group move up or move down is invoked for a cover whose roots are one
+  contiguous sibling run
+- **THEN** the run moves as a unit exactly as the composition prescribes
 
 #### Scenario: A single-root group is the single-node operation
 - **WHEN** any group form is invoked with exactly one root
@@ -119,9 +157,13 @@ landing position, and it does not replace it: the anchor still answers where a c
 the span answers which nodes the operation acted on.
 
 The span SHALL be CONTIGUOUS and SHALL be an exact whole-subtree cover of the result tree, so a
-caller can dispatch it directly as a selection with no further computation. Contiguity holds
-because a cover's roots keep their relative order and each group's roots stay adjacent under
-their destination parent.
+caller can dispatch it directly as a selection with no further computation.
+
+Contiguity is a CONSEQUENCE of the operand rules above, not an independent hope. For indent and
+outdent it holds at any cover shape: each group's roots keep their relative order and stay
+adjacent under their destination parent. For the reorders it holds because they accept only a
+single sibling run, which is exactly the restriction that rules out the scattering case — the
+one shape measured to break it.
 
 #### Scenario: The span covers every moved root
 - **WHEN** a group indent moves three sibling subtrees under a previous sibling

@@ -66,6 +66,11 @@ swaps `a` past `b` — a member of its own operand. Reverse order gives the run 
 own neighbour. Indent, outdent and move up are correct in document order (outdent is
 order-independent, checked by hand on `- p / - x / - y / - z`).
 
+*Composition is the right definition for indent and outdent at ANY cover shape, and for the
+reorders only within ONE scope.* Measured, not assumed — see D8. The spec states the
+restriction on the reorders' operand rather than weakening the composition rule, so the
+definition stays one sentence.
+
 *Alternative rejected:* stating fresh multi-root rules per kind. That is a second copy of the
 algebra, and the mixed-kind sibling run is exactly where two copies would drift.
 
@@ -101,12 +106,11 @@ This extends `OpOutput` alongside the existing `anchor` rather than replacing it
 load-bearing elsewhere — `enforce.ts`'s delete-then-splice locates the surviving neighbour by it
 — and it answers a different question: where a caret would go, not which nodes moved.
 
-*Assumption to verify first (task 1.1):* that the moved subtrees stay CONTIGUOUS, so the span is
-one range. The argument is that a cover's roots keep their relative order and each group's roots
-stay adjacent under their destination parent. It is stated in the spec and is the first thing the
-property test should attack, because a counterexample changes the after-state rule from "one
-range" to something the block-selection discriminator (one range = block selection) cannot
-express.
+*Contiguity was the assumption this rested on, and task 1.1 measured it before anything was
+built on it.* It holds for indent and outdent at any cover shape, and fails for the reorders
+across scopes — which is what D8 restricts. With that restriction the span is one range by
+construction, so the after-state rule needs no runtime contiguity check and no multi-range
+fallback.
 
 ### D4. The after-state is keyed on whether the operand WAS a cover
 
@@ -153,14 +157,84 @@ the last root in document order, which is the one adjacent to the obstacle. The 
 `REJECTION_MESSAGES` table is reused with no new entries; `empty-selection` already exists for
 the empty-forest case.
 
+### D8. The reorders take a single sibling run; indent and outdent take any forest
+
+Task 1.1 ran first, as its own gate, and returned a split answer.
+
+**Measured** over generated documents biased toward multi-parent covers (labelled nodes, the
+sequential composition applied, then the result's roots checked against the forest cover
+spanning them):
+
+| operation | multi-parent cover, accepted | roots left adjacent |
+|---|---|---|
+| indent | 46 | 46 |
+| outdent | 55 | 55 |
+| move up | 13 | **0** |
+| move down | 0 | — (never accepted) |
+
+The reorder failure is not a contiguity technicality, it is the gesture meaning something else.
+Each group moves within its own scope, so on
+
+    L0
+    - L1
+      - L2
+      - L3   <- covered
+      - L4   <- covered
+
+    L5       <- covered
+
+move up sends `L5` to the top of the document while `L3`/`L4` shuffle inside `L1`. Nothing
+about that is a weaker version of "move these three up".
+
+So the moves reject a multi-parent operand with `cannot-reorder-across-scopes`, checkable up
+front from the group count. Move DOWN is restricted on the same rule despite never being
+observed to tear: its last root is its scope's last child, so the multi-parent case is
+essentially always rejected already, and one rule beats two that differ by which one the
+generator happened to reach.
+
+*Alternatives rejected.* Normalizing a mixed-depth cover up to its shallowest common scope
+moves more than the user selected — the surprise is worse than the rejection. Allowing a
+multi-range after-state breaks the discriminator `node-selection-extension` and the decoration
+layer both read (one range is a block selection, several are multi-cursor), which is a much
+larger change than this one. Rejecting post-hoc on a computed contiguity check makes the
+contract a property of the result rather than a precondition, and costs a full surgery pass to
+discover a rejection.
+
+### D9. A pre-existing indent bug was in the way, and is fixed separately
+
+`destinationIndent` returned `parentIndent + inferIndentUnit(doc)` for a list-item parent,
+which ignores the parent's MARKER WIDTH. Indenting `- b` under `1. a` emitted `  - b` while
+`1. a`'s content column is 3, so `finalize`'s re-parse left `b` a top-level sibling: the
+operation reported success, edited the document, consumed an undo step, and changed nothing
+structurally.
+
+It surfaced here because it made indent look like it violated contiguity — 37 apparent
+failures that vanished entirely once ordered markers were excluded from the generator, which
+is how it was identified rather than guessed at.
+
+Worth recording for anyone extending the property suite: `closure.test.ts` cannot catch this
+class of bug at all. `finalize` returns `doc: parse(text)`, so `treesEqual(result.doc,
+parse(encode(result.doc)))` is true by construction. A test that catches it has to assert the
+SUBJECT's resulting parent or depth.
+
+Fixed on its own branch (PR #51, `fix(ops): an indent has to reach the destination's content
+column`). This change REBASES on it and assumes it fixed; the group property tests would
+otherwise fail for a reason that has nothing to do with them.
+
 ## Risks / Trade-offs
 
 - **The one-pass surgery silently disagrees with the composition** → D1 makes the composition
   the spec, and the property test compares group result against the naive loop over generated
   documents. This is the single highest-value test in the change; write it before the fast path.
-- **Non-contiguous results break the one-range after-state** (D3) → verified first, as task 1.1,
-  by property test rather than by argument. If it fails, the after-state rule needs revisiting
-  before any dispatch work is done, which is why it is first.
+- **Non-contiguous results break the one-range after-state** (D3) → measured first, as task 1.1,
+  and the failing case is excluded by D8's restriction rather than handled. The property test
+  stays in the suite over the restricted operand, so a later widening of what the reorders
+  accept fails it rather than shipping a scattered selection.
+- **`cannot-reorder-across-scopes` is a rejection users can reach** with two Shift+Arrow presses
+  and one Mod+Shift+Arrow → it is the honest answer for a gesture with no single meaning, and
+  the cue names it. If real use finds it obstructive, the thread to pull is the scope-crossing
+  move in Open Questions, which would give the reorders somewhere to put a root that runs out
+  of siblings.
 - **A group op's minimal edits regress to whole-region rewrites** → `minimal-change-dispatch`'s
   existing assertions cover single-node ops; the group cases need their own, especially "a node
   between two groups is byte-identical". A non-minimal change set is not just inefficient here:
@@ -190,6 +264,17 @@ dispatch sites are the only behavioural switches.
   default hotkey) is a decided design point in `editor-structural-commands`, and re-opening it is
   a keymap question, not a selection one. The grammar keeps implementing the moves as planned
   keys either way.
+- **Moving a node into its parent's SIBLING — out of one scope and into the next at the same
+  depth.** Raised while reviewing this change and deliberately left out of it. Today a move
+  rejects when the node runs out of siblings; the request is that it should instead cross into
+  the neighbouring scope, for a single node and for a run alike. It is a change to what a MOVE
+  means for one node — `structural-operations` currently defines the reorders as a permutation
+  within one sibling list — and it is reachable with a bare caret and no selection at all, which
+  is the tell that it is not this change's question. It needs its own destination rule (first
+  child or last?), its own encoding rule when the destination scope's kind differs, and it
+  interacts with the ordered-run renumbering contract on TWO sibling lists rather than one.
+  Worth designing AFTER this change lands, so it inherits the group operand rather than
+  building a second one; and it is the natural way to make `cannot-reorder-across-scopes` rarer.
 - **Whether an operation that rejects should say WHICH root it rejected on.** The cue currently
   names the reason only. A message naming the node is a message-table change with its own UX
   question, and it does not affect the specs, the approach, or the tasks.

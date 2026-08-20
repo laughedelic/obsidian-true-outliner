@@ -1,15 +1,26 @@
+## 0. Rebase
+
+- [ ] 0.1 Rebase this branch on PR #51 (`fix(ops): an indent has to reach the destination's
+      content column`). The group property tests assume it: without it, indent under an ordered
+      parent reports success while changing nothing structurally, which reads as a contiguity
+      failure that has nothing to do with this change (design D9)
+
 ## 1. Verify the assumptions before building on them
 
-- [ ] 1.1 Property test the CONTIGUITY assumption (design D3): over generated documents and
-      generated covers, apply each single-node operation to every covered root in turn and assert
-      the moved subtrees occupy one contiguous whole-subtree cover in the result. This gates the
-      one-range after-state rule — if it fails, stop and revisit the spec's after-state
-      requirement before writing any dispatch code
-- [ ] 1.2 Characterize today's behaviour as an e2e probe on `20-structural-commands` /
+- [x] 1.1 Property test the CONTIGUITY assumption (design D3) — **done, and it returned a split
+      answer that changed the spec.** Indent and outdent leave a cover's roots adjacent at any
+      shape (101 accepted multi-parent cases, 0 torn); move up scatters them in every accepted
+      multi-parent case (13 of 13); move down was never accepted on one. D8 restricts the
+      reorders to a single sibling run as a result. Support landed in `tests/group-oracle.ts`
+      (labelled generator + composition oracle) and `tests/group-composition.test.ts`
+- [ ] 1.2 Re-point the contiguity property at the RESTRICTED operand — reorders only over a
+      single group — so it passes, and keep it in the suite: a later widening of what the
+      reorders accept must fail it rather than silently shipping a scattered selection
+- [ ] 1.3 Characterize today's behaviour as an e2e probe on `20-structural-commands` /
       `30-keyboard-grammar`: Tab over a three-item cover selected downward and upward, recording
       the exact resulting buffers, so the pre-change behaviour is documented rather than
       described (and so the negative control for §5 exists)
-- [ ] 1.3 Confirm `groupRootsByParent`'s output is the shape the group ops want for a mixed-depth
+- [ ] 1.4 Confirm `groupRootsByParent`'s output is the shape the group ops want for a mixed-depth
       cover — one contiguous run per parent, groups independent — against a hand-built example
       with roots at three depths
 
@@ -29,6 +40,13 @@
 - [ ] 2.6 Atomic rejection: pre-check the whole composition and return the first failing step's
       typed reason in application order, leaving the tree unchanged (design D7);
       `empty-selection` for an empty forest
+- [ ] 2.6a `moveGroupsUp`/`moveGroupsDown` reject a multi-parent operand with
+      `cannot-reorder-across-scopes` BEFORE any surgery, checked from the group count (design
+      D8); `indentGroups`/`outdentGroups` accept any forest shape
+- [ ] 2.6b Add `cannot-reorder-across-scopes` to `REJECTION_MESSAGES` (`src/plugin/messages.ts`)
+      with a message naming the scopes, and to `closure.test.ts`'s `KNOWN_REASONS`
+- [ ] 2.6c Unit tests for both sides of D8: a multi-parent reorder rejects and changes nothing;
+      a multi-parent indent and outdent still apply in full
 - [ ] 2.7 Property test each group op against the oracle from 2.2 — equal trees — over generated
       documents and covers
 - [ ] 2.8 Extend `tests/closure.test.ts` to the group ops: closure, totality, and minimal edits
@@ -94,11 +112,17 @@
       reverting the whole group, redo restoring the cover
 - [ ] 7.3 Negative-control every new test added in §2, §4 and §7 — disable the group path and
       confirm each fails (the project's standing rule; three past tests could not fail)
-- [ ] 7.4 Real-vault manual pass on the shapes from the original 2026-07-24 report
+- [ ] 7.4 Run the full e2e suite by pushing to PR #50 rather than locally — it takes over ten
+      minutes, so local verification stays unit tests plus narrowly scoped e2e specs
+- [ ] 7.5 Real-vault manual pass on the shapes from the original 2026-07-24 report, including a
+      multi-parent cover under each of the four operations
 
 ## 8. Close the record
 
 - [ ] 8.1 Update the Track 2 entry in `docs/research/13-selection-follow-ups.md` — mark the
       structural-keymap item resolved, with what was measured
-- [ ] 8.2 Record any finding that contradicted this design (especially 1.1) in
-      `docs/research/04` as a numbered entry
+- [ ] 8.2 Record in `docs/research/04` as numbered entries: the 1.1 measurement and the
+      reorder restriction it forced (D8), and the `destinationIndent` blind spot with the reason
+      `closure.test.ts` structurally cannot catch that class of bug (D9)
+- [ ] 8.3 File the scope-crossing move (a node into its parent's sibling) as a follow-up in
+      `docs/research/13`, with the note that it should inherit this change's group operand

@@ -37,6 +37,11 @@ feature: selecting three items and pressing Tab visibly moves one of them.
 - **Rejection is atomic.** If any step in that composition rejects, the whole operation
   rejects with that typed reason, the document is unchanged, and one cue appears. Nothing
   is partially applied.
+- **Move up and move down additionally require a single sibling run**, rejecting a cover whose
+  roots sit under different parents with `cannot-reorder-across-scopes`. Measured during
+  planning: a multi-scope reorder moves each group within its own scope and scatters the
+  selection rather than moving it, in every accepted case. Indent and outdent carry no such
+  restriction — they were measured contiguity-safe at any cover shape.
 - **The selection survives the operation.** Where the pre-operation selection was a block
   cover, the dispatch states the cover of the moved subtrees in the result tree, so a run
   of Tab presses keeps acting on the same nodes. Where it was an ordinary caret or a
@@ -91,6 +96,11 @@ feature: selecting three items and pressing Tab visibly moves one of them.
   `e2e/specs/20-structural-commands.e2e.ts` / `30-keyboard-grammar.e2e.ts`.
 - `docs/research/13-selection-follow-ups.md`: the Track 2 entry this change closes.
 
+A pre-existing bug in `indent` was found while measuring the operand rules and is fixed
+separately in PR #51: `destinationIndent` ignored the destination parent's marker width, so an
+indent under an ordered item reported success while changing nothing structurally. This change
+rebases on that fix rather than carrying it.
+
 ## Out of scope
 
 - **Multi-cursor structural edits.** Several ranges each producing their own structural
@@ -101,6 +111,13 @@ feature: selecting three items and pressing Tab visibly moves one of them.
 - **Modal block-selection state and Cmd-click cherry-picking**, still parked in Track 2.
 - **The single-node algebra itself**, including the two-regime heading/list question, which
   is settled and reused verbatim here.
+- **Moving a node into its parent's SIBLING** — out of one scope into the next at the same
+  depth, rather than rejecting when a node runs out of siblings. Raised during review of this
+  change. It redefines what a MOVE means for a single node (the reorders are currently a
+  permutation within one sibling list), is reachable with a bare caret and no selection at all,
+  and needs its own destination, encoding and renumbering rules. Best designed after this change
+  lands, so it inherits the group operand rather than building a second one. See design.md —
+  Open Questions.
 - **`insertSiblingHeading`, `splitNode`, `unwrapListItem`, `mergeNodes`**: not commands, and
   not reachable with a block selection as their operand.
 
