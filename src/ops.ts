@@ -273,7 +273,13 @@ function renumberRuns(
       // marker is on. Everything that column governs — continuation lines and
       // the whole subtree — moves with it, or the children stop reaching the
       // column and the re-parse hands them back as siblings.
-      out[at + k] = shiftBelowMarker(renumbered, `${number}`.length - `${style.number}`.length);
+      //
+      // Measured off the two LINES, not off the two numbers: `listStyle.number`
+      // is the parsed value with leading zeroes already discarded, so `09.` to
+      // `10.` reads as a digit gained where the text width did not change at
+      // all, and the subtree drifted a column deeper for an op that never
+      // touched it.
+      out[at + k] = shiftBelowMarker(renumbered, markerWidth(renumbered) - markerWidth(node));
     });
   }
   return out;

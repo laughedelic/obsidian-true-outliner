@@ -50,15 +50,21 @@ function shiftLine(line: string, delta: number, keepBlank: boolean): string {
     // vanish into the tab stop and corrupt the width arithmetic.
     return ws + ' '.repeat(delta) + line.slice(ws.length);
   }
-  // Dedent: remove up to -delta columns of leading whitespace; when a tab
-  // overshoots the target column, repair the difference with spaces.
-  let remaining = -delta;
+  // Dedent: drop leading whitespace characters until what REMAINS sits at or
+  // before the target column, then make up the difference with spaces.
+  //
+  // Both halves have to be measured rather than counted. A tab's width depends
+  // on where it starts, so subtracting a flat 4 per tab is wrong the moment
+  // spaces precede one: ` \t` is four columns, and dropping the space leaves a
+  // tab that re-expands from zero to four again — the line had not moved at
+  // all. And the repair goes AFTER the surviving whitespace, never before it,
+  // for the reason the indent path above already gives: spaces in front of a
+  // tab vanish into the tab stop, so prepending one to `\t` bought nothing.
+  const target = Math.max(0, indentWidth(line) + delta);
   let i = 0;
-  while (i < ws.length && remaining > 0) {
-    remaining -= ws[i] === '\t' ? 4 : 1;
-    i++;
-  }
-  return (remaining < 0 ? ' '.repeat(-remaining) : '') + line.slice(i);
+  while (i < ws.length && indentWidth(ws.slice(i)) > target) i++;
+  const kept = ws.slice(i);
+  return kept + ' '.repeat(target - indentWidth(kept)) + line.slice(ws.length);
 }
 
 /**

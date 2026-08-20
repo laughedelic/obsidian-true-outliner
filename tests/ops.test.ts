@@ -409,6 +409,26 @@ describe('sibling reordering', () => {
       expect(text).toBe(`${RUN.join('\n')}\n10. a\n    - b\n`);
     });
 
+
+    it('a marker whose TEXT width is unchanged moves nothing', () => {
+      // `09.` and `10.` are both three columns wide. The parsed NUMBER gains a
+      // digit across the swap and the line does not, so a delta read off the
+      // numbers drifts the child a column deeper for an op that never touched
+      // it — and the drift is invisible in the tree, since too deep is still
+      // nested.
+      const { text } = applyOk(moveDown, '09. a\n    - kid\n10. b\n', '09. a');
+      expect(text).toBe('9. b\n10. a\n    - kid\n');
+    });
+
+    it('a narrowing child indented with mixed whitespace is brought in', () => {
+      // ` \t` is four columns: a tab starting at column 1 still runs to the
+      // stop at 4. Counting a flat four per tab and dropping the space leaves
+      // a tab that re-expands from zero — the same four columns, unmoved.
+      const md = ['- x', ...RUN, '10. ten', ' \t- kid'].join('\n') + '\n';
+      const { text } = applyOk(indent, md, '1. p1');
+      expect(text).toContain('9. ten\n   - kid\n');
+    });
+
     it('narrowing 10. to 9. pulls the children in with it', () => {
       // The mirror: indenting the run's head removes a member, so `10. ten`
       // becomes `9. ten`. Its child stays a child either way — one column too
