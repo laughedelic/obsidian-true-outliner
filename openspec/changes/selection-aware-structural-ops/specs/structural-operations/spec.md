@@ -62,7 +62,8 @@ included, so no existing behaviour changes when the operand resolves to one node
 
 #### Scenario: A single-root group is the single-node operation
 - **WHEN** any group form is invoked with exactly one root
-- **THEN** its tree, its edits and its anchor are identical to the single-node form's
+- **THEN** its tree, its edits and its anchor are identical to those the single-node form
+  produces for that same root
 
 #### Scenario: Group closure
 - **WHEN** any group operation is applied to any generated cover of any generated tree

@@ -53,9 +53,10 @@ It keeps the two-regime algebra in one place. A run mixing a paragraph and a hea
 new rule: each root gets its own, exactly as if the user had pressed Tab on each in turn.
 
 It answers the destination question for free. Indenting `[b, c]` whose previous sibling is `a`:
-`indent(b)` puts `b` under `a`; `c`'s previous sibling is then `b`'s former position, and
-`indent(c)` appends it after `b`. The run lands under `a` in order, which is the intended
-behaviour — derived, not stipulated.
+`indent(b)` makes `b` the last child of `a`, which removes `b` from that sibling list — so `c`'s
+previous sibling is now `a` itself, and `indent(c)` makes `c` the last child of `a` in turn,
+landing it after `b`. The run ends up under `a` in its original order, which is the intended
+behaviour — derived from the single-node rule, not stipulated.
 
 And it gives a property test with no hand-written oracle: run the group op, run the loop, assert
 the trees are equal. That is the shape this project already trusts (`closure.test.ts`).
