@@ -1,0 +1,94 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "11e2252d336c",
+  "session_id": "33f3a6fb-210a-45e2-97a3-ae1012e52b38",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-20T01:13:17.99035Z",
+  "branch": "feat/selection-aware-structural-ops",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "openspec/changes/selection-aware-structural-ops/.openspec.yaml",
+    "openspec/changes/selection-aware-structural-ops/design.md",
+    "openspec/changes/selection-aware-structural-ops/proposal.md",
+    "openspec/changes/selection-aware-structural-ops/specs/caret-placement-policy/spec.md",
+    "openspec/changes/selection-aware-structural-ops/specs/editor-structural-commands/spec.md",
+    "openspec/changes/selection-aware-structural-ops/specs/outline-keyboard-grammar/spec.md",
+    "openspec/changes/selection-aware-structural-ops/specs/selection-structural-ops/spec.md",
+    "openspec/changes/selection-aware-structural-ops/specs/structural-operations/spec.md",
+    "openspec/changes/selection-aware-structural-ops/tasks.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "a2c3166dead4",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 2979,
+    "cache_creation_tokens": 342458,
+    "cache_read_tokens": 6818158,
+    "output_tokens": 46771,
+    "api_call_count": 46
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-openspec-propose-2026-08-17T01:29:47.208298Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "openspec-propose"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "ede03d25fe22",
+      "timestamp": "2026-08-17T01:29:47.208298Z",
+      "native": {
+        "command": "/openspec-propose"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/openspec-propose",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-20T01:13:17.939319Z",
+    "agent_lines": 985,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 985,
+    "total_lines_changed": 985,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 985,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    }
+  ]
+}
