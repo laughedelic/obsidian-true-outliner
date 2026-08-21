@@ -27,6 +27,13 @@ name: e2e parallelism probe
 # spec makes a group's shape meaningfully different.
 
 on:
+  # TEMPORARY, remove before merge. `workflow_dispatch` only exists once a
+  # workflow is on the default branch, so while this lives on a PR branch a
+  # push scoped to this file is the only way to start a measurement round.
+  push:
+    branches: [claude/e2e-test-parallelization-c9b457]
+    paths: ['.github/workflows/e2e-parallelism-probe.yml']
+
   workflow_dispatch:
     inputs:
       instances:
@@ -63,8 +70,8 @@ jobs:
           echo "instances=$instances" >> "$GITHUB_OUTPUT"
           echo "repeats=$repeats" >> "$GITHUB_OUTPUT"
         env:
-          INSTANCES: ${{ inputs.instances }}
-          REPEATS: ${{ inputs.repeats }}
+          INSTANCES: ${{ inputs.instances || '4' }}
+          REPEATS: ${{ inputs.repeats || '16' }}
 
   probe:
     needs: plan
@@ -75,14 +82,14 @@ jobs:
       matrix:
         instances: ${{ fromJSON(needs.plan.outputs.instances) }}
         repeat: ${{ fromJSON(needs.plan.outputs.repeats) }}
-    name: ${{ inputs.platform }} x${{ matrix.instances }} (#${{ matrix.repeat }})
+    name: ${{ inputs.platform || 'mobile' }} x${{ matrix.instances }} (#${{ matrix.repeat }})
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e
         with:
           node-version: ${{ env.node-version }}
           obsidian-version: latest
-          group: ${{ inputs.group }}
-          platform: ${{ inputs.platform }}
+          group: ${{ inputs.group || 'decorations' }}
+          platform: ${{ inputs.platform || 'mobile' }}
           max-instances: ${{ matrix.instances }}
           artifact-suffix: -run${{ matrix.repeat }}

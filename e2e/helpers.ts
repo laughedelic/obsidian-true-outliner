@@ -28,6 +28,26 @@ export const PLUGIN_ID = 'true-outliner';
  */
 export const IS_MOBILE_RUN = process.env.OBSIDIAN_E2E_MOBILE === '1';
 
+/**
+ * Stretches every harness WAIT budget when the run shares a machine.
+ *
+ * The timeouts below were all sized against a sequential run, and parallelism
+ * is what invalidated them: at four instances on a 4-vCPU runner the suite
+ * finishes 2.82x faster in wall time, which means each individual spec is
+ * running about 1.42x slower than it does alone — and flakes live in the tail,
+ * not the mean. That is exactly how this bit: `waitForNotice` spent its whole
+ * 4s budget waiting for a notice that a loaded runner had not produced yet
+ * (CI, mobile decorations, 2026-08-21).
+ *
+ * Doubling is safe because these are `waitUntil` ceilings, not sleeps. A wait
+ * returns the moment its condition holds, so a larger budget costs nothing on
+ * a healthy run — it only changes how long a genuinely broken one takes to
+ * report. Raising them unconditionally would have worked too; scaling keeps a
+ * developer's sequential run reporting a real break as promptly as it does now.
+ */
+export const waitBudget = (base: number): number =>
+  Number(process.env.E2E_MAX_INSTANCES ?? 1) > 1 ? base * 2 : base;
+
 // ---- Notes and editor buffer -------------------------------------------
 
 export async function openNote(notePath: string): Promise<void> {
@@ -281,7 +301,10 @@ export async function posToCoords(line: number, ch: number): Promise<Coords> {
         coords = await readCoordsAt(line, ch);
         return coords !== null;
       },
-      { timeout: 3000, timeoutMsg: `no coords at line ${line} ch ${ch} after scrolling into view` },
+      {
+        timeout: waitBudget(3000),
+        timeoutMsg: `no coords at line ${line} ch ${ch} after scrolling into view`,
+      },
     );
   }
   return coords!;
@@ -559,8 +582,8 @@ export async function clickTableCell(): Promise<void> {
   const wrapper = browser.$(
     '.workspace-leaf.mod-active .markdown-source-view .cm-table-widget td .table-cell-wrapper',
   );
-  await wrapper.waitForExist({ timeout: 5000 });
-  await wrapper.waitForClickable({ timeout: 5000 });
+  await wrapper.waitForExist({ timeout: waitBudget(5000) });
+  await wrapper.waitForClickable({ timeout: waitBudget(5000) });
   await wrapper.click();
   await waitForContentChildCount('.cm-embed-block .cm-editor', 1);
 }
@@ -1036,7 +1059,7 @@ export async function waitForNotice(text: string): Promise<void> {
       if ((await recordedNoticeTexts()).some((t) => t.includes(text))) return true;
       return (await noticeTexts()).some((t) => t.includes(text));
     },
-    { timeout: 4000, timeoutMsg: `notice containing "${text}" did not appear` },
+    { timeout: waitBudget(4000), timeoutMsg: `notice containing "${text}" did not appear` },
   );
 }
 
@@ -1050,7 +1073,7 @@ export async function waitForNotice(text: string): Promise<void> {
 export async function waitForContentChildCount(
   selector: string,
   expected: number,
-  timeout = 5000,
+  timeout = waitBudget(5000),
 ): Promise<void> {
   await browser.waitUntil(
     async () => {
