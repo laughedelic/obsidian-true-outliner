@@ -4,12 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Run the e2e suites against a specific Obsidian build on demand. Only works
-  # for versions the runner can actually download: every 1.13.x is currently
-  # insider-only (isBeta, no public GitHub asset), and this workflow
-  # deliberately holds no Catalyst credentials — see the README's "Testing
-  # against a beta" note. Once a version goes public, `latest` picks it up on
-  # its own and this input is only needed for pinning an OLDER one.
+  # Ordinary runs always use the latest Obsidian. This input exists only to
+  # pin an OLDER build while chasing a version-specific bug, which this project
+  # has lost several rounds to (docs/research/04 Q21, Q27). It cannot reach a
+  # beta: every 1.13.x is insider-only (isBeta, no public GitHub asset) and this
+  # workflow deliberately holds no Catalyst credentials.
   workflow_dispatch:
     inputs:
       obsidian-version:
@@ -62,7 +61,9 @@ jobs:
   # one) with no workflow edit, so the split cannot silently stop covering
   # something. See scripts/spec-groups.mjs.
   e2e-groups:
-    runs-on: ubuntu-latest
+    # ubuntu-slim: this job only reads file names. It ships Node, which is all
+    # `--list-groups` needs, and provisions faster than the full image.
+    runs-on: ubuntu-slim
     outputs:
       groups: ${{ steps.list.outputs.groups }}
     steps:
@@ -77,30 +78,22 @@ jobs:
       fail-fast: false
       matrix:
         group: ${{ fromJSON(needs.e2e-groups.outputs.groups) }}
-        # Add versions here to test more than one — the cache key and the job
-        # name both key off this, so entries never clobber each other. Only
-        # publicly-downloadable versions work; see the workflow_dispatch note.
-        obsidian: ["${{ inputs.obsidian-version || 'latest' }}"]
-    name: desktop (${{ matrix.group }}, ${{ matrix.obsidian }})
+    name: desktop (${{ matrix.group }})
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e
         with:
           node-version: ${{ env.node-version }}
-          # matrix.obsidian, NOT inputs.obsidian-version: the matrix value is
-          # what names the job and keys the cache, so passing the raw input
-          # would make every expanded entry run the same version under different
-          # names and caches. The single default entry already resolves to the
-          # input (or 'latest').
-          obsidian-version: ${{ matrix.obsidian }}
+          obsidian-version: ${{ inputs.obsidian-version || 'latest' }}
           group: ${{ matrix.group }}
           platform: desktop
           max-instances: ${{ env.max-instances }}
 
-  # Same specs under Obsidian's mobile emulation (still Electron; see the
-  # README's "Mobile testing" section). Kept as its own job tree rather than a
-  # dimension of the desktop matrix because the two are not the same promise:
-  # desktop is a merge requirement, mobile is a soft target.
+  # Same specs under Obsidian's mobile emulation — still the Electron desktop
+  # app at a phone viewport, not the Capacitor app. Kept as its own job tree
+  # rather than a dimension of the desktop matrix so that it can have its own
+  # gate: the two are not the same promise, desktop being a merge requirement
+  # and mobile a soft target.
   e2e-mobile:
     needs: e2e-groups
     runs-on: ubuntu-latest
@@ -108,31 +101,30 @@ jobs:
       fail-fast: false
       matrix:
         group: ${{ fromJSON(needs.e2e-groups.outputs.groups) }}
-        obsidian: ["${{ inputs.obsidian-version || 'latest' }}"]
-    name: mobile (${{ matrix.group }}, ${{ matrix.obsidian }})
+    name: mobile (${{ matrix.group }})
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e
         with:
           node-version: ${{ env.node-version }}
-          obsidian-version: ${{ matrix.obsidian }}
+          obsidian-version: ${{ inputs.obsidian-version || 'latest' }}
           group: ${{ matrix.group }}
           platform: mobile
           max-instances: ${{ env.max-instances }}
 
-  # One stable check name per platform. Matrix job names carry the group and the
-  # Obsidian version, so they change whenever either does — branch protection
-  # needs something that does not.
+  # One stable check name per platform. Matrix job names carry their group, so
+  # they change whenever the groups do — branch protection needs a name that
+  # does not.
   e2e-desktop-passed:
     if: always()
     needs: e2e-desktop
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - run: '[ "${{ needs.e2e-desktop.result }}" = "success" ]'
 
   e2e-mobile-passed:
     if: always()
     needs: e2e-mobile
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - run: '[ "${{ needs.e2e-mobile.result }}" = "success" ]'
