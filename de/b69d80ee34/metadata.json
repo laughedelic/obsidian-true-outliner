@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "deb69d80ee34",
+  "strategy": "manual-commit",
+  "branch": "feat/selection-aware-structural-ops",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/04-open-questions.md",
+    "docs/research/13-selection-follow-ups.md",
+    "e2e/specs/68-selection-aware-structural-ops.e2e.ts",
+    "openspec/changes/selection-aware-structural-ops/tasks.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/de/b69d80ee34/0/metadata.json",
+      "transcript": "/de/b69d80ee34/0/full.jsonl",
+      "compact_transcript": "/de/b69d80ee34/0/transcript.jsonl",
+      "content_hash": "/de/b69d80ee34/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 15379,
+    "cache_read_tokens": 6200582,
+    "output_tokens": 9437,
+    "api_call_count": 12
+  }
+}
