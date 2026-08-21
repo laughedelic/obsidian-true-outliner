@@ -32,7 +32,18 @@ if (argv.includes('--list-groups')) {
   process.exit(0);
 }
 
-const mobile = argv[0] === 'mobile';
+/**
+ * Which suite to run. Validated rather than treated as "mobile or else",
+ * because everything downstream trusts this string: a typo used to run the
+ * DESKTOP suite while CI named the job, the cache, and the artifact after
+ * whatever was misspelled — a measurement quietly filed under the wrong name.
+ */
+const platform = argv[0]?.startsWith('--') ? 'desktop' : (argv[0] ?? 'desktop');
+if (platform !== 'desktop' && platform !== 'mobile') {
+  console.error(`[e2e] unknown platform ${JSON.stringify(platform)}. Expected 'desktop' or 'mobile'.`);
+  process.exit(1);
+}
+const mobile = platform === 'mobile';
 const group = argv[argv.indexOf('--group') + 1];
 
 /**

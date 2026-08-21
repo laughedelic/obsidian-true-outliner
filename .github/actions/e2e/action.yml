@@ -17,7 +17,10 @@ inputs:
     required: false
     default: ""
   platform:
-    description: desktop | mobile
+    description: >
+      desktop | mobile. Passed through verbatim and validated by
+      scripts/run-e2e.mjs, so a typo fails loudly instead of quietly
+      measuring the desktop suite under another name.
     required: true
   max-instances:
     description: How many Obsidian instances run at once within the group.
@@ -81,13 +84,20 @@ runs:
         # Reported here, not just inferred from the job's wall time, so the
         # probe's numbers exclude checkout/npm ci/cache and compare like with
         # like across instance counts.
-        echo "| $PLATFORM | ${GROUP:-all} | $E2E_MAX_INSTANCES | $((SECONDS - start))s |" \
-          >> "$GITHUB_STEP_SUMMARY"
+        # A header each time because every job gets its OWN summary — bare rows
+        # would not render as a table. Carries the Obsidian build so a pinned
+        # diagnostic run is tellable from a `latest` one without opening logs;
+        # the check name deliberately stays version-free so it does not churn.
+        {
+          echo "| platform | group | instances | obsidian | duration |"
+          echo "|---|---|---|---|---|"
+          echo "| $PLATFORM | ${GROUP:-all} | $E2E_MAX_INSTANCES | $OBSIDIAN_VERSION | $((SECONDS - start))s |"
+        } >> "$GITHUB_STEP_SUMMARY"
         exit $status
       shell: bash
       env:
         GROUP: ${{ inputs.group }}
-        PLATFORM: ${{ inputs.platform == 'mobile' && 'mobile' || 'desktop' }}
+        PLATFORM: ${{ inputs.platform }}
         OBSIDIAN_VERSION: ${{ inputs.obsidian-version }}
         E2E_MAX_INSTANCES: ${{ inputs.max-instances }}
 
