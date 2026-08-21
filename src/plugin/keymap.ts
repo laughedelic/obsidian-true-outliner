@@ -88,21 +88,28 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
     // range, and the enforcement funnel still sees whatever it produces.
     if (view.state.selection.ranges.length !== 1) return false;
 
-    // Only Enter and Shift+Enter act on a non-empty selection (design D7);
-    // every other key keeps planning from the selection HEAD exactly as before.
-    // That distinction is load-bearing: with a multi-node block cover the head
-    // is the cover's END, so planning Tab from `from` instead would silently
-    // change which node it indents, and would feed the mapped-cursor rule a
-    // different position than the one its gap-line fallback was written for.
+    // Enter and Shift+Enter REPLACE a non-empty selection, so they plan from its
+    // start. The structural keys act ON it: `selection-structural-ops` makes the
+    // operand the selection's covered subtrees, so they hand `planKey` the
+    // range's two ends as well.
+    //
+    // The caret origin stays the HEAD for them, which is load-bearing and not an
+    // oversight: indent and outdent state a caret by mapping the pre-operation
+    // position forward, and the gap-line fallback in `caret-policy.ts` was
+    // written for the head a cover leaves behind. Passing `from` there instead
+    // would quietly move the caret to the other end of a within-node selection.
     //
     // `from`/`to` are already ordered by CM6, so a backward selection needs no
-    // normalization. With an empty selection they equal the head, and `planKey`
-    // takes its ordinary cursor path either way.
+    // normalization — and the operand is orientation-independent anyway
+    // (property-tested). With an empty selection all three coincide and
+    // `planKey` takes its ordinary cursor path.
     const sel = view.state.selection.main;
-    const actsOnSelection = !sel.empty && (key === 'split' || key === 'continue');
-    const planFrom = actsOnSelection ? sel.from : sel.head;
+    const replacesSelection = !sel.empty && (key === 'split' || key === 'continue');
+    const actsOnSelection = !sel.empty && !replacesSelection;
+    const planFrom = replacesSelection ? sel.from : sel.head;
     const fromLine = view.state.doc.lineAt(planFrom);
-    const toLine = view.state.doc.lineAt(actsOnSelection ? sel.to : planFrom);
+    const toLine = view.state.doc.lineAt(replacesSelection || actsOnSelection ? sel.to : planFrom);
+    const startLine = actsOnSelection ? view.state.doc.lineAt(sel.from) : undefined;
     // Public CM6 facet — Obsidian sets it from its own "Indent using tabs"
     // editor setting, so reading it here respects that preference without
     // touching any Obsidian-private API (confirmed live: toggling the
@@ -117,9 +124,12 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
       view.state.facet(indentUnit),
       {
         line: toLine.number - 1,
-        ch: (actsOnSelection ? sel.to : planFrom) - toLine.from,
+        ch: (replacesSelection || actsOnSelection ? sel.to : planFrom) - toLine.from,
       },
       createdPlaceLine(view) ?? undefined,
+      startLine === undefined
+        ? undefined
+        : { line: startLine.number - 1, ch: sel.from - startLine.from },
     );
 
     if (outcome === null) {
@@ -155,9 +165,20 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
     const annotations = outcome.plan.abandon
       ? abandonEdit.of(toOffsets(outcome.plan.abandon, ChangeSet.of(changes, doc.length).apply(doc)))
       : undefined;
+    // A plan states a caret (an offset) or a block cover (a pair). The cover
+    // keeps the ORIENTATION the user's own selection had, so a run built by
+    // extending upward still grows upward on the next Shift+ArrowUp rather than
+    // reversing under them.
+    const planned = outcome.plan.selection;
+    const selection =
+      typeof planned === 'number'
+        ? { anchor: planned }
+        : sel.anchor > sel.head
+          ? { anchor: planned.head, head: planned.anchor }
+          : planned;
     view.dispatch({
       changes,
-      selection: { anchor: outcome.plan.selection },
+      selection,
       userEvent: outcome.plan.userEvent,
       scrollIntoView: true,
       ...(annotations ? { annotations } : {}),

@@ -24,7 +24,7 @@ import { walkNodes } from '../src/model';
 import { indent, moveDown, moveUp } from '../src/ops';
 import { applyEdits } from '../src/result';
 import { editsToChanges } from '../src/plugin/dispatch';
-import { planKey } from '../src/plugin/grammar';
+import { planKey, plannedCaret } from '../src/plugin/grammar';
 import { isAddressable } from '../src/caret';
 import { needsRecording } from '../src/plugin/record-decision';
 
@@ -325,11 +325,11 @@ describe('an indent whose addressability fallback fires survives redo', () => {
         to: offsetOf(lines, c.to.line, c.to.ch),
         insert: c.text,
       })),
-      selection: EditorSelection.cursor(outcome.plan.selection),
+      selection: EditorSelection.cursor(plannedCaret(outcome.plan)),
       userEvent: outcome.plan.userEvent,
       annotations: Transaction.addToHistory.of(true),
     });
-    return { tr, dispatched: outcome.plan.selection, newLines, state: tr.state };
+    return { tr, dispatched: plannedCaret(outcome.plan), newLines, state: tr.state };
   }
 
   it('the dispatched caret is addressable, not the mapped gap position', () => {

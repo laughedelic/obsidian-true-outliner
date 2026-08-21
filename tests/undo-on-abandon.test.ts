@@ -14,7 +14,7 @@
 import { describe, expect, it } from 'vitest';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { history, undo, undoDepth } from '@codemirror/commands';
-import { planKey, type GrammarKey } from '../src/plugin/grammar';
+import { planKey, type GrammarKey, plannedCaret } from '../src/plugin/grammar';
 import { parse } from '../src/parse';
 import { forestCoverOf, subtreeCoverOf } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
@@ -117,7 +117,7 @@ describe('the guards decide whether a cleanup may run', () => {
         to: text.line(c.to.line + 1).from + c.to.ch,
         insert: c.text,
       })),
-      selection: EditorSelection.cursor(outcome.plan.selection),
+      selection: EditorSelection.cursor(plannedCaret(outcome.plan)),
       userEvent: outcome.plan.userEvent,
     } as never);
     return view;
@@ -309,7 +309,7 @@ describe('the removal edit removes exactly the place', () => {
     const view = makeView(makeState(src));
     view.dispatch({
       changes: toCM(view.state.doc, outcome.plan.changes),
-      selection: EditorSelection.cursor(outcome.plan.selection),
+      selection: EditorSelection.cursor(plannedCaret(outcome.plan)),
       userEvent: outcome.plan.userEvent,
     } as never);
     const after = view.state.doc.toString();
@@ -453,7 +453,7 @@ describe('the recogniser is independent of the stated removal edit', () => {
         to: doc.line(c.to.line + 1).from + c.to.ch,
         insert: c.text,
       })),
-      selection: EditorSelection.cursor(outcome.plan.selection),
+      selection: EditorSelection.cursor(plannedCaret(outcome.plan)),
       userEvent: outcome.plan.userEvent,
     } as never);
     return { state: view.state, plan: outcome.plan };
@@ -513,7 +513,7 @@ describe('the removal is its own history entry', () => {
         to: doc.line(c.to.line + 1).from + c.to.ch,
         insert: c.text,
       })),
-      selection: EditorSelection.cursor(outcome.plan.selection),
+      selection: EditorSelection.cursor(plannedCaret(outcome.plan)),
       userEvent: outcome.plan.userEvent,
     } as never);
     const withPlace = view.state.doc.toString();
@@ -560,7 +560,7 @@ describe('Backspace returns to where the keypress started', () => {
         to: withCaret.doc.line(c.to.line + 1).from + c.to.ch,
         insert: c.text,
       })),
-      selection: EditorSelection.cursor(outcome.plan.selection),
+      selection: EditorSelection.cursor(plannedCaret(outcome.plan)),
       userEvent: outcome.plan.userEvent,
     });
     // What the recorder stores, and what `cancel` then maps through the removal.

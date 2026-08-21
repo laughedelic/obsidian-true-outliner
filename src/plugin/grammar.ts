@@ -11,12 +11,13 @@ import { parse } from '../parse';
 import {
   contentColumnCh,
   deleteSubtreeGroups,
-  indent,
+  indentGroups,
   insertSiblingHeading,
   itemContentIsEmpty,
-  moveDown,
-  moveUp,
+  moveGroupsDown,
+  moveGroupsUp,
   outdent,
+  outdentGroups,
   splitNode,
   unwrapListItem,
 } from '../ops';
@@ -26,7 +27,7 @@ import { applyEdits, diffLines } from '../result';
 import { nodeAtLine, nodeStartLine } from '../locate';
 import { resolvedOutline } from './decorate';
 import { coveredForestOf } from '../escalate';
-import { groupRootsByParent } from '../operand';
+import { groupRootsByParent, resolveOperand } from '../operand';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
@@ -63,7 +64,7 @@ export interface TxPlan {
    * dispatch whose cursor differs from the mapping, which is the axis
    * `record-decision.ts` keys on.
    */
-  selection: number;
+  selection: number | { readonly anchor: number; readonly head: number };
   userEvent: string;
   /**
    * The edit that removes the empty place this operation would leave the caret
@@ -101,6 +102,12 @@ export interface TxPlan {
 type AbandonForm = 'reverse' | 'drop-line' | 'none';
 
 export type GrammarOutcome = { plan: TxPlan } | { notice: string } | null;
+
+/** The caret offset a plan states — the HEAD, for a plan stating a block
+ * cover. One narrowing, rather than one per consumer. */
+export function plannedCaret(plan: TxPlan): number {
+  return typeof plan.selection === 'number' ? plan.selection : plan.selection.head;
+}
 
 function offsetInNewText(newLines: readonly string[], pos: EditorPos): number {
   let offset = 0;
@@ -165,6 +172,13 @@ function planFromOp(
   abandonForm: AbandonForm,
   mapCursorFrom?: EditorPos,
   placeLine?: number,
+  /**
+   * Dispatch the result's SUBJECT SPAN as a selection instead of a caret —
+   * true exactly when the operand was already a block cover
+   * (`selection-structural-ops`). The span is an exact cover by construction,
+   * so it needs no escalation and no second geometry.
+   */
+  dispatchSpan = false,
 ): GrammarOutcome {
   if (!result.ok) return { notice: REJECTION_MESSAGES[result.rejection.reason] };
   const changes = editsToChanges(lines, result.value.edits);
@@ -196,7 +210,12 @@ function planFromOp(
   return {
     plan: {
       changes,
-      selection: offsetInNewText(newLines, caret),
+      selection: dispatchSpan
+        ? {
+            anchor: offsetInNewText(newLines, result.value.span.start),
+            head: offsetInNewText(newLines, result.value.span.end),
+          }
+        : offsetInNewText(newLines, caret),
       userEvent,
       abandon: abandonEdit(abandonForm, lines, newLines, caret.line),
     },
@@ -424,6 +443,15 @@ export function planKey(
   fallbackIndentUnit?: string,
   selectionEnd?: EditorPos,
   placeLine?: number,
+  /**
+   * The selection's START, when the caret it should be measured from is not
+   * there. `cursor` is the CARET ORIGIN — the selection's head for a structural
+   * key, so an indent still maps the position the user was actually at — while
+   * (`selectionStart`, `selectionEnd`) bound the OPERAND. The two coincide for
+   * every other key and for an empty selection, which is why this is the last
+   * parameter and defaults away.
+   */
+  selectionStart?: EditorPos,
 ): GrammarOutcome {
   if (
     selectionEnd !== undefined &&
@@ -485,22 +513,39 @@ export function planKey(
   const opNode = outline ? nodeAtLine(outline, cursor.line) : node;
   if (!opNode) return null;
 
+  // What the operation ACTS ON (`selection-structural-ops`): the selection's
+  // covered subtrees, grouped by parent. An empty selection and a range inside
+  // one node both resolve to a single root, which is what keeps every existing
+  // single-node behaviour byte-identical — and a group of one root is the
+  // single-node operation exactly (pinned by property test).
+  //
+  // Resolved against `opDoc`, the tree the operation acts on, so the ids match
+  // when a provisional position has been resolved away.
+  const operand = resolveOperand(opDoc, {
+    anchor: selectionStart ?? cursor,
+    head: selectionEnd ?? cursor,
+  });
+  const groups = operand?.groups ?? [[opNode.id]];
+  // The after-state: a selection that WAS a block cover stays one (design D4).
+  const span = operand?.wasCover ?? false;
+
   switch (key) {
     case 'indent':
       return planFromOp(
         lines,
-        indent(opDoc, opNode.id, fallbackIndentUnit),
+        indentGroups(opDoc, groups, fallbackIndentUnit),
         'input.structure.indent',
         { kind: 'derived' },
         opDoc,
         'none',
         cursor,
         placeLine,
+        span,
       );
     case 'outdent':
       return planFromOp(
         lines,
-        outdent(opDoc, opNode.id, fallbackIndentUnit),
+        outdentGroups(opDoc, groups, fallbackIndentUnit),
         'input.structure.outdent',
         { kind: 'derived' },
         opDoc,
@@ -512,24 +557,31 @@ export function planKey(
         'drop-line',
         cursor,
         placeLine,
+        span,
       );
     case 'move-up':
       return planFromOp(
         lines,
-        moveUp(opDoc, opNode.id),
+        moveGroupsUp(opDoc, groups),
         'move.structure',
         { kind: 'subject' },
         opDoc,
         'none',
+        undefined,
+        undefined,
+        span,
       );
     case 'move-down':
       return planFromOp(
         lines,
-        moveDown(opDoc, opNode.id),
+        moveGroupsDown(opDoc, groups),
         'move.structure',
         { kind: 'subject' },
         opDoc,
         'none',
+        undefined,
+        undefined,
+        span,
       );
     case 'split': {
       // ORDER IS LOAD-BEARING (design D4): an empty item's content start IS its

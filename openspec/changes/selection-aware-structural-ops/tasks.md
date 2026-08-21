@@ -78,16 +78,16 @@
 
 ## 4. Keyboard path (`src/plugin/grammar.ts`, `src/plugin/keymap.ts`)
 
-- [ ] 4.1 Add a cover branch to `planKey` for indent/outdent/move-up/move-down, beside the
+- [x] 4.1 Add a cover branch to `planKey` for indent/outdent/move-up/move-down, beside the
       existing `planOverSelection` branch, routing to the group ops
-- [ ] 4.2 Plan the after-state per design D4: a cover operand dispatches the result's subject span
+- [x] 4.2 Plan the after-state per design D4: a cover operand dispatches the result's subject span
       as a selection; a caret or within-node operand keeps `caret-policy.ts` exactly as today
-- [ ] 4.3 Widen `makeHandler`'s `actsOnSelection` past split/continue, keeping the multi-range
+- [x] 4.3 Widen `makeHandler`'s `actsOnSelection` past split/continue, keeping the multi-range
       decline and updating the comment that records why the head was used
-- [ ] 4.4 Keep one cue per rejected group operation
-- [ ] 4.5 Unit tests in `tests/grammar.test.ts`: Tab and Shift+Tab over multi-root covers,
+- [x] 4.4 Keep one cue per rejected group operation
+- [x] 4.5 Unit tests in `tests/grammar.test.ts`: Tab and Shift+Tab over multi-root covers,
       mixed-depth covers, mixed-kind runs, rejections, and the unchanged single-node cases
-- [ ] 4.6 Assert in `tests/caret-placement.test.ts` that a cover dispatch states a selection and
+- [x] 4.6 Assert in `tests/caret-placement.test.ts` that a cover dispatch states a selection and
       no caret, and that a within-node-range dispatch is byte-identical to today's
 
 ## 5. Command path (`src/plugin/main.ts`)
