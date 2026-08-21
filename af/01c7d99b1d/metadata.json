@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "af01c7d99b1d",
+  "strategy": "manual-commit",
+  "branch": "feat/selection-aware-structural-ops",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "openspec/changes/selection-aware-structural-ops/tasks.md",
+    "src/operand.ts",
+    "src/plugin/grammar.ts",
+    "src/plugin/main.ts",
+    "tests/operand.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/af/01c7d99b1d/0/metadata.json",
+      "transcript": "/af/01c7d99b1d/0/full.jsonl",
+      "compact_transcript": "/af/01c7d99b1d/0/transcript.jsonl",
+      "content_hash": "/af/01c7d99b1d/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 10996,
+    "cache_read_tokens": 4429346,
+    "output_tokens": 8695,
+    "api_call_count": 9
+  }
+}
