@@ -783,6 +783,14 @@ function fromSurgery(doc: OutlineDoc, result: OpResult<Surgery>): OpResult<OpOut
  * `reverse` is for move down alone. In document order its first root would swap
  * past the second — a member of its own operand — instead of past the run's own
  * neighbour.
+ *
+ * COST, knowingly accepted: one surgery per root, each with a linear `findPath`
+ * and a sibling-spine rebuild, so this is Θ(k·n). Measured on a ~2000-line note
+ * — k=10 2.3 ms, k=50 7.0 ms, k=200 15.4 ms — which is fine for the selections
+ * real editing produces and past the 8 ms p95 for very large ones. Reuse of the
+ * single-node algebra was preferred over a second, faster implementation of it.
+ * `selection-aware-structural-ops` design D12 records what fixing it takes, the
+ * two traps waiting there, and why the property suite makes it safe to try.
  */
 function applyGroups(
   doc: OutlineDoc,

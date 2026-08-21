@@ -2304,6 +2304,26 @@ measured before anything was built on it, 20 000 runs per operation:
 A reorder moves each group within its OWN scope, so a mixed-depth cover is scattered rather than
 moved. The reorders now require a single sibling run. Indent and outdent needed no restriction.
 
+### Group cost is linear in the root count, and that is accepted for now
+
+`applyGroups` runs one surgery per covered root; each does a linear `findPath` and rebuilds the
+sibling spine, so a k-root operand on an n-node note is Θ(k·n). Raised in PR #50 review and
+measured — group outdent on a ~2000-line note:
+
+| roots | 2 | 10 | 50 | 200 |
+|---|---|---|---|---|
+| time | 1.7 ms | 2.3 ms | 7.0 ms | 15.4 ms |
+
+Fine at the selection sizes real editing produces; past the 8 ms p95 this project holds keystroke
+paths to once a cover gets large (Mod+A then Shift+Tab reaches k=200). No stated budget formally
+governs this path, so it is a quality limit rather than a spec violation, and the initial
+implementation ships with it deliberately.
+
+The fix, the traps, and what makes it safe to attempt are recorded in that change's design D12 —
+in short: splice a single group's whole run in two `updateSiblings` calls instead of 2k, thread
+the destination's children cumulatively the way `outdentSurgery` already does, and lean on the
+composition-oracle property suite to prove the result did not change.
+
 ### Composing surgeries is not composing operations
 
 The group forms compose SURGERIES (tree → tree) and finalize once, because composing whole

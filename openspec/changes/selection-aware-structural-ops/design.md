@@ -78,23 +78,74 @@ reused; it is no longer the last word on the result.
 *Alternative rejected:* stating fresh multi-root rules per kind. That is a second copy of the
 algebra, and the mixed-kind sibling run is exactly where two copies would drift.
 
-### D2. Group forms live in `ops.ts` and emit one edit list
+### D2. Group forms compose SURGERIES and finalize once
 
-Following `deleteSubtreeGroups`: do the tree surgery in one pass over the groups, then hand the
-result to the existing `finalize`, which computes minimal edits by diffing the re-encoded tree
-against the original. That is where the minimal-edit guarantee already comes from, so group ops
-inherit it rather than restating it.
+*(Amended during implementation. This decision originally called for a bespoke one-pass surgery
+per operation; what was built composes the single-node surgeries instead. The cost of that
+choice is measured below and knowingly accepted — see D12.)*
 
-The one-pass surgery must agree with D1's composition, which is a real obligation and the reason
-D1 is a spec requirement rather than a comment. Same-parent bookkeeping is the known trap:
-`deleteSubtreeGroups` carries a comment about why two `updateSiblings` calls at one path see
-shifted indices. Group indent has the same shape and must move a run in one filtering pass.
+Each single-node operation is split into a SURGERY (tree → tree) and a `finalize`. The group
+forms apply the surgery to each covered root in turn and call `finalize` once, which computes
+minimal edits by diffing the re-encoded tree against the original. That is where the minimal-edit
+guarantee already comes from, so group forms inherit it rather than restating it.
 
-*Alternative rejected:* looping the single-node ops for real, re-parsing between steps, and
-diffing start to end. It is trivially correct by construction but re-parses n times per keypress
-and produces the diff of the whole transformation — acceptable for the tree, not for the change
-set, which `minimal-change-dispatch` pins line by line. Worth keeping as the property test's
-oracle, which is exactly what D1 makes it.
+Composing surgeries rather than whole OPERATIONS is what keeps this affordable: a whole-operation
+composition re-encodes, diffs and re-parses per root, measured at 1.24 ms per step on a 2000-line
+note — 12.45 ms for a ten-node run, with `parse` alone accounting for 0.96 ms of each step.
+Composing surgeries pays for one `finalize` however many roots there are.
+
+That the two are EQUIVALENT is not assumed: every operation guarantees closure, so the re-parse a
+whole-operation composition performs between steps is the identity. The property suite checks it
+against an oracle that really does re-parse between steps — and that check is what found the
+places where closure does not actually hold (D10, D11).
+
+*Alternative rejected:* a bespoke one-pass surgery per operation, splicing a whole run in two
+`updateSiblings` calls. Faster (see D12), but it is a second implementation of the per-kind
+algebra, and D1 exists precisely because two copies drift. Reuse first, optimise on evidence.
+
+### D12. The per-root cost is accepted for now, and this is what fixing it takes
+
+Raised in review (PR #50) and measured rather than argued. `applyGroups` runs one full surgery
+per root; each does a linear `findPath` and rebuilds the sibling spine, so a k-root operand on an
+n-node note is Θ(k·n).
+
+Measured, group outdent on a ~2000-line note:
+
+| roots | time |
+|---|---|
+| 2 | 1.7 ms |
+| 10 | 2.3 ms |
+| 50 | 7.0 ms |
+| 200 | 15.4 ms |
+
+Fine at the selection sizes real editing produces, and past the 8 ms p95 this project holds
+keystroke paths to once a selection gets large. Mod+A followed by Shift+Tab on a list-heavy note
+reaches k=200. No stated budget formally governs this path — the existing ones are
+`transaction-classification`'s (≤1 ms median, ≤8 ms p95) and `node-edit-enforcement`'s (≤3 ms
+median, ≤8 ms p95) — so this is a quality limit rather than a spec violation, which is why it is
+recorded rather than treated as blocking.
+
+**When to revisit:** a real report of lag on a large selection, or any change that makes big
+covers routine.
+
+**What the fix is.** For a SINGLE group — every root sharing one parent, which is the common
+shape and the only one the reorders accept — splice the whole run at once instead of per root:
+remove `[lo..hi]` from the parent's children in one `updateSiblings`, re-encode the roots, and
+insert them at the destination in one more. Two tree rebuilds instead of 2k, and no repeated
+`findPath`.
+
+**What makes it safe to do later.** The property suite added here compares each group form
+against the sequential-composition oracle over generated documents, and asserts the
+order-preservation invariant directly. An optimisation that changes the result fails those
+immediately, which is the whole reason D1 states the composition as the specification.
+
+**The traps, so they are not rediscovered.** Same-parent bookkeeping: `deleteSubtreeGroups`
+documents why two `updateSiblings` calls at one path see indices already shifted by the first.
+And the destination context is per root and CUMULATIVE — `encodingKindAtDestination` and
+`destinationIndent` are evaluated against the destination's children as they stand, so a one-pass
+version must thread a growing children array rather than compute all roots against the original.
+`outdentSurgery` already models exactly that for its re-parented following siblings; copy that
+shape rather than inventing one.
 
 ### D3. The result states a subject span; the caller recomputes the cover from it
 
