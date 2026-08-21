@@ -63,8 +63,8 @@ jobs:
           echo "instances=$instances" >> "$GITHUB_OUTPUT"
           echo "repeats=$repeats" >> "$GITHUB_OUTPUT"
         env:
-          INSTANCES: ${{ inputs.instances || '1,2,3,4' }}
-          REPEATS: ${{ inputs.repeats || '3' }}
+          INSTANCES: ${{ inputs.instances || '4' }}
+          REPEATS: ${{ inputs.repeats || '8' }}
 
   probe:
     needs: plan
@@ -82,7 +82,7 @@ jobs:
         with:
           node-version: ${{ env.node-version }}
           obsidian-version: latest
-          group: ${{ inputs.group }}
+          group: ${{ inputs.group || 'decorations' }}
           platform: ${{ inputs.platform || 'desktop' }}
           max-instances: ${{ matrix.instances }}
           artifact-suffix: -run${{ matrix.repeat }}

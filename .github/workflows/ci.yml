@@ -19,11 +19,14 @@ on:
 
 env:
   node-version: "26"
-  # How many Obsidian instances each e2e job runs at once. 1 is the behavior
-  # every spec was stabilized under; raise it only on evidence from
-  # .github/workflows/e2e-parallelism-probe.yml, which measures whether the
-  # contention makes timing-sensitive specs flaky.
-  max-instances: "1"
+  # How many Obsidian instances each e2e job runs at once. Set from
+  # .github/workflows/e2e-parallelism-probe.yml, which ran the full desktop
+  # suite three times at each of 1/2/3/4 with no failure at any count:
+  # 743s -> 407s -> 315s -> 263s mean. The curve is already flattening at 4
+  # (1.83x, 2.36x, 2.82x) because the runner has 4 vCPUs, and the largest group
+  # cannot go below its longest single spec anyway, so 4 is the ceiling worth
+  # taking rather than a number to keep pushing.
+  max-instances: "4"
 
 jobs:
   lint:
