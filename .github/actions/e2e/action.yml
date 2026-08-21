@@ -36,7 +36,7 @@ runs:
   # copy of these steps drifted apart (see e2e/obsidian-target.mts).
   using: composite
   steps:
-    - uses: actions/setup-node@v6
+    - uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node-version }}
         cache: npm
@@ -55,7 +55,7 @@ runs:
       run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
       shell: bash
 
-    - uses: actions/cache@v4
+    - uses: actions/cache@v6
       with:
         path: .obsidian-cache
         key: obsidian-cache-${{ runner.os }}-${{ inputs.obsidian-version }}-${{ steps.cache-key.outputs.week }}
@@ -95,7 +95,7 @@ runs:
     # the corpus screenshots specs 50/51/52 take are a local review tool, not
     # something worth carrying ~100 images per green run to store.
     - if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: failure-screenshots-${{ inputs.platform }}-${{ inputs.group || 'all' }}-${{ inputs.obsidian-version }}-${{ inputs.max-instances }}${{ inputs.artifact-suffix }}
         path: .obsidian-cache/failure-screenshots/
