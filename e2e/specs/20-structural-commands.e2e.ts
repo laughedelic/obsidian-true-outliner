@@ -252,12 +252,36 @@ describe('structural commands', function () {
     }
   });
 
-  it('multi-line selection: command uses the cursor head line, no crash', async function () {
+  /**
+   * This pair replaces "multi-line selection: command uses the cursor head
+   * line", which asserted the behaviour `selection-aware-structural-ops`
+   * removed: the command read only the cursor and indented whichever single
+   * node the selection's HEAD happened to land in. The operand is now the
+   * selection's covered subtrees, and a group is accepted in full or not at
+   * all.
+   */
+  it('multi-line selection: every covered node indents, not just the head’s', async function () {
     await outlineNote('First.\n\nSecond.\n\nThird.\n', 0, 0);
-    await h.setSelection({ line: 0, ch: 0 }, { line: 2, ch: 3 });
+    // Covers "Second." and "Third.", both of which can indent.
+    await h.setSelection({ line: 2, ch: 0 }, { line: 4, ch: 3 });
 
     await h.runCommand('indent-node');
-    // Head is on "Second." → that node indents; the rest is untouched.
-    expect(await h.getBuffer()).toBe('First.\n\n- Second.\n\nThird.\n');
+    expect(await h.getBuffer()).toBe('First.\n\n- Second.\n\n- Third.\n');
+  });
+
+  it('multi-line selection: one inexpressible node rejects the whole group', async function () {
+    const before = 'First.\n\nSecond.\n\nThird.\n';
+    await outlineNote(before, 0, 0);
+    // Covers "First." and "Second.". "First." has no previous sibling, so
+    // atomic rejection leaves BOTH where they are — the old behaviour indented
+    // "Second." alone.
+    await h.setSelection({ line: 0, ch: 0 }, { line: 2, ch: 3 });
+
+    await h.armNoticeRecorder();
+    await h.runCommand('indent-node');
+    expect(await h.getBuffer()).toBe(before);
+    expect(await h.recordedNoticeTexts()).toContain(
+      REJECTION_MESSAGES['no-previous-sibling'],
+    );
   });
 });

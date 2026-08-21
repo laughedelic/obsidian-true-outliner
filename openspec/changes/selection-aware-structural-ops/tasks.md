@@ -102,8 +102,6 @@
       closed STRUCTURALLY rather than by a parity test: the after-state rule is extracted to
       `afterState`, so the two adapters cannot decide differently. Both call `resolveOperand` then
       `afterState`; only orientation, which is each adapter's own, is applied locally
-      for the same cover — the parity the existing "Both entry points agree" scenario asserts for
-      carets
 
 ## 6. Integration with the shipped selection machinery
 
