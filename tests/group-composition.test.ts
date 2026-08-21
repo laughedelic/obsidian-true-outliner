@@ -4,7 +4,7 @@ import { encode } from '../src/encode';
 import { parse } from '../src/parse';
 import { treesEqual, walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { forestCoverOf } from '../src/escalate';
-import { groupRootsByParent } from '../src/enforce';
+import { groupRootsByParent } from '../src/operand';
 import { nodeStartLine } from '../src/locate';
 import {
   arbGroupOp,

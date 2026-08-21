@@ -26,7 +26,7 @@ import { applyEdits, diffLines } from '../result';
 import { nodeAtLine, nodeStartLine } from '../locate';
 import { resolvedOutline } from './decorate';
 import { coveredForestOf } from '../escalate';
-import { groupRootsByParent } from '../enforce';
+import { groupRootsByParent } from '../operand';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';

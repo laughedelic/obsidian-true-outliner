@@ -68,12 +68,12 @@
 
 ## 3. Operand resolution, shared by both entry points
 
-- [ ] 3.1 Promote `coverGroupsOf` out of `enforce.ts` (design D5) so the grammar and the command
+- [x] 3.1 Promote `coverGroupsOf` out of `enforce.ts` (design D5) so the grammar and the command
       path call the same function; the deletion path keeps using it unchanged
-- [ ] 3.2 Add the operand rule: empty selection → node at the caret line; non-cover range →
+- [x] 3.2 Add the operand rule: empty selection → node at the caret line; non-cover range →
       escalate to its node's cover; exact cover → its grouped roots; out of jurisdiction →
       declined
-- [ ] 3.3 Unit tests that the operand is identical for a forward and a backward selection of the
+- [x] 3.3 Unit tests that the operand is identical for a forward and a backward selection of the
       same subtrees, and for the same cover reached by extension, by Mod+A, and by drag
 
 ## 4. Keyboard path (`src/plugin/grammar.ts`, `src/plugin/keymap.ts`)
