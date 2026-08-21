@@ -12,6 +12,7 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   'no-sibling-below': 'Nothing below to move past.',
   'not-expressible-under-target': "Markdown can't express that nesting here.",
   'cannot-reorder-across-heading-boundary': 'Sections only swap with same-level sections.',
+  'cannot-reorder-across-scopes': 'Moving works within one level — this selection spans several.',
   'cannot-split': "This block can't be split here.",
   'empty-selection': 'Nothing to act on.',
   'non-contiguous-subtrees': "Can't remove a partial selection — select whole nodes.",

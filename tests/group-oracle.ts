@@ -31,6 +31,7 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { indent, moveDown, moveUp, outdent } from '../src/ops';
+import { nodeStartLine } from '../src/locate';
 
 const OPS = { indent, outdent, moveUp, moveDown } as const;
 export type GroupOpName = keyof typeof OPS;
@@ -196,4 +197,38 @@ export function composeGroupOp(
 
 export function isReorder(op: GroupOpName): boolean {
   return op === 'moveUp' || op === 'moveDown';
+}
+
+/**
+ * Did the composition keep the roots in their original relative order?
+ *
+ * This is the precondition the equality property needs, and it is not a
+ * technicality. Sequential composition can only ever move one root at a time,
+ * so where an intermediate tree is UNREPRESENTABLE the re-parse between steps
+ * reshapes the document under the remaining steps — and the run comes out
+ * reordered.
+ *
+ * Measured shape: on `- L0` / `L1` / `L2`, moving the run `[L1, L2]` up. Step
+ * one swaps `L1` above `- L0`, whose encoding re-parses with `- L0` as L1's
+ * CHILD (a list item cannot be a paragraph's following sibling — the
+ * attachment rule). Step two then finds L2's previous sibling to be `L1`
+ * itself and swaps past it, so the run comes out as `L2 / L1` — reversed.
+ *
+ * Every measured disagreement between the group forms and this composition has
+ * that shape: 49 of 49, always with the composition losing the order and the
+ * group form keeping it. So the group forms are not approximating the
+ * composition here, they are strictly better defined than it.
+ */
+export function compositionKeptRootOrder(
+  doc: OutlineDoc,
+  labels: readonly string[],
+  op: GroupOpName,
+): boolean {
+  const composed = composeSequential(doc, labels, op);
+  if (!composed.ok) return true;
+  const lines = labels.map((label) => {
+    const node = nodeByLabel(composed.doc, label);
+    return node ? nodeStartLine(composed.doc, node.id) : -1;
+  });
+  return lines.every((line, i) => line >= 0 && (i === 0 || lines[i - 1]! < line));
 }

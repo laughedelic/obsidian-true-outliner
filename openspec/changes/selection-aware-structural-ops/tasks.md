@@ -34,28 +34,28 @@
 
 ## 2. Core group operations (`src/ops.ts`)
 
-- [ ] 2.1 Add the subject SPAN to `OpOutput` and populate it for the existing single-node
+- [x] 2.1 Add the subject SPAN to `OpOutput` and populate it for the existing single-node
       operations, asserting it equals that node's whole-subtree cover; leave `anchor` untouched
-- [ ] 2.2 Write the naive composition oracle (loop the single-node op over the roots, re-parsing
+- [x] 2.2 Write the naive composition oracle (loop the single-node op over the roots, re-parsing
       between steps) as a test helper — it is the property test's oracle per design D1, not
       production code
-- [ ] 2.3 Implement `indentGroups` in one surgery pass, with the same-parent single-filtering-pass
+- [x] 2.3 Implement `indentGroups` in one surgery pass, with the same-parent single-filtering-pass
       discipline `deleteSubtreeGroups` documents
-- [ ] 2.4 Implement `outdentGroups`, including the existing following-sibling re-parenting rule
+- [x] 2.4 Implement `outdentGroups`, including the existing following-sibling re-parenting rule
       per root
-- [ ] 2.5 Implement `moveGroupsUp` and `moveGroupsDown`, the latter applying roots in REVERSE
+- [x] 2.5 Implement `moveGroupsUp` and `moveGroupsDown`, the latter applying roots in REVERSE
       document order (design D1)
-- [ ] 2.6 Atomic rejection: pre-check the whole composition and return the first failing step's
+- [x] 2.6 Atomic rejection: pre-check the whole composition and return the first failing step's
       typed reason in application order, leaving the tree unchanged (design D7);
       `empty-selection` for an empty forest
-- [ ] 2.6a `moveGroupsUp`/`moveGroupsDown` reject a multi-parent operand with
+- [x] 2.6a `moveGroupsUp`/`moveGroupsDown` reject a multi-parent operand with
       `cannot-reorder-across-scopes` BEFORE any surgery, checked from the group count (design
       D8); `indentGroups`/`outdentGroups` accept any forest shape
-- [ ] 2.6b Add `cannot-reorder-across-scopes` to `REJECTION_MESSAGES` (`src/plugin/messages.ts`)
+- [x] 2.6b Add `cannot-reorder-across-scopes` to `REJECTION_MESSAGES` (`src/plugin/messages.ts`)
       with a message naming the scopes, and to `closure.test.ts`'s `KNOWN_REASONS`
 - [ ] 2.6c Unit tests for both sides of D8: a multi-parent reorder rejects and changes nothing;
       a multi-parent indent and outdent still apply in full
-- [ ] 2.7 Property test each group op against the oracle from 2.2 — equal trees — over generated
+- [x] 2.7 Property test each group op against the oracle from 2.2 — equal trees — over generated
       documents and covers
 - [ ] 2.8 Extend `tests/closure.test.ts` to the group ops: closure, totality, and minimal edits
       (a node lying between two groups is byte-identical)
@@ -63,7 +63,7 @@
       indent that removes a run's head, a group move within an ordered run, and a mixed-depth
       group that renumbers at two levels — renumbering computed once over the final membership,
       not per step (design D2 risk)
-- [ ] 2.10 Unit tests for the single-root equivalence: every group op with one root produces the
+- [x] 2.10 Unit tests for the single-root equivalence: every group op with one root produces the
       single-node op's tree, edits and anchor byte-identically
 
 ## 3. Operand resolution, shared by both entry points
