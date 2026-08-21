@@ -107,12 +107,15 @@
 
 ## 6. Integration with the shipped selection machinery
 
-- [ ] 6.1 Assert the dispatched cover needs no escalation: run it through the transaction filter
+- [x] 6.1 Assert the dispatched cover needs no escalation: run it through the transaction filter
       and confirm the settled selection is byte-identical to what was dispatched
-- [ ] 6.2 Confirm `needsRecording` records the cover when mapping would not reproduce it, and
+- [x] 6.2 Confirm `needsRecording` records the cover when mapping would not reproduce it, and
       that redo restores it — no change to `record-decision.ts` expected, so this is a test that
       must be negative-controlled to be worth anything
-- [ ] 6.3 Confirm the block-selection chrome and focus policy behave across the operation: the
+- [x] 6.3 Confirm the block-selection chrome and focus policy behave across the operation —
+      asserted at the PREDICATE the chrome and focus policy actually read
+      (`allRangesCovered` → `coveredSubtreeRoots`), since the view layer has no DOM test
+      environment. A cover in and a cover out means no mode transition to flash: the
       editor stays in block-selection mode when a cover in, cover out (no focus round trip)
 
 ## 7. End-to-end and manual verification

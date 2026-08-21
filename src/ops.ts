@@ -22,9 +22,9 @@
 
 import type { ListStyle, NodePath, OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
-import { forEachNodeWithLine, nodeStartLine } from './locate';
+import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
-import type { LinePos } from './line-pos';
+import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
@@ -138,6 +138,12 @@ export function finalize(
   // absent subject is never mistaken for a located one.
   const located = subjectId === undefined ? -1 : nodeStartLine(normalized, subjectId);
   const subjects = spanIds ?? (subjectId === undefined ? [] : [subjectId]);
+  // The span describes the RESULT document, so it is computed against the
+  // re-parsed tree rather than the surgery. The two can disagree: a re-parse
+  // can re-attach a node the operation did not move (a list item landing after
+  // a paragraph becomes its child), and the surgery's own view of a subject's
+  // subtree is then not a cover of what the user actually gets.
+  const parsed = parse(text);
   if (located === -1) {
     // No subject at all: the scope start. `preamble.length` is one PAST the
     // last line whenever the preamble has no trailing blank (frontmatter
@@ -147,18 +153,18 @@ export function finalize(
     const lastLine = Math.max(lines.length - 1, 0);
     const anchor = { line: lastLine, ch: (lines[lastLine] ?? '').length };
     return accept({
-      doc: parse(text),
+      doc: parsed,
       edits: diffLines(encodeLines(oldDoc), lines),
       anchor,
-      span: subjectSpan(normalized, subjects, anchor),
+      span: subjectSpan(normalized, parsed, subjects, anchor),
     });
   }
   const anchor = { line: located, ch: contentColumnCh(lines[located] ?? '') };
   return accept({
-    doc: parse(text),
+    doc: parsed,
     edits: diffLines(encodeLines(oldDoc), lines),
     anchor,
-    span: subjectSpan(normalized, subjects, anchor),
+    span: subjectSpan(normalized, parsed, subjects, anchor),
   });
 }
 
@@ -175,24 +181,38 @@ export function finalize(
  * over in whatever order it composed them.
  */
 function subjectSpan(
-  doc: OutlineDoc,
+  surgery: OutlineDoc,
+  parsed: OutlineDoc,
   ids: readonly number[],
   fallback: LinePos,
 ): Cover {
   if (ids.length === 0) return { start: fallback, end: fallback };
+  // Subjects are located by LINE across the re-parse, the same way
+  // `enforce.ts` locates a surviving neighbour: ids do not survive, and the two
+  // trees share their text and therefore their line geometry.
   const wanted = new Set(ids);
-  const found: { node: OutlineNode; start: number }[] = [];
-  forEachNodeWithLine(doc, (node, startLine) => {
-    if (wanted.has(node.id)) found.push({ node, start: startLine });
+  const lines: number[] = [];
+  forEachNodeWithLine(surgery, (node, startLine) => {
+    if (wanted.has(node.id)) lines.push(startLine);
   });
-  if (found.length === 0) return { start: fallback, end: fallback };
-  found.sort((a, b) => a.start - b.start);
-  const first = found[0]!;
-  const last = found[found.length - 1]!;
-  return {
-    start: { line: first.start, ch: 0 },
-    end: subtreeCoverOf(doc, last.node).end,
-  };
+  if (lines.length === 0) return { start: fallback, end: fallback };
+
+  // Several subjects can resolve to ONE node in the result — a re-parse can
+  // make one of them a descendant of another — so the covers are unioned
+  // rather than assumed disjoint.
+  const covers = lines
+    .map((line) => nodeAtLine(parsed, line))
+    .filter((node): node is OutlineNode => node !== undefined)
+    .map((node) => subtreeCoverOf(parsed, node));
+  if (covers.length === 0) return { start: fallback, end: fallback };
+  let span = covers[0]!;
+  for (const cover of covers.slice(1)) {
+    span = {
+      start: posBefore(cover.start, span.start) ? cover.start : span.start,
+      end: posBefore(span.end, cover.end) ? cover.end : span.end,
+    };
+  }
+  return span;
 }
 
 // ---------------------------------------------------------------- headings
