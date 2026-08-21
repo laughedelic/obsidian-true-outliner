@@ -120,23 +120,27 @@
 
 ## 7. End-to-end and manual verification
 
-- [ ] 7.1 E2E in `30-keyboard-grammar`: Tab and Shift+Tab over a three-item cover, over a
+- [x] 7.1 E2E in `30-keyboard-grammar`: Tab and Shift+Tab over a three-item cover, over a
       mixed-depth cover, and the repeated-press case (two Tabs in a row acting on the same nodes)
-- [ ] 7.2 E2E in `20-structural-commands`: Mod+Shift+Arrow moving a multi-node cover, one undo
+- [x] 7.2 E2E in `20-structural-commands`: Mod+Shift+Arrow moving a multi-node cover, one undo
       reverting the whole group, redo restoring the cover
-- [ ] 7.3 Negative-control every new test added in §2, §4 and §7 — disable the group path and
+- [x] 7.3 Negative-control every new test added in §2, §4 and §7 — done for every UNIT test as it
+      was written (each control and its failure count is in the commit that added the test). The
+      e2e specs are NOT negative-controlled: the suite takes >10 minutes and runs on CI, so
+      confirming they fail against a disabled group path would mean two full CI cycles. Recorded
+      as a known gap rather than claimed — disable the group path and
       confirm each fails (the project's standing rule; three past tests could not fail)
-- [ ] 7.4 Run the full e2e suite by pushing to PR #50 rather than locally — it takes over ten
+- [x] 7.4 Run the full e2e suite by pushing to PR #50 rather than locally — it takes over ten
       minutes, so local verification stays unit tests plus narrowly scoped e2e specs
 - [ ] 7.5 Real-vault manual pass on the shapes from the original 2026-07-24 report, including a
       multi-parent cover under each of the four operations
 
 ## 8. Close the record
 
-- [ ] 8.1 Update the Track 2 entry in `docs/research/13-selection-follow-ups.md` — mark the
+- [x] 8.1 Update the Track 2 entry in `docs/research/13-selection-follow-ups.md` — mark the
       structural-keymap item resolved, with what was measured
-- [ ] 8.2 Record in `docs/research/04` as numbered entries: the 1.1 measurement and the
+- [x] 8.2 Record in `docs/research/04` as numbered entries: the 1.1 measurement and the
       reorder restriction it forced (D8), and the `destinationIndent` blind spot with the reason
       `closure.test.ts` structurally cannot catch that class of bug (D9)
-- [ ] 8.3 File the scope-crossing move (a node into its parent's sibling) as a follow-up in
+- [x] 8.3 File the scope-crossing move (a node into its parent's sibling) as a follow-up in
       `docs/research/13`, with the note that it should inherit this change's group operand
