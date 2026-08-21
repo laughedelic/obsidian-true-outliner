@@ -92,13 +92,16 @@
 
 ## 5. Command path (`src/plugin/main.ts`)
 
-- [ ] 5.1 `runOp` resolves its operand from `editor.listSelections()` through the shared function
+- [x] 5.1 `runOp` resolves its operand from `editor.listSelections()` through the shared function
       from 3.1, replacing the `getCursor()` lookup
-- [ ] 5.2 `editorCheckCallback` returns false when the selection holds more than one range, so
+- [x] 5.2 `editorCheckCallback` returns false when the selection holds more than one range, so
       the command is unavailable (design D6)
-- [ ] 5.3 Dispatch the resulting cover in the SAME transaction as the change, keeping the
+- [x] 5.3 Dispatch the resulting cover in the SAME transaction as the change, keeping the
       re-assertion that preserves undo granularity
-- [ ] 5.4 Test that palette and keyboard produce an identical document AND an identical selection
+- [x] 5.4 Test that palette and keyboard produce an identical document AND an identical selection —
+      closed STRUCTURALLY rather than by a parity test: the after-state rule is extracted to
+      `afterState`, so the two adapters cannot decide differently. Both call `resolveOperand` then
+      `afterState`; only orientation, which is each adapter's own, is applied locally
       for the same cover — the parity the existing "Both entry points agree" scenario asserts for
       carets
 

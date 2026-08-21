@@ -4,7 +4,8 @@ import { parse } from '../src/parse';
 import { walkNodes, type OutlineDoc } from '../src/model';
 import { forestCoverOf, subtreeCoverOf } from '../src/escalate';
 import { nodeStartLine } from '../src/locate';
-import { resolveOperand } from '../src/operand';
+import { afterState, resolveOperand } from '../src/operand';
+import { indentGroups } from '../src/ops';
 import type { LineRange } from '../src/line-pos';
 import { arbLabeledDoc } from './group-oracle';
 
@@ -115,5 +116,37 @@ describe('operand resolution', () => {
     const cover = subtreeCoverOf(doc, b);
     const operand = resolveOperand(doc, { anchor: cover.start, head: cover.end });
     expect(operand).toEqual({ groups: [[b.id]], wasCover: true });
+  });
+});
+
+/**
+ * Task 5.4 — the after-state rule both entry points read.
+ *
+ * The parity that matters is structural: the keyboard path and the command
+ * palette call `resolveOperand` and then `afterState`, so neither can decide
+ * differently. What is testable here is that rule; the adapters' own wiring is
+ * covered end-to-end.
+ */
+describe('after-state', () => {
+  const doc = parse(DOC);
+  const groups = [[nodeWith(doc, '- a').id, nodeWith(doc, '- b').id]];
+
+  it('a cover operand yields the moved subtrees’ span', () => {
+    const result = indentGroups(doc, groups);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const state = afterState(result.value, true, { line: 99, ch: 99 });
+    expect(state.from).toEqual(result.value.span.start);
+    expect(state.to).toEqual(result.value.span.end);
+  });
+
+  it('a caret operand yields the caret, and never the span', () => {
+    const result = indentGroups(doc, groups);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const caret = { line: 2, ch: 4 };
+    const state = afterState(result.value, false, caret);
+    expect(state).toEqual({ from: caret });
+    expect(state.to).toBeUndefined();
   });
 });

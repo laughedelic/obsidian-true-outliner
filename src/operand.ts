@@ -19,6 +19,8 @@
  */
 
 import type { OutlineDoc } from './model';
+import type { OpOutput } from './ops';
+import type { LinePos } from './line-pos';
 import type { ForestRoot } from './escalate';
 import { coveredForestOf, escalateRange, forestCoverOf } from './escalate';
 import { nodeAtLine } from './locate';
@@ -111,4 +113,27 @@ export function resolveOperand(doc: OutlineDoc, range: LineRange): Operand | und
   if (covered) return { groups: groupRootsByParent(covered.roots), wasCover: true };
   const groups = coverGroupsOf(doc, range);
   return groups ? { groups, wasCover: false } : undefined;
+}
+
+/**
+ * The selection a dispatch should state after an accepted operation: the cover
+ * of the moved subtrees when the operand WAS a cover, else the caret
+ * `caret-placement-policy` computed.
+ *
+ * Shared rather than written at each dispatch site, because
+ * `selection-structural-ops` requires both entry points to resolve their
+ * after-state through one rule and not re-derive it. The keyboard path and the
+ * command palette had already grown two copies of the caret rule once, which is
+ * why `caret-placement-policy` exists at all; this is the same question one
+ * layer up.
+ *
+ * Orientation is left to the caller: it is a property of the selection the user
+ * had, which only each adapter can see.
+ */
+export function afterState(
+  result: OpOutput,
+  wasCover: boolean,
+  caret: LinePos,
+): { readonly from: LinePos; readonly to?: LinePos } {
+  return wasCover ? { from: result.span.start, to: result.span.end } : { from: caret };
 }

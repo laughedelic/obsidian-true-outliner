@@ -27,7 +27,7 @@ import { applyEdits, diffLines } from '../result';
 import { nodeAtLine, nodeStartLine } from '../locate';
 import { resolvedOutline } from './decorate';
 import { coveredForestOf } from '../escalate';
-import { groupRootsByParent, resolveOperand } from '../operand';
+import { afterState, groupRootsByParent, resolveOperand } from '../operand';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
@@ -210,12 +210,15 @@ function planFromOp(
   return {
     plan: {
       changes,
-      selection: dispatchSpan
-        ? {
-            anchor: offsetInNewText(newLines, result.value.span.start),
-            head: offsetInNewText(newLines, result.value.span.end),
-          }
-        : offsetInNewText(newLines, caret),
+      selection: (() => {
+        const state = afterState(result.value, dispatchSpan, caret);
+        return state.to === undefined
+          ? offsetInNewText(newLines, state.from)
+          : {
+              anchor: offsetInNewText(newLines, state.from),
+              head: offsetInNewText(newLines, state.to),
+            };
+      })(),
       userEvent,
       abandon: abandonEdit(abandonForm, lines, newLines, caret.line),
     },
