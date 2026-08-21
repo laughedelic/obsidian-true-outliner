@@ -1,0 +1,18 @@
+/openspec-apply-change use unit tests and scoped narrow e2e tests during implementation, push to the PR for the full e2e CI run (slow, >10m)
+
+---
+
+<system-reminder>
+The user started your suggested background task task_4bbbfbb9 ("Fix indent's inferred unit under an ordered parent") in a separate local session. It is running independently. You will be notified here when it ends.
+</system-reminder>
+
+okay, let's go with option 1. one thing I want to note here: currently, it's not possible to move a  child node from parent to the parent's sibling (same level). it should be possible for a single child or a group of siblings. is this in scope of this change? 
+/openspec-update-change , then we'll get a review before going into the implementation.
+
+---
+
+<system-reminder>
+The separate session for background task task_4bbbfbb9 ("Fix indent's inferred unit under an ordered parent") has ended.
+</system-reminder>
+
+#51 was merged and this branch should be rebased on the remote main. make sure the local branch is up to date and start the implementation (apply)
