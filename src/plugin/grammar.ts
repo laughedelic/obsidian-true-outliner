@@ -528,9 +528,19 @@ export function planKey(
     anchor: selectionStart ?? cursor,
     head: selectionEnd ?? cursor,
   });
-  const groups = operand?.groups ?? [[opNode.id]];
+  // No jurisdiction: DECLINE, rather than falling back to the head's own node.
+  // `resolveOperand` returns nothing only when a non-empty range has an end in
+  // the preamble — an empty range whose line has a node always resolves, and
+  // `opNode` above already declined when the head had none. Targeting the head
+  // anyway made the same selection behave differently depending on which way it
+  // was dragged: anchor in the frontmatter and head on a node indented that
+  // node, while the reverse declined. That orientation-dependence is the defect
+  // this capability exists to remove, so a defensive fallback here is worse
+  // than none.
+  if (!operand) return null;
+  const groups = operand.groups;
   // The after-state: a selection that WAS a block cover stays one (design D4).
-  const span = operand?.wasCover ?? false;
+  const span = operand.wasCover;
 
   switch (key) {
     case 'indent':

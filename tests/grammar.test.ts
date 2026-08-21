@@ -830,12 +830,27 @@ describe('grammar planner: structural keys over a block cover', () => {
   });
 
   it('an empty selection is byte-identical to the single-node path', () => {
-    const withSelection = planKey(RUN, { line: 2, ch: 3 }, 'indent');
-    const plain = planKey(RUN, { line: 2, ch: 3 }, 'indent');
-    if (!withSelection || !('plan' in withSelection)) throw new Error('expected a plan');
-    if (!plain || !('plan' in plain)) throw new Error('expected a plan');
-    expect(withSelection.plan).toEqual(plain.plan);
-    expect(applyChanges(RUN, plain.plan.changes)).toBe('- p\n- a\n  - b\n- c\n');
+    const cursor = { line: 2, ch: 3 };
+    // The keymap's own EMPTY-selection call shape: `selectionEnd` equal to the
+    // cursor and no `selectionStart`, which is what `makeHandler` passes when
+    // `sel.empty`. Comparing two identical calls would prove nothing.
+    const asKeymapCalls = planKey(RUN, cursor, 'indent', undefined, cursor);
+    const bare = planKey(RUN, cursor, 'indent');
+    if (!asKeymapCalls || !('plan' in asKeymapCalls)) throw new Error('expected a plan');
+    if (!bare || !('plan' in bare)) throw new Error('expected a plan');
+    expect(asKeymapCalls.plan).toEqual(bare.plan);
+    expect(applyChanges(RUN, bare.plan.changes)).toBe('- p\n- a\n  - b\n- c\n');
+  });
+
+  it('a selection reaching into the preamble declines, whichever way it was made', () => {
+    // `resolveOperand` has no jurisdiction when either end is in the preamble.
+    // Both orientations must decline: falling back to the head's own node made
+    // one direction indent and the other decline, on the same selection.
+    const src = '---\ntitle: t\n---\n\n- a\n- b\n';
+    const inPreamble = { line: 1, ch: 0 };
+    const onNode = { line: 5, ch: 3 };
+    expect(planCover(src, inPreamble, onNode, 'indent', onNode)).toBeNull();
+    expect(planCover(src, inPreamble, onNode, 'indent', inPreamble)).toBeNull();
   });
 
   it('a run moves as a unit and keeps its cover', () => {

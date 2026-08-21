@@ -131,6 +131,15 @@ after-state through this capability's rules and SHALL NOT re-derive either. Invo
 same document with the same selection, the two SHALL produce an identical document and an
 identical resulting selection.
 
+ONE existing exception, which this capability does not introduce and cannot close: where an
+operation materializes brand-new indentation and the document holds no indentation evidence to
+infer from, the keyboard path supplies the editor's live indent unit while the command path
+cannot. Obsidian's public `Editor` API exposes no route to CodeMirror's `indentUnit` facet, so
+the commands fall back to the two-space default (`src/plugin/main.ts`). The two paths then
+differ by that unit alone — the tree, the operand and the resulting selection are the same. It
+is stated here rather than left to a code comment, because "the two agree" is otherwise read as
+unconditional.
+
 A structural operation over a cover SHALL dispatch as ONE transaction forming ONE undo step,
 with the same `userEvent` annotation its single-node form carries, so classification,
 enforcement and history treat it exactly as they treat the single-node case. Where the
@@ -140,8 +149,14 @@ whole selections, and therefore needs no separate rule for covers.
 
 #### Scenario: Palette and keyboard agree
 - **WHEN** indent is invoked over the same multi-node cover from Tab and from the command
-  palette
+  palette, in a document that already has indentation to infer a unit from
 - **THEN** the resulting document and the resulting selection are identical
+
+#### Scenario: The two differ only by the indent unit, only where there is nothing to infer from
+- **WHEN** the same indent runs in a document with NO existing indented list item, so the unit
+  is not inferable, and the editor's configured unit is a tab
+- **THEN** both paths move the same nodes to the same places and dispatch the same selection,
+  and the only difference is the indentation characters the new level is written with
 
 #### Scenario: One undo step reverts the whole group
 - **WHEN** a cover over several subtrees is indented and undo is invoked once

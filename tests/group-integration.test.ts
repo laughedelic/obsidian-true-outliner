@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { EditorSelection, EditorState, Transaction } from '@codemirror/state';
+import { history, redo, undo } from '@codemirror/commands';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { walkNodes, type OutlineDoc } from '../src/model';
@@ -19,6 +20,18 @@ const OPS = {
 } as const;
 
 const arbOp = fc.constantFrom<keyof typeof OPS>('indent', 'outdent', 'moveUp');
+
+/** The minimal `EditorView` shape `@codemirror/commands`' history needs — the
+ * same stand-in `history-caret.test.ts` uses, since the suite has no DOM. */
+function makeView(state: EditorState) {
+  const view = {
+    state,
+    dispatch: (trOrSpec: { state?: EditorState }) => {
+      view.state = trOrSpec.state ?? view.state.update(trOrSpec as never).state;
+    },
+  };
+  return view;
+}
 
 /** The span a result states, as a forward selection range. */
 function spanRange(result: OpOutput): LineRange {
@@ -106,6 +119,7 @@ describe('6.2 a dispatched cover is recorded so redo can restore it', () => {
     }
     const state = EditorState.create({
       doc: text,
+      extensions: [history()],
       selection: EditorSelection.range(
         (offsets[cover.cover.start.line] ?? 0) + cover.cover.start.ch,
         (offsets[cover.cover.end.line] ?? 0) + cover.cover.end.ch,
@@ -119,12 +133,50 @@ describe('6.2 a dispatched cover is recorded so redo can restore it', () => {
         (newOffsets[span.end.line] ?? 0) + span.end.ch,
       ),
       userEvent: 'input.structure.indent',
+      annotations: Transaction.addToHistory.of(true),
     });
   }
 
   it('a cover dispatch is recorded, because mapping cannot reproduce it', () => {
     const tr = structuralTransaction('- p\n- a\n- b\n- c\n', 1, 3);
     expect(needsRecording(tr)).toBe(true);
+  });
+
+  it('and redo restores BOTH ends of the dispatched cover', () => {
+    // The predicate above is the decision, not the behaviour. Driven here
+    // against a real `EditorState` with the real `@codemirror/commands`
+    // history, the way `history-caret.test.ts` drives the caret case: without
+    // the recorder, redo recomputes a selection by MAPPING, which is not the
+    // cover the operation chose.
+    const tr = structuralTransaction('- p\n- a\n- b\n- c\n', 1, 3);
+    const dispatched = {
+      anchor: tr.newSelection.main.anchor,
+      head: tr.newSelection.main.head,
+    };
+    // What `SemanticCursorRecorder` dispatches: re-assert the selection already
+    // in place, so history writes it into the event's `selectionsAfter`.
+    const recorded = tr.state.update({ selection: tr.state.selection }).state;
+
+    const withRecorder = makeView(recorded);
+    undo(withRecorder);
+    redo(withRecorder);
+    expect({
+      anchor: withRecorder.state.selection.main.anchor,
+      head: withRecorder.state.selection.main.head,
+    }).toEqual(dispatched);
+    // A range, not a collapsed caret — the whole point of the after-state rule.
+    expect(withRecorder.state.selection.main.empty).toBe(false);
+
+    // The contrast, stated rather than assumed: with no recording, redo does
+    // NOT come back to the same cover, so the assertion above is not something
+    // mapping would have satisfied anyway.
+    const bare = makeView(tr.state);
+    undo(bare);
+    redo(bare);
+    expect({
+      anchor: bare.state.selection.main.anchor,
+      head: bare.state.selection.main.head,
+    }).not.toEqual(dispatched);
   });
 
   it('a foreign transaction is still not recorded', () => {
