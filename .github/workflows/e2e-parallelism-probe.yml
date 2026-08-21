@@ -14,19 +14,19 @@ name: e2e parallelism probe
 # artifact. A count that fails intermittently is disqualified no matter how fast
 # it is — CI that lies is worse than CI that is slow.
 #
-# This workflow is a measuring instrument, not part of the merge gate. Delete it
-# once the number it produced is settled in ci.yml, or keep it to re-check after
-# a runner-image change.
+# This workflow is a measuring instrument, not part of the merge gate. What it
+# has said so far, on ubuntu-latest (4 vCPU), full desktop suite unless noted:
+#
+#   x1  747s 766s 715s                                    mean 743s
+#   x2  389s 407s 425s                                    mean 407s  1.83x
+#   x3  325s 310s 310s                                    mean 315s  2.36x
+#   x4  261s 275s 254s                                    mean 263s  2.82x
+#   x4  213s 212s 225s 220s 212s 224s 209s 234s  (decorations group only)
+#
+# Twenty runs, no failure. Re-run it after a runner-image change, or when a new
+# spec makes a group's shape meaningfully different.
 
 on:
-  # TEMPORARY, remove before merge. `workflow_dispatch` only exists once a
-  # workflow is on the default branch, so while this lives on a PR branch the
-  # only way to start it is a push — scoped to this file, so ordinary work on
-  # the branch does not kick off a dozen full-suite runs.
-  push:
-    branches: [claude/e2e-test-parallelization-c9b457]
-    paths: ['.github/workflows/e2e-parallelism-probe.yml']
-
   workflow_dispatch:
     inputs:
       instances:
@@ -63,8 +63,8 @@ jobs:
           echo "instances=$instances" >> "$GITHUB_OUTPUT"
           echo "repeats=$repeats" >> "$GITHUB_OUTPUT"
         env:
-          INSTANCES: ${{ inputs.instances || '4' }}
-          REPEATS: ${{ inputs.repeats || '8' }}
+          INSTANCES: ${{ inputs.instances }}
+          REPEATS: ${{ inputs.repeats }}
 
   probe:
     needs: plan
@@ -75,14 +75,14 @@ jobs:
       matrix:
         instances: ${{ fromJSON(needs.plan.outputs.instances) }}
         repeat: ${{ fromJSON(needs.plan.outputs.repeats) }}
-    name: ${{ inputs.platform || 'desktop' }} x${{ matrix.instances }} (#${{ matrix.repeat }})
+    name: ${{ inputs.platform }} x${{ matrix.instances }} (#${{ matrix.repeat }})
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e
         with:
           node-version: ${{ env.node-version }}
           obsidian-version: latest
-          group: ${{ inputs.group || 'decorations' }}
-          platform: ${{ inputs.platform || 'desktop' }}
+          group: ${{ inputs.group }}
+          platform: ${{ inputs.platform }}
           max-instances: ${{ matrix.instances }}
           artifact-suffix: -run${{ matrix.repeat }}
