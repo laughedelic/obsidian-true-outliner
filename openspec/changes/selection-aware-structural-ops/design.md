@@ -161,16 +161,16 @@ the empty-forest case.
 
 Task 1.1 ran first, as its own gate, and returned a split answer.
 
-**Measured** over generated documents biased toward multi-parent covers (labelled nodes, the
-sequential composition applied, then the result's roots checked against the forest cover
-spanning them):
+**Measured** over generated documents (labelled nodes, the sequential composition applied, then
+the result's roots checked against the forest cover spanning them; 20 000 runs per operation,
+re-run on post-#51 code with ordered markers included):
 
 | operation | multi-parent cover, accepted | roots left adjacent |
 |---|---|---|
-| indent | 46 | 46 |
-| outdent | 55 | 55 |
-| move up | 13 | **0** |
-| move down | 0 | — (never accepted) |
+| indent | 3723 | 3723 |
+| outdent | 2577 | 2577 |
+| move up | 3100 | **0** |
+| move down | 0 of 8141 | — (never accepted) |
 
 The reorder failure is not a contiguity technicality, it is the gesture meaning something else.
 Each group moves within its own scope, so on
@@ -208,9 +208,11 @@ which ignores the parent's MARKER WIDTH. Indenting `- b` under `1. a` emitted ` 
 operation reported success, edited the document, consumed an undo step, and changed nothing
 structurally.
 
-It surfaced here because it made indent look like it violated contiguity — 37 apparent
-failures that vanished entirely once ordered markers were excluded from the generator, which
-is how it was identified rather than guessed at.
+It surfaced here because it made indent look like it violated contiguity — 37 apparent failures
+that vanished entirely once ordered markers were excluded from the generator, which is how it
+was identified rather than guessed at. Re-measured after #51 merged, with ordered markers back
+IN: indent tears zero times in 3723 accepted multi-parent covers. That is the confirmation the
+exclusion could only stand in for.
 
 Worth recording for anyone extending the property suite: `closure.test.ts` cannot catch this
 class of bug at all. `finalize` returns `doc: parse(text)`, so `treesEqual(result.doc,

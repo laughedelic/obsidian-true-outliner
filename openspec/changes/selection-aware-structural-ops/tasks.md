@@ -1,6 +1,6 @@
 ## 0. Rebase
 
-- [ ] 0.1 Rebase this branch on PR #51 (`fix(ops): an indent has to reach the destination's
+- [x] 0.1 Rebase this branch on PR #51 (`fix(ops): an indent has to reach the destination's
       content column`). The group property tests assume it: without it, indent under an ordered
       parent reports success while changing nothing structurally, which reads as a contiguity
       failure that has nothing to do with this change (design D9)
@@ -13,16 +13,24 @@
       multi-parent case (13 of 13); move down was never accepted on one. D8 restricts the
       reorders to a single sibling run as a result. Support landed in `tests/group-oracle.ts`
       (labelled generator + composition oracle) and `tests/group-composition.test.ts`
-- [ ] 1.2 Re-point the contiguity property at the RESTRICTED operand — reorders only over a
+- [x] 1.2 Re-point the contiguity property at the RESTRICTED operand — reorders only over a
       single group — so it passes, and keep it in the suite: a later widening of what the
-      reorders accept must fail it rather than silently shipping a scattered selection
-- [ ] 1.3 Characterize today's behaviour as an e2e probe on `20-structural-commands` /
-      `30-keyboard-grammar`: Tab over a three-item cover selected downward and upward, recording
-      the exact resulting buffers, so the pre-change behaviour is documented rather than
-      described (and so the negative control for §5 exists)
-- [ ] 1.4 Confirm `groupRootsByParent`'s output is the shape the group ops want for a mixed-depth
-      cover — one contiguous run per parent, groups independent — against a hand-built example
-      with roots at three depths
+      reorders accept must fail it rather than silently shipping a scattered selection.
+      `composeGroupOp` layers the restriction over the raw `composeSequential`; both are kept,
+      because the property that JUSTIFIES the restriction has to ask what an unrestricted
+      reorder would do. Two vacuity guards added — the multi-parent indent/outdent property
+      asserts it accepted >50 real cases, the tearing property >20 — so neither can pass by
+      testing nothing
+- [x] 1.3 Characterize today's behaviour — done at UNIT level against `planKey` rather than as
+      an e2e probe (same evidence, seconds instead of minutes; e2e coverage of the NEW behaviour
+      is §7). Measured on `- p / - a / - b / - c` with the cover `[a, b, c]`: a FORWARD selection
+      produces one change, `"  "` at line 3 — it indents only `- c`; the same three nodes selected
+      BACKWARD produce one change at line 1 — only `- a`. So head-targeting is not merely
+      incomplete, it is orientation-dependent, which is what the spec claims and this measures
+- [x] 1.4 Confirm `groupRootsByParent`'s output is the shape the group ops want for a mixed-depth
+      cover — measured on `- p / - q / - r / - s / - t` nested three deep: roots at paths
+      `[0,0,0]`, `[0,1]`, `[1]` yield three single-member groups, independent, in document order —
+      exactly `deleteSubtreeGroups`' input shape
 
 ## 2. Core group operations (`src/ops.ts`)
 

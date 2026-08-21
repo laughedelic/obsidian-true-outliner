@@ -34,11 +34,11 @@ a cover whose roots sit at different depths is scattered rather than moved: on
 
 move up carries `L5` to the top of the document while `L3` and `L4` shuffle inside `L1`. The
 roots end up separated by content that was never selected, which is not a weaker version of
-the requested gesture but a different one. Measured over generated documents biased toward
-multi-parent covers: every accepted multi-parent move up left the roots torn apart (13 of 13),
-while indent and outdent left them adjacent in every accepted case (101 of 101). Multi-parent
-move down was never accepted at all — its last root is its scope's last child — so it is
-restricted on the same rule rather than on its own evidence.
+the requested gesture but a different one. Measured over generated documents (20 000 runs per
+operation): every accepted multi-parent move up left the roots torn apart (3100 of 3100), while
+indent and outdent left them adjacent in every accepted case (3723 and 2577 respectively, none
+torn). Multi-parent move down was never accepted at all in 8141 attempts — its last root is its
+scope's last child — so it is restricted on the same rule rather than on its own evidence.
 
 Indent and outdent are unaffected because their destination is derived per group from that
 group's own previous sibling or parent, and a group's roots stay adjacent under it.
