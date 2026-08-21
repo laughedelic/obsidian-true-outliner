@@ -1,0 +1,80 @@
+name: e2e parallelism probe
+
+# Measures what raising E2E_MAX_INSTANCES actually buys, and what it costs in
+# stability, instead of guessing at either.
+#
+# Each job runs the FULL desktop suite at one instance count; every count is
+# repeated N times because a single green run says nothing about flakiness — the
+# question is whether the same suite passes repeatedly under contention. Jobs
+# are `continue-on-error` so one failure does not cancel the evidence still
+# being gathered by the rest.
+#
+# Read the results two ways: the run's Summary tab collects one timing row per
+# job, and any job that failed has its failure screenshots attached as an
+# artifact. A count that fails intermittently is disqualified no matter how fast
+# it is — CI that lies is worse than CI that is slow.
+#
+# This workflow is a measuring instrument, not part of the merge gate. Delete it
+# once the number it produced is settled in ci.yml, or keep it to re-check after
+# a runner-image change.
+
+on:
+  workflow_dispatch:
+    inputs:
+      instances:
+        description: "Instance counts to compare, comma-separated."
+        required: false
+        default: "1,2,3,4"
+      repeats:
+        description: "How many times to run each count."
+        required: false
+        default: "3"
+      platform:
+        description: "desktop | mobile"
+        required: false
+        default: "desktop"
+      group:
+        description: "Spec group to probe. Blank = the whole suite."
+        required: false
+        default: ""
+
+env:
+  node-version: "26"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      instances: ${{ steps.plan.outputs.instances }}
+      repeats: ${{ steps.plan.outputs.repeats }}
+    steps:
+      - id: plan
+        run: |
+          instances=$(node -e 'console.log(JSON.stringify(process.argv[1].split(",").map(s=>s.trim()).filter(Boolean)))' "$INSTANCES")
+          repeats=$(node -e 'console.log(JSON.stringify(Array.from({length: Number(process.argv[1])}, (_, i) => i + 1)))' "$REPEATS")
+          echo "instances=$instances" >> "$GITHUB_OUTPUT"
+          echo "repeats=$repeats" >> "$GITHUB_OUTPUT"
+        env:
+          INSTANCES: ${{ inputs.instances }}
+          REPEATS: ${{ inputs.repeats }}
+
+  probe:
+    needs: plan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        instances: ${{ fromJSON(needs.plan.outputs.instances) }}
+        repeat: ${{ fromJSON(needs.plan.outputs.repeats) }}
+    name: ${{ inputs.platform }} x${{ matrix.instances }} (#${{ matrix.repeat }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/e2e
+        with:
+          node-version: ${{ env.node-version }}
+          obsidian-version: latest
+          group: ${{ inputs.group }}
+          platform: ${{ inputs.platform }}
+          max-instances: ${{ matrix.instances }}
+          artifact-suffix: -run${{ matrix.repeat }}
