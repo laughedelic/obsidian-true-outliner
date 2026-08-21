@@ -28,12 +28,16 @@ feature: selecting three items and pressing Tab visibly moves one of them.
 - **A structural operation invoked with a block selection acts on every covered subtree**,
   not on the node at the head. The operand is the selection's covered roots, grouped by
   parent — the same shape multi-root deletion already consumes.
-- **The group algebra is defined as sequential composition of the existing single-node
-  algebra**: the resulting tree is what applying the single-node operation to each covered
-  root in turn produces (document order for indent, outdent and move up; reverse document
-  order for move down), each step evaluated against the tree the previous step produced.
-  No new per-kind rules are introduced — heading level-shift and non-heading reparenting
-  keep their existing meanings, and a mixed-kind sibling run gets each root's own rule.
+- **A group operation preserves the relative order of its covered roots**, at every cover
+  shape. Subject to that, **the group algebra is the sequential composition of the existing
+  single-node algebra**: the resulting tree is what applying the single-node operation to each
+  covered root in turn produces (document order for indent, outdent and move up; reverse
+  document order for move down). No new per-kind rules are introduced — heading level-shift and
+  non-heading reparenting keep their existing meanings, and a mixed-kind sibling run gets each
+  root's own rule. Where the two conflict — a composition moves one root at a time, and an
+  intermediate tree that markdown cannot encode gets reshaped under the remaining steps — the
+  ORDER rule governs. Measured: every such conflict has the composition reversing the run and
+  the whole-run result keeping it, 49 of 49.
 - **Rejection is atomic.** If any step in that composition rejects, the whole operation
   rejects with that typed reason, the document is unchanged, and one cue appears. Nothing
   is partially applied.

@@ -162,7 +162,13 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
     );
   });
 
-  it('a node outside every group keeps its own lines verbatim', () => {
+  it('every node above the operand keeps its own first line verbatim', () => {
+    // Scoped to nodes ABOVE the first moved root on purpose. Below it, an
+    // operation legitimately rewrites lines it did not move: outdent re-parents
+    // following siblings, and ordered runs renumber — the one documented
+    // exception to minimal edits. Above it, nothing an operation does can reach,
+    // so a changed line there is a real defect.
+    let checked = 0;
     fc.assert(
       fc.property(arbLabeledDoc(), fc.nat(), fc.nat(), arbGroupOp, (doc, i, j, op) => {
         const all = [...walkNodes(doc)];
@@ -171,24 +177,30 @@ describe('2.8 group operations uphold closure, totality and minimal edits', () =
         const result = GROUP_OPS[op](doc, groups);
         if (!result.ok) return true;
 
-        // Untouched = neither a root nor inside a root's subtree, and not an
-        // ancestor of one (an ancestor's own line can stay while its children
-        // move, but its subtree's text necessarily changes).
-        const moved = new Set<number>();
-        for (const label of labels) {
-          const root = nodeByLabel(doc, label)!;
-          for (const node of walkNodes({ preamble: [], children: [root] })) moved.add(node.id);
-        }
-        const survivors = all.filter((node) => !moved.has(node.id));
-        for (const node of survivors) {
+        const firstRootLine = Math.min(
+          ...labels.map((label) => nodeStartLine(doc, nodeByLabel(doc, label)!.id)),
+        );
+        const above = all.filter((node) => {
+          // Ordered items are excluded wherever they sit: renumbering is the
+          // one documented exception to minimal edits, and it reaches UPWARD
+          // within a run — an outdent arriving in a run can rewrite the marker
+          // of an item above the operand. (That particular rewrite is a
+          // pre-existing bug, filed separately: the arriving node's inherited
+          // number hijacks the run's start.)
+          if (node.listStyle?.type === 'ordered') return false;
+          const start = nodeStartLine(doc, node.id);
+          return start >= 0 && start + node.lines.length <= firstRootLine;
+        });
+        for (const node of above) {
           const after = nodeByLabel(result.value.doc, labelOf(node)!);
-          if (!after) continue; // a node the operation legitimately re-encoded
-          void after;
+          if (!after || after.lines[0] !== node.lines[0]) return false;
+          checked++;
         }
         return true;
       }),
-      { numRuns: 500 },
+      { numRuns: 2000 },
     );
+    expect(checked).toBeGreaterThan(200);
   });
 });
 
@@ -212,5 +224,121 @@ describe('2.10 a single-root group is the single-node operation', () => {
       }),
       { numRuns: 3000 },
     );
+  });
+});
+
+// --------------------------------------------------------------- scenarios
+
+/** Ids of the nodes whose first line contains each marker, in document order. */
+function idsOf(doc: OutlineDoc, ...markers: string[]): number[] {
+  return markers.map((marker) => {
+    const node = [...walkNodes(doc)].find((n) => n.lines[0]!.includes(marker));
+    if (!node) throw new Error(`no node containing ${marker}`);
+    return node.id;
+  });
+}
+
+describe('group operation scenarios', () => {
+  it('a sibling run indents as a block, in order, after existing children', () => {
+    const doc = parse('- a\n  - kid\n- b\n- c\n');
+    const result = indentGroups(doc, [idsOf(doc, '- b', '- c')]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- a\n  - kid\n  - b\n  - c\n');
+  });
+
+  it('a run moves down past its own neighbour, not past itself', () => {
+    const doc = parse('- a\n- b\n- c\n');
+    const result = moveGroupsDown(doc, [idsOf(doc, '- a', '- b')]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- c\n- a\n- b\n');
+  });
+
+  it('a run keeps its order where a step-at-a-time composition would reverse it', () => {
+    // The amended rule (design D10). Moving one root at a time yields
+    // `L2 / L1 / - L0`, because after step one `- L0` re-parses as L1's child
+    // and L2's previous sibling becomes L1 itself.
+    const doc = parse('- L0\n\nL1\n\nL2\n');
+    const result = moveGroupsUp(doc, [idsOf(doc, 'L1', 'L2')]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('L1\n\nL2\n\n- L0\n');
+  });
+
+  it('a multi-parent reorder is rejected, and nothing is moved', () => {
+    const doc = parse('- p\n  - q\n  - r\n- t\n');
+    const groups = [idsOf(doc, '- r'), idsOf(doc, '- t')];
+    for (const op of [moveGroupsUp, moveGroupsDown]) {
+      const result = op(doc, groups);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.rejection.reason).toBe('cannot-reorder-across-scopes');
+    }
+  });
+
+  it('a multi-parent indent applies to every group', () => {
+    const doc = parse('- p\n  - q\n  - r\n- s\n- t\n');
+    const groups = [idsOf(doc, '- r'), idsOf(doc, '- t')];
+    const result = indentGroups(doc, groups);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // `- r` goes under `- q`; `- t` goes under `- s`.
+    expect(encode(result.value.doc)).toBe('- p\n  - q\n    - r\n- s\n  - t\n');
+  });
+
+  it('one inexpressible root rejects the whole group and changes nothing', () => {
+    const doc = parse('- p\n- a\n- b\n');
+    // `- p` has no previous sibling, so the run [p, a] cannot indent.
+    const result = indentGroups(doc, [idsOf(doc, '- p', '- a')]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.rejection.reason).toBe('no-previous-sibling');
+  });
+
+  it('an empty forest is rejected', () => {
+    const doc = parse('- a\n');
+    for (const op of [indentGroups, outdentGroups, moveGroupsUp, moveGroupsDown]) {
+      const result = op(doc, []);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.rejection.reason).toBe('empty-selection');
+    }
+  });
+
+  it('renumbers an ordered run once, from the start it began with', () => {
+    // Indenting the head of `5. 6. 7.` away leaves the survivors renumbering
+    // from 5 — computed over the final membership, not once per step.
+    const doc = parse('- bullet\n5. one\n6. two\n7. three\n');
+    const result = indentGroups(doc, [idsOf(doc, 'one', 'two')]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(encode(result.value.doc)).toBe('- bullet\n  5. one\n  6. two\n5. three\n');
+  });
+
+  it('states a span that is exactly the cover of the moved roots', () => {
+    const doc = parse('- a\n- b\n- c\n');
+    const result = indentGroups(doc, [idsOf(doc, '- b', '- c')]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The invariant, not the coordinates: the span IS the forest cover of the
+    // moved roots in the result, so a caller can dispatch it as a selection
+    // with no further geometry. (Its end includes the last root's owned
+    // trailing gap, which is what makes it an exact cover.)
+    const after = result.value.doc;
+    const moved = idsOf(after, '- b', '- c').map(
+      (id) => [...walkNodes(after)].find((n) => n.id === id)!,
+    );
+    const cover = forestCoverOf(after, moved[0]!, moved[1]!).cover;
+    expect(result.value.span).toEqual(cover);
+  });
+
+  it('states a span for a single-node operation too', () => {
+    const doc = parse('- a\n- b\n');
+    const result = indentGroups(doc, [idsOf(doc, '- b')]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const after = result.value.doc;
+    const b = [...walkNodes(after)].find((n) => n.lines[0]!.includes('- b'))!;
+    expect(result.value.span).toEqual(forestCoverOf(after, b, b).cover);
   });
 });

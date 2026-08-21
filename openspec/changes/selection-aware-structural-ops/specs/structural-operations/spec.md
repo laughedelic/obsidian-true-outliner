@@ -6,8 +6,14 @@ Indent, outdent, move up and move down SHALL each have a GROUP form taking a for
 roots — one contiguous sibling run per parent, in document order, the same input shape
 `deleteSubtreeGroups` takes — and returning the same typed result the single-node forms return.
 
-The group form's output tree SHALL BE the tree produced by applying the SINGLE-NODE form to
-each covered root IN TURN, each step evaluated against the tree the previous step produced:
+A group operation SHALL preserve the RELATIVE DOCUMENT ORDER of its covered roots, at every
+cover shape. "Move these three up" means the three arrive above their neighbour still in the
+order the user selected them; an operation that returns them shuffled has not performed the
+gesture, whatever else it got right.
+
+Subject to that, the group form's output tree SHALL BE the tree produced by applying the
+SINGLE-NODE form to each covered root IN TURN, each step evaluated against the tree the
+previous step produced:
 
 - Indent, outdent and move up apply their roots in DOCUMENT ORDER.
 - Move down applies its roots in REVERSE document order, because a forward-order move would
@@ -48,6 +54,22 @@ per-kind algebra intact without restating it. A heading root still level-shifts 
 non-heading root still reparents under the run's previous sibling; a sibling run mixing the
 two gets each root's own rule, with no new rejection for the mixture.
 
+Where the composition would NOT preserve the roots' order, the ORDER rule governs and the
+composition does not define the result. The two can conflict because a composition moves one
+root at a time, and an intermediate tree need not be REPRESENTABLE: markdown has no encoding
+for a list item that follows a paragraph as its sibling, so the re-parse between two steps can
+reshape the document under the steps that have not run yet.
+
+Measured on `- L0` / `L1` / `L2`, moving the run `[L1, L2]` up. Step one swaps `L1` above
+`- L0`; that encoding re-parses with `- L0` as L1's own child, so step two finds L2's previous
+sibling to be `L1` and swaps past it — yielding `L2 / L1 / - L0`, the run reversed. Acting on
+the whole run at once yields `L1 / L2 / - L0`, which is the requested gesture.
+
+Every measured disagreement between the two rules has this shape — 49 of 49, always with the
+composition losing the order and the whole-run result keeping it, never the reverse — which is
+why the order rule is stated first and the composition is subordinate to it rather than the
+other way round.
+
 Group forms SHALL emit ONE minimal edit list for the whole transformation, satisfying the
 existing minimal-edit guarantee against the ORIGINAL document: lines no root's transformation
 semantically requires SHALL be byte-identical, with ordered-run renumbering the same documented
@@ -70,6 +92,13 @@ included, so no existing behaviour changes when the operand resolves to one node
 #### Scenario: A run moves up past its own neighbour
 - **WHEN** the group move up of `- a` / `- b` / `- c` is invoked for the run `[b, c]`
 - **THEN** the result is `- b` / `- c` / `- a`
+
+#### Scenario: A run keeps its order where a step-at-a-time composition would reverse it
+- **WHEN** the group move up is invoked for the run `[L1, L2]` in `- L0` / `L1` / `L2`, where
+  `L1` and `L2` are paragraphs — so an intermediate tree placing `- L0` as a paragraph's
+  following sibling has no markdown encoding
+- **THEN** the result is `L1` / `L2` / `- L0`, with the run in its original order — not
+  `L2` / `L1` / `- L0`, which is what moving one root at a time produces
 
 #### Scenario: A heading run level-shifts
 - **WHEN** the group indent is invoked for a run of two sibling headings

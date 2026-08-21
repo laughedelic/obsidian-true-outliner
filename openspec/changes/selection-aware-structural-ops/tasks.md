@@ -53,13 +53,13 @@
       D8); `indentGroups`/`outdentGroups` accept any forest shape
 - [x] 2.6b Add `cannot-reorder-across-scopes` to `REJECTION_MESSAGES` (`src/plugin/messages.ts`)
       with a message naming the scopes, and to `closure.test.ts`'s `KNOWN_REASONS`
-- [ ] 2.6c Unit tests for both sides of D8: a multi-parent reorder rejects and changes nothing;
+- [x] 2.6c Unit tests for both sides of D8: a multi-parent reorder rejects and changes nothing;
       a multi-parent indent and outdent still apply in full
 - [x] 2.7 Property test each group op against the oracle from 2.2 — equal trees — over generated
       documents and covers
-- [ ] 2.8 Extend `tests/closure.test.ts` to the group ops: closure, totality, and minimal edits
+- [x] 2.8 Extend `tests/closure.test.ts` to the group ops: closure, totality, and minimal edits
       (a node lying between two groups is byte-identical)
-- [ ] 2.9 Direct unit tests in `tests/ops.test.ts` for the ordered-run renumbering cases: a group
+- [x] 2.9 Direct unit tests in `tests/ops.test.ts` for the ordered-run renumbering cases: a group
       indent that removes a run's head, a group move within an ordered run, and a mixed-depth
       group that renumbers at two levels — renumbering computed once over the final membership,
       not per step (design D2 risk)

@@ -71,6 +71,10 @@ reorders only within ONE scope.* Measured, not assumed — see D8. The spec stat
 restriction on the reorders' operand rather than weakening the composition rule, so the
 definition stays one sentence.
 
+*And composition is SUBORDINATE to order preservation, which is a correction to this decision
+made during implementation — see D10.* The composition remains how the per-kind algebra is
+reused; it is no longer the last word on the result.
+
 *Alternative rejected:* stating fresh multi-root rules per kind. That is a second copy of the
 algebra, and the mixed-kind sibling run is exactly where two copies would drift.
 
@@ -222,6 +226,67 @@ SUBJECT's resulting parent or depth.
 Fixed on its own branch (PR #51, `fix(ops): an indent has to reach the destination's content
 column`). This change REBASES on it and assumes it fixed; the group property tests would
 otherwise fail for a reason that has nothing to do with them.
+
+### D10. Order preservation outranks the composition
+
+D1 defined a group result AS the sequential composition. Implementing it showed that
+definition is wrong in a specific, measurable way, and the spec now states order preservation
+first with the composition subordinate to it.
+
+A composition moves one root at a time, and an intermediate tree need not be REPRESENTABLE.
+Markdown cannot encode a list item as a paragraph's following sibling, so `finalize`'s re-parse
+between two steps is not a formality — it reshapes the document under the steps that have not
+run yet.
+
+Measured on `- L0` / `L1` / `L2`, moving the run `[L1, L2]` up:
+
+| | result |
+|---|---|
+| whole run at once | `L1` / `L2` / `- L0` — the run keeps its order |
+| one root at a time | `L2` / `L1` / `- L0` — the run is REVERSED |
+
+Step one swaps `L1` above `- L0`, whose encoding re-parses with `- L0` as L1's own child; step
+two then finds L2's previous sibling to be `L1` and swaps past it.
+
+**Every** disagreement between the implementation and the composition has this shape: 49 of 49,
+always with the composition losing the run's order and the implementation keeping it, never the
+reverse. `indent` and `outdent` agree everywhere measured (2469 and 2062 accepted cases, zero
+divergences); only the reorders are affected.
+
+So the group forms are not an approximation of the composition — they are better defined than
+it. The property that compares them takes order preservation as a PRECONDITION, and the
+invariant that actually matters is asserted directly on the implementation at every cover shape.
+
+*Alternative rejected:* reproducing the composition faithfully by re-parsing between steps. It
+is what the original D1 asked for, and it would ship reversed runs — a gesture doing something
+no user asked for — at 12.45 ms for a ten-node run on top.
+
+### D11. A second bug of PR #51's class, deferred deliberately
+
+`moveDown` lands its subject one level deeper when it moves past a paragraph that owns list
+children: the item is absorbed into that paragraph's list rather than becoming its sibling.
+Measured at 68 of 2440 accepted single-node cases; `indent`, `outdent` and `moveUp` are clean
+at zero under the same check.
+
+Deferred rather than fixed here, having checked rather than assumed that it is separable:
+
+- It does not cause the composition divergence above — all 49 disagreements are order-related,
+  and both sides hit this bug equally.
+- It does not break this change's invariants. The subject span is computed on the normalized
+  tree, which shares its TEXT (and so its line geometry) with the re-parse, and an absorbed
+  node's subtree cover is still an exact cover — of a node that ended up nested.
+- It is on `main` today, so a group `moveDown` inherits exactly the symptom a single one has.
+
+Fixing it changes single-node `moveDown` behaviour that existing unit and e2e expectations
+encode, which is its own blast radius and wants its own review. The property guards here are
+deliberately loose (skip rate < 5%, compared > 1000) so they survive that fix landing rather
+than pinning today's numbers.
+
+Worth recording for whoever picks it up: `closure.test.ts` is structurally blind to this whole
+class. It compares `result.value.doc` against `parse(encode(result.value.doc))`, and `finalize`
+built that doc BY re-parsing — so the assertion is true by construction. The net that catches
+it asserts the subject's DEPTH against what the operation promises: indent +1, outdent -1,
+reorders 0.
 
 ## Risks / Trade-offs
 
