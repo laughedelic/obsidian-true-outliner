@@ -130,6 +130,40 @@ When no fallback is supplied, the existing two-space default SHALL still apply.
 Existing-document inference SHALL still take priority over the fallback whenever it
 has evidence to act on — the fallback only ever governs the true no-evidence case.
 
+Under a LIST-ITEM parent, whatever the chosen unit, the resulting indentation
+SHALL REACH that parent's content column. Every source of the unit — a sibling,
+the document, the fallback — is evidence about width alone, and none of it knows
+how wide the destination parent's marker is: a two-space unit under an ordered
+parent whose content column is three left the new node SHORT of the column, so
+the re-parse kept it a SIBLING of that parent. The operation reported success and
+consumed an undo step while changing nothing structurally. This is the mirror of
+the too-deep case above, and only a shortfall is repaired — indentation that
+already clears the column keeps the unit the evidence chose.
+
+A list item is the only parent whose content column the parse REQUIRES a child to
+reach, and the rule SHALL NOT extend past it. A paragraph's child list attaches by
+ADJACENCY, so its column is free: an indented paragraph may own a flush-left list,
+and widening a new sibling to the paragraph's own indent buries it under that list
+instead of placing it beside it. Under a paragraph, heading, or root destination
+the chosen indentation therefore stands as the evidence gave it.
+
+#### Scenario: Indentation short of the destination's content column is widened
+- **WHEN** a node is indented under a LIST-ITEM parent whose content column is wider
+  than the unit the document infers (an ordered item, a wide marker)
+- **THEN** the new indentation reaches that content column, and the re-parsed tree
+  has the node as a CHILD of that parent rather than its sibling
+
+#### Scenario: Indentation that already clears the column keeps its unit
+- **WHEN** the inferred or supplied unit is wider than the destination parent's
+  content column
+- **THEN** that unit is used unchanged rather than narrowed to the column
+
+#### Scenario: A paragraph destination keeps its sibling's indentation
+- **WHEN** a node is indented under a paragraph that is itself indented and already
+  owns a flush-left child list
+- **THEN** the new node takes that child list's own indentation and lands BESIDE it,
+  not widened to the paragraph's indent and nested underneath it
+
 #### Scenario: A destination sibling's indentation wins, whatever its kind
 - **WHEN** a node is placed among children that are indented with a tab and none
   of them is a list item
@@ -137,14 +171,24 @@ has evidence to act on — the fallback only ever governs the true no-evidence c
   keeps its own depth in the re-parsed tree
 
 #### Scenario: No fallback supplied keeps the existing two-space default
-- **WHEN** a node is indented under a list-item parent with no existing indented list
-  item anywhere in the document, and no fallback indent unit is supplied
-- **THEN** the new indentation is two spaces, exactly as before this requirement existed
+- **WHEN** a node is indented under a bulleted list-item parent with no existing
+  indented list item anywhere in the document, and no fallback indent unit is supplied
+- **THEN** the unit chosen is two spaces, exactly as before this requirement existed,
+  and it is also the final indentation — a bullet's content column is two, so there
+  is nothing to pad
 
 #### Scenario: A supplied fallback governs brand-new indentation
 - **WHEN** the same indent is performed with a caller-supplied fallback of a tab
   character (or a specific space width)
-- **THEN** the new indentation uses that exact unit instead of the two-space default
+- **THEN** the unit chosen is that exact unit instead of the two-space default, and
+  under a bulleted parent it is the final indentation unchanged
+
+#### Scenario: A chosen unit narrower than the content column is padded, not replaced
+- **WHEN** either of the two scenarios above is performed under an ORDERED parent,
+  whose content column is wider than the chosen unit
+- **THEN** the chosen unit still governs — the fallback is not overridden by some
+  other unit — and the final indentation is that unit padded out to the content
+  column, because a unit that stops short of it does not nest the node at all
 
 #### Scenario: Existing document indentation still wins over the fallback
 - **WHEN** the document already has an indented list item using tabs elsewhere, and a
@@ -167,7 +211,18 @@ reordering, except ordered-list markers which are renumbered.
 When an operation changes the membership or order of a sibling list, every maximal run of
 consecutive ordered list items among those siblings SHALL be renumbered consecutively from
 that run's START NUMBER, and only the marker digits SHALL change — the rest of each item's
-line, its children, and its trailing gap are untouched.
+line and its trailing gap are untouched.
+
+Where the new digits differ in COUNT from the old ones, the marker changes WIDTH, and the
+item's content column moves while the line the marker sits on does not. The item's
+continuation lines and its whole subtree SHALL move with that column. Leaving them behind
+breaks the closure this requirement already demands: measured, `9.` renumbered to `10.`
+left the item's children a column short, so they no longer reached it and the re-parse
+returned them as its SIBLINGS — the subtree the operation never touched, silently
+reshaped. Narrowing (`10.` to `9.`) strands them a column too deep instead, which keeps
+the tree and drifts the indentation. This clause and "its children are untouched", as the
+requirement first read, cannot both hold at a digit boundary; the implementation followed
+the narrower one and lost the tree.
 
 A run's start number is the number the run began with. How that number is recovered depends
 on the SHAPE of the transformation, and the two cases differ precisely because a permutation
@@ -209,6 +264,16 @@ always retain the run's own head.
 Renumbering is the one documented exception to "edits touch only the lines the operation
 semantically requires", and renumbered output SHALL still satisfy operation closure: the
 encoded run re-parses to the same tree.
+
+#### Scenario: A widening marker carries its subtree
+- **WHEN** a renumbering makes an item with children `10.` where it was `9.`
+- **THEN** the children are re-indented to the item's new content column and remain its
+  children in the re-parsed tree
+
+#### Scenario: A narrowing marker brings its subtree back in
+- **WHEN** a renumbering makes an item with children `9.` where it was `10.`
+- **THEN** the children are re-indented to the narrower content column rather than being
+  left a column deeper than the item requires
 
 #### Scenario: Deleting the head of an ordered run
 - **WHEN** `deleteSubtrees` removes the first two items of `1. a` / `2. b` / `3. c`

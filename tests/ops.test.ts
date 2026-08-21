@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
-import { walkNodes, type OutlineDoc } from '../src/model';
+import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import {
   indent,
   outdent,
@@ -20,6 +20,23 @@ function byLine(doc: OutlineDoc, line: string): number {
     if (node.lines[0] === line) return node.id;
   }
   throw new Error(`no node with line: ${line}`);
+}
+
+/** The first line of the node whose child has this first line; `null` at the
+ * top level. Pins a subject's PLACE IN THE TREE, which is what an indent that
+ * falls short of its destination's content column silently fails to change. */
+function parentLineOf(doc: OutlineDoc, childLine: string): string | null {
+  function search(nodes: readonly OutlineNode[], parent: string | null): string | null | undefined {
+    for (const node of nodes) {
+      if (node.lines[0] === childLine) return parent;
+      const found = search(node.children, node.lines[0] ?? '');
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+  const found = search(doc.children, null);
+  if (found === undefined) throw new Error(`no node with line: ${childLine}`);
+  return found;
 }
 
 function applyOk(
@@ -228,6 +245,69 @@ describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
     expect(text).toBe('- a\n    - b\n');
   });
 
+  // The chosen unit is evidence about WIDTH, and no source of that evidence —
+  // a sibling, the document, the caller — knows how wide the destination
+  // parent's own marker is. These pin the resulting PARENT rather than the
+  // text: the defect they cover emitted a plausible-looking document whose
+  // re-parse left the subject exactly where it started, with the op reporting
+  // success and consuming an undo step.
+  it('an indent reaches an ordered parent\'s content column, not just the inferred unit', () => {
+    // `1. a` has no children, so the unit is inferred from `  - y` elsewhere:
+    // two spaces, one short of `1. a`'s content column of 3.
+    const { text, doc } = applyWithUnit(indent, '- x\n  - y\n1. a\n- b\n', '- b', undefined);
+    expect(parentLineOf(doc, '   - b')).toBe('1. a');
+    expect(text).toBe('- x\n  - y\n1. a\n   - b\n');
+  });
+
+  it("a wide ordered marker widens the indentation to match", () => {
+    // `10. ` is four columns, wider than the two spaces inferred from `  - y`.
+    const { doc } = applyWithUnit(indent, '- x\n  - y\n10. a\n- b\n', '- b', undefined);
+    expect(parentLineOf(doc, '    - b')).toBe('10. a');
+  });
+
+  it('a TAB that falls short of the content column is padded after the tab', () => {
+    // `1000. ` is six columns and a tab is four, so even tab evidence has a
+    // shortfall here — the case the two-space tests above cannot reach, and
+    // the one that pins WHERE the padding goes. Two spaces before the tab
+    // would vanish into its tab stop and leave the line four columns wide.
+    const { text, doc } = applyWithUnit(indent, '- x\n\t- y\n\n1000. a\n- b\n', '- b', undefined);
+    expect(parentLineOf(doc, '\t  - b')).toBe('1000. a');
+    expect(text).toBe('- x\n\t- y\n\n1000. a\n\t  - b\n');
+  });
+
+  it('an outdent re-parents following siblings at the new parent\'s content column', () => {
+    // `1. a` leaves p for the top level and adopts its former following
+    // sibling `- b` as a child — under its own content column of 3.
+    const { text, doc } = applyOk(outdent, '- p\n  1. a\n  - b\n', '  1. a');
+    expect(parentLineOf(doc, '   - b')).toBe('1. a');
+    expect(text).toBe('- p\n1. a\n   - b\n');
+  });
+
+  it("a supplied fallback under an ordered parent is padded, not replaced", () => {
+    // The caller asked for spaces and still gets spaces — the shortfall is
+    // made up from the same unit rather than the choice being overridden.
+    const { text, doc } = applyWithUnit(indent, '1. a\n- b\n', '- b', '  ');
+    expect(parentLineOf(doc, '   - b')).toBe('1. a');
+    expect(text).toBe('1. a\n   - b\n');
+  });
+
+  it('a paragraph parent keeps its destination sibling, unclamped', () => {
+    // An indented paragraph can own a FLUSH-LEFT list: `- x` attaches to
+    // `   Para.` by adjacency, not by column. So the paragraph's own indent is
+    // not a floor — clamping `B` out to it would bury the new item underneath
+    // `- x` instead of placing it beside `- x`.
+    const { text, doc } = applyWithUnit(indent, '   Para.\n- x\n\nB.\n', 'B.', undefined);
+    expect(parentLineOf(doc, '- B.')).toBe('   Para.');
+    expect(text).toBe('   Para.\n- x\n\n- B.\n');
+  });
+
+  it('indentation that already clears the content column keeps its own unit', () => {
+    // A tab is four columns, wider than `1. a` needs: it stays a tab rather
+    // than being rewritten to the minimum.
+    const { text } = applyWithUnit(indent, '- x\n\t- y\n\n1. a\n- b\n', '- b', undefined);
+    expect(text).toBe('- x\n\t- y\n\n1. a\n\t- b\n');
+  });
+
   it("existing document indentation still wins over the fallback (doesn't override an established style)", () => {
     // The doc already uses tabs elsewhere, so indenting b under a should
     // still infer tabs even when the fallback says spaces.
@@ -331,6 +411,52 @@ describe('sibling reordering', () => {
   it('a swap does not let a run inherit the moved item’s own number', () => {
     const { text } = applyOk(moveDown, '5. one\n6. two\n7. three\n', '5. one');
     expect(text).toBe('5. two\n6. one\n7. three\n');
+  });
+
+  // A renumbering that crosses a DIGIT BOUNDARY changes the marker's WIDTH,
+  // which moves the item's content column while the marker's own line stays
+  // put. Pinned by the resulting PARENT: children left at the old column stop
+  // reaching it and the re-parse hands them back as siblings.
+  describe('renumbering across a digit boundary carries the subtree', () => {
+    const RUN = ['1. p1', '2. p2', '3. p3', '4. p4', '5. p5', '6. p6', '7. p7', '8. p8', '9. p9'];
+
+    it('widening 9. to 10. keeps the children children', () => {
+      // `1. a` outdents into the run, becoming its tenth member; its former
+      // sibling `- b` comes with it as a child. Both moved correctly, and then
+      // the marker grew a digit underneath them.
+      const { text, doc } = applyOk(outdent, `${RUN.join('\n')}\n   1. a\n   - b\n`, '   1. a');
+      expect(parentLineOf(doc, '    - b')).toBe('10. a');
+      expect(text).toBe(`${RUN.join('\n')}\n10. a\n    - b\n`);
+    });
+
+
+    it('a marker whose TEXT width is unchanged moves nothing', () => {
+      // `09.` and `10.` are both three columns wide. The parsed NUMBER gains a
+      // digit across the swap and the line does not, so a delta read off the
+      // numbers drifts the child a column deeper for an op that never touched
+      // it — and the drift is invisible in the tree, since too deep is still
+      // nested.
+      const { text } = applyOk(moveDown, '09. a\n    - kid\n10. b\n', '09. a');
+      expect(text).toBe('9. b\n10. a\n    - kid\n');
+    });
+
+    it('a narrowing child indented with mixed whitespace is brought in', () => {
+      // ` \t` is four columns: a tab starting at column 1 still runs to the
+      // stop at 4. Counting a flat four per tab and dropping the space leaves
+      // a tab that re-expands from zero — the same four columns, unmoved.
+      const md = ['- x', ...RUN, '10. ten', ' \t- kid'].join('\n') + '\n';
+      const { text } = applyOk(indent, md, '1. p1');
+      expect(text).toContain('9. ten\n   - kid\n');
+    });
+
+    it('narrowing 10. to 9. pulls the children in with it', () => {
+      // The mirror: indenting the run's head removes a member, so `10. ten`
+      // becomes `9. ten`. Its child stays a child either way — one column too
+      // deep is still nested — so this pins the indentation itself.
+      const md = ['- x', ...RUN, '10. ten', '    - kid'].join('\n') + '\n';
+      const { text } = applyOk(indent, md, '1. p1');
+      expect(text).toContain('9. ten\n   - kid\n');
+    });
   });
 
   it('rejects reorder across the heading/content divide and level mismatch', () => {

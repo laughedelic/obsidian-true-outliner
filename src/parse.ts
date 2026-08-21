@@ -15,7 +15,7 @@ import type { ListStyle, OutlineDoc, OutlineNode } from './model';
 import { makeNode } from './model';
 import { listAttachesTo } from './rules';
 
-const TAB_WIDTH = 4;
+export const TAB_WIDTH = 4;
 
 export function indentWidth(line: string): number {
   let width = 0;

@@ -34,6 +34,7 @@ import {
   leadingWhitespace,
   markerWidth,
   reencodeForDestination,
+  shiftBelowMarker,
   shiftSubtree,
 } from './reencode';
 
@@ -260,13 +261,25 @@ function renumberRuns(
       const number = startNumber + k;
       const style = node.listStyle as { type: 'ordered'; number: number; delimiter: '.' | ')' };
       if (style.number === number) return;
-      out[at + k] = {
+      const renumbered: OutlineNode = {
         ...node,
         listStyle: { ...style, number },
         lines: node.lines.map((line, li) =>
           li === 0 ? line.replace(ORDERED_MARKER_RE, `$1${number}$2`) : line,
         ),
       };
+      // A renumbering that crosses a DIGIT BOUNDARY changes the marker's width,
+      // which moves the item's content column without moving the line the
+      // marker is on. Everything that column governs — continuation lines and
+      // the whole subtree — moves with it, or the children stop reaching the
+      // column and the re-parse hands them back as siblings.
+      //
+      // Measured off the two LINES, not off the two numbers: `listStyle.number`
+      // is the parsed value with leading zeroes already discarded, so `09.` to
+      // `10.` reads as a digit gained where the text width did not change at
+      // all, and the subtree drifted a column deeper for an op that never
+      // touched it.
+      out[at + k] = shiftBelowMarker(renumbered, markerWidth(renumbered) - markerWidth(node));
     });
   }
   return out;
@@ -340,6 +353,51 @@ function renumberOrderedAfterRemoval(
  * the first indent in one) — see `inferIndentUnit`.
  */
 export function destinationIndent(
+  doc: OutlineDoc,
+  parent: OutlineNode | 'root',
+  siblingsAtDestination: readonly OutlineNode[],
+  fallbackIndentUnit?: string,
+): string {
+  return reachContentColumn(
+    chooseIndent(doc, parent, siblingsAtDestination, fallbackIndentUnit),
+    parent,
+  );
+}
+
+/**
+ * Indentation that actually REACHES the destination parent's content column.
+ *
+ * Every source `chooseIndent` draws on — a sibling's whitespace, the
+ * document's inferred unit, the caller's fallback — is evidence about WIDTH,
+ * and none of it knows how wide the destination parent's own marker is.
+ * Indenting `- b` under `1. a` (content column 3) with two spaces inferred
+ * from elsewhere in the document emitted `  - b`, one column short: the
+ * re-parse left the node a SIBLING of `1. a`, so the op reported success and
+ * consumed an undo step while moving nothing structurally.
+ *
+ * The requirement's existing reasoning covers the other direction — an indent
+ * too DEEP re-parents destination siblings under the new node — and this is
+ * its mirror. Only a shortfall is repaired: an indent that already clears the
+ * column keeps whatever the evidence chose (a tab stays a tab).
+ *
+ * A LIST ITEM only. Its content column is what the parse requires of a child,
+ * so falling short of it is what un-nests the node. A paragraph's child list
+ * attaches by ADJACENCY instead (`listAttachesTo`), and its column is free:
+ * an indented paragraph can own a flush-left list, so `   Para.` owning `- x`
+ * would clamp a new sibling of `- x` out to three columns and bury it
+ * underneath `- x` rather than beside it. Measured — and `childBaseCol`'s
+ * paragraph branch is the approximation it warns about, not a requirement.
+ */
+function reachContentColumn(indentText: string, parent: OutlineNode | 'root'): string {
+  if (parent === 'root' || parent.kind !== 'list-item') return indentText;
+  const shortfall = childBaseCol(parent) - indentWidth(indentText);
+  // Spaces AFTER the chosen indentation, never before it: padding ahead of a
+  // tab vanishes into the tab stop. `shiftLine` in reencode.ts makes the same
+  // choice for the same reason.
+  return shortfall > 0 ? indentText + ' '.repeat(shortfall) : indentText;
+}
+
+function chooseIndent(
   doc: OutlineDoc,
   parent: OutlineNode | 'root',
   siblingsAtDestination: readonly OutlineNode[],
