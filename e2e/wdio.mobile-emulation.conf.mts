@@ -16,8 +16,10 @@ const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile'
  * Mobile-emulation variant of wdio.conf.mts: identical plugin/vault/specs,
  * run under Obsidian's own `app.emulateMobile()` instead — still the
  * Electron desktop app under a phone-sized viewport, not the real
- * Capacitor mobile app. See README's "Mobile testing" section for what
- * this does and doesn't catch.
+ * Capacitor mobile app. What that does and does not catch is spelled out on
+ * `IS_MOBILE_RUN` in ./helpers.ts, next to the specs that skip themselves
+ * here: real mouse drags become touch gestures under emulation, so a
+ * drag-based selection test is measuring something that does not exist.
  */
 export const config: WebdriverIO.Config = {
   runner: 'local',
