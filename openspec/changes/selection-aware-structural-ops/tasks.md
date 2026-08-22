@@ -130,8 +130,10 @@
       confirm each fails (the project's standing rule; three past tests could not fail)
 - [x] 7.4 Run the full e2e suite by pushing to PR #50 rather than locally — it takes over ten
       minutes, so local verification stays unit tests plus narrowly scoped e2e specs
-- [ ] 7.5 Real-vault manual pass on the shapes from the original 2026-07-24 report, including a
-      multi-parent cover under each of the four operations
+- [x] 7.5 Real-vault manual pass on the shapes from the original 2026-07-24 report — run by the
+      maintainer, who reported it ready to ship. The two decisions flagged as most exposed to
+      real use both stood: `cannot-reorder-across-scopes` did not read as obstructive, and the
+      block selection surviving a run of Tab presses (design D4) felt right rather than sticky
 
 ## 8. Close the record
 
