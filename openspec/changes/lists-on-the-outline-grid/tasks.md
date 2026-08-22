@@ -39,9 +39,15 @@
 - [ ] 3.3 State the hanging indent from `(depth − supplementalDepth) × unit + gutter` with
       `!important`, replacing Obsidian's measured value (design D3).
 - [ ] 3.4 Put the marker on its column: zero the marker gap, zero-width bullet box, marker span
-      sized to the gutter with `min-width`. Exclude task lines (design D5).
-- [ ] 3.5 Set the bullet weight to `0.38em`, colour token unchanged.
-- [ ] 3.6 Suppress Obsidian's own list-guide line on those lines — its width only, never the
+      sized to the gutter with `min-width`. Exclude task lines from CENTRING — a checkbox is
+      wider than the gutter and is a click target — and scope every rule that implements the
+      exclusion the same way, so it is stated once rather than holding by accident.
+- [ ] 3.5 Bring a task checkbox's START onto its own depth column (measured today at 7.33px
+      right of it) without changing its width or hit area, and verify the hit area by clicking
+      it, not only by measuring it. If that proves unsafe, amend the requirement deliberately
+      with the measurement rather than leaving spec and design disagreeing (design D5).
+- [ ] 3.6 Set the bullet weight to `0.38em`, colour token unchanged.
+- [ ] 3.7 Suppress Obsidian's own list-guide line on those lines — its width only, never the
       user's "Show indentation guides" setting — and include the list-ancestor depths in the
       gradient so our guide draws every level exactly once.
 

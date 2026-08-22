@@ -89,8 +89,20 @@
  * rather than to fight the boxes it produces. Measured (research doc, E1/E3):
  * `--list-indent` drives `tab-size` on a list line and `min-width` on each
  * `.cm-indent`, so pushing our own unit into it retargets every list level at
- * once, AND Obsidian's own hanging-indent measurement re-derives from the new
- * width, so a soft-wrapped row still lands on the item's content column.
+ * once.
+ *
+ * It does NOT carry the hanging indent with it, which an earlier version of
+ * this comment claimed. Obsidian derives that from a live measurement, cached
+ * per line and invalidated only by a text change or a DOM mutation its own
+ * observer sees — `childList`, `characterData`, `subtree`, but not attributes,
+ * which is all a decoration changes. So a `--list-indent` change at runtime
+ * (turning outline mode on for an open note) leaves the old wrap column in
+ * place until a note switch or reopen. And the measurement takes the end of
+ * the marker's TEXT rather than the end of its padded box, so with the marker
+ * span sized to the gutter below, a wrapped row lands one gutter left of its
+ * own item's text even when it is fresh. Both are measured, both are why the
+ * `lists-on-the-outline-grid` change states this pair itself instead of
+ * reading Obsidian's.
  *
  * `rem`, not the `em`-based value Obsidian ships: `--list-indent` resolves
  * where it is used, and a heading inside a list item would inflate an `em`
@@ -131,7 +143,15 @@
  * `width` so a wide ordered marker (`10. `) pushes its own text out instead of
  * overlapping it.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-list-bullet-column {
+/* Scoped away from task lines exactly as the two rules below are, so the
+ * exclusion is stated once instead of holding by accident. Measured: a task
+ * line's checkbox does not move today either way (55.33px at both settings),
+ * because Obsidian does not render a task marker inside the
+ * `.cm-formatting-list` span this variable reaches — but that is a detail of
+ * how Obsidian renders a checkbox, not something to lean on. */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-list-bullet-column:not(.HyperMD-task-line) {
   --list-padding-inline-start: 0px;
 }
 
