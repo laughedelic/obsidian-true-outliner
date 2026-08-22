@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "8b387a0b2b4f",
+  "strategy": "manual-commit",
+  "branch": "feat/selection-aware-structural-ops",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "openspec/changes/selection-aware-structural-ops/proposal.md",
+    "openspec/changes/selection-aware-structural-ops/specs/caret-placement-policy/spec.md",
+    "openspec/changes/selection-aware-structural-ops/specs/editor-structural-commands/spec.md",
+    "openspec/changes/selection-aware-structural-ops/specs/outline-keyboard-grammar/spec.md",
+    "openspec/changes/selection-aware-structural-ops/specs/structural-operations/spec.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/8b/387a0b2b4f/0/metadata.json",
+      "transcript": "/8b/387a0b2b4f/0/full.jsonl",
+      "compact_transcript": "/8b/387a0b2b4f/0/transcript.jsonl",
+      "content_hash": "/8b/387a0b2b4f/0/content_hash.txt",
+      "prompt": "/8b/387a0b2b4f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3475,
+    "cache_creation_tokens": 3769909,
+    "cache_read_tokens": 111813037,
+    "output_tokens": 316523,
+    "api_call_count": 298
+  }
+}
