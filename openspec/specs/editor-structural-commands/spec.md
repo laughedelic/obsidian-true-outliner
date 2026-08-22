@@ -14,15 +14,36 @@ Mod+Shift+ArrowDown respectively — a deliberate, documented departure from the
 "avoid default hotkeys" guideline (a recommendation, not a submission requirement),
 taken because the alternative previously shipped was a hardcoded CM6 keymap entry that
 claimed the same gesture while being invisible in Settings > Hotkeys and impossible to
-rebind or remove. A user-assigned hotkey always overrides the default. Each command
-SHALL resolve the target node as the mapping-core node whose line span contains the
-cursor line, and apply the corresponding mapping-core operation.
+rebind or remove. A user-assigned hotkey always overrides the default.
+
+Each command SHALL resolve its target through `selection-structural-ops`: the covered
+subtrees of the current selection, which for an empty selection is the mapping-core node
+whose line span contains the cursor line. It SHALL apply the corresponding mapping-core
+operation — the group form when the operand holds more than one root, the single-node form
+otherwise, which are the same operation for one root.
+
+A command SHALL be UNAVAILABLE when the selection holds more than one range, matching the
+keyboard bindings' decline. The command previously read only `Editor.getCursor()` and so
+acted on one node regardless of what was selected; reading the selection is what makes the
+two entry points interchangeable, which the "Both entry points agree" scenario below already
+required and could not deliver.
 
 #### Scenario: Indent at cursor
 - **WHEN** the cursor is on any line of a node with a previous sibling and the indent
   command runs
 - **THEN** the document text changes exactly as the mapping-core `indent` op prescribes
   for that node
+
+#### Scenario: Indent over a block selection
+- **WHEN** the selection covers several sibling subtrees and the indent command runs
+- **THEN** every covered subtree is indented, exactly as the mapping-core group `indent`
+  prescribes for that forest
+
+#### Scenario: The command declines under multi-cursor
+- **WHEN** the selection holds two ranges in different nodes and a structural command is
+  invoked
+- **THEN** the command does nothing and the document, selection and undo history are
+  unchanged
 
 ### Requirement: Single-transaction dispatch with undo grouping
 An accepted operation's minimal edit list SHALL be applied as one editor transaction via
@@ -34,10 +55,15 @@ lines outside the edit ranges are touched.
 - **THEN** the document returns byte-identically to its pre-command state
 
 ### Requirement: Cursor follows the operation's result
-After an accepted operation the cursor SHALL be placed by `caret-placement-policy`, the
-single decision procedure the keyboard grammar and the enforcement rewrite path also use,
-so no two entry points can diverge. This requirement states which case each command falls
-into; it does not restate the rule.
+After an accepted operation whose operand was a caret or a within-node character range, the
+cursor SHALL be placed by `caret-placement-policy`, the single decision procedure the keyboard
+grammar and the enforcement rewrite path also use, so no two entry points can diverge. This
+requirement states which case each command falls into; it does not restate the rule.
+
+Where the operand was a BLOCK COVER, the command SHALL instead dispatch the cover of the moved
+subtrees per `selection-structural-ops`, and no caret is placed. Everything below about how the
+change and its resulting selection are dispatched applies unchanged to that selection: it is
+the same transaction discipline, with a range in place of a caret.
 
 MOVE is a SUBJECT placement: the moved node's first line, at its content start — its
 position is a choice no mapping can reproduce. Following `caret-placement-policy`'s single
@@ -54,7 +80,9 @@ previously mandated the content-column placement for EVERY command, which the
 column-preserving indent/outdent behaviour supersedes. Amendment 2026-07-29,
 `caret-placement-policy`: the rule itself moves to that capability, and the content-start
 column for a heading changes from after its `#` prefix to column 0 — the code had never
-matched this requirement's own "after any list marker" wording for headings.)*
+matched this requirement's own "after any list marker" wording for headings. Amendment
+2026-08-17, `selection-aware-structural-ops`: the caret cases below govern a caret-operand
+dispatch; a block-cover operand dispatches a selection instead.)*
 
 A command's change and the cursor that belongs to it SHALL be dispatched in the SAME
 transaction. A cursor computed from the resulting document is meaningless to anything that
@@ -91,6 +119,11 @@ operations.
 - **THEN** the caret stays at the same relative column within that text, not at the
   node's content start
 
+#### Scenario: A block cover is preserved instead of a caret
+- **WHEN** a cover over two sibling subtrees is indented via the command
+- **THEN** the resulting selection is the cover of those two subtrees in their new position,
+  dispatched in the same transaction as the change
+
 #### Scenario: A command's cursor is never seen against the old document
 - **WHEN** a node is moved past a node the editor renders as a live widget, such as a
   table, so that the widget survives the change untouched
@@ -111,6 +144,11 @@ operations.
 - **WHEN** the same operation is invoked from the command palette and from its key
   binding, with the same document and caret
 - **THEN** the resulting caret is the same, because both read it from the same procedure
+
+#### Scenario: Both entry points agree over a selection too
+- **WHEN** the same operation is invoked from the command palette and from its key binding,
+  with the same document and the same block cover
+- **THEN** the resulting document and the resulting selection are identical
 
 ### Requirement: Rejection feedback without document changes
 A rejected operation SHALL leave the document, selection, and undo history untouched, and
