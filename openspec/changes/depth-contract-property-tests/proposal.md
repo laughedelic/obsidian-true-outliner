@@ -49,7 +49,7 @@ None.
 ## Impact
 
 - Tests only: a new file under `tests/`, reusing `tests/group-oracle.ts`. No `src/` change.
-- No behavioural change to the plugin; the suite gains coverage of a class of bug it was
+- No behavioral change to the plugin; the suite gains coverage of a class of bug it was
   structurally blind to.
 - Two follow-up changes stack on this one, each fixing a bug this technique exposes: move down's
   absorption (which also unblocks the deferred move-down assertion) and outdent's ordered-run
