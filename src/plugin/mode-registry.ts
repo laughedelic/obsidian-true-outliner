@@ -43,6 +43,42 @@ import type { GuideHighlight, MarkerHighlight } from './decorate';
 export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = 'full';
 export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = 'current';
 
+/**
+ * EXPERIMENTAL (docs/research/16-native-list-decoration.md) — how much of a
+ * list's own geometry outline mode takes over from Obsidian.
+ *
+ * - `'native'` is today's behaviour and the default: native list rendering is
+ *   untouched, so a pure list is byte-identical to outline-mode-off. List
+ *   levels step by Obsidian's `--list-indent` (2.25em by default, 1.5x our own
+ *   unit) and their guides sit on native columns, which is why lists read as a
+ *   different layout from every other kind.
+ * - `'grid'` pushes our own `--to-decor-unit` into `--list-indent` so a list
+ *   level steps by exactly one unit, and moves the native list guide onto the
+ *   same column our own gradient draws. Obsidian recomputes its hanging indent
+ *   from the new width, so wrapped rows follow for free.
+ * - `'own-guides'` is `'grid'` plus taking the guide itself: the native list
+ *   guide is switched off and our gradient draws every list level, so list
+ *   guides match block guides exactly and carry the caret trail.
+ *
+ * Anything past `'native'` deliberately breaks `outline-decorations`' "a pure
+ * list renders byte-identical to outline-mode-off" requirement, which is why
+ * this is a setting to look at rather than a change already made.
+ */
+export type ListLayout = 'native' | 'grid' | 'own-guides';
+export const DEFAULT_LIST_LAYOUT: ListLayout = 'native';
+
+/**
+ * EXPERIMENTAL — where a list item's own marker sits relative to its depth
+ * column. Every other kind centres its marker ON the column; a native bullet
+ * sits about 14px to the right of it, which is the offset that reads as
+ * "the guide does not come from the bullet". `'column'` pulls the marker back
+ * onto the column and pushes the item's text out to the same gutter a block
+ * line uses. Ordered markers are wider than the gutter, so they start on the
+ * column rather than centring on it — see the research doc.
+ */
+export type ListBullet = 'native' | 'column';
+export const DEFAULT_LIST_BULLET: ListBullet = 'native';
+
 export interface PluginData {
   outlinePaths: string[];
   coexistenceWarned: boolean;
@@ -55,6 +91,10 @@ export interface PluginData {
   guideHighlight: GuideHighlight;
   /** See `MarkerHighlight`. */
   markerHighlight: MarkerHighlight;
+  /** See `ListLayout`. */
+  listLayout: ListLayout;
+  /** See `ListBullet`. */
+  listBullet: ListBullet;
 }
 
 export const DEFAULT_DATA: PluginData = {
@@ -64,6 +104,8 @@ export const DEFAULT_DATA: PluginData = {
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
   guideHighlight: DEFAULT_GUIDE_HIGHLIGHT,
   markerHighlight: DEFAULT_MARKER_HIGHLIGHT,
+  listLayout: DEFAULT_LIST_LAYOUT,
+  listBullet: DEFAULT_LIST_BULLET,
 };
 
 export class OutlineModeRegistry {
