@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import * as url from 'node:url';
 import { resolveObsidianTarget } from './obsidian-target.mjs';
+import { maxInstances, screenshotOnFailure } from './wdio.shared.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(e2eDir, '..');
@@ -34,8 +35,10 @@ export const config: WebdriverIO.Config = {
   runner: 'local',
   framework: 'mocha',
   specs: [path.join(e2eDir, 'specs/**/*.e2e.ts')],
-  // Suites share one Obsidian instance/vault; parallelism is a later concern.
-  maxInstances: 1,
+  // Safe to raise: the service gives every session its own copy of the vault
+  // (`copy` defaults to true) and its own --user-data-dir, so workers cannot
+  // observe each other's writes whatever the specs do. See ./wdio.shared.mts.
+  maxInstances: maxInstances(),
 
   capabilities: [
     {
@@ -81,6 +84,8 @@ export const config: WebdriverIO.Config = {
     const { armNoticeRecorder } = await import('./helpers.js');
     await armNoticeRecorder();
   },
+
+  afterTest: screenshotOnFailure('desktop'),
 
   services: ['obsidian'],
   reporters: ['obsidian'],

@@ -1,0 +1,92 @@
+name: Run an e2e group
+description: >
+  Builds the plugin and runs one logical group of e2e specs under a cached
+  Obsidian, uploading failure screenshots when the group fails.
+
+inputs:
+  node-version:
+    description: Node version to set up.
+    required: true
+  obsidian-version:
+    description: Obsidian build to run against ("latest" or an exact version).
+    required: true
+  group:
+    description: >
+      Spec group to run — one of `node scripts/run-e2e.mjs --list-groups`.
+      Empty runs every spec.
+    required: false
+    default: ""
+  platform:
+    description: desktop | mobile, validated by scripts/run-e2e.mjs.
+    required: true
+  max-instances:
+    description: How many Obsidian instances run at once within the group.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+
+    - run: npm ci
+      shell: bash
+
+    # Caches the downloaded Obsidian app+installer used by
+    # wdio-obsidian-service. The key includes the requested version so two
+    # matrix entries keep separate caches. `latest` is a moving target, so it
+    # also carries the week: on a hit actions/cache does not save, meaning a
+    # newly-released Obsidian would be re-downloaded on every run forever
+    # without something to roll the key over. restore-keys still gives a warm
+    # start from the previous week's cache.
+    - id: cache-key
+      run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - uses: actions/cache@v6
+      with:
+        path: .obsidian-cache
+        key: obsidian-cache-${{ runner.os }}-${{ inputs.obsidian-version }}-${{ steps.cache-key.outputs.week }}
+        restore-keys: |
+          obsidian-cache-${{ runner.os }}-${{ inputs.obsidian-version }}-
+
+    - run: npm run build:plugin
+      shell: bash
+
+    # Obsidian is an Electron app and needs a display even "headless" in CI.
+    # OBSIDIAN_VERSION is read by e2e/obsidian-target.mts, which also prints the
+    # resolved target and fails fast if a pinned version is not in the cache.
+    - run: |
+        args=()
+        if [ -n "$GROUP" ]; then args+=(--group "$GROUP"); fi
+        start=$SECONDS
+        # `shell: bash` runs under `-e`, which would skip the timing line on a
+        # failing suite — the run we most want the number for.
+        set +e
+        xvfb-run --auto-servernum node scripts/run-e2e.mjs "$PLATFORM" "${args[@]}"
+        status=$?
+        set -e
+        # Header included every time: each job writes its own summary, so a
+        # bare row would not render as a table.
+        {
+          echo "| platform | group | instances | obsidian | duration |"
+          echo "|---|---|---|---|---|"
+          echo "| $PLATFORM | ${GROUP:-all} | $E2E_MAX_INSTANCES | $OBSIDIAN_VERSION | $((SECONDS - start))s |"
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit $status
+      shell: bash
+      env:
+        GROUP: ${{ inputs.group }}
+        PLATFORM: ${{ inputs.platform }}
+        OBSIDIAN_VERSION: ${{ inputs.obsidian-version }}
+        E2E_MAX_INSTANCES: ${{ inputs.max-instances }}
+
+    - if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: failure-screenshots-${{ inputs.platform }}-${{ inputs.group || 'all' }}-${{ inputs.obsidian-version }}-${{ inputs.max-instances }}
+        path: .obsidian-cache/failure-screenshots/
+        if-no-files-found: ignore
+        retention-days: 7

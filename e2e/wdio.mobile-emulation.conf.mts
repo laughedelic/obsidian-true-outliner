@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import * as url from 'node:url';
 import { resolveObsidianTarget } from './obsidian-target.mjs';
+import { maxInstances, screenshotOnFailure } from './wdio.shared.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(e2eDir, '..');
@@ -15,14 +16,19 @@ const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile'
  * Mobile-emulation variant of wdio.conf.mts: identical plugin/vault/specs,
  * run under Obsidian's own `app.emulateMobile()` instead — still the
  * Electron desktop app under a phone-sized viewport, not the real
- * Capacitor mobile app. See README's "Mobile testing" section for what
- * this does and doesn't catch.
+ * Capacitor mobile app. What that does and does not catch is spelled out on
+ * `IS_MOBILE_RUN` in ./helpers.ts, next to the specs that skip themselves
+ * here: real mouse drags become touch gestures under emulation, so a
+ * drag-based selection test is measuring something that does not exist.
  */
 export const config: WebdriverIO.Config = {
   runner: 'local',
   framework: 'mocha',
   specs: [path.join(e2eDir, 'specs/**/*.e2e.ts')],
-  maxInstances: 1,
+  // Safe to raise: the service gives every session its own copy of the vault
+  // (`copy` defaults to true) and its own --user-data-dir, so workers cannot
+  // observe each other's writes whatever the specs do. See ./wdio.shared.mts.
+  maxInstances: maxInstances(),
 
   capabilities: [
     {
@@ -66,6 +72,8 @@ export const config: WebdriverIO.Config = {
     const { armNoticeRecorder } = await import('./helpers.js');
     await armNoticeRecorder();
   },
+
+  afterTest: screenshotOnFailure('mobile'),
 
   services: ['obsidian'],
   reporters: ['obsidian'],

@@ -4,12 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Run the e2e suites against a specific Obsidian build on demand. Only works
-  # for versions the runner can actually download: every 1.13.x is currently
-  # insider-only (isBeta, no public GitHub asset), and this workflow
-  # deliberately holds no Catalyst credentials — see the README's "Testing
-  # against a beta" note. Once a version goes public, `latest` picks it up on
-  # its own and this input is only needed for pinning an OLDER one.
+  # Runs use the latest Obsidian; this pins an older build when chasing a
+  # version-specific bug (docs/research/04 Q21, Q27). It cannot reach an
+  # insider build — this workflow holds no Catalyst credentials.
   workflow_dispatch:
     inputs:
       obsidian-version:
@@ -19,6 +16,11 @@ on:
 
 env:
   node-version: "26"
+  # Obsidian instances per e2e job. Beyond the runner's core count this stops
+  # paying, and a group can never beat its longest single spec. Note that
+  # `waitBudget` in e2e/helpers.ts widens the harness timeouts off this value:
+  # changing it needs repeated runs to confirm, not one green one.
+  max-instances: "4"
 
 jobs:
   lint:
@@ -26,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.node-version }}
           cache: npm
@@ -41,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.node-version }}
           cache: npm
@@ -49,86 +51,69 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  e2e-test:
+  # Builds the e2e matrix from the specs that exist rather than a list in YAML.
+  # See scripts/spec-groups.mjs.
+  e2e-groups:
+    runs-on: ubuntu-slim
+    outputs:
+      groups: ${{ steps.list.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: list
+        run: echo "groups=$(node scripts/run-e2e.mjs --list-groups)" >> "$GITHUB_OUTPUT"
+
+  e2e-desktop:
+    needs: e2e-groups
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # Add versions here to test more than one — the cache key and the job
-        # name both key off this, so entries never clobber each other. Only
-        # publicly-downloadable versions work; see the workflow_dispatch note.
-        obsidian: ["${{ inputs.obsidian-version || 'latest' }}"]
-    name: e2e-test (${{ matrix.obsidian }})
+        group: ${{ fromJSON(needs.e2e-groups.outputs.groups) }}
+    name: desktop (${{ matrix.group }})
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v6
+      - uses: ./.github/actions/e2e
         with:
           node-version: ${{ env.node-version }}
-          cache: npm
+          obsidian-version: ${{ inputs.obsidian-version || 'latest' }}
+          group: ${{ matrix.group }}
+          platform: desktop
+          max-instances: ${{ env.max-instances }}
 
-      - run: npm ci
-
-      # Caches the downloaded Obsidian app+installer used by
-      # wdio-obsidian-service. The key includes the requested version so two
-      # matrix entries keep separate caches. `latest` is a moving target, so it
-      # also carries the week: on a hit actions/cache does not save, meaning a
-      # newly-released Obsidian would be re-downloaded on every run forever
-      # without something to roll the key over. restore-keys still gives a warm
-      # start from the previous week's cache.
-      - id: cache-key
-        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        with:
-          path: .obsidian-cache
-          key: obsidian-cache-${{ runner.os }}-${{ matrix.obsidian }}-${{ steps.cache-key.outputs.week }}
-          restore-keys: |
-            obsidian-cache-${{ runner.os }}-${{ matrix.obsidian }}-
-
-      - run: npm run build:plugin
-
-      # Obsidian is an Electron app and needs a display even "headless" in CI.
-      # OBSIDIAN_VERSION is read by e2e/wdio.conf.mts, which also prints the
-      # resolved target and fails fast if a pinned version is not in the cache.
-      - run: xvfb-run --auto-servernum npm run test:e2e
-        env:
-          # matrix.obsidian, NOT inputs.obsidian-version: the matrix value is
-          # what names the job and keys the cache, so passing the raw input
-          # would make every expanded entry run the same version under different
-          # names and caches. The single default entry already resolves to the
-          # input (or 'latest').
-          OBSIDIAN_VERSION: ${{ matrix.obsidian }}
-
-  e2e-test-mobile:
+  # Same specs under Obsidian's mobile emulation — still the Electron app at a
+  # phone viewport, not the Capacitor one. Its own job tree rather than a
+  # matrix axis so it can have its own gate: `needs` sees only a matrix job's
+  # aggregate result, and mobile is a soft target where desktop is required.
+  e2e-mobile:
+    needs: e2e-groups
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        obsidian: ["${{ inputs.obsidian-version || 'latest' }}"]
-    name: e2e-test-mobile (${{ matrix.obsidian }})
+        group: ${{ fromJSON(needs.e2e-groups.outputs.groups) }}
+    name: mobile (${{ matrix.group }})
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v6
+      - uses: ./.github/actions/e2e
         with:
           node-version: ${{ env.node-version }}
-          cache: npm
+          obsidian-version: ${{ inputs.obsidian-version || 'latest' }}
+          group: ${{ matrix.group }}
+          platform: mobile
+          max-instances: ${{ env.max-instances }}
 
-      - run: npm ci
+  # A stable check name per platform for branch protection: matrix job names
+  # change whenever the groups do.
+  e2e-desktop-passed:
+    if: always()
+    needs: e2e-desktop
+    runs-on: ubuntu-slim
+    steps:
+      - run: '[ "${{ needs.e2e-desktop.result }}" = "success" ]'
 
-      - id: cache-key
-        run: echo "week=$(date -u +%Y-W%V)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        with:
-          path: .obsidian-cache
-          key: obsidian-cache-${{ runner.os }}-${{ matrix.obsidian }}-${{ steps.cache-key.outputs.week }}
-          restore-keys: |
-            obsidian-cache-${{ runner.os }}-${{ matrix.obsidian }}-
-
-      - run: npm run build:plugin
-
-      # Same suite, run under Obsidian's mobile emulation (still Electron;
-      # see README's "Mobile testing" section).
-      - run: xvfb-run --auto-servernum npm run test:e2e:mobile
-        env:
-          OBSIDIAN_VERSION: ${{ matrix.obsidian }}
+  e2e-mobile-passed:
+    if: always()
+    needs: e2e-mobile
+    runs-on: ubuntu-slim
+    steps:
+      - run: '[ "${{ needs.e2e-mobile.result }}" = "success" ]'

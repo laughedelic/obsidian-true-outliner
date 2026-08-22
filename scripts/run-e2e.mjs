@@ -9,15 +9,51 @@
  * supported dev platform today, so this is mostly for future contributors — but
  * it also buys a real `finally`, which the shell version did not have.
  *
- *   node scripts/run-e2e.mjs [desktop|mobile]
+ *   node scripts/run-e2e.mjs [desktop|mobile] [--group <name>]
+ *   node scripts/run-e2e.mjs --list-groups          # JSON, for the CI matrix
+ *
+ * `--group` restricts the run to one group of specs (see `./spec-groups.mjs`);
+ * without it every spec runs. `--list-groups` prints the names as JSON, which
+ * is how the CI matrix is built.
  */
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
+import { specGroups } from './spec-groups.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const mobile = process.argv[2] === 'mobile';
+
+const argv = process.argv.slice(2);
+if (argv.includes('--list-groups')) {
+  console.log(JSON.stringify(Object.keys(specGroups())));
+  process.exit(0);
+}
+
+// Validated, not treated as "mobile or else": CI names the job, the cache and
+// the artifact after this, so a typo would file a desktop run under them.
+const platform = argv[0]?.startsWith('--') ? 'desktop' : (argv[0] ?? 'desktop');
+if (platform !== 'desktop' && platform !== 'mobile') {
+  console.error(`[e2e] unknown platform ${JSON.stringify(platform)}. Expected 'desktop' or 'mobile'.`);
+  process.exit(1);
+}
+const mobile = platform === 'mobile';
+const group = argv[argv.indexOf('--group') + 1];
+
+// Resolved here rather than handed to wdio as a glob, so an unknown group
+// fails instead of running zero specs and reporting success.
+const specArgs = [];
+if (argv.includes('--group')) {
+  const groups = specGroups();
+  const specs = groups[group];
+  if (!specs) {
+    console.error(
+      `[e2e] unknown group ${JSON.stringify(group)}. Known groups: ${Object.keys(groups).join(', ')}`,
+    );
+    process.exit(1);
+  }
+  specArgs.push(...specs.flatMap((spec) => ['--spec', spec]));
+}
 const bin = (name) => path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? `${name}.cmd` : name);
 
 /** Exit status of a step, with output passed straight through. */
@@ -34,7 +70,7 @@ let suite = 1;
 try {
   suite = run(
     bin('wdio'),
-    ['run', mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts'],
+    ['run', mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts', ...specArgs],
     mobile ? { OBSIDIAN_E2E_MOBILE: '1' } : undefined,
   );
 } finally {

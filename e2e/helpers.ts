@@ -28,6 +28,18 @@ export const PLUGIN_ID = 'true-outliner';
  */
 export const IS_MOBILE_RUN = process.env.OBSIDIAN_E2E_MOBILE === '1';
 
+/**
+ * Stretches the harness wait budgets when instances share a machine.
+ *
+ * The timeouts below were sized against a sequential run and are too tight
+ * under contention — a loaded runner can still be producing the thing being
+ * waited for when the budget expires. Widening them is free: these are
+ * `waitUntil` ceilings, not sleeps, so a wait still returns as soon as its
+ * condition holds and only a genuine failure takes longer to report.
+ */
+export const waitBudget = (base: number): number =>
+  Number(process.env.E2E_MAX_INSTANCES ?? 1) > 1 ? base * 2 : base;
+
 // ---- Notes and editor buffer -------------------------------------------
 
 export async function openNote(notePath: string): Promise<void> {
@@ -281,7 +293,10 @@ export async function posToCoords(line: number, ch: number): Promise<Coords> {
         coords = await readCoordsAt(line, ch);
         return coords !== null;
       },
-      { timeout: 3000, timeoutMsg: `no coords at line ${line} ch ${ch} after scrolling into view` },
+      {
+        timeout: waitBudget(3000),
+        timeoutMsg: `no coords at line ${line} ch ${ch} after scrolling into view`,
+      },
     );
   }
   return coords!;
@@ -559,8 +574,8 @@ export async function clickTableCell(): Promise<void> {
   const wrapper = browser.$(
     '.workspace-leaf.mod-active .markdown-source-view .cm-table-widget td .table-cell-wrapper',
   );
-  await wrapper.waitForExist({ timeout: 5000 });
-  await wrapper.waitForClickable({ timeout: 5000 });
+  await wrapper.waitForExist({ timeout: waitBudget(5000) });
+  await wrapper.waitForClickable({ timeout: waitBudget(5000) });
   await wrapper.click();
   await waitForContentChildCount('.cm-embed-block .cm-editor', 1);
 }
@@ -1036,7 +1051,7 @@ export async function waitForNotice(text: string): Promise<void> {
       if ((await recordedNoticeTexts()).some((t) => t.includes(text))) return true;
       return (await noticeTexts()).some((t) => t.includes(text));
     },
-    { timeout: 4000, timeoutMsg: `notice containing "${text}" did not appear` },
+    { timeout: waitBudget(4000), timeoutMsg: `notice containing "${text}" did not appear` },
   );
 }
 
@@ -1050,7 +1065,7 @@ export async function waitForNotice(text: string): Promise<void> {
 export async function waitForContentChildCount(
   selector: string,
   expected: number,
-  timeout = 5000,
+  timeout = waitBudget(5000),
 ): Promise<void> {
   await browser.waitUntil(
     async () => {
