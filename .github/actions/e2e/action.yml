@@ -13,7 +13,7 @@ inputs:
   group:
     description: >
       Spec group to run — one of `node scripts/run-e2e.mjs --list-groups`.
-      Empty runs every spec, which is what the parallelism probe wants.
+      Empty runs every spec.
     required: false
     default: ""
   platform:
@@ -25,13 +25,6 @@ inputs:
   max-instances:
     description: How many Obsidian instances run at once within the group.
     required: true
-  artifact-suffix:
-    description: >
-      Extra text to keep the failure-screenshot artifact name unique. Needed
-      when a matrix repeats an otherwise identical job, since upload-artifact
-      rejects a name it has already seen in the run.
-    required: false
-    default: ""
 
 runs:
   # Composite rather than two near-identical jobs in ci.yml: the desktop and
@@ -81,9 +74,8 @@ runs:
         xvfb-run --auto-servernum node scripts/run-e2e.mjs "$PLATFORM" "${args[@]}"
         status=$?
         set -e
-        # Reported here, not just inferred from the job's wall time, so the
-        # probe's numbers exclude checkout/npm ci/cache and compare like with
-        # like across instance counts.
+        # The suite's own duration, not the job's wall time, so the number is
+        # comparable across runs without checkout/npm ci/cache noise in it.
         # A header each time because every job gets its OWN summary — bare rows
         # would not render as a table. Carries the Obsidian build so a pinned
         # diagnostic run is tellable from a `latest` one without opening logs;
@@ -107,7 +99,7 @@ runs:
     - if: failure()
       uses: actions/upload-artifact@v7
       with:
-        name: failure-screenshots-${{ inputs.platform }}-${{ inputs.group || 'all' }}-${{ inputs.obsidian-version }}-${{ inputs.max-instances }}${{ inputs.artifact-suffix }}
+        name: failure-screenshots-${{ inputs.platform }}-${{ inputs.group || 'all' }}-${{ inputs.obsidian-version }}-${{ inputs.max-instances }}
         path: .obsidian-cache/failure-screenshots/
         if-no-files-found: ignore
         retention-days: 7

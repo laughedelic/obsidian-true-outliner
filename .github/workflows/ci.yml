@@ -18,13 +18,20 @@ on:
 
 env:
   node-version: "26"
-  # How many Obsidian instances each e2e job runs at once. Set from
-  # .github/workflows/e2e-parallelism-probe.yml, which ran the full desktop
-  # suite three times at each of 1/2/3/4 with no failure at any count:
-  # 743s -> 407s -> 315s -> 263s mean. The curve is already flattening at 4
-  # (1.83x, 2.36x, 2.82x) because the runner has 4 vCPUs, and the largest group
-  # cannot go below its longest single spec anyway, so 4 is the ceiling worth
-  # taking rather than a number to keep pushing.
+  # How many Obsidian instances each e2e job runs at once.
+  #
+  # Measured, not picked: the full desktop suite run three times at each of
+  # 1/2/3/4 instances gave means of 743s / 407s / 315s / 263s — 1.83x, 2.36x,
+  # 2.82x. The curve is already flattening at 4 because the runner has 4 vCPUs,
+  # and a group can never finish faster than its longest single spec, so 4 is
+  # the ceiling worth taking rather than a number to keep pushing.
+  #
+  # Raising it again is not free. Contention makes each spec ~1.42x slower
+  # (4 / 2.82), which is what broke `waitForNotice` at ~1 run in 16 and is why
+  # `waitBudget()` in e2e/helpers.ts scales the harness waits off this value —
+  # it is load-bearing for correctness, not only speed. To re-measure, run
+  # `E2E_MAX_INSTANCES=N npm run test:e2e` repeatedly; one green run proves
+  # nothing, since the failure it needs to catch lives in the tail.
   max-instances: "4"
 
 jobs:

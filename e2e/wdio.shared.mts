@@ -20,7 +20,9 @@ import { browser } from '@wdio/globals';
  * once: the anti-throttling chrome flags in `wdio.conf.mts` exist because
  * screenshot capture times out on a LOADED machine while plain script execution
  * keeps working. Raising this is therefore a measured change, not a default —
- * see `.github/workflows/e2e-parallelism-probe.yml`.
+ * see the `max-instances` comment in .github/workflows/ci.yml for the numbers
+ * behind the value CI uses, and `waitBudget` in ./helpers.ts for the harness
+ * timeouts that scale off it.
  */
 export function maxInstances(): number {
   const raw = process.env.E2E_MAX_INSTANCES?.trim();
