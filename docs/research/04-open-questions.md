@@ -2248,3 +2248,91 @@ than proof of it. Whether the residual flicker is gone in real use is the report
 The deferral itself is still required. Blurring synchronously inside `update()` races CM6's
 DOM-selection sync (Q21/Q25); rAF is still asynchronous with respect to the current task, so it
 keeps that property while moving inside the frame.
+
+## Q33. `selection-aware-structural-ops` implementation findings (2026-08-21)
+
+Four findings, three of them pre-existing bugs in code this change only had to read. All four
+came from the same technique, which is the reusable part: **assert what an operation PROMISES,
+not that it round-trips.**
+
+### The suite was structurally blind to a whole class of bug
+
+`closure.test.ts` compares `result.value.doc` against `parse(encode(result.value.doc))`. But
+`finalize` BUILDS `result.value.doc` by re-parsing, so that assertion is true by construction and
+can never fail. Every operation that emits an encoding which re-parses to a different tree than
+its own algebra produced is invisible to it.
+
+Three such bugs were sitting in `ops.ts`, and each was found by asserting a promise instead:
+
+| what was asserted | bug found |
+|---|---|
+| the subject's resulting DEPTH (indent +1, outdent −1, reorders 0) | `indent` under an ordered parent (PR #51); `moveDown` absorbed into a preceding paragraph's list |
+| a node ABOVE the operand keeps its own first line | `outdent` lets an arriving node's inherited number hijack the destination run's start, rewriting `2. L1` to `1. L1` |
+
+The depth test is the one worth adding permanently for all four operations — it would have caught
+two of the three.
+
+### Sequential composition is not a sound definition where an intermediate tree is unrepresentable
+
+The change specified a group operation AS the composition of the single-node form over each root.
+That definition breaks, and measurably: markdown cannot encode a list item as a paragraph's
+following sibling, so the re-parse between two steps reshapes the document under the steps that
+have not run yet.
+
+On `- L0` / `L1` / `L2`, moving the run `[L1, L2]` up: step one swaps `L1` above `- L0`, whose
+encoding re-parses with `- L0` as L1's own child, so step two finds L2's previous sibling to be
+`L1` and swaps past it — the run comes out REVERSED. Acting on the whole run at once keeps the
+order.
+
+Measured: 49 of 49 disagreements have exactly that shape, always with the composition losing the
+order, never the reverse. The spec now states order preservation first, with the composition
+subordinate to it. Generalisable: **a definition by repeated application is only sound while every
+intermediate state is representable in the target encoding.**
+
+### A cover's roots scatter under a reorder, and only under a reorder
+
+Whether the moved subtrees stay contiguous — which the single-range after-state depends on — was
+measured before anything was built on it, 20 000 runs per operation:
+
+| operation | multi-parent covers accepted | roots left adjacent |
+|---|---|---|
+| indent | 3723 | 3723 |
+| outdent | 2577 | 2577 |
+| move up | 3100 | **0** |
+| move down | 0 of 8141 | — never accepted |
+
+A reorder moves each group within its OWN scope, so a mixed-depth cover is scattered rather than
+moved. The reorders now require a single sibling run. Indent and outdent needed no restriction.
+
+### Group cost is linear in the root count, and that is accepted for now
+
+`applyGroups` runs one surgery per covered root; each does a linear `findPath` and rebuilds the
+sibling spine, so a k-root operand on an n-node note is Θ(k·n). Raised in PR #50 review and
+measured — group outdent on a ~2000-line note:
+
+| roots | 2 | 10 | 50 | 200 |
+|---|---|---|---|---|
+| time | 1.7 ms | 2.3 ms | 7.0 ms | 15.4 ms |
+
+Fine at the selection sizes real editing produces; past the 8 ms p95 this project holds keystroke
+paths to once a cover gets large (Mod+A then Shift+Tab reaches k=200). No stated budget formally
+governs this path, so it is a quality limit rather than a spec violation, and the initial
+implementation ships with it deliberately.
+
+The fix, the traps, and what makes it safe to attempt are recorded in that change's design D12 —
+in short: splice a single group's whole run in two `updateSiblings` calls instead of 2k, thread
+the destination's children cumulatively the way `outdentSurgery` already does, and lean on the
+composition-oracle property suite to prove the result did not change.
+
+### Composing surgeries is not composing operations
+
+The group forms compose SURGERIES (tree → tree) and finalize once, because composing whole
+operations costs a re-parse per root — measured at 1.24 ms per step on a 2000-line note, 12.45 ms
+for a ten-node run, past the 8 ms p95 this path shares with enforcement. `parse` is 0.96 ms of
+each step; `encode` and `diffLines` are free by comparison.
+
+The equivalence argument is the closure guarantee, and it holds only as far as closure actually
+does — which is what the bugs above qualify. Related, and found by the §6 integration property:
+a span computed on the SURGERY tree is not necessarily a cover of the RESULT, because the
+re-parse can re-attach a bystander. Subjects have to be located by LINE across that boundary, the
+way `enforce.ts` already locates a surviving neighbour.

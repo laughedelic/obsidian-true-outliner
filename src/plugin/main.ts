@@ -11,9 +11,10 @@ import {
   type Hotkey,
   type SettingDefinitionItem,
 } from 'obsidian';
-import type { OutlineDoc, OutlineNode } from '../model';
+import type { OutlineDoc } from '../model';
 import { parse } from '../parse';
-import { indent, moveDown, moveUp, outdent } from '../ops';
+import { indentGroups, moveGroupsDown, moveGroupsUp, outdentGroups } from '../ops';
+import { afterState, resolveOperand } from '../operand';
 import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits } from '../result';
@@ -24,7 +25,6 @@ import {
   type MarkerHighlight,
   type PluginData,
 } from './mode-registry';
-import { nodeAtLine } from '../locate';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
@@ -68,7 +68,10 @@ const MARKER_HIGHLIGHT_LABELS: Record<MarkerHighlight, string> = {
  * own existing indentation, same as before this fix — a known, small gap
  * limited to the command-palette / custom-hotkey entry point.
  */
-type StructuralOp = (doc: OutlineDoc, nodeId: number) => OpResult<OpOutput>;
+type StructuralOp = (
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+) => OpResult<OpOutput>;
 
 /**
  * The cursor a palette-invoked structural command should end on: decided by
@@ -158,17 +161,17 @@ export default class TrueOutlinerPlugin extends Plugin {
       },
     });
 
-    this.addStructuralCommand('indent-node', 'Indent node', indent, true);
-    this.addStructuralCommand('outdent-node', 'Outdent node', outdent, true);
+    this.addStructuralCommand('indent-node', 'Indent node', indentGroups, true);
+    this.addStructuralCommand('outdent-node', 'Outdent node', outdentGroups, true);
     // Mod+Shift+Arrow is the dominant move-node convention: obsidian-outliner
     // and obsidian-bullet ship exactly these as command defaults, and Logseq
     // binds mod+shift+up/down on macOS. It collides with no Obsidian core
     // command. See `addStructuralCommand` for why a default hotkey is used at
     // all despite the guideline.
-    this.addStructuralCommand('move-node-up', 'Move node up', moveUp, false, [
+    this.addStructuralCommand('move-node-up', 'Move node up', moveGroupsUp, false, [
       { modifiers: ['Mod', 'Shift'], key: 'ArrowUp' },
     ]);
-    this.addStructuralCommand('move-node-down', 'Move node down', moveDown, false, [
+    this.addStructuralCommand('move-node-down', 'Move node down', moveGroupsDown, false, [
       { modifiers: ['Mod', 'Shift'], key: 'ArrowDown' },
     ]);
 
@@ -420,6 +423,10 @@ export default class TrueOutlinerPlugin extends Plugin {
       editorCheckCallback: (checking, editor, ctx) => {
         const path = ctx.file?.path;
         if (!path || !this.registry.isOutline(path)) return false;
+        // Multi-cursor: unavailable, matching the keymap's own decline
+        // (`selection-structural-ops`). Acting would silently discard every
+        // range but one, and the two entry points must answer alike.
+        if (editor.listSelections().length !== 1) return false;
         if (!checking) this.runOp(editor, ctx, op, useMappedCursor);
         return true;
       },
@@ -444,13 +451,26 @@ export default class TrueOutlinerPlugin extends Plugin {
     const doc = parse(text);
     if (this.data.debugCrossCheck && ctx.file) this.crossCheck(doc, ctx.file);
 
-    const cursorBefore = editor.getCursor();
-    const node: OutlineNode | undefined = nodeAtLine(doc, cursorBefore.line);
-    if (!node) {
+    // The operand comes from the SELECTION, through the same rule the keyboard
+    // path uses (`selection-structural-ops`). Reading only `getCursor()` is
+    // what made a command act on one node out of a visible multi-node
+    // selection — and on which one depended on the selection's orientation.
+    const selection = editor.listSelections()[0];
+    const range = selection
+      ? { anchor: selection.anchor, head: selection.head }
+      : { anchor: editor.getCursor(), head: editor.getCursor() };
+    const cursorBefore = range.head;
+    // Orientation is preserved so a run built by extending upward keeps growing
+    // upward on the next Shift+ArrowUp rather than reversing under the user.
+    const backward =
+      range.head.line < range.anchor.line ||
+      (range.head.line === range.anchor.line && range.head.ch < range.anchor.ch);
+    const operand = resolveOperand(doc, range);
+    if (!operand) {
       new Notice(REJECTION_MESSAGES['node-not-found'], 1500);
       return;
     }
-    const result = op(doc, node.id);
+    const result = op(doc, operand.groups);
     if (!result.ok) {
       new Notice(REJECTION_MESSAGES[result.rejection.reason], 1500);
       return;
@@ -492,8 +512,14 @@ export default class TrueOutlinerPlugin extends Plugin {
     // userEvent already fails CM6's `joinableUserEvent` test. Guarded by a unit
     // test on that CM6 behaviour in tests/minimal-change-history.test.ts and by
     // 20-structural-commands' "one undo step each way".
-    if (changes.length > 0) editor.transaction({ changes, selection: { from: cursor } });
-    editor.setCursor(cursor);
+    // A selection that WAS a block cover survives the operation as the cover of
+    // the nodes that moved; anything else lands a caret, exactly as before.
+    const planned = afterState(result.value, operand.wasCover, cursor);
+    const after =
+      backward && planned.to ? { from: planned.to, to: planned.from } : planned;
+    if (changes.length > 0) editor.transaction({ changes, selection: after });
+    if (after.to) editor.setSelection(after.from, after.to);
+    else editor.setCursor(after.from);
   }
 
   private crossCheck(doc: OutlineDoc, file: TFile): void {

@@ -587,6 +587,18 @@ decoration work — independent of Phase C:
     caret that's already on content, never on chrome. The two-press oddity itself
     (plausibly the blur-based chrome mechanism consuming the first Escape) is still
     unexplained and worth understanding before this work binds the key for anything.
+- ~~**Structural keymap commands need selection-aware behavior for multi-node/subtree
+  selections**~~ — **SHIPPED by `selection-aware-structural-ops` (2026-08-21).** The operand of a
+  structural operation is now the selection's covered subtrees, resolved by one rule both entry
+  points read (`src/operand.ts`), and a selection that was a block cover survives the operation as
+  the cover of the nodes that moved. The original report was right that it needed real design: the
+  measurement found that reorders SCATTER a mixed-depth cover (every accepted multi-parent move up,
+  3100 of 3100) and now require a single sibling run, while indent and outdent are safe at any
+  shape. Three pre-existing `ops.ts` bugs surfaced on the way — see `docs/research/04` Q33 for all
+  of it, including why `closure.test.ts` was structurally unable to catch them.
+
+  The original entry, kept for its framing:
+
 - **Structural keymap commands need selection-aware behavior for multi-node/subtree
   selections — filed 2026-07-24, selection-visual-treatment's keyboard-recovery
   testing.** With a covering selection spanning SEVERAL sibling subtrees, Tab
@@ -727,6 +739,29 @@ Modal block-selection state and the cherry-picking `Cmd`-click gesture remain un
 `node-selection-extension` deliberately uses the simplest discriminator that works — one range
 is a block selection, several are multi-cursor — and records its known edge for reassessment
 after real use rather than pre-solving it with a mode.
+
+## Follow-up: moving a node into its parent's SIBLING (opened 2026-08-21, `selection-aware-structural-ops` review)
+
+Today a reorder rejects when a node runs out of siblings (`no-sibling-above` /
+`no-sibling-below`). The request, raised while reviewing that change: it should instead cross into
+the neighbouring scope — moving a child out of its parent and into the parent's next sibling at the
+same depth — for a single node and for a selected run alike.
+
+Deliberately out of scope there, on these grounds. It redefines what a MOVE means for one node:
+`structural-operations` currently defines the reorders as a permutation within ONE sibling list,
+and this makes them reparenting operations. It is reachable with a bare caret and no selection at
+all, which is the tell that it is not a selection question. And it needs rules that change does not
+have — a destination (first child of the next scope, or last?), an encoding rule when the
+destination scope's kind differs, and it touches the ordered-run renumbering contract on TWO
+sibling lists rather than one.
+
+Two things in its favour when it is picked up. It would make the reorders far more total, removing
+most `no-sibling-*` rejections. And it is the natural way to make `cannot-reorder-across-scopes`
+rare — a multi-scope reorder is refused today partly because there is nowhere for a root that runs
+out of siblings to go.
+
+Best designed AFTER `selection-aware-structural-ops`, so it inherits the group operand rather than
+building a second one.
 
 ## Parked: exiting a table's nested editor lands the caret on a gap line (found 2026-07-26, `content-space-caret` real-vault pass)
 

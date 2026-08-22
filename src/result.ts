@@ -10,6 +10,7 @@ export type RejectionReason =
   | 'no-sibling-below'
   | 'not-expressible-under-target'
   | 'cannot-reorder-across-heading-boundary'
+  | 'cannot-reorder-across-scopes'
   | 'cannot-split'
   | 'empty-selection'
   | 'non-contiguous-subtrees'

@@ -21,7 +21,7 @@ import { parse } from '../src/parse';
 import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { computeVerdict, type EditFact, type Verdict } from '../src/enforce';
 import { applyEdits } from '../src/result';
-import { planKey, type GrammarKey } from '../src/plugin/grammar';
+import { planKey, type GrammarKey, plannedCaret } from '../src/plugin/grammar';
 
 const pos = (line: number, ch: number) => ({ line, ch });
 
@@ -92,9 +92,10 @@ function grammarLanding(
   }
   // Offset → line/ch in the NEW text.
   const newLines = out.split('\n');
-  let remaining = outcome.plan.selection;
+  const offset = plannedCaret(outcome.plan);
+  let remaining = offset;
   for (const line of newLines) {
-    if (remaining <= line.length) return { line, ch: remaining, offset: outcome.plan.selection };
+    if (remaining <= line.length) return { line, ch: remaining, offset };
     remaining -= line.length + 1;
   }
   throw new Error('selection past end of text');
@@ -227,5 +228,34 @@ describe('one content-start definition after a move', () => {
     // Control: the two content-start definitions agree here, so the
     // unification must NOT move this one.
     expect({ line, ch }).toEqual({ line: '- alpha', ch: 2 });
+  });
+});
+
+/**
+ * The boundary `caret-placement-policy` gained with
+ * `selection-aware-structural-ops`: the procedure answers the caret question
+ * exactly when the dispatch HAS a caret to place. A block-cover operand states
+ * a selection instead and does not consult it.
+ */
+describe('a block-cover dispatch states a selection, not a caret', () => {
+  const RUN = '- p\n- a\n- b\n';
+
+  function planWith(from: { line: number; ch: number }, to: { line: number; ch: number }) {
+    return planKey(RUN, to, 'indent', undefined, to, undefined, from);
+  }
+
+  it('a cover operand yields a range', () => {
+    // The exact cover of `- a`..`- b`, ending on the gap the last root owns.
+    const outcome = planWith({ line: 1, ch: 0 }, { line: 3, ch: 0 });
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(typeof outcome.plan.selection).not.toBe('number');
+  });
+
+  it('a caret operand yields the caret the policy computes, unchanged', () => {
+    const withRange = planKey(RUN, { line: 2, ch: 3 }, 'indent');
+    if (!withRange || !('plan' in withRange)) throw new Error('expected a plan');
+    // Same shape as before this capability existed: a bare offset, and the
+    // mapped column rather than the node's content start.
+    expect(typeof withRange.plan.selection).toBe('number');
   });
 });

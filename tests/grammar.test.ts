@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { walkNodes } from '../src/model';
 import { escalateRange } from '../src/escalate';
-import { planKey, type GrammarKey, type TxPlan } from '../src/plugin/grammar';
+import { REJECTION_MESSAGES } from '../src/plugin/messages';
+import { planKey, type GrammarKey, type TxPlan, plannedCaret } from '../src/plugin/grammar';
 import type { EditorChange } from '../src/plugin/dispatch';
 
 /** Apply a plan's changes (line/ch semantics) to text; return new text + cursor offset. */
@@ -20,7 +21,7 @@ function applyPlan(text: string, plan: TxPlan): { text: string; cursor: number }
   for (const change of [...plan.changes].sort((a, b) => toOffset(b.from) - toOffset(a.from))) {
     out = out.slice(0, toOffset(change.from)) + change.text + out.slice(toOffset(change.to));
   }
-  return { text: out, cursor: plan.selection };
+  return { text: out, cursor: plannedCaret(plan) };
 }
 
 /** Apply a plan's `abandon` edit (line/ch, in the plan's RESULT document). */
@@ -774,5 +775,112 @@ describe('grammar planner: a structural key acts on the node a position is insid
     expect(press('First.\n\nSecond.\n', { line: 3, ch: 0 }, 'indent')).toBe(
       'First.\n\n- Second.\n',
     );
+  });
+});
+
+describe('grammar planner: structural keys over a block cover', () => {
+  /** The keymap's own call shape for a structural key with a selection: the
+   * caret origin is the HEAD, the operand is bounded by (from, to). */
+  function planCover(
+    text: string,
+    from: { line: number; ch: number },
+    to: { line: number; ch: number },
+    key: GrammarKey,
+    head = to,
+  ) {
+    return planKey(text, head, key, undefined, to, undefined, from);
+  }
+
+  const RUN = '- p\n- a\n- b\n- c\n';
+  // The exact cover of `- a`..`- c`: from its first line through the trailing
+  // gap the last root owns.
+  const COVER_FROM = { line: 1, ch: 0 };
+  const COVER_TO = { line: 4, ch: 0 };
+
+  it('Tab indents every covered subtree, not just the one under the head', () => {
+    const outcome = planCover(RUN, COVER_FROM, COVER_TO, 'indent');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyChanges(RUN, outcome.plan.changes)).toBe('- p\n  - a\n  - b\n  - c\n');
+  });
+
+  it('Shift+Tab outdents every covered subtree', () => {
+    const src = '- p\n  - a\n  - b\n';
+    const outcome = planCover(src, { line: 1, ch: 0 }, { line: 3, ch: 0 }, 'outdent');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyChanges(src, outcome.plan.changes)).toBe('- p\n- a\n- b\n');
+  });
+
+  it('the plan states a COVER, not a caret, when the operand was one', () => {
+    const outcome = planCover(RUN, COVER_FROM, COVER_TO, 'indent');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(typeof outcome.plan.selection).not.toBe('number');
+    if (typeof outcome.plan.selection === 'number') return;
+    const after = applyChanges(RUN, outcome.plan.changes);
+    // The dispatched range covers exactly the three moved items.
+    const selected = after.slice(outcome.plan.selection.anchor, outcome.plan.selection.head);
+    expect(selected).toBe('  - a\n  - b\n  - c\n');
+  });
+
+  it('a within-node selection still states a caret', () => {
+    const src = '- p\n- alpha\n';
+    // A character range inside `- alpha` is not a cover.
+    const outcome = planCover(src, { line: 1, ch: 3 }, { line: 1, ch: 6 }, 'indent');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(typeof outcome.plan.selection).toBe('number');
+  });
+
+  it('an empty selection is byte-identical to the single-node path', () => {
+    const cursor = { line: 2, ch: 3 };
+    // The keymap's own EMPTY-selection call shape: `selectionEnd` equal to the
+    // cursor and no `selectionStart`, which is what `makeHandler` passes when
+    // `sel.empty`. Comparing two identical calls would prove nothing.
+    const asKeymapCalls = planKey(RUN, cursor, 'indent', undefined, cursor);
+    const bare = planKey(RUN, cursor, 'indent');
+    if (!asKeymapCalls || !('plan' in asKeymapCalls)) throw new Error('expected a plan');
+    if (!bare || !('plan' in bare)) throw new Error('expected a plan');
+    expect(asKeymapCalls.plan).toEqual(bare.plan);
+    expect(applyChanges(RUN, bare.plan.changes)).toBe('- p\n- a\n  - b\n- c\n');
+  });
+
+  it('a selection reaching into the preamble declines, whichever way it was made', () => {
+    // `resolveOperand` has no jurisdiction when either end is in the preamble.
+    // Both orientations must decline: falling back to the head's own node made
+    // one direction indent and the other decline, on the same selection.
+    const src = '---\ntitle: t\n---\n\n- a\n- b\n';
+    const inPreamble = { line: 1, ch: 0 };
+    const onNode = { line: 5, ch: 3 };
+    expect(planCover(src, inPreamble, onNode, 'indent', onNode)).toBeNull();
+    expect(planCover(src, inPreamble, onNode, 'indent', inPreamble)).toBeNull();
+  });
+
+  it('a run moves as a unit and keeps its cover', () => {
+    const outcome = planCover(RUN, COVER_FROM, COVER_TO, 'move-up');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyChanges(RUN, outcome.plan.changes)).toBe('- a\n- b\n- c\n- p\n');
+  });
+
+  it('a reorder across scopes shows ONE cue and plans no change', () => {
+    const src = '- p\n  - q\n  - r\n- t\n';
+    // A cover spanning `- r` (under p) and `- t` (top level): two groups.
+    const outcome = planCover(src, { line: 2, ch: 0 }, { line: 4, ch: 0 }, 'move-up');
+    if (!outcome || !('notice' in outcome)) throw new Error('expected a notice');
+    expect(outcome.notice).toBe(REJECTION_MESSAGES['cannot-reorder-across-scopes']);
+  });
+
+  it('indent over a two-group cover is accepted', () => {
+    // `- r` (under `- p`) and `- s` (top level) — two parents, and nothing
+    // between them, so the span holds exactly these two roots.
+    const src = '- p\n  - q\n  - r\n- s\n- t\n';
+    const outcome = planCover(src, { line: 2, ch: 0 }, { line: 3, ch: 4 }, 'indent');
+    if (!outcome || !('plan' in outcome)) throw new Error('expected a plan');
+    expect(applyChanges(src, outcome.plan.changes)).toBe('- p\n  - q\n    - r\n  - s\n- t\n');
+  });
+
+  it('the operand does not depend on the selection’s orientation', () => {
+    const forward = planCover(RUN, COVER_FROM, COVER_TO, 'indent', COVER_TO);
+    const backward = planCover(RUN, COVER_FROM, COVER_TO, 'indent', COVER_FROM);
+    if (!forward || !('plan' in forward)) throw new Error('expected a plan');
+    if (!backward || !('plan' in backward)) throw new Error('expected a plan');
+    expect(backward.plan.changes).toEqual(forward.plan.changes);
   });
 });

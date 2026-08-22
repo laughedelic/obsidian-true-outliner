@@ -22,7 +22,9 @@
 
 import type { ListStyle, NodePath, OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, isAtom, makeNode, nodeAt, updateSiblings } from './model';
-import { nodeStartLine } from './locate';
+import { forEachNodeWithLine, nodeAtLine, nodeStartLine } from './locate';
+import { subtreeCoverOf, type Cover } from './escalate';
+import { posBefore, type LinePos } from './line-pos';
 import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
@@ -63,6 +65,44 @@ export interface OpOutput {
    * against.
    */
   readonly anchor: { readonly line: number; readonly ch: number };
+  /**
+   * The line range this operation's SUBJECTS and their subtrees occupy in the
+   * result — from the first subject's own start line through the last
+   * subject's whole-subtree cover end.
+   *
+   * Stated rather than derived because `finalize` re-parses: a caller holding
+   * pre-operation ids cannot locate the moved nodes afterward. It is the
+   * multi-node counterpart of `anchor` and does not replace it — the anchor
+   * answers where a CARET would go, the span answers WHICH NODES the operation
+   * acted on, which is what a block selection needs.
+   *
+   * Always an exact whole-subtree cover of the result tree, so a caller can
+   * dispatch it as a selection with no further geometry
+   * (`selection-structural-ops`).
+   */
+  readonly span: Cover;
+}
+
+/**
+ * A tree edit before it is turned into a result: the new tree and which node
+ * the operation acted on.
+ *
+ * Operations are split into a SURGERY and a `finalize` so the group forms can
+ * compose the surgeries directly. Composing whole operations instead would
+ * re-encode, diff and re-parse the document once per root — measured at 1.24 ms
+ * per step on a 2000-line note, i.e. 12.45 ms for a ten-node run, past the
+ * latency budget this path shares with enforcement. Composing surgeries pays
+ * for one `finalize` however many roots there are.
+ *
+ * That this is EQUIVALENT to composing whole operations is not an assumption:
+ * every operation guarantees closure (encoding its result re-parses to that
+ * same tree), so the re-parse a whole-operation composition would perform
+ * between steps is the identity. The property suite checks it against an oracle
+ * that really does re-parse between steps.
+ */
+interface Surgery {
+  readonly doc: OutlineDoc;
+  readonly subjectId: number;
 }
 
 const isContent = (node: OutlineNode): boolean =>
@@ -83,6 +123,10 @@ export function finalize(
   oldDoc: OutlineDoc,
   surgery: OutlineDoc,
   subjectId: number | undefined,
+  /** Every subject, when the operation had more than one (the group forms).
+   * Defaults to `subjectId` alone, which is what every single-node operation
+   * means by it. */
+  spanIds?: readonly number[],
 ): OpResult<OpOutput> {
   const normalized = normalizeBoundaries(surgery);
   const text = encode(normalized);
@@ -93,6 +137,13 @@ export function finalize(
   // Degrade to the same scope start `subjectId === undefined` produces, so an
   // absent subject is never mistaken for a located one.
   const located = subjectId === undefined ? -1 : nodeStartLine(normalized, subjectId);
+  const subjects = spanIds ?? (subjectId === undefined ? [] : [subjectId]);
+  // The span describes the RESULT document, so it is computed against the
+  // re-parsed tree rather than the surgery. The two can disagree: a re-parse
+  // can re-attach a node the operation did not move (a list item landing after
+  // a paragraph becomes its child), and the surgery's own view of a subject's
+  // subtree is then not a cover of what the user actually gets.
+  const parsed = parse(text);
   if (located === -1) {
     // No subject at all: the scope start. `preamble.length` is one PAST the
     // last line whenever the preamble has no trailing blank (frontmatter
@@ -100,17 +151,68 @@ export function finalize(
     // structural position, so a direct consumer would receive a coordinate
     // outside the document. Anchor at the end of what remains instead.
     const lastLine = Math.max(lines.length - 1, 0);
+    const anchor = { line: lastLine, ch: (lines[lastLine] ?? '').length };
     return accept({
-      doc: parse(text),
+      doc: parsed,
       edits: diffLines(encodeLines(oldDoc), lines),
-      anchor: { line: lastLine, ch: (lines[lastLine] ?? '').length },
+      anchor,
+      span: subjectSpan(normalized, parsed, subjects, anchor),
     });
   }
+  const anchor = { line: located, ch: contentColumnCh(lines[located] ?? '') };
   return accept({
-    doc: parse(text),
+    doc: parsed,
     edits: diffLines(encodeLines(oldDoc), lines),
-    anchor: { line: located, ch: contentColumnCh(lines[located] ?? '') },
+    anchor,
+    span: subjectSpan(normalized, parsed, subjects, anchor),
   });
+}
+
+/**
+ * The cover spanning `ids` — first subject's start through the last subject's
+ * whole-subtree cover end, in `doc`'s line space.
+ *
+ * One traversal collects every subject with its start line, rather than a
+ * `nodeStartLine` per id, which was quadratic in the root count for exactly
+ * the case this exists to serve: a cover with many roots.
+ *
+ * Subjects are sorted by start line rather than trusted in argument order,
+ * because move down applies its roots in reverse and a caller may hand them
+ * over in whatever order it composed them.
+ */
+function subjectSpan(
+  surgery: OutlineDoc,
+  parsed: OutlineDoc,
+  ids: readonly number[],
+  fallback: LinePos,
+): Cover {
+  if (ids.length === 0) return { start: fallback, end: fallback };
+  // Subjects are located by LINE across the re-parse, the same way
+  // `enforce.ts` locates a surviving neighbour: ids do not survive, and the two
+  // trees share their text and therefore their line geometry.
+  const wanted = new Set(ids);
+  const lines: number[] = [];
+  forEachNodeWithLine(surgery, (node, startLine) => {
+    if (wanted.has(node.id)) lines.push(startLine);
+  });
+  if (lines.length === 0) return { start: fallback, end: fallback };
+
+  // Several subjects can resolve to ONE node in the result — a re-parse can
+  // make one of them a descendant of another — so the covers are unioned
+  // rather than assumed disjoint.
+  const covers = lines
+    .map((line) => nodeAtLine(parsed, line))
+    .filter((node): node is OutlineNode => node !== undefined)
+    .map((node) => subtreeCoverOf(parsed, node));
+  if (covers.length === 0) return { start: fallback, end: fallback };
+  let span = covers[0]!;
+  for (const cover of covers.slice(1)) {
+    span = {
+      start: posBefore(cover.start, span.start) ? cover.start : span.start,
+      end: posBefore(span.end, cover.end) ? cover.end : span.end,
+    };
+  }
+  return span;
 }
 
 // ---------------------------------------------------------------- headings
@@ -127,12 +229,12 @@ function maxHeadingLevel(node: OutlineNode): number {
   return max;
 }
 
-function headingLevelOp(
+function headingLevelSurgery(
   doc: OutlineDoc,
   path: readonly number[],
   node: OutlineNode,
   delta: number,
-): OpResult<OpOutput> {
+): OpResult<Surgery> {
   if (delta > 0 && maxHeadingLevel(node) >= 6) return reject('at-h6-bound');
   if (delta < 0 && (node.level ?? 1) <= 1) return reject('at-h1-bound');
   const surgery = updateSiblings(doc, path.slice(0, -1), (siblings) =>
@@ -140,7 +242,7 @@ function headingLevelOp(
       i === path[path.length - 1] ? shiftHeadingLevels(sibling, delta) : sibling,
     ),
   );
-  return finalize(doc, surgery, node.id);
+  return accept({ doc: surgery, subjectId: node.id });
 }
 
 // ------------------------------------------------------- separation repair
@@ -454,11 +556,19 @@ export function indent(
   nodeId: number,
   fallbackIndentUnit?: string,
 ): OpResult<OpOutput> {
+  return fromSurgery(doc, indentSurgery(doc, nodeId, fallbackIndentUnit));
+}
+
+function indentSurgery(
+  doc: OutlineDoc,
+  nodeId: number,
+  fallbackIndentUnit?: string,
+): OpResult<Surgery> {
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
 
-  if (node.kind === 'heading') return headingLevelOp(doc, path, node, +1);
+  if (node.kind === 'heading') return headingLevelSurgery(doc, path, node, +1);
 
   const parentPath = path.slice(0, -1);
   const index = path[path.length - 1]!;
@@ -507,7 +617,7 @@ export function indent(
   surgery = updateSiblings(surgery, [...parentPath, index - 1], (nodes) =>
     renumberOrdered([...nodes.slice(0, insertIndex), moved, ...nodes.slice(insertIndex)]),
   );
-  return finalize(doc, surgery, moved.id);
+  return accept({ doc: surgery, subjectId: moved.id });
 }
 
 // ----------------------------------------------------------------- outdent
@@ -517,11 +627,19 @@ export function outdent(
   nodeId: number,
   fallbackIndentUnit?: string,
 ): OpResult<OpOutput> {
+  return fromSurgery(doc, outdentSurgery(doc, nodeId, fallbackIndentUnit));
+}
+
+function outdentSurgery(
+  doc: OutlineDoc,
+  nodeId: number,
+  fallbackIndentUnit?: string,
+): OpResult<Surgery> {
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
 
-  if (node.kind === 'heading') return headingLevelOp(doc, path, node, -1);
+  if (node.kind === 'heading') return headingLevelSurgery(doc, path, node, -1);
 
   if (path.length === 1) return reject('at-top-level');
   const parentPath = path.slice(0, -1);
@@ -598,12 +716,12 @@ export function outdent(
       ...nodes.slice(parentIndex + 1),
     ]),
   );
-  return finalize(doc, surgery, moved.id);
+  return accept({ doc: surgery, subjectId: moved.id });
 }
 
 // -------------------------------------------------------------- reordering
 
-function move(doc: OutlineDoc, nodeId: number, delta: -1 | 1): OpResult<OpOutput> {
+function moveSurgery(doc: OutlineDoc, nodeId: number, delta: -1 | 1): OpResult<Surgery> {
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
   const node = nodeAt(doc, path)!;
@@ -631,13 +749,117 @@ function move(doc: OutlineDoc, nodeId: number, delta: -1 | 1): OpResult<OpOutput
     [out[a], out[a + 1]] = [setFinalGap(out[a + 1]!, gapA), setFinalGap(out[a]!, gapB)];
     return renumberOrdered(out);
   });
-  return finalize(doc, surgery, node.id);
+  return accept({ doc: surgery, subjectId: node.id });
 }
 
 export const moveUp = (doc: OutlineDoc, nodeId: number): OpResult<OpOutput> =>
-  move(doc, nodeId, -1);
+  fromSurgery(doc, moveSurgery(doc, nodeId, -1));
 export const moveDown = (doc: OutlineDoc, nodeId: number): OpResult<OpOutput> =>
-  move(doc, nodeId, 1);
+  fromSurgery(doc, moveSurgery(doc, nodeId, 1));
+
+/** One surgery, finalized against the document it started from. */
+function fromSurgery(doc: OutlineDoc, result: OpResult<Surgery>): OpResult<OpOutput> {
+  return result.ok ? finalize(doc, result.value.doc, result.value.subjectId) : result;
+}
+
+// ----------------------------------------------------------- group forms
+
+/**
+ * The group form of a structural operation: apply the single-node surgery to
+ * each covered root in turn, then finalize once.
+ *
+ * This IS the specified semantics rather than an implementation of them
+ * (`selection-aware-structural-ops` D1) — the group result is defined as what
+ * applying the single-node form to each root produces. Defining it that way
+ * keeps the two-regime per-kind algebra in exactly one place: a run mixing a
+ * paragraph and a heading needs no rule of its own, because each root already
+ * has one.
+ *
+ * Rejection is ATOMIC. The first failing step returns immediately and no
+ * surgery is kept, so a group never applies to a subset of its roots — the
+ * user made one gesture over one selection, and a half-applied result is
+ * neither what they asked for nor something they could undo by name.
+ *
+ * `reverse` is for move down alone. In document order its first root would swap
+ * past the second — a member of its own operand — instead of past the run's own
+ * neighbour.
+ *
+ * COST, knowingly accepted: one surgery per root, each with a linear `findPath`
+ * and a sibling-spine rebuild, so this is Θ(k·n). Measured on a ~2000-line note
+ * — k=10 2.3 ms, k=50 7.0 ms, k=200 15.4 ms — which is fine for the selections
+ * real editing produces and past the 8 ms p95 for very large ones. Reuse of the
+ * single-node algebra was preferred over a second, faster implementation of it.
+ * `selection-aware-structural-ops` design D12 records what fixing it takes, the
+ * two traps waiting there, and why the property suite makes it safe to try.
+ */
+function applyGroups(
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+  step: (current: OutlineDoc, nodeId: number) => OpResult<Surgery>,
+  reverse = false,
+): OpResult<OpOutput> {
+  const ids = groups.flat();
+  if (ids.length === 0) return reject('empty-selection');
+  let surgery = doc;
+  for (const id of reverse ? [...ids].reverse() : ids) {
+    const result = step(surgery, id);
+    if (!result.ok) return result;
+    surgery = result.value.doc;
+  }
+  // Node ids survive a surgery — every re-encoding path rebuilds nodes by
+  // spread — so the roots are still addressable here, and the anchor is the
+  // first of them in document order.
+  return finalize(doc, surgery, ids[0], ids);
+}
+
+/**
+ * Reorders take a SINGLE contiguous sibling run (D8). Across several parents
+ * each group would move within its own scope, which scatters the roots instead
+ * of moving them: measured, every accepted multi-parent move up left its roots
+ * separated by content that was never selected.
+ *
+ * Checked from the group count before any surgery runs, so the rejection costs
+ * nothing and is a property of the operand rather than of the result.
+ */
+function rejectAcrossScopes(groups: readonly (readonly number[])[]): boolean {
+  return groups.length > 1;
+}
+
+export function indentGroups(
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+  fallbackIndentUnit?: string,
+): OpResult<OpOutput> {
+  return applyGroups(doc, groups, (current, id) =>
+    indentSurgery(current, id, fallbackIndentUnit),
+  );
+}
+
+export function outdentGroups(
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+  fallbackIndentUnit?: string,
+): OpResult<OpOutput> {
+  return applyGroups(doc, groups, (current, id) =>
+    outdentSurgery(current, id, fallbackIndentUnit),
+  );
+}
+
+export function moveGroupsUp(
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+): OpResult<OpOutput> {
+  if (rejectAcrossScopes(groups)) return reject('cannot-reorder-across-scopes');
+  return applyGroups(doc, groups, (current, id) => moveSurgery(current, id, -1));
+}
+
+export function moveGroupsDown(
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+): OpResult<OpOutput> {
+  if (rejectAcrossScopes(groups)) return reject('cannot-reorder-across-scopes');
+  return applyGroups(doc, groups, (current, id) => moveSurgery(current, id, 1), true);
+}
 
 // ------------------------------------------------------------------- split
 

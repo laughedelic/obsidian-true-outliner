@@ -14,12 +14,8 @@
 import type { OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, nodeAt } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
-import {
-  coveredForestOf,
-  escalateRange,
-  forestCoverOf,
-  type ForestRoot,
-} from './escalate';
+import { coveredForestOf } from './escalate';
+import { coverGroupsOf, groupRootsByParent } from './operand';
 import type { LinePos, LineRange } from './line-pos';
 import { parse } from './parse';
 import { encode, encodeLines } from './encode';
@@ -102,56 +98,6 @@ function rewriteFrom(
 function vetoFrom(result: OpResult<OpOutput>): Verdict {
   if (result.ok) throw new Error('vetoFrom called with an accepted result');
   return { kind: 'veto', reason: result.rejection.reason };
-}
-
-/**
- * The forest cover spanning `startNode`..`endNode`, as DELETION GROUPS —
- * one contiguous sibling run per parent, in document order, `groups[0]`
- * topmost. That is exactly `deleteSubtreeGroups`' input shape
- * (`fix-orphan-gap-on-node-deletion` D2), so a mixed-depth cover needs no
- * deletion machinery of its own.
- *
- * The roots come from `escalate.ts`'s exported `forestCoverOf` rather than a
- * second scope resolution here — one implementation, every consumer
- * (`selection-as-subtree-set` D4). The grouping is the only thing this adds:
- * a forest span is an interval in document order, so it cannot straddle a
- * parent's children non-contiguously, and consecutive roots sharing a parent
- * are therefore always a contiguous run.
- */
-function coverGroups(
-  doc: OutlineDoc,
-  startNode: OutlineNode,
-  endNode: OutlineNode,
-): readonly (readonly number[])[] {
-  return groupRootsByParent(forestCoverOf(doc, startNode, endNode).roots);
-}
-
-/**
- * Roots (document order) split into one contiguous sibling run per parent.
- * A forest span is an interval in document order, so it cannot straddle a
- * parent's children non-contiguously — consecutive roots sharing a parent
- * are therefore always a contiguous run, and a parent change always starts a
- * new group.
- *
- * Every caller that hands roots to `deleteSubtreeGroups` MUST go through
- * this: that function resolves each group with `resolveContiguousGroup`,
- * which REJECTS a group whose members do not share a parent — and a
- * rejection here is a veto, i.e. the user's whole deletion silently refused.
- * Reads `ForestRoot.path` rather than calling `findPath` per root, which was
- * a full-tree search per root (Θ(n²) for a forest of n roots).
- */
-export function groupRootsByParent(roots: readonly ForestRoot[]): readonly (readonly number[])[] {
-  const groups: number[][] = [];
-  let currentParent: string | undefined;
-  for (const root of roots) {
-    const parentKey = root.path.slice(0, -1).join('/');
-    if (parentKey !== currentParent) {
-      groups.push([]);
-      currentParent = parentKey;
-    }
-    groups[groups.length - 1]!.push(root.node.id);
-  }
-  return groups;
 }
 
 /** The deletion's OLD-document range removes NOTHING but the single line
@@ -269,25 +215,6 @@ function computeMergeVerdict(
     return vetoFrom(result);
   }
   return rewriteFrom(doc, result.value, { kind: 'exact' }, 'delete.structural.merge');
-}
-
-/** The whole-subtree cover of a (possibly stale, never-escalated) range, as
- * deletion groups — the SAME rule for an already-escalated selection and a
- * mid-node one (design.md D3: "one rule for both paths"). Returns
- * `undefined` when either end is out of jurisdiction (preamble). More than
- * one group means the cover is a mixed-depth forest, newly reachable since
- * `selection-as-subtree-set`. */
-function coverGroupsOf(
-  doc: OutlineDoc,
-  range: LineRange,
-): readonly (readonly number[])[] | undefined {
-  const covered = escalateRange(doc, range);
-  const loLine = Math.min(covered.anchor.line, covered.head.line);
-  const hiLine = Math.max(covered.anchor.line, covered.head.line);
-  const startNode = nodeAtLine(doc, loLine);
-  const endNode = nodeAtLine(doc, hiLine);
-  if (!startNode || !endNode) return undefined;
-  return coverGroups(doc, startNode, endNode);
 }
 
 interface Survivors {
