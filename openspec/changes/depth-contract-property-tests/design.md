@@ -77,11 +77,23 @@ and the single-node body is a few lines.
 
 ### D5. Coverage is asserted, not assumed
 
-The property counts accepted cases and, for the group forms, accepted MULTI-ROOT cases, and fails
-if either falls below a floor — the same guard `group-ops.test.ts` uses for its operands. Measured
-on the current generator at 3000 runs per operation: indent 938 accepted / 697 multi-root, outdent
-889 / 572, move up 428 / 195. Floors are set well under those numbers, so ordinary generator drift
-does not turn the suite red while a change that guts its reach does.
+The property counts accepted cases and fails below a floor — the same guard
+`group-ops.test.ts` uses for its operands. The two forms are counted SEPARATELY: they accept at
+very different rates (a group operand is rejected whenever any one of its roots is), so a single
+shared counter lets the leaner form pass vacuously on the other's cases. The group forms
+additionally count accepted MULTI-ROOT operands, without which the group property degrades into
+the single-node one.
+
+Measured on the current generator at 3000 runs per operation:
+
+| | single-node accepted | group accepted | of those, multi-root |
+|---|---|---|---|
+| indent | 1258 | 938 | 697 |
+| outdent | 1994 | 889 | 572 |
+| move up | 1258 | 428 | 195 |
+
+Floors are set well under those numbers, so ordinary generator drift does not turn the suite red
+while a change that guts its reach does.
 
 This is the mitigation for D2's narrower generator: a suite whose reach silently collapses to
 "every case was rejected, therefore green" is the failure mode this whole change exists to close.
@@ -122,7 +134,7 @@ covers containing a heading root are skipped for the same reason.
   change. The PR #51 shape (indent under an ordered parent) is reachable — its markers are
   generated — and the labelled generator is the only one that makes the subject trackable at all.
   Widening the generator is a separate change, not a prerequisite.
-- **Runtime.** Four operations × two forms × property runs, on a suite that already spends most of
+- **Runtime.** Three operations × two forms × property runs, on a suite that already spends most of
   its time in fast-check. → Keep `numRuns` in the 1500–3000 band the neighbouring suites use, and
   measure the file's wall time before merging.
 - **The excluded move-down row is forgotten.** → The stacked change that fixes the absorption

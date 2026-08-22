@@ -17,8 +17,10 @@
 
 ## 2. Coverage guards
 
-- [ ] 2.1 Count accepted cases per operation and fail below a floor set well under the measured
-      numbers — indent 938, outdent 889, move up 428 accepted at 3000 runs (D5).
+- [ ] 2.1 Count accepted cases per operation SEPARATELY for each form, and fail below a floor set
+      well under the measured numbers at 3000 runs — single-node: indent 1258, outdent 1994, move
+      up 1258; group: 938 / 889 / 428. One shared counter would let the single-node half pass
+      vacuously on the group half's cases, since the two accept at very different rates (D5).
 - [ ] 2.2 Count accepted MULTI-ROOT group operands per operation and guard them on their own
       floor — measured 697 / 572 / 195 — so the group property cannot degrade into the
       single-root case unnoticed.
