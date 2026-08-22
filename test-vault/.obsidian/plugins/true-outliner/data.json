@@ -3,6 +3,8 @@
     "Journal/2026-07-07.md",
     "Journal/2026-07-08.md",
     "Journal/2026-07-10.md",
+    "Journal/2026-07-12.md",
+    "Notes/List decoration demo.md",
     "Notes/Sourdough Log.md",
     "Projects/Aurora Dashboard.md",
     "Projects/Kitchen Renovation.md",
@@ -10,5 +12,9 @@
   ],
   "coexistenceWarned": false,
   "debugCrossCheck": true,
-  "markerVisibility": "all"
+  "markerVisibility": "all",
+  "guideHighlight": "full",
+  "markerHighlight": "current",
+  "listLayout": "own-guides",
+  "listBullet": "column"
 }

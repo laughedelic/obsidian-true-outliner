@@ -259,9 +259,25 @@ function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFa
   return layers.join(', ');
 }
 
+/**
+ * The guide depths a line actually draws, given how much of a list's geometry
+ * outline mode has taken over (EXPERIMENTAL, see `ListLayout`).
+ *
+ * Under `'own-guides'` the list-item ancestors the base layer deliberately
+ * withholds are drawn by us instead. That is only correct because `'grid'`
+ * (which `'own-guides'` includes) has already pushed `--list-indent` to our own
+ * unit, so a list level at tree depth `d` renders at exactly `d * unit` — the
+ * same column this gradient draws on. Without that, these layers would land on
+ * columns the list does not use.
+ */
+function activeGuideDepths(guide: LineGuideFact, layout: ListLayout): readonly number[] {
+  if (layout !== 'own-guides' || guide.listGuideDepths.length === 0) return guide.guideDepths;
+  return [...guide.guideDepths, ...guide.listGuideDepths].sort((a, b) => a - b);
+}
+
 /** Whether a line renders the `::after` overlay at all. */
-function hasOverlay(guide: LineGuideFact, trail?: PositionTrailFact): boolean {
-  return guide.guideDepths.length > 0 || trail !== undefined;
+function hasOverlay(guide: LineGuideFact, layout: ListLayout, trail?: PositionTrailFact): boolean {
+  return activeGuideDepths(guide, layout).length > 0 || trail !== undefined;
 }
 
 /**
@@ -532,7 +548,7 @@ function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: b
 // this one (which pulls in the real `obsidian` package for
 // `editorInfoField`).
 export type { MarkerVisibility } from './mode-registry';
-import type { MarkerVisibility } from './mode-registry';
+import type { ListBullet, ListLayout, MarkerVisibility } from './mode-registry';
 
 /** Anything that can supply decorations needs to say which notes are in
  * outline mode (ModeSource) and which nodes get a marker at all — a real
@@ -546,6 +562,11 @@ export interface DecorationSource extends ModeSource {
   readonly markerHighlight: MarkerHighlight;
   /** How much of the ancestor guides to accent, if any. */
   readonly guideHighlight: GuideHighlight;
+  /** How much of a list's own geometry outline mode takes over (EXPERIMENTAL,
+   * see `ListLayout`). */
+  readonly listLayout: ListLayout;
+  /** Where a list item's own marker sits (EXPERIMENTAL, see `ListBullet`). */
+  readonly listBullet: ListBullet;
 }
 
 const EMPTY_POSITION_TRAIL: PositionTrail = {
@@ -894,18 +915,36 @@ function plainOwnShiftExpr(fact: LineDecorationFact): string {
   return '0px'; // padding-left never shifts a block line's own box
 }
 
+/**
+ * The classes that carry the experimental list-geometry layers. Applied to a
+ * list-item line only, so both the outline-mode gate and the "lists only" gate
+ * come from the decoration itself and the CSS needs no second condition.
+ */
+function listLayoutClasses(layout: ListLayout, bullet: ListBullet): string {
+  let cls = '';
+  if (layout !== 'native') cls += ' to-list-grid';
+  if (layout === 'own-guides') cls += ' to-list-own-guides';
+  if (bullet === 'column') cls += ' to-list-bullet-column';
+  return cls;
+}
+
 function lineDecoration(
   fact: LineDecorationFact,
   guide: LineGuideFact,
   trail: PositionTrail,
   markerAccent: boolean,
+  modes: DecorationSource,
 ): Decoration {
   const styles: string[] = [];
   let cls: string;
 
   if (fact.isListItem) {
-    cls = 'to-decor-list';
+    cls = 'to-decor-list' + listLayoutClasses(modes.listLayout, modes.listBullet);
     styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
+    // The item's own tree depth as well as its list root's: the two together
+    // are the item's depth WITHIN its list, which is how far its own rendered
+    // indentation carries it right of the line box.
+    styles.push(`--to-depth: ${fact.depth}`);
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
@@ -919,9 +958,10 @@ function lineDecoration(
   cls += markerClasses(trail, fact.lineNumber, markerAccent);
 
   const lineTrail = trail.byLine.get(fact.lineNumber);
-  if (hasOverlay(guide, lineTrail)) {
+  if (hasOverlay(guide, modes.listLayout, lineTrail)) {
     cls += ' to-decor-guides';
-    styles.push(`--to-guides: ${guideBackground(guide.guideDepths, lineTrail)}`);
+    const depths = activeGuideDepths(guide, modes.listLayout);
+    styles.push(`--to-guides: ${guideBackground(depths, lineTrail)}`);
     styles.push(`--to-own-shift: ${plainOwnShiftExpr(fact)}`);
   }
 
@@ -934,10 +974,15 @@ function lineDecoration(
 // not the full lineDecoration() treatment. A trail accent can land on such a
 // line too (a path segment passing through the gap between two blocks), so the
 // background is built from both sources here as well.
-function gapLineDecoration(guide: LineGuideFact, lineTrail?: PositionTrailFact): Decoration {
+function gapLineDecoration(
+  guide: LineGuideFact,
+  layout: ListLayout,
+  lineTrail?: PositionTrailFact,
+): Decoration {
+  const depths = activeGuideDepths(guide, layout);
   return Decoration.line({
     class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guideBackground(guide.guideDepths, lineTrail)}` },
+    attributes: { style: `--to-guides: ${guideBackground(depths, lineTrail)}` },
   });
 }
 
@@ -966,12 +1011,16 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const lineTrail = trail.byLine.get(guide.lineNumber);
     const fact = factsByLine.get(guide.lineNumber);
     if (guide.isGapLine && !fact) {
-      if (!hasOverlay(guide, lineTrail)) continue; // nothing to draw
-      builder.add(from, from, gapLineDecoration(guide, lineTrail));
+      if (!hasOverlay(guide, modes.listLayout, lineTrail)) continue; // nothing to draw
+      builder.add(from, from, gapLineDecoration(guide, modes.listLayout, lineTrail));
       continue;
     }
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
-    builder.add(from, from, lineDecoration(fact, guide, trail, modes.markerHighlight !== 'off'));
+    builder.add(
+      from,
+      from,
+      lineDecoration(fact, guide, trail, modes.markerHighlight !== 'off', modes),
+    );
   }
   return builder.finish();
 }
@@ -2177,9 +2226,12 @@ class MarginCompensation implements PluginValue {
 
         const guide = guidesByLine.get(lineNumber);
         const lineTrail = trail.byLine.get(lineNumber);
-        if (guide && hasOverlay(guide, lineTrail)) {
+        if (guide && hasOverlay(guide, this.modes.listLayout, lineTrail)) {
           el.classList.add('to-decor-guides');
-          el.style.setProperty('--to-guides', guideBackground(guide.guideDepths, lineTrail));
+          el.style.setProperty(
+            '--to-guides',
+            guideBackground(activeGuideDepths(guide, this.modes.listLayout), lineTrail),
+          );
           el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
         } else {
           el.classList.remove('to-decor-guides');

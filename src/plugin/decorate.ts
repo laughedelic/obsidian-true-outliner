@@ -379,6 +379,22 @@ export interface LineGuideFact {
    * and additionally decorates any gap-only line found here.
    */
   readonly isGapLine: boolean;
+  /**
+   * The depths of every strict LIST-ITEM ancestor active on this line —
+   * exactly the depths `guideDepths` deliberately excludes, kept separately
+   * rather than merged in.
+   *
+   * EXPERIMENTAL (`ListLayout`, docs/research/16-native-list-decoration.md).
+   * A list-item ancestor owns no guide in the base layer because Obsidian's
+   * own native indent guides already connect one bullet to the next, on
+   * columns our fixed unit does not match. Once `--list-indent` is pushed to
+   * our own unit those columns coincide, and drawing these ourselves becomes
+   * the better answer — so the walk publishes them unconditionally and the
+   * consumer decides. Emitted for gap lines too, so a blank line inside a
+   * list keeps the guide continuous the same way it already does between
+   * blocks.
+   */
+  readonly listGuideDepths: readonly number[];
 }
 
 /**
@@ -391,30 +407,50 @@ export function computeLineGuides(doc: OutlineDoc): LineGuideFact[] {
   const facts: LineGuideFact[] = [];
   let current = doc.preamble.length;
 
-  const walk = (node: OutlineNode, depth: number, guideDepths: readonly number[]): void => {
+  const walk = (
+    node: OutlineNode,
+    depth: number,
+    guideDepths: readonly number[],
+    listGuideDepths: readonly number[],
+  ): void => {
     for (let i = 0; i < node.lines.length; i++) {
-      facts.push({ lineNumber: current + i, guideDepths, isGapLine: false });
+      facts.push({ lineNumber: current + i, guideDepths, listGuideDepths, isGapLine: false });
     }
     current += node.lines.length;
 
     // This node starts owning a guide for its own children from here on —
     // unless it's a list item, which never owns one (see doc comment above).
-    const childGuideDepths = node.kind === 'list-item' ? guideDepths : [...guideDepths, depth];
+    const isListItem = node.kind === 'list-item';
+    const childGuideDepths = isListItem ? guideDepths : [...guideDepths, depth];
+    // A list item's own contribution goes on the separate list track instead
+    // (see `listGuideDepths`); any other kind ends whatever list chain was
+    // running, since its own children are no longer inside those items'
+    // columns in any sense the base layer can draw.
+    const childListGuideDepths = isListItem ? [...listGuideDepths, depth] : [];
 
     // Every trailing gap gets a fact now, for full continuity (see the doc
     // comment above): a leaf's own gap uses its own guideDepths; a node
     // with children's gap is already "inside" its subtree, so it uses
     // childGuideDepths instead — the same depths its first child gets.
-    const gapGuideDepths = node.children.length === 0 ? guideDepths : childGuideDepths;
+    const leaf = node.children.length === 0;
+    const gapGuideDepths = leaf ? guideDepths : childGuideDepths;
+    const gapListGuideDepths = leaf ? listGuideDepths : childListGuideDepths;
     for (let i = 0; i < node.trailingGap.length; i++) {
-      facts.push({ lineNumber: current + i, guideDepths: gapGuideDepths, isGapLine: true });
+      facts.push({
+        lineNumber: current + i,
+        guideDepths: gapGuideDepths,
+        listGuideDepths: gapListGuideDepths,
+        isGapLine: true,
+      });
     }
     current += node.trailingGap.length;
 
-    node.children.forEach((child) => walk(child, depth + 1, childGuideDepths));
+    node.children.forEach((child) =>
+      walk(child, depth + 1, childGuideDepths, childListGuideDepths),
+    );
   };
 
-  doc.children.forEach((node) => walk(node, 0, []));
+  doc.children.forEach((node) => walk(node, 0, [], []));
   return facts;
 }
 
