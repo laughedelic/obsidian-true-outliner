@@ -25,6 +25,7 @@ Research date: July 2026.
 | [13-selection-follow-ups.md](13-selection-follow-ups.md) | The same, for selection: what `selection-as-subtree-set`, `node-selection-extension` and `selection-aware-structural-ops` left open — modal block selection, cherry-picking, and moving a node into its parent's sibling |
 | [14-experiment-position-indicators.md](14-experiment-position-indicators.md) | Experiment: showing where the cursor sits in the outline — guide and marker highlighting, the axes they split on, and what real use settled |
 | [15-enter-and-shift-enter-catalogue.md](15-enter-and-shift-enter-catalogue.md) | Measured catalogue of Enter / Shift+Enter across 49 cursor positions, the ten defects it found, and what the `enter-and-shift-enter-grammar` change did with each. A **pre-change** record: read the specs for current behavior |
+| [16-native-list-decoration.md](16-native-list-decoration.md) | How Obsidian actually computes list geometry in Live Preview (public CSS variables, the `.cm-indent` quantizer, the cached hanging-indent measurement), what a measurement pass validated about retargeting it onto our own decoration grid, and the phased plan for bringing list decoration up to the level of the other kinds |
 
 ## TL;DR
 
