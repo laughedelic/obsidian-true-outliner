@@ -36,9 +36,16 @@ blind to two thirds of this defect.
 - `structural-operations`' "Sibling reordering" requirement gains the rejection and states the
   depth guarantee for EVERY node, not only the subject — the clause that makes the move-up case
   a violation rather than an unnoticed side effect.
-- `tests/depth-contract.test.ts` gains its deferred move-down row, and a reorder property that
-  asserts no node's depth changes. The move-down deferral comment and the stacked change's
-  "stated once the defect is fixed" sentence come out.
+- "A non-heading subject lands at a stated depth in the result" gains its deferred move-down
+  row. That requirement is live now that `depth-contract-property-tests` is archived, so the
+  sentence deferring move down "until the defect that violates it is fixed" is retired here.
+- **BREAKING for one documented outcome**: "Group forms of indent, outdent and reordering"
+  states a scenario whose result reparents a bystander — the group move up of `[L1, L2]` over
+  `- L0` emits `L1` / `L2` / `- L0`, which re-parses with `- L0` as `L2`'s child. It is the same
+  absorption the single-node move up performs on the same shape, and it becomes a rejection.
+- `tests/depth-contract.test.ts` gains the move-down row and a reorder property that asserts no
+  node's depth changes; `tests/group-ops.test.ts` gains the rejection where it currently asserts
+  that absorption as an accepted outcome.
 - The rejection carries a comment naming the mapping question that would make it unreachable,
   and the document that holds the exploration. It is expected to be deleted, not maintained.
 
@@ -50,10 +57,17 @@ None.
 
 ### Modified Capabilities
 
-- `structural-operations`: "Sibling reordering" gains the inexpressible-landing rejection and a
-  depth guarantee that covers every node in the document rather than the subject alone. Both
-  clauses are about the RESULT tree — what the caller receives once the encoding has re-parsed —
-  which is where the disagreement between surgery and encoding becomes observable.
+- `structural-operations`, three requirements:
+  - "Sibling reordering" gains the inexpressible-landing rejection and a depth guarantee that
+    covers every node in the document rather than the subject alone. Both clauses are about the
+    RESULT tree — what the caller receives once the encoding has re-parsed — which is where the
+    disagreement between surgery and encoding becomes observable.
+  - "A non-heading subject lands at a stated depth in the result" adds move down, which its own
+    text defers until this defect is fixed.
+  - "Group forms of indent, outdent and reordering" turns its `- L0` / `L1` / `L2` scenario into
+    a rejection. The requirement's order rule and its prose are unchanged: what changes is that
+    the one shape where the order rule and the sequential composition disagreed is refused
+    before either applies.
 
 ## Impact
 

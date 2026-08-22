@@ -21,7 +21,10 @@ See proposal.md — Why. The mechanics that shape the approach:
 
 **Goals:**
 
-- No accepted reorder returns a tree whose encoding re-parses to a different tree.
+- Every accepted reorder's emitted markdown re-parses to the tree its own surgery built. Stating
+  it as "the returned tree re-parses to itself" would state operation closure instead, which
+  `finalize` satisfies for free by returning a parse output — the blind spot this whole class of
+  defect lives in.
 - The defect is closed for both directions and for the bystander, not only for the subject that
   a depth measurement happens to watch.
 - The check is cheap to delete. It exists to hold a line that a mapping-rule decision may move,
@@ -52,22 +55,51 @@ Rejecting keeps every node's bytes intact and costs a gesture in a narrow shape.
 shape is 37 of 1285 accepted move downs and 24 of 1239 accepted move ups on the generator, all
 of which currently "succeed" by returning the wrong tree.
 
-### D2. The predicate is a property of the operand, computed before the swap
+### D2. The check runs on the arrangement that will be encoded, not on each step
 
-The check reads the sibling array the operand already sits in: for the two slots the swap
-touches, would either relocated root end up as a section-level list item whose new preceding
-sibling is a paragraph? This is the shape `rejectAcrossScopes` already uses — decided from the
-operand before any surgery runs, so a refusal costs nothing and does not depend on the result.
+The predicate is one question about a tree: does it contain a section-level list item whose
+preceding sibling is a paragraph? It is asked of the surgery tree that is about to be finalized —
+once per single-node reorder, and once per group reorder after `applyGroups` has composed every
+root's step.
 
-Measured against the actual defect on the labelled generator at seed 42, 3000 runs: the
-predicate fires 37 times where move down produces 37 depth violations, and 24 times where move
-up produces 24, with zero false positives and zero false negatives across roughly 2500 accepted
-reorders. It is exact on that generator, not merely sufficient.
+Asking it per STEP instead would be wrong for the group form. `applyGroups` never encodes its
+intermediate trees, so a step's arrangement is not something any reader will see; refusing on it
+rejects runs whose requested result is perfectly expressible. The reachable shape is a run of
+`[atom, list item]` moving down past a paragraph: the intermediate places the list item after the
+paragraph, while the final arrangement puts the atom there and the list item safely behind it.
 
-Alternative considered: validate the composed tree in `finalize`, which would cover every
-operation rather than this one. Rejected for scope — the other operations avoid the arrangement
-by re-encoding, so a shared validator would need a repair-or-refuse policy per caller, which is
-a larger design than the defect warrants and harder to remove later.
+The predicate is sound as a whole-tree question because `parse` never produces the arrangement —
+a list item after a paragraph is always absorbed — so finding one in a surgery tree always means
+the surgery created it.
+
+Measured against the actual defect on the labelled generator at seed 42, 3000 runs: an operand-
+level form of this question fires 37 times where move down produces 37 depth violations, and 24
+times where move up produces 24, with zero false positives and zero false negatives across
+roughly 2500 accepted reorders. The whole-tree form accepts strictly more (only the group
+intermediates differ) and must reproduce those numbers; task 3.3 re-measures it.
+
+Alternative considered: put the check in `finalize`, where it would cover every operation rather
+than this one. Rejected for scope — the other operations avoid the arrangement by re-encoding, so
+a shared validator would need a repair-or-refuse policy per caller, which is a larger design than
+the defect warrants and harder to remove later.
+
+### D2a. The group form's own scenario becomes a rejection
+
+`Group forms of indent, outdent and reordering` states a scenario whose result is an absorption:
+the group move up of `[L1, L2]` over `- L0` emits `L1` / `L2` / `- L0`, which re-parses with
+`- L0` as `L2`'s child. That is the same bystander reparenting the single-node move up performs
+on the same shape, and the delta modifies it to a rejection.
+
+The requirement's surrounding prose is kept. The order rule is still the governing rule and is
+still stated first; what changes is that the shape where it disagreed with the composition is now
+refused before either rule applies. Its other scenarios — a run moving up or down past its own
+neighbour — demonstrate order preservation on arrangements that remain expressible.
+
+Consequence worth naming: every measured disagreement between the order rule and the composition
+had this shape (49 of 49, recorded in the requirement). With the shape refused, the two agree on
+everything a reorder accepts, and `compositionKeptRootOrder` in `tests/group-oracle.ts` becomes a
+precondition that filters nothing. That is a simplification to notice later, not a change to make
+here.
 
 ### D3. Both relocated roots are checked
 
@@ -112,14 +144,15 @@ delete this in one commit and watch the guard property stay green.
 
 ## Risks / Trade-offs
 
-- **A group reorder is refused when only an intermediate step is inexpressible.** The check runs
-  per step, and `applyGroups` never encodes intermediate trees, so a run whose final arrangement
-  would have been fine can still be refused — a run of `[atom, list item]` moving past a
-  paragraph is the reachable shape, since the atom ends up adjacent to the paragraph and the
-  list item does not. Not reachable on the current generator, which produces no atoms. → Accepted
-  and recorded rather than fixed: group rejection is already specified as atomic, refusing is the
-  conservative direction, and the precise alternative (validate once on the composed tree) is the
-  shared-validator design D2 rejects. Noted here so it is not rediscovered as a bug.
+- **The group form loses a documented behaviour, not only a defective one.** The scenario D2a
+  modifies exists to demonstrate the order rule, and after this change no expressible shape
+  demonstrates it — because every disagreement between the order rule and the composition was an
+  absorption. → Accepted: the rule still governs and its prose still explains why it is stated
+  first, and the alternative is keeping a scenario that mandates reparenting a node the cover
+  never named. Recorded in D2a so the loss is deliberate rather than discovered.
+- **A whole-tree check is O(n) per reorder.** → Reorders are already Θ(n) through `findPath` and
+  the sibling-spine rebuild, and the group form runs it once for the whole operand rather than
+  per root, so it is within the existing cost of the path.
 - **The refused gestures are ones users will attempt.** A list followed by a paragraph is common
   — 45 of 149 list items in the corpus and test vault are paragraph-owned. → The cue names the
   reason, and the gesture is refused rather than silently corrupting the tree, which is what it

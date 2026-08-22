@@ -11,9 +11,14 @@ rule cannot encode, and says in its own comments that it expects to be deleted b
 question settles.
 
 Cross-references: [04-open-questions.md](04-open-questions.md) Q2 follow-ups 1 and 3 (the rule's
-original decision and the mapping-core verdict on it), [05-org-mode-comparison.md](05-org-mode-comparison.md),
-and `16-native-list-decoration.md` (arrives with the `lists-on-the-outline-grid` change), whose
-geometry measurements are load-bearing here.
+original decision and the mapping-core verdict on it), and
+[05-org-mode-comparison.md](05-org-mode-comparison.md).
+
+`16-native-list-decoration.md` arrives with the `lists-on-the-outline-grid` change and is not on
+this branch. Its geometry measurements are what rule out candidate B, so §6 reproduces the two
+that carry the argument — the indent-span mechanism and the bullet-column table — rather than
+citing a document a reader here cannot open. Every other reference to it is context, not
+evidence.
 
 ---
 
@@ -244,11 +249,12 @@ after a blank line is an indented code block. Confirmed by hand in Obsidian: a l
 a single tab renders as a code block in the preview; a list indented with two spaces renders as a
 normal list, indistinguishable from flush in the preview and visibly indented in the editor.
 
-**From Obsidian's side, only 4 columns and tabs are resolved.** `16-native-list-decoration.md`
-measured the mechanism: a view plugin walks each line's leading whitespace, a tab emits one
-`.cm-indent`, exactly four spaces emit one `.cm-indent`, and a shorter run emits
-`.cm-indent-spacing` and then advances one character at a time. The quantum is hardcoded at four
-and does not follow the vault's Tab size. The resulting bullet columns:
+**From Obsidian's side, only 4 columns and tabs are resolved.** The mechanism, measured against a
+running Obsidian 1.13.4 for the `lists-on-the-outline-grid` change and reproduced here: a view
+plugin walks each line's leading whitespace, a tab emits one `.cm-indent`, exactly four spaces
+emit one `.cm-indent`, and a shorter run emits `.cm-indent-spacing` and then advances one
+character at a time. The quantum is hardcoded at four and does not follow the vault's Tab size.
+The resulting bullet columns, relative to `.cm-content`, with indentation guides on:
 
 | source indentation | level 1 | 2 | 3 | 4 |
 | --- | --- | --- | --- | --- |
@@ -259,7 +265,8 @@ and does not follow the vault's Tab size. The resulting bullet columns:
 So the widths markdown leaves free under a paragraph are exactly the widths Obsidian's editor
 refuses to resolve, and the width Obsidian resolves is a code block in markdown. An
 indentation-encoded nesting would be **invisible in reading mode and misaligned in editing
-mode** — the residual doc 16 already records and cannot fix without a normalizer.
+mode** — the residual the `lists-on-the-outline-grid` research already records and cannot
+fix without a normalizer.
 
 ### 6.1 The same constraint, on our own output
 
