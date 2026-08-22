@@ -2,7 +2,7 @@
 
 See proposal.md — Why. The mechanics that matter for the approach:
 
-- `finalize` returns `parse(encode(surgery))`, so node IDS DO NOT SURVIVE an operation and the
+- `finalize` returns `parse(encode(surgery))`, so node IDs DO NOT SURVIVE an operation and the
   result tree is by definition the parse of its own encoding. Any property comparing those two is
   vacuous; any property tracking a subject by id across the call is impossible.
 - `tests/group-oracle.ts` already solves the tracking problem for the composition oracle: its
