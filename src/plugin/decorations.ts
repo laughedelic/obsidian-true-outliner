@@ -272,12 +272,23 @@ function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFa
  */
 function activeGuideDepths(guide: LineGuideFact, layout: ListLayout): readonly number[] {
   if (layout !== 'own-guides' || guide.listGuideDepths.length === 0) return guide.guideDepths;
+  // Sorted, not concatenated: the two tracks interleave. A heading owning a
+  // list item that owns a paragraph that owns a list gives guideDepths [0, 2]
+  // and listGuideDepths [1, 3], and `LineGuideFact` documents both as ascending.
+  // Nothing in the rendering depends on the order — each depth paints at its own
+  // X — but a caller that reads the array should not have to know that.
   return [...guide.guideDepths, ...guide.listGuideDepths].sort((a, b) => a - b);
 }
 
-/** Whether a line renders the `::after` overlay at all. */
-function hasOverlay(guide: LineGuideFact, layout: ListLayout, trail?: PositionTrailFact): boolean {
-  return activeGuideDepths(guide, layout).length > 0 || trail !== undefined;
+/**
+ * Whether a line renders the `::after` overlay at all, given the depths the
+ * caller has ALREADY resolved — `activeGuideDepths` can allocate, and every
+ * caller needs the depths themselves a moment later, so resolving them once per
+ * line and passing them here is the difference between one allocation and two.
+ * The trail test comes first because it is a bare comparison.
+ */
+function hasOverlay(depths: readonly number[], trail?: PositionTrailFact): boolean {
+  return trail !== undefined || depths.length > 0;
 }
 
 /**
@@ -922,15 +933,20 @@ function plainOwnShiftExpr(fact: LineDecorationFact): string {
  */
 function listLayoutClasses(layout: ListLayout, bullet: ListBullet): string {
   let cls = '';
-  if (layout !== 'native') cls += ' to-list-grid';
+  if (layout === 'native') return cls;
+  cls += ' to-list-grid';
   if (layout === 'own-guides') cls += ' to-list-own-guides';
+  // The bullet column only exists once the grid does. Pulling a bullet onto
+  // `depth × unit` while the list is still stepping at Obsidian's own
+  // `--list-indent` puts it on a column nothing else in the document uses, so
+  // the combination is not offered even though the two settings are separate.
   if (bullet === 'column') cls += ' to-list-bullet-column';
   return cls;
 }
 
 function lineDecoration(
   fact: LineDecorationFact,
-  guide: LineGuideFact,
+  depths: readonly number[],
   trail: PositionTrail,
   markerAccent: boolean,
   modes: DecorationSource,
@@ -958,9 +974,8 @@ function lineDecoration(
   cls += markerClasses(trail, fact.lineNumber, markerAccent);
 
   const lineTrail = trail.byLine.get(fact.lineNumber);
-  if (hasOverlay(guide, modes.listLayout, lineTrail)) {
+  if (hasOverlay(depths, lineTrail)) {
     cls += ' to-decor-guides';
-    const depths = activeGuideDepths(guide, modes.listLayout);
     styles.push(`--to-guides: ${guideBackground(depths, lineTrail)}`);
     styles.push(`--to-own-shift: ${plainOwnShiftExpr(fact)}`);
   }
@@ -974,12 +989,7 @@ function lineDecoration(
 // not the full lineDecoration() treatment. A trail accent can land on such a
 // line too (a path segment passing through the gap between two blocks), so the
 // background is built from both sources here as well.
-function gapLineDecoration(
-  guide: LineGuideFact,
-  layout: ListLayout,
-  lineTrail?: PositionTrailFact,
-): Decoration {
-  const depths = activeGuideDepths(guide, layout);
+function gapLineDecoration(depths: readonly number[], lineTrail?: PositionTrailFact): Decoration {
   return Decoration.line({
     class: 'to-decor-guides',
     attributes: { style: `--to-guides: ${guideBackground(depths, lineTrail)}` },
@@ -1010,16 +1020,17 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const from = state.doc.line(guide.lineNumber + 1).from; // CM6 lines are 1-indexed
     const lineTrail = trail.byLine.get(guide.lineNumber);
     const fact = factsByLine.get(guide.lineNumber);
+    const depths = activeGuideDepths(guide, modes.listLayout);
     if (guide.isGapLine && !fact) {
-      if (!hasOverlay(guide, modes.listLayout, lineTrail)) continue; // nothing to draw
-      builder.add(from, from, gapLineDecoration(guide, modes.listLayout, lineTrail));
+      if (!hasOverlay(depths, lineTrail)) continue; // nothing to draw
+      builder.add(from, from, gapLineDecoration(depths, lineTrail));
       continue;
     }
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
     builder.add(
       from,
       from,
-      lineDecoration(fact, guide, trail, modes.markerHighlight !== 'off', modes),
+      lineDecoration(fact, depths, trail, modes.markerHighlight !== 'off', modes),
     );
   }
   return builder.finish();
@@ -2226,12 +2237,10 @@ class MarginCompensation implements PluginValue {
 
         const guide = guidesByLine.get(lineNumber);
         const lineTrail = trail.byLine.get(lineNumber);
-        if (guide && hasOverlay(guide, this.modes.listLayout, lineTrail)) {
+        const depths = guide ? activeGuideDepths(guide, this.modes.listLayout) : [];
+        if (guide && hasOverlay(depths, lineTrail)) {
           el.classList.add('to-decor-guides');
-          el.style.setProperty(
-            '--to-guides',
-            guideBackground(activeGuideDepths(guide, this.modes.listLayout), lineTrail),
-          );
+          el.style.setProperty('--to-guides', guideBackground(depths, lineTrail));
           el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
         } else {
           el.classList.remove('to-decor-guides');
