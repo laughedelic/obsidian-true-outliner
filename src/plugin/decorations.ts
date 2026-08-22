@@ -956,18 +956,27 @@ function lineDecoration(
   let cls: string;
 
   if (fact.isListItem) {
-    cls = 'to-decor-list' + listLayoutClasses(modes.listLayout, modes.listBullet);
+    const listClasses = listLayoutClasses(modes.listLayout, modes.listBullet);
+    cls = 'to-decor-list' + listClasses;
     styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
-    // The item's own tree depth as well as its list root's: the two together
-    // are the item's depth WITHIN its list, which is how far its own rendered
-    // indentation carries it right of the line box.
-    styles.push(`--to-depth: ${fact.depth}`);
-    // The gutter too, even though a list line reserves none of its own: the
-    // marker span is sized to it, so without this the CSS falls back to a
-    // literal that has to be kept equal to `MARKER_GUTTER_CSS` by hand. One
-    // number, one source — a list item's native marker occupies the same
-    // gutter every other kind's marker does.
-    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
+    // Everything below is read only by the EXPERIMENTAL list-grid rules, so it
+    // is published only when those are on. `outline-decorations` still requires
+    // a pure list to render byte-identical to outline-mode-off, and its e2e
+    // guard compares the custom properties themselves — a variable nothing on
+    // the line reads is still a difference by that measure. Publishing them
+    // unconditionally broke that test, which is the requirement doing its job.
+    if (listClasses !== '') {
+      // The item's own tree depth as well as its list root's: the two together
+      // are the item's depth WITHIN its list, which is how far its own rendered
+      // indentation carries it right of the line box.
+      styles.push(`--to-depth: ${fact.depth}`);
+      // The gutter too, even though a list line reserves none of its own: the
+      // marker span is sized to it, so without this the CSS falls back to a
+      // literal that has to be kept equal to `MARKER_GUTTER_CSS` by hand. One
+      // number, one source — a list item's native marker occupies the same
+      // gutter every other kind's marker does.
+      styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
+    }
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
