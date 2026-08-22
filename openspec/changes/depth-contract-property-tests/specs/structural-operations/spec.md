@@ -51,10 +51,17 @@ stated once the defect that violates it is fixed.
 
 #### Scenario: Every root of a group operation moves by the operation's own delta
 
-- **WHEN** a group form of indent, outdent or move up is accepted on a cover whose roots sit at
-  several different depths
+- **WHEN** a group form of indent, outdent or move up is accepted on a cover with several roots
 - **THEN** each covered root sits at its own prior depth plus the operation's delta in the result
-  document, and no root is brought to another root's depth
+  document
+
+#### Scenario: A multi-depth cover moves each root by the delta, not to a common depth
+
+- **WHEN** a group indent or outdent is accepted on a cover whose roots sit at several different
+  depths — the forest shapes only these two accept, since a reorder takes a single sibling run,
+  whose roots share a depth by construction
+- **THEN** each root moves by the operation's delta from where it was, and no root is brought to
+  another root's depth
 
 #### Scenario: A subject absorbed by the re-parse is a defect, not an outcome
 
