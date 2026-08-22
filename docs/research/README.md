@@ -25,6 +25,7 @@ Research date: July 2026.
 | [13-selection-follow-ups.md](13-selection-follow-ups.md) | The same, for selection: what `selection-as-subtree-set`, `node-selection-extension` and `selection-aware-structural-ops` left open — modal block selection, cherry-picking, and moving a node into its parent's sibling |
 | [14-experiment-position-indicators.md](14-experiment-position-indicators.md) | Experiment: showing where the cursor sits in the outline — guide and marker highlighting, the axes they split on, and what real use settled |
 | [15-enter-and-shift-enter-catalogue.md](15-enter-and-shift-enter-catalogue.md) | Measured catalogue of Enter / Shift+Enter across 49 cursor positions, the ten defects it found, and what the `enter-and-shift-enter-grammar` change did with each. A **pre-change** record: read the specs for current behavior |
+| [17-list-paragraph-mapping.md](17-list-paragraph-mapping.md) | **Open question** (Q34): should a list following a paragraph be that paragraph's child? The attachment rule's cost measured, the four candidate readings, what other formats and outliners do, why the indentation encoding is ruled out, and how to pick the question up |
 
 ## TL;DR
 

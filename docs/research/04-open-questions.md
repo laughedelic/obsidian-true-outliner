@@ -2340,3 +2340,36 @@ does — which is what the bugs above qualify. Related, and found by the §6 int
 a span computed on the SURGERY tree is not necessarily a cover of the RESULT, because the
 re-parse can re-attach a bystander. Subjects have to be located by LINE across that boundary, the
 way `enforce.ts` already locates a surviving neighbour.
+
+## Q34. Should a list following a paragraph be that paragraph's child? ❓ OPEN (2026-08-23)
+
+The attachment rule from Q2 follow-up 1 — "a list following a paragraph is that paragraph's
+children" — is the answer we have, marked provisional then and still provisional. The
+`reorder-absorption` change reopened it, because the rule is what makes the defect that change
+closes possible at all.
+
+The rule is unconditional: every list at section level that follows a paragraph is adopted, so
+"a list item that is the paragraph's sibling" cannot be written down. The mapping-core verdict
+recorded that consequence approvingly, as the rule working as designed. What it did not
+anticipate is that a REORDER builds exactly that arrangement — it swaps two siblings and
+re-encodes nothing — and then emits markdown that re-parses to a different tree. Measured on the
+labelled generator at seed 42: move down 37 violations in 1285 accepted, move up 24 in 1239, the
+latter invisible to any property that watches only the subject because the node absorbed is a
+bystander.
+
+Four readings are on the table — keep adjacency; let indentation decide; make paragraphs leaves
+(org-mode's model); or make paragraphs leaves and have Tab promote the parent into a list item.
+The second is **ruled out on measurement**: markdown leaves only 1–3 columns free under a
+paragraph, Obsidian's editor resolves only tabs and exactly-four-space groups into an indent
+unit, and those two bands do not overlap — so an indentation-encoded nesting would be invisible
+in reading mode and misaligned in editing mode. A spike with attachment disabled costs 27 of 825
+tests, drops reorder absorption to zero by construction, and raises acceptance.
+
+`reorder-absorption` deliberately settles none of this. It refuses the inexpressible gesture and
+says in its own comments that two of the four readings make it unreachable.
+
+The exploration — the measurements with their methods, the four readings with their
+consequences, how CommonMark, org-mode, Notion, AsciiDoc, reStructuredText, djot and Logseq each
+handle it, the Obsidian quantization constraint, and the interaction with
+`lists-on-the-outline-grid` — is in
+[17-list-paragraph-mapping.md](17-list-paragraph-mapping.md).
