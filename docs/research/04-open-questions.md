@@ -2258,9 +2258,11 @@ not that it round-trips.**
 ### The suite was structurally blind to a whole class of bug
 
 `closure.test.ts` compares `result.value.doc` against `parse(encode(result.value.doc))`. But
-`finalize` BUILDS `result.value.doc` by re-parsing, so that assertion is true by construction and
-can never fail. Every operation that emits an encoding which re-parses to a different tree than
-its own algebra produced is invisible to it.
+`finalize` already returns `parse(encode(surgery))`, so that assertion asks whether `parse ∘
+encode` sits at a fixed point on a tree which is itself a parse output. It is a real property — an
+encode/parse instability breaks it — but it never compares the returned tree with the SURGERY tree
+the algebra built. Every operation that emits an encoding which re-parses to a different tree than
+its own algebra produced passes it unnoticed.
 
 Three such bugs were sitting in `ops.ts`, and each was found by asserting a promise instead:
 
@@ -2270,7 +2272,9 @@ Three such bugs were sitting in `ops.ts`, and each was found by asserting a prom
 | a node ABOVE the operand keeps its own first line | `outdent` lets an arriving node's inherited number hijack the destination run's start, rewriting `2. L1` to `1. L1` |
 
 The depth test is the one worth adding permanently for all four operations — it would have caught
-two of the three.
+two of the three. It now lives in `tests/depth-contract.test.ts`, over both the single-node and the
+group forms, for indent, outdent and move up; move down is absent because it still fails the
+contract, and its row is added with the fix.
 
 ### Sequential composition is not a sound definition where an intermediate tree is unrepresentable
 
