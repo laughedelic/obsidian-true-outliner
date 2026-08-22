@@ -133,9 +133,18 @@ therefore START on the column instead of centring on it, and an item numbered pa
 text slightly further right than its siblings. Right-aligning numbers into the gutter would
 read better but needs a wrapper element the DOM does not provide.
 
-Task lines are excluded from the marker-column rule: the checkbox lives in the same span, is
-wider than the gutter, and is a real click target whose hit area should not be reshaped in
-passing. Both are recorded as follow-ups rather than solved here.
+Task lines are excluded from the CENTRING rule for the same reason — the checkbox is wider than
+the gutter and is a real click target — but not from the column. Measured on the demo build, a
+checkbox starts 7.33px right of its own depth column (55.33 against 48) while the bullets beside
+it are centred on it, which is the same "marker is not on the grid" mismatch this change exists
+to remove, just at a smaller amplitude. So the checkbox is brought to START on the column, with
+its own width and hit area untouched.
+
+An earlier draft of this decision said tasks keep native geometry outright, which contradicted
+the requirement it was supposed to implement. If bringing the checkbox onto the column turns out
+to move its hit area or fight Obsidian's own checkbox chrome, the answer is to amend the
+requirement deliberately — with the measurement that forced it — not to leave the two
+disagreeing.
 
 ### D6 — One column definition, shared by markers, guides and accents
 

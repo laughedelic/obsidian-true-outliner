@@ -81,6 +81,12 @@ export const DEFAULT_LIST_LAYOUT: ListLayout = 'native';
  * onto the column and pushes the item's text out to the same gutter a block
  * line uses. Ordered markers are wider than the gutter, so they start on the
  * column rather than centring on it — see the research doc.
+ *
+ * Task lines are untouched by this setting in either direction: a checkbox is
+ * wider than the gutter and is a real click target, and measured it does not
+ * move between the two values (55.33px at both). It also does not reach its own
+ * column — 7.33px right of it — which is a mismatch the demo shows rather than
+ * solves.
  */
 export type ListBullet = 'native' | 'column';
 export const DEFAULT_LIST_BULLET: ListBullet = 'native';
