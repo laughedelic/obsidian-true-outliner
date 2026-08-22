@@ -354,6 +354,15 @@ switchable without breaking the indentation underneath:
   every kind, closer to a traditional outliner's look. (Experiment 5b's uniform dot lost
   the head-to-head as the *default*, but as an opt-in preset under the 5a mechanism it's
   just an icon-set swap, none of 5b's positioning machinery.)
+- **List bullets belong on the same appearance surface** — Obsidian exposes
+  `--list-bullet-size`/`-radius`/`-border`/`-transform` and `--list-marker-color`, all
+  confirmed effective in Live Preview, so a bullet-style setting is variables only. Folded
+  into [16-native-list-decoration.md](16-native-list-decoration.md)'s phase 3 so lists and
+  blocks get one marker-appearance surface rather than two.
+- **The indentation unit** gets its prerequisite from phase 1 there: `--to-decor-unit` has to
+  become a real declaration before it can be pushed into `--list-indent`. That change stops at
+  the declaration and leaves the unit fixed — making it user-configurable stays here, with the
+  rest of this entry.
 
 User CSS snippets remain the escape hatch for anything finer-grained than whatever
 settings surface we commit to (design.md Non-Goals) — the settings axis should stay
@@ -383,6 +392,13 @@ Measurements and the full argument:
 [14-experiment-position-indicators.md](14-experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns).
 Pairs naturally with the "native list decoration experiments" entry below — both are about owning
 list geometry rather than deferring to it.
+
+**Amended 2026-08-20** ([16-native-list-decoration.md](16-native-list-decoration.md)): the
+blocker above holds only while native list columns are taken as given. They are not — they are
+computed from `--list-indent`, which we can set to our own unit, and once every list level sits
+on `depth × unit` the existing gradient can draw list segments with no measurement and no second
+mechanism. This entry now closes as part of that doc's phase 2 rather than needing an overlay of
+its own.
 
 ### Marker/guide interactions (hover and click)
 
@@ -424,11 +440,17 @@ pure `decorate()`/`computeLineGuides()` layer does.
   compensating from the list *root*'s hang, not per-item):
   [10-experiment-5-block-markers.md](10-experiment-5-block-markers.md#open-question-shrinking-only-our-own-added-list-margin).
   A design decision to surface deliberately, not implement in passing.
-- **Native list decoration experiments** — beyond the margin question above: spacing,
-  alignment, and bullet-marker style for lists could all be revisited. Not important
-  now; native list rendering is deliberately untouched today (the additive-only
-  discipline), so any change here needs the same experiment-and-look rigor the original
-  series used.
+- **Native list decoration experiments** — **researched and planned 2026-08-20**:
+  [16-native-list-decoration.md](16-native-list-decoration.md). Obsidian computes list
+  columns from public CSS variables (`--list-indent`, `--indentation-guide-editing-indent`,
+  the `--list-bullet-*` set), so the columns can be *set* onto our own decoration grid
+  instead of measured and followed. Measured: one variable puts every tab- or 4-space-indented
+  list level on `--to-decor-unit`, with the native hanging indent recomputing itself, and a
+  second puts the native list guides on our own guide columns. That doc carries the
+  measurements, the residual gaps (2- and 3-space files, a stale hang after a mode toggle,
+  the bullet's own column), and a four-phase plan. Phase 1 subsumes the margin question
+  above: once list levels step by our unit there is no separate "shrink our own added margin"
+  problem left to solve.
 - **Collapsing gap lines.** Blank separator lines between paragraphs/headings/blocks are
   fully preserved today; once the outline structure is explicit, they're arguably
   redundant, and hiding/collapsing them (as a **configurable option**) would tighten the

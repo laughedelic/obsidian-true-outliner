@@ -43,6 +43,63 @@ import type { GuideHighlight, MarkerHighlight } from './decorate';
 export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = 'full';
 export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = 'current';
 
+/**
+ * EXPERIMENTAL (docs/research/16-native-list-decoration.md) — how much of a
+ * list's own geometry outline mode takes over from Obsidian.
+ *
+ * - `'native'` is today's behaviour and the default: native list rendering is
+ *   untouched, so a pure list is byte-identical to outline-mode-off. List
+ *   levels step by Obsidian's `--list-indent` (2.25em by default, 1.5x our own
+ *   unit) and their guides sit on native columns, which is why lists read as a
+ *   different layout from every other kind.
+ * - `'grid'` pushes our own `--to-decor-unit` into `--list-indent` so a list
+ *   level steps by exactly one unit, and moves the native list guide onto the
+ *   same column our own gradient draws. Wrapped rows do NOT follow for free,
+ *   which an earlier version of this comment claimed: Obsidian's hanging indent
+ *   is a per-line cached measurement whose invalidation ignores the attribute a
+ *   decoration changes, so switching this at runtime leaves a soft-wrapping
+ *   nested item's wrap column stale until a note switch. Stating that pair
+ *   ourselves is part of the change this demo informs, not of the demo.
+ * - `'own-guides'` is `'grid'` plus taking the guide itself: the native list
+ *   guide is switched off and our gradient draws every list level, so a list
+ *   guide is the same line, colour and column a block guide is.
+ *
+ * The caret trail does NOT yet reach those levels under any of these values.
+ * `computePositionTrail` still skips list-item ancestors in both guide styles,
+ * which is correct while the base layer has no list column to draw on and is
+ * exactly what the `lists-on-the-outline-grid` change removes — measured to
+ * light up as soon as it does, but not part of this demo.
+ *
+ * `ListBullet` depends on this one: a bullet column only exists once the grid
+ * does, so `'native'` here suppresses it whatever that setting says.
+ *
+ * Anything past `'native'` deliberately breaks `outline-decorations`' "a pure
+ * list renders byte-identical to outline-mode-off" requirement, which is why
+ * this is a setting to look at rather than a change already made.
+ */
+export type ListLayout = 'native' | 'grid' | 'own-guides';
+export const DEFAULT_LIST_LAYOUT: ListLayout = 'native';
+
+/**
+ * EXPERIMENTAL — where a list item's own marker sits relative to its depth
+ * column. Every other kind centres its marker ON the column; a native bullet
+ * sits about 14px to the right of it, which is the offset that reads as
+ * "the guide does not come from the bullet". `'column'` pulls the marker back
+ * onto the column and pushes the item's text out to the same gutter a block
+ * line uses. Ordered markers are wider than the gutter, so they start on the
+ * column rather than centring on it — see the research doc. Has no effect while
+ * `ListLayout` is `'native'`: the column it aligns to is the grid's, and there
+ * is no grid then.
+ *
+ * Task lines are untouched by this setting in either direction: a checkbox is
+ * wider than the gutter and is a real click target, and measured it does not
+ * move between the two values (55.33px at both). It also does not reach its own
+ * column — 7.33px right of it — which is a mismatch the demo shows rather than
+ * solves.
+ */
+export type ListBullet = 'native' | 'column';
+export const DEFAULT_LIST_BULLET: ListBullet = 'native';
+
 export interface PluginData {
   outlinePaths: string[];
   coexistenceWarned: boolean;
@@ -55,6 +112,10 @@ export interface PluginData {
   guideHighlight: GuideHighlight;
   /** See `MarkerHighlight`. */
   markerHighlight: MarkerHighlight;
+  /** See `ListLayout`. */
+  listLayout: ListLayout;
+  /** See `ListBullet`. */
+  listBullet: ListBullet;
 }
 
 export const DEFAULT_DATA: PluginData = {
@@ -64,6 +125,8 @@ export const DEFAULT_DATA: PluginData = {
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
   guideHighlight: DEFAULT_GUIDE_HIGHLIGHT,
   markerHighlight: DEFAULT_MARKER_HIGHLIGHT,
+  listLayout: DEFAULT_LIST_LAYOUT,
+  listBullet: DEFAULT_LIST_BULLET,
 };
 
 export class OutlineModeRegistry {

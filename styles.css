@@ -72,9 +72,113 @@
 /* List items: native text-indent/padding-left (the bullet hang) is never
  * touched. margin-left is a box-model property native list rendering
  * doesn't otherwise use, so adding supplemental depth here is genuinely
- * additive on top of untouched native positioning. */
+ * additive on top of untouched native positioning.
+ *
+ * A list line reserves no gutter of its own — its native marker already
+ * occupies one — so `--to-marker-gutter` does not appear in this calc. It IS
+ * set on the line (`lineDecoration`), because the experimental marker-column
+ * rules below size the marker span to it and a fallback literal here would be
+ * a second copy of `MARKER_GUTTER_CSS` to keep in step by hand. */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
   margin-left: calc(var(--to-supp-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
+}
+
+/*
+ * EXPERIMENTAL list geometry (`ListLayout`/`ListBullet`, see
+ * docs/research/16-native-list-decoration.md). Everything below hangs off a
+ * class the decoration puts on LIST-ITEM LINES ONLY, so both gates — outline
+ * mode, and "lists only" — come from the decoration itself and these rules
+ * need no second condition. With the settings at their defaults no class is
+ * emitted and none of this applies.
+ *
+ * The whole approach is to set the variables Obsidian's own list layout reads,
+ * rather than to fight the boxes it produces. Measured (research doc, E1/E3):
+ * `--list-indent` drives `tab-size` on a list line and `min-width` on each
+ * `.cm-indent`, so pushing our own unit into it retargets every list level at
+ * once.
+ *
+ * It does NOT carry the hanging indent with it, which an earlier version of
+ * this comment claimed. Obsidian derives that from a live measurement, cached
+ * per line and invalidated only by a text change or a DOM mutation its own
+ * observer sees — `childList`, `characterData`, `subtree`, but not attributes,
+ * which is all a decoration changes. So a `--list-indent` change at runtime
+ * (turning outline mode on for an open note) leaves the old wrap column in
+ * place until a note switch or reopen. And the measurement takes the end of
+ * the marker's TEXT rather than the end of its padded box, so with the marker
+ * span sized to the gutter below, a wrapped row lands one gutter left of its
+ * own item's text even when it is fresh. Both are measured, both are why the
+ * `lists-on-the-outline-grid` change states this pair itself instead of
+ * reading Obsidian's.
+ *
+ * `rem`, not the `em`-based value Obsidian ships: `--list-indent` resolves
+ * where it is used, and a heading inside a list item would inflate an `em`
+ * unit — the Experiment 1 bug, reachable through a new door.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-list-grid {
+  --list-indent: var(--to-decor-unit, 1.5rem);
+  /*
+   * Obsidian draws its indent guide as `border-inline-end` on a 1px-wide
+   * absolutely-positioned `::before`, so the visible line sits ONE PIXEL RIGHT
+   * of wherever that pseudo starts — while our own gradient paints its 1px at
+   * exactly `depth * unit`. A 0 offset therefore leaves the two columns one
+   * pixel apart, which is small enough to measure as "aligned" and still read
+   * as misaligned on screen. -1px is that pixel, not a nudge.
+   */
+  --indentation-guide-editing-indent: -1px;
+  --indentation-guide-color: var(--to-guide-color);
+  --indentation-guide-color-active: var(--to-decor-accent);
+}
+
+/* Our own gradient draws the list levels instead (the decoration adds their
+ * depths to `--to-guides`), so the native line would double up. Only the
+ * BORDER goes: the `.cm-indent` spans themselves still do the layout, and they
+ * exist only while Obsidian's own "Show indentation guides" setting is on. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-list-own-guides {
+  --indentation-guide-width: 0px;
+  --indentation-guide-width-active: 0px;
+}
+
+/*
+ * The marker's own column. Native rendering puts the bullet a `--list-indent-
+ * editing` gap right of the item's column, where every other kind centres its
+ * marker ON the column and starts its text one marker gutter further right.
+ *
+ * Sizing the whole marker span to the gutter is what makes this
+ * font-independent: the text column is then the gutter by construction rather
+ * than the sum of a padding, a glyph and a space. `min-width` rather than
+ * `width` so a wide ordered marker (`10. `) pushes its own text out instead of
+ * overlapping it.
+ */
+/* Scoped away from task lines exactly as the two rules below are, so the
+ * exclusion is stated once instead of holding by accident. Measured: a task
+ * line's checkbox does not move today either way (55.33px at both settings),
+ * because Obsidian does not render a task marker inside the
+ * `.cm-formatting-list` span this variable reaches — but that is a detail of
+ * how Obsidian renders a checkbox, not something to lean on. */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-list-bullet-column:not(.HyperMD-task-line) {
+  --list-padding-inline-start: 0px;
+}
+
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-list-bullet-column:not(.HyperMD-task-line)
+  .cm-formatting-list {
+  display: inline-block;
+  min-width: var(--to-marker-gutter, 1.25rem);
+}
+
+/* A zero-width bullet box centres its own `::after` — which is where the dot
+ * actually lives — on the box's start edge, i.e. exactly on the column. The
+ * `-`/`*`/`+` character inside is already transparent, so letting it overflow
+ * costs nothing visually. Task lines keep native geometry: their checkbox
+ * lives in the same span and is wider than the gutter. */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-list-bullet-column:not(.HyperMD-task-line)
+  .list-bullet {
+  width: 0;
 }
 
 /*

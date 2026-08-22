@@ -1,5 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { makeNode, type OutlineDoc } from '../src/model';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { arbMarkdownText } from './generators';
@@ -323,6 +324,52 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
     const facts = computeLineGuides(parse(md));
     const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
     expect(byLine.get(1)?.guideDepths).toEqual([]); // "  - child"
+  });
+
+  it('carries an outer list ancestor’s guide past a non-list child', () => {
+    // heading(0) > item(1) > paragraph(2) > item(2): the paragraph is a child of
+    // the outer item, and the item after it is the paragraph's SIBLING. Both
+    // are still inside the outer item, so both must keep it on the list track —
+    // a non-list node contributes nothing to that track but must not clear it.
+    const md = ['# H', '', '- outer item', '', '\ttext under the item', '\t- inner item', ''].join(
+      '\n',
+    );
+    const facts = computeLineGuides(parse(md));
+    const byLine = new Map(facts.map((f) => [f.lineNumber, f]));
+    expect(byLine.get(4)?.listGuideDepths).toEqual([1]); // the paragraph child
+    expect(byLine.get(5)?.listGuideDepths).toEqual([1]); // the item after it
+    expect(byLine.get(4)?.guideDepths).toEqual([0]);
+    expect(byLine.get(5)?.guideDepths).toEqual([0]);
+  });
+
+  it('carries the list track through a non-list node that OWNS children', () => {
+    // The shape the walk has to be right about and the parser does not
+    // currently produce: a paragraph with children, inside a list chain.
+    // Built directly, because the invariant belongs to the walk rather than to
+    // whichever trees today's attachment rule happens to build — an earlier
+    // version reset the track to empty at every non-list node, which drops an
+    // ancestor that is still an ancestor.
+    const doc: OutlineDoc = {
+      preamble: [],
+      children: [
+        makeNode({
+          kind: 'list-item',
+          lines: ['- outer item'],
+          children: [
+            makeNode({
+              kind: 'paragraph',
+              lines: ['text under the item'],
+              children: [
+                makeNode({ kind: 'list-item', lines: ['- inner item'] }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    };
+    const byLine = new Map(computeLineGuides(doc).map((f) => [f.lineNumber, f]));
+    expect(byLine.get(2)?.guideDepths).toEqual([1]); // the paragraph owns one
+    expect(byLine.get(2)?.listGuideDepths).toEqual([0]); // and the item above it still does
   });
 
   it('a multi-line (Shift+Enter) node’s continuation line inherits the same guideDepths as its first line', () => {
