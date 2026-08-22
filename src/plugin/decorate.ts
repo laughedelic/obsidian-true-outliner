@@ -423,10 +423,16 @@ export function computeLineGuides(doc: OutlineDoc): LineGuideFact[] {
     const isListItem = node.kind === 'list-item';
     const childGuideDepths = isListItem ? guideDepths : [...guideDepths, depth];
     // A list item's own contribution goes on the separate list track instead
-    // (see `listGuideDepths`); any other kind ends whatever list chain was
-    // running, since its own children are no longer inside those items'
-    // columns in any sense the base layer can draw.
-    const childListGuideDepths = isListItem ? [...listGuideDepths, depth] : [];
+    // (see `listGuideDepths`). Any other kind adds nothing to that track but
+    // must CARRY it: a paragraph child of a list item is still inside that
+    // item, so everything below the paragraph is too. An earlier version reset
+    // the track to empty here, reasoning that a non-list node "ends the list
+    // chain" — which is true of the chain and false of the ancestry. It dropped
+    // the outer guide from every descendant of a mixed chain: in
+    // heading > item > paragraph > item, the inner item rendered guides at
+    // depths 0 and 2 and none at 1, though the item at 1 is a strict ancestor
+    // that owns one.
+    const childListGuideDepths = isListItem ? [...listGuideDepths, depth] : listGuideDepths;
 
     // Every trailing gap gets a fact now, for full continuity (see the doc
     // comment above): a leaf's own gap uses its own guideDepths; a node

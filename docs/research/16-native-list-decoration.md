@@ -325,9 +325,12 @@ genuine experiments and should be run as such.
 
 ### Phase 2 — one guide grid
 
-- Set `--indentation-guide-editing-indent: 0` on our list lines so native list guides land on
-  the depth columns, and drive `--indentation-guide-color` / `-color-active` from
-  `--to-guide-color` / `--to-decor-accent` so they match ours.
+- Set `--indentation-guide-editing-indent: -1px` on our list lines so native list guides land
+  on the depth columns, and drive `--indentation-guide-color` / `-color-active` from
+  `--to-guide-color` / `--to-decor-accent` so they match ours. `-1px`, not `0`: Obsidian paints
+  its guide as `border-inline-end` on a 1px-wide pseudo-element, so a zero offset lands one
+  pixel right of the column (E3 above). An earlier revision of this plan said `0` and would
+  have reintroduced exactly the misalignment the measurement found.
 - Then decide the ownership question, which is the real content of this phase:
   - **Keep native.** Free, and `.cm-active-indent` gives the caret's own list level a
     highlight for nothing. But it disappears with the user's indent-guide setting, and it
@@ -358,9 +361,12 @@ than the gutter — and ordered markers start on the column rather than centring
   `.list-bullet` box, with `padding-inline-end` restoring the text column.
 - An answer for ordered markers (variable width — `1.` vs `10.`) and for task checkboxes,
   which replace the bullet with a wider control.
-- Bullet style as a setting: `--list-bullet-size`, `-radius`, `-border`, `-transform`,
-  `--list-marker-color`. Folds into the parking lot's "which icons to show, and their style"
-  entry so lists and blocks get one marker-appearance surface, not two.
+- Bullet WEIGHT fixed at `0.38em`, colour token unchanged — a single value, not a setting.
+  Bullet style is variable-driven (`--list-bullet-size`, `-radius`, `-border`, `-transform`,
+  `--list-marker-color`), which is what makes a style SETTING cheap later; that setting belongs
+  with the parking lot's "which icons to show, and their style" entry, so lists and blocks get
+  one marker-appearance surface rather than two, and is deliberately outside this change (see
+  the change's proposal, "No new settings").
 - `--list-spacing` against block-line rhythm.
 - Screenshot each step. The measurements say all of this is reachable; whether it *reads*
   better is the thing the experiment is for, and Experiment 5b's outcome is the precedent

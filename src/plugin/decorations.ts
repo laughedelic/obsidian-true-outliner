@@ -272,11 +272,12 @@ function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFa
  */
 function activeGuideDepths(guide: LineGuideFact, layout: ListLayout): readonly number[] {
   if (layout !== 'own-guides' || guide.listGuideDepths.length === 0) return guide.guideDepths;
-  // Sorted, not concatenated: the two tracks interleave. A heading owning a
-  // list item that owns a paragraph that owns a list gives guideDepths [0, 2]
-  // and listGuideDepths [1, 3], and `LineGuideFact` documents both as ascending.
-  // Nothing in the rendering depends on the order — each depth paints at its own
-  // X — but a caller that reads the array should not have to know that.
+  // Sorted, not concatenated: the two tracks interleave. Inside
+  // heading > item > paragraph > item, a line below the inner item carries
+  // guideDepths [0, 2] and listGuideDepths [1, 3], and `LineGuideFact` documents
+  // both as ascending. Nothing in the rendering depends on the order — each
+  // depth paints at its own X — but a caller that reads the array should not
+  // have to know that.
   return [...guide.guideDepths, ...guide.listGuideDepths].sort((a, b) => a - b);
 }
 
