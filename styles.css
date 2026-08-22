@@ -72,7 +72,13 @@
 /* List items: native text-indent/padding-left (the bullet hang) is never
  * touched. margin-left is a box-model property native list rendering
  * doesn't otherwise use, so adding supplemental depth here is genuinely
- * additive on top of untouched native positioning. */
+ * additive on top of untouched native positioning.
+ *
+ * A list line reserves no gutter of its own — its native marker already
+ * occupies one — so `--to-marker-gutter` does not appear in this calc. It IS
+ * set on the line (`lineDecoration`), because the experimental marker-column
+ * rules below size the marker span to it and a fallback literal here would be
+ * a second copy of `MARKER_GUTTER_CSS` to keep in step by hand. */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
   margin-left: calc(var(--to-supp-depth, 0) * var(--to-decor-unit, 1.5rem)) !important;
 }
