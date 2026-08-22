@@ -20,6 +20,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
+import { binPath } from './bin-path.mjs';
 import { specGroups } from './spec-groups.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -54,7 +55,8 @@ if (argv.includes('--group')) {
   }
   specArgs.push(...specs.flatMap((spec) => ['--spec', spec]));
 }
-const bin = (name) => path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? `${name}.cmd` : name);
+// Resolved before the build, so a missing install fails loudly and changes nothing.
+const wdio = binPath('wdio');
 
 /** Exit status of a step, with output passed straight through. */
 const run = (cmd, args, env) =>
@@ -69,7 +71,7 @@ if (drift('--snapshot') !== 0) process.exit(1);
 let suite = 1;
 try {
   suite = run(
-    bin('wdio'),
+    wdio,
     ['run', mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts', ...specArgs],
     mobile ? { OBSIDIAN_E2E_MOBILE: '1' } : undefined,
   );
