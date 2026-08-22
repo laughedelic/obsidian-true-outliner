@@ -193,8 +193,13 @@ for a list item that follows a paragraph as its sibling, so the re-parse between
 reshape the document under the steps that have not run yet.
 
 For a REORDER, that unrepresentability is now decided before either rule applies. "Sibling
-reordering" refuses an arrangement that would place a section-level list item directly after a
-paragraph sibling, and a group reorder inherits the refusal for the arrangement it would emit.
+reordering" refuses a swap that would place a section-level list item directly after a paragraph
+sibling, and because a group reorder IS the composition above, it inherits that refusal at every
+step: a step the single-node form refuses is a composition that does not exist, so the group
+operation is refused as a whole. A run whose intermediate step is refused is therefore refused
+even where the arrangement it would finally have emitted is expressible; that follows from
+defining the group form as the composition, and group rejection is already atomic.
+
 So the order rule governs among the runs a reorder accepts, and the shape where the two rules
 disagree is refused rather than resolved in the order rule's favour. The measurement below is
 retained because it is why the order rule is stated first and the composition subordinate to
@@ -242,6 +247,14 @@ included, so no existing behaviour changes when the operand resolves to one node
   risk here because the run does not move. Emitting `L1` / `L2` / `- L0` would re-parse with
   `- L0` as `L2`'s child — a node the cover never named, carried a level deeper — which
   "Sibling reordering" refuses for the same reason the single-node move up on this shape does
+
+#### Scenario: A run is refused when one of its steps is refused
+- **WHEN** a group reorder's composition reaches a step the single-node form refuses, even
+  though the arrangement the run would finally have emitted is expressible — a run of an atom
+  followed by a list item, moving down past a paragraph
+- **THEN** the whole group operation is rejected, with the same typed reason the single-node
+  step gave, and nothing is moved. The group form is the composition, so a step that cannot be
+  performed is a composition that does not exist
 
 #### Scenario: A heading run level-shifts
 - **WHEN** the group indent is invoked for a run of two sibling headings

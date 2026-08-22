@@ -55,33 +55,38 @@ Rejecting keeps every node's bytes intact and costs a gesture in a narrow shape.
 shape is 37 of 1285 accepted move downs and 24 of 1239 accepted move ups on the generator, all
 of which currently "succeed" by returning the wrong tree.
 
-### D2. The check runs on the arrangement that will be encoded, not on each step
+### D2. The check runs per step, because the group form is DEFINED as the composition
 
-The predicate is one question about a tree: does it contain a section-level list item whose
-preceding sibling is a paragraph? It is asked of the surgery tree that is about to be finalized —
-once per single-node reorder, and once per group reorder after `applyGroups` has composed every
-root's step.
+The predicate asks one question of the sibling arrangement a swap would produce: would either
+relocated root end up as a section-level list item whose new preceding sibling is a paragraph?
+It is decided from the operand before any surgery runs, the shape `rejectAcrossScopes` already
+uses, so a refusal costs nothing and does not depend on the result.
 
-Asking it per STEP instead would be wrong for the group form. `applyGroups` never encodes its
-intermediate trees, so a step's arrangement is not something any reader will see; refusing on it
-rejects runs whose requested result is perfectly expressible. The reachable shape is a run of
-`[atom, list item]` moving down past a paragraph: the intermediate places the list item after the
-paragraph, while the final arrangement puts the atom there and the list item safely behind it.
+It therefore sits inside `moveSurgery`, and a group reorder inherits it once per step rather
+than once for the operand. That is not a convenience: "Group forms of indent, outdent and
+reordering" states that the group form's output tree IS the tree produced by applying the
+single-node form to each covered root in turn. A step the single-node form refuses is a
+composition that does not exist, so the group must refuse too — anything else makes the group
+form's own definition false.
 
-The predicate is sound as a whole-tree question because `parse` never produces the arrangement —
-a list item after a paragraph is always absorbed — so finding one in a surgery tree always means
-the surgery created it.
+Measured against the actual defect on the labelled generator at seed 42, 3000 runs: the
+predicate fires 37 times where move down produces 37 depth violations, and 24 times where move
+up produces 24, with zero false positives and zero false negatives across roughly 2500 accepted
+reorders. It is exact on that generator, not merely sufficient.
 
-Measured against the actual defect on the labelled generator at seed 42, 3000 runs: an operand-
-level form of this question fires 37 times where move down produces 37 depth violations, and 24
-times where move up produces 24, with zero false positives and zero false negatives across
-roughly 2500 accepted reorders. The whole-tree form accepts strictly more (only the group
-intermediates differ) and must reproduce those numbers; task 3.3 re-measures it.
-
-Alternative considered: put the check in `finalize`, where it would cover every operation rather
-than this one. Rejected for scope — the other operations avoid the arrangement by re-encoding, so
-a shared validator would need a repair-or-refuse policy per caller, which is a larger design than
-the defect warrants and harder to remove later.
+Alternative considered and rejected: check only the arrangement that will actually be encoded —
+once per single-node reorder, and once for a group after `applyGroups` has composed every step.
+It is appealing because `applyGroups` never encodes its intermediate trees, so it would refuse
+strictly less: a run of `[atom, list item]` moving down past a paragraph has an inexpressible
+intermediate and an expressible final arrangement, and this variant would accept it. It breaks
+three things at once. The composition contract above, since the group would then accept where
+applying the single-node form in turn rejects. The "Group closure" scenario, which requires
+`result.tree` to equal the tree the sequential composition produces. And the equality property in
+`tests/group-composition.test.ts`, whose oracle composes the PUBLIC operations
+(`tests/group-oracle.ts` `composeSequential`) and asserts that a rejection on either side is a
+rejection on both with the same typed reason. Aligning all three is a redefinition of group
+semantics on the raw surgery algebra — a far larger change than this defect warrants, and one
+that would have to be undone along with everything else here.
 
 ### D2a. The group form's own scenario becomes a rejection
 
@@ -150,9 +155,14 @@ delete this in one commit and watch the guard property stay green.
   absorption. → Accepted: the rule still governs and its prose still explains why it is stated
   first, and the alternative is keeping a scenario that mandates reparenting a node the cover
   never named. Recorded in D2a so the loss is deliberate rather than discovered.
-- **A whole-tree check is O(n) per reorder.** → Reorders are already Θ(n) through `findPath` and
-  the sibling-spine rebuild, and the group form runs it once for the whole operand rather than
-  per root, so it is within the existing cost of the path.
+- **A group reorder is refused when only an intermediate step is inexpressible**, even though the
+  arrangement it would have emitted is fine. The reachable shape is a run of `[atom, list item]`
+  moving down past a paragraph. Not reachable on the current generator, which produces no atoms.
+  → Accepted, and it is the composition contract's own consequence rather than a shortcut (D2):
+  the group form is defined as applying the single-node form to each root in turn, and that
+  sequence genuinely cannot be performed. Group rejection is already specified as atomic, and
+  refusing is the conservative direction. Task 3.4 pins the shape so the behaviour is a decision
+  on record rather than something rediscovered as a bug.
 - **The refused gestures are ones users will attempt.** A list followed by a paragraph is common
   — 45 of 149 list items in the corpus and test vault are paragraph-owned. → The cue names the
   reason, and the gesture is refused rather than silently corrupting the tree, which is what it

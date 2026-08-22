@@ -4,13 +4,15 @@
       `REJECTION_MESSAGES` (src/plugin/messages.ts) — the map is exhaustive over the union, so
       the build fails until both exist. The cue names what would otherwise have happened, in the
       table's existing voice (D5).
-- [ ] 1.2 Add the predicate: does a tree contain a SECTION-LEVEL list item whose preceding
-      sibling is a paragraph (D2, D4)? It is sound as a whole-tree question because `parse` never
-      produces that arrangement, so finding one always means the surgery created it.
-- [ ] 1.3 Apply it to the arrangement that will be encoded, not to each step (D2): once on the
-      single-node reorder's surgery tree, and once in `applyGroups` on the composed tree for a
-      group reorder. Checking per step would refuse runs whose requested result is expressible —
-      a run of `[atom, list item]` moving down past a paragraph is the reachable shape.
+- [ ] 1.2 In `moveSurgery` (src/ops.ts), before the swap, refuse when either relocated root
+      would come to rest as a SECTION-LEVEL list item whose new preceding sibling is a paragraph
+      (D2, D3, D4). Decide it from the operand's sibling array, the way `rejectAcrossScopes`
+      decides its own, so a refusal runs no surgery.
+- [ ] 1.3 Leave it inside `moveSurgery` so a group reorder inherits it PER STEP (D2). The group
+      form is specified as applying the single-node form to each root in turn, so a step the
+      single-node form refuses must refuse the group; checking only the composed arrangement
+      would make the group accept where the composition rejects, and break both the "Group
+      closure" scenario and the oracle equality property.
 - [ ] 1.4 Comment the refusal as intended for deletion (D7): name the mapping question, name
       `docs/research/17-list-paragraph-mapping.md`, and state that under two of the four
       candidate readings the branch is unreachable. Explain the mechanism — why the arrangement
@@ -33,11 +35,13 @@
       a list item refused moving down past a paragraph, a paragraph refused moving up above a
       list item, and a reorder among a list item's own children still accepted past a sibling
       paragraph (the scope boundary in D4).
-- [ ] 2.5 Confirm the composition oracle still holds: with the refusal in place both the group
-      form and `composeSequential` reject the same shapes, so `compositionKeptRootOrder`
-      (tests/group-oracle.ts) should now filter nothing. Leave it in place — record what it
-      measures in a comment rather than removing a precondition this change did not set out to
-      retire.
+- [ ] 2.5 Confirm the composition oracle still holds. `composeSequential` (tests/group-oracle.ts)
+      composes the PUBLIC operations, so the per-step placement is what keeps it agreeing with
+      the group form: both refuse the same shapes, with the same typed reason, and the equality
+      property in `tests/group-composition.test.ts` needs no change. Expect
+      `compositionKeptRootOrder` to filter nothing now that its shape is refused — leave it in
+      place and record what it measures in a comment, rather than retiring a precondition this
+      change did not set out to touch.
 
 ## 3. Prove the guard, the scope and the placement
 
@@ -46,13 +50,14 @@
       Confirm the 2.4 tests fail on the rejection reason, not on text.
 - [ ] 3.2 Negative control the other way: widen the refusal past section level and confirm the
       2.4 nested-reorder test fails, so that test guards the scope rather than riding along.
-- [ ] 3.3 Re-measure on the labelled generator at seed 42, 3000 runs, and confirm the whole-tree
-      check reproduces the operand-level numbers design D2 records — 37 of 1285 move downs and 24
-      of 1239 move ups refused, no accepted reorder left with a depth change.
-- [ ] 3.4 Pin the placement: a group reorder whose intermediate arrangement is inexpressible but
-      whose composed arrangement is not — the `[atom, list item]` run past a paragraph — is
-      ACCEPTED. This is the test that fails if the check is ever moved back into the per-step
-      path.
+- [ ] 3.3 Re-measure on the labelled generator at seed 42, 3000 runs, and confirm the numbers
+      design D2 records — the predicate firing on 37 of 1285 move downs and 24 of 1239 move ups,
+      with no accepted reorder left carrying a depth change.
+- [ ] 3.4 Pin the placement and its cost: a group reorder whose intermediate step is
+      inexpressible while its composed arrangement would have been fine — the `[atom, list item]`
+      run moving down past a paragraph — is REFUSED, with the same typed reason the sequential
+      composition gives. This is the test that fails if the check is ever moved to the composed
+      tree, which would silently break the group form's definition (D2).
 
 ## 4. Record the question this does not answer
 
