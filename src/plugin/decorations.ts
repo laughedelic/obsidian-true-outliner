@@ -962,6 +962,12 @@ function lineDecoration(
     // are the item's depth WITHIN its list, which is how far its own rendered
     // indentation carries it right of the line box.
     styles.push(`--to-depth: ${fact.depth}`);
+    // The gutter too, even though a list line reserves none of its own: the
+    // marker span is sized to it, so without this the CSS falls back to a
+    // literal that has to be kept equal to `MARKER_GUTTER_CSS` by hand. One
+    // number, one source — a list item's native marker occupies the same
+    // gutter every other kind's marker does.
+    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
