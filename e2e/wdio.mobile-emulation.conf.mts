@@ -25,13 +25,9 @@ export const config: WebdriverIO.Config = {
   runner: 'local',
   framework: 'mocha',
   specs: [path.join(e2eDir, 'specs/**/*.e2e.ts')],
-  // Safe to raise: the service gives every session its own COPY of the vault
-  // (`copy` defaults to true) and its own --user-data-dir, so parallel workers
-  // cannot observe each other's writes whatever the specs do. Most specs also
-  // call `resetVault()` in `before`, but not all — 00-smoke and
-  // 67-node-selection-extension do not — so that is a per-spec convention, not
-  // the isolation guarantee. See `maxInstances` in ./wdio.shared.mts for why
-  // the default is still 1.
+  // Safe to raise: the service gives every session its own copy of the vault
+  // (`copy` defaults to true) and its own --user-data-dir, so workers cannot
+  // observe each other's writes whatever the specs do. See ./wdio.shared.mts.
   maxInstances: maxInstances(),
 
   capabilities: [

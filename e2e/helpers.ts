@@ -29,21 +29,13 @@ export const PLUGIN_ID = 'true-outliner';
 export const IS_MOBILE_RUN = process.env.OBSIDIAN_E2E_MOBILE === '1';
 
 /**
- * Stretches every harness WAIT budget when the run shares a machine.
+ * Stretches the harness wait budgets when instances share a machine.
  *
- * The timeouts below were all sized against a sequential run, and parallelism
- * is what invalidated them: at four instances on a 4-vCPU runner the suite
- * finishes 2.82x faster in wall time, which means each individual spec is
- * running about 1.42x slower than it does alone — and flakes live in the tail,
- * not the mean. That is exactly how this bit: `waitForNotice` spent its whole
- * 4s budget waiting for a notice that a loaded runner had not produced yet
- * (CI, mobile decorations, 2026-08-21).
- *
- * Doubling is safe because these are `waitUntil` ceilings, not sleeps. A wait
- * returns the moment its condition holds, so a larger budget costs nothing on
- * a healthy run — it only changes how long a genuinely broken one takes to
- * report. Raising them unconditionally would have worked too; scaling keeps a
- * developer's sequential run reporting a real break as promptly as it does now.
+ * The timeouts below were sized against a sequential run and are too tight
+ * under contention — a loaded runner can still be producing the thing being
+ * waited for when the budget expires. Widening them is free: these are
+ * `waitUntil` ceilings, not sleeps, so a wait still returns as soon as its
+ * condition holds and only a genuine failure takes longer to report.
  */
 export const waitBudget = (base: number): number =>
   Number(process.env.E2E_MAX_INSTANCES ?? 1) > 1 ? base * 2 : base;

@@ -1,28 +1,15 @@
-/**
- * The parts of the two wdio configs that must stay identical.
- *
- * Shared rather than copied for the reason `./obsidian-target.mts` gives: the
- * desktop and mobile configs HAVE silently drifted before, and a difference
- * between them is invisible until a suite measures something other than what it
- * claims to.
- */
+/** The parts of the two wdio configs that must stay identical — see
+ * `./obsidian-target.mts` for what happened last time they drifted. */
 
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import { browser } from '@wdio/globals';
 
 /**
- * How many Obsidian instances run at once.
- *
- * Defaults to 1 — sequential, the behavior every existing spec was written and
- * stabilized under. Obsidian is Electron, so N instances is N renderers
- * competing for the runner's cores, and this harness has already paid for that
- * once: the anti-throttling chrome flags in `wdio.conf.mts` exist because
- * screenshot capture times out on a LOADED machine while plain script execution
- * keeps working. Raising this is therefore a measured change, not a default —
- * see the `max-instances` comment in .github/workflows/ci.yml for the numbers
- * behind the value CI uses, and `waitBudget` in ./helpers.ts for the harness
- * timeouts that scale off it.
+ * How many Obsidian instances run at once; 1 unless E2E_MAX_INSTANCES says
+ * otherwise. Each is a full Electron renderer, and `waitBudget` in
+ * ./helpers.ts widens the harness timeouts off this value, so raising it
+ * changes how the suite behaves and not just how fast it finishes.
  */
 export function maxInstances(): number {
   const raw = process.env.E2E_MAX_INSTANCES?.trim();
@@ -50,13 +37,10 @@ function slugify(text: string): string {
 }
 
 /**
- * An `afterTest` hook that captures the screen for a FAILING test only.
+ * An `afterTest` hook that captures the screen for a failing test.
  *
- * Failure screenshots rather than the corpus ones specs 50/51/52 take: those
- * are ~100 images per run that CI has nowhere to put and nobody reads, while
- * the one image anybody actually wants is of the moment a test broke. A capture
- * failure is swallowed on purpose — when the session is the thing that died,
- * the useful error is the test's own, not "could not screenshot".
+ * A capture failure is swallowed: when the session itself has died, the useful
+ * error is the test's own, not "could not screenshot".
  */
 export function screenshotOnFailure(label: string) {
   return async function (

@@ -4,11 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Ordinary runs always use the latest Obsidian. This input exists only to
-  # pin an OLDER build while chasing a version-specific bug, which this project
-  # has lost several rounds to (docs/research/04 Q21, Q27). It cannot reach a
-  # beta: every 1.13.x is insider-only (isBeta, no public GitHub asset) and this
-  # workflow deliberately holds no Catalyst credentials.
+  # Runs use the latest Obsidian; this pins an older build when chasing a
+  # version-specific bug (docs/research/04 Q21, Q27). It cannot reach an
+  # insider build — this workflow holds no Catalyst credentials.
   workflow_dispatch:
     inputs:
       obsidian-version:
@@ -18,20 +16,10 @@ on:
 
 env:
   node-version: "26"
-  # How many Obsidian instances each e2e job runs at once.
-  #
-  # Measured, not picked: the full desktop suite run three times at each of
-  # 1/2/3/4 instances gave means of 743s / 407s / 315s / 263s — 1.83x, 2.36x,
-  # 2.82x. The curve is already flattening at 4 because the runner has 4 vCPUs,
-  # and a group can never finish faster than its longest single spec, so 4 is
-  # the ceiling worth taking rather than a number to keep pushing.
-  #
-  # Raising it again is not free. Contention makes each spec ~1.42x slower
-  # (4 / 2.82), which is what broke `waitForNotice` at ~1 run in 16 and is why
-  # `waitBudget()` in e2e/helpers.ts scales the harness waits off this value —
-  # it is load-bearing for correctness, not only speed. To re-measure, run
-  # `E2E_MAX_INSTANCES=N npm run test:e2e` repeatedly; one green run proves
-  # nothing, since the failure it needs to catch lives in the tail.
+  # Obsidian instances per e2e job. Beyond the runner's core count this stops
+  # paying, and a group can never beat its longest single spec. Note that
+  # `waitBudget` in e2e/helpers.ts widens the harness timeouts off this value:
+  # changing it needs repeated runs to confirm, not one green one.
   max-instances: "4"
 
 jobs:
@@ -63,13 +51,9 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  # The e2e matrix is built from the specs that exist, not from a list pasted
-  # into YAML: a new spec file joins a group (and a new decade prefix creates
-  # one) with no workflow edit, so the split cannot silently stop covering
-  # something. See scripts/spec-groups.mjs.
+  # Builds the e2e matrix from the specs that exist rather than a list in YAML.
+  # See scripts/spec-groups.mjs.
   e2e-groups:
-    # ubuntu-slim: this job only reads file names. It ships Node, which is all
-    # `--list-groups` needs, and provisions faster than the full image.
     runs-on: ubuntu-slim
     outputs:
       groups: ${{ steps.list.outputs.groups }}
@@ -96,11 +80,10 @@ jobs:
           platform: desktop
           max-instances: ${{ env.max-instances }}
 
-  # Same specs under Obsidian's mobile emulation — still the Electron desktop
-  # app at a phone viewport, not the Capacitor app. Kept as its own job tree
-  # rather than a dimension of the desktop matrix so that it can have its own
-  # gate: the two are not the same promise, desktop being a merge requirement
-  # and mobile a soft target.
+  # Same specs under Obsidian's mobile emulation — still the Electron app at a
+  # phone viewport, not the Capacitor one. Its own job tree rather than a
+  # matrix axis so it can have its own gate: `needs` sees only a matrix job's
+  # aggregate result, and mobile is a soft target where desktop is required.
   e2e-mobile:
     needs: e2e-groups
     runs-on: ubuntu-latest
@@ -119,9 +102,8 @@ jobs:
           platform: mobile
           max-instances: ${{ env.max-instances }}
 
-  # One stable check name per platform. Matrix job names carry their group, so
-  # they change whenever the groups do — branch protection needs a name that
-  # does not.
+  # A stable check name per platform for branch protection: matrix job names
+  # change whenever the groups do.
   e2e-desktop-passed:
     if: always()
     needs: e2e-desktop

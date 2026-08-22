@@ -12,11 +12,9 @@
  *   node scripts/run-e2e.mjs [desktop|mobile] [--group <name>]
  *   node scripts/run-e2e.mjs --list-groups          # JSON, for the CI matrix
  *
- * `--group` restricts the run to one logical group of specs (see
- * `./spec-groups.mjs`); without it every spec runs, which is what a local
- * `npm run test:e2e` wants. `--list-groups` prints the group names as a JSON
- * array so the workflow can build its matrix from the specs that actually
- * exist instead of a list copied into YAML.
+ * `--group` restricts the run to one group of specs (see `./spec-groups.mjs`);
+ * without it every spec runs. `--list-groups` prints the names as JSON, which
+ * is how the CI matrix is built.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -32,12 +30,8 @@ if (argv.includes('--list-groups')) {
   process.exit(0);
 }
 
-/**
- * Which suite to run. Validated rather than treated as "mobile or else",
- * because everything downstream trusts this string: a typo used to run the
- * DESKTOP suite while CI named the job, the cache, and the artifact after
- * whatever was misspelled — a measurement quietly filed under the wrong name.
- */
+// Validated, not treated as "mobile or else": CI names the job, the cache and
+// the artifact after this, so a typo would file a desktop run under them.
 const platform = argv[0]?.startsWith('--') ? 'desktop' : (argv[0] ?? 'desktop');
 if (platform !== 'desktop' && platform !== 'mobile') {
   console.error(`[e2e] unknown platform ${JSON.stringify(platform)}. Expected 'desktop' or 'mobile'.`);
@@ -46,11 +40,8 @@ if (platform !== 'desktop' && platform !== 'mobile') {
 const mobile = platform === 'mobile';
 const group = argv[argv.indexOf('--group') + 1];
 
-/**
- * The `--spec` arguments for this run, empty for a full run. Resolved here
- * rather than passed to wdio as a glob so an unknown group fails loudly, with
- * the names that do exist, instead of running zero specs and reporting success.
- */
+// Resolved here rather than handed to wdio as a glob, so an unknown group
+// fails instead of running zero specs and reporting success.
 const specArgs = [];
 if (argv.includes('--group')) {
   const groups = specGroups();

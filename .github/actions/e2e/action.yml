@@ -17,19 +17,13 @@ inputs:
     required: false
     default: ""
   platform:
-    description: >
-      desktop | mobile. Passed through verbatim and validated by
-      scripts/run-e2e.mjs, so a typo fails loudly instead of quietly
-      measuring the desktop suite under another name.
+    description: desktop | mobile, validated by scripts/run-e2e.mjs.
     required: true
   max-instances:
     description: How many Obsidian instances run at once within the group.
     required: true
 
 runs:
-  # Composite rather than two near-identical jobs in ci.yml: the desktop and
-  # mobile suites differ only in which wdio config they load, and every previous
-  # copy of these steps drifted apart (see e2e/obsidian-target.mts).
   using: composite
   steps:
     - uses: actions/setup-node@v7
@@ -74,12 +68,8 @@ runs:
         xvfb-run --auto-servernum node scripts/run-e2e.mjs "$PLATFORM" "${args[@]}"
         status=$?
         set -e
-        # The suite's own duration, not the job's wall time, so the number is
-        # comparable across runs without checkout/npm ci/cache noise in it.
-        # A header each time because every job gets its OWN summary — bare rows
-        # would not render as a table. Carries the Obsidian build so a pinned
-        # diagnostic run is tellable from a `latest` one without opening logs;
-        # the check name deliberately stays version-free so it does not churn.
+        # Header included every time: each job writes its own summary, so a
+        # bare row would not render as a table.
         {
           echo "| platform | group | instances | obsidian | duration |"
           echo "|---|---|---|---|---|"
@@ -93,9 +83,6 @@ runs:
         OBSIDIAN_VERSION: ${{ inputs.obsidian-version }}
         E2E_MAX_INSTANCES: ${{ inputs.max-instances }}
 
-    # Only on failure, and only the screens of the tests that actually failed —
-    # the corpus screenshots specs 50/51/52 take are a local review tool, not
-    # something worth carrying ~100 images per green run to store.
     - if: failure()
       uses: actions/upload-artifact@v7
       with:
