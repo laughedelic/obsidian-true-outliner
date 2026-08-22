@@ -5,11 +5,13 @@
  * ## Why this is not covered by closure
  *
  * `closure.test.ts` checks `result.value.doc` against `parse(encode(result.value.doc))`.
- * `finalize` BUILDS `result.value.doc` by re-parsing that encoding, so the two
- * sides of that comparison are the same object by construction. An operation
- * whose emitted markdown re-parses to a different tree than its own surgery
- * produced satisfies closure and is still wrong. Asserting what the operation
- * PROMISES is what closes the gap (docs/research/04-open-questions.md Q33).
+ * `finalize` already returns `parse(encode(surgery))`, so that check asks whether
+ * `parse ∘ encode` sits at a fixed point on a tree which is itself a parse
+ * output — a real property, broken by an encode/parse instability, but never a
+ * comparison against the SURGERY tree the algebra built. An operation whose
+ * emitted markdown re-parses to a different tree than its own surgery produced
+ * satisfies closure and is still wrong. Asserting what the operation PROMISES is
+ * what closes the gap (docs/research/04-open-questions.md Q33).
  *
  * ## Why the subject is tracked by label
  *
@@ -180,8 +182,10 @@ describe('1.3 a group operation delivers it for every covered root', () => {
       );
       expect(accepted).toBeGreaterThan(contract.minGroup);
       // Without this the group property could degrade into the single-node one
-      // and stay green: `applyGroups` re-parses ONCE for the whole operand, and
-      // that re-parse is the path a one-root operand never exercises.
+      // and stay green. A one-root group takes the same `finalize` path and is
+      // asserted to BE the single-node operation; what only several roots reach
+      // is their surgeries composed before the one parse, where a root can be
+      // absorbed by what another root left beside it.
       expect(multiRoot).toBeGreaterThan(contract.minMultiRoot);
     });
   }

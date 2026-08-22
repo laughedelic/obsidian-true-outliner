@@ -1,9 +1,11 @@
 ## Why
 
-`closure.test.ts` compares `result.value.doc` against `parse(encode(result.value.doc))`, but
-`finalize` BUILDS `result.value.doc` by re-parsing that same encoding — so the assertion is true
-by construction and can never fail. Every operation that emits markdown re-parsing to a different
-tree than its own algebra produced is invisible to the suite.
+`closure.test.ts` compares `result.value.doc` against `parse(encode(result.value.doc))`. But
+`finalize` already returns `parse(encode(surgery))`, so that comparison asks whether `parse ∘
+encode` has reached a FIXED POINT on a tree which is itself a parse output. That is a real
+property — an encode/parse instability breaks it — but it never compares the returned tree with
+the SURGERY tree the operation's algebra built. Every operation that emits markdown re-parsing to
+a different tree than its algebra produced passes it unnoticed.
 
 Three pre-existing bugs were sitting in that blind spot (docs/research/04-open-questions.md Q33).
 One is fixed (PR #51); the remaining two are stacked on top of this change. The technique that

@@ -18,8 +18,9 @@ elsewhere has not performed the gesture the caller asked for, and states a depth
 deliver.
 
 This is not implied by operation closure. Closure holds that the result tree equals the parse of
-its own encoding; it says nothing about whether that tree is the one the algebra produced, so an
-operation can satisfy closure while placing the subject at the wrong depth.
+its own encoding — which the result tree, being a parse output already, satisfies whenever
+encoding and parsing are stable. It says nothing about whether that tree is the one the algebra
+produced, so an operation can satisfy closure while placing the subject at the wrong depth.
 
 The group forms carry the same contract PER COVERED ROOT, each root measured against its own prior
 depth. A cover whose roots sit at different depths moves every root by the same delta; it does not
