@@ -359,8 +359,10 @@ switchable without breaking the indentation underneath:
   confirmed effective in Live Preview, so a bullet-style setting is variables only. Folded
   into [16-native-list-decoration.md](16-native-list-decoration.md)'s phase 3 so lists and
   blocks get one marker-appearance surface rather than two.
-- **The indentation unit** is the other half of phase 1 there: `--to-decor-unit` has to become
-  a real declaration and a setting before it can be pushed into `--list-indent`.
+- **The indentation unit** gets its prerequisite from phase 1 there: `--to-decor-unit` has to
+  become a real declaration before it can be pushed into `--list-indent`. That change stops at
+  the declaration and leaves the unit fixed — making it user-configurable stays here, with the
+  rest of this entry.
 
 User CSS snippets remain the escape hatch for anything finer-grained than whatever
 settings surface we commit to (design.md Non-Goals) — the settings axis should stay
