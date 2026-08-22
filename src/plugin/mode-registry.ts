@@ -54,8 +54,12 @@ export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = 'current';
  *   different layout from every other kind.
  * - `'grid'` pushes our own `--to-decor-unit` into `--list-indent` so a list
  *   level steps by exactly one unit, and moves the native list guide onto the
- *   same column our own gradient draws. Obsidian recomputes its hanging indent
- *   from the new width, so wrapped rows follow for free.
+ *   same column our own gradient draws. Wrapped rows do NOT follow for free,
+ *   which an earlier version of this comment claimed: Obsidian's hanging indent
+ *   is a per-line cached measurement whose invalidation ignores the attribute a
+ *   decoration changes, so switching this at runtime leaves a soft-wrapping
+ *   nested item's wrap column stale until a note switch. Stating that pair
+ *   ourselves is part of the change this demo informs, not of the demo.
  * - `'own-guides'` is `'grid'` plus taking the guide itself: the native list
  *   guide is switched off and our gradient draws every list level, so a list
  *   guide is the same line, colour and column a block guide is.
@@ -65,6 +69,9 @@ export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = 'current';
  * which is correct while the base layer has no list column to draw on and is
  * exactly what the `lists-on-the-outline-grid` change removes — measured to
  * light up as soon as it does, but not part of this demo.
+ *
+ * `ListBullet` depends on this one: a bullet column only exists once the grid
+ * does, so `'native'` here suppresses it whatever that setting says.
  *
  * Anything past `'native'` deliberately breaks `outline-decorations`' "a pure
  * list renders byte-identical to outline-mode-off" requirement, which is why
@@ -80,7 +87,9 @@ export const DEFAULT_LIST_LAYOUT: ListLayout = 'native';
  * "the guide does not come from the bullet". `'column'` pulls the marker back
  * onto the column and pushes the item's text out to the same gutter a block
  * line uses. Ordered markers are wider than the gutter, so they start on the
- * column rather than centring on it — see the research doc.
+ * column rather than centring on it — see the research doc. Has no effect while
+ * `ListLayout` is `'native'`: the column it aligns to is the grid's, and there
+ * is no grid then.
  *
  * Task lines are untouched by this setting in either direction: a checkbox is
  * wider than the gutter and is a real click target, and measured it does not
