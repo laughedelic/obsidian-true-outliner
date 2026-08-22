@@ -155,8 +155,22 @@ without the other.
 
 The demo build's `listLayout` and `listBullet` dropdowns and their persisted fields go. They
 existed to make the comparison possible, the comparison happened, and keeping them would mean
-committing to four rendering combinations. Existing `data.json` files carrying the fields are
-simply ignored — the plugin reads its data through defaults and writes back only known keys.
+committing to four rendering combinations.
+
+The removal is not complete at the type level, because the loader is
+`{ ...DEFAULT_DATA, ...(await this.loadData()) }` (`main.ts`): it spreads EVERY key the file
+holds onto `this.data`, so a `data.json` written by the demo build keeps `listLayout` and
+`listBullet` on the object, and the next `saveData(this.data)` — the next outline-mode toggle
+— writes them straight back. Deleting the type does not delete the data.
+
+So the load path gains a normalization: `this.data` is built by picking the KNOWN keys, not by
+spreading whatever the file contains. That is the general fix rather than a two-key patch —
+this is the first setting the plugin has ever removed, and an allow-list means the next removal
+is free. Anything unrecognized is dropped on the first save; nothing is migrated, because the
+two values map onto the single behaviour this change makes unconditional.
+
+*Alternative considered.* Deleting exactly these two keys during load is smaller, but it leaves
+the general defect in place and needs another patch the next time a setting is retired.
 
 ## Risks / Trade-offs
 

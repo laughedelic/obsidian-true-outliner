@@ -308,8 +308,10 @@ genuine experiments and should be run as such.
 
 ### Phase 1 — one indent step
 
-- Publish `--to-decor-unit` as a real declaration (today only a CSS fallback value exists) and
-  make it a setting, closing the parking lot's "indentation unit should be configurable" item.
+- Publish `--to-decor-unit` as a real declaration (today only a CSS fallback value exists), so
+  `--list-indent` and every other consumer read one number. A real declaration is the
+  prerequisite for the parking lot's "indentation unit should be configurable" item; exposing
+  it as a SETTING is deliberately not part of this work (see the change's design, Non-Goals).
 - On `.cm-line.to-decor-list`, set `--list-indent: var(--to-decor-unit)`.
 - Amend `outline-decorations`' pure-list requirement as above.
 - Verify: per-level step equals the unit for tab, 4-space, ordered, task and nested-under-heading

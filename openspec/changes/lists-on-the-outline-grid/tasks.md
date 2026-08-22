@@ -52,8 +52,11 @@
       (declarative and pre-1.13 fallback).
 - [ ] 4.2 Delete the classes and CSS branches that existed only to switch between variants; the
       remaining rules hang off `to-decor-list` alone.
-- [ ] 4.3 Confirm a `data.json` carrying the removed keys loads without error and the removed
-      keys are not written back.
+- [ ] 4.3 Normalize persisted data on load: build `this.data` by picking the known keys rather
+      than spreading whatever `loadData()` returns, so a removed setting actually disappears
+      instead of surviving on the object and being written back by the next `saveData`
+      (design D7). Cover it with a test that loads a `data.json` carrying unknown keys and
+      asserts they are gone after the next save.
 
 ## 5. Specs and docs
 
