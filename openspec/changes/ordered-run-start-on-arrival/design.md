@@ -90,7 +90,7 @@ first line.** Two qualifications make it assertable.
 - **Restricted to sources whose runs are already consecutive.** The generator emits documents
   like `1. a` / `1. b` / `2. c`, where a legitimate renumbering rewrites `1. b` to `2. b` — a
   line above the operand, changed correctly. Measured, the filter keeps 2656 of 3000 generated
-  documents and leaves 1057–1768 accepted cases per operation, of which 780–1482 actually have
+  documents and leaves 1037–1768 accepted cases per operation, of which 766–1482 actually have
   an ordered marker above the fence — so the restriction costs reach it did not have to spend.
   Filtering rather than normalizing keeps the test free of a second implementation of the rule
   it is checking.

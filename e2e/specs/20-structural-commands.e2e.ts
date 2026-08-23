@@ -137,6 +137,26 @@ describe('structural commands', function () {
   });
 
   /**
+   * The reported shape for `ordered-run-start-on-arrival`, in a real editor.
+   *
+   * The arriving item carries its nested `1.` into a top-level run that starts
+   * at 2. The unit tests pin the resulting text; what only the editor can show
+   * is that the line ABOVE the operand is genuinely untouched — the marker the
+   * defect rewrote sits outside the change set the operation is allowed to
+   * emit — and that the whole thing is still ONE undo step.
+   */
+  it('outdent into an ordered run leaves the line above it alone', async function () {
+    const original = '- L0\n2. L1\n   1. L2\n      - L3\n# L4\n';
+    await outlineNote(original, 2, 6);
+
+    await h.runCommand('outdent-node');
+    expect(await h.getBuffer()).toBe('- L0\n2. L1\n3. L2\n   - L3\n# L4\n');
+
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(original);
+  });
+
+  /**
    * The one shape the narrowing cannot describe as a relocation: two tables
    * whose header and separator rows are identical leave it no unique line to
    * anchor either block on, so the change set says each body row was replaced

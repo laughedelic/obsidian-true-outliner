@@ -405,9 +405,9 @@ describe('sibling reordering', () => {
     expect(text).toBe('1. two\n2. one\n3. three\n');
   });
 
-  // The behavior the minimum-present rule exists for: a swap is a permutation,
-  // so no member leaves and the run cannot lose the number it began with. This
-  // must be green both before and after the removal-aware rule.
+  // A swap inside one run: every member is still present and the run's own head
+  // still heads it, so the start it began with is the start it keeps. The
+  // number that travels with the moved item is not it.
   it('a swap does not let a run inherit the moved item’s own number', () => {
     const { text } = applyOk(moveDown, '5. one\n6. two\n7. three\n', '5. one');
     expect(text).toBe('5. two\n6. one\n7. three\n');
@@ -500,6 +500,60 @@ describe('sibling reordering', () => {
       expect(text).toBe('- P\n\n  txt\n\n  - A\n');
       expect(parentLineOf(doc, '  - A')).toBe('- P');
     });
+  });
+});
+
+/**
+ * A run's START NUMBER lives in the sibling list, not in the run's own numbers.
+ * Reading it as the lowest number present holds only while every member was
+ * already there and no two runs met — and five operations break one of those
+ * two conditions, each rewriting a marker ABOVE the operand.
+ */
+describe('an arriving number does not become the run’s start', () => {
+  it('an outdenting item takes the next number in the run it joins', () => {
+    // The reported shape. `1. L2` carries its nested `1.` up to a top-level run
+    // that starts at 2, and the run renumbered itself from the arrival.
+    const { text } = applyOk(outdent, '- L0\n2. L1\n   1. L2\n      - L3\n# L4\n', '   1. L2');
+    expect(text).toBe('- L0\n2. L1\n3. L2\n   - L3\n# L4\n');
+  });
+
+  it('an indenting item takes the next number in the run it joins', () => {
+    const { text } = applyOk(indent, '- p\n   5. a\n   6. b\n1. x\n', '1. x');
+    expect(text).toBe('- p\n   5. a\n   6. b\n   7. x\n');
+  });
+
+  it('an adopted following sibling does not restart its new parent’s children', () => {
+    // Both lists here belong to the operand's own subtree: `- x` keeps its
+    // children `5.` / `6.`, and the sibling it leaves behind joins them as `7.`
+    // rather than imposing its own `1.` on them.
+    const md = '- p\n   - x\n      5. c1\n      6. c2\n   1. s1\n';
+    const { text } = applyOk(outdent, md, '   - x');
+    expect(text).toBe('- p\n- x\n   5. c1\n   6. c2\n   7. s1\n');
+  });
+
+  it('a pasted item does not restart the run it lands in', () => {
+    const doc = parse('5. a\n6. b\n7. c\n');
+    const result = insertSubtrees(doc, byLine(doc, '5. a'), parse('1. pasted\n').children, 'after');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe('5. a\n6. pasted\n7. b\n8. c\n');
+  });
+
+  it('a pasted run with no member from the destination keeps its own numbering', () => {
+    // Nothing to recover a start from, so the payload's own start stands. This
+    // is the fallback, and it is the only case the lowest-number reading still
+    // decides.
+    const doc = parse('- a\n- b\n- c\n');
+    const result = insertSubtrees(doc, byLine(doc, '- b'), parse('3. x\n4. y\n').children, 'after');
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+    expect(encode(result.value.doc)).toBe('- a\n- b\n3. x\n4. y\n- c\n');
+  });
+
+  it('a swap that joins two runs keeps the earlier run’s start', () => {
+    // No node arrives from anywhere here — the separator moves out from between
+    // two runs and they become one. The lowest number present is then the
+    // swallowed run's, which is why a permutation needed its own disproof.
+    const { text } = applyOk(moveDown, '5. a\n- x\n1. c\n', '- x');
+    expect(text).toBe('5. a\n6. c\n- x\n');
   });
 });
 

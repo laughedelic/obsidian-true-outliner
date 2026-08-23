@@ -39,8 +39,8 @@ legitimate normalization a renumbering performs on an inconsistently numbered so
 | --- | --- | --- | --- |
 | indent | 1057 | 968 | 11 |
 | outdent | 1768 | 1482 | **63** |
-| move up | 1057 | 780 | 2 |
-| move down | 1098 | 807 | 3 |
+| move up | 1037 | 766 | 2 |
+| move down | 1064 | 790 | 3 |
 
 `insertSubtrees` is not an operation the generator drives; its shape is reproduced by example.
 
@@ -96,13 +96,15 @@ None.
   the six removal sites take the rename only. All fifteen are converted so that one helper
   covers the file rather than two whose choice depends on a shape argument that just proved
   unreliable.
-- Measured cost to the existing suite: **0 of 823 tests**. The spike was run with the helper
-  unified, `tsc --noEmit` and `eslint` clean.
+- Measured cost to the existing suite: **0 tests**. Measured twice — 823 on the base the spike
+  was written against, and 835 once `reorder-absorption` landed underneath — with `tsc --noEmit`
+  and `eslint` clean both times.
 - The four generator-driven operations go to 0 violations on the property above, with the
   accepted-case and ordered-marker-above counts unchanged — the fix does not buy its zero by
   rejecting or by skipping cases.
 - Stacked on `reorder-absorption` (#57), which refuses some reorders outright. The two reorder
   violations measured here are joins across a BULLET separator, which that change does not
-  refuse, so this defect survives it. The two changes touch different decisions in
-  `moveSurgery`'s vicinity — a rejection before the surgery, a start number inside it — and
-  neither depends on the other having landed.
+  refuse, so this defect survives it — confirmed after it landed: the reorders' accepted counts
+  fell (1057 → 1037, 1098 → 1064) while their violation counts stayed at 2 and 3. The two
+  changes touch different decisions in `moveSurgery`'s vicinity — a rejection before the
+  surgery, a start number inside it — and neither depends on the other having landed.
