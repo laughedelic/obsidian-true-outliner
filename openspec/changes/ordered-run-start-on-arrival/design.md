@@ -119,7 +119,7 @@ Alternatives considered:
 The requirement currently states the joined-run outcome twice: once as the general principle
 under REMOVAL and once again as a merge-specific clause. Under the single rule the merge shapes
 follow from it, so the merge paragraph stays as worked examples of the rule rather than as its
-own case analysis. The scenarios it earned — all four merge scenarios, the three deletion ones,
+own case analysis. The scenarios it earned — all three merge scenarios, the three deletion ones,
 the indent-departure and unwrap ones — are unchanged and still pass, which is the evidence that
 the collapse loses nothing.
 

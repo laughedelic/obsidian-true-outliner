@@ -61,8 +61,9 @@ Renumbering is the one documented exception to "edits touch only the lines the o
 semantically requires", and renumbered output SHALL still satisfy operation closure: the
 encoded run re-parses to the same tree. Where the source document's own numbering was already
 consecutive from each run's start, the exception SHALL reach only markers at or below the
-operand's own position: a run whose start is preserved renumbers only the members that follow
-what changed.
+TOPMOST NODE THE OPERATION RELOCATES — the operand, and for a reorder the sibling it swaps
+with, whose own marker that swap legitimately rewrites. A run whose start is preserved
+renumbers only the members that follow what moved.
 
 #### Scenario: A widening marker carries its subtree
 - **WHEN** a renumbering makes an item with children `10.` where it was `9.`
@@ -149,8 +150,9 @@ what changed.
 #### Scenario: Renumbered output re-parses unchanged
 - **WHEN** any accepted operation renumbers an ordered run
 - **THEN** encoding the resulting tree and re-parsing it yields an identical tree, and the
-  emitted edits touch no lines beyond the lines the operation acts on and the renumbered
-  markers
+  emitted edits touch no lines beyond the ones the operation semantically requires, the
+  renumbered markers, and the continuation and descendant lines that a marker's WIDTH change
+  re-indents
 
 #### Scenario: A consecutive source is not rewritten above the operand
 - **WHEN** any accepted indent, outdent or reorder acts on a document whose every ordered run
