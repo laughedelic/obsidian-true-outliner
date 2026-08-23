@@ -256,14 +256,48 @@ describe('group operation scenarios', () => {
   });
 
   it('a run keeps its order where a step-at-a-time composition would reverse it', () => {
-    // The amended rule (design D10). Moving one root at a time yields
-    // `L2 / L1 / - L0`, because after step one `- L0` re-parses as L1's child
-    // and L2's previous sibling becomes L1 itself.
+    // The shape design D10 was written for, and the one `reorder-absorption`
+    // now refuses. Both candidate results reparent `- L0`: the composition's
+    // `L2 / L1 / - L0` and the order rule's `L1 / L2 / - L0` alike re-parse
+    // with it as the last paragraph's CHILD, because a list item cannot follow
+    // a paragraph as its sibling. The run's order is never at stake here — the
+    // run does not move.
     const doc = parse('- L0\n\nL1\n\nL2\n');
+    const before = encode(doc);
     const result = moveGroupsUp(doc, [idsOf(doc, 'L1', 'L2')]);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(encode(result.value.doc)).toBe('L1\n\nL2\n\n- L0\n');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.rejection.reason).toBe('reorder-not-expressible');
+    expect(encode(doc)).toBe(before);
+  });
+
+  // WHERE the refusal is asked, pinned by the one case that can tell the two
+  // placements apart. The run is `[fence, - a]` moving down past `P`: move down
+  // applies its roots in reverse, so step one puts `- a` behind `P` — which has
+  // no encoding — while the arrangement the whole run would have finished at,
+  // `P` / fence / `- a`, is perfectly ordinary.
+  //
+  // It is REFUSED, because the group form is defined as applying the
+  // single-node form to each root in turn and that sequence cannot be
+  // performed. Checking the composed tree instead would accept here, and would
+  // make the group form accept where the composition rejects — breaking its own
+  // definition, the Group closure scenario, and the oracle equality property
+  // below. This test is what fails if the check is ever moved.
+  it('a run is refused when a STEP is inexpressible, though its final arrangement is not', () => {
+    const md = '```\nx\n```\n\n- a\n\nP\n';
+    const doc = parse(md);
+    const result = moveGroupsDown(doc, [idsOf(doc, '```', '- a')]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.rejection.reason).toBe('reorder-not-expressible');
+    expect(encode(doc)).toBe(md);
+
+    // Same reason as the composition's own first step, which is the agreement
+    // the per-step placement exists to keep.
+    const step = moveDown(doc, idsOf(doc, '- a')[0]!);
+    expect(step.ok).toBe(false);
+    if (step.ok) return;
+    expect(step.rejection.reason).toBe('reorder-not-expressible');
   });
 
   it('a multi-parent reorder is rejected, and nothing is moved', () => {

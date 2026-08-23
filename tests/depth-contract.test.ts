@@ -20,20 +20,20 @@
  * carries a unique `L<n>` token in its own text; structural operations rewrite
  * markers and never a node's text, so the token crosses the re-parse.
  *
- * ## Move down is absent from the table deliberately
+ * ## Why a reorder gets a second, wider property
  *
- * It does not satisfy the contract. A node moved down past a paragraph is
- * absorbed into that paragraph's list when the encoding re-parses, and comes
- * back one level deeper than it started:
+ * The table below measures the SUBJECT, and for a reorder the subject is
+ * exactly what stays put. A move up that leaves a list item stranded after a
+ * paragraph absorbs that item — a node the caller never selected — while the
+ * subject's own depth is untouched, so a subject-only measurement scores it
+ * zero. §1.4 therefore compares EVERY label's depth across the call: a reorder
+ * permutes two subtrees at one level and moves nothing between levels, so any
+ * depth change anywhere is an encoding that re-parsed differently from the tree
+ * the operation built.
  *
- *     - L0                 L1
- *                  =>      - L0     <- moved down, and now L1's child
- *     L1
- *
- * Its row belongs here once that is fixed. Headings are absent for a different
- * reason: their indent is a level shift, and the resulting tree depth follows
- * the surrounding heading context rather than the operation, so a fixed delta
- * is not their contract.
+ * Headings are absent from the table for a different reason: their indent is a
+ * level shift, and the resulting tree depth follows the surrounding heading
+ * context rather than the operation, so a fixed delta is not their contract.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -45,6 +45,8 @@ import { forEachNodeWithLine } from '../src/locate';
 import {
   indent,
   indentGroups,
+  moveDown,
+  moveGroupsDown,
   moveGroupsUp,
   moveUp,
   outdent,
@@ -101,6 +103,14 @@ const CONTRACTS: Record<string, DepthContract> = {
     minSingle: 600,
     minGroup: 200,
     minMultiRoot: 90,
+  },
+  moveDown: {
+    delta: 0,
+    single: moveDown,
+    group: moveGroupsDown,
+    minSingle: 600,
+    minGroup: 180,
+    minMultiRoot: 80,
   },
 };
 
@@ -187,6 +197,71 @@ describe('1.3 a group operation delivers it for every covered root', () => {
       // is their surgeries composed before the one parse, where a root can be
       // absorbed by what another root left beside it.
       expect(multiRoot).toBeGreaterThan(contract.minMultiRoot);
+    });
+  }
+});
+
+/**
+ * 1.4 — the wider statement, for reorders only.
+ *
+ * §1.2 and §1.3 watch the subject and the covered roots. A reorder's exposure
+ * is not there: it swaps two subtrees, and the one that can land somewhere the
+ * parse will not keep it is as often the sibling DISPLACED by the swap as the
+ * subject itself. Measured before the refusal that closed it, move up violated
+ * this at the same rate as move down while scoring zero against the subject.
+ *
+ * So the assertion is the whole document: a permutation at one level moves
+ * nothing between levels, and any label whose depth changed is an encoding that
+ * re-parsed into a different tree than the surgery built.
+ */
+describe('1.4 an accepted reorder moves no node between levels', () => {
+  const REORDERS = {
+    moveUp: { single: moveUp, group: moveGroupsUp, minSingle: 600, minGroup: 180 },
+    moveDown: { single: moveDown, group: moveGroupsDown, minSingle: 600, minGroup: 180 },
+  } as const;
+
+  for (const [name, ops] of Object.entries(REORDERS)) {
+    it(`${name} leaves every node's depth alone, subject and bystander alike`, () => {
+      let accepted = 0;
+      fc.assert(
+        fc.property(arbLabeledDoc(), fc.nat(), (doc, n) => {
+          const subjects = [...walkNodes(doc)].filter(
+            (node) => node.kind !== 'heading' && labelOf(node) !== undefined,
+          );
+          if (subjects.length === 0) return true;
+          const before = depthsByLabel(doc);
+          const result = ops.single(doc, subjects[n % subjects.length]!.id);
+          if (!result.ok) return true;
+          accepted++;
+          const after = depthsByLabel(result.value.doc);
+          return [...before.keys()].every((label) => after.get(label) === before.get(label));
+        }),
+        { numRuns: RUNS },
+      );
+      expect(accepted).toBeGreaterThan(ops.minSingle);
+    });
+
+    it(`${name} in its group form leaves every node's depth alone`, () => {
+      let accepted = 0;
+      fc.assert(
+        fc.property(arbLabeledDoc(), fc.nat(), fc.nat(), (doc, i, j) => {
+          const all = [...walkNodes(doc)];
+          if (all.length === 0) return true;
+          const cover = forestCoverOf(doc, all[i % all.length]!, all[j % all.length]!);
+          const roots = cover.roots.map((root) => root.node);
+          if (roots.length === 0) return true;
+          if (roots.some((root) => root.kind === 'heading')) return true;
+
+          const before = depthsByLabel(doc);
+          const result = ops.group(doc, groupRootsByParent(cover.roots));
+          if (!result.ok) return true;
+          accepted++;
+          const after = depthsByLabel(result.value.doc);
+          return [...before.keys()].every((label) => after.get(label) === before.get(label));
+        }),
+        { numRuns: RUNS },
+      );
+      expect(accepted).toBeGreaterThan(ops.minGroup);
     });
   }
 });

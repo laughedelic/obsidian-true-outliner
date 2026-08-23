@@ -28,6 +28,7 @@ const KNOWN_REASONS = new Set([
   'no-sibling-below',
   'not-expressible-under-target',
   'cannot-reorder-across-heading-boundary',
+  'reorder-not-expressible',
   'would-orphan-children',
   'cannot-unwrap',
 ]);

@@ -29,7 +29,7 @@ import { encode, encodeLines } from './encode';
 import { parse, indentWidth } from './parse';
 import type { Edit, OpResult } from './result';
 import { accept, diffLines, reject } from './result';
-import { encodingKindAtDestination } from './rules';
+import { encodingKindAtDestination, listAttachesTo } from './rules';
 import {
   childBaseCol,
   headingWithLevel,
@@ -721,6 +721,44 @@ function outdentSurgery(
 
 // -------------------------------------------------------------- reordering
 
+/**
+ * Would this swap leave a list item where the parse will not keep it?
+ *
+ * At SECTION level — the children of the root, or of a heading — a list item
+ * whose preceding sibling is a paragraph is read as that paragraph's CHILD.
+ * The question here is `listAttachesTo`, the one `parse` itself asks, so the
+ * two cannot drift apart. A reorder recomputes no node's encoding, which
+ * leaves it no way to say "sibling" at that boundary: the markdown it emits
+ * re-parses with the item a level deeper than the tree this surgery builds.
+ *
+ * Both relocated roots are asked, because a swap moves two subtrees. The
+ * subject comes to rest at the far slot, and the sibling it displaces comes to
+ * rest at the slot the subject left, behind whatever sits one further back —
+ * so a move up can absorb a node the caller never selected.
+ *
+ * Inside a list item's own children the enclosing item owns the list stack, a
+ * paragraph there adopts nothing, and this asks nothing.
+ *
+ * Expected to be DELETED rather than maintained. Whether a list following a
+ * paragraph should be that paragraph's child at all is an open question — Q34
+ * in docs/research/04-open-questions.md, explored in
+ * docs/research/17-list-paragraph-mapping.md. Two of the four candidate
+ * readings make a flush list after a paragraph an ordinary sibling, and under
+ * either of them this branch is unreachable.
+ */
+function swapAbsorbsAListItem(doc: OutlineDoc, parentPath: NodePath, a: number): boolean {
+  const parent = parentPath.length === 0 ? undefined : nodeAt(doc, parentPath);
+  if (parent && parent.kind !== 'heading') return false;
+  const siblings = childrenAt(doc, parentPath);
+  const x = siblings[a]!;
+  const y = siblings[a + 1]!;
+  // The swap leaves `..., siblings[a - 1], y, x, ...`.
+  return (
+    (y.kind === 'list-item' && listAttachesTo(siblings[a - 1])) ||
+    (x.kind === 'list-item' && listAttachesTo(y))
+  );
+}
+
 function moveSurgery(doc: OutlineDoc, nodeId: number, delta: -1 | 1): OpResult<Surgery> {
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
@@ -739,9 +777,11 @@ function moveSurgery(doc: OutlineDoc, nodeId: number, delta: -1 | 1): OpResult<S
     }
   }
 
+  const a = Math.min(index, index + delta);
+  if (swapAbsorbsAListItem(doc, parentPath, a)) return reject('reorder-not-expressible');
+
   const surgery = updateSiblings(doc, parentPath, (nodes) => {
     const out = [...nodes];
-    const a = Math.min(index, index + delta);
     // Separator gaps are positional, not node-owned: the gap that followed
     // slot a stays at slot a (else the final-newline gap migrates mid-doc).
     const gapA = subtreeFinalNode(out[a]!).trailingGap;

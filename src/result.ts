@@ -11,6 +11,7 @@ export type RejectionReason =
   | 'not-expressible-under-target'
   | 'cannot-reorder-across-heading-boundary'
   | 'cannot-reorder-across-scopes'
+  | 'reorder-not-expressible'
   | 'cannot-split'
   | 'empty-selection'
   | 'non-contiguous-subtrees'
