@@ -15,9 +15,9 @@
       its own right.
 - [ ] 1.4 Rewrite the helper's doc comment for the single rule. State where a run's identity
       lives and why the before-list answers every shape; drop the removal-versus-permutation
-      case analysis, including the sentence recording that the merge classification "got wrong
-      until all three of its branches were measured" — the classification it corrects no longer
-      exists. Keep the fallback's rationale and the `- p` / `5. a` / `10. kid` / `6. b` worked
+      case analysis, including the sentence recording that a merge is a removal for this purpose
+      "which this comment got wrong until all three of its branches were measured" — the
+      classification it corrects no longer exists. Keep the fallback's rationale and the `- p` / `5. a` / `10. kid` / `6. b` worked
       example that earned it.
 - [ ] 1.5 Update the four call-site comments that justify a policy by shape — indent's
       "The node LEAVES this level: a removal … The arrival side below is an insertion", outdent's
