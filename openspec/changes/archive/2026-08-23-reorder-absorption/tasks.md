@@ -74,6 +74,6 @@
 ## 5. Integrate
 
 - [x] 5.1 Run `npm test`, `npm run lint` and `npm run build`; the full suite stays green.
-- [ ] 5.2 Real-vault pass on the refused shapes: a bullet before a paragraph, a paragraph above
+- [x] 5.2 Real-vault pass on the refused shapes: a bullet before a paragraph, a paragraph above
       a list, and a group reorder containing either — confirm the notice appears, the document
       is untouched, and no undo step is consumed.

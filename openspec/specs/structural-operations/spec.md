@@ -202,10 +202,57 @@ MoveUp/moveDown SHALL swap a node (with its entire subtree) with its previous/ne
 and SHALL be rejected when no such sibling exists. Node types and encodings are unchanged by
 reordering, except ordered-list markers which are renumbered.
 
+A reorder SHALL be rejected when the swap would place a SECTION-LEVEL list item directly after
+a paragraph sibling. That arrangement has no markdown encoding: a list item whose preceding
+sibling is a paragraph is read as that paragraph's CHILD, so the emitted document says
+something the surgery did not. Since reordering rewrites no node's encoding, refusing is the
+only outcome available to it — the unifying principle's other branch, the minimal encoding of
+the new tree, requires a rewrite this operation does not perform.
+
+The check SHALL cover BOTH nodes the swap relocates, not the subject alone. A swap moves two
+subtrees, and either can come to rest after a paragraph: the subject at its new slot, or the
+displaced sibling at the slot the subject left. Measured, the second case is the whole of move
+up's exposure and none of it is visible to the subject.
+
+"Section level" is the whole of the rule's reach: the attachment it guards against fires only
+among the children of the root or of a heading. Among a list item's own children a paragraph
+does not adopt a following list, so a reorder there is never refused on this ground.
+
+An accepted reorder SHALL leave EVERY node's depth unchanged in the result tree, not only the
+subject's. A reorder permutes two subtrees at one level and moves nothing between levels, so
+any depth change anywhere in the document is an encoding that re-parsed differently from the
+tree the operation built.
+
 #### Scenario: Heading section swap
 - **WHEN** moveUp is applied to `## Budget` preceded by sibling `## Packing`
 - **THEN** the two sections (headings plus all descendant content) swap positions and every
   moved line is byte-identical to before, merely relocated
+
+#### Scenario: A list item refuses to move down past a paragraph
+- **WHEN** moveDown is applied to a top-level list item whose next sibling is a paragraph
+- **THEN** the operation is rejected and the document is unchanged — landing after that
+  paragraph would make the item its child, which is not the sibling swap that was asked for
+
+#### Scenario: A paragraph refuses to move up above a list item
+- **WHEN** moveUp is applied to a top-level paragraph whose previous sibling is a list item
+- **THEN** the operation is rejected, because the list item would be left directly after the
+  paragraph and adopted by it — a node the caller never selected, changing depth
+
+#### Scenario: The displaced sibling is checked, not just the subject
+- **WHEN** a reorder would leave either relocated subtree's root as a section-level list item
+  directly after a paragraph
+- **THEN** the operation is rejected, whichever of the two it is
+
+#### Scenario: A reorder inside a list item is unaffected
+- **WHEN** moveDown is applied to a list item among a list item's own children, past a sibling
+  paragraph there
+- **THEN** the operation is accepted and both nodes keep their depth — a paragraph nested
+  inside a list item does not adopt a following list, so no encoding is lost
+
+#### Scenario: An accepted reorder moves no node between levels
+- **WHEN** any reorder is accepted, in its single-node or group form
+- **THEN** every node in the result document sits at the depth it sat at before, the subject
+  and every bystander alike
 
 ### Requirement: Ordered-run renumbering
 When an operation changes the membership or order of a sibling list, every maximal run of
@@ -993,6 +1040,19 @@ root at a time, and an intermediate tree need not be REPRESENTABLE: markdown has
 for a list item that follows a paragraph as its sibling, so the re-parse between two steps can
 reshape the document under the steps that have not run yet.
 
+For a REORDER, that unrepresentability is now decided before either rule applies. "Sibling
+reordering" refuses a swap that would place a section-level list item directly after a paragraph
+sibling, and because a group reorder IS the composition above, it inherits that refusal at every
+step: a step the single-node form refuses is a composition that does not exist, so the group
+operation is refused as a whole. A run whose intermediate step is refused is therefore refused
+even where the arrangement it would finally have emitted is expressible; that follows from
+defining the group form as the composition, and group rejection is already atomic.
+
+So the order rule governs among the runs a reorder accepts, and the shape where the two rules
+disagree is refused rather than resolved in the order rule's favour. The measurement below is
+retained because it is why the order rule is stated first and the composition subordinate to
+it; it now describes a case that is rejected.
+
 Measured on `- L0` / `L1` / `L2`, moving the run `[L1, L2]` up. Step one swaps `L1` above
 `- L0`; that encoding re-parses with `- L0` as L1's own child, so step two finds L2's previous
 sibling to be `L1` and swaps past it — yielding `L2 / L1 / - L0`, the run reversed. Acting on
@@ -1028,10 +1088,21 @@ included, so no existing behaviour changes when the operand resolves to one node
 
 #### Scenario: A run keeps its order where a step-at-a-time composition would reverse it
 - **WHEN** the group move up is invoked for the run `[L1, L2]` in `- L0` / `L1` / `L2`, where
-  `L1` and `L2` are paragraphs — so an intermediate tree placing `- L0` as a paragraph's
-  following sibling has no markdown encoding
-- **THEN** the result is `L1` / `L2` / `- L0`, with the run in its original order — not
-  `L2` / `L1` / `- L0`, which is what moving one root at a time produces
+  `L1` and `L2` are paragraphs — the shape in which the composition reverses the run, because
+  the arrangement the group would emit places `- L0` as a paragraph's following sibling and
+  has no markdown encoding
+- **THEN** the operation is rejected and the document is unchanged; the run's order is never at
+  risk here because the run does not move. Emitting `L1` / `L2` / `- L0` would re-parse with
+  `- L0` as `L2`'s child — a node the cover never named, carried a level deeper — which
+  "Sibling reordering" refuses for the same reason the single-node move up on this shape does
+
+#### Scenario: A run is refused when one of its steps is refused
+- **WHEN** a group reorder's composition reaches a step the single-node form refuses, even
+  though the arrangement the run would finally have emitted is expressible — a run of an atom
+  followed by a list item, moving down past a paragraph
+- **THEN** the whole group operation is rejected, with the same typed reason the single-node
+  step gave, and nothing is moved. The group form is the composition, so a step that cannot be
+  performed is a composition that does not exist
 
 #### Scenario: A heading run level-shifts
 - **WHEN** the group indent is invoked for a run of two sibling headings
@@ -1057,7 +1128,7 @@ included, so no existing behaviour changes when the operand resolves to one node
 
 #### Scenario: A reorder within one scope is unaffected
 - **WHEN** the group move up or move down is invoked for a cover whose roots are one
-  contiguous sibling run
+  contiguous sibling run, and the arrangement it would emit is expressible
 - **THEN** the run moves as a unit exactly as the composition prescribes
 
 #### Scenario: A single-root group is the single-node operation
@@ -1150,7 +1221,8 @@ re-parsed — measured against the depth the subject held before the operation:
 
 - indent: exactly one level deeper,
 - outdent: exactly one level shallower,
-- move up: unchanged.
+- move up: unchanged,
+- move down: unchanged.
 
 The guarantee is about the RESULT, not about the tree the operation's own surgery built. Those two
 can disagree: markdown cannot express every tree, so an encoding can re-parse with the subject
@@ -1172,8 +1244,10 @@ a re-parse the single-root path never performs.
 
 Headings are excluded because their algebra is a level shift: an indented heading's tree depth
 follows the surrounding heading context rather than the operation, so a fixed delta is not their
-contract. Move down carries the same unchanged-depth contract as move up in principle; it is
-stated once the defect that violates it is fixed.
+contract.
+
+Move down was previously deferred here, pending the fix for the defect that violated it. It now
+carries the same unchanged-depth contract as move up, on the same terms.
 
 #### Scenario: Indent deepens the subject by exactly one level
 
@@ -1188,13 +1262,14 @@ stated once the defect that violates it is fixed.
 
 #### Scenario: A reorder leaves the subject's depth alone
 
-- **WHEN** move up is accepted on a non-heading node at depth `d`
+- **WHEN** move up or move down is accepted on a non-heading node at depth `d`
 - **THEN** that node sits at depth `d` in the result document — a reorder changes the subject's
   position among its siblings and nothing about its depth
 
 #### Scenario: Every root of a group operation moves by the operation's own delta
 
-- **WHEN** a group form of indent, outdent or move up is accepted on a cover with several roots
+- **WHEN** a group form of indent, outdent, move up or move down is accepted on a cover with
+  several roots
 - **THEN** each covered root sits at its own prior depth plus the operation's delta in the result
   document
 
