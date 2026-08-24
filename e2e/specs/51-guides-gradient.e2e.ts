@@ -156,14 +156,18 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     await browser.pause(150);
 
     // Lines: 0 "# Section", 2 "- top item", 3 "  - nested item",
-    // 4 "    - deeply nested item" — all three are list items, all three
-    // are descendants of "# Section" (depth 0), so all three carry its
-    // one bridging guide layer.
+    // 4 "    - deeply nested item". Every one is a descendant of the heading,
+    // so every one carries its bridging guide — AND, since
+    // lists-on-the-outline-grid, each list level draws its own on the same
+    // grid. Layer counts therefore step with depth instead of staying at the
+    // heading's single layer: the item at 2 has only the heading above it, the
+    // one at 3 has the heading and the item at 2, and so on.
+    const expectedLayers: Record<number, number> = { 2: 1, 3: 2, 4: 3 };
     for (const line of [2, 3, 4]) {
       const classes = await h.getLineClassList(line);
       expect(classes).toContain('to-decor-guides');
       const bg = await h.getLinePseudoComputedStyle(line, 'background-image');
-      expect(gradientLayerCount(bg)).toBe(1);
+      expect(gradientLayerCount(bg)).toBe(expectedLayers[line]);
     }
   });
 
@@ -300,7 +304,11 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     expect(scrollLeftAfter).toBe(300);
   });
 
-  it('a pure list nesting fixture (no non-list ancestor) draws no guides at all', async function () {
+  it('a pure list nesting fixture draws one guide per ancestor level', async function () {
+    // This used to assert NO guide anywhere: a pure list was deferred entirely
+    // to Obsidian's own indent guides, on columns our fixed unit did not match.
+    // lists-on-the-outline-grid puts every list level on the grid and takes the
+    // drawing, so the deepest item now carries one layer per ancestor above it.
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'deep-nesting')!;
     await h.createNote(fixture.note, fixture.md);
     await ensureOutlineMode(fixture.note);
@@ -310,8 +318,14 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // with the caret where a base-layer assertion means it to be.
     await h.setCursor(0, 1);
     await browser.pause(150);
-    for (let line = 0; line < 4; line++) {
-      expect(await h.getLineClassList(line)).not.toContain('to-decor-guides');
+
+    // The root item has no ancestor and so no guide; each level below it adds
+    // exactly one.
+    expect(await h.getLineClassList(0)).not.toContain('to-decor-guides');
+    for (let line = 1; line < 4; line++) {
+      expect(await h.getLineClassList(line)).toContain('to-decor-guides');
+      const bg = await h.getLinePseudoComputedStyle(line, 'background-image');
+      expect(gradientLayerCount(bg)).toBe(line);
     }
   });
 

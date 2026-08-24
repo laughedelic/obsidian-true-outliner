@@ -21,9 +21,8 @@ import { applyEdits } from '../result';
 import {
   OutlineModeRegistry,
   DEFAULT_DATA,
+  normalizePluginData,
   type GuideHighlight,
-  type ListBullet,
-  type ListLayout,
   type MarkerHighlight,
   type PluginData,
 } from './mode-registry';
@@ -55,17 +54,6 @@ const MARKER_HIGHLIGHT_LABELS: Record<MarkerHighlight, string> = {
   off: 'No highlight',
   current: 'The current node only',
   lineage: 'The current node and all its ancestors',
-};
-
-const LIST_LAYOUT_LABELS: Record<ListLayout, string> = {
-  native: 'Leave list rendering to Obsidian (status quo)',
-  grid: 'One indent step for every kind',
-  'own-guides': 'One indent step, and draw the list guides ourselves',
-};
-
-const LIST_BULLET_LABELS: Record<ListBullet, string> = {
-  native: 'Where Obsidian puts it (status quo)',
-  column: 'On its own depth column, like every other marker',
 };
 
 /**
@@ -156,7 +144,7 @@ export default class TrueOutlinerPlugin extends Plugin {
 
   override async onload(): Promise<void> {
     this.showDevBuildStamp();
-    this.data = { ...DEFAULT_DATA, ...((await this.loadData()) as Partial<PluginData> | null) };
+    this.data = normalizePluginData(await this.loadData());
     this.registry = new OutlineModeRegistry(async (paths) => {
       this.data.outlinePaths = paths;
       await this.saveData(this.data);
@@ -281,25 +269,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     await this.forceRedraw();
   }
 
-  get listLayout(): ListLayout {
-    return this.data.listLayout;
-  }
 
-  async setListLayout(value: ListLayout): Promise<void> {
-    this.data.listLayout = value;
-    await this.saveData(this.data);
-    await this.forceRedraw();
-  }
-
-  get listBullet(): ListBullet {
-    return this.data.listBullet;
-  }
-
-  async setListBullet(value: ListBullet): Promise<void> {
-    this.data.listBullet = value;
-    await this.saveData(this.data);
-    await this.forceRedraw();
-  }
 
   /**
    * A plain cursor nudge (what `refreshDecorations` uses for the mode
@@ -613,16 +583,6 @@ const SETTING_MARKER_HIGHLIGHT = {
   desc: 'Which block markers — or a list item’s native bullet or number — to accent. “The current node only” marks where the cursor is; adding the ancestors makes each level of the lineage visible, which is the only indication available inside a plain list, where there are no guides to accent.',
 } as const;
 
-const SETTING_LIST_LAYOUT = {
-  name: 'Experimental: list indentation and guides',
-  desc: 'How much of a list’s own geometry outline mode takes over. Obsidian indents a list level by 1.5x the step every other kind uses here, and puts its indent guides on its own columns, which is why lists read as a separate layout. The other two options put list levels on the same grid as headings and paragraphs, and then optionally take over drawing the guide too. Both deliberately make a plain list render differently with outline mode on than off. After changing this, switch to another note and back: Obsidian caches its own hanging-indent measurement per line and does not notice, so until then a soft-wrapped nested item keeps its old wrap column (one indent step off) while everything else is already correct.',
-} as const;
-
-const SETTING_LIST_BULLET = {
-  name: 'Experimental: where a list bullet sits',
-  desc: 'Every other kind centres its marker on its own depth column; a native bullet sits to the right of it, so the guide appears not to come from the bullet. Only meaningful together with the setting above. Ordered markers are wider than the marker gutter, so they start on the column instead of centring on it.',
-} as const;
-
 class TrueOutlinerSettingTab extends PluginSettingTab {
   constructor(
     app: App,
@@ -672,24 +632,6 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           defaultValue: 'current',
         },
       },
-      {
-        ...SETTING_LIST_LAYOUT,
-        control: {
-          type: 'dropdown',
-          key: 'listLayout',
-          options: LIST_LAYOUT_LABELS,
-          defaultValue: 'native',
-        },
-      },
-      {
-        ...SETTING_LIST_BULLET,
-        control: {
-          type: 'dropdown',
-          key: 'listBullet',
-          options: LIST_BULLET_LABELS,
-          defaultValue: 'native',
-        },
-      },
     ];
   }
 
@@ -707,10 +649,6 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         return this.plugin.guideHighlight;
       case 'markerHighlight':
         return this.plugin.markerHighlight;
-      case 'listLayout':
-        return this.plugin.listLayout;
-      case 'listBullet':
-        return this.plugin.listBullet;
       default:
         return undefined;
     }
@@ -729,12 +667,6 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         break;
       case 'markerHighlight':
         await this.plugin.setMarkerHighlight(value as MarkerHighlight);
-        break;
-      case 'listLayout':
-        await this.plugin.setListLayout(value as ListLayout);
-        break;
-      case 'listBullet':
-        await this.plugin.setListBullet(value as ListBullet);
         break;
     }
   }
@@ -776,24 +708,6 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           .addOptions(MARKER_HIGHLIGHT_LABELS)
           .setValue(this.plugin.markerHighlight)
           .onChange((value) => void this.plugin.setMarkerHighlight(value as MarkerHighlight)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_LIST_LAYOUT.name)
-      .setDesc(SETTING_LIST_LAYOUT.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(LIST_LAYOUT_LABELS)
-          .setValue(this.plugin.listLayout)
-          .onChange((value) => void this.plugin.setListLayout(value as ListLayout)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_LIST_BULLET.name)
-      .setDesc(SETTING_LIST_BULLET.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(LIST_BULLET_LABELS)
-          .setValue(this.plugin.listBullet)
-          .onChange((value) => void this.plugin.setListBullet(value as ListBullet)),
       );
   }
 }

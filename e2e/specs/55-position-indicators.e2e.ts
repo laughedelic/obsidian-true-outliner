@@ -412,11 +412,12 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(await h.getLineClassList(4)).toContain('to-decor-ancestor');
     });
 
-    it('accents ancestor BULLETS in a list, where no segment can be drawn', async function () {
+    it('accents ancestor BULLETS in a list, alongside the segments', async function () {
       const note = 'Scratch/pi-path-list-ancestors.md';
-      // A pure list: no non-list ancestor exists, so the path style has no
-      // column to draw a single segment on — the accented bullets are the
-      // entire rendering, and the reason they exist.
+      // A pure list. The accented bullets used to be the ENTIRE rendering here,
+      // because no non-list ancestor existed and list levels had no column to
+      // draw on. They still render — a bullet is the junction each segment
+      // arrives at — but now the segments render with them.
       await h.createNote(note, '- one\n    - two\n        - three\n');
       await ensureOutlineMode(note);
       await setGuides('lineage');
@@ -430,7 +431,11 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(anc0).toBe(current); // both ancestors accented, like the caret's own
       expect(anc1).toBe(current);
       expect(await h.getLineClassList(0)).toContain('to-decor-ancestor-native');
-      expect(await overlayLayers(2)).toBe(0); // and genuinely nothing is drawn
+      // Two ancestor levels above the caret's own item, so two plain guides,
+      // plus the half-height accent arriving at this row from the level above:
+      // three layers. A `'top'` accent deliberately leaves its plain layer in
+      // place so the base guide stays continuous through the row.
+      expect(await overlayLayers(2)).toBe(3);
 
       // Turning the markers axis down to 'current' drops the ancestors, with
       // the guides axis untouched — the point of splitting them.
@@ -595,14 +600,13 @@ describe('position indicators: current node and ancestor trail', function () {
       await h.setCursor(11, 9); // "    - two"
       await browser.pause(250);
 
-      // The path reaches the row and the bullet is accented, but no accent
-      // is placed on a list level: the accented layers only ever sit at our
-      // own `depth * unit` columns (docs/research/14's deliberate gap).
+      // The path reaches the row, the bullet is accented, and the list level
+      // now carries a segment of its own — every layer still at a multiple of
+      // the decoration unit, because a list level IS one of those columns now.
+      // This used to assert the opposite (docs/research/14's deliberate gap).
       expect(await h.getLineClassList(11)).toContain('to-decor-current-native');
       const positions = await h.getLinePseudoComputedStyle(11, 'background-position');
-      // Three plain guides (depths 0,1,2) plus one accent — all at multiples
-      // of the decoration unit, none at a list-specific offset.
-      expect(await overlayLayers(11)).toBe(4);
+      expect(await overlayLayers(11)).toBe(5);
       expect(positions).toBeTruthy();
     });
   });
@@ -766,20 +770,30 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(await embedMarkerColor()).not.toBe(accented);
     });
 
-    it('leaves a pure list’s geometry byte-identical to outline-mode-off', async function () {
+    it('leaves a pure list’s geometry unchanged across every indicator setting', async function () {
+      // This used to compare against outline-mode-OFF: a pure list rendered
+      // byte-identically then, which lists-on-the-outline-grid deliberately
+      // ends. What the indicator layer still owes is unchanged: it may colour
+      // things, never move them. So the comparison is now mode-on against
+      // mode-on, across the settings.
       const note = 'Scratch/pi-pure-list.md';
       await h.createNote(note, '- one\n    - two\n        - three\n');
-      await h.setCursor(2, 12);
-      await browser.pause(250);
-      const off = await geometrySnapshot();
-
       await ensureOutlineMode(note);
-      await setGuides('lineage');
+      await setGuides('off');
+      await setMarkers('off');
       await h.setCursor(2, 12);
       await browser.pause(250);
-      // The caret-derived accent may color the bullet, but the base layers
-      // still contribute nothing: same positions, same everything.
-      expect(await geometrySnapshot()).toEqual(off);
+      const quiet = await geometrySnapshot();
+
+      for (const guides of ['full', 'lineage'] as const) {
+        for (const markers of ['current', 'lineage'] as const) {
+          await setGuides(guides);
+          await setMarkers(markers);
+          await h.setCursor(2, 12);
+          await browser.pause(250);
+          expect(await geometrySnapshot()).toEqual(quiet);
+        }
+      }
     });
   });
 

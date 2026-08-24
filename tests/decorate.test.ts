@@ -342,6 +342,63 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
     expect(byLine.get(5)?.guideDepths).toEqual([0]);
   });
 
+  it('reports the list track for every shape a list can take', () => {
+    const depthsOf = (md: string) =>
+      computeLineGuides(parse(md)).map((f) => [
+        f.lineNumber,
+        [...f.guideDepths],
+        [...f.listGuideDepths],
+        f.isGapLine,
+      ]);
+
+    // A pure list: no non-list ancestor anywhere, so the whole hierarchy is on
+    // the list track and `guideDepths` stays empty throughout.
+    expect(depthsOf(['- one', '\t- two', '\t\t- three', ''].join('\n'))).toEqual([
+      [0, [], [], false],
+      [1, [], [0], false],
+      [2, [], [0, 1], false],
+      [3, [], [0, 1], true],
+    ]);
+
+    // Under a heading, both tracks are populated and neither absorbs the other.
+    expect(depthsOf(['# H', '', '- one', '\t- two', ''].join('\n'))).toEqual([
+      [0, [], [], false],
+      [1, [0], [], true],
+      [2, [0], [], false],
+      [3, [0], [1], false],
+      [4, [0], [1], true],
+    ]);
+
+    // A list attached to a paragraph sits one level deeper — the paragraph owns
+    // a guide on the non-list track, the items on the list track.
+    expect(depthsOf(['Para.', '- one', '\t- two', ''].join('\n'))).toEqual([
+      [0, [], [], false],
+      [1, [0], [], false],
+      [2, [0], [1], false],
+      [3, [0], [1], true],
+    ]);
+
+    // A multi-line item's continuation carries exactly what its first line does.
+    expect(depthsOf(['# H', '', '- one', '\t- two', '\t  still two', ''].join('\n'))).toEqual([
+      [0, [], [], false],
+      [1, [0], [], true],
+      [2, [0], [], false],
+      [3, [0], [1], false],
+      [4, [0], [1], false],
+      [5, [0], [1], true],
+    ]);
+
+    // A blank line between two items keeps both tracks, so a guide drawn from
+    // either does not break across the gap.
+    expect(depthsOf(['- one', '', '- two', '\t- child', ''].join('\n'))).toEqual([
+      [0, [], [], false],
+      [1, [], [], true],
+      [2, [], [], false],
+      [3, [], [0], false],
+      [4, [], [0], true],
+    ]);
+  });
+
   it('carries the list track through a non-list node that OWNS children', () => {
     // The shape the walk has to be right about and the parser does not
     // currently produce: a paragraph with children, inside a list chain.
@@ -727,22 +784,30 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
     });
   });
 
-  describe('list levels (native columns this layer cannot address)', () => {
-    it('runs the segment at the shallower non-list column, through the list levels', () => {
+  describe('list levels, now on the same grid as every other kind', () => {
+    // These three used to assert the opposite: that a list level got no
+    // segment, because it had no column this layer could address. That was
+    // `hierarchy-position-indicators`' stated omission, and
+    // `lists-on-the-outline-grid` closes it by putting every list level at
+    // `depth × unit`. They are kept, pointed the other way, so the change of
+    // contract is visible in the diff rather than silent.
+
+    it('steps one segment per ancestor, list levels included', () => {
       const md = ['# A', '', '- one', '  - two', '    - three', ''].join('\n');
       //           0      1    2        3          4
       const t = trail(md, 4, LINEAGE); // caret on the deepest list item
-      // A's own segment is the whole drawn path; the two list ancestors
-      // between A and the caret contribute no column of their own.
+      // A(0) hands over to one(1), one hands over to two(2), two arrives at the
+      // caret. Every rung draws, and the route is unbroken where it crosses
+      // from the heading into the list.
       expect(shape(t)).toEqual([
         [1, '0:full'],
-        [2, '0:full'],
-        [3, '0:full'],
-        [4, '0:top'],
+        [2, '0:top'],
+        [3, '1:top'],
+        [4, '2:top'],
       ]);
-      // Their MARKERS are still accented, though — a bullet is a real element
-      // at the real native column, so it needs none of the geometry the
-      // segments cannot address.
+      // The ancestor markers are accented as before — the bullets and the
+      // segments now describe the same levels rather than standing in for
+      // each other.
       expect(ancestors(t)).toEqual([
         [0, false],
         [2, true],
@@ -750,28 +815,40 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       ]);
     });
 
-    it('accents only the non-list ancestor in the guides style', () => {
+    it('accents every ancestor level in the guides style, list levels included', () => {
       const md = ['# A', '', '- one', '  - two', '    - three', ''].join('\n');
       const t = trail(md, 4, FULL);
       const depths = new Set(
         [...t.byLine.values()].flatMap((f) => f.accents.map((a) => a.depth)),
       );
-      expect([...depths]).toEqual([0]); // never 1 or 2, the list levels
+      expect([...depths].sort()).toEqual([0, 1, 2]);
     });
 
-    it('draws no segment anywhere in a pure list, in either style', () => {
+    it('draws the route inside a pure list, where there is no non-list ancestor at all', () => {
       const md = ['- one', '  - two', '    - three', ''].join('\n');
-      expect(trail(md, 2, FULL).byLine.size).toBe(0);
-      expect(trail(md, 2, LINEAGE).byLine.size).toBe(0);
-      // The current node is still reported — the marker accent needs it.
-      expect(trail(md, 2, LINEAGE).currentLine).toBe(2);
-      expect(trail(md, 2, LINEAGE).currentIsListItem).toBe(true);
+      //           0        1          2
+      const t = trail(md, 2, LINEAGE);
+      // one(0) hands over to two(1), two arrives at the caret. Nothing rendered
+      // here at all before: a pure list was the case the omission hurt most.
+      expect(shape(t)).toEqual([
+        [1, '0:top'],
+        [2, '1:top'],
+      ]);
+      expect(t.currentLine).toBe(2);
+      expect(t.currentIsListItem).toBe(true);
+
+      const full = trail(md, 2, FULL);
+      const depths = new Set(
+        [...full.byLine.values()].flatMap((f) => f.accents.map((a) => a.depth)),
+      );
+      expect([...depths].sort()).toEqual([0, 1]);
     });
 
-    it('still accents the ancestor bullets in a pure list, where no line can be drawn', () => {
+    it('accents the ancestor bullets in a pure list, alongside the segments', () => {
       const md = ['- one', '  - two', '    - three', ''].join('\n');
-      // This is the whole reason ancestor markers exist: with no non-list
-      // ancestor there is nothing to draw, yet the levels are still legible.
+      // Ancestor markers were the ONLY thing legible in a pure list while the
+      // segments were omitted. They stay: the bullet is the junction each
+      // segment arrives at, which is what replaced the elbows.
       expect(ancestors(trail(md, 2, LINEAGE))).toEqual([
         [0, true],
         [1, true],

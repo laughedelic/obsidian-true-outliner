@@ -175,12 +175,44 @@ function docFacts(state: EditorState): DocFacts {
 // box by exactly `--to-own-shift` units to reach any shallower ancestor's
 // column, with no measurement beyond the JS constants this module already
 // computes.
-const UNIT = 'var(--to-decor-unit, 1.5rem)';
+// No literal fallback: styles.css declares `--to-decor-unit` on `.cm-content`,
+// which is the single source. A fallback here would be a second copy of the
+// number, and the two would eventually disagree.
+const UNIT = 'var(--to-decor-unit)';
+
+/**
+ * A depth's COLUMN: the single x this layer positions everything at. A guide's
+ * visible centre, a marker's visible centre and an accent's visible centre are
+ * all this value, and every one of them derives it from here.
+ *
+ * Stated as a function rather than left to each call site because the three
+ * disagreed. Measured before this existed: a marker's centre sat at exactly
+ * `depth × unit` while a guide painted its 1px as `[column, column + 1]`, so
+ * every marker in the layer — bullets and block icons alike — was half a pixel
+ * left of the line it belongs to. Half a CSS pixel is a whole device pixel at
+ * 2x, and against a 1px line it reads. The lesson doc 11 draws from Experiment
+ * 5b's three near-identical bugs applies exactly: when two things must move
+ * together, make it impossible to change one without the other.
+ */
+function columnExpr(depth: number): string {
+  return `calc(${depth} * ${UNIT})`;
+}
+
+/**
+ * Where a stripe of width `w` must START for its own centre to land on
+ * `depth`'s column. Every painted stripe goes through this; nothing positions
+ * itself at the raw column and hopes.
+ */
+function stripeStartExpr(depth: number, width: string): string {
+  return `calc(${columnExpr(depth)} - ${width} / 2)`;
+}
+
+const GUIDE_WIDTH = '1px';
 
 function guideLayer(depth: number): string {
   return (
-    `repeating-linear-gradient(to right, var(--to-guide-color) 0 1px, transparent 1px ${UNIT}) ` +
-    `calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat`
+    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${GUIDE_WIDTH}, transparent ${GUIDE_WIDTH} ${UNIT}) ` +
+    `${stripeStartExpr(depth, GUIDE_WIDTH)} 0 / ${UNIT} 100% no-repeat`
   );
 }
 
@@ -229,7 +261,9 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
 function accentLayer(depth: number, extent: TrailExtent): string {
   const gradient = `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH})`;
   const height = extent === 'full' ? '100%' : 'var(--to-accent-stop, 50%)';
-  return `${gradient} calc(${depth} * ${UNIT}) top / ${UNIT} ${height} no-repeat`;
+  // Centred on the column through the same helper the plain guide uses, so an
+  // accent can never sit half a pixel off the guide it is brightening.
+  return `${gradient} ${stripeStartExpr(depth, TRAIL_WIDTH)} top / ${UNIT} ${height} no-repeat`;
 }
 
 /**
@@ -260,24 +294,25 @@ function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFa
 }
 
 /**
- * The guide depths a line actually draws, given how much of a list's geometry
- * outline mode has taken over (EXPERIMENTAL, see `ListLayout`).
+ * Every guide depth a line draws: the non-list ancestors the base layer has
+ * always covered, plus the list-item ancestors it used to withhold.
  *
- * Under `'own-guides'` the list-item ancestors the base layer deliberately
- * withholds are drawn by us instead. That is only correct because `'grid'`
- * (which `'own-guides'` includes) has already pushed `--list-indent` to our own
- * unit, so a list level at tree depth `d` renders at exactly `d * unit` — the
- * same column this gradient draws on. Without that, these layers would land on
- * columns the list does not use.
+ * The withholding was correct while a list level had no column this layer could
+ * address — Obsidian's own indent guides sat on columns our fixed unit did not
+ * match, so drawing ours alongside either doubled up or read as unevenly
+ * spaced. `lists-on-the-outline-grid` removes that premise: a list level at
+ * tree depth `d` now renders at exactly `d * unit`, the same column this
+ * gradient draws on, and the native line is suppressed on those lines.
+ *
+ * Sorted, not concatenated: the two tracks interleave. Inside
+ * heading > item > paragraph > item, a line below the inner item carries
+ * guideDepths [0, 2] and listGuideDepths [1, 3], and `LineGuideFact` documents
+ * both as ascending. Nothing in the rendering depends on the order — each depth
+ * paints at its own X — but a caller that reads the array should not have to
+ * know that.
  */
-function activeGuideDepths(guide: LineGuideFact, layout: ListLayout): readonly number[] {
-  if (layout !== 'own-guides' || guide.listGuideDepths.length === 0) return guide.guideDepths;
-  // Sorted, not concatenated: the two tracks interleave. Inside
-  // heading > item > paragraph > item, a line below the inner item carries
-  // guideDepths [0, 2] and listGuideDepths [1, 3], and `LineGuideFact` documents
-  // both as ascending. Nothing in the rendering depends on the order — each
-  // depth paints at its own X — but a caller that reads the array should not
-  // have to know that.
+function activeGuideDepths(guide: LineGuideFact): readonly number[] {
+  if (guide.listGuideDepths.length === 0) return guide.guideDepths;
   return [...guide.guideDepths, ...guide.listGuideDepths].sort((a, b) => a - b);
 }
 
@@ -560,7 +595,7 @@ function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: b
 // this one (which pulls in the real `obsidian` package for
 // `editorInfoField`).
 export type { MarkerVisibility } from './mode-registry';
-import type { ListBullet, ListLayout, MarkerVisibility } from './mode-registry';
+import type { MarkerVisibility } from './mode-registry';
 
 /** Anything that can supply decorations needs to say which notes are in
  * outline mode (ModeSource) and which nodes get a marker at all — a real
@@ -574,11 +609,6 @@ export interface DecorationSource extends ModeSource {
   readonly markerHighlight: MarkerHighlight;
   /** How much of the ancestor guides to accent, if any. */
   readonly guideHighlight: GuideHighlight;
-  /** How much of a list's own geometry outline mode takes over (EXPERIMENTAL,
-   * see `ListLayout`). */
-  readonly listLayout: ListLayout;
-  /** Where a list item's own marker sits (EXPERIMENTAL, see `ListBullet`). */
-  readonly listBullet: ListBullet;
 }
 
 const EMPTY_POSITION_TRAIL: PositionTrail = {
@@ -927,56 +957,29 @@ function plainOwnShiftExpr(fact: LineDecorationFact): string {
   return '0px'; // padding-left never shifts a block line's own box
 }
 
-/**
- * The classes that carry the experimental list-geometry layers. Applied to a
- * list-item line only, so both the outline-mode gate and the "lists only" gate
- * come from the decoration itself and the CSS needs no second condition.
- */
-function listLayoutClasses(layout: ListLayout, bullet: ListBullet): string {
-  let cls = '';
-  if (layout === 'native') return cls;
-  cls += ' to-list-grid';
-  if (layout === 'own-guides') cls += ' to-list-own-guides';
-  // The bullet column only exists once the grid does. Pulling a bullet onto
-  // `depth × unit` while the list is still stepping at Obsidian's own
-  // `--list-indent` puts it on a column nothing else in the document uses, so
-  // the combination is not offered even though the two settings are separate.
-  if (bullet === 'column') cls += ' to-list-bullet-column';
-  return cls;
-}
-
 function lineDecoration(
   fact: LineDecorationFact,
   depths: readonly number[],
   trail: PositionTrail,
   markerAccent: boolean,
-  modes: DecorationSource,
 ): Decoration {
   const styles: string[] = [];
   let cls: string;
 
   if (fact.isListItem) {
-    const listClasses = listLayoutClasses(modes.listLayout, modes.listBullet);
-    cls = 'to-decor-list' + listClasses;
+    cls = 'to-decor-list';
     styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
-    // Everything below is read only by the EXPERIMENTAL list-grid rules, so it
-    // is published only when those are on. `outline-decorations` still requires
-    // a pure list to render byte-identical to outline-mode-off, and its e2e
-    // guard compares the custom properties themselves — a variable nothing on
-    // the line reads is still a difference by that measure. Publishing them
-    // unconditionally broke that test, which is the requirement doing its job.
-    if (listClasses !== '') {
-      // The item's own tree depth as well as its list root's: the two together
-      // are the item's depth WITHIN its list, which is how far its own rendered
-      // indentation carries it right of the line box.
-      styles.push(`--to-depth: ${fact.depth}`);
-      // The gutter too, even though a list line reserves none of its own: the
-      // marker span is sized to it, so without this the CSS falls back to a
-      // literal that has to be kept equal to `MARKER_GUTTER_CSS` by hand. One
-      // number, one source — a list item's native marker occupies the same
-      // gutter every other kind's marker does.
-      styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
-    }
+    // The item's own tree depth as well as its list root's: the difference is
+    // the item's depth WITHIN its list, which is how far Obsidian's own list
+    // rendering carries it right of the line box, and therefore what the
+    // stated hanging indent has to account for.
+    styles.push(`--to-depth: ${fact.depth}`);
+    // The gutter too, even though a list line reserves none of its OWN: its
+    // native marker occupies the same gutter every other kind's marker does,
+    // and the rules that size the marker span and state the hang both read it.
+    // Publishing it here rather than falling back to a literal in the CSS keeps
+    // `MARKER_GUTTER_CSS` the single source.
+    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
@@ -1036,7 +1039,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const from = state.doc.line(guide.lineNumber + 1).from; // CM6 lines are 1-indexed
     const lineTrail = trail.byLine.get(guide.lineNumber);
     const fact = factsByLine.get(guide.lineNumber);
-    const depths = activeGuideDepths(guide, modes.listLayout);
+    const depths = activeGuideDepths(guide);
     if (guide.isGapLine && !fact) {
       if (!hasOverlay(depths, lineTrail)) continue; // nothing to draw
       builder.add(from, from, gapLineDecoration(depths, lineTrail));
@@ -1046,7 +1049,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     builder.add(
       from,
       from,
-      lineDecoration(fact, depths, trail, modes.markerHighlight !== 'off', modes),
+      lineDecoration(fact, depths, trail, modes.markerHighlight !== 'off'),
     );
   }
   return builder.finish();
@@ -2253,7 +2256,7 @@ class MarginCompensation implements PluginValue {
 
         const guide = guidesByLine.get(lineNumber);
         const lineTrail = trail.byLine.get(lineNumber);
-        const depths = guide ? activeGuideDepths(guide, this.modes.listLayout) : [];
+        const depths = guide ? activeGuideDepths(guide) : [];
         if (guide && hasOverlay(depths, lineTrail)) {
           el.classList.add('to-decor-guides');
           el.style.setProperty('--to-guides', guideBackground(depths, lineTrail));

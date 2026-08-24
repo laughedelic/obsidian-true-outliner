@@ -676,17 +676,21 @@ export function computePositionTrail(
     // `computeLineGuides` gives that depth, including the gap lines it
     // deliberately covers for continuity.
     for (const a of ancestors) {
-      if (a.isListItem) continue;
       for (let line = a.ownEnd + 1; line <= a.subtreeEnd; line++) {
         push(byLine, line, { depth: a.depth, extent: 'full' });
       }
     }
   } else if (highlight.guides === 'lineage') {
-    // Only non-list ancestors own a column to draw a segment on; the current
-    // node is always the terminal, whatever its kind.
-    const rungs = [...ancestors.filter((a) => !a.isListItem), currentNode];
+    // EVERY ancestor is a rung, list items included. They were excluded while
+    // a list level had no column this layer could address — the omission
+    // `hierarchy-position-indicators` used to state as a requirement, and the
+    // reason the trail simply stopped at the last non-list ancestor. Since
+    // `lists-on-the-outline-grid` puts a list level at `depth × unit` like
+    // every other kind, the column exists and the route runs unbroken into the
+    // list.
+    const rungs = [...ancestors, currentNode];
     for (let i = 0; i < rungs.length - 1; i++) {
-      const from = rungs[i]!; // never a list item: only the terminal can be one
+      const from = rungs[i]!;
       const to = rungs[i + 1]!;
       // Starts at `ownEnd + 1`, the SAME row `'full'` starts on: a node's guide
       // does not exist on its own rows at all (`computeLineGuides`), so
