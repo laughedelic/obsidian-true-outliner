@@ -51,6 +51,12 @@
       "wider than the gutter" reason for not centring was measured false — 16px against a 20px
       gutter. See design D5.)
 - [x] 3.6 Set the bullet weight to `0.38em`, colour token unchanged.
+- [x] 3.8 Bring an ordered number onto the column too, by a fixed half-gutter shift rather than
+      half its own width (which leaves no room for the fold chevron), so a single digit centres
+      exactly and every number in a list shares one left edge.
+- [x] 3.9 Move the fold chevron off the marker it belongs to: Obsidian renders it with its right
+      edge on the content origin, which is now the marker's own centre. `--list-bullet-end-padding`
+      is not the lever — measured at three values, the glyph never moved (design D8).
 - [x] 3.7 Suppress Obsidian's own list-guide line on those lines — its width only, never the
       user's "Show indentation guides" setting — and include the list-ancestor depths in the
       gradient so our guide draws every level exactly once.

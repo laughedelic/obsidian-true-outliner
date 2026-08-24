@@ -183,6 +183,57 @@
   min-width: var(--to-marker-gutter);
 }
 
+/*
+ * An ordered item's number is a node marker like any other, so it centres on
+ * the column too. It cannot do that by shrinking its box the way a bullet does
+ * — the glyphs ARE the mark, and their width is the font's and the number's —
+ * so the box keeps its layout position (text stays at `column + gutter`) and
+ * the painted glyphs are shifted half their own width left. `transform` is what
+ * makes that free: it moves the ink without moving anything around it.
+ *
+ * The shift is half the GUTTER, not half the number's own width. Centring each
+ * number on its own width was tried and measured: `1. ` centres exactly, but
+ * `10. ` reaches 14px left of the column and `100. ` 19px, and nothing is left
+ * for the fold chevron, which needs ~10px on that side and cannot go further
+ * without crossing the parent level's guide. A fixed shift centres a
+ * single-digit marker exactly, leans wider ones right — into their own text's
+ * space, which `min-width` has already accounted for — and gives every number
+ * in a list ONE left edge, which reads as a column rather than as ragged
+ * centring.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-decor-list:not(.HyperMD-task-line)
+  .cm-formatting-list-ol {
+  transform: translateX(calc(var(--to-marker-gutter) / -2));
+}
+
+/*
+ * Obsidian's fold chevron on a list line renders with its right edge ON the
+ * item's own content origin — which, now that a marker is CENTRED on the column
+ * rather than starting right of it, is straight through that marker: measured,
+ * the glyph occupies [column-10, column] while a bullet's dot occupies
+ * [column-3, column+3].
+ *
+ * `--list-bullet-end-padding` looks like the lever and is not: raising it grows
+ * the indicator's box to the right (its `inset-inline-end` compensates by
+ * exactly as much), leaving the glyph where it was. Measured at 1.3rem, 2rem
+ * and 2.6rem — the glyph stayed at [14, 24] in all three.
+ *
+ * So the glyph is moved directly. It is absolutely positioned, so a transform
+ * moves the ink and disturbs no layout. Half a gutter clears the widest centred
+ * mark (a checkbox, half of it 8px) and 2px more keeps it off the ordered
+ * marker's own left edge, while staying clear of the parent level's guide one
+ * unit away.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-decor-list
+  .cm-fold-indicator
+  .collapse-indicator {
+  transform: translateX(calc(var(--to-marker-gutter) / -2 - 2px));
+}
+
 /* A zero-width bullet box centres its own `::after` — which is where the dot
  * actually lives — on the box's start edge, i.e. exactly on the column. The
  * `-`/`*`/`+` character inside is already transparent, so letting it overflow

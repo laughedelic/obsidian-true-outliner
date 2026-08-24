@@ -25,6 +25,10 @@ interface LineGeometry {
   textX: number | null;
   wrapX: number | null;
   markerX: number | null;
+  /** Left/right of the marker run, for the kinds whose mark is its glyphs. */
+  markerBox: { l: number; r: number } | null;
+  /** Left/right of the fold chevron's own glyph, when one renders. */
+  foldGlyph: { l: number; r: number } | null;
   nativeGuideWidth: string | null;
 }
 
@@ -100,6 +104,12 @@ function geometry(): Promise<LineGeometry[]> {
         markerX = +(r.left - cb.left + r.width / 2).toFixed(2);
       }
 
+      const boxOf = (sel: string) => {
+        const e = el.querySelector(`:scope ${sel}`);
+        if (!e) return null;
+        const r = e.getBoundingClientRect();
+        return { l: +(r.left - cb.left).toFixed(2), r: +(r.right - cb.left).toFixed(2) };
+      };
       const indents = Array.from(el.querySelectorAll(':scope .cm-indent'));
       out.push({
         n,
@@ -110,6 +120,8 @@ function geometry(): Promise<LineGeometry[]> {
         textX: rows.length ? rows[0]! : null,
         wrapX: rows.length > 1 ? rows[1]! : null,
         markerX,
+        markerBox: boxOf('.cm-formatting-list-ol') ?? boxOf('.task-list-item-checkbox'),
+        foldGlyph: boxOf('.cm-fold-indicator .collapse-indicator'),
         nativeGuideWidth: indents.length
           ? getComputedStyle(indents[0]!, '::before').borderInlineEndWidth
           : null,
@@ -237,6 +249,45 @@ describe('lists on the outline grid', function () {
     expect(task.markerX).toBeCloseTo(bullet.markerX!, 1);
     expect(task.markerX).toBeCloseTo(bullet2.markerX!, 1);
     expect(task.markerX).toBeCloseTo(task.column, 1);
+  });
+
+  it('gives an ordered list one left edge, with a single digit centred on the column', async function () {
+    // A number's mark is its glyphs, so it cannot shrink its box onto the
+    // column the way a bullet does. It is shifted by half the GUTTER instead of
+    // half its own width: one digit centres exactly, wider ones lean right into
+    // the space their own text already reserves, and all share a left edge.
+    const rows = await open(
+      ['# H', '', '1. first', '9. ninth', '10. tenth', '100. hundredth', ''].join('\n'),
+    );
+    const numbers = [2, 3, 4, 5].map((n) => at(rows, n));
+    const lefts = numbers.map((r) => r.markerBox!.l);
+    for (const l of lefts) expect(l).toBeCloseTo(lefts[0]!, 1);
+
+    const single = numbers[0]!;
+    const centre = (single.markerBox!.l + single.markerBox!.r) / 2;
+    expect(centre).toBeCloseTo(single.column, 1);
+
+    // and none of them reaches into its own text
+    for (const row of numbers) expect(row.markerBox!.r).toBeLessThanOrEqual(row.textX! + 0.5);
+  });
+
+  it('keeps a fold chevron clear of the marker and of the parent guide', async function () {
+    // The chevron renders with its right edge on the item's content origin,
+    // which is now the marker's own centre rather than a point to its left, so
+    // it overlapped every centred mark. `--list-bullet-end-padding` is not the
+    // lever (it grows the box rightward and the inset compensates); the glyph
+    // is moved directly.
+    const rows = await open(
+      ['# H', '', '- a bullet', '\t- child', '- [ ] a task', '\t- child', ''].join('\n'),
+    );
+    const foldable = rows.filter((r) => r.foldGlyph !== null && r.markerX !== null);
+    expect(foldable.length).toBeGreaterThan(0);
+    for (const row of foldable) {
+      // Clear of the mark: a checkbox is the widest centred one, half of it 8px.
+      expect(row.foldGlyph!.l).toBeLessThan(row.column - 8);
+      // and clear of the parent level's guide, one unit further left.
+      expect(row.foldGlyph!.l).toBeGreaterThanOrEqual(row.column - UNIT);
+    }
   });
 
   it('pushes a wide ordered marker’s own text out rather than crossing the column', async function () {

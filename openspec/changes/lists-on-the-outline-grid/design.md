@@ -146,9 +146,31 @@ against a 20px gutter. Nothing was stopping it centring, and starting it there i
 real use reported, a checkbox sitting nearer its text than the bullets above and below it in a
 mixed list.
 
-A wide ordered marker genuinely can exceed the gutter (`10. ` measures 28px), so centring it
-would push it left of the column its own text has to clear. That one, and only that one, still
-starts on its column.
+An ordered number takes the column too, with one qualification. Its mark IS its glyphs, so it
+cannot shrink its box the way a bullet does; instead the painted glyphs are shifted left by a
+fixed half-gutter with `transform`, which moves the ink without moving the box its own text
+follows. A single digit therefore centres on the column exactly, wider numbers lean right into
+the space `min-width` already reserves, and every number in a list shares one left edge.
+
+Shifting each number by half its OWN width was built first and measured out: it centres them
+all, but `10. ` then reaches 14px left of the column and `100. ` 19px, leaving nothing for the
+fold chevron, which needs about 10px on that side and cannot go further without crossing the
+parent level's guide one unit away.
+
+### D8 — The fold chevron moves off the marker
+
+Obsidian renders a list line's fold chevron with its right edge on the item's content origin.
+That was harmless while a marker began to the RIGHT of that origin; now that markers are
+centred ON it, the chevron sits straight through them — measured, the glyph occupies
+`[column − 10, column]` while a bullet's dot occupies `[column − 3, column + 3]`.
+
+`--list-bullet-end-padding` is the obvious lever and does nothing: raising it grows the
+indicator's box to the right while its own `inset-inline-end` compensates by the same amount,
+so the glyph does not move. Measured at 1.3rem, 2rem and 2.6rem — the glyph stayed put in all
+three. So the glyph is translated directly; it is absolutely positioned, so nothing else moves.
+Half a gutter clears the widest centred mark (a checkbox, half of it 8px) and two pixels more
+keep it off an ordered marker's left edge, while staying inside the unit between this column
+and the parent's guide.
 
 ### D6 — One column definition, shared by markers, guides and accents
 

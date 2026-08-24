@@ -125,10 +125,15 @@ every synthetic block marker, an unordered list item's native bullet, and a task
 checkbox — a checkbox is the same kind of mark as a bullet and takes the column the same way,
 whatever its own width. Its width and hit area SHALL NOT be changed to achieve that.
 
-ONE marker is excluded, because it can be wider than the marker gutter and centring it would
-put it left of the column its own text has to clear: an ordered item's number. It SHALL
-instead START at its own depth column, SHALL NOT render left of it, and SHALL push its own
-text out rather than overlap it.
+An ordered item's number is positioned by the same rule with one qualification, because its
+mark IS its glyphs and their width is the font's and the number's: it SHALL be shifted onto the
+column by a fixed amount — half the marker gutter — rather than by half its own width. A
+single-digit number therefore centres on the column exactly, and a wider one leans right of it,
+into the space its own text already reserves. Every number in a list SHALL share one left edge.
+
+Shifting each number by half its OWN width is explicitly rejected: it centres every number but
+reaches so far left that no fold chevron can fit beside it without crossing the parent level's
+guide (measured, `100. ` reaches 19px left of its column against a parent guide 24px away).
 
 A marker's VERTICAL placement SHALL follow one rule across kinds — including the two excluded
 above: a marker SHALL sit at the same position relative to its own node's first text row
@@ -151,6 +156,18 @@ whatever the node's kind, so markers on adjacent rows read as one column.
 - **WHEN** an ordered list contains both single- and double-digit items
 - **THEN** every marker starts at its own depth column, and the wider one pushes its own text
   right rather than overlapping it or crossing the column
+
+#### Scenario: An ordered list's numbers share a left edge, with a single digit on the column
+
+- **WHEN** an ordered list contains single- and multi-digit items
+- **THEN** every number starts at the same column, a single-digit number's own centre is on the
+  depth column, and no number overlaps its own item's text
+
+#### Scenario: A fold chevron does not overlap the marker it belongs to
+
+- **WHEN** a list item has children, so Obsidian renders its fold chevron
+- **THEN** the chevron renders clear of that item's own marker, and clear of the parent level's
+  guide column
 
 #### Scenario: A checkbox and a bullet in one list share a column
 
