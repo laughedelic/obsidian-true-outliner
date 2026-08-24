@@ -188,16 +188,26 @@
  * `-`/`*`/`+` character inside is already transparent, so letting it overflow
  * costs nothing visually. */
 /*
- * A task line's marker is a checkbox, not a bullet: a real control with its own
- * width and hit area, which this layer does not resize. It still owes the
- * column. Natively it starts 7.33px right of it — the label's own -4px and the
- * input's own 11.33px inline-start margins, measured — which put a checkbox off
- * the grid every bullet beside it is on.
+ * A task line's marker is a checkbox, not a bullet, but it is the same THING —
+ * the mark that stands for the node — so it takes the same column, CENTRED on
+ * it exactly as a bullet's dot is. Natively it starts 7.33px right of the
+ * column (the label's own -4px and the input's own inline-start margin,
+ * measured), which in a mixed list puts a checkbox visibly nearer its text than
+ * the bullets above and below it.
  *
- * Zeroing both starts the control exactly on the column, and sizing the LABEL to
- * the marker gutter puts the item's text at `column + gutter`, the same text
- * column every other kind uses. The checkbox's own width and therefore its hit
- * area are untouched.
+ * Zeroing both margins and then pulling the control back by half its own width
+ * centres it. `--checkbox-size` is Obsidian's own variable for that width, so
+ * this follows a theme that resizes the control instead of assuming 16px.
+ * Sizing the LABEL to the marker gutter keeps the item's text at
+ * `column + gutter`, the same text column every other kind uses; the control's
+ * own width, and therefore its hit area, is untouched.
+ *
+ * An earlier version of this rule started the checkbox on the column instead,
+ * on the stated grounds that a checkbox is "wider than the gutter". Measured,
+ * it is not — 16px against a 20px gutter — so there was never anything stopping
+ * it centring, and starting it there was the misalignment reported from real
+ * use. A wide ordered marker genuinely can exceed the gutter (`10. ` measures
+ * 28px), which is why that one, and only that one, still starts on its column.
  */
 .markdown-source-view.mod-cm6
   .cm-content
@@ -216,7 +226,8 @@
   .cm-content
   > .cm-line.to-decor-list.HyperMD-task-line
   .task-list-item-checkbox {
-  margin-inline-start: 0;
+  /* Half its own width back from the column, so its centre lands on it. */
+  margin-inline-start: calc(var(--checkbox-size) / -2);
 }
 
 .markdown-source-view.mod-cm6

@@ -119,14 +119,16 @@ Every layer that positions something at a depth's column — the guide gradient,
 offset, and any accent drawn on either — SHALL derive that column from ONE definition, so no
 two of them can be changed independently.
 
-A marker whose width this layer controls SHALL have its visible centre on that column, so the
+Every marker that stands for a node SHALL have its visible centre on that column, so the
 visible centre of a guide line and the visible centre of the marker on it coincide. That is
-every synthetic block marker and an unordered list item's native bullet.
+every synthetic block marker, an unordered list item's native bullet, and a task item's
+checkbox — a checkbox is the same kind of mark as a bullet and takes the column the same way,
+whatever its own width. Its width and hit area SHALL NOT be changed to achieve that.
 
-Two native markers are explicitly EXCLUDED from the centring rule, because their width is not
-this layer's to set: an ordered item's number, which can be wider than the marker gutter, and
-a task item's checkbox, which is a control with its own hit area. Each SHALL instead START at
-its own depth column, and SHALL NOT render left of it or overlap the item's own text.
+ONE marker is excluded, because it can be wider than the marker gutter and centring it would
+put it left of the column its own text has to clear: an ordered item's number. It SHALL
+instead START at its own depth column, SHALL NOT render left of it, and SHALL push its own
+text out rather than overlap it.
 
 A marker's VERTICAL placement SHALL follow one rule across kinds — including the two excluded
 above: a marker SHALL sit at the same position relative to its own node's first text row
@@ -150,11 +152,11 @@ whatever the node's kind, so markers on adjacent rows read as one column.
 - **THEN** every marker starts at its own depth column, and the wider one pushes its own text
   right rather than overlapping it or crossing the column
 
-#### Scenario: A task checkbox starts on the column
+#### Scenario: A checkbox and a bullet in one list share a column
 
-- **WHEN** a task item and an unordered item sit at the same tree depth
-- **THEN** the checkbox starts at the same column the bullet is centred on, and sits at the
-  same offset from its own first text row
+- **WHEN** a list contains both task items and plain items
+- **THEN** every marker's visible centre is on the same column, so no item's mark sits nearer
+  its own text than its neighbours' do
 
 ## MODIFIED Requirements
 

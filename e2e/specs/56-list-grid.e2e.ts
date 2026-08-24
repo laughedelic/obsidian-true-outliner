@@ -96,7 +96,8 @@ function geometry(): Promise<LineGeometry[]> {
         const r = icon.getBoundingClientRect();
         markerX = +(r.left - cb.left + r.width / 2).toFixed(2);
       } else if (checkbox) {
-        markerX = +(checkbox.getBoundingClientRect().left - cb.left).toFixed(2);
+        const r = checkbox.getBoundingClientRect();
+        markerX = +(r.left - cb.left + r.width / 2).toFixed(2);
       }
 
       const indents = Array.from(el.querySelectorAll(':scope .cm-indent'));
@@ -209,15 +210,12 @@ describe('lists on the outline grid', function () {
     expect(row.textX! - row.column).toBeCloseTo(GUTTER, 1);
   });
 
-  it('starts a task checkbox on its own column, never left of it or over its text', async function () {
-    // What the spec asks of the two markers whose width is NOT this layer's to
-    // set (a checkbox, and a wide ordered number): start ON the column, never
-    // left of it, never overlapping the item's own text. NOT a fixed text
-    // column — the label is `min-width`, so a control wider than the gutter
-    // pushes its own text out, which is the designed behaviour. A checkbox's
-    // intrinsic width is platform-dependent (measured 20.00 on macOS, 20.33
-    // under mobile emulation), so asserting the gutter exactly here failed on
-    // everything but the machine it was written on.
+  it('centres a task checkbox on its own column, with its text at the gutter', async function () {
+    // A checkbox is the same kind of node marker a bullet is, so it takes the
+    // column the same way — centred, not merely started there. The text column
+    // is a range rather than a pixel: the label is `min-width`, so content
+    // wider than the gutter legitimately pushes text out, and a control's
+    // intrinsic width is the platform's, not this layer's.
     const rows = await open(['# H', '', '- [ ] open', '\t- [x] done', ''].join('\n'));
     for (const n of [2, 3]) {
       const row = at(rows, n);
@@ -225,6 +223,20 @@ describe('lists on the outline grid', function () {
       expect(row.textX! - row.column).toBeGreaterThanOrEqual(GUTTER);
       expect(row.textX! - row.column).toBeLessThan(GUTTER + 8);
     }
+  });
+
+  it('centres a checkbox on the same column as the bullets around it', async function () {
+    // Reported from real use: in a MIXED list a checkbox sat nearer its text
+    // than the bullets above and below it, because it STARTED on the column
+    // while they centred on it. Same node marker, same treatment.
+    const rows = await open(
+      ['# H', '', '- a bullet', '- [ ] a task', '- another bullet', ''].join('\n'),
+    );
+    const [bullet, task, bullet2] = [at(rows, 2), at(rows, 3), at(rows, 4)];
+    expect(task.column).toBe(bullet.column);
+    expect(task.markerX).toBeCloseTo(bullet.markerX!, 1);
+    expect(task.markerX).toBeCloseTo(bullet2.markerX!, 1);
+    expect(task.markerX).toBeCloseTo(task.column, 1);
   });
 
   it('pushes a wide ordered marker’s own text out rather than crossing the column', async function () {

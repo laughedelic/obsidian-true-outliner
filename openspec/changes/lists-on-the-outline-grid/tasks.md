@@ -45,10 +45,11 @@
       sized to the gutter with `min-width`. Exclude task lines from CENTRING — a checkbox is
       wider than the gutter and is a click target — and scope every rule that implements the
       exclusion the same way, so it is stated once rather than holding by accident.
-- [x] 3.5 Bring a task checkbox's START onto its own depth column (measured today at 7.33px
-      right of it) without changing its width or hit area, and verify the hit area by clicking
-      it, not only by measuring it. If that proves unsafe, amend the requirement deliberately
-      with the measurement rather than leaving spec and design disagreeing (design D5).
+- [x] 3.5 CENTRE a task checkbox on its own depth column, like the bullet it sits among,
+      without changing its width or hit area. (Landed first as "start on the column", which
+      real use reported as a checkbox sitting nearer its text than the bullets around it; the
+      "wider than the gutter" reason for not centring was measured false — 16px against a 20px
+      gutter. See design D5.)
 - [x] 3.6 Set the bullet weight to `0.38em`, colour token unchanged.
 - [x] 3.7 Suppress Obsidian's own list-guide line on those lines — its width only, never the
       user's "Show indentation guides" setting — and include the list-ancestor depths in the

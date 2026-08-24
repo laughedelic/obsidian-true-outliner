@@ -133,18 +133,22 @@ therefore START on the column instead of centring on it, and an item numbered pa
 text slightly further right than its siblings. Right-aligning numbers into the gutter would
 read better but needs a wrapper element the DOM does not provide.
 
-Task lines are excluded from the CENTRING rule for the same reason — the checkbox is wider than
-the gutter and is a real click target — but not from the column. Measured on the demo build, a
-checkbox starts 7.33px right of its own depth column (55.33 against 48) while the bullets beside
-it are centred on it, which is the same "marker is not on the grid" mismatch this change exists
-to remove, just at a smaller amplitude. So the checkbox is brought to START on the column, with
-its own width and hit area untouched.
+A task checkbox is CENTRED on the column like a bullet, pulled back half its own width with
+`margin-inline-start: calc(var(--checkbox-size) / -2)` — Obsidian's own variable for that
+width, so a theme that resizes the control is followed rather than assumed away. Its width and
+hit area are untouched.
 
-An earlier draft of this decision said tasks keep native geometry outright, which contradicted
-the requirement it was supposed to implement. If bringing the checkbox onto the column turns out
-to move its hit area or fight Obsidian's own checkbox chrome, the answer is to amend the
-requirement deliberately — with the measurement that forced it — not to leave the two
-disagreeing.
+Two earlier drafts of this decision were wrong, in opposite directions. The first said task
+lines keep native geometry outright, which contradicted the requirement it was meant to
+implement. The second brought the checkbox's START onto the column but excluded it from
+centring, justified as "the checkbox is wider than the gutter" — measured, it is not: 16px
+against a 20px gutter. Nothing was stopping it centring, and starting it there is exactly what
+real use reported, a checkbox sitting nearer its text than the bullets above and below it in a
+mixed list.
+
+A wide ordered marker genuinely can exceed the gutter (`10. ` measures 28px), so centring it
+would push it left of the column its own text has to clear. That one, and only that one, still
+starts on its column.
 
 ### D6 — One column definition, shared by markers, guides and accents
 
