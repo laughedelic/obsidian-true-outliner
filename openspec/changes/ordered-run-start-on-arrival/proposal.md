@@ -82,13 +82,20 @@ None.
 
 ### Modified Capabilities
 
-- `structural-operations`, one requirement: "Ordered-run renumbering". Its two shape-dependent
+- `structural-operations`, two requirements.
+
+  "Ordered-run renumbering": its two shape-dependent
   branches become one rule over all shapes, and the qualification the removal branch already
   carries ("the first one present beforehand, not the first one positionally") becomes the
   whole of it. The requirement's other clauses — marker width carrying the subtree, joined runs
   taking the earlier start, renumbering as closure's one documented exception — are unchanged
   in substance; the joined-run clause stops being a removal-only special case and follows from
   the general rule.
+
+  "A new first child adopts the child scope's list style": it defers to "the insertion half of
+  the renumbering contract above", a half that stops existing here. Its behavior is unchanged —
+  a new ordered first child still takes the run's start and pushes the rest down — but the
+  sentence has to name the single rule instead of one of two branches, or it points at nothing.
 
 ## Impact
 

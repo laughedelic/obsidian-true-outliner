@@ -167,3 +167,40 @@ renumbers only the members that follow what moved.
   is already consecutive from its own start
 - **THEN** no ordered item positioned above every node the operation relocates — the operand,
   and for a reorder the sibling it swaps with — has its marker rewritten
+
+### Requirement: A new first child adopts the child scope's list style
+Where an operation materializes a node in a parent's CHILD scope and that scope's kind
+resolves to `list-item` because an existing child donated it, the new node SHALL take that
+donor's LIST STYLE as well as its kind — bullet character, ordered delimiter, and an
+unchecked task marker where the donor carries one. It SHALL NOT be encoded as a plain
+bullet when the donor is an ordered item.
+
+The kind and the style come from the same donor because they answer the same question: the
+new node is joining a list that is already there. Taking only the kind produced a bullet at
+the head of an ordered run — the same key writing `1. ` beside an item and `- ` above it,
+which is the shape-dependence the empty-position rule exists to remove.
+
+A new ordered first child SHALL take the run's start number, and the existing items SHALL
+renumber after it. The start is the one the existing children already carry, which is what
+the renumbering contract above reads off the list as it was — the new node was not in it.
+
+#### Scenario: An empty position at the end of a heading above an ordered list
+- **WHEN** `splitNode` acts at the content end of `# H` whose children are `1. a` / `2. b`
+- **THEN** the new first child is `1. ` and the existing items become `2. a` and `3. b`
+
+#### Scenario: The donor's delimiter and bullet character carry over
+- **WHEN** the donating child is `1) a`, or `* a`
+- **THEN** the new first child is `1) `, or `* ` — not `- `
+
+#### Scenario: A run that does not start at one
+- **WHEN** the donating children are `5. a` / `6. b`
+- **THEN** the new first child is `5. ` and the existing items become `6. a` and `7. b`
+
+#### Scenario: A task donor
+- **WHEN** the donating child is `- [x] a`
+- **THEN** the new first child is `- [ ] ` — the same unchecked carry-over a new SIBLING
+  item already makes
+
+#### Scenario: A bullet list is unaffected
+- **WHEN** the donating children are plain `- ` items
+- **THEN** the new first child is `- `, exactly as before
