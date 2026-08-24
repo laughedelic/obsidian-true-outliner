@@ -465,6 +465,42 @@ describe('sibling reordering', () => {
     expectReject(moveUp, '- a\n- b\n', '- a', 'no-sibling-above');
     expectReject(moveDown, '- a\n- b\n', '- b', 'no-sibling-below');
   });
+
+  // A list item whose preceding sibling is a paragraph is that paragraph's
+  // CHILD at section level, so the arrangement a swap would produce there has
+  // no encoding. A reorder recomputes no node's kind, which leaves refusing as
+  // the only outcome available to it. Pinned by the REASON rather than by the
+  // text: the defect these guard against emitted perfectly valid markdown that
+  // simply meant a different tree.
+  describe('a swap that would leave a list item after a paragraph', () => {
+    it('refuses to move a list item down past a paragraph', () => {
+      expectReject(moveDown, '- a\n- b\n\nP\n', '- b', 'reorder-not-expressible');
+    });
+
+    it('refuses to move a paragraph up above a list item', () => {
+      // The subject keeps its own depth here — it is `- a`, which the caller
+      // never selected, that would be absorbed.
+      expectReject(moveUp, '- a\n\nP\n', 'P', 'reorder-not-expressible');
+    });
+
+    it('refuses when the paragraph already owns a list', () => {
+      expectReject(moveDown, '- L0\n- L1\n\nL2\n- L3\n', '- L1', 'reorder-not-expressible');
+    });
+
+    it('refuses a displaced atom’s neighbour just as readily', () => {
+      // The subject is the fence; `- a` is displaced into the slot behind the
+      // paragraph, which is the half a subject-only check cannot see.
+      expectReject(moveDown, 'P\n\n```\nx\n```\n\n- a\n', '```', 'reorder-not-expressible');
+    });
+
+    it('allows the same swap among a list item’s own children', () => {
+      // Section level is the whole of the rule's reach: inside an item, the
+      // enclosing item owns the list stack and a paragraph adopts nothing.
+      const { doc, text } = applyOk(moveDown, '- P\n  - A\n\n  txt\n', '  - A');
+      expect(text).toBe('- P\n\n  txt\n\n  - A\n');
+      expect(parentLineOf(doc, '  - A')).toBe('- P');
+    });
+  });
 });
 
 describe('list item unwrap', () => {

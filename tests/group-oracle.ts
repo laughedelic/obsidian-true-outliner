@@ -218,6 +218,15 @@ export function isReorder(op: GroupOpName): boolean {
  * that shape: 49 of 49, always with the composition losing the order and the
  * group form keeping it. So the group forms are not approximating the
  * composition here, they are strictly better defined than it.
+ *
+ * Since `reorder-absorption`, this filters NOTHING. A reorder now refuses the
+ * arrangement that made an intermediate unrepresentable, and it refuses it per
+ * step, so both sides of the equality reject together and no accepted case
+ * reaches the reordered outcome above. It stays because it states the
+ * precondition the equality property actually depends on: retiring it would
+ * leave the property looking unconditional when it is not, and it becomes
+ * load-bearing again the moment the mapping question at Q34 is answered
+ * differently.
  */
 export function compositionKeptRootOrder(
   doc: OutlineDoc,
