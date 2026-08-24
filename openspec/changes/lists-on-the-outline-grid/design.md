@@ -149,8 +149,11 @@ mixed list.
 An ordered number takes the column too, with one qualification. Its mark IS its glyphs, so it
 cannot shrink its box the way a bullet does; instead the painted glyphs are shifted left by a
 fixed half-gutter with `transform`, which moves the ink without moving the box its own text
-follows. A single digit therefore centres on the column exactly, wider numbers lean right into
-the space `min-width` already reserves, and every number in a list shares one left edge.
+follows. A number whose glyphs fit inside the gutter therefore centres on the column, wider
+ones lean right into the space `min-width` already reserves, and every number in a list shares
+one left edge. Which numbers centre exactly is the font's business — `1. ` measures 18.4px in
+the bundled theme on macOS and 20.36px on CI's Linux font, so the lean starts one digit earlier
+there. The rule is the fixed shift; the centring is its consequence.
 
 Shifting each number by half its OWN width was built first and measured out: it centres them
 all, but `10. ` then reaches 14px left of the column and `100. ` 19px, leaving nothing for the

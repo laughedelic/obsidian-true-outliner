@@ -128,8 +128,10 @@ whatever its own width. Its width and hit area SHALL NOT be changed to achieve t
 An ordered item's number is positioned by the same rule with one qualification, because its
 mark IS its glyphs and their width is the font's and the number's: it SHALL be shifted onto the
 column by a fixed amount — half the marker gutter — rather than by half its own width. A
-single-digit number therefore centres on the column exactly, and a wider one leans right of it,
-into the space its own text already reserves. Every number in a list SHALL share one left edge.
+number whose glyphs fit within the gutter therefore centres on the column, and a wider one
+leans right of it into the space its own text already reserves — how wide "wide" is depends on
+the font, so which numbers centre exactly is not fixed. Every number in a list SHALL share one
+left edge, and none SHALL overlap its own item's text.
 
 Shifting each number by half its OWN width is explicitly rejected: it centres every number but
 reaches so far left that no fold chevron can fit beside it without crossing the parent level's
@@ -160,8 +162,9 @@ whatever the node's kind, so markers on adjacent rows read as one column.
 #### Scenario: An ordered list's numbers share a left edge, with a single digit on the column
 
 - **WHEN** an ordered list contains single- and multi-digit items
-- **THEN** every number starts at the same column, a single-digit number's own centre is on the
-  depth column, and no number overlaps its own item's text
+- **THEN** every number starts at the same column, half a gutter left of the depth column; a
+  number narrow enough to fit the gutter is centred on that column; and no number overlaps its
+  own item's text
 
 #### Scenario: A fold chevron does not overlap the marker it belongs to
 

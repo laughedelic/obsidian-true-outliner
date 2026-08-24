@@ -260,12 +260,23 @@ describe('lists on the outline grid', function () {
       ['# H', '', '1. first', '9. ninth', '10. tenth', '100. hundredth', ''].join('\n'),
     );
     const numbers = [2, 3, 4, 5].map((n) => at(rows, n));
-    const lefts = numbers.map((r) => r.markerBox!.l);
-    for (const l of lefts) expect(l).toBeCloseTo(lefts[0]!, 1);
 
+    // The RULE: every number's box is shifted left of its column by half a
+    // gutter, whatever its width. That is what makes the left edge shared.
+    for (const row of numbers) {
+      expect(row.markerBox!.l).toBeCloseTo(row.column - GUTTER / 2, 1);
+    }
+
+    // Centring a single digit exactly is a CONSEQUENCE of that rule, and only
+    // while the glyphs fit inside the gutter — `1. ` measures 18.4px on macOS
+    // and 20.36px on CI's font, so there it leans right by half the excess,
+    // which is the designed behaviour for a wide marker arriving early rather
+    // than a defect. Asserted as "no further right than half a gutter", which
+    // holds on any font; asserting the exact centre tested the font.
     const single = numbers[0]!;
-    const centre = (single.markerBox!.l + single.markerBox!.r) / 2;
-    expect(centre).toBeCloseTo(single.column, 1);
+    const singleCentre = (single.markerBox!.l + single.markerBox!.r) / 2;
+    expect(singleCentre).toBeGreaterThanOrEqual(single.column - 0.5);
+    expect(singleCentre - single.column).toBeLessThan(GUTTER / 2);
 
     // and none of them reaches into its own text
     for (const row of numbers) expect(row.markerBox!.r).toBeLessThanOrEqual(row.textX! + 0.5);
