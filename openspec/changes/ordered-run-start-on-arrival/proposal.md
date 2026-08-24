@@ -31,6 +31,12 @@ Five call sites reach the unqualified rule, and all five were reproduced:
 | `insertSubtrees` of a pasted `1.` | `5. a` / `6. b` / `7. c` | `1. a` … | `5. a` / `6. pasted` … |
 | reorder joining two runs | `5. a` / `- x` / `1. c` | `1. a` / `2. c` | `5. a` / `6. c` |
 
+A sixth outcome changes at the same site without having been a defect: a reorder that SPLITS a
+run — a separator moving in between two members — now leaves each fragment on the start of the
+run it came from (`1. a` / `2. b` / `- x` / `1. c`, where the minimum-present reading left
+`3. c`). That is what a removal already does to the fragment it leaves behind, so the change is
+the two shapes agreeing rather than a new behavior.
+
 Measured on the labelled generator, seed 42, 3000 runs per operation, restricted to documents
 whose ordered runs are already consecutive — the filter that separates this defect from the
 legitimate normalization a renumbering performs on an inconsistently numbered source:

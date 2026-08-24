@@ -165,14 +165,19 @@ describe('nothing above what an operation relocates is rewritten', () => {
             withMarkerAbove++;
           }
 
-          // A label that vanished is not checked here: relocation can carry a
-          // node out of view of this comparison, and a DESTROYED subject is the
-          // depth contract's assertion, not this one.
+          // A label that VANISHED fails too. `byLabel` scans the whole result,
+          // so relocation cannot hide a node from this comparison: absent means
+          // gone from the document, or swallowed into another node's
+          // continuation lines where `lines[0]` no longer carries it. Either is
+          // a worse defect than a rewritten marker, and skipping it would let
+          // an operation destroy an untouched node and still pass a property
+          // that claims the node keeps its own first line. Measured at zero for
+          // all four operations, so this costs no reach.
           const after = byLabel(result.value.doc);
           for (const [label, was] of before) {
             if (was.line >= fence) continue;
             const now = after.get(label);
-            if (now !== undefined && now.text !== was.text) return false;
+            if (now === undefined || now.text !== was.text) return false;
           }
           return true;
         }),

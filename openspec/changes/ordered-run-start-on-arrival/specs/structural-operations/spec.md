@@ -38,7 +38,10 @@ is whatever number is lowest among the run's members afterwards — in its own w
 - A PERMUTATION can JOIN two runs, by moving a non-ordered separator out from between them.
   The joined run SHALL keep the EARLIER run's start rather than adopt the lower number of the
   run it swallowed — the same outcome a removal of that separator produces, and for the same
-  reason: the earliest member present beforehand belonged to the earlier run.
+  reason: the earliest member present beforehand belonged to the earlier run. It can equally
+  SPLIT one, by moving a separator in between two members, and each fragment SHALL then begin
+  at the start of the run it came from — which is what a removal already does to the fragment
+  it leaves behind.
 
 A run with NO member present beforehand — an inserted sequence landing where no ordered run
 was — has no start to recover, and SHALL keep the lowest number its own members carry.
@@ -142,6 +145,11 @@ renumbers only the members that follow what moved.
 - **WHEN** `insertSubtrees` places a parsed `3. x` / `4. y` after the `- b` of `- a` / `- b`
   / `- c`, so the inserted run has no ordered member from the destination list
 - **THEN** the inserted items read `3. x` / `4. y`
+
+#### Scenario: A reorder that splits a run leaves the tail on the run's own start
+- **WHEN** `moveUp` is applied to the `- x` following the run `1. a` / `2. b` / `3. c`
+- **THEN** the document reads `1. a` / `2. b` / `- x` / `1. c` — the fragment the separator cut
+  off begins where its run began, as it does when a removal cuts the run's head away
 
 #### Scenario: A reorder that joins two runs keeps the earlier start
 - **WHEN** `moveDown` is applied to the `- x` separating `5. a` from `1. c`

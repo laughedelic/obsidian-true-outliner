@@ -548,6 +548,16 @@ describe('an arriving number does not become the run’s start', () => {
     expect(encode(result.value.doc)).toBe('- a\n- b\n3. x\n4. y\n- c\n');
   });
 
+  it('a swap that SPLITS a run leaves the tail on the run’s own start', () => {
+    // The inverse of the join, and the same rule: the fragment's earliest
+    // member was in a run that began at 1, so that is where it begins. This is
+    // what "indenting the head of an ordered run away from its level" already
+    // does on the removal side — `1. two` / `2. three`, not `2. two` — and the
+    // separator arriving between two items is the same split by another route.
+    const { text } = applyOk(moveUp, '1. a\n2. b\n3. c\n- x\n', '- x');
+    expect(text).toBe('1. a\n2. b\n- x\n1. c\n');
+  });
+
   it('a swap that joins two runs keeps the earlier run’s start', () => {
     // No node arrives from anywhere here — the separator moves out from between
     // two runs and they become one. The lowest number present is then the
