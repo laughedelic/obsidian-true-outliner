@@ -253,6 +253,59 @@ export interface DecorationFixture {
   readonly settleMs?: number;
 }
 
+export const LIST_GRID_NOTE = 'Scratch/decorations-list-grid.md';
+// lists-on-the-outline-grid: every shape whose column the change has to be
+// right about, in one note. Tab nesting (what Obsidian quantises), four-space
+// nesting (which it also quantises, but only while indent guides are on),
+// two-space nesting (which it never does — the documented residual), ordered
+// items across the 9->10 digit boundary, tasks, a blank line inside a list, a
+// soft-wrapping item at two levels, and a list attached to a paragraph.
+export const LIST_GRID_MD = [
+  '# Grid',
+  '',
+  '## Tabs',
+  '',
+  '- one',
+  '\t- two',
+  '\t\t- three',
+  '\t- a long item that has to wrap so its wrapped rows can be measured against its own text column',
+  '- a top-level item that also has to wrap so both depths are covered by the same assertion',
+  '',
+  '## Four spaces',
+  '',
+  '- one',
+  '    - two',
+  '',
+  '## Two spaces (Obsidian does not quantise these)',
+  '',
+  '- one',
+  '  - two',
+  '',
+  '## Ordered',
+  '',
+  '1. first',
+  '\t1. nested',
+  '9. ninth',
+  '10. tenth',
+  '',
+  '## Tasks',
+  '',
+  '- [ ] open',
+  '\t- [x] done',
+  '',
+  '## Blank line inside a list',
+  '',
+  '- before',
+  '',
+  '- after',
+  '',
+  '## Attached to a paragraph',
+  '',
+  'This paragraph owns the item below it.',
+  '- child of the paragraph',
+  '',
+].join('\n');
+
 export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
   { note: FLAT_NOTE, md: FLAT_MD, label: 'flat' },
   { note: MIXED_NOTE, md: MIXED_MD, label: 'mixed' },
@@ -264,6 +317,7 @@ export const ALL_DECORATION_FIXTURES: readonly DecorationFixture[] = [
   { note: WIDGET_ATOMS_NOTE, md: WIDGET_ATOMS_MD, label: 'widget-atoms' },
   { note: WIDE_TABLE_NOTE, md: WIDE_TABLE_MD, label: 'wide-table' },
   { note: QUOTE_NOTE, md: QUOTE_MD, label: 'quote' },
+  { note: LIST_GRID_NOTE, md: LIST_GRID_MD, label: 'list-grid' },
   {
     note: SPACE_INDENTED_PARAGRAPH_NOTE,
     md: SPACE_INDENTED_PARAGRAPH_MD,

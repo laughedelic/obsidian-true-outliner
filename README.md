@@ -26,6 +26,18 @@ True outliner experience for Obsidian
 - Public APIs only: built on Obsidian's documented editor and plugin APIs, no monkey-patching private internals, so it stays compatible and passes the community plugin safety bar honestly.
 - Clean files: no required front matter, IDs, or metadata just to make the outliner work. What the outliner needs to track (like fold state) lives in plugin data, not in your notes.
 
+## Known limitations
+
+- **List indentation must be tabs or four spaces.** Obsidian resolves a tab, or exactly four
+  spaces, into one indent unit and renders anything shorter at its literal character width —
+  with this plugin disabled too. Outline mode puts every list level on one grid by supplying
+  that unit, so a file indented two or three spaces keeps Obsidian's own uneven columns while
+  the guides beside it are evenly spaced, which makes the mismatch easier to see rather than
+  harder. Re-indenting such a file with tabs is the fix today.
+- **Space-indented lists depend on Obsidian's "Show indentation guides" setting.** The spans
+  that carry a space-indented list's layout only exist while it is on. Tab-indented lists are
+  unaffected. The plugin never changes that setting.
+
 ## Approach
 
 - The design splits into two layers:

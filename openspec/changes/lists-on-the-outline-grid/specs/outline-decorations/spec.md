@@ -137,12 +137,12 @@ whatever the node's kind, so markers on adjacent rows read as one column.
 - **WHEN** an unordered list item has children, so a guide descends from it through its subtree
 - **THEN** the bullet's visible centre and the guide's visible centre are the same column
 
-#### Scenario: A block marker and a bullet agree
+#### Scenario: A block marker and a bullet agree on the column
 
 - **WHEN** a paragraph and an unordered list item at the same tree depth are visible in one
   document
-- **THEN** their markers render on the same column and at the same offset from their own
-  first text row
+- **THEN** their markers render on the same column, and their text starts at the same column
+  one marker gutter further right
 
 #### Scenario: A wide ordered marker starts on the column and pushes its own text
 

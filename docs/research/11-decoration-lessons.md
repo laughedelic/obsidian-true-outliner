@@ -245,6 +245,42 @@ finding came from.
   DOM node actually carries that dimension — a "reasonable-sounding" selector (the outer
   wrapper, the one with the semantic class name) is not guaranteed to be the right one.
 
+## Native chrome: retargeting rather than replacing
+
+Findings from `lists-on-the-outline-grid` (measurements:
+[16-native-list-decoration.md](16-native-list-decoration.md)).
+
+- **Look for the variable before building the mechanism.** Two probes concluded that native
+  list columns could only be FOLLOWED, by per-item pixel measurement, and planned a second
+  rendering mechanism alongside the measurement-free gradient. They were measuring the right
+  thing and asking the wrong question: the columns are computed from public CSS variables, so
+  they can be SET. The cost of the wrong question was a deferred feature and a planned overlay
+  layer that turned out to be unnecessary.
+- **Override the variable the consuming rule reads, not an intermediate one.**
+  `--list-padding-inline-start: var(--list-indent-editing)` is declared high in the tree, so
+  overriding `--list-indent-editing` further down does nothing — the substitution already
+  happened above. Overriding `--list-padding-inline-start` itself works. `--list-indent` is
+  consumed directly by `.cm-line`/`.cm-indent` and can be scoped as far down as a single line's
+  own class, which is what gates all of this on outline mode with no second condition.
+- **Obsidian's list hanging indent is a cached live measurement, and its cache does not watch
+  attributes.** It observes `childList`, `characterData` and `subtree`, so anything that
+  changes the rendered width of a list prefix through CSS alone leaves the hang stale until the
+  line's text changes or the view is rebuilt. It also measures `coordsAtPos` at the end of the
+  marker, which is the end of the marker's TEXT rather than of its padded box. Both are reasons
+  to STATE a value the layer already knows instead of reading one back.
+- **`--list-indent` is `em`-based.** Anything of ours flowing into it must be `rem`, or the
+  Experiment 1 font-size bug returns through a new door.
+- **A user setting can move geometry, not just paint.** With Obsidian's "Show indentation
+  guides" off, the `.cm-indent` spans do not exist at all, and space-indented list levels
+  change width. Any reasoning about list columns has to name which side of that setting it
+  holds on.
+- **`vertical-align: middle` resolves against the PARENT's x-height, which makes it
+  font-size-relative in a way that bites on headings.** It is the right optical anchor for a
+  small mark beside body text and the wrong one for a marker on an H1, where it drops the mark
+  below the heading's own glyphs. Two marks of different size and box model may simply not
+  share one numeric vertical anchor; that is worth discovering by looking rather than asserting
+  in a spec.
+
 ## Verification and process discipline
 
 - **The synthetic corpus, even a deliberately adversarial one, missed all three real bugs

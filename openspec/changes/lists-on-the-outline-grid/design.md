@@ -160,6 +160,29 @@ that agree by convention. This is the standing rule doc 11 draws from Experiment
 near-identical bugs: when two things must move together, make it impossible to change one
 without the other.
 
+### D6a — The vertical anchor stays per-kind (revised during implementation)
+
+D6 said the vertical rule would be unified along with the horizontal one. The horizontal half
+landed; the vertical half was built, looked at, and reversed.
+
+`vertical-align: middle` is the optical centre of a row of lowercase text and is exactly right
+for a bullet — it moved the dot the ~1.4px down that the review had reported as "a tad too
+high". Applied to a synthetic marker it is wrong, because `middle` resolves against the
+PARENT's x-height and a heading's parent is the heading: on an H1 the icon moved from 8.45px
+above its text-rect centre to 2.96px BELOW it, landing under the heading's own glyphs and hard
+against the guide that starts on the row beneath. Reported from the demo build as "icon
+markers too low and overlapping the guides", and confirmed in a screenshot.
+
+So the bullet keeps the optical anchor and the synthetic marker keeps `baseline`. They differ
+by about 7px on a body-sized row. That is a real design finding rather than an unfinished
+task: a 13.6px outline glyph in the text flow and a 6px dot in a flex box do not read as
+aligned at one numeric offset, and no single CSS anchor serves both across font sizes. The
+requirement was amended to say so rather than left stating something the implementation does
+not do.
+
+A task checkbox lands 0.46px off the bullet's anchor — the label is the box that participates
+in the line and is taller than the control inside it. Left as measured.
+
 ### D7 — Remove the settings
 
 The demo build's `listLayout` and `listBullet` dropdowns and their persisted fields go. They
@@ -214,7 +237,10 @@ the general defect in place and needs another patch the next time a setting is r
 
 ## Open Questions
 
-- What the surface should be when a note's list indentation cannot render on the grid (a
-  two-space file, or a space-indented file with indent guides off): a one-time notice, a
-  status-bar hint, nothing but documentation. It changes no requirement and no task boundary,
-  so it can be settled while implementing the verification pass.
+- ~~What the surface should be when a note's list indentation cannot render on the grid.~~
+  **Settled during implementation: documentation only** — a "Known limitations" section in the
+  README. A notice would fire on a condition the user cannot act on from inside the note and
+  that is Obsidian's behaviour rather than the plugin's; a status-bar hint would need a
+  per-note scan for a case that a one-line README entry describes exactly. If real use shows
+  people hitting it without knowing why, the cheaper next step is a normalize-indentation
+  command, not a warning.

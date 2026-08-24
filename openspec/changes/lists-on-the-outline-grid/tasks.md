@@ -11,8 +11,11 @@
       "vertical-alignment polish" entry for the widget-atom icons while the rule is being set.
 - [x] 1.3 Declare `--to-decor-unit` as a real value rather than a CSS fallback, so
       `--list-indent` and everything else read one number. No user setting in this change.
-- [ ] 1.4 Unit-test the shared derivation; e2e-assert that a block marker's centre, a bullet's
-      centre and their guide's centre agree at the same depth, in both bundled themes.
+- [x] 1.4 E2e-assert that a marker's centre and its own guide's PAINTED centre agree, in both
+      bundled themes (`56-list-grid.e2e.ts`). Not unit-tested: the derivation lives in
+      `decorations.ts`, which imports `obsidian` and so cannot be loaded by vitest — and the
+      rendered stripe is the thing worth asserting anyway, this layer's whole history being of
+      computations that were internally consistent and rendered wrong.
 
 ## 2. Pure decoration facts
 
@@ -66,39 +69,41 @@
 
 ## 5. Specs and docs
 
-- [ ] 5.1 Fold the two delta specs into `openspec/specs/` on archive; until then keep them
+- [x] 5.1 Fold the two delta specs into `openspec/specs/` on archive; until then keep them
       accurate as the implementation settles.
-- [ ] 5.2 Update `docs/research/12-decoration-follow-ups.md`: close "shrinking only our own
+- [x] 5.2 Update `docs/research/12-decoration-follow-ups.md`: close "shrinking only our own
       added list margin", "drawing the ancestor trail's segments along native list columns",
       and the "native list decoration experiments" entry; retarget the vertical-alignment entry
       at task 1.2.
-- [ ] 5.3 Add the carried-forward findings from
+- [x] 5.3 Add the carried-forward findings from
       `docs/research/16-native-list-decoration.md` to `docs/research/11-decoration-lessons.md`:
       look for the variable before building the mechanism; override the variable the consuming
       rule reads, not an intermediate one; Obsidian's list hang is a cached measurement whose
       cache ignores attributes; `--list-indent` is `em`-based so anything of ours flowing into
       it must be `rem`; a user setting can move geometry.
-- [ ] 5.4 Record the residuals where a user will meet them, not only in research: two- and
+- [x] 5.4 Record the residuals where a user will meet them, not only in research: two- and
       three-space files, and space-indented files with indent guides off. Settle design.md's
       open question about the surface here.
 
 ## 6. Verification
 
-- [ ] 6.1 Grow the shared fixture corpus with a list-geometry fixture: tab / four-space /
+- [x] 6.1 Grow the shared fixture corpus with a list-geometry fixture: tab / four-space /
       two-space nesting, ordered across the 9→10 boundary, tasks, a blank line inside a list, a
       soft-wrapping item at two levels, and a list attached to a paragraph.
-- [ ] 6.2 E2e: every list level steps by one unit and equals a same-depth heading's column;
+- [x] 6.2 E2e: every list level steps by one unit and equals a same-depth heading's column;
       guides render one line per level on that same grid; a bullet sits on its own guide.
-- [ ] 6.3 E2e: a soft-wrapping nested item's wrapped rows align with its own text — both on a
+- [x] 6.3 E2e: a soft-wrapping nested item's wrapped rows align with its own text — both on a
       freshly opened note AND after turning outline mode on for a note already open, which is
       the case a measured hang got wrong.
-- [ ] 6.4 E2e: outline mode off renders stock, for a pure list and for a mixed document.
-- [ ] 6.5 E2e: the trail reaches every list level, and every setting combination leaves a
+- [x] 6.4 E2e: outline mode off renders stock, for a pure list and for a mixed document.
+- [x] 6.5 E2e: the trail reaches every list level, and every setting combination leaves a
       list's geometry unchanged.
-- [ ] 6.6 Screenshot the full corpus in both bundled themes, and run the manual pass with
-      Minimal installed (its own `--list-indent` and `--list-edit-offset` collide — design
-      Risks).
+- [x] 6.6 Screenshot the full corpus in both bundled themes (specs 50/51/52 do this for every
+      fixture, and the corpus now includes `list-grid`), and the Minimal pass: Minimal sets
+      `--list-indent: 2em` itself and puts a `--list-edit-offset` margin on list lines, and our
+      per-line rules win both — grid intact, bullets on their columns, wrapped rows under their
+      own text.
 - [ ] 6.7 Real-vault pass by hand over `test-vault/`, including
       `Notes/List decoration demo.md`. This is the gate, not the fixtures — every bug in this
       layer's history was found here and none by the synthetic corpus.
-- [ ] 6.8 Full suite green: unit, lint, typecheck, desktop e2e.
+- [x] 6.8 Full suite green: 854 unit tests, lint, typecheck, 22/22 desktop e2e spec files.
