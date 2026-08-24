@@ -209,12 +209,21 @@ describe('lists on the outline grid', function () {
     expect(row.textX! - row.column).toBeCloseTo(GUTTER, 1);
   });
 
-  it('starts a task checkbox on its column and its text at the gutter', async function () {
+  it('starts a task checkbox on its own column, never left of it or over its text', async function () {
+    // What the spec asks of the two markers whose width is NOT this layer's to
+    // set (a checkbox, and a wide ordered number): start ON the column, never
+    // left of it, never overlapping the item's own text. NOT a fixed text
+    // column — the label is `min-width`, so a control wider than the gutter
+    // pushes its own text out, which is the designed behaviour. A checkbox's
+    // intrinsic width is platform-dependent (measured 20.00 on macOS, 20.33
+    // under mobile emulation), so asserting the gutter exactly here failed on
+    // everything but the machine it was written on.
     const rows = await open(['# H', '', '- [ ] open', '\t- [x] done', ''].join('\n'));
     for (const n of [2, 3]) {
       const row = at(rows, n);
       expect(row.markerX).toBeCloseTo(row.column, 1);
-      expect(row.textX! - row.column).toBeCloseTo(GUTTER, 1);
+      expect(row.textX! - row.column).toBeGreaterThanOrEqual(GUTTER);
+      expect(row.textX! - row.column).toBeLessThan(GUTTER + 8);
     }
   });
 
@@ -223,7 +232,10 @@ describe('lists on the outline grid', function () {
     const ninth = at(rows, 2);
     const tenth = at(rows, 3);
     expect(tenth.column).toBe(ninth.column);
-    expect(ninth.textX! - ninth.column).toBeCloseTo(GUTTER, 1);
+    // `9. ` fits the gutter on the platforms measured, but its glyph width is
+    // the font's business, so the contract is "at least the gutter" rather than
+    // a pixel value — same reasoning as the checkbox above.
+    expect(ninth.textX! - ninth.column).toBeGreaterThanOrEqual(GUTTER);
     expect(tenth.textX!).toBeGreaterThan(ninth.textX!);
   });
 
