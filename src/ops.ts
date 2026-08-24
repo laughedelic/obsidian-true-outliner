@@ -388,46 +388,40 @@ function renumberRuns(
 }
 
 /**
- * Renumber maximal runs of ordered items for a PERMUTATION or an INSERTION —
- * a swap, a split, an insertion of subtrees. A run keeps its start number,
- * taken as the minimum present, which IS the number the run began with for
- * these shapes because none of them removes a run member: so a swap doesn't
- * inherit the moved item's number while `5. 6. 7.`-style lists keep starting
- * at 5.
+ * Renumber the maximal runs of ordered items in a sibling list, reading each
+ * run's start number off `before` — the same list as the operation found it.
  *
- * For a REMOVAL, use `renumberOrderedAfterRemoval` — the minimum present is
- * then the number of whatever survived, not the run's own start. A MERGE is a
- * removal for this purpose (it absorbs a node), which this comment got wrong
- * until all three of its branches were measured.
+ * A run's start lives in the list, not in the run's own numbers. The start is
+ * the start of the run that the resulting run's first member PRESENT IN
+ * `before` belonged to, and that one rule answers every shape:
+ *
+ * - a REMOVAL can take the member that carried the start, so deleting the
+ *   first two of `1. 2. 3.` must leave `1.`, not `3.`;
+ * - an INSERTION can add a member that was never in this list — a node
+ *   arriving from another level brings its old level's number, which must not
+ *   become the destination run's start;
+ * - a PERMUTATION can JOIN two runs by moving a non-ordered separator out from
+ *   between them, and the joined run keeps the EARLIER run's start rather than
+ *   the lower number of the run it swallowed.
+ *
+ * Reading the lowest number present instead is right only where every member
+ * was already there and no two runs met — which is why one policy per shape
+ * survived as long as it did, and why it was wrong at five call sites.
+ *
+ * "Present in `before`" rather than simply `run[0]`: a run can be headed by a
+ * node that arrived from another level — a merge PREPENDS `second`'s own
+ * children into the list it absorbed `second` from, an outdent's arrival lands
+ * mid-list. Those carry their old level's numbers, so reading the start off one
+ * of them falls back to the minimum and loses the run's start: `- p` / `5. a` /
+ * (`10. kid`) / `6. b` produced `6. kid` / `7. b` instead of `5.` / `6.`.
+ *
+ * A run with NO member from `before` has no start to recover — an inserted
+ * sequence landing where no run was — and keeps the lowest number its own
+ * members carry. That fallback is deliberately the older policy, so a
+ * mis-routed call degrades to what this file did before rather than to a third
+ * rule.
  */
-function renumberOrdered(nodes: readonly OutlineNode[]): readonly OutlineNode[] {
-  return renumberRuns(nodes, lowestNumber);
-}
-
-/**
- * The same, for a REMOVAL of whole subtrees from `before`. The start number
- * comes from the sibling list as it was BEFORE the removal, because the item
- * that carried it may be exactly what went away: deleting the first two of
- * `1. 2. 3.` must leave `1.`, not `3.`.
- *
- * The lookup is by the run's first member that was ALREADY THERE, which is
- * enough because a removal can only shrink or MERGE runs — never split one or
- * reorder within it — so that member is the earliest survivor of the earliest
- * contributing run. Where two runs merge across a removed non-ordered node, the
- * earlier run's start therefore wins.
- *
- * "That was already there" rather than simply `run[0]`: a merge can PREPEND
- * nodes that arrived from another level (`second`'s own children, adopted into
- * the list `first` absorbed it from). Those carry their old level's numbers and
- * were never in `before`, so reading the start off one of them fell back to the
- * minimum and lost the run's start — `- p` / `5. a` / (`10. kid`) / `6. b`
- * produced `6. kid` / `7. b` instead of `5.` / `6.`.
- *
- * A run with NO member from `before` is not a removal's output at all; the
- * fallback is deliberately the permutation rule, so a mis-routed call degrades
- * to the older behavior rather than to a third one.
- */
-function renumberOrderedAfterRemoval(
+function renumberOrderedAgainst(
   before: readonly OutlineNode[],
   after: readonly OutlineNode[],
 ): readonly OutlineNode[] {
@@ -610,12 +604,19 @@ function indentSurgery(
 
   let surgery = updateSiblings(doc, parentPath, (nodes) => {
     const rest = nodes.filter((_, i) => i !== index);
-    // The node LEAVES this level: a removal, so the run keeps the start it had
-    // before it went. The arrival side below is an insertion.
-    return renumberOrderedAfterRemoval(nodes, rest);
+    // `nodes` is this level as the operation found it, and the node the run
+    // keeps its start from may be the one leaving.
+    return renumberOrderedAgainst(nodes, rest);
   });
   surgery = updateSiblings(surgery, [...parentPath, index - 1], (nodes) =>
-    renumberOrdered([...nodes.slice(0, insertIndex), moved, ...nodes.slice(insertIndex)]),
+    // The destination's own children, before `moved` joins them. `moved`
+    // carries the number it had at the level it came from, which is not this
+    // run's to inherit.
+    renumberOrderedAgainst(nodes, [
+      ...nodes.slice(0, insertIndex),
+      moved,
+      ...nodes.slice(insertIndex),
+    ]),
   );
   return accept({ doc: surgery, subjectId: moved.id });
 }
@@ -684,6 +685,7 @@ function outdentSurgery(
   // subtree the user just moved).
   const followingSiblings = childrenAt(doc, parentPath).slice(index + 1);
   if (followingSiblings.length > 0) {
+    const ownChildren = moved.children;
     let children = moved.children;
     for (const [i, sibling] of followingSiblings.entries()) {
       const newSiblingKind = isContent(sibling)
@@ -700,17 +702,20 @@ function outdentSurgery(
       );
       children = [...children, reencoded];
     }
-    moved = { ...moved, children: renumberOrdered(children) };
+    // The node's own children, before the adopted siblings join them: those
+    // arrive from the level above carrying its numbers.
+    moved = { ...moved, children: renumberOrderedAgainst(ownChildren, children) };
   }
 
   let surgery = updateSiblings(doc, parentPath, (nodes) =>
-    // A removal, but a PREFIX truncation: the survivors always include the
-    // run's own head (or the run is cut entirely and nothing survives to
-    // renumber), so the minimum present is still the start it began with.
-    renumberOrdered(nodes.slice(0, index)),
+    // The former parent's children, before the node and everything after it is
+    // cut away.
+    renumberOrderedAgainst(nodes, nodes.slice(0, index)),
   );
   surgery = updateSiblings(surgery, grandPath, (nodes) =>
-    renumberOrdered([
+    // The grandparent's children, before `moved` lands among them. Untouched by
+    // the departure above, which edited a different level.
+    renumberOrderedAgainst(nodes, [
       ...nodes.slice(0, parentIndex + 1),
       moved,
       ...nodes.slice(parentIndex + 1),
@@ -787,7 +792,10 @@ function moveSurgery(doc: OutlineDoc, nodeId: number, delta: -1 | 1): OpResult<S
     const gapA = subtreeFinalNode(out[a]!).trailingGap;
     const gapB = subtreeFinalNode(out[a + 1]!).trailingGap;
     [out[a], out[a + 1]] = [setFinalGap(out[a + 1]!, gapA), setFinalGap(out[a]!, gapB)];
-    return renumberOrdered(out);
+    // `nodes` is the order before the swap. Every member is still present, but
+    // a swap can move a non-ordered separator out from between two runs and
+    // JOIN them, and the joined run keeps the earlier run's start.
+    return renumberOrderedAgainst(nodes, out);
   });
   return accept({ doc: surgery, subjectId: node.id });
 }
@@ -992,7 +1000,7 @@ function insertEmptyBefore(
             lines: [`${'#'.repeat(node.level ?? 1)} `],
           });
     const surgery = updateSiblings(doc, parentPath, (nodes) =>
-      renumberOrdered([...nodes.slice(0, index), empty, ...nodes.slice(index)]),
+      renumberOrderedAgainst(nodes, [...nodes.slice(0, index), empty, ...nodes.slice(index)]),
     );
     return finalize(doc, surgery, empty.id);
   }
@@ -1191,9 +1199,9 @@ export function splitNode(
         ...node,
         lines: upperLines,
         trailingGap: separateFromHeading ? [''] : ownGap,
-        // An INSERTION at the head of the child list: a new ordered first child
-        // takes the run's start and pushes the rest down.
-        children: renumberOrdered([lower, ...node.children]),
+        // The existing children hold the run's start; the new first child takes
+        // it and pushes the rest down.
+        children: renumberOrderedAgainst(node.children, [lower, ...node.children]),
       };
       const surgery = updateSiblings(doc, parentPath, (nodes) =>
         nodes.map((n, i) => (i === index ? upper : n)),
@@ -1288,7 +1296,12 @@ export function splitNode(
   lower = { ...lower, trailingGap: [...finalGap] };
 
   const surgery = updateSiblings(doc, parentPath, (nodes) =>
-    renumberOrdered([...nodes.slice(0, index), upper, lower, ...nodes.slice(index + 1)]),
+    renumberOrderedAgainst(nodes, [
+      ...nodes.slice(0, index),
+      upper,
+      lower,
+      ...nodes.slice(index + 1),
+    ]),
   );
   return finalize(doc, surgery, lower.id);
 }
@@ -1343,7 +1356,7 @@ export function unwrapListItem(doc: OutlineDoc, nodeId: number): OpResult<OpOutp
   const replacement = ['', ...node.trailingGap];
 
   const withoutNode = updateSiblings(doc, parentPath, (nodes) =>
-    renumberOrderedAfterRemoval(nodes, nodes.filter((_, i) => i !== index)),
+    renumberOrderedAgainst(nodes, nodes.filter((_, i) => i !== index)),
   );
   let surgery: OutlineDoc;
   if (index > 0) {
@@ -1538,7 +1551,7 @@ export function deleteSubtreeGroups(
     surgery = updateSiblings(surgery, parentPath, (nodes) =>
       // `nodes` is this parent's list as it entered the ONE filtering pass, so
       // it is the pre-removal list for every range at once — not per range.
-      renumberOrderedAfterRemoval(
+      renumberOrderedAgainst(
         nodes,
         nodes.filter((_, i) => !ranges.some((r) => i >= r.lo && i <= r.hi)),
       ),
@@ -1708,7 +1721,7 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
     // children arriving from another level, so they are not in `before` and
     // take the fallback.
     children: secondIsFirstChild
-      ? renumberOrderedAfterRemoval(first.children, [...adopted, ...first.children.slice(1)])
+      ? renumberOrderedAgainst(first.children, [...adopted, ...first.children.slice(1)])
       : adopted,
   };
 
@@ -1723,7 +1736,7 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
     // head — `merged` keeps `first`'s id, so the lookup finds the run `first`
     // was in, which is what a joined-across-a-separator run must resume from.
     surgery = updateSiblings(doc, firstParentPath, (nodes) =>
-      renumberOrderedAfterRemoval(nodes, [
+      renumberOrderedAgainst(nodes, [
         ...nodes.slice(0, firstIndex),
         merged,
         ...nodes.slice(firstIndex + 1, secondIndex),
@@ -1741,7 +1754,7 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
     // `- kid` with `1. a`, whose predecessor is the bullet — so this removes a
     // run head like any other.
     surgery = updateSiblings(doc, secondParentPath, (nodes) =>
-      renumberOrderedAfterRemoval(nodes, [
+      renumberOrderedAgainst(nodes, [
         ...nodes.slice(0, secondIndex),
         ...nodes.slice(secondIndex + 1),
       ]),
@@ -1916,7 +1929,10 @@ export function insertSubtrees(
 
   const surgery = updateSiblings(doc, parentPath, (nodes) => {
     const withAnchor = nodes.map((n, i) => (i === anchorIndex ? finalAnchor : n));
-    return renumberOrdered([
+    // `nodes` is the destination list before the paste. The pasted blocks come
+    // from parsed markdown with numbering of their own, which does not become
+    // the start of a run that was already here.
+    return renumberOrderedAgainst(nodes, [
       ...withAnchor.slice(0, insertIndex),
       ...finalReencoded,
       ...withAnchor.slice(insertIndex),
