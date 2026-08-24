@@ -271,46 +271,56 @@ the tree and drifts the indentation. This clause and "its children are untouched
 requirement first read, cannot both hold at a digit boundary; the implementation followed
 the narrower one and lost the tree.
 
-A run's start number is the number the run began with. How that number is recovered depends
-on the SHAPE of the transformation, and the two cases differ precisely because a permutation
-or an insertion cannot lose it while a removal can:
+A run's start number is the number the run began with, and it SHALL be recovered from the
+sibling list AS IT WAS BEFORE the operation: the start number of the run that the resulting
+run's first member THAT WAS ALREADY THERE belonged to. The member the start is read from
+SHALL be the first one PRESENT BEFOREHAND, not the first one positionally, and the rule is
+the same for every shape of transformation — a removal, an insertion, a permutation, or any
+composition of them.
 
-- For a PERMUTATION or an INSERTION — reordering siblings, splitting a node into two, or
-  inserting subtrees — the start number SHALL be the minimum still present in the run,
-  which IS the number the run began with, since these shapes remove no run member. A
-  `5. 6. 7.` list keeps starting at 5, and a swap SHALL NOT let the run inherit the moved
-  item's own number.
-- For a REMOVAL of nodes from a sibling list — subtree deletion, unwrapping a list item,
-  the departure side of an indent, and the absorbed side of a merge — the start number
-  SHALL be taken from the sibling list AS IT WAS BEFORE the removal: the start number of
-  the run that the surviving run's first member THAT WAS ALREADY THERE belonged to.
-  Deriving it from the survivors is wrong exactly when the removal took the item that
-  carried the run's start.
+One rule covers all shapes because each shape breaks the alternative reading — that the start
+is whatever number is lowest among the run's members afterwards — in its own way:
 
-  A run may begin with nodes that were not in the list before — a merge adopts `second`'s
-  own children into it, carrying their old level's numbers — so the member the start is
-  read from SHALL be the first one present beforehand, not the first one positionally.
+- A REMOVAL can take the member that carried the start. Deleting the first two of `1. 2. 3.`
+  must leave `1.`, not `3.`.
+- An INSERTION can ADD a member that was never in this list. A node arriving from another
+  level — the arrival side of an indent or an outdent, a sibling adopted into an outdented
+  node's own child list, a subtree pasted in — carries its old level's number, and that
+  number SHALL NOT become the destination run's start. Measured, an item numbered `1.`
+  outdenting into a run that began at `2.` renumbered that run from `1.`, rewriting a line
+  ABOVE the operand in a run the operation did not otherwise touch.
+- A PERMUTATION can JOIN two runs, by moving a non-ordered separator out from between them.
+  The joined run SHALL keep the EARLIER run's start rather than adopt the lower number of the
+  run it swallowed — the same outcome a removal of that separator produces, and for the same
+  reason: the earliest member present beforehand belonged to the earlier run. It can equally
+  SPLIT one, by moving a separator in between two members, and each fragment SHALL then begin
+  at the start of the run it came from — which is what a removal already does to the fragment
+  it leaves behind.
 
-A merge is a removal for this purpose in all three of its shapes, and none of them is
-saved by the survivor keeping its index. Absorbing a non-ordered node standing between two
-runs JOINS them, and the joined run SHALL keep the SURVIVOR's own start rather than adopt
-the lower number of the run it swallowed. Absorbing a node's own first child removes that
-child from the CHILD list, which SHALL renumber from the same pre-merge start. And a node
-absorbed from an outer scope may head a run whose predecessor at that level is not part of
-it, so having a predecessor is not the same as keeping a run's head.
+A run with NO member present beforehand — an inserted sequence landing where no ordered run
+was — has no start to recover, and SHALL keep the lowest number its own members carry.
 
-Where a removal deletes a non-ordered node standing between two ordered runs, the
-survivors become one run and SHALL take the EARLIER run's start number. A run whose
-members are all removed contributes nothing.
+A merge is covered by the general rule in all three of its shapes, and none of them is saved
+by the survivor keeping its index. Absorbing a non-ordered node standing between two runs
+JOINS them, and the joined run keeps the SURVIVOR's own start. Absorbing a node's own first
+child removes that child from the CHILD list, which renumbers from the same pre-merge start.
+And a node absorbed from an outer scope may head a run whose predecessor at that level is not
+part of it, so having a predecessor is not the same as keeping a run's head. A merge also
+ADOPTS `second`'s own children into the list it absorbed `second` from; those arrive carrying
+their old level's numbers and were never in the list before, which is the insertion clause
+above reached from the removal side.
 
-The rule above is stated over removals in general, and all three named shapes are measured
-to reach it. A removal that truncates a sibling list to a PREFIX — the level an outdent
-leaves — is covered by the same rule and is indistinguishable under it, since the survivors
-always retain the run's own head.
+A removal that truncates a sibling list to a PREFIX — the level an outdent leaves — is
+covered by the same rule and is indistinguishable under it, since the survivors always retain
+the run's own head.
 
 Renumbering is the one documented exception to "edits touch only the lines the operation
 semantically requires", and renumbered output SHALL still satisfy operation closure: the
-encoded run re-parses to the same tree.
+encoded run re-parses to the same tree. Where the source document's own numbering was already
+consecutive from each run's start, the exception SHALL reach only markers at or below the
+TOPMOST NODE THE OPERATION RELOCATES — the operand, and for a reorder the sibling it swaps
+with, whose own marker that swap legitimately rewrites. A run whose start is preserved
+renumbers only the members that follow what moved.
 
 #### Scenario: A widening marker carries its subtree
 - **WHEN** a renumbering makes an item with children `10.` where it was `9.`
@@ -364,10 +374,53 @@ encoded run re-parses to the same tree.
 - **THEN** the run still reads `5. 6. 7.` in document order, with the two items' content
   exchanged
 
+#### Scenario: An outdenting item does not become its destination run's start
+- **WHEN** `outdent` is applied to `1. L2`, a child of `2. L1` in the top-level run
+  `- L0` / `2. L1`
+- **THEN** the top-level run reads `2. L1` / `3. L2` — the item that arrived takes the next
+  number in the run it joined, and `2. L1` is not rewritten
+
+#### Scenario: An indenting item does not become its destination run's start
+- **WHEN** `indent` is applied to the top-level `1. x` whose previous sibling `- p` already
+  has the children `5. a` / `6. b`
+- **THEN** those children read `5. a` / `6. b` / `7. x`
+
+#### Scenario: An adopted following sibling does not restart its new parent's child run
+- **WHEN** `outdent` is applied to a node whose own children are `5. c1` / `6. c2` and whose
+  following sibling `1. s1` is adopted as its trailing child
+- **THEN** the child list reads `5. c1` / `6. c2` / `7. s1`
+
+#### Scenario: A pasted item does not restart the run it lands in
+- **WHEN** `insertSubtrees` places a parsed `1. pasted` after `5. a` in the run
+  `5. a` / `6. b` / `7. c`
+- **THEN** the run reads `5. a` / `6. pasted` / `7. b` / `8. c`
+
+#### Scenario: A pasted run that lands where no run was keeps its own numbering
+- **WHEN** `insertSubtrees` places a parsed `3. x` / `4. y` after the `- b` of `- a` / `- b`
+  / `- c`, so the inserted run has no ordered member from the destination list
+- **THEN** the inserted items read `3. x` / `4. y`
+
+#### Scenario: A reorder that splits a run leaves the tail on the run's own start
+- **WHEN** `moveUp` is applied to the `- x` following the run `1. a` / `2. b` / `3. c`
+- **THEN** the document reads `1. a` / `2. b` / `- x` / `1. c` — the fragment the separator cut
+  off begins where its run began, as it does when a removal cuts the run's head away
+
+#### Scenario: A reorder that joins two runs keeps the earlier start
+- **WHEN** `moveDown` is applied to the `- x` separating `5. a` from `1. c`
+- **THEN** the joined run reads `5. a` / `6. c`, with `- x` below them
+
 #### Scenario: Renumbered output re-parses unchanged
-- **WHEN** any accepted removal renumbers an ordered run
+- **WHEN** any accepted operation renumbers an ordered run
 - **THEN** encoding the resulting tree and re-parsing it yields an identical tree, and the
-  emitted edits touch no lines beyond the removed subtrees and the renumbered markers
+  emitted edits touch no lines beyond the ones the operation semantically requires, the
+  renumbered markers, and the continuation and descendant lines that a marker's WIDTH change
+  re-indents
+
+#### Scenario: A consecutive source is not rewritten above the operand
+- **WHEN** any accepted indent, outdent or reorder acts on a document whose every ordered run
+  is already consecutive from its own start
+- **THEN** no ordered item positioned above every node the operation relocates — the operand,
+  and for a reorder the sibling it swaps with — has its marker rewritten
 
 ### Requirement: Atoms move as opaque units
 Structural operations on leaf atoms (code fences, tables, callouts, quotes, HTML blocks)
@@ -564,7 +617,8 @@ the head of an ordered run — the same key writing `1. ` beside an item and `- 
 which is the shape-dependence the empty-position rule exists to remove.
 
 A new ordered first child SHALL take the run's start number, and the existing items SHALL
-renumber after it, per the insertion half of the renumbering contract above.
+renumber after it. The start is the one the existing children already carry, which is what
+the renumbering contract above reads off the list as it was — the new node was not in it.
 
 #### Scenario: An empty position at the end of a heading above an ordered list
 - **WHEN** `splitNode` acts at the content end of `# H` whose children are `1. a` / `2. b`
