@@ -10,6 +10,14 @@
  *
  * One short note per shape, rather than one long one: CM6 renders only the
  * viewport, so a fixture longer than the window silently drops its tail.
+ *
+ * Assert the RULE, never a position a glyph's width decides. Three assertions
+ * here have already had to be rewritten for it: `1. ` measures 18.4px in the
+ * bundled theme on macOS and 20.36px on CI's Linux font, so anything sized by
+ * `min-width` against the 20px gutter lands differently on the two — a marker
+ * box's left edge, a checkbox's own width, an ordered item's text column. What
+ * holds on any font is the relationship: this marker starts where that one
+ * does, this text is never left of that one, these two chevrons agree.
  */
 
 import { browser, expect } from '@wdio/globals';
@@ -431,9 +439,16 @@ describe('lists on the outline grid', function () {
     const [bullet, task, number] = [at(rows, 2), at(rows, 3), at(rows, 4)];
     expect(task.column).toBe(bullet.column);
     expect(task.textX).toBeCloseTo(bullet.textX!, 1);
-    expect(number.textX).toBeCloseTo(bullet.textX!, 1);
     // and the checkbox has not moved off its column to pay for it
     expect(task.markerX).toBeCloseTo(task.column, 1);
+
+    // An ordered item is NOT held to equality here, and asserting it was this
+    // spec's third font-encoded assertion: `1. ` measures 18.4px in the bundled
+    // theme on macOS and 20.36px on CI's Linux font, so where the gutter is
+    // 20px its own `min-width` legitimately pushes its text 0.36px out. Never
+    // LEFT of the bullet's column is the part that holds on any font — the
+    // wide-marker case has its own test below.
+    expect(number.textX!).toBeGreaterThanOrEqual(bullet.textX! - 0.05);
   });
 
   it('publishes the space advance it actually measured, not its fallback', async function () {
