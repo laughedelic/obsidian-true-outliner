@@ -1,0 +1,305 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M0VEECCEQZG0DYHQQ23GBKGP",
+  "session_id": "db670282-c338-4461-8f8c-16d69f557f35",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-25T03:11:58.746827Z",
+  "branch": "feat/lists-on-the-outline-grid",
+  "checkpoints_count": 22,
+  "save_step_count": 14,
+  "files_touched": [
+    "docs/research/12-decoration-follow-ups.md",
+    "docs/research/16-native-list-decoration.md",
+    "src/plugin/decorations.ts",
+    "styles.css",
+    "test-vault/Notes/List decoration demo.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "3ae5af4cba18",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 1156,
+    "cache_creation_tokens": 4666284,
+    "cache_read_tokens": 261013360,
+    "output_tokens": 578187,
+    "api_call_count": 578
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_016JeAUB6hB6Cf6Y4m5u2G3p",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-propose"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "3ae5af4cba18",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1006,
+        "end": 1007,
+        "entry_ids": [
+          "3a7ee76d-84ec-4b9e-a9c3-9d655d0cd7c4"
+        ],
+        "tool_use_id": "toolu_016JeAUB6hB6Cf6Y4m5u2G3p"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_016JeAUB6hB6Cf6Y4m5u2G3p"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-propose",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01PSoUYqepsQiBbrT1PGBAAc",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "3ae5af4cba18",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1870,
+        "end": 1871,
+        "entry_ids": [
+          "4699e3e6-27f0-41e6-8c3d-2dce0ae5b98e"
+        ],
+        "tool_use_id": "toolu_01PSoUYqepsQiBbrT1PGBAAc"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01PSoUYqepsQiBbrT1PGBAAc"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-apply-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 22
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-25T03:11:58.239459Z",
+    "agent_lines": 580,
+    "agent_removed": 20,
+    "human_added": 798,
+    "human_modified": 104,
+    "human_removed": 0,
+    "total_committed": 1457,
+    "total_lines_changed": 1615,
+    "agent_percentage": 37.15170278637771,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 88,
+      "user_lines_removed": 1,
+      "agent_lines_added": 285,
+      "agent_lines_removed": 5,
+      "user_added_per_file": {
+        ".claude/settings.json": 84,
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 4
+      },
+      "user_removed_per_file": {
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 1
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 165,
+      "user_lines_removed": 11,
+      "agent_lines_added": 668,
+      "agent_lines_removed": 26,
+      "user_added_per_file": {
+        ".claude/settings.json": 84,
+        "docs/research/16-native-list-decoration.md": 73,
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 7,
+        "test-vault/Journal/2026-07-12.md": 1
+      },
+      "user_removed_per_file": {
+        "docs/research/16-native-list-decoration.md": 8,
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 2,
+        "test-vault/Journal/2026-07-12.md": 1
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 89,
+      "user_lines_removed": 1,
+      "agent_lines_added": 6,
+      "agent_lines_removed": 1,
+      "user_added_per_file": {
+        ".claude/settings.json": 84,
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 1,
+        "test-vault/Journal/2026-07-10.md": 4
+      },
+      "user_removed_per_file": {
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 1
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 85,
+      "user_lines_removed": 1,
+      "agent_lines_added": 10,
+      "agent_lines_removed": 1,
+      "user_added_per_file": {
+        ".claude/settings.json": 84,
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 1
+      },
+      "user_removed_per_file": {
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 1
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 10,
+      "agent_lines_removed": 1,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 8,
+      "agent_lines_removed": 1,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 8,
+      "agent_lines_removed": 1,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 88,
+      "user_lines_removed": 2,
+      "agent_lines_added": 8,
+      "agent_lines_removed": 1,
+      "user_added_per_file": {
+        ".claude/settings.json": 84,
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 1,
+        "test-vault/Projects/Aurora Dashboard.md": 3
+      },
+      "user_removed_per_file": {
+        "test-vault/Projects/Aurora Dashboard.md": 2
+      }
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 88,
+      "user_lines_removed": 4,
+      "agent_lines_added": 12,
+      "agent_lines_removed": 3,
+      "user_added_per_file": {
+        ".claude/settings.json": 84,
+        "test-vault/Journal/2026-07-12.md": 2,
+        "test-vault/Projects/Aurora Dashboard.md": 2
+      },
+      "user_removed_per_file": {
+        "test-vault/Journal/2026-07-12.md": 2,
+        "test-vault/Projects/Aurora Dashboard.md": 2
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 15,
+      "agent_lines_removed": 5,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 15,
+      "agent_lines_removed": 6,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 129,
+      "user_lines_removed": 4,
+      "agent_lines_added": 15,
+      "agent_lines_removed": 5,
+      "user_added_per_file": {
+        ".claude/settings.json": 111,
+        "test-vault/Journal/2026-07-12.md": 5,
+        "test-vault/Notes/List decoration demo.md": 8,
+        "test-vault/Projects/Aurora Dashboard.md": 5
+      },
+      "user_removed_per_file": {
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 1,
+        "test-vault/Journal/2026-07-12.md": 1,
+        "test-vault/Projects/Aurora Dashboard.md": 2
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 112,
+      "user_lines_removed": 0,
+      "agent_lines_added": 280,
+      "agent_lines_removed": 21,
+      "user_added_per_file": {
+        ".claude/settings.json": 111,
+        "test-vault/.obsidian/plugins/true-outliner/data.json": 1
+      }
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 120,
+      "user_lines_removed": 10,
+      "agent_lines_added": 280,
+      "agent_lines_removed": 20,
+      "user_added_per_file": {
+        ".claude/settings.json": 111,
+        ".probe/compare.html": 9
+      },
+      "user_removed_per_file": {
+        ".probe/compare.html": 10
+      }
+    }
+  ]
+}
