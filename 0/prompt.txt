@@ -1,0 +1,31 @@
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 4 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🟡 Changes recommended
+
+The current implementation has a selectable settings combination that likely produces incorrect list geometry, plus a documentation overpromise and avoidable per-line overlay allocations that should be addressed before merging.
+
+*Once you've addressed the issues Copilot identified, you can request another Copilot review.*
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (1)
+
+**src/plugin/decorations.ts:280**
+* `hasOverlay` calls `activeGuideDepths()` even when a `trail` is present; because `activeGuideDepths()` may allocate, this does extra work on any line that only needs the overlay for the trail. Reorder the condition to short-circuit when `trail` is defined.
+```
+  return activeGuideDepths(guide, layout).length > 0 || trail !== undefined;
+```
+
+- **Files reviewed:** 16/16 changed files
+- **Comments generated:** 3
+- **Review effort level:** Lite
+</details>
+- Copilot on src/plugin/decorations.ts:927 [comment_id=3834839754]: `to-list-bullet-column` is applied whenever `listBullet === 'column'`, even when `listLayout` is `'native'`. In that combination the CSS attempts to align bullets to the outline grid while the list indentation is still Obsidian-native, so the option is likely to misalign bullet/text and contradicts the setting description (“Only meaningful together with the setting above”). Gate the bullet-column class on `layout !== 'native'` (or enforce the dependency in settings logic).
+- Copilot on src/plugin/decorations.ts:275 [comment_id=3834839762]: `activeGuideDepths` allocates and sorts a new array each time it’s called; in the current flow it can be invoked multiple times per line (`hasOverlay`, decoration building, MarginCompensation). Since each depth renders at a distinct X offset, ordering isn’t meaningful here and the sort is avoidable overhead.
+
+This issue also appears on line 280 of the same file.
+- Copilot on src/plugin/mode-registry.ts:58 [comment_id=3834839777]: The `ListLayout` docs say `'grid'` makes wrapped rows “follow for free” because Obsidian recomputes hanging indent, but the accompanying CSS/settings text notes Obsidian’s per-line hanging-indent measurement can stay stale when `--list-indent` is changed via decoration attributes (until note switch/edit). Please qualify this doc so it doesn’t overpromise.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
