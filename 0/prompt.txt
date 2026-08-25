@@ -1,0 +1,1 @@
+what's the status on the guides highlighting with the current implementation? I still don't see it working in the lists. otherwise things look okay.
