@@ -45,7 +45,12 @@ behaviour.
   the stale-cache defect where a live change to `--list-indent` left the old wrap column in
   place.
 - **The bullet gets the weight of a marker**: `--list-bullet-size` `0.38em`, measured against
-  the block icons' ink; the colour token is unchanged so lists and blocks retune together.
+  the block icons' ink; the colour token is unchanged so lists and blocks retune together. An
+  ordered number takes the left edge a block marker starts on, by a fixed half-icon shift.
+- **A fold chevron sits where a block's chevron sits.** Obsidian anchors a list line's chevron
+  at the item's content origin, which the grid now puts on the marker's own centre. The glyph
+  is moved by the block rule's distance minus that rule's gutter term, so both kinds land the
+  same 3px from their own marker rather than each being placed by a constant of its own.
 - **Markers and guides share one column definition.** Measured: every marker's centre sits at
   exactly `depth × unit` while the guide paints its 1px as `[column, column + 1]`, so every
   marker — bullets and block icons alike — is half a pixel left of the line it belongs to. A
@@ -55,12 +60,23 @@ behaviour.
 - **No new settings.** The demo build's two experimental dropdowns are removed; this is one
   behaviour, not an option.
 
-Deliberately NOT in scope, and recorded as residuals rather than fixed: files indented with
-two or three spaces (Obsidian quantises only a tab or exactly four spaces, so their levels are
-misaligned with the plugin disabled too, and our guides make that more visible rather than
-less); the dependency of space-indented files on Obsidian's own "Show indentation guides"
-setting, which controls whether the spans that carry list layout exist at all; and making the
-indent unit a user-facing setting, which belongs with the wider layer-configurability item.
+- **The leading whitespace's WIDTH is stated too, not just the indent unit.** Setting
+  `--list-indent` retargets the levels Obsidian resolves; it does nothing for the ones it does
+  not. Obsidian quantises a tab or exactly four spaces and renders the remainder at the font's
+  space advance, so a two-space file walked right a fraction of a level at a time (measured:
+  levels 1, 3 and 5 on columns, levels 2 and 4 8.38px off) while our guides stayed a unit
+  apart — bullets ended up sitting on the guides. Both the quantised part and the leftover
+  share one wrapper element, so sizing that wrapper from the item's own depth states the answer
+  for whatever it contains. This also removes the layer's dependence on Obsidian's own "Show
+  indentation guides" setting, which governs whether anything is quantised at all.
+- **A task item's text starts where every other kind's does.** Obsidian leaves the space after
+  `]` as the first character of the content span, where the marker span's `min-width` cannot
+  absorb it the way it absorbs a bullet's, so a task's text sat 4.19px out of line with its
+  neighbours'. The label is sized one space short of the gutter instead, from a live-measured
+  space advance — no CSS unit expresses one.
+
+Deliberately NOT in scope: making the indent unit a user-facing setting, which belongs with the
+wider layer-configurability item.
 
 ## Capabilities
 

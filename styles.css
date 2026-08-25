@@ -175,6 +175,47 @@
   text-indent: calc(-1 * var(--to-list-hang)) !important;
 }
 
+/*
+ * The leading whitespace, sized to OUR depth instead of to what Obsidian made
+ * of the characters.
+ *
+ * Obsidian wraps every list line's leading whitespace in one
+ * `.cm-hmd-list-indent` span, and inside it quantises only what it recognises:
+ * a tab or exactly four spaces becomes a `.cm-indent` of one `--list-indent`,
+ * and whatever is left over stays a `.cm-indent-spacing` of literal space
+ * glyphs. Measured, on a two-space-indented file: levels 1, 3 and 5 land on
+ * columns and levels 2 and 4 land 8.38px right of the level above — the list
+ * walks up the page at the font's space advance while our guides, drawn from
+ * the parse, stay one unit apart. Every level is a level to the parse and to
+ * reading mode; only the editor's whitespace arithmetic disagrees.
+ *
+ * Sizing the WRAPPER states the answer once, for whatever it contains: the
+ * item's depth within its own list, in units. That covers the quantised part
+ * and the leftover together, so a two-space file, a three-space file and a
+ * six-space level all land where the parse says they are.
+ *
+ * It also removes this layer's dependence on the user's "Show indentation
+ * guides" setting. Measured with it off: the `.cm-indent` spans are not emitted
+ * at all, the wrapper holds raw text, and nothing is quantised — a FOUR-space
+ * level then renders 7.25px left of its column. The wrapper is emitted either
+ * way, so one rule covers both.
+ *
+ * `white-space: pre` and `overflow: hidden` keep whitespace wider than its own
+ * box from wrapping the line or spilling over the marker; `vertical-align: top`
+ * keeps an `overflow: hidden` inline-block — whose baseline would otherwise be
+ * its bottom margin edge — from dropping the row it sits in.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-decor-list
+  .cm-hmd-list-indent {
+  display: inline-block;
+  width: calc((var(--to-depth, 0) - var(--to-supp-depth, 0)) * var(--to-decor-unit));
+  white-space: pre;
+  overflow: hidden;
+  vertical-align: top;
+}
+
 .markdown-source-view.mod-cm6
   .cm-content
   > .cm-line.to-decor-list:not(.HyperMD-task-line)
@@ -191,21 +232,26 @@
  * the painted glyphs are shifted half their own width left. `transform` is what
  * makes that free: it moves the ink without moving anything around it.
  *
- * The shift is half the GUTTER, not half the number's own width. Centring each
- * number on its own width was tried and measured: `1. ` centres exactly, but
- * `10. ` reaches 14px left of the column and `100. ` 19px, and nothing is left
- * for the fold chevron, which needs ~10px on that side and cannot go further
- * without crossing the parent level's guide. A fixed shift centres a
- * single-digit marker exactly, leans wider ones right — into their own text's
- * space, which `min-width` has already accounted for — and gives every number
- * in a list ONE left edge, which reads as a column rather than as ragged
- * centring.
+ * The shift is a FIXED half-icon, not half the number's own width. Centring
+ * each number on its own width was tried and measured: `1. ` centres exactly,
+ * but `10. ` reaches 14px left of the column and `100. ` 19px, and nothing is
+ * left for the fold chevron, which needs ~10px on that side and cannot go
+ * further without crossing the parent level's guide. A fixed shift gives every
+ * number in a list ONE left edge, which reads as a column rather than as ragged
+ * centring, and leans wider ones right into their own text's space, which
+ * `min-width` has already accounted for.
+ *
+ * Half the MARKER ICON, so that left edge is the block icon's left edge: a
+ * number and a paragraph's icon at the same depth then start together, which
+ * is the comparison a reader actually makes when a numbered list sits above a
+ * paragraph. Half the gutter was tried first and put the digits 3.2px further
+ * left than the icon beside them — measured, and visible.
  */
 .markdown-source-view.mod-cm6
   .cm-content
   > .cm-line.to-decor-list:not(.HyperMD-task-line)
   .cm-formatting-list-ol {
-  transform: translateX(calc(var(--to-marker-gutter) / -2));
+  transform: translateX(calc(var(--to-marker-icon-size, 0.85rem) / -2));
 }
 
 /*
@@ -221,17 +267,28 @@
  * and 2.6rem — the glyph stayed at [14, 24] in all three.
  *
  * So the glyph is moved directly. It is absolutely positioned, so a transform
- * moves the ink and disturbs no layout. Half a gutter clears the widest centred
- * mark (a checkbox, half of it 8px) and 2px more keeps it off the ordered
- * marker's own left edge, while staying clear of the parent level's guide one
- * unit away.
+ * moves the ink and disturbs no layout.
+ *
+ * The distance is the block rule's, minus its gutter term. That rule (further
+ * down this file) lands a block chevron's painted glyph with its right edge at
+ * `column - icon/2 - 3px`: clear of the marker's own left edge by a 3px visual
+ * gap. It needs the gutter because a block line's chevron is anchored at the
+ * TEXT origin, one gutter right of the column; a list line's is anchored at its
+ * content origin, which the rules above have already put ON the column. Drop
+ * the gutter and the two kinds' chevrons land at the same offset from their own
+ * marker — which is what a reader compares, a list item and a heading being
+ * foldable side by side.
+ *
+ * Measured against half a gutter plus 2px, which this replaces: that put the
+ * list chevron 2.2px further left than a heading's, close enough to the parent
+ * level's guide to read as belonging to it rather than to its own marker.
  */
 .markdown-source-view.mod-cm6
   .cm-content
   > .cm-line.to-decor-list
   .cm-fold-indicator
   .collapse-indicator {
-  transform: translateX(calc(var(--to-marker-gutter) / -2 - 2px));
+  transform: translateX(calc(-1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px)));
 }
 
 /* A zero-width bullet box centres its own `::after` — which is where the dot
@@ -265,7 +322,28 @@
   > .cm-line.to-decor-list.HyperMD-task-line
   .task-list-label {
   display: inline-block;
-  min-width: var(--to-marker-gutter);
+  /*
+   * One space SHORT of the gutter, because a task line's text begins with one.
+   * Obsidian tokenises `- ` into the marker span and `[ ]` into the checkbox,
+   * and leaves the space between `]` and the text as the first character of the
+   * CONTENT span. A bullet line's equivalent space falls INSIDE the marker span
+   * — which the rules above size to the gutter — so it is absorbed there and
+   * the text lands on the column; a task line has nothing to absorb it, and its
+   * text sat 4.19px right of every other kind's until this. Measured: the gap
+   * a reader sees is not the larger one (17px marker-to-text on a bullet
+   * against 16.2px on a task); it is the text COLUMN that is out.
+   *
+   * The label carries it rather than the content span: exactly one label exists
+   * per rendered task line, so the correction cannot compound the way it would
+   * across however many spans the content is split into, and the cursor's own
+   * line — which shows `- [ ]` as source and has no label — is left alone by
+   * construction rather than by an added condition.
+   *
+   * `--to-space-advance` is measured live (`MarginCompensation`); no CSS unit
+   * expresses a space's advance. Shrinking the label moves only its right edge,
+   * so the checkbox stays centred on the column by the rule below.
+   */
+  min-width: calc(var(--to-marker-gutter) - var(--to-space-advance, 0.26em));
   margin-inline-start: 0;
   /* The label is the box that participates in the line, so the shared optical
    * anchor has to go here — on the checkbox itself it is inert, the label's own

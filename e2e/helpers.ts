@@ -147,6 +147,21 @@ export async function setIndentUsingTabs(useTab: boolean): Promise<void> {
   }, useTab);
 }
 
+/**
+ * Obsidian's own "Show indentation guides" (Editor settings), the same way.
+ *
+ * It is not only a guide switch: with it off Obsidian stops emitting the
+ * `.cm-indent` spans that quantise a list line's leading whitespace, so it
+ * changes list LAYOUT as well as decoration. `check-vault-drift.mjs` covers the
+ * config file, but a spec that turns it off should still turn it back on.
+ */
+export async function setIndentGuides(show: boolean): Promise<void> {
+  await browser.executeObsidian(({ app }, show) => {
+    (app.vault as any).setConfig('showIndentGuide', show);
+    app.workspace.updateOptions();
+  }, show);
+}
+
 export function getCursor(): Promise<{ line: number; ch: number }> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);

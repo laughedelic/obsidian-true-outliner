@@ -55,14 +55,35 @@ paragraph — the tree model's attachment rule, not a rendering slip.
 - child of the paragraph
 	- grandchild
 
-## Known limitation: two-space indentation
+## Space indentation, in twos and threes
 
-Obsidian only quantises a tab or exactly four spaces into an indent unit, so
-the levels below stay wrong at every setting. This is stock behaviour, visible
-with the plugin disabled too.
+Obsidian resolves a tab or exactly four spaces into an indent unit and renders
+whatever is left over at its literal character width, so these levels used to
+walk right a fraction of a level at a time while the guides beside them stayed
+evenly spaced. Outline mode states the indentation width from the item's own
+depth instead, so every level lands on its column whatever the source is made of
+— and whichever way Obsidian's own "Show indentation guides" setting is set.
 
 - two-space level one
   - two-space level two
     - two-space level three
       - two-space level four
+        - two-space level five
+
+- three-space level one
+   - three-space level two
+      - three-space level three
+
+## Fold chevrons
+
+Hovering a parent shows its chevron. A list item's should sit the same distance
+from its own marker as this heading's does from the heading icon, clear of the
+parent level's guide on the left.
+
+- a parent bullet
+	- its child
+1. a parent number
+	1. its child
+- [ ] a parent task
+	- [ ] its child
 

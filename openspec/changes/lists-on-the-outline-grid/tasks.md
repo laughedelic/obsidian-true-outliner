@@ -51,12 +51,28 @@
       "wider than the gutter" reason for not centring was measured false — 16px against a 20px
       gutter. See design D5.)
 - [x] 3.6 Set the bullet weight to `0.38em`, colour token unchanged.
-- [x] 3.8 Bring an ordered number onto the column too, by a fixed half-gutter shift rather than
-      half its own width (which leaves no room for the fold chevron), so a single digit centres
-      exactly and every number in a list shares one left edge.
+- [x] 3.8 Bring an ordered number onto the column too, by a fixed shift rather than half its own
+      width (which leaves no room for the fold chevron), so every number in a list shares one
+      left edge. Make that shift half a MARKER ICON, so the shared edge is the one a block
+      marker at the same depth begins at — half a gutter was built first and put the digits
+      3.2px left of the paragraph icon beside them.
 - [x] 3.9 Move the fold chevron off the marker it belongs to: Obsidian renders it with its right
       edge on the content origin, which is now the marker's own centre. `--list-bullet-end-padding`
-      is not the lever — measured at three values, the glyph never moved (design D8).
+      is not the lever — measured at three values, the glyph never moved (design D8). Land it at
+      the BLOCK rule's distance minus that rule's gutter term, so both kinds sit the same 3px
+      from their own marker instead of each being placed by a constant of its own; a self-chosen
+      half-gutter-plus-2px put it 2.2px further left, reading as belonging to the parent guide.
+- [x] 3.10 State the leading whitespace's WIDTH from the item's own depth, on the one wrapper
+      Obsidian puts around all of it, so the quantum it recognises stops mattering: two- and
+      three-space files, and six-space levels, land on the grid, and so do space-indented files
+      with Obsidian's own "Show indentation guides" turned off (design D9). This retires two
+      accepted residuals rather than documenting them.
+- [x] 3.11 Bring a task item's text onto the shared text column: the space Obsidian leaves after
+      `]` is the first character of the CONTENT span, where the marker span's `min-width` cannot
+      absorb it. Size the label one space short of the gutter, from a live-measured
+      `--to-space-advance` — no CSS unit expresses a space's advance (design D10). Assert the
+      PROPERTY, not the rendered position: the CSS fallback reproduces the bundled font closely
+      enough that a position assertion passes with the measurement removed.
 - [x] 3.7 Suppress Obsidian's own list-guide line on those lines — its width only, never the
       user's "Show indentation guides" setting — and include the list-ancestor depths in the
       gradient so our guide draws every level exactly once.
@@ -88,9 +104,10 @@
       rule reads, not an intermediate one; Obsidian's list hang is a cached measurement whose
       cache ignores attributes; `--list-indent` is `em`-based so anything of ours flowing into
       it must be `rem`; a user setting can move geometry.
-- [x] 5.4 Record the residuals where a user will meet them, not only in research: two- and
-      three-space files, and space-indented files with indent guides off. Settle design.md's
-      open question about the surface here.
+- [x] 5.4 ~~Record the residuals where a user will meet them~~ — retired by 3.10, which removed
+      both of them. The README's "Known limitations" section and the demo note's "Known
+      limitation: two-space indentation" are deleted rather than reworded, and design.md's open
+      question about the surface is answered by there being no case to surface.
 
 ## 6. Verification
 
@@ -113,4 +130,10 @@
 - [ ] 6.7 Real-vault pass by hand over `test-vault/`, including
       `Notes/List decoration demo.md`. This is the gate, not the fixtures — every bug in this
       layer's history was found here and none by the synthetic corpus.
+- [x] 6.9 E2e the four corrections found by hand in the real vault, each as a RELATIONSHIP so
+      no font can encode itself in an assertion: space-indented levels on the grid in twos,
+      threes and tabs; the same grid with Obsidian's indentation guides off; a task item's text
+      on the same column as the bullet beside it; an ordered number's left edge on a block
+      icon's; a list chevron the same distance from its marker as a block chevron. Each one
+      negative-controlled by disabling its own rule and confirming only its own test fails.
 - [x] 6.8 Full suite green: 854 unit tests, lint, typecheck, 22/22 desktop e2e spec files.

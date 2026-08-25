@@ -397,6 +397,11 @@ list geometry rather than deferring to it.
 existing gradient draws them, and `computePositionTrail`'s two list-item exclusions are gone,
 so the trail steps one level per ancestor whatever its kind. No second mechanism was needed.
 
+The blocker's remaining half — "`.cm-indent` spans do not correspond to list levels" — was also
+answered without one, later in the same change: the spans do not, but the single
+`.cm-hmd-list-indent` WRAPPER around them does, and stating its width from the item's own depth
+puts two- and three-space levels on the grid too. See that change's design D9.
+
 **Amended 2026-08-20** ([16-native-list-decoration.md](16-native-list-decoration.md)): the
 blocker above holds only while native list columns are taken as given. They are not — they are
 computed from `--list-indent`, which we can set to our own unit, and once every list level sits

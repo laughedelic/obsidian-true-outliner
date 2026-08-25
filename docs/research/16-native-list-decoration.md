@@ -387,6 +387,28 @@ Only reached if phases 1–3 leave it worth solving. Three candidates:
   project already rewrites list indentation on every structural operation, so a one-shot
   normalizer is consistent with the model and removes the problem at the source.
 
+**Outcome: the first candidate, and it needed no new fact.** Reached not because phases 1–3
+left it "worth solving" in the abstract but because a manual pass on the real vault reported
+it: with the guides finally on an even grid, a two-space list's bullets sat ON them.
+
+Measured on a two-space file at unit 24px — levels 1, 3 and 5 on their columns, levels 2 and 4
+8.38px right of the level above. The DOM says why: Obsidian wraps ALL of a list line's leading
+whitespace in one `.cm-hmd-list-indent` span and inside it emits `.cm-indent` per tab or per
+exactly four spaces, leaving the remainder as a `.cm-indent-spacing` run of literal space
+glyphs. Sizing the WRAPPER — not the spans, not a widget — to `(depth − supplementalDepth) ×
+unit` states the answer for whatever is inside it.
+
+The open question the plan raised does not arise: the hanging indent is no longer read from
+Obsidian at all (Phase 1's stated `--to-list-hang`), so there is nothing that has to observe
+this width on the first render. And the two custom properties the width is computed from are
+the ones the hang already publishes, so no new fact reaches the DOM. The `Decoration.replace`
+widget and the normalizer command are both unnecessary.
+
+It also settles the last carried-forward finding below in the strongest way available: the
+"Show indentation guides" setting stops moving geometry, because the wrapper is emitted either
+way. Measured with it off, nothing is quantised at all — a FOUR-space level renders 7.25px
+short of its column — and the same rule covers that too.
+
 ## Carried-forward findings
 
 For [11-decoration-lessons.md](11-decoration-lessons.md) when this work lands:
@@ -411,4 +433,20 @@ For [11-decoration-lessons.md](11-decoration-lessons.md) when this work lands:
   the Experiment-1 font-size bug returns through a new door.
 - **A user setting can move geometry.** "Show indentation guides" does not only paint: with it
   off, the `.cm-indent` spans do not exist, and space-indented list levels change width. Any
-  reasoning about list columns has to name which side of that setting it holds on.
+  reasoning about list columns has to name which side of that setting it holds on — or, better,
+  reach for a box that exists on both sides of it, which `.cm-hmd-list-indent` turned out to be.
+- **When the same fix serves a reported bug and an accepted residual, the residual was a
+  mis-scoped bug.** Two- and three-space files, and space-indented files with indent guides
+  off, were both written down as things to document rather than fix. One rule — state the
+  wrapper's width — removed both, and it was found only because a manual pass reported the
+  visible half of it. An accepted residual is worth re-costing whenever something adjacent
+  moves.
+- **A space's advance has no CSS unit.** `ch` is the digit's (9.6px where a space is 4.19px in
+  the bundled font), and nothing else comes close. A layout that has to cancel exactly one
+  space — a task item's text, which Obsidian leaves the space after `]` in front of — has to
+  measure it. The same live-measurement pattern as the fold chevron's dead space applies:
+  publish it on `view.dom`, outside CM6's observed subtree, and write only on a change.
+- **A fallback tuned to the bundled font makes its own measurement untestable by position.**
+  `--to-space-advance`'s `0.26em` fallback is within 0.03px of the real advance, so every
+  rendered-position assertion passed with the measurement deleted — confirmed by deleting it.
+  The assertion has to be on the published property agreeing with the thing it compensates.

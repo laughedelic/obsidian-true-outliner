@@ -27,7 +27,9 @@ interface LineGeometry {
   markerX: number | null;
   /** Left/right of the marker run, for the kinds whose mark is its glyphs. */
   markerBox: { l: number; r: number } | null;
-  /** Left/right of the fold chevron's own glyph, when one renders. */
+  /** Left/right of a block line's own marker icon, when one renders. */
+  iconBox: { l: number; r: number } | null;
+  /** Left/right of the fold chevron's PAINTED glyph, when one renders. */
   foldGlyph: { l: number; r: number } | null;
   nativeGuideWidth: string | null;
 }
@@ -67,7 +69,12 @@ function geometry(): Promise<LineGeometry[]> {
         // not always wrapped in `.cm-hmd-list-indent`, and counting it reports
         // the line start as the text column.
         if (!chrome && (node.textContent ?? '').trim() !== '') {
-          range.selectNodeContents(node);
+          // From the first INK, not from the node's start: a task line's
+          // content span opens with the space Obsidian leaves after `]`, and
+          // measuring from the box would report a text column no reader sees.
+          const raw = node.textContent ?? '';
+          range.setStart(node, raw.length - raw.trimStart().length);
+          range.setEnd(node, raw.length);
           for (const b of Array.from(range.getClientRects())) {
             if (b.width === 0) continue;
             const key = Math.round(b.top);
@@ -121,7 +128,12 @@ function geometry(): Promise<LineGeometry[]> {
         wrapX: rows.length > 1 ? rows[1]! : null,
         markerX,
         markerBox: boxOf('.cm-formatting-list-ol') ?? boxOf('.task-list-item-checkbox'),
-        foldGlyph: boxOf('.cm-fold-indicator .collapse-indicator'),
+        iconBox: boxOf('.to-decor-marker-icon'),
+        // The `<svg>`, not `.collapse-indicator`: the wrapper's width is hit
+        // area and differs by kind (15px on a heading, 30.8px on a list item,
+        // where `--list-bullet-end-padding` widens it), so comparing wrappers
+        // across kinds compares padding rather than glyphs.
+        foldGlyph: boxOf('.cm-fold-indicator .collapse-indicator svg'),
         nativeGuideWidth: indents.length
           ? getComputedStyle(indents[0]!, '::before').borderInlineEndWidth
           : null,
@@ -144,6 +156,11 @@ async function open(md: string, mode: 'on' | 'off' = 'on'): Promise<LineGeometry
   await browser.pause(300);
   return geometry();
 }
+
+const setIndentGuides = async (show: boolean): Promise<void> => {
+  await h.setIndentGuides(show);
+  await browser.pause(300);
+};
 
 const at = (rows: LineGeometry[], n: number): LineGeometry => {
   const row = rows.find((r) => r.n === n);
@@ -225,14 +242,15 @@ describe('lists on the outline grid', function () {
   it('centres a task checkbox on its own column, with its text at the gutter', async function () {
     // A checkbox is the same kind of node marker a bullet is, so it takes the
     // column the same way — centred, not merely started there. The text column
-    // is a range rather than a pixel: the label is `min-width`, so content
-    // wider than the gutter legitimately pushes text out, and a control's
-    // intrinsic width is the platform's, not this layer's.
+    // is a range rather than a pixel: it is the gutter, within the subpixel the
+    // measured space advance is published at, and a control wider than the
+    // gutter would legitimately push it further out — a platform's business,
+    // not this layer's.
     const rows = await open(['# H', '', '- [ ] open', '\t- [x] done', ''].join('\n'));
     for (const n of [2, 3]) {
       const row = at(rows, n);
       expect(row.markerX).toBeCloseTo(row.column, 1);
-      expect(row.textX! - row.column).toBeGreaterThanOrEqual(GUTTER);
+      expect(row.textX! - row.column).toBeGreaterThan(GUTTER - 0.5);
       expect(row.textX! - row.column).toBeLessThan(GUTTER + 8);
     }
   });
@@ -251,52 +269,56 @@ describe('lists on the outline grid', function () {
     expect(task.markerX).toBeCloseTo(task.column, 1);
   });
 
-  it('gives an ordered list one left edge, with a single digit centred on the column', async function () {
+  it('starts every ordered number on the left edge a block icon starts on', async function () {
     // A number's mark is its glyphs, so it cannot shrink its box onto the
-    // column the way a bullet does. It is shifted by half the GUTTER instead of
-    // half its own width: one digit centres exactly, wider ones lean right into
-    // the space their own text already reserves, and all share a left edge.
+    // column the way a bullet does. It is shifted by a FIXED half-icon instead
+    // of half its own width: every number then shares one left edge — and that
+    // edge is the one a block marker at the same depth starts on, which is the
+    // comparison a reader makes when a numbered list sits beside a paragraph.
     const rows = await open(
-      ['# H', '', '1. first', '9. ninth', '10. tenth', '100. hundredth', ''].join('\n'),
+      ['# H', '', '1. first', '9. ninth', '10. tenth', '100. hundredth', '', 'A paragraph.', ''].join('\n'),
     );
     const numbers = [2, 3, 4, 5].map((n) => at(rows, n));
+    const paragraph = at(rows, 7);
+    expect(paragraph.column).toBe(numbers[0]!.column);
+    expect(paragraph.iconBox).not.toBeNull();
 
-    // The RULE: every number's box is shifted left of its column by half a
-    // gutter, whatever its width. That is what makes the left edge shared.
+    // The RULE, asserted against the icon actually rendered rather than against
+    // the constant it is sized from: same left edge, whatever the number's own
+    // width, which is what makes the left edge shared at all.
     for (const row of numbers) {
-      expect(row.markerBox!.l).toBeCloseTo(row.column - GUTTER / 2, 1);
+      expect(row.markerBox!.l).toBeCloseTo(paragraph.iconBox!.l, 1);
     }
-
-    // Centring a single digit exactly is a CONSEQUENCE of that rule, and only
-    // while the glyphs fit inside the gutter — `1. ` measures 18.4px on macOS
-    // and 20.36px on CI's font, so there it leans right by half the excess,
-    // which is the designed behaviour for a wide marker arriving early rather
-    // than a defect. Asserted as "no further right than half a gutter", which
-    // holds on any font; asserting the exact centre tested the font.
-    const single = numbers[0]!;
-    const singleCentre = (single.markerBox!.l + single.markerBox!.r) / 2;
-    expect(singleCentre).toBeGreaterThanOrEqual(single.column - 0.5);
-    expect(singleCentre - single.column).toBeLessThan(GUTTER / 2);
 
     // and none of them reaches into its own text
     for (const row of numbers) expect(row.markerBox!.r).toBeLessThanOrEqual(row.textX! + 0.5);
   });
 
-  it('keeps a fold chevron clear of the marker and of the parent guide', async function () {
+  it('lands a list chevron the same distance from its marker as a block chevron', async function () {
     // The chevron renders with its right edge on the item's content origin,
     // which is now the marker's own centre rather than a point to its left, so
     // it overlapped every centred mark. `--list-bullet-end-padding` is not the
     // lever (it grows the box rightward and the inset compensates); the glyph
     // is moved directly.
+    //
+    // How FAR is the block rule's answer, minus its gutter term — a block's
+    // chevron is anchored at the text origin, a list's at its content origin,
+    // which the grid has already put on the column. Asserted as the two kinds
+    // agreeing rather than as a distance, so neither can drift from the other.
     const rows = await open(
-      ['# H', '', '- a bullet', '\t- child', '- [ ] a task', '\t- child', ''].join('\n'),
+      ['# H', '', 'A paragraph.', '', '- a bullet', '\t- child', '- [ ] a task', '\t- child', ''].join('\n'),
     );
-    const foldable = rows.filter((r) => r.foldGlyph !== null && r.markerX !== null);
+    const heading = at(rows, 0);
+    expect(heading.foldGlyph).not.toBeNull();
+    const blockOffset = heading.foldGlyph!.r - heading.column;
+
+    const foldable = rows.filter((r) => r.isList && r.foldGlyph !== null && r.markerX !== null);
     expect(foldable.length).toBeGreaterThan(0);
     for (const row of foldable) {
-      // Clear of the mark: a checkbox is the widest centred one, half of it 8px.
-      expect(row.foldGlyph!.l).toBeLessThan(row.column - 8);
-      // and clear of the parent level's guide, one unit further left.
+      expect(row.foldGlyph!.r - row.column).toBeCloseTo(blockOffset, 1);
+      // Still clear of the mark — a checkbox is the widest centred one, half of
+      // it 8px — and of the parent level's guide one unit further left.
+      expect(row.foldGlyph!.r).toBeLessThan(row.column - 8);
       expect(row.foldGlyph!.l).toBeGreaterThanOrEqual(row.column - UNIT);
     }
   });
@@ -377,14 +399,89 @@ describe('lists on the outline grid', function () {
     expect(icons).toBe(0);
   });
 
-  it('leaves two-space indentation on Obsidian’s own columns (documented residual)', async function () {
+  it('puts space-indented levels on the grid whatever the space count', async function () {
     // Obsidian resolves a tab or exactly four spaces into an indent unit and
-    // renders anything shorter at its literal width — with the plugin disabled
-    // too. The tree depth is still right; only the rendered column is not, and
-    // this pins that it is Obsidian's behaviour rather than ours regressing.
-    const rows = await open(['# H', '', '- one', '  - two', ''].join('\n'));
-    const two = at(rows, 3);
-    expect(two.column).toBe(at(rows, 2).column + UNIT); // the FACT is correct
-    expect(Math.abs(two.markerX! - two.column)).toBeGreaterThan(1); // the RENDER is not
+    // renders the remainder at its literal width, so a two-space file walked
+    // right by one space advance per level while our guides stayed a unit
+    // apart — the bullets ended up ON the guides. Sizing the indent WRAPPER to
+    // the item's own depth states the answer for whatever it contains.
+    for (const indent of ['  ', '   ', '\t']) {
+      const rows = await open(
+        ['# H', '', '- one', `${indent}- two`, `${indent}${indent}- three`, ''].join('\n'),
+      );
+      for (const n of [2, 3, 4]) {
+        const row = at(rows, n);
+        expect(row.markerX).toBeCloseTo(row.column, 1);
+        expect(row.textX! - row.column).toBeCloseTo(GUTTER, 1);
+      }
+      expect(at(rows, 3).column - at(rows, 2).column).toBe(UNIT);
+      expect(at(rows, 4).column - at(rows, 3).column).toBe(UNIT);
+    }
+  });
+
+  it('puts a task item’s text on the same column as a bullet item’s', async function () {
+    // Obsidian leaves the space after `]` as the first character of the CONTENT
+    // span, where the marker span's `min-width` cannot absorb it the way it
+    // absorbs a bullet's; the task's text sat one space advance further out
+    // than every other kind's. Asserted against the bullet beside it rather
+    // than against a pixel, the advance being the font's business.
+    const rows = await open(
+      ['# H', '', '- a bullet', '- [ ] a task', '1. a number', ''].join('\n'),
+    );
+    const [bullet, task, number] = [at(rows, 2), at(rows, 3), at(rows, 4)];
+    expect(task.column).toBe(bullet.column);
+    expect(task.textX).toBeCloseTo(bullet.textX!, 1);
+    expect(number.textX).toBeCloseTo(bullet.textX!, 1);
+    // and the checkbox has not moved off its column to pay for it
+    expect(task.markerX).toBeCloseTo(task.column, 1);
+  });
+
+  it('publishes the space advance it actually measured, not its fallback', async function () {
+    // The CSS fallback (`0.26em`) reproduces the bundled font to within 0.03px,
+    // so a rendered-position assertion cannot tell a live measurement from no
+    // measurement at all — it passes either way on this font. What is worth
+    // pinning is that the measurement RAN and agrees with the space it is
+    // compensating; the fallback exists for the first paint, not as the answer.
+    await open(['# H', '', '- [ ] a task', ''].join('\n'));
+    const measured = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const published = getComputedStyle(cm.dom).getPropertyValue('--to-space-advance').trim();
+      const span = cm.contentDOM.querySelector(
+        '.HyperMD-task-line span[class*="cm-list-"]:not(.cm-formatting)',
+      );
+      const node = span?.firstChild;
+      let actual = 0;
+      if (node?.nodeValue?.startsWith(' ')) {
+        const range = document.createRange();
+        range.setStart(node, 0);
+        range.setEnd(node, 1);
+        actual = range.getBoundingClientRect().width;
+      }
+      return { published, actual };
+    });
+    expect(measured.actual).toBeGreaterThan(0);
+    // a real px value, not the em fallback showing through
+    expect(measured.published).toMatch(/^[\d.]+px$/);
+    expect(parseFloat(measured.published)).toBeCloseTo(measured.actual, 1);
+  });
+
+  it('renders the same grid with Obsidian’s indentation guides off', async function () {
+    // With that setting off Obsidian emits no `.cm-indent` at all and nothing
+    // is quantised, so even a FOUR-space level rendered short of its column.
+    // The wrapper this layer sizes is emitted either way.
+    const md = ['# H', '', '- one', '    - two', '  - two-space', ''].join('\n');
+    const on = await open(md);
+    await setIndentGuides(false);
+    try {
+      const off = await geometry();
+      for (const n of [2, 3, 4]) {
+        expect(at(off, n).markerX).toBeCloseTo(at(on, n).markerX!, 1);
+        expect(at(off, n).markerX).toBeCloseTo(at(off, n).column, 1);
+      }
+    } finally {
+      await setIndentGuides(true);
+    }
   });
 });

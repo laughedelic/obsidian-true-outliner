@@ -16,11 +16,17 @@ The grid SHALL be derived from a single unit value used by every layer that posi
 anything: indentation, guides, markers, and any accent drawn on them. A layer SHALL NOT
 compute a column from a second source.
 
-Whether the SOURCE indentation of a list actually renders one unit per level is Obsidian's
-own affair and is not guaranteed here: Obsidian resolves a tab or exactly four spaces into one
-indent unit and renders anything shorter at its literal width. A document indented in units
-Obsidian does not resolve renders its list levels at columns this requirement does not
-control, with the mode on or off.
+The grid SHALL hold whatever a list's SOURCE indentation is made of. Obsidian resolves a tab or
+exactly four spaces into one indent unit and renders the remainder at its literal width, so a
+file indented in twos or threes walks right by a fraction of a level at a time; and with its
+own "Show indentation guides" setting off it resolves nothing at all, not even four spaces.
+Neither SHALL reach the rendered column: the plugin SHALL state a list line's indentation width
+from the item's own depth rather than accept whatever the leading whitespace measured, so a
+two-space file, a three-space file and a tab file render the same grid, with that setting on or
+off.
+
+What this does NOT change is the parse: which levels exist is Markdown's business and is
+already decided by the time this layer runs.
 
 #### Scenario: A list level and a heading level are the same distance
 
@@ -33,6 +39,19 @@ control, with the mode on or off.
 
 - **WHEN** a nested ordered list and a nested task list are open in outline mode
 - **THEN** each of their levels steps by the same unit as a bullet list's
+
+#### Scenario: A space-indented file takes the same grid as a tab-indented one
+
+- **WHEN** the same list structure is written with tabs, with two spaces per level, and with
+  three spaces per level
+- **THEN** all three render every level on the same columns, one unit apart, with each item's
+  marker on its own level's column
+
+#### Scenario: The grid does not depend on Obsidian's indentation-guide setting
+
+- **WHEN** a nested list is open in outline mode and Obsidian's own "Show indentation guides"
+  setting is turned off
+- **THEN** every level renders on exactly the columns it rendered on with the setting on
 
 #### Scenario: Outline mode off is stock
 
@@ -127,11 +146,12 @@ whatever its own width. Its width and hit area SHALL NOT be changed to achieve t
 
 An ordered item's number is positioned by the same rule with one qualification, because its
 mark IS its glyphs and their width is the font's and the number's: it SHALL be shifted onto the
-column by a fixed amount — half the marker gutter — rather than by half its own width. A
-number whose glyphs fit within the gutter therefore centres on the column, and a wider one
-leans right of it into the space its own text already reserves — how wide "wide" is depends on
-the font, so which numbers centre exactly is not fixed. Every number in a list SHALL share one
-left edge, and none SHALL overlap its own item's text.
+column by a fixed amount rather than by half its own width. That amount SHALL be half a block
+marker's own width, so an ordered number and a block marker at the same depth begin on the same
+left edge — the comparison a reader makes when a numbered list sits above or below a paragraph.
+Every number in a list SHALL therefore share one left edge; a number wider than the gutter
+leans right into the space its own text already reserves; and none SHALL overlap its own item's
+text.
 
 Shifting each number by half its OWN width is explicitly rejected: it centres every number but
 reaches so far left that no fold chevron can fit beside it without crossing the parent level's
@@ -159,18 +179,26 @@ whatever the node's kind, so markers on adjacent rows read as one column.
 - **THEN** every marker starts at its own depth column, and the wider one pushes its own text
   right rather than overlapping it or crossing the column
 
-#### Scenario: An ordered list's numbers share a left edge, with a single digit on the column
+#### Scenario: An ordered list's numbers share the left edge a block marker starts on
 
-- **WHEN** an ordered list contains single- and multi-digit items
-- **THEN** every number starts at the same column, half a gutter left of the depth column; a
-  number narrow enough to fit the gutter is centred on that column; and no number overlaps its
-  own item's text
+- **WHEN** an ordered list contains single- and multi-digit items, with a paragraph at the same
+  depth
+- **THEN** every number begins at the same left edge, and that edge is the one the paragraph's
+  own marker begins at; and no number overlaps its own item's text
 
-#### Scenario: A fold chevron does not overlap the marker it belongs to
+#### Scenario: A task item's text starts on the same column as a bullet item's
 
-- **WHEN** a list item has children, so Obsidian renders its fold chevron
-- **THEN** the chevron renders clear of that item's own marker, and clear of the parent level's
-  guide column
+- **WHEN** a list contains a task item, a plain item and an ordered item at one depth
+- **THEN** all three items' text begins on the same column, one marker gutter right of the
+  depth column — the space Obsidian leaves between a checkbox and its text SHALL NOT push a
+  task item's text further out than its neighbours'
+
+#### Scenario: A fold chevron sits where a block's chevron sits
+
+- **WHEN** a list item has children, so Obsidian renders its fold chevron, and a foldable block
+  is visible in the same document
+- **THEN** the chevron sits the same distance from its own marker as the block's chevron sits
+  from its own, clear of that marker and clear of the parent level's guide column
 
 #### Scenario: A checkbox and a bullet in one list share a column
 
@@ -194,7 +222,9 @@ blocks, not just through node content lines.
 Obsidian's own "Show indentation guides" setting SHALL remain the user's to set and SHALL NOT
 be changed by the plugin; suppression SHALL be scoped to outline-mode list lines, leaving every
 other context — other notes, reading view, the mode turned off — showing whatever that setting
-asks for.
+asks for. Nor SHALL any of this layer's own geometry depend on it: that setting also governs
+whether Obsidian quantises a list line's leading whitespace at all, and the rendered grid SHALL
+be the same either way.
 
 #### Scenario: A list's own nesting renders guides
 - **WHEN** a list is nested several levels deep

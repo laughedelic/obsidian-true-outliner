@@ -273,7 +273,32 @@ Findings from `lists-on-the-outline-grid` (measurements:
 - **A user setting can move geometry, not just paint.** With Obsidian's "Show indentation
   guides" off, the `.cm-indent` spans do not exist at all, and space-indented list levels
   change width. Any reasoning about list columns has to name which side of that setting it
-  holds on.
+  holds on — or reach for a box that exists on both sides of it. `.cm-hmd-list-indent`, the
+  single wrapper Obsidian puts around ALL of a list line's leading whitespace, is emitted
+  either way; stating ITS width makes the setting, and the four-space quantum inside it,
+  stop mattering.
+- **When one fix serves both a reported bug and an accepted residual, the residual was a
+  mis-scoped bug.** "Two- and three-space files stay misaligned" and "space-indented files
+  depend on a setting the user owns" were both written down as things to document rather than
+  fix, with a normalize-indentation command as the notional durable answer. One rule removed
+  both — and it was found only because a manual pass reported the visible half. An accepted
+  residual is worth re-costing whenever something adjacent moves.
+- **A space's advance has no CSS unit.** `ch` is the digit's advance (9.6px where a space is
+  4.19px in the bundled font). A layout that must cancel exactly one space — a task item's
+  text, which Obsidian leaves the space after `]` in front of, outside the marker span that
+  absorbs a bullet's — has to measure it, by the same live-measurement pattern as the fold
+  chevron's dead space.
+- **A fallback tuned to the bundled font makes its own measurement untestable by position.**
+  `--to-space-advance`'s `0.26em` fallback is within 0.03px of the real advance, so every
+  rendered-position assertion still passed with the measurement deleted — confirmed by
+  deleting it. Assert the published property against the thing it compensates, not the
+  position it produces.
+- **A second placement of the same chrome should be derived from the first, not chosen
+  again.** The fold chevron is placed once for block lines and once for list lines. Choosing
+  the list distance independently (half a gutter plus 2px) landed it 2.2px from the block
+  one — enough for a reader to see, since a heading and a list item are foldable side by side.
+  The two anchors differ by exactly the marker gutter (text origin against content origin), so
+  the second rule is the first minus that term, and the e2e assertion is that they agree.
 - **`vertical-align: middle` resolves against the PARENT's x-height, which makes it
   font-size-relative in a way that bites on headings.** It is the right optical anchor for a
   small mark beside body text and the wrong one for a marker on an H1, where it drops the mark

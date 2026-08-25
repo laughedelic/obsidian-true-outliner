@@ -15,7 +15,9 @@ Four properties of Obsidian's own list rendering shape the approach, all confirm
 2. **`.cm-indent` spans exist only while Obsidian's own "Show indentation guides" setting is
    on**, and one span is emitted per tab or per exactly four spaces — never per two or three.
    Layout for space-indented files therefore depends on a setting the user owns, and on a
-   quantum that is not the Tab size.
+   quantum that is not the Tab size. Both of those are neutralised by D9: the spans and the
+   leftover whitespace share one WRAPPER, and sizing the wrapper states the answer for
+   whatever is inside it.
 3. **The hanging indent is a cached live measurement** written as an inline style, invalidated
    on text change or on a DOM mutation Obsidian's own observer sees — `childList`,
    `characterData`, `subtree`, but not attributes.
@@ -148,12 +150,18 @@ mixed list.
 
 An ordered number takes the column too, with one qualification. Its mark IS its glyphs, so it
 cannot shrink its box the way a bullet does; instead the painted glyphs are shifted left by a
-fixed half-gutter with `transform`, which moves the ink without moving the box its own text
-follows. A number whose glyphs fit inside the gutter therefore centres on the column, wider
-ones lean right into the space `min-width` already reserves, and every number in a list shares
-one left edge. Which numbers centre exactly is the font's business — `1. ` measures 18.4px in
-the bundled theme on macOS and 20.36px on CI's Linux font, so the lean starts one digit earlier
-there. The rule is the fixed shift; the centring is its consequence.
+fixed amount with `transform`, which moves the ink without moving the box its own text follows.
+Every number in a list therefore shares one left edge, and wider ones lean right into the space
+`min-width` already reserves.
+
+That fixed amount is half a MARKER ICON, not half the gutter, so the shared left edge is the
+one a block marker at the same depth begins at. Half a gutter was built first and reviewed by
+hand: it put the digits 3.2px left of the paragraph icon beside them, which reads as the
+numbers hanging off the column rather than sitting on it — visible whenever a numbered list
+sits above or below a paragraph, which is where a reader has an edge to compare against. What a
+single digit does is a consequence of whichever constant is chosen, not the rule: `1. ` centres
+almost exactly under the half-icon shift in the bundled theme, and would land differently on a
+font with different digit metrics.
 
 Shifting each number by half its OWN width was built first and measured out: it centres them
 all, but `10. ` then reaches 14px left of the column and `100. ` 19px, leaving nothing for the
@@ -171,9 +179,75 @@ centred ON it, the chevron sits straight through them — measured, the glyph oc
 indicator's box to the right while its own `inset-inline-end` compensates by the same amount,
 so the glyph does not move. Measured at 1.3rem, 2rem and 2.6rem — the glyph stayed put in all
 three. So the glyph is translated directly; it is absolutely positioned, so nothing else moves.
-Half a gutter clears the widest centred mark (a checkbox, half of it 8px) and two pixels more
-keep it off an ordered marker's left edge, while staying inside the unit between this column
-and the parent's guide.
+
+How far is not a fresh choice: it is the BLOCK rule's answer minus that rule's gutter term. A
+block line's chevron is anchored at the text origin, one gutter right of its column; a list
+line's is anchored at its content origin, which the rules above have already put ON the column.
+Drop the gutter and both kinds land their painted glyph at `column − icon/2 − 3px`, the same
+3px visual gap from their own marker. Since a heading and a list item are foldable side by side
+in the same document, that is the comparison a reader actually makes.
+
+A self-chosen half-gutter-plus-2px was built first and reviewed by hand: 2.2px further left
+than a heading's, close enough to the parent level's guide to read as belonging to that guide
+rather than to its own marker. The two chevrons agreeing is now asserted as such in
+`56-list-grid.e2e.ts`, rather than each being checked against a distance of its own.
+
+### D9 — State the leading whitespace's WIDTH, not just the indent unit
+
+Setting `--list-indent` retargets the levels Obsidian actually resolves. It does not help with
+the ones it does not: a list line's leading whitespace is quantised into `.cm-indent` spans per
+tab or per exactly four spaces, and whatever is left over stays a `.cm-indent-spacing` run of
+literal space glyphs at the font's own advance. Measured on a two-space file, unit 24px: levels
+1, 3 and 5 land on columns and levels 2 and 4 land 8.38px right of the level above. The parse
+counts five levels; the editor's whitespace arithmetic counts two and a half. Guides drawn from
+the parse then run through the bullets rather than out of them, which is how this surfaced in
+real use.
+
+The lever is that Obsidian wraps ALL of a line's leading whitespace — resolved and leftover
+alike — in one `.cm-hmd-list-indent` span. Sizing that wrapper to `(depth − supplementalDepth) ×
+unit` states the answer once for whatever it contains, so the quantum stops mattering. The
+inputs are the two custom properties the line already publishes for the hanging indent, so this
+adds no new fact and no measurement.
+
+It also removes the dependence on Obsidian's "Show indentation guides" setting that this
+change's Risks section had listed as a residual to detect and surface. With that setting off,
+Obsidian emits no `.cm-indent` at all and nothing is resolved — measured, a FOUR-space level
+then renders 7.25px short of its column. The wrapper is emitted either way, so one rule covers
+both, and there is no longer a case to surface.
+
+`white-space: pre` and `overflow: hidden` on the wrapper keep whitespace wider than its stated
+box from wrapping the line or spilling across the marker; `vertical-align: top` keeps an
+`overflow: hidden` inline-block — whose baseline would otherwise be its bottom margin edge —
+from dropping the row it sits in. Line heights and row counts were measured unchanged.
+
+### D10 — Measure the space advance a task line's text begins with
+
+A task item's text sat one space further right than every other kind's. The space is not ours
+to remove: Obsidian tokenises `- ` into the marker span and `[ ]` into the checkbox, and leaves
+the space between `]` and the text as the first character of the CONTENT span. A bullet line's
+equivalent space falls INSIDE the marker span, which D4/D5 size to the gutter, so it is
+absorbed there and the text lands on the column; a task line has nothing to absorb it.
+
+Worth recording because the first reading of the report was wrong: the marker-to-text GAP is
+not larger on a task line — 17px on a bullet against 16.2px on a task, the checkbox being much
+the wider mark. What a reader sees is the text COLUMN, 4.19px out of line with its neighbours'.
+
+So the label is sized one space SHORT of the gutter. No CSS unit expresses a space's advance
+(`ch` is the digit's — 9.6px where a space is 4.19px), and hardcoding one font's number is the
+mistake this layer keeps rediscovering, so it is measured live into `--to-space-advance` by the
+same mechanism and for the same reasons as `--to-chevron-dead-right`: `view.dom` rather than
+`contentDOM` to stay outside CM6's observed subtree, and written only on a real change.
+
+The correction goes on the LABEL rather than on the content span: exactly one label exists per
+rendered task line, so it cannot compound across however many spans the content is split into,
+and the cursor's own line — which shows `- [ ]` as source and has no label — is excluded by
+construction rather than by an added condition. Shrinking the label moves only its right edge,
+so the checkbox stays centred on the column.
+
+The e2e assertion is on the PROPERTY, not on the rendered position. The CSS fallback (`0.26em`)
+reproduces the bundled font to within 0.03px, so a position assertion passes identically with
+the measurement removed — verified by removing it. What is worth pinning is that the
+measurement ran and agrees with the space it compensates.
 
 ### D6 — One column definition, shared by markers, guides and accents
 
@@ -235,16 +309,14 @@ the general defect in place and needs another patch the next time a setting is r
 
 ## Risks / Trade-offs
 
-- **Two- and three-space indented files stay misaligned, and more visibly than before.**
-  Obsidian resolves only a tab or exactly four spaces into an indent unit, so those files
-  render their levels at literal whitespace widths — with the plugin disabled too. Once our
-  guides sit on an even grid, bullets that do not is a visible mismatch rather than a merely
-  uneven one. → Verify against a real two-space file and document it in the settings/readme
-  surface; the durable fix is a normalize-indentation command, out of scope here.
-- **Space-indented files depend on a setting the user owns.** With "Show indentation guides"
-  off, the `.cm-indent` spans do not exist and four-space levels collapse to natural width.
-  Tab-indented files are unaffected (`tab-size` is independent of it). → Detect and surface
-  rather than silently render wrong; decide the surface during implementation.
+- ~~**Two- and three-space indented files stay misaligned, and more visibly than before.**~~
+  ~~**Space-indented files depend on a setting the user owns.**~~ Both were accepted as
+  residuals and both are **resolved by D9**, which states the leading whitespace's width from
+  the item's own depth instead of accepting what Obsidian made of the characters. They are kept
+  here rather than deleted because the risk as written was real and its accepted mitigation
+  (document it, and offer a normalize-indentation command later) was the wrong answer: the
+  right one was another look at what Obsidian's DOM offers, which is the lesson
+  `docs/research/16` already states as "look for the variable before building the mechanism".
 - **We now override native list chrome, the surface the original postmortem blames for most of
   the earlier failure.** → The overrides are variables Obsidian itself exposes plus one stated
   hang, not a fight with its box model; every one is verified by measurement and by a
@@ -267,9 +339,8 @@ the general defect in place and needs another patch the next time a setting is r
 ## Open Questions
 
 - ~~What the surface should be when a note's list indentation cannot render on the grid.~~
-  **Settled during implementation: documentation only** — a "Known limitations" section in the
-  README. A notice would fire on a condition the user cannot act on from inside the note and
-  that is Obsidian's behaviour rather than the plugin's; a status-bar hint would need a
-  per-note scan for a case that a one-line README entry describes exactly. If real use shows
-  people hitting it without knowing why, the cheaper next step is a normalize-indentation
-  command, not a warning.
+  **Moot: there is no such note.** This was settled once as "documentation only" — a "Known
+  limitations" README section — and then settled again by D9 removing the condition it would
+  have described. Two- and three-space files, and space-indented files with Obsidian's
+  indentation guides off, all render on the grid. The README entry and the demo note's
+  "Known limitation" section are removed rather than reworded.

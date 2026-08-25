@@ -1940,6 +1940,9 @@ class MarginCompensation implements PluginValue {
    */
   private lastDeadRight = '';
 
+  /** Last published `--to-space-advance`, so an unchanged one is not rewritten. */
+  private lastSpaceAdvance = '';
+
   /**
    * Lines currently carrying a measured `--to-accent-stop`, kept so the next
    * render can clear exactly those instead of rescanning every line. Elements
@@ -2010,6 +2013,60 @@ class MarginCompensation implements PluginValue {
   }
 
   /**
+   * The advance width of one space in the editor's content font, published for
+   * the task-line rule in styles.css.
+   *
+   * A task item's text is one space further right than every other kind's, and
+   * the space is not ours to remove: Obsidian tokenises `- ` into the marker
+   * span, `[ ]` into the checkbox, and leaves the space that follows as the
+   * first character of the CONTENT span. On a bullet line the equivalent space
+   * falls inside the marker span, which the grid rules size to the gutter, so
+   * it is absorbed and the text lands on the column. On a task line there is
+   * nothing to absorb it.
+   *
+   * So the label is sized one space SHORT of the gutter, and this measures how
+   * short. No CSS unit expresses it — `ch` is the digit's advance (9.6px where
+   * a space is 4.19px in the bundled font) — and hardcoding one font's number
+   * is the mistake this layer keeps rediscovering, so it is read live, the same
+   * pattern and the same reasons as `measureChevron` above: `view.dom` rather
+   * than `contentDOM` to stay outside CM6's observed subtree, and only on a
+   * real change.
+   *
+   * Measured from a rendered task line's own leading space rather than from a
+   * bullet's, so the number is the very one being compensated. A note with no
+   * task line in the viewport yields none — and needs none, the rule having
+   * nothing to apply to. The CSS fallback (`0.26em`) reproduces the bundled
+   * font's measurement to within 0.03px and covers the first paint.
+   */
+  private measureSpaceAdvance(): void {
+    const label = this.view.contentDOM.querySelector<HTMLElement>(
+      '.cm-line.to-decor-list.HyperMD-task-line .task-list-label',
+    );
+    if (!label) return;
+    // `Node`, not `Text`: `Text` in this module is CodeMirror's document type.
+    let text: Node | null = null;
+    for (let node = label.nextSibling; node && !text; node = node.nextSibling) {
+      const found =
+        node.nodeType === Node.TEXT_NODE
+          ? node
+          : document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
+      if (found?.nodeValue) text = found;
+    }
+    // Only a leading space is ours to absorb; anything else means Obsidian
+    // tokenised the line differently than this rule assumes.
+    if (!text?.nodeValue?.startsWith(' ')) return;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 1);
+    const width = range.getBoundingClientRect().width;
+    if (width === 0) return;
+    const advance = `${width.toFixed(2)}px`;
+    if (advance === this.lastSpaceAdvance) return;
+    this.lastSpaceAdvance = advance;
+    this.view.dom.setCssProps({ '--to-space-advance': advance });
+  }
+
+  /**
    * Resolves `--text-selection` to a CONCRETE color value (not a `var()`
    * reference) and stores it as `--to-selected-bg` on `view.dom`, for the
    * escalated-selection chrome (styles.css) to consume instead of
@@ -2057,6 +2114,7 @@ class MarginCompensation implements PluginValue {
     // so a theme switch mid-session corrects on the next update.
     this.view.dom.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
     this.measureChevron();
+    this.measureSpaceAdvance();
     this.measureSelectionColor();
 
     // `factsFor`, not `docFacts`: a line Obsidian renders as a widget takes the
