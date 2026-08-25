@@ -102,9 +102,36 @@ own first line, which is a content line inside the extent by construction.
 to the node that owns the gap, so the trail does not blink off while the caret crosses a blank
 line. That rule is not what this change is about.
 
-The provisional extension needs no work here. `computeTrail` already computes the trail against
-`provisional.doc` when a position is open, and in that document the caret's row is a node's own
-line — so `contentEnd` includes it, and the accent ends exactly where the extended guide does.
+The provisional extension is where this stops being free, and review of the first draft is what
+found it. `computeTrail` computes the trail against `provisional.doc` — the MATERIALIZED
+document, in which the node the position stands for already exists. For a position that bisected
+nothing that document has an ancestor the raw parse does not: an Enter position below a childless
+heading makes that heading a parent, so the trail emits a `full` accent at the heading's own
+depth on the caret's row, while the raw guide facts that row renders from carry no guide at that
+depth at all. The accent draws a stripe with nothing underneath it.
+
+That is today's behaviour and not something this change introduces — but this change is the one
+that states "an accent renders only where its guide does", so it is the one that has to make it
+true.
+
+### D5b: Clip accents against the line's own guide depths, at the render choke point
+
+`guideBackground` (decorations.ts) builds one accent layer per accent in the trail, whatever
+guides the line actually carries. Building them only for accents whose depth the line carries
+makes the invariant structural rather than a property the two computations have to keep in step
+by hand: every accent sits on a guide by construction, whichever computation produced it and
+however far apart the two drift. `hasOverlay` takes the same filter, so a line left with no
+guides and no surviving accent renders no decoration at all.
+
+*Alternative considered:* pass the guide facts into `computePositionTrail` so the trail never
+emits an unbacked accent in the first place. Rejected — it puts base-layer output into a
+caret-derived computation that today depends on nothing but the tree and the caret, and it would
+have to be threaded through the provisional branch as well. The choke point is smaller and
+cannot be bypassed by a future accent source.
+
+`'lineage'` needs no exception. Its arriving `'top'` accent sits at the parent's depth on the
+child's own first row, a depth that row carries by definition — except in exactly the
+materialized case above, where dropping it is equally correct.
 
 ### D6: No consumer change beyond handing over the provisional line
 

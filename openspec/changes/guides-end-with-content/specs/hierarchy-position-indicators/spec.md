@@ -14,6 +14,13 @@ same row and SHALL NOT render on the blank rows below it — the same reason it 
 nothing on an ancestor's own rows. Where a provisional position extends a guide to the caret's
 own row, the accent SHALL extend with it, so the two layers always end together.
 
+This binds the COLUMN as well as the row: an accent SHALL render at a depth only where the line
+carries a guide at that depth. A caret-derived computation can believe in an ancestor the
+document does not have — a provisional position below a childless node stands for that node's
+first child, which makes it a parent — and an accent at such a depth would be a stripe with no
+guide beneath it anywhere in the document. An accent is a treatment OF a guide, never a mark of
+its own.
+
 #### Scenario: Only the ancestor's guide is accented among siblings
 
 - **WHEN** the caret is inside one of two sibling sections that each own a guide, and the guide
@@ -25,6 +32,12 @@ own row, the accent SHALL extend with it, so the two layers always end together.
 
 - **WHEN** the caret is in a node three non-list levels deep and the guide setting is `full`
 - **THEN** the guides of all three strict ancestors are accented on the lines that carry them
+
+#### Scenario: No accent renders on a column that carries no guide
+- **WHEN** a provisional position is open below a node that has no children of its own, so the
+  node the position stands for would be that node's first child, and the guide setting is `full`
+- **THEN** no accent renders at that node's own depth on the position's row, since the document
+  draws no guide there
 
 #### Scenario: An accent ends where its guide ends
 - **WHEN** the caret is inside a section whose last paragraph is followed by blank lines, and

@@ -26,10 +26,13 @@ line of code.
   blanks that closes several nested subtrees at once ends all of their guides on one row, the
   last content line above the run; guides end on different rows only where their subtrees' last
   content lines differ.
-- **The `full` accent is cut to the same extent.** The position-indicator layer accents an
-  ancestor's guide "along its whole extent"; when that extent shortens, so does the accent.
-  Without this an accent would render on rows where the base guide no longer exists — the
-  same defect the layer already forbids on an ancestor's own rows.
+- **An accent renders only where its guide does — row and column both.** The
+  position-indicator layer accents an ancestor's guide "along its whole extent"; when that
+  extent shortens, so does the accent, or it would draw on rows where the base guide no longer
+  exists. The column half is a defect this change inherits rather than creates: the trail is
+  computed against the materialized document, so a position below a childless node makes that
+  node a parent and the trail accents a depth the document draws no guide at. Both are settled
+  in one place, by building an accent layer only for a depth the line actually carries.
 - **A provisional position keeps its guide.** A caret resting on a trailing gap line opens a
   provisional position that already renders as the node it would become. That position now
   counts as content for the guide extent, so the guide reaches the caret's own row (and every
@@ -62,9 +65,10 @@ None.
 - `src/plugin/decorate.ts`: `computeLineGuides` trims a gap line's depths to those that still
   have content below it, and takes the open provisional position (if any) as content;
   `computePositionTrail`'s `full` branch clips each ancestor's accent to the same row.
-- `src/plugin/decorations.ts`: the guide computation is handed the provisional line. No
-  consumer change beyond that — a gap line whose depths trim to empty is already skipped by
-  the existing `hasOverlay` check, so it simply renders no decoration.
+- `src/plugin/decorations.ts`: the guide computation is handed the provisional line, and
+  `guideBackground` builds an accent layer only for a depth the line carries. A gap line whose
+  depths trim to empty is already skipped by the existing `hasOverlay` check, so it simply
+  renders no decoration.
 - `tests/decorate.test.ts`: new cases for the extent rule, a blank run closing several
   nested subtrees, the unchanged interior continuity, the accent clip, and the provisional
   extension.

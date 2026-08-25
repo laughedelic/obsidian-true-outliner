@@ -68,8 +68,15 @@
       row below it, and that `'lineage'` is unchanged (its segments end on the next rung's own
       first line, always inside the extent).
 - [ ] 4.3 Unit-test that with a position open the accent reaches the caret's row, matching the
-      extended guide — no clipping work should be needed for this, since the trail is already
-      computed against the materialized document; confirm that by test rather than by argument.
+      extended guide. The trail is computed against the MATERIALIZED document, so it reaches the
+      row on its own — and for the same reason it can reach a DEPTH the document has no guide at:
+      a position below a childless node makes that node a parent and the trail accents its depth.
+      Cover that case here as a fact about the trail, and clip it at 4.4.
+- [ ] 4.4 Clip accents against the line's own guide depths in `guideBackground`
+      (src/plugin/decorations.ts): build an accent layer only for a depth the line actually
+      carries, and give `hasOverlay` the same filter so a line left with neither a guide nor a
+      surviving accent renders no decoration. This is the choke point every accent passes
+      through, so it holds whatever computation produced one (design D5b).
 
 ## 5. Rendered verification
 
@@ -85,6 +92,11 @@
 - [ ] 5.4 E2e in `55-position-indicators.e2e.ts`: no accent renders on a blank row past the end
       of an accented guide, and the existing "accents the ancestor guide on gap lines too" case
       still passes on interior gaps.
+- [ ] 5.5 E2e the column clip, which cannot be unit-tested — `guideBackground` lives in
+      decorations.ts, which imports `obsidian` and so cannot be loaded by vitest. With a position
+      open below a childless heading, the position's row resolves the guide its ancestor really
+      owns and NO layer on the childless node's own column. Negative control: remove the clip and
+      the stray layer comes back.
 
 ## 6. The gate
 

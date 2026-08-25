@@ -104,12 +104,12 @@ that node's own continuation line. This is the same distinction
 `outline-keyboard-grammar`'s "Provisional positions" requirement already requires the
 document alone to carry.
 
-**No line renders differently because a position is open.** That is the invariant, and it is
-what the rest of this rule serves. An open position SHALL NOT move any other line, add or
-remove any other line's marker, or change any other line's depth. Its one contribution beyond
-its own row is the guide extension stated below, which adds continuity and nothing else: the
-rows it covers are the blank rows between the position and the last content line above it,
-which are exactly the rows an extended guide would otherwise have a hole in. Which facts satisfy that
+**No other line's GEOMETRY changes because a position is open.** That is the invariant, and it
+is what the rest of this rule serves. An open position SHALL NOT move any other line, add or
+remove any other line's marker, or change any other line's depth. Its one effect beyond its own
+row is the guide extension stated below, which moves nothing and adds only continuity: the rows
+it covers are the blank rows between the position and the last content line above it, which are
+exactly the rows an extended guide would otherwise have a hole in. Which facts satisfy that
 depends on what the position did to the parse, and there are exactly two cases:
 
 - A position that BISECTS a node — one opened interior to a multi-line node, where the blank
@@ -151,11 +151,12 @@ already reach it. When the caret leaves, the extension leaves with it and each g
 subtree's last content line again. Where a bisection has moved another line's guides, those come
 from the resolved outline with that line's other facts.
 
-This is a caret-derived layer, in the sense the pure-list invariant already carves out for
-such layers: it renders only where the user currently is, and it SHALL leave every base-layer
-contribution untouched. In a pure list a continuation position's `supplementalDepth` is 0, so
-it contributes no geometry at all, and a line the position displaced regains exactly the
-geometry it had, which in a pure list is none of ours.
+This is a caret-derived layer: it renders only where the user currently is, and it SHALL
+contribute no geometry of its own. The position's own row SHALL render at exactly the column
+that row renders at once its content is really there, and a line the position displaced SHALL
+regain exactly the geometry it had. That holds in a pure list like anywhere else — what a pure
+list renders is whatever the one indentation grid renders for it, and this layer adds nothing
+on top.
 
 The layer SHALL NOT mutate document state: no transaction, no cursor movement, no history
 entry. When the caret leaves the position, the decoration SHALL disappear with it, leaving no
@@ -168,7 +169,7 @@ own text metric, and is not claimed here. On a list continuation position spanni
 one nesting level, stock Obsidian measures a caret at the end of an indent run by that run's
 text rather than by the width of the span containing it, so the caret still shifts as the
 first character lands — byte-identical with this plugin disabled, measured and recorded in
-[docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).
+`docs/research/12-decoration-follow-ups.md`.
 Closing it would mean overriding the width of DOM this layer does not own, which is a change
 of its own.
 
@@ -243,8 +244,8 @@ of its own.
 #### Scenario: A pure list's geometry is unchanged
 - **WHEN** the caret sits on a provisional position inside a list with no non-list ancestor
   anywhere
-- **THEN** every line's rendered position, including the provisional one's, is identical to
-  outline-mode-off, and no synthetic marker is drawn
+- **THEN** every line renders at exactly the column it renders at with the position closed, the
+  position's own row included, and no synthetic marker is drawn
 
 #### Scenario: Neighbouring lines are unaffected
 - **WHEN** a provisional position is open below a node that currently has no children
