@@ -283,3 +283,7 @@ try not to spend too much time on running all the e2e tests, trying to nail it i
 ---
 
 this is a good progress. but in the comparison demo I can't see the task line because the caption covers it. fix it please, then I'll see what you mean
+
+---
+
+yes. this works. let's go forward with all of these fixes
