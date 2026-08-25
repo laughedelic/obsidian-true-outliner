@@ -1,0 +1,301 @@
+let's explore the potential improvement of the native lists decoration. we've had some initial experiments which failed, but those were very early and we tried too many things at once. now we have a solid foundation and experience (see all the documentation records and specs). so I want to revisit this. let's see if we can get some inspiration from the existing Obsidian plugins (obsidian-outliner, but not only), which do this kind of work. ideally, we want to get to the state where we can bring the list decorations on par with our existing heading/paragraph/atom/etc. outline decorations, with the guides, consistent spacing, potentially customizable bullet-points, etc. do the initial research and measurements/validations, then propose a plan for systematic implementation or experiementation if the implementation path is still unclear.
+
+---
+
+this is good research, but I don't fully trust your automatic measurements. one comparison screenshot you shared in the chat is an example of this issue: I see the difference in spacing between left and right cases, but the guides are not aligned on the right. if you couldn't notice that in the representative demonstration, it's possible that you either missed other issues, or missed the mark on the measurements.
+
+so I want you to give me live demo of the proposed approach and I will verify the appearance with my own eyes. it doesn't have to be the full implementation, just enough for me to load it in the test vault.
+
+---
+
+I tried it and it looks good. I want the list indentation, the markers, and the guides to be completely consistent with the other outliner markers. this should also give us the guides highlight that was missing before. and potentially customizable list markers in the future (what do we use now? can we make those bullets a bit heavier by default?).
+
+so I guess I want to go forward with `own-guides` and `column` options. no need to keep the settings for that.
+
+based on that, are we ready for a proper change proposal?
+
+---
+
+0.38em bullet is fine. I want to mention that on the last weight comparison screenshot you shared, the bullets were a bit misaligned: both horizontally (a tad too high) and vertically (a bit left off center, compared to the guides). it might have been a demo artifact, but you should take it into account during the implementation.
+yes, go ahead and write the proposal. and open a pr for this change. use the feat/<change-name> as the branch name. write the description for the intended change, not just the proposal. we will continue with the implementation after that.
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 6 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🟡 Changes recommended
+
+The current trail behavior and persistence plan contradict documented requirements, with additional specification inconsistencies.
+
+*Once you've addressed the issues Copilot identified, you can request another Copilot review.*
+
+<details>
+<summary>Pull request overview</summary>
+
+Plans and prototypes unified list decoration on the outline grid.
+
+**Changes:**
+- Documents measured list geometry and proposed specifications.
+- Adds experimental list-layout and bullet settings.
+- Adds list-guide facts, rendering classes, CSS, and a demo fixture.
+</details>
+
+<details>
+<summary>File summaries</summary>
+
+| File | Description |
+| ---- | ----------- |
+| `styles.css` | Adds experimental list-grid styling. |
+| `src/plugin/mode-registry.ts` | Defines experimental list settings. |
+| `src/plugin/main.ts` | Exposes settings and redraw behavior. |
+| `src/plugin/decorations.ts` | Renders list guides and classes. |
+| `src/plugin/decorate.ts` | Tracks list-ancestor guide depths. |
+| `test-vault/Notes/List decoration demo.md` | Adds manual review fixture. |
+| `test-vault/.obsidian/plugins/true-outliner/data.json` | Enables demo settings. |
+| `openspec/changes/lists-o… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/54/reviews/4998445282`]
+- Copilot on openspec/changes/lists-on-the-outline-grid/specs/outline-decorations/spec.md:121 [comment_id=3834650311]: This universal requirement contradicts D5 and the PR's known residuals: ordered markers only start on the column, and task checkboxes retain native geometry, so their visible centers are not guaranteed to coincide with the guide. Either scope this requirement explicitly to synthetic markers and unordered bullets, or add implementation work that satisfies it for ordered/task markers; otherwise the formal spec is impossible for the planned design to meet.
+- Copilot on openspec/changes/lists-on-the-outline-grid/design.md:159 [comment_id=3834650321]: The removal plan assumes deleted settings become unknown and disappear, but `main.ts:156` spreads every property returned by `loadData()` into `this.data`; at runtime the removed `listLayout`/`listBullet` keys will therefore remain on the object and every later `saveData(this.data)` will write them back. Task 4.3 cannot pass without explicitly normalizing persisted data to an allow-list (or deleting these keys during migration), so this decision and the implementation plan need to account for that.
+- Copilot on docs/research/16-native-list-decoration.md:312 [comment_id=3834650331]: This phase still says the indent unit becomes a setting, but the proposal and design explicitly make user configurability a non-goal and require no new setting. Keeping this older step in the current plan makes the research plan contradict the accepted design; describe only publishing the real declaration here.
+- Copilot on docs/research/12-decoration-follow-ups.md:363 [comment_id=3834650337]: This says the current list-decoration work makes the indent unit a setting, contradicting the proposal's “No new settings” decision and design.md's explicit non-goal. Please keep the declaration prerequisite here but defer configurability to the wider layer-configurability work.
+- Copilot on src/plugin/mode-registry.ts:61 [comment_id=3834650343]: `'own-guides'` does not currently carry the caret trail as documented. `computePositionTrail` still skips list ancestors in both modes (`decorate.ts:673` and `decorate.ts:681`), and the existing tests explicitly assert that a pure list produces no segments, so this setting draws the base list guides but never accents those levels. Remove those exclusions (and update the trail tests) before advertising this behavior, or narrow this description for the demo.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 2 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🟡 Changes recommended
+
+The new bullet-column CSS currently affects task list lines despite the intent to keep task checkbox geometry native, and there are also documentation inconsistencies about hanging-indent recomputation behavior.
+
+*Once you've addressed the issues Copilot identified, you can request another Copilot review.*
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (2)
+
+**Previously missed (2)** — in code that hasn't changed since the last review.
+
+**styles.css:93**
+* This comment claims Obsidian’s hanging-indent measurement “re-derives from the new width” so wrapped rows stay aligned, but in practice Obsidian caches the hang per line and a runtime `--list-indent` change can leave wrapped rows stale until it re-measures (e.g. note switch/reopen). Adding that caveat here keeps the CSS docs consistent with the known residual described elsewhere.
+```
+ * The whole approach is to set the variables Obsidian's own list layout reads,
+ * rather than to fight the boxes it produces. Measured (research doc, E1/E3):
+ * `--list-indent` drives `tab-size` on a list line and `min-width` on each
+ * `.cm-indent`, so pushing our own unit into it retargets every li… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/54/reviews/4998663680`]
+- Copilot on styles.css:136 [comment_id=3834820465]: `to-list-bullet-column` applies `--list-padding-inline-start: 0px` even on task lines, but the surrounding rules (and the comment) say task lines must keep native geometry because the checkbox lives in the same marker span. This makes task list layout depend on the experimental bullet-column setting and can shift the checkbox/text unexpectedly.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 4 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🟡 Changes recommended
+
+The current implementation has a selectable settings combination that likely produces incorrect list geometry, plus a documentation overpromise and avoidable per-line overlay allocations that should be addressed before merging.
+
+*Once you've addressed the issues Copilot identified, you can request another Copilot review.*
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (1)
+
+**src/plugin/decorations.ts:280**
+* `hasOverlay` calls `activeGuideDepths()` even when a `trail` is present; because `activeGuideDepths()` may allocate, this does extra work on any line that only needs the overlay for the trail. Reorder the condition to short-circuit when `trail` is defined.
+```
+  return activeGuideDepths(guide, layout).length > 0 || trail !== undefined;
+```
+
+- **Files reviewed:** 16/16 changed files
+- **Comments generated:** 3
+- **Review effort level:** Lite
+</details>
+- Copilot on src/plugin/decorations.ts:927 [comment_id=3834839754]: `to-list-bullet-column` is applied whenever `listBullet === 'column'`, even when `listLayout` is `'native'`. In that combination the CSS attempts to align bullets to the outline grid while the list indentation is still Obsidian-native, so the option is likely to misalign bullet/text and contradicts the setting description (“Only meaningful together with the setting above”). Gate the bullet-column class on `layout !== 'native'` (or enforce the dependency in settings logic).
+- Copilot on src/plugin/decorations.ts:275 [comment_id=3834839762]: `activeGuideDepths` allocates and sorts a new array each time it’s called; in the current flow it can be invoked multiple times per line (`hasOverlay`, decoration building, MarginCompensation). Since each depth renders at a distinct X offset, ordering isn’t meaningful here and the sort is avoidable overhead.
+
+This issue also appears on line 280 of the same file.
+- Copilot on src/plugin/mode-registry.ts:58 [comment_id=3834839777]: The `ListLayout` docs say `'grid'` makes wrapped rows “follow for free” because Obsidian recomputes hanging indent, but the accompanying CSS/settings text notes Obsidian’s per-line hanging-indent measurement can stay stale when `--list-indent` is changed via decoration attributes (until note switch/edit). Please qualify this doc so it doesn’t overpromise.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 2 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🟡 Changes recommended
+
+Mixed list/non-list nesting currently loses active outer list guides, and parts of the research plan contradict the accepted design.
+
+*Once you've addressed the issues Copilot identified, you can request another Copilot review.*
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (2)
+
+**Previously missed (2)** — in code that hasn't changed since the last review.
+
+**docs/research/16-native-list-decoration.md:330**
+* This plan still specifies the disproven `0` offset, while E3 above and the demo CSS establish that the guide is a `border-inline-end` painted one pixel to the right and therefore requires `-1px`. Following this step would reintroduce the visible one-pixel misalignment.
+```
+- Set `--indentation-guide-editing-indent: 0` on our list lines so native list guides land on
+  the depth columns, and drive `--indentation-guide-color` / `-color-active` from
+  `--to-guide-color` / `--to-decor-accent` so they match ours.
+```
+**docs/research/16-native-list-decoration.md:363**
+* This phase still introduces a bullet-style setting, contradicting the accepted “No new settings” decision, D4’s fixed `0.38em` weight, and task 3.6. Keep this change… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/54/reviews/4998792175`]
+- Copilot on src/plugin/decorate.ts:429 [comment_id=3834950125]: Clearing this track at every non-list node drops still-active list ancestors from deeper descendants. For example, in the mixed chain documented by `activeGuideDepths` (list item → paragraph → nested list), the paragraph’s child receives only the inner list depth, so the outer list guide disappears even though it remains a strict ancestor. Preserve the existing list track when traversing non-list nodes.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ### 🔵 Needs a closer look
+
+It touches core decoration computation/rendering and editor CSS geometry in multiple modes, so it needs careful human verification despite tests/docs additions.
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (1)
+
+**Previously missed (1)** — in code that hasn't changed since the last review.
+
+**src/plugin/decorations.ts:960**
+* In the experimental `listBullet: 'column'` mode, the CSS uses `--to-marker-gutter` to size the marker span (`min-width: var(--to-marker-gutter, 1.25rem)`), but list-item lines never set `--to-marker-gutter` in their decoration styles. That makes the gutter size effectively duplicated (hard-coded fallback in CSS vs `MARKER_GUTTER_CSS` in TS) and risks drift if the gutter constant changes later.
+```
+  if (fact.isListItem) {
+    cls = 'to-decor-list' + listLayoutClasses(modes.listLayout, modes.listBullet);
+    styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
+```
+
+- **Files reviewed:** 17/17 changed files
+- **Comments generated:** 0 new
+- **Review effort level:** Lite
+</details>
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "e2e-desktop-passed", "e2e-mobile-passed", "desktop (position-indicators)", "mobile (position-indicators)" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ### 🔵 Needs a closer look
+
+It introduces substantial new rendering behavior (CSS + decoration logic + persisted settings) that benefits from final human validation across Obsidian/theme/runtime permutations despite being gated as experimental.
+
+<details>
+<summary>Review details</summary>
+
+- **Files reviewed:** 17/17 changed files
+- **Comments generated:** 0 new
+- **Review effort level:** Lite
+</details>
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
+
+---
+
+<system-reminder>
+The user started your suggested background task task_4ef31232 ("Fix npm run test:e2e in git worktrees") in a separate local session. It is running independently. You will be notified here when it ends.
+</system-reminder>
+<system-reminder>
+The separate session for background task task_4ef31232 ("Fix npm run test:e2e in git worktrees") has ended.
+</system-reminder>
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has merge conflicts. Please resolve the conflicts so the PR can be merged.</ci-monitor-event>
+
+---
+
+what's the status on the guides highlighting with the current implementation? I still don't see it working in the lists. otherwise things look okay.
+
+---
+
+go ahead with the proper change update and implementation
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI check "mobile (decorations)" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing check.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "e2e-desktop-passed", "e2e-mobile-passed", "desktop (decorations)" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
+
+---
+
+checkboxes are an odd case. they are currently not centered horizontally relative to the guide. it's also noticeable in a mixed list: checkbox sits closer to the text than a bullet and they look misaligned. can you fix this and make this more consistent? checkboxes are the same kind of node marker that should be horizontally aligned
+
+---
+
+okay. this is good. but I think we have exactly the same issue with the numbered lists. 
+
+another cosmetic issue I noticed is that the folding markers overlap now with the list node markers. they needs some adjustment as well
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "mobile (decorations)", "desktop (decorations)" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "e2e-mobile-passed", "e2e-desktop-passed" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
+
+---
+
+the folding marker placement is better, it doesn't overlap anymore. but it's not as well aligned as the heading folding markers. it's a bit off to the left, which is noticeable sitting not centered between the guide and the node marker icon (closer to the guide on the left). it's subtle, but notable.
+
+a few more visual issues:
+
+* number list marker sits a bit off to the left. it's clear when there is a numbered list sitting above a paragraph, so it's easy to see that the numbers left edge hangs over the left edge of the paragraph icon. 
+* there is a space between the list markers and the node text. that space is a bit bigger in the checkbox list items compared to the bullet-lists. It should be a bit closer to the marker 
+* the spaces-based lists are messed up. in the `## Known limitation: two-space indentation` section of the demo note it's clearly visible: second level and forth level are sitting off the grid. but the guides are evenly spaced, so they overlap with the misplaced bullets and text. note that those lists are still rendered correctly in the reading mode. I think Obsidian treats 2-4 space indentation the same way as a single tab.
+
+
+try not to spend too much time on running all the e2e tests, trying to nail it in one go. give me some visual examples and let me judge what actually looks right. then you can dive deeper, but with more checkpoints on the go.
+
+---
+
+this is a good progress. but in the comparison demo I can't see the task line because the caption covers it. fix it please, then I'll see what you mean
+
+---
+
+yes. this works. let's go forward with all of these fixes
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "mobile (decorations)", "desktop (decorations)" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "e2e-desktop-passed", "e2e-mobile-passed" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
