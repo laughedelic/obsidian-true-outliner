@@ -1,0 +1,1 @@
+checkboxes are an odd case. they are currently not centered horizontally relative to the guide. it's also noticeable in a mixed list: checkbox sits closer to the text than a bullet and they look misaligned. can you fix this and make this more consistent? checkboxes are the same kind of node marker that should be horizontally aligned
