@@ -299,3 +299,40 @@ CI checks "mobile (decorations)", "desktop (decorations)" failed on laughedelic/
 <ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
 
 CI checks "e2e-desktop-passed", "e2e-mobile-passed" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 8 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🔵 Needs a closer look
+
+Native rendering overrides remain high-risk, the manual verification gate is incomplete, and several specifications and tests require correction.
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (1)
+
+**openspec/changes/lists-on-the-outline-grid/design.md:46**
+* This non-goal says two-/three-space rendering will not be corrected, while D9 and the implementation explicitly correct it by sizing `.cm-hmd-list-indent`. Remove or rewrite this item so the design’s scope agrees with its accepted decision.
+```
+- Making list rendering correct for files Obsidian itself does not quantise (two- and
+  three-space indentation). See Risks.
+```
+
+- **Files reviewed:** 26/26 changed files
+- **Comments generated:** 7
+- **Review effort level:** Balanced
+</details>
+- Copilot on openspec/changes/lists-on-the-outline-grid/specs/outline-decorations/spec.md:162 [comment_id=3849298299]: This requirement still mandates one vertical rule across kinds, but the implemented design explicitly rejects that in D6a: bullets use `middle`, while synthetic markers retain `baseline`. Update the normative requirement to describe the accepted per-kind anchors; otherwise the implementation cannot satisfy its own delta spec.
+- Copilot on openspec/changes/lists-on-the-outline-grid/design.md:39 [comment_id=3849298319]: The stated goal that no pixel measurement is added is contradicted by D10 and `measureSpaceAdvance()`, which add a live `Range.getBoundingClientRect()` measurement for task labels. Revise this goal to distinguish the removed hanging-indent measurement from the newly accepted space-advance measurement.
+
+This issue also appears on line 45 of the same file.
+- Copilot on styles.css:175 [comment_id=3849298330]: These new hang overrides apply to every `.to-decor-list` line, including hard-break continuation lines, but the geometry suite only measures marker-bearing first lines; the existing continuation test checks `margin-left` alone. Add rendered text/wrap assertions for a list continuation so changes to its `padding-inline-start`/`text-indent` cannot silently misalign it from the item’s first row.
+- Copilot on styles.css:213 [comment_id=3849298357]: The PR description’s “Known residuals” section says two-/three-space lists remain misaligned and still depend on “Show indentation guides,” but this wrapper rule, D9, and the new e2e cases claim both residuals are fixed. Update the PR description so reviewers and release notes do not advertise limitations the implementation deliberately removes.
+- Copilot on e2e/specs/55-position-indicators.e2e.ts:796 [comment_id=3849298387]: This loop does not cover “every setting combination” as claimed by task 6.5 and the scenario name: it omits `off/current`, `off/lineage`, `full/off`, and `lineage/off`. Include `off` in both axes so geometry-only regressions caused by either setting independently are exercised.
+- Copilot on openspec/changes/lists-on-the-outline-grid/proposal.md:59 [comment_id=3849298416]: This summary says the horizontal and vertical discrepancies are both resolved from one shared definition, but D6a and the CSS intentionally retain separate vertical anchors. Limit the shared-definition claim to horizontal columns and summarize the per-kind vertical result separately.
+- Copilot on openspec/changes/lists-on-the-outline-grid/tasks.md:11 [comment_id=3849298437]: Task 1.2 is checked as establishing one vertical anchor, but design D6a records that the shared-anchor implementation was reversed and the shipped CSS intentionally uses `middle` for bullets and `baseline` for synthetic markers. Rewrite this completed task to record the actual per-kind outcome.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
