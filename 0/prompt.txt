@@ -1,0 +1,5 @@
+I tried it and it looks good. I want the list indentation, the markers, and the guides to be completely consistent with the other outliner markers. this should also give us the guides highlight that was missing before. and potentially customizable list markers in the future (what do we use now? can we make those bullets a bit heavier by default?).
+
+so I guess I want to go forward with `own-guides` and `column` options. no need to keep the settings for that.
+
+based on that, are we ready for a proper change proposal?
