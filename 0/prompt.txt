@@ -1,0 +1,26 @@
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 2 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🟡 Changes recommended
+
+The new bullet-column CSS currently affects task list lines despite the intent to keep task checkbox geometry native, and there are also documentation inconsistencies about hanging-indent recomputation behavior.
+
+*Once you've addressed the issues Copilot identified, you can request another Copilot review.*
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (2)
+
+**Previously missed (2)** — in code that hasn't changed since the last review.
+
+**styles.css:93**
+* This comment claims Obsidian’s hanging-indent measurement “re-derives from the new width” so wrapped rows stay aligned, but in practice Obsidian caches the hang per line and a runtime `--list-indent` change can leave wrapped rows stale until it re-measures (e.g. note switch/reopen). Adding that caveat here keeps the CSS docs consistent with the known residual described elsewhere.
+```
+ * The whole approach is to set the variables Obsidian's own list layout reads,
+ * rather than to fight the boxes it produces. Measured (research doc, E1/E3):
+ * `--list-indent` drives `tab-size` on a list line and `min-width` on each
+ * `.cm-indent`, so pushing our own unit into it retargets every li… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/54/reviews/4998663680`]
+- Copilot on styles.css:136 [comment_id=3834820465]: `to-list-bullet-column` applies `--list-padding-inline-start: 0px` even on task lines, but the surrounding rules (and the comment) say task lines must keep native geometry because the checkbox lives in the same marker span. This makes task list layout depend on the experimental bullet-column setting and can shift the checkbox/text unexpectedly.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
