@@ -1,0 +1,28 @@
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 2 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🟡 Changes recommended
+
+Mixed list/non-list nesting currently loses active outer list guides, and parts of the research plan contradict the accepted design.
+
+*Once you've addressed the issues Copilot identified, you can request another Copilot review.*
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (2)
+
+**Previously missed (2)** — in code that hasn't changed since the last review.
+
+**docs/research/16-native-list-decoration.md:330**
+* This plan still specifies the disproven `0` offset, while E3 above and the demo CSS establish that the guide is a `border-inline-end` painted one pixel to the right and therefore requires `-1px`. Following this step would reintroduce the visible one-pixel misalignment.
+```
+- Set `--indentation-guide-editing-indent: 0` on our list lines so native list guides land on
+  the depth columns, and drive `--indentation-guide-color` / `-color-active` from
+  `--to-guide-color` / `--to-decor-accent` so they match ours.
+```
+**docs/research/16-native-list-decoration.md:363**
+* This phase still introduces a bullet-style setting, contradicting the accepted “No new settings” decision, D4’s fixed `0.38em` weight, and task 3.6. Keep this change… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/54/reviews/4998792175`]
+- Copilot on src/plugin/decorate.ts:429 [comment_id=3834950125]: Clearing this track at every non-list node drops still-active list ancestors from deeper descendants. For example, in the mixed chain documented by `activeGuideDepths` (list item → paragraph → nested list), the paragraph’s child receives only the inner list depth, so the outer list guide disappears even though it remains a strict ancestor. Preserve the existing list track when traversing non-list nodes.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
