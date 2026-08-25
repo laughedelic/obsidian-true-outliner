@@ -11,13 +11,20 @@
  * One short note per shape, rather than one long one: CM6 renders only the
  * viewport, so a fixture longer than the window silently drops its tail.
  *
- * Assert the RULE, never a position a glyph's width decides. Three assertions
+ * Assert the RULE, never a position a glyph's width decides. Four assertions
  * here have already had to be rewritten for it: `1. ` measures 18.4px in the
  * bundled theme on macOS and 20.36px on CI's Linux font, so anything sized by
- * `min-width` against the 20px gutter lands differently on the two — a marker
- * box's left edge, a checkbox's own width, an ordered item's text column. What
- * holds on any font is the relationship: this marker starts where that one
- * does, this text is never left of that one, these two chevrons agree.
+ * `min-width` against the 20px gutter lands differently on the two.
+ *
+ * The specific trap, all four times: an ORDERED item's own text column is not a
+ * fixed offset from anything. Its marker is `min-width: gutter`, so where the
+ * glyphs exceed the gutter the item's own first row moves right — by 0.36px on
+ * CI and by nothing locally. Never assert that it equals another line's text
+ * column, another item's, or its own continuation's. What holds on any font is
+ * the grid: `textX - column === GUTTER` for a line whose marker fits, `>=` for
+ * one whose marker may not, and relationships between things sized from the
+ * icon rather than the font — this marker starts where that one does, these two
+ * chevrons agree.
  */
 
 import { browser, expect } from '@wdio/globals';
@@ -476,6 +483,13 @@ describe('lists on the outline grid', function () {
         '',
       ].join('\n'),
     );
+    //
+    // The contract is the continuation's own column, not equality with the row
+    // above: a marker wider than the gutter pushes its own first row out and
+    // the continuation stays on the grid. `1. ` is 18.4px on macOS and 20.36px
+    // on CI's Linux font, so equality holds locally and misses by 0.36px there
+    // — this spec's fourth font-encoded assertion, and the one this file's own
+    // header warns about.
     for (const [first, cont] of [
       [2, 3],
       [4, 5],
@@ -484,8 +498,9 @@ describe('lists on the outline grid', function () {
     ] as const) {
       const item = at(rows, first);
       const continuation = at(rows, cont);
-      expect(continuation.textX).toBeCloseTo(item.textX!, 1);
       expect(continuation.textX! - continuation.column).toBeCloseTo(GUTTER, 1);
+      // never left of it either, which is what a too-wide continuation would be
+      expect(item.textX!).toBeGreaterThanOrEqual(continuation.textX! - 0.05);
     }
   });
 
@@ -495,7 +510,7 @@ describe('lists on the outline grid', function () {
     const continuation = at(rows, 3);
     expect(continuation.wrapX).not.toBeNull();
     expect(continuation.wrapX).toBeCloseTo(continuation.textX!, 1);
-    expect(continuation.textX).toBeCloseTo(at(rows, 2).textX!, 1);
+    expect(continuation.textX! - continuation.column).toBeCloseTo(GUTTER, 1);
   });
 
   it('publishes the space advance it actually measured, not its fallback', async function () {
