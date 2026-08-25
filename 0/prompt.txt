@@ -1,0 +1,2 @@
+0.38em bullet is fine. I want to mention that on the last weight comparison screenshot you shared, the bullets were a bit misaligned: both horizontally (a tad too high) and vertically (a bit left off center, compared to the guides). it might have been a demo artifact, but you should take it into account during the implementation.
+yes, go ahead and write the proposal. and open a pr for this change. use the feat/<change-name> as the branch name. write the description for the intended change, not just the proposal. we will continue with the implementation after that.
