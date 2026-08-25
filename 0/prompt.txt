@@ -1,0 +1,16 @@
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ### 🔵 Needs a closer look
+
+It introduces substantial new rendering behavior (CSS + decoration logic + persisted settings) that benefits from final human validation across Obsidian/theme/runtime permutations despite being gated as experimental.
+
+<details>
+<summary>Review details</summary>
+
+- **Files reviewed:** 17/17 changed files
+- **Comments generated:** 0 new
+- **Review effort level:** Lite
+</details>
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
