@@ -277,6 +277,14 @@
 }
 
 /*
+ * The VERTICAL half of both chevron rules is `--to-chevron-dy`, measured per
+ * line (`MarginCompensation.measureChevronRows`). Obsidian centres the chevron
+ * on the line's content box while every marker kind uses its own vertical
+ * anchor, so the two disagree by an amount that varies with kind and with font
+ * size — measured, +2.67px on an H1, +1.67 on an H2, −0.80 on a paragraph,
+ * +1.78 on a bullet, +2.25 on a checkbox. There is no CSS expression for that
+ * set; a fitted one would encode a theme.
+ *
  * Obsidian's fold chevron on a list line renders with its right edge ON the
  * item's own content origin — which, now that a marker is CENTRED on the column
  * rather than starting right of it, is straight through that marker: measured,
@@ -310,7 +318,10 @@
   > .cm-line.to-decor-list
   .cm-fold-indicator
   .collapse-indicator {
-  transform: translateX(calc(-1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px)));
+  transform: translate(
+    calc(-1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px)),
+    var(--to-chevron-dy, 0px)
+  );
 }
 
 /* A zero-width bullet box centres its own `::after` — which is where the dot
@@ -704,14 +715,15 @@
   .cm-line.to-decor-block
   .cm-fold-indicator
   .collapse-indicator {
-  transform: translateX(
+  transform: translate(
     calc(
       -1 *
         (
           var(--to-marker-gutter, 1.25rem) + var(--to-marker-icon-size, 0.85rem) / 2 + 3px -
             var(--to-chevron-dead-right, 6px)
         )
-    )
+    ),
+    var(--to-chevron-dy, 0px)
   );
 }
 

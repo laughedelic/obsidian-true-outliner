@@ -1953,6 +1953,13 @@ class MarginCompensation implements PluginValue {
   private lastSpaceAdvance = '';
 
   /**
+   * Lines currently carrying a `--to-chevron-dy`, kept so the next render can
+   * clear exactly those instead of rescanning. Elements CM6 has since detached
+   * are harmless to call `removeProperty` on.
+   */
+  private chevronDyLines: HTMLElement[] = [];
+
+  /**
    * Lines currently carrying a measured `--to-accent-stop`, kept so the next
    * render can clear exactly those instead of rescanning every line. Elements
    * CM6 has since detached are harmless to call `removeProperty` on.
@@ -2007,8 +2014,19 @@ class MarginCompensation implements PluginValue {
   }
 
   private measureChevron(): void {
+    // From a BLOCK line's chevron, because the block rule is the only consumer.
+    // Measured, the wrapper's width is not a property of the chevron but of the
+    // line it sits on: 15px on a heading or paragraph, 30.8px on a list item
+    // (`--list-bullet-end-padding` widens it), 10px on a task line. Querying
+    // the first chevron of ANY kind therefore published whichever the viewport
+    // happened to start with, and a list item's 20.8px dead space turns the
+    // block transform from -23.8px into -9px — every heading's chevron jumping
+    // ~15px right, onto its own marker. Reported from real use as an
+    // intermittent glitch that a scroll or a fold could trigger and reopening
+    // the note would clear, which is exactly the shape of a viewport-order
+    // dependency.
     const wrapper = this.view.contentDOM.querySelector<HTMLElement>(
-      '.cm-fold-indicator .collapse-indicator',
+      '.cm-line.to-decor-block .cm-fold-indicator .collapse-indicator',
     );
     const glyph = wrapper?.querySelector('svg');
     if (!wrapper || !glyph) return;
@@ -2047,6 +2065,78 @@ class MarginCompensation implements PluginValue {
    * nothing to apply to. The CSS fallback (`0.26em`) reproduces the bundled
    * font's measurement to within 0.03px and covers the first paint.
    */
+  /**
+   * Per line, how far the fold chevron has to move to sit on its own marker.
+   *
+   * Obsidian centres `.collapse-indicator` on the line's CONTENT BOX (measured:
+   * `position: absolute; top: 0; bottom: 0; display: flex; align-items:
+   * center`). Every marker kind uses a different vertical anchor — a block
+   * icon's SVG baseline-aligns inside its wrapper and overflows it downward, a
+   * bullet takes the optical centre, a checkbox its own box (design D6a, which
+   * records why one anchor cannot serve them all). So the chevron and the mark
+   * it belongs to disagree by an amount that varies with kind AND font size:
+   * measured, +2.67px on an H1, +1.67 on an H2, −0.80 on a paragraph, +1.78 on
+   * a bullet, +2.25 on a checkbox. No CSS expression produces that set, and a
+   * fitted one would be a constant per theme rather than a rule.
+   *
+   * So it is measured, per line, for the few lines that have a chevron at all.
+   * Reads are batched ahead of writes, and a line whose value has not changed
+   * is not written — the same discipline `measureAccentStops` uses for the
+   * property it publishes on lines.
+   *
+   * The measurement is taken against the ALREADY-TRANSFORMED chevron and adds
+   * back whatever is currently applied, which is what makes it converge instead
+   * of oscillating: a vertical position, unlike the width difference
+   * `measureChevron` takes, is not translation-invariant. One decimal place, so
+   * sub-tenth-pixel wobble rounds away and the value settles.
+   */
+  private measureChevronRows(): void {
+    const updates: { line: HTMLElement; dy: string }[] = [];
+    const seen = new Set<HTMLElement>();
+    for (const line of Array.from(
+      this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'),
+    )) {
+      const glyph = line.querySelector('.cm-fold-indicator .collapse-indicator svg');
+      // The mark this line's chevron belongs to, in the order the kinds are
+      // mutually exclusive: a synthetic icon, a bullet, a checkbox.
+      //
+      // An ordered item is deliberately absent. Its mark IS its glyphs, and no
+      // element's box is where they sit: `.cm-formatting-list-ol`'s box is the
+      // text row (measured, its centre and the chevron's already coincide),
+      // while the digits themselves rest on the baseline, cap-height tall,
+      // about 1.7px lower — the same place the bullet beside them sits. Reading
+      // ink out of a text run needs font metrics no rect exposes, so anchoring
+      // to the span would state a number that is not the mark's centre. Left
+      // without an offset, which leaves an ordered chevron where every kind's
+      // was before this measurement existed; recorded as a follow-up.
+      const marker =
+        line.querySelector(':scope > .to-decor-marker-icon svg') ??
+        line.querySelector('.list-bullet') ??
+        line.querySelector('.task-list-item-checkbox');
+      if (!glyph || !marker) continue;
+      const glyphRect = glyph.getBoundingClientRect();
+      const markerRect = marker.getBoundingClientRect();
+      if (glyphRect.height === 0 || markerRect.height === 0) continue; // not laid out
+      const applied = parseFloat(line.style.getPropertyValue('--to-chevron-dy')) || 0;
+      const dy =
+        markerRect.top +
+        markerRect.height / 2 -
+        (glyphRect.top + glyphRect.height / 2) +
+        applied;
+      updates.push({ line, dy: `${dy.toFixed(1)}px` });
+      seen.add(line);
+    }
+    for (const line of this.chevronDyLines) {
+      if (!seen.has(line)) line.style.removeProperty('--to-chevron-dy');
+    }
+    for (const { line, dy } of updates) {
+      if (line.style.getPropertyValue('--to-chevron-dy') !== dy) {
+        line.style.setProperty('--to-chevron-dy', dy);
+      }
+    }
+    this.chevronDyLines = updates.map((u) => u.line);
+  }
+
   private measureSpaceAdvance(): void {
     const label = this.view.contentDOM.querySelector<HTMLElement>(
       '.cm-line.to-decor-list.HyperMD-task-line .task-list-label',
@@ -2123,6 +2213,7 @@ class MarginCompensation implements PluginValue {
     // so a theme switch mid-session corrects on the next update.
     this.view.dom.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
     this.measureChevron();
+    this.measureChevronRows();
     this.measureSpaceAdvance();
     this.measureSelectionColor();
 
@@ -2474,7 +2565,11 @@ class MarginCompensation implements PluginValue {
     this.view.dom.style.removeProperty('--to-marker-icon-size');
     this.view.dom.style.removeProperty('--to-chevron-dead-right');
     this.view.dom.style.removeProperty('--to-selected-bg');
+    this.view.dom.style.removeProperty('--to-space-advance');
     this.lastDeadRight = '';
+    this.lastSpaceAdvance = '';
+    for (const line of this.chevronDyLines) line.style.removeProperty('--to-chevron-dy');
+    this.chevronDyLines = [];
     // Swept by our OWN patch class, not by `WIDGET_LINE_SELECTOR`, and
     // deliberately unscoped. An element we patched may since have been
     // re-parented inside a `.cm-line` (see WIDGET_PATCHED_CLASS), where the

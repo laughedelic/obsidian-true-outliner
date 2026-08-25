@@ -154,4 +154,16 @@
 - [x] 6.10 E2e a list item's CONTINUATION line at every kind, and a wrapping one: the geometry
       suite measured only marker-bearing first lines, which is why 3.10 shipped a 20px
       regression that the whole decorations group passed over.
+- [x] 3.13 Centre a fold chevron VERTICALLY on its own mark, from a per-line measurement:
+      Obsidian centres the chevron on the line's content box while each marker kind takes its
+      own anchor, so they disagree by an amount that varies with kind and font size (design D8).
+      Reported from real use, most visibly on a bullet and a checkbox.
+- [x] 3.14 Measure `--to-chevron-dead-right` from a BLOCK line's chevron, the kind whose rule
+      consumes it. The wrapper's width is a property of the line, not of the chevron — 15px on a
+      block, 30.8px on a list item, 10px on a task line — so an unscoped query published
+      whichever the viewport started with and could throw every heading's chevron ~15px right,
+      onto its own marker (design D8a). Reported from real use as an intermittent glitch.
+- [x] 6.11 E2e both: chevron and mark share a vertical centre at every kind and at two heading
+      levels; and a heading's chevron lands in the same place whatever kind of foldable line
+      precedes it in the document.
 - [x] 6.8 Full suite green: 854 unit tests, lint, typecheck, 22/22 desktop e2e spec files.

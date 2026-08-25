@@ -199,6 +199,50 @@ than a heading's, close enough to the parent level's guide to read as belonging 
 rather than to its own marker. The two chevrons agreeing is now asserted as such in
 `56-list-grid.e2e.ts`, rather than each being checked against a distance of its own.
 
+**The vertical half is measured per line.** Obsidian centres `.collapse-indicator` on the line's
+CONTENT BOX (`position: absolute; top: 0; bottom: 0; align-items: center`), while every marker
+kind takes its own vertical anchor — which D6a establishes cannot be unified. The two therefore
+disagree by an amount that varies with kind AND font size: measured, +2.67px on an H1, +1.67 on
+an H2, −0.80 on a paragraph, +1.78 on a bullet, +2.25 on a checkbox. No CSS expression produces
+that set. A curve fitted to font size gets within ~0.2px and would be a constant for one theme
+rather than a rule, so it is measured — for the few lines that have a chevron at all, reads
+batched ahead of writes, unchanged lines not rewritten.
+
+The measurement adds back whatever offset is currently applied, which is what makes it converge
+rather than oscillate: a vertical POSITION, unlike the width difference `measureChevron` takes,
+is not translation-invariant, so measuring an already-transformed chevron and writing the raw
+difference would flip sign every render.
+
+An ordered item is the one kind left without an offset. Its mark IS its glyphs, and no element's
+box is where they sit: `.cm-formatting-list-ol`'s box is the text row, whose centre the chevron
+already shares, while the digits rest on the baseline about 1.7px lower — where the bullet
+beside them sits. Reading ink out of a text run needs font metrics no rect exposes. Anchoring to
+the span would state a number that is not the mark's centre, so nothing is stated; recorded as a
+follow-up in `docs/research/12`.
+
+### D8a — Measure a value from the kind of element the rule consuming it applies to
+
+`--to-chevron-dead-right` is measured from one representative chevron per render and consumed by
+the BLOCK chevron rule. The query took the first `.cm-fold-indicator .collapse-indicator` in the
+content DOM, of any kind — and the wrapper's width turns out to be a property of the LINE, not
+of the chevron: measured, 15px on a heading or paragraph, 30.8px on a list item (widened by
+`--list-bullet-end-padding`), 10px on a task line.
+
+So the published value was whichever kind the rendered viewport happened to start with, and a
+list item's 20.8px of dead space turns the block transform from −23.8px into −9px: every
+heading's chevron jumps about 15px right, onto its own marker. Reported from real use as an
+intermittent glitch that scrolling or folding could trigger and that reopening the note cleared
+— the signature of a viewport-order dependency, since CM6 renders only the viewport and a fresh
+view starts the cache empty.
+
+The fix is one selector: measure from `.cm-line.to-decor-block`, the same kind the rule applies
+to. The general form is worth stating, because this measurement pattern is used in three places
+here: a representative measurement is only representative of the population the consuming rule
+covers, so the query and the rule must name the same one. Nothing warned about it — the value
+had a plausible fallback, the wrong value still rendered a chevron somewhere, and the fixture
+corpus happened to put a heading first in every note.
+
+
 ### D9 — State the leading whitespace's WIDTH, not just the indent unit
 
 Setting `--list-indent` retargets the levels Obsidian actually resolves. It does not help with

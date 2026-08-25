@@ -293,6 +293,23 @@ Findings from `lists-on-the-outline-grid` (measurements:
   rendered-position assertion still passed with the measurement deleted — confirmed by
   deleting it. Assert the published property against the thing it compensates, not the
   position it produces.
+- **A representative measurement is only representative of the population its rule covers.**
+  `--to-chevron-dead-right` is measured from one chevron per render and consumed by the rule for
+  BLOCK lines, but the query took the first chevron of ANY kind — and the wrapper's width turns
+  out to be a property of the LINE: 15px on a heading or paragraph, 30.8px on a list item
+  (`--list-bullet-end-padding` widens it), 10px on a task line. So the published value was
+  whichever kind the viewport happened to start with, and a list item's threw every heading's
+  chevron ~15px right onto its own marker. It surfaced as an intermittent glitch that scrolling
+  or folding could trigger and reopening the note cleared — the signature of a viewport-order
+  dependency, CM6 rendering only the viewport and a fresh view starting the cache empty. The
+  query and the rule must name the same population; nothing else warns, because the wrong value
+  still renders something and a fixture corpus that puts a heading first in every note never
+  produces it.
+- **A measured POSITION is not translation-invariant, so a correction derived from it must add
+  back what it already applied.** The chevron's dead space is a width DIFFERENCE, so measuring an
+  already-transformed chevron is safe. Its vertical offset is a position, so writing
+  `markerCy − chevronCy` straight back flips sign every render. `+ currentlyApplied` converges in
+  one step and stays put.
 - **A second placement of the same chrome should be derived from the first, not chosen
   again.** The fold chevron is placed once for block lines and once for list lines. Choosing
   the list distance independently (half a gutter plus 2px) landed it 2.2px from the block

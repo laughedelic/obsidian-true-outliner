@@ -511,6 +511,15 @@ pure `decorate()`/`computeLineGuides()` layer does.
 
 ### Vertical-alignment polish (minor, recorded from real-vault use)
 
+**Amended 2026-08-25** (`lists-on-the-outline-grid`): a node's FOLD CHEVRON now follows its own
+mark vertically, measured per line, so the anchors below no longer drag the chevron around with
+them. One kind is left out and belongs to this entry: an **ordered item's chevron**. Its mark is
+its glyphs, and no element's box is where they sit — `.cm-formatting-list-ol`'s box is the text
+row, whose centre the chevron already shares, while the digits rest on the baseline about 1.7px
+lower, where the bullet beside them sits. Closing it needs the ink's own extent, which no rect
+exposes; a canvas `TextMetrics.actualBoundingBoxAscent` would give it, at the cost of a second
+measurement mechanism for one kind of marker.
+
 **Amended 2026-08-22** (`lists-on-the-outline-grid`): a synthetic marker and a list bullet now
 share a column but not a vertical anchor, and deliberately so. Unifying them on
 `vertical-align: middle` was built and reversed — `middle` resolves against the parent's

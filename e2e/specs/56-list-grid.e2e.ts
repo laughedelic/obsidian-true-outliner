@@ -46,6 +46,10 @@ interface LineGeometry {
   iconBox: { l: number; r: number } | null;
   /** Left/right of the fold chevron's PAINTED glyph, when one renders. */
   foldGlyph: { l: number; r: number } | null;
+  /** Vertical centre of the fold chevron's painted glyph, relative to its line. */
+  foldGlyphCy: number | null;
+  /** Vertical centre of the line's own mark, relative to its line. */
+  markerCy: number | null;
   nativeGuideWidth: string | null;
 }
 
@@ -126,6 +130,13 @@ function geometry(): Promise<LineGeometry[]> {
         markerX = +(r.left - cb.left + r.width / 2).toFixed(2);
       }
 
+      const lineTop = el.getBoundingClientRect().top;
+      const cyOf = (sel: string) => {
+        const e = el.querySelector(sel.startsWith(':scope') ? sel : `:scope ${sel}`);
+        if (!e) return null;
+        const r = e.getBoundingClientRect();
+        return r.height === 0 ? null : +(r.top + r.height / 2 - lineTop).toFixed(2);
+      };
       const boxOf = (sel: string) => {
         const e = el.querySelector(`:scope ${sel}`);
         if (!e) return null;
@@ -149,6 +160,11 @@ function geometry(): Promise<LineGeometry[]> {
         // where `--list-bullet-end-padding` widens it), so comparing wrappers
         // across kinds compares padding rather than glyphs.
         foldGlyph: boxOf('.cm-fold-indicator .collapse-indicator svg'),
+        foldGlyphCy: cyOf('.cm-fold-indicator .collapse-indicator svg'),
+        markerCy:
+          cyOf(':scope > .to-decor-marker-icon svg') ??
+          cyOf('.list-bullet') ??
+          cyOf('.task-list-item-checkbox'),
         nativeGuideWidth: indents.length
           ? getComputedStyle(indents[0]!, '::before').borderInlineEndWidth
           : null,
@@ -511,6 +527,66 @@ describe('lists on the outline grid', function () {
     expect(continuation.wrapX).not.toBeNull();
     expect(continuation.wrapX).toBeCloseTo(continuation.textX!, 1);
     expect(continuation.textX! - continuation.column).toBeCloseTo(GUTTER, 1);
+  });
+
+  it('centres a fold chevron on the mark it belongs to, at every kind and heading level', async function () {
+    // Obsidian centres the chevron on the line's CONTENT BOX while every marker
+    // kind takes its own vertical anchor (design D6a), so the two disagreed by
+    // an amount that varies with kind and font size — measured, +2.67px on an
+    // H1, +1.67 on an H2, −0.80 on a paragraph, +1.78 on a bullet, +2.25 on a
+    // checkbox. Reported from real use, most visibly on the bullet and the
+    // checkbox. Corrected per line from a live measurement, so the assertion is
+    // that they AGREE, at whatever font size the theme gives each row.
+    const rows = await open(
+      [
+        '# H1',
+        '',
+        'body under h1',
+        '',
+        '### H3',
+        '',
+        'body under h3',
+        '',
+        'A parent paragraph.',
+        '',
+        '\tchild of the paragraph',
+        '',
+        '- a bullet',
+        '\t- child',
+        '',
+        '- [ ] a task',
+        '\t- [ ] child',
+        '',
+      ].join('\n'),
+    );
+    const foldable = rows.filter((r) => r.foldGlyphCy !== null && r.markerCy !== null);
+    // one per kind in the fixture: H1, H3, paragraph, bullet, task
+    expect(foldable.length).toBeGreaterThanOrEqual(5);
+    for (const row of foldable) {
+      expect(row.foldGlyphCy! - row.markerCy!).toBeCloseTo(0, 0);
+    }
+  });
+
+  it('measures the chevron’s dead space from the kind that consumes it', async function () {
+    // `--to-chevron-dead-right` feeds the BLOCK rule only, and the wrapper it is
+    // measured from is not a property of the chevron but of the line: measured,
+    // 15px on a heading or paragraph, 30.8px on a list item (widened by
+    // `--list-bullet-end-padding`), 10px on a task line. Taking the first
+    // chevron of any kind published whichever the viewport happened to start
+    // with, and a list item's value moved every heading's chevron ~15px right,
+    // onto its own marker — an intermittent glitch a scroll or a fold could
+    // trigger and reopening the note would clear. So: a heading's chevron lands
+    // in the same place whatever kind of foldable line precedes it.
+    const heading = ['# Heading', '', 'Body under it.', ''];
+    const places: number[] = [];
+    for (const before of [[], ['- a bullet', '\t- child', ''], ['- [ ] a task', '\t- [ ] child', '']]) {
+      const rows = await open([...before, ...heading].join('\n'));
+      const row = rows.find((r) => r.text.startsWith('# Heading'));
+      expect(row?.foldGlyph).not.toBeNull();
+      places.push(row!.foldGlyph!.r - row!.column);
+    }
+    expect(places[1]).toBeCloseTo(places[0]!, 1);
+    expect(places[2]).toBeCloseTo(places[0]!, 1);
   });
 
   it('publishes the space advance it actually measured, not its fallback', async function () {

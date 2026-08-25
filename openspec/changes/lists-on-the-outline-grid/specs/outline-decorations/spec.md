@@ -157,6 +157,11 @@ Shifting each number by half its OWN width is explicitly rejected: it centres ev
 reaches so far left that no fold chevron can fit beside it without crossing the parent level's
 guide (measured, `100. ` reaches 19px left of its column against a parent guide 24px away).
 
+A node's fold chevron, where Obsidian renders one, SHALL be centred on that node's own mark —
+horizontally at the same distance from it whatever the node's kind, and vertically on the mark's
+own centre. The chevron's placement SHALL follow the mark rather than the line, since the mark
+is what the reader relates it to.
+
 A marker's VERTICAL placement is NOT unified across kinds, and that is a decision rather than
 an omission. Each kind SHALL use the anchor that reads correctly at every font size it can
 appear at: a list bullet SHALL take the optical centre of its own text row, and a synthetic
@@ -205,6 +210,13 @@ a body row reads as wrong is recorded as a follow-up, not decided here.
 - **THEN** all three items' text begins on the same column, one marker gutter right of the
   depth column — the space Obsidian leaves between a checkbox and its text SHALL NOT push a
   task item's text further out than its neighbours'
+
+#### Scenario: A fold chevron is centred on the mark it belongs to
+
+- **WHEN** foldable nodes of several kinds are visible in one document — headings at more than
+  one level, a paragraph, a bullet item, a task item
+- **THEN** each chevron's painted glyph and its own node's mark share a vertical centre,
+  whatever font size that row is rendered at
 
 #### Scenario: A fold chevron sits where a block's chevron sits
 
