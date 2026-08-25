@@ -336,3 +336,9 @@ This issue also appears on line 45 of the same file.
 - Copilot on openspec/changes/lists-on-the-outline-grid/tasks.md:11 [comment_id=3849298437]: Task 1.2 is checked as establishing one vertical anchor, but design D6a records that the shared-anchor implementation was reversed and the shipped CSS intentionally uses `middle` for bullets and `baseline` for synthetic markers. Rewrite this completed task to record the actual per-kind outcome.
 
 Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "e2e-desktop-passed", "mobile (decorations)", "desktop (decorations)" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
