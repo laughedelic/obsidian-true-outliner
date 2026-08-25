@@ -1,0 +1,3 @@
+this is good research, but I don't fully trust your automatic measurements. one comparison screenshot you shared in the chat is an example of this issue: I see the difference in spacing between left and right cases, but the guides are not aligned on the right. if you couldn't notice that in the representative demonstration, it's possible that you either missed other issues, or missed the mark on the measurements.
+
+so I want you to give me live demo of the proposed approach and I will verify the appearance with my own eyes. it doesn't have to be the full implementation, just enough for me to load it in the test vault.
