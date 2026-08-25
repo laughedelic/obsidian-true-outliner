@@ -1,0 +1,3 @@
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "e2e-mobile-passed", "e2e-desktop-passed" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
