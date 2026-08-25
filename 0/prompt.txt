@@ -1,0 +1,40 @@
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 6 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ### 🟡 Changes recommended
+
+The current trail behavior and persistence plan contradict documented requirements, with additional specification inconsistencies.
+
+*Once you've addressed the issues Copilot identified, you can request another Copilot review.*
+
+<details>
+<summary>Pull request overview</summary>
+
+Plans and prototypes unified list decoration on the outline grid.
+
+**Changes:**
+- Documents measured list geometry and proposed specifications.
+- Adds experimental list-layout and bullet settings.
+- Adds list-guide facts, rendering classes, CSS, and a demo fixture.
+</details>
+
+<details>
+<summary>File summaries</summary>
+
+| File | Description |
+| ---- | ----------- |
+| `styles.css` | Adds experimental list-grid styling. |
+| `src/plugin/mode-registry.ts` | Defines experimental list settings. |
+| `src/plugin/main.ts` | Exposes settings and redraw behavior. |
+| `src/plugin/decorations.ts` | Renders list guides and classes. |
+| `src/plugin/decorate.ts` | Tracks list-ancestor guide depths. |
+| `test-vault/Notes/List decoration demo.md` | Adds manual review fixture. |
+| `test-vault/.obsidian/plugins/true-outliner/data.json` | Enables demo settings. |
+| `openspec/changes/lists-o… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/54/reviews/4998445282`]
+- Copilot on openspec/changes/lists-on-the-outline-grid/specs/outline-decorations/spec.md:121 [comment_id=3834650311]: This universal requirement contradicts D5 and the PR's known residuals: ordered markers only start on the column, and task checkboxes retain native geometry, so their visible centers are not guaranteed to coincide with the guide. Either scope this requirement explicitly to synthetic markers and unordered bullets, or add implementation work that satisfies it for ordered/task markers; otherwise the formal spec is impossible for the planned design to meet.
+- Copilot on openspec/changes/lists-on-the-outline-grid/design.md:159 [comment_id=3834650321]: The removal plan assumes deleted settings become unknown and disappear, but `main.ts:156` spreads every property returned by `loadData()` into `this.data`; at runtime the removed `listLayout`/`listBullet` keys will therefore remain on the object and every later `saveData(this.data)` will write them back. Task 4.3 cannot pass without explicitly normalizing persisted data to an allow-list (or deleting these keys during migration), so this decision and the implementation plan need to account for that.
+- Copilot on docs/research/16-native-list-decoration.md:312 [comment_id=3834650331]: This phase still says the indent unit becomes a setting, but the proposal and design explicitly make user configurability a non-goal and require no new setting. Keeping this older step in the current plan makes the research plan contradict the accepted design; describe only publishing the real declaration here.
+- Copilot on docs/research/12-decoration-follow-ups.md:363 [comment_id=3834650337]: This says the current list-decoration work makes the indent unit a setting, contradicting the proposal's “No new settings” decision and design.md's explicit non-goal. Please keep the declaration prerequisite here but defer configurability to the wider layer-configurability work.
+- Copilot on src/plugin/mode-registry.ts:61 [comment_id=3834650343]: `'own-guides'` does not currently carry the caret trail as documented. `computePositionTrail` still skips list ancestors in both modes (`decorate.ts:673` and `decorate.ts:681`), and the existing tests explicitly assert that a pure list produces no segments, so this setting draws the base list guides but never accents those levels. Remove those exclusions (and update the trail tests) before advertising this behavior, or narrow this description for the demo.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
