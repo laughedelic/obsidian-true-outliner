@@ -1,0 +1,28 @@
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #54 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ### 🔵 Needs a closer look
+
+It touches core decoration computation/rendering and editor CSS geometry in multiple modes, so it needs careful human verification despite tests/docs additions.
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (1)
+
+**Previously missed (1)** — in code that hasn't changed since the last review.
+
+**src/plugin/decorations.ts:960**
+* In the experimental `listBullet: 'column'` mode, the CSS uses `--to-marker-gutter` to size the marker span (`min-width: var(--to-marker-gutter, 1.25rem)`), but list-item lines never set `--to-marker-gutter` in their decoration styles. That makes the gutter size effectively duplicated (hard-coded fallback in CSS vs `MARKER_GUTTER_CSS` in TS) and risks drift if the gutter constant changes later.
+```
+  if (fact.isListItem) {
+    cls = 'to-decor-list' + listLayoutClasses(modes.listLayout, modes.listBullet);
+    styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
+```
+
+- **Files reviewed:** 17/17 changed files
+- **Comments generated:** 0 new
+- **Review effort level:** Lite
+</details>
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
