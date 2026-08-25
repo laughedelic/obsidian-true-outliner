@@ -34,16 +34,23 @@ Four properties of Obsidian's own list rendering shape the approach, all confirm
 - One unit, one column definition, one guide mechanism, one marker rule — for every kind.
 - No new rendering mechanism. Everything below is either a CSS variable Obsidian already reads
   or the gradient/`Decoration.line` machinery the layer already runs.
-- No pixel measurement added. The layer keeps its measurement-free character; the one place a
-  measurement exists today (Obsidian's hanging indent) is replaced by a stated value, not by
-  one of ours.
+- No pixel measurement added for POSITION. Obsidian's hanging indent — a per-line measurement
+  it caches and gets wrong twice over — is replaced by a stated value rather than by one of
+  ours, and every column, marker offset and guide stop is a `calc()` over facts the layer
+  already publishes. One font METRIC is measured, and deliberately: `--to-space-advance`
+  (D10), because the layout has to cancel exactly one space and no CSS unit expresses a
+  space's advance. It is a single value per font, not a value per line, and it joins the
+  existing `--to-chevron-dead-right` rather than starting a new mechanism.
 
 **Non-Goals:**
 
 - Rewriting a document's indentation to a canonical unit. This layer renders; it does not
   edit. A "normalize list indentation" command would be a structural-operations change.
-- Making list rendering correct for files Obsidian itself does not quantise (two- and
-  three-space indentation). See Risks.
+- ~~Making list rendering correct for files Obsidian itself does not quantise (two- and
+  three-space indentation).~~ Written as a non-goal on the assumption that it needed a
+  mechanism of its own; **D9 does it with one rule** over facts already published, so it is in
+  scope after all. Kept struck through rather than deleted: the assumption is the interesting
+  part, and it is the same one the Risks section made.
 - Turning the unit into a user setting. It becomes a single declared value so `--list-indent`
   can read it, which is the prerequisite; exposing it belongs with the wider
   layer-configurability item in `docs/research/12`.
@@ -219,6 +226,27 @@ both, and there is no longer a case to surface.
 box from wrapping the line or spilling across the marker; `vertical-align: top` keeps an
 `overflow: hidden` inline-block — whose baseline would otherwise be its bottom margin edge —
 from dropping the row it sits in. Line heights and row counts were measured unchanged.
+
+**A continuation line takes the whole hang, a first line the hang less its gutter.** Every line
+of a list item carries `to-decor-list`, first line and continuation alike, so the first version
+of this rule sized them identically and put a continuation on the MARKER's column — measured,
+20px left of the row above it. A first line spends the gutter on its native
+bullet/number/checkbox; a continuation has no marker and belongs under the item's TEXT. The
+line already knows which it is: `hasNativeMarker` is exactly "list-item first line" and had no
+consumer until now, so it becomes `--to-list-marker-cols`.
+
+This also closes a long-standing entry in `docs/research/12` — "a list item's continuation line
+does not align with the item's own content" — which had been diagnosed as unclosable precisely
+because closing it "would mean overriding the width of `.cm-hmd-list-indent` … from a live
+measurement of the marker beside it". The override is the same one; the measurement is not
+needed, because the column is stated. Measured before: 4.38px right of its own text under a
+bullet, 8.56px right under `1. `, 4.16px left under `10. `. After: exact for every kind whose
+marker fits the gutter.
+
+The exception is the one the grid already states: a marker wider than the gutter pushes its own
+first row out, and its continuation follows the grid's text column rather than that row. `10. `
+measures 8.16px of it in the bundled theme on macOS. Aligning to the first row instead would
+mean reading the marker's glyph width per line — the measurement this whole design avoids.
 
 ### D10 — Measure the space advance a task line's text begins with
 

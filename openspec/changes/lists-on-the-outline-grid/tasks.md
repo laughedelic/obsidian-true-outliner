@@ -4,11 +4,14 @@
       and the gradient's 1px stop all derive from it, so a marker's visible centre and its
       guide's visible centre coincide by construction rather than by convention. Fix the
       measured half-pixel: markers sit at `depth × unit`, the guide paints `[column, column+1]`.
-- [x] 1.2 Establish one vertical anchor for markers across kinds — measured today, a bullet
-      centres on its text rect while a block icon sits ~5px above it. Decide the anchor against
-      the optical centre of a text row (a rect centre reads ~1.5px high), apply it to synthetic
-      markers and the native bullet alike, and fold in `docs/research/12`'s existing
-      "vertical-alignment polish" entry for the widget-atom icons while the rule is being set.
+- [x] 1.2 ~~Establish one vertical anchor for markers across kinds.~~ **Attempted, measured,
+      and reversed — the anchor stays PER-KIND.** `vertical-align: middle` moved the bullet the
+      ~1.4px the review asked for, and on a synthetic marker it resolves against the parent's
+      x-height: on an H1 the icon went from 8.45px above its text-rect centre to 2.96px below
+      it, under the heading's own glyphs. So the bullet takes the optical centre and the block
+      icon keeps `baseline`; they differ by ~7px on a body row. Design D6a, the delta spec and
+      the proposal all state the per-kind rule; `docs/research/12`'s "vertical-alignment
+      polish" entry carries the remaining question of whether that difference reads as wrong.
 - [x] 1.3 Declare `--to-decor-unit` as a real value rather than a CSS fallback, so
       `--list-indent` and everything else read one number. No user setting in this change.
 - [x] 1.4 E2e-assert that a marker's centre and its own guide's PAINTED centre agree, in both
@@ -67,6 +70,13 @@
       three-space files, and six-space levels, land on the grid, and so do space-indented files
       with Obsidian's own "Show indentation guides" turned off (design D9). This retires two
       accepted residuals rather than documenting them.
+- [x] 3.12 Give a CONTINUATION line the whole hang and a first line the hang less its gutter,
+      since every line of a list item carries `to-decor-list` and only the first spends the
+      gutter on a marker. Caught by review after 3.10 shipped without the term and put every
+      continuation on the marker's column, 20px left of the row above. Closes
+      `docs/research/12`'s "a list item's continuation line does not align with the item's own
+      content", which was diagnosed as needing exactly this override plus a per-line
+      measurement — the override is the same, the measurement is not needed.
 - [x] 3.11 Bring a task item's text onto the shared text column: the space Obsidian leaves after
       `]` is the first character of the CONTENT span, where the marker span's `min-width` cannot
       absorb it. Size the label one space short of the gutter, from a live-measured
@@ -136,4 +146,7 @@
       on the same column as the bullet beside it; an ordered number's left edge on a block
       icon's; a list chevron the same distance from its marker as a block chevron. Each one
       negative-controlled by disabling its own rule and confirming only its own test fails.
+- [x] 6.10 E2e a list item's CONTINUATION line at every kind, and a wrapping one: the geometry
+      suite measured only marker-bearing first lines, which is why 3.10 shipped a 20px
+      regression that the whole decorations group passed over.
 - [x] 6.8 Full suite green: 854 unit tests, lint, typecheck, 22/22 desktop e2e spec files.

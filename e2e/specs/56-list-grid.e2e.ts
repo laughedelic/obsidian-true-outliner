@@ -451,6 +451,53 @@ describe('lists on the outline grid', function () {
     expect(number.textX!).toBeGreaterThanOrEqual(bullet.textX! - 0.05);
   });
 
+  it('puts a hard continuation line under its own item’s text, at every kind', async function () {
+    // A continuation line carries `to-decor-list` like the item's first line
+    // but has no marker, so the rule that states the leading whitespace has to
+    // give it the WHOLE hang where a first line gets the hang less its gutter.
+    // Without that term the continuation landed on the marker's column, 20px
+    // left of the row above it; without the rule at all Obsidian sized the span
+    // from the whitespace rather than from the marker it sits under, and it
+    // landed 4.38px right under a bullet and 8.56px right under `1. `.
+    const rows = await open(
+      [
+        '# H',
+        '',
+        '- alpha',
+        '  a continuation of alpha',
+        '\t- nested',
+        '\t  a continuation of nested',
+        '',
+        '1. one',
+        '   a continuation of one',
+        '',
+        '- [ ] a task',
+        '  a continuation of the task',
+        '',
+      ].join('\n'),
+    );
+    for (const [first, cont] of [
+      [2, 3],
+      [4, 5],
+      [7, 8],
+      [10, 11],
+    ] as const) {
+      const item = at(rows, first);
+      const continuation = at(rows, cont);
+      expect(continuation.textX).toBeCloseTo(item.textX!, 1);
+      expect(continuation.textX! - continuation.column).toBeCloseTo(GUTTER, 1);
+    }
+  });
+
+  it('wraps a continuation line onto its own column, not the marker’s', async function () {
+    const long = 'wrapped '.repeat(30).trim();
+    const rows = await open(['# H', '', '- alpha', `  ${long}`, ''].join('\n'));
+    const continuation = at(rows, 3);
+    expect(continuation.wrapX).not.toBeNull();
+    expect(continuation.wrapX).toBeCloseTo(continuation.textX!, 1);
+    expect(continuation.textX).toBeCloseTo(at(rows, 2).textX!, 1);
+  });
+
   it('publishes the space advance it actually measured, not its fallback', async function () {
     // The CSS fallback (`0.26em`) reproduces the bundled font to within 0.03px,
     // so a rendered-position assertion cannot tell a live measurement from no

@@ -157,9 +157,15 @@ Shifting each number by half its OWN width is explicitly rejected: it centres ev
 reaches so far left that no fold chevron can fit beside it without crossing the parent level's
 guide (measured, `100. ` reaches 19px left of its column against a parent guide 24px away).
 
-A marker's VERTICAL placement SHALL follow one rule across kinds — including the two excluded
-above: a marker SHALL sit at the same position relative to its own node's first text row
-whatever the node's kind, so markers on adjacent rows read as one column.
+A marker's VERTICAL placement is NOT unified across kinds, and that is a decision rather than
+an omission. Each kind SHALL use the anchor that reads correctly at every font size it can
+appear at: a list bullet SHALL take the optical centre of its own text row, and a synthetic
+block marker SHALL take the text baseline. A single numeric anchor SHALL NOT be imposed on
+both. `vertical-align: middle` resolves against the PARENT's x-height, so on a heading it
+drops a block marker below the heading's own glyphs (measured: an H1's icon moved from 8.45px
+above its text-rect centre to 2.96px below it) — a 13.6px outline glyph in the text flow and a
+6px dot in a flex box do not read as aligned at one offset. Whether the resulting difference on
+a body row reads as wrong is recorded as a follow-up, not decided here.
 
 #### Scenario: A bullet sits on its own guide, not beside it
 
@@ -185,6 +191,13 @@ whatever the node's kind, so markers on adjacent rows read as one column.
   depth
 - **THEN** every number begins at the same left edge, and that edge is the one the paragraph's
   own marker begins at; and no number overlaps its own item's text
+
+#### Scenario: A list item's continuation line sits under its own text
+
+- **WHEN** a list item spans more than one document line — a bullet, an ordered item and a task
+  item each with a continuation
+- **THEN** each continuation's text begins on the same column as its own item's text, one
+  marker gutter right of the depth column, and its own soft-wrapped rows land there too
 
 #### Scenario: A task item's text starts on the same column as a bullet item's
 

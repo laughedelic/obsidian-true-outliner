@@ -785,8 +785,12 @@ describe('position indicators: current node and ancestor trail', function () {
       await browser.pause(250);
       const quiet = await geometrySnapshot();
 
-      for (const guides of ['full', 'lineage'] as const) {
-        for (const markers of ['current', 'lineage'] as const) {
+      // Both axes include `off`, so a mixed pair — one setting rendering while
+      // the other does not — is covered too. Leaving `off` out of the loop
+      // tested 4 of the 9 combinations while the name claimed all of them, and
+      // a geometry change caused by either setting ALONE would have passed.
+      for (const guides of ['off', 'full', 'lineage'] as const) {
+        for (const markers of ['off', 'current', 'lineage'] as const) {
           await setGuides(guides);
           await setMarkers(markers);
           await h.setCursor(2, 12);

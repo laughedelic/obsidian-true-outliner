@@ -190,9 +190,20 @@
  * reading mode; only the editor's whitespace arithmetic disagrees.
  *
  * Sizing the WRAPPER states the answer once, for whatever it contains: the
- * item's depth within its own list, in units. That covers the quantised part
- * and the leftover together, so a two-space file, a three-space file and a
- * six-space level all land where the parse says they are.
+ * stated hang, less whatever the line's own marker occupies. That covers the
+ * quantised part and the leftover together, so a two-space file, a three-space
+ * file and a six-space level all land where the parse says they are.
+ *
+ * The subtraction is what keeps a CONTINUATION line right. A first line spends
+ * the gutter on its native marker and its whitespace stops one gutter short of
+ * its text; a continuation line has no marker and belongs under the item's
+ * TEXT, so its whitespace takes the whole hang. Measured before this term
+ * existed: a continuation landed on the marker's column, 20px left of the row
+ * above it. Measured before this rule existed at all: 4.38px RIGHT of it under
+ * a bullet and 8.56px right under `1. `, Obsidian sizing that span from the
+ * whitespace rather than from the marker it is meant to sit under — the
+ * long-standing misalignment `docs/research/12` records as unclosable without
+ * exactly this override.
  *
  * It also removes this layer's dependence on the user's "Show indentation
  * guides" setting. Measured with it off: the `.cm-indent` spans are not emitted
@@ -210,7 +221,7 @@
   > .cm-line.to-decor-list
   .cm-hmd-list-indent {
   display: inline-block;
-  width: calc((var(--to-depth, 0) - var(--to-supp-depth, 0)) * var(--to-decor-unit));
+  width: calc(var(--to-list-hang) - var(--to-list-marker-cols, 0px));
   white-space: pre;
   overflow: hidden;
   vertical-align: top;

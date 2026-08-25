@@ -51,12 +51,14 @@ behaviour.
   at the item's content origin, which the grid now puts on the marker's own centre. The glyph
   is moved by the block rule's distance minus that rule's gutter term, so both kinds land the
   same 3px from their own marker rather than each being placed by a constant of its own.
-- **Markers and guides share one column definition.** Measured: every marker's centre sits at
-  exactly `depth × unit` while the guide paints its 1px as `[column, column + 1]`, so every
-  marker — bullets and block icons alike — is half a pixel left of the line it belongs to. A
-  list bullet also uses a different vertical anchor from a block icon (the text rect's centre
-  against roughly 5px above it). Both are resolved here, from one shared definition rather
-  than per-consumer.
+- **Markers and guides share one HORIZONTAL column definition.** Measured: every marker's
+  centre sat at exactly `depth × unit` while the guide painted its 1px as
+  `[column, column + 1]`, so every marker — bullets and block icons alike — was half a pixel
+  left of the line it belongs to. Resolved from one shared definition rather than
+  per-consumer. The VERTICAL anchor is deliberately not unified: `vertical-align: middle` is
+  right for a bullet and wrong for a block icon, whose parent may be a heading, so the bullet
+  takes the optical centre and the icon keeps the baseline. Built, looked at, reversed — see
+  design D6a; the residual difference on a body row is a recorded follow-up.
 - **No new settings.** The demo build's two experimental dropdowns are removed; this is one
   behaviour, not an option.
 

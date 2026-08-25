@@ -158,6 +158,23 @@ plugin on than off, which is the one hard invariant `outline-decorations` states
 lists. Doing it anyway is a change of its own, with that requirement amended deliberately
 rather than broken in passing.
 
+**First offset closed 2026-08-25** by `lists-on-the-outline-grid` (design D9). Both conditions
+the paragraph above named are met: that change already amends the pure-list invariant
+deliberately, and it already overrides `.cm-hmd-list-indent`'s width — but STATES it from the
+item's own depth rather than measuring the marker, so the per-line, per-theme measurement is
+not needed after all. A continuation line takes the whole stated hang where a first line takes
+the hang less its marker gutter. Measured after: exact for every kind whose marker fits the
+gutter. A marker wider than the gutter (`10. `) pushes its own first row out and its
+continuation follows the grid's text column instead, 8.16px left of that row in the bundled
+theme — the same wide-marker exception the grid states elsewhere, and the only part that would
+still need the marker's glyph width to close.
+
+The second offset, about the CARET rather than the text, is untouched and stays open.
+
+Worth keeping as a lesson: "not closable from where this layer stands" was true of the
+mechanism examined and false of the problem, the same shape as the two probes that concluded
+native list columns could only be followed.
+
 ### A structural key pressed on a provisional position leaves the blank line in the file
 
 Found while closing `a-position-does-not-split-its-node`, and out of its scope deliberately.

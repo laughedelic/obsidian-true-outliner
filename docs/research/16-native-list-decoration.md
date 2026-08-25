@@ -409,6 +409,16 @@ It also settles the last carried-forward finding below in the strongest way avai
 way. Measured with it off, nothing is quantised at all — a FOUR-space level renders 7.25px
 short of its column — and the same rule covers that too.
 
+And it reaches a third thing neither the plan nor the change had aimed at. Every line of a list
+item carries the same class, so the wrapper rule applies to CONTINUATION lines too — which is
+how the first version of it shipped a 20px regression that the whole decorations group passed
+over, the geometry suite having only ever measured marker-bearing first lines. Giving a
+continuation the whole hang and a first line the hang less its gutter fixes that AND closes the
+long-standing misalignment `docs/research/12` records, which had been diagnosed as needing this
+exact override plus a per-line measurement of the marker beside it. The override is the same
+one; the measurement is unnecessary because the column is stated rather than followed — the
+doc's own first lesson, arriving a second time.
+
 ## Carried-forward findings
 
 For [11-decoration-lessons.md](11-decoration-lessons.md) when this work lands:

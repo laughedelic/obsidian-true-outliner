@@ -980,6 +980,15 @@ function lineDecoration(
     // Publishing it here rather than falling back to a literal in the CSS keeps
     // `MARKER_GUTTER_CSS` the single source.
     styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
+    // The marker's own share of the stated hang. A first line spends the gutter
+    // on its native bullet/number/checkbox, so its leading whitespace stops one
+    // gutter short of its text; a CONTINUATION line has no marker and belongs
+    // under the item's TEXT, so its whitespace takes the whole hang. Without
+    // this the rule that states the whitespace width (styles.css) would put a
+    // continuation on the marker's column, a gutter left of the row above it.
+    // `hasNativeMarker` is exactly "list-item first line" and had no consumer
+    // until now.
+    styles.push(`--to-list-marker-cols: ${fact.hasNativeMarker ? MARKER_GUTTER_CSS : '0px'}`);
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
