@@ -287,3 +287,9 @@ this is a good progress. but in the comparison demo I can't see the task line be
 ---
 
 yes. this works. let's go forward with all of these fixes
+
+---
+
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #54 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+CI checks "mobile (decorations)", "desktop (decorations)" failed on laughedelic/obsidian-true-outliner PR #54. Run `gh pr checks 54 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing checks.</ci-monitor-event>
