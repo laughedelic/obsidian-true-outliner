@@ -133,10 +133,15 @@
 - [x] 6.5 E2e: the trail reaches every list level, and every setting combination leaves a
       list's geometry unchanged.
 - [x] 6.6 Screenshot the full corpus in both bundled themes (specs 50/51/52 do this for every
-      fixture, and the corpus now includes `list-grid`), and the Minimal pass: Minimal sets
-      `--list-indent: 2em` itself and puts a `--list-edit-offset` margin on list lines, and our
-      per-line rules win both — grid intact, bullets on their columns, wrapped rows under their
-      own text.
+      fixture, and the corpus now includes `list-grid`).
+- [ ] 6.6a The Minimal pass, by hand. Minimal sets `--list-indent: 2em` itself and puts a
+      `--list-edit-offset` margin on list lines; a run before the review round found our
+      per-line rules winning both — grid intact, bullets on their columns, wrapped rows under
+      their own text. That result is STALE: the chevron, ordered-marker, task-text, list-indent
+      and continuation rules all landed after it, and two of them read theme variables
+      (`--checkbox-size`, `--list-bullet-end-padding`). Split out of 6.6 and unchecked so the
+      verification record and the approval gate agree — the PR description says this is
+      outstanding, and it is.
 - [ ] 6.7 Real-vault pass by hand over `test-vault/`, including
       `Notes/List decoration demo.md`. This is the gate, not the fixtures — every bug in this
       layer's history was found here and none by the synthetic corpus.

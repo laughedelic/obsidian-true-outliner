@@ -384,15 +384,14 @@ export interface LineGuideFact {
    * exactly the depths `guideDepths` deliberately excludes, kept separately
    * rather than merged in.
    *
-   * EXPERIMENTAL (`ListLayout`, docs/research/16-native-list-decoration.md).
-   * A list-item ancestor owns no guide in the base layer because Obsidian's
-   * own native indent guides already connect one bullet to the next, on
-   * columns our fixed unit does not match. Once `--list-indent` is pushed to
-   * our own unit those columns coincide, and drawing these ourselves becomes
-   * the better answer — so the walk publishes them unconditionally and the
-   * consumer decides. Emitted for gap lines too, so a blank line inside a
-   * list keeps the guide continuous the same way it already does between
-   * blocks.
+   * A list-item ancestor used to own no guide in the base layer, because
+   * Obsidian's own native indent guides already connected one bullet to the
+   * next, on columns our fixed unit did not match. `lists-on-the-outline-grid`
+   * pushed `--list-indent` to our own unit, so those columns coincide and this
+   * layer draws them: the walk publishes these depths unconditionally, every
+   * consumer folds them in, and the native guide is suppressed on those lines.
+   * Emitted for gap lines too, so a blank line inside a list keeps the guide
+   * continuous the same way it already does between blocks.
    */
   readonly listGuideDepths: readonly number[];
 }
