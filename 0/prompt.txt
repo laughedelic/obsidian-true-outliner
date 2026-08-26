@@ -390,3 +390,7 @@ forget about the Minimal theme. it is not in scope.
 everything looks great. there is just one minor visual nit: the folding chevron should sit a bit lower. it might be something we had before with the heading fold chevrons, but it wasn't as noticeable. now I can see clearly, that it's an issue across all kinds of nodes. when it's folded, the pointy end of the chevron doesn't align with the vertical center of the node marker icon. it's especially obvious with the list bullet point and the checkbox. this is not a major issue, but if it's easy to adjust, let's try.
 
 another issue I just noticed that might be hard to reproduce. I was just moving around the file, folding and unfolding, and suddenly the folding markers were placed on top of the node icon (both folded and unfolded). I attached a screenshot fragment. I'm not sure what triggers it, but it seems to affect only heading nodes. closing the tab and opening that file again fixes the glitch. see if you can reproduce it, or figure out why this happens.
+
+---
+
+great. everything looks good. let's mark manual pass done, sync and archive the change
