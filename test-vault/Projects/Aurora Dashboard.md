@@ -21,11 +21,11 @@ The severity-first layout is the bet. Everything else serves it.
 
 ## Layout decision record
 
-| Option | Time-to-ack (study) | Verdict |
-| --- | --- | --- |
-| timestamp-first (current) | 11.2s | baseline |
-| severity-first | 6.8s | ✅ adopted |
-| grouped-by-source | 9.1s | rejected |
+| Option                    | Time-to-ack (study) | Verdict   |
+| ------------------------- | ------------------- | --------- |
+| timestamp-first (current) | 11.2s               | baseline  |
+| severity-first            | 6.8s                | ✅ adopted |
+| grouped-by-source         | 9.1s                | rejected  |
 
 ## Technical notes
 
