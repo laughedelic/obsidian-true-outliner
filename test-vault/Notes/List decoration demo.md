@@ -25,16 +25,14 @@ runs straight down from it — this is the column every other kind uses.
 1. first
 	1. nested first
 		1. nested deeper
-2. ninth
-3. tenth
-4. slkfdj
+9. ninth
+10. tenth
 
 ## Tasks
 
 - [ ] an open task
 	- [x] a done subtask
 		- a plain child of a task
-- ldkfgj
 
 ## Same depth, different kinds
 
