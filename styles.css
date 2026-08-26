@@ -468,7 +468,24 @@
   content: '';
   position: absolute;
   top: 0;
-  left: calc(-1 * var(--to-own-shift, 0px));
+  /* Every stripe is centred on its column, so half of it falls to the LEFT of
+   * that column. At depth 0 the column is this box's own left edge, and a
+   * background is clipped to the border box — so a root guide painted at half
+   * width, its visible centre half a pixel right of the marker it comes out of,
+   * while every deeper one painted whole. The same clip caught a depth-0 trail
+   * accent.
+   *
+   * A transparent left border extends the PAINT area without moving the
+   * PADDING box, which is what `background-position` is measured from
+   * (`background-origin` is `padding-box`, `background-clip` is `border-box`,
+   * both by default): `left` moves the border edge out by the bleed and the
+   * border puts the padding edge back where it was, so every coordinate
+   * decorations.ts computes still means exactly what it meant. Sized from the
+   * widest stripe this overlay can carry, so a snippet that thickens the trail
+   * cannot reintroduce the clip. */
+  --to-stripe-bleed: max(1px, var(--to-trail-width, 1px));
+  left: calc(-1 * var(--to-own-shift, 0px) - var(--to-stripe-bleed));
+  border-left: var(--to-stripe-bleed) solid transparent;
   right: 0;
   bottom: 0;
   background: var(--to-guides);

@@ -45,9 +45,9 @@
 - [x] 3.3 State the hanging indent from `(depth − supplementalDepth) × unit + gutter` with
       `!important`, replacing Obsidian's measured value (design D3).
 - [x] 3.4 Put the marker on its column: zero the marker gap, zero-width bullet box, marker span
-      sized to the gutter with `min-width`. Exclude task lines from CENTRING — a checkbox is
-      wider than the gutter and is a click target — and scope every rule that implements the
-      exclusion the same way, so it is stated once rather than holding by accident.
+      sized to the gutter with `min-width`. Exclude task lines from these rules — a checkbox is
+      a click target with its own box, and 3.5 places it — and scope every rule that implements
+      the exclusion the same way, so it is stated once rather than holding by accident.
 - [x] 3.5 CENTRE a task checkbox on its own depth column, like the bullet it sits among,
       without changing its width or hit area. (Landed first as "start on the column", which
       real use reported as a checkbox sitting nearer its text than the bullets around it; the

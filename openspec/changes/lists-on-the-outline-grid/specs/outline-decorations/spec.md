@@ -162,6 +162,15 @@ horizontally at the same distance from it whatever the node's kind, and vertical
 own centre. The chevron's placement SHALL follow the mark rather than the line, since the mark
 is what the reader relates it to.
 
+The vertical half of that rule does NOT extend to an ordered item, and the exception is stated
+rather than left to the implementation. Every other kind's mark is an element whose box can be
+measured — a synthetic icon, a bullet, a checkbox — while an ordered item's mark IS its glyphs,
+and no box holds them: the marker span's box is the whole text row, whose centre the chevron
+already shares, and the digits rest on the baseline about 1.7px below it. Reading ink out of a
+text run needs font metrics no rect exposes, so an ordered item's chevron SHALL keep the row's
+own centre, about 1.7px off its digits' — a recorded residual, not a target this layer claims to
+have hit.
+
 A marker's VERTICAL placement is NOT unified across kinds, and that is a decision rather than
 an omission. Each kind SHALL use the anchor that reads correctly at every font size it can
 appear at: a list bullet SHALL take the optical centre of its own text row, and a synthetic

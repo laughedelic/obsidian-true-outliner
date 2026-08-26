@@ -413,6 +413,25 @@ describe('lists on the outline grid', function () {
     await h.setTheme(false);
   });
 
+  it('paints every stripe whole, the root one included', async function () {
+    // The half a stripe this guards, which the centre check above cannot see:
+    // a stripe is centred on its column, so half of it falls left of that
+    // column — and at depth 0 the column IS the overlay's own left edge, where
+    // a background is clipped away. `background-position` reported the right
+    // number all along (-0.5px); the paint was half a line. So the assertion is
+    // that no layer starts left of what the box actually paints.
+    const rows = await open(['# H', '', 'A paragraph.', ''].join('\n'));
+    const line = at(rows, 2).n; // carries the heading's depth-0 guide
+    const bleed = parseFloat(await h.getLinePseudoComputedStyle(line, 'border-left-width'));
+    const xs = (await h.getLinePseudoComputedStyle(line, 'background-position'))
+      .split(',')
+      .map((p) => parseFloat(p.trim().split(/\s+/)[0] ?? ''))
+      .filter((x) => !Number.isNaN(x));
+    expect(xs.length).toBeGreaterThan(0);
+    expect(bleed).toBeGreaterThan(0);
+    for (const x of xs) expect(x).toBeGreaterThanOrEqual(-bleed);
+  });
+
   it('renders a note without outline mode with no contribution at all', async function () {
     const rows = await open(TABS, 'off');
     for (const row of rows) {
