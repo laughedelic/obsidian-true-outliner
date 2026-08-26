@@ -329,6 +329,37 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(await overlayColors(7)).toEqual(await overlayColors(6));
     });
 
+    it('draws no accent on the blank rows past the end of the guide it accents', async function () {
+      // An accent is a treatment OF a guide, so where the guide ends the accent
+      // must too — otherwise the row shows a stripe with nothing under it.
+      // 0 "# A"  1 ""  2 "## B"  3 ""  4 "para"  5 ""  6 ""
+      const note = 'Scratch/pi-guides-tail.md';
+      await h.createNote(note, ['# A', '', '## B', '', 'para', '', ''].join('\n'));
+      await ensureOutlineMode(note);
+      await setGuides('full');
+      await h.setCursor(4, 3); // inside "para", so A and B are both ancestors
+      await browser.pause(250);
+      expect(await overlayLayers(4)).toBeGreaterThan(0);
+      expect(await overlayLayers(5)).toBe(0);
+      expect(await overlayLayers(6)).toBe(0);
+    });
+
+    it('draws no accent on a column the document has no guide at', async function () {
+      // "## A" is childless, so it owns no guide anywhere here. The trail is
+      // computed against the materialized document, in which the position makes
+      // it a parent — so without the clip it accents A's own column on a row
+      // the base layer draws nothing at. What should render is one layer: the
+      // guide "# H" really owns, accented.
+      // 0 "# H"  1 ""  2 "## A"  3 ""
+      const note = 'Scratch/pi-guides-childless.md';
+      await h.createNote(note, ['# H', '', '## A', ''].join('\n'));
+      await ensureOutlineMode(note);
+      await setGuides('full');
+      await h.setCursor(3, 0); // the provisional position below "## A"
+      await browser.pause(250);
+      expect(await overlayLayers(3)).toBe(1);
+    });
+
     it('emits no accent for a top-level node — there is no ancestor', async function () {
       const note = 'Scratch/pi-guides-toplevel.md';
       await h.createNote(note, STRUCTURED);

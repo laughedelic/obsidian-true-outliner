@@ -412,6 +412,78 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     expect(gradientLayerCount(await h.getLinePseudoComputedStyle(5, 'background-image'))).toBe(3);
   });
 
+  it('ends a guide at its section’s last content line, leaving the blanks below it bare', async function () {
+    // The other half of the continuity rule above: a gap keeps the guide while
+    // the subtree continues below it, and drops it where the subtree is over.
+    // 0 "# A"  1 ""  2 "para one"  3 ""  4 "para two"  5 ""  6 ""
+    const note = 'Scratch/decorations-guide-tail.md';
+    await h.createNote(note, ['# A', '', 'para one', '', 'para two', '', ''].join('\n'));
+    await ensureOutlineMode(note);
+    await browser.pause(150);
+
+    const layers = async (n: number) =>
+      gradientLayerCount(await h.getLinePseudoComputedStyle(n, 'background-image'));
+    // The interior gap reads exactly like the content rows around it.
+    expect(await layers(3)).toBe(await layers(2));
+    expect(await layers(3)).toBe(await layers(4));
+    expect(await layers(4)).toBeGreaterThan(0);
+    // The rows below the last paragraph carry nothing — not the class either.
+    expect(await layers(5)).toBe(0);
+    expect(await layers(6)).toBe(0);
+    expect(await h.getLineClassList(5)).not.toContain('to-decor-guides');
+  });
+
+  it('drops every guide a run of blanks closes on the same row', async function () {
+    // 0 "# A"  1 ""  2 "## B"  3 ""  4 "### C"  5 ""  6 "deep"  7 ""  8 ""  9 "## B2"
+    const note = 'Scratch/decorations-guide-run.md';
+    const md = ['# A', '', '## B', '', '### C', '', 'deep', '', '', '## B2', '', 'x', ''].join(
+      '\n',
+    );
+    await h.createNote(note, md);
+    await ensureOutlineMode(note);
+    await browser.pause(150);
+
+    const layers = async (n: number) =>
+      gradientLayerCount(await h.getLinePseudoComputedStyle(n, 'background-image'));
+    const run = [await layers(7), await layers(8)];
+    // Every row of one run has the same content line below it, so they resolve
+    // the same count as each other — no staircase inside the run.
+    expect(run[0]).toBe(run[1]);
+    // Lower than the content row above it, and exactly what the content below
+    // it carries, which is the rule stated as a relationship.
+    expect(run[0]).toBeLessThan(await layers(6));
+    expect(run[0]).toBe(await layers(9));
+  });
+
+  it('extends the guide to a caret parked past the end of a section, and back when it leaves', async function () {
+    // 0 "# A"  1 ""  2 "para"  3 ""  4 ""
+    const note = 'Scratch/decorations-guide-provisional.md';
+    await h.createNote(note, ['# A', '', 'para', '', ''].join('\n'));
+    await ensureOutlineMode(note);
+    await browser.pause(150);
+
+    const layers = async (n: number) =>
+      gradientLayerCount(await h.getLinePseudoComputedStyle(n, 'background-image'));
+    // With the caret in content space the section is over at "para".
+    await h.setCursor(2, 4);
+    await browser.pause(150);
+    expect(await layers(3)).toBe(0);
+    expect(await layers(4)).toBe(0);
+
+    // Parked on the blank line, the position stands for a node the section
+    // would contain, so the guide reaches it — and the row between, or the
+    // extension would have a hole in it.
+    await h.setCursor(4, 0);
+    await browser.pause(150);
+    expect(await layers(4)).toBeGreaterThan(0);
+    expect(await layers(3)).toBe(await layers(4));
+
+    // And leaves with the caret.
+    await h.setCursor(2, 4);
+    await browser.pause(150);
+    expect(await layers(4)).toBe(0);
+  });
+
   it('updates after a document edit without a mode toggle', async function () {
     const note = 'Scratch/decorations-guide-live-edit.md';
     await h.createNote(note, '# Parent\n\nfirst\n');

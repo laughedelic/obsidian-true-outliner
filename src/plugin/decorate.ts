@@ -376,6 +376,23 @@ function restoreLine(doc: OutlineDoc, target: number, text: string): OutlineDoc 
  * confirmed break on further real-vault review (the guide visibly stopped
  * short right after any heading/paragraph with children). Covering it here
  * is a genuine improvement over 2a's own behavior, not just parity with it.
+ *
+ * A guide ENDS at the last CONTENT line of the subtree it covers. The trailing
+ * blank lines below that line carry none of it, so a guide never descends past
+ * the content it belongs to — not into the gap before a shallower sibling, and
+ * not into the blank line a file ends on. The walk cannot see that: it knows
+ * the node a gap belongs to and nothing after it, which is why the same rule
+ * that closes the break at the TOP of a gap overshot at the bottom. A second
+ * pass from the bottom can, by keeping on a gap line only the depths the next
+ * CONTENT line below it also carries. That is the same question as "does this
+ * ancestor still have content below" — a subtree occupies a contiguous run of
+ * lines and the facts are emitted in document order, so if the next content
+ * line falls outside an ancestor's subtree, everything after it does too.
+ *
+ * Every row inside one run of blanks shares that content line, so they all keep
+ * the same depths: several nested subtrees closing at once end their guides on
+ * one row rather than in a staircase. Two depths end on different rows only
+ * where content separates their subtrees' last lines.
  */
 export interface LineGuideFact {
   /** 0-indexed absolute line number in the document. */
@@ -419,7 +436,10 @@ export interface LineGuideFact {
  * doc comment above) — decorations.ts keys this by `lineNumber`, not by
  * array index, since gap lines add entries `decorate()` doesn't have.
  */
-export function computeLineGuides(doc: OutlineDoc): LineGuideFact[] {
+export function computeLineGuides(
+  doc: OutlineDoc,
+  provisionalLine?: number,
+): LineGuideFact[] {
   const facts: LineGuideFact[] = [];
   let current = doc.preamble.length;
 
@@ -473,6 +493,51 @@ export function computeLineGuides(doc: OutlineDoc): LineGuideFact[] {
   };
 
   doc.children.forEach((node) => walk(node, 0, [], []));
+  return trimGapTails(facts, provisionalLine);
+}
+
+/**
+ * Cuts each guide off at its subtree's last content line (see `LineGuideFact`),
+ * in one pass from the bottom of the facts the walk just built.
+ *
+ * Mutates the array it is handed, which is `computeLineGuides`' own local and
+ * never escapes it un-trimmed. A gap line keeps only the depths the last
+ * content line SEEN SO FAR carries — seen so far, walking upward, being the
+ * next content line below it. Consecutive gap lines therefore compare against
+ * the same content line and trim identically.
+ *
+ * An open PROVISIONAL POSITION counts as a content line, which is the whole of
+ * what `provisionalLine` does. The position stands for a node that would be
+ * there, so the guide reaches its row — and because the pass carries that
+ * upward, every blank row between it and the last real content line keeps its
+ * guides too, leaving no hole in the extension.
+ *
+ * A line number rather than a different document: the caller could hand over
+ * the MATERIALIZED parse instead, in which that row really is a node's own
+ * line, but a position that bisected nothing must contribute nothing to any
+ * other line (`outline-decorations`) and the materialized parse is a document
+ * in which the node it stands for already exists. A line number changes the
+ * trim and provably nothing else.
+ */
+function trimGapTails(facts: LineGuideFact[], provisionalLine?: number): LineGuideFact[] {
+  let below: readonly number[] = [];
+  let belowList: readonly number[] = [];
+  for (let i = facts.length - 1; i >= 0; i--) {
+    const fact = facts[i]!;
+    if (!fact.isGapLine || fact.lineNumber === provisionalLine) {
+      below = fact.guideDepths;
+      belowList = fact.listGuideDepths;
+      continue;
+    }
+    // The fact stays, with its depths narrowed — a gap line that keeps none is
+    // still a fact, so this array remains a strict superset of `decorate()`'s
+    // line coverage and `isGapLine` still means what it meant.
+    facts[i] = {
+      ...fact,
+      guideDepths: fact.guideDepths.filter((d) => below.includes(d)),
+      listGuideDepths: fact.listGuideDepths.filter((d) => belowList.includes(d)),
+    };
+  }
   return facts;
 }
 
@@ -589,6 +654,13 @@ interface ChainEntry {
   readonly ownEnd: number;
   /** Last line of the node's whole subtree, trailing gaps included. */
   subtreeEnd: number;
+  /**
+   * Last line of the subtree that is some node's OWN line — where this node's
+   * guide ends (`LineGuideFact`), and therefore where an accent on that guide
+   * has to end too. Never `subtreeEnd` when a trailing gap closes the subtree,
+   * which is exactly the case that used to draw an accent past its own guide.
+   */
+  contentEnd: number;
   readonly isListItem: boolean;
 }
 
@@ -613,11 +685,17 @@ function chainAtLine(doc: OutlineDoc, cursorLine: number): ChainEntry[] | null {
 
   let found: ChainEntry[] | null = null;
   const path: ChainEntry[] = [];
+  // The last own-line emitted so far, in document order. Every node updates it
+  // as its own lines go by, so on the way back out of a subtree it holds that
+  // subtree's own last content line — the same value a second walk would
+  // compute, without the second walk.
+  let lastContent = -1;
 
   const walk = (node: OutlineNode, depth: number): void => {
     const firstLine = current;
     const ownEnd = firstLine + node.lines.length - 1;
     current += node.lines.length;
+    lastContent = ownEnd;
     const gapEnd = current + node.trailingGap.length - 1;
     current += node.trailingGap.length;
 
@@ -626,12 +704,18 @@ function chainAtLine(doc: OutlineDoc, cursorLine: number): ChainEntry[] | null {
       firstLine,
       ownEnd,
       subtreeEnd: Math.max(ownEnd, gapEnd),
+      contentEnd: ownEnd,
       isListItem: node.kind === 'list-item',
     };
     path.push(entry);
+    // Still `subtreeEnd`: a caret parked on a trailing gap resolves to the node
+    // that owns the gap, so the trail does not blink off while the caret crosses
+    // a blank line. Where a guide ENDS is a different question, and the two
+    // deliberately part company here.
     if (!found && cursorLine >= firstLine && cursorLine <= entry.subtreeEnd) found = [...path];
     node.children.forEach((child) => walk(child, depth + 1));
     entry.subtreeEnd = current - 1;
+    entry.contentEnd = lastContent;
     path.pop();
   };
 
@@ -686,11 +770,13 @@ export function computePositionTrail(
 
   if (highlight.guides === 'full') {
     // A strict ancestor's guide is active on every line after that ancestor's
-    // own lines through the end of its subtree — the exact span
-    // `computeLineGuides` gives that depth, including the gap lines it
-    // deliberately covers for continuity.
+    // own lines through its subtree's last CONTENT line — the exact span
+    // `computeLineGuides` gives that depth, gap lines between blocks included
+    // and the trailing gap below the subtree excluded. Accenting past that drew
+    // a stripe on rows where the base guide no longer exists, the same thing
+    // this layer already refuses to do on an ancestor's own rows.
     for (const a of ancestors) {
-      for (let line = a.ownEnd + 1; line <= a.subtreeEnd; line++) {
+      for (let line = a.ownEnd + 1; line <= a.contentEnd; line++) {
         push(byLine, line, { depth: a.depth, extent: 'full' });
       }
     }

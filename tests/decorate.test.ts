@@ -357,7 +357,9 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       [0, [], [], false],
       [1, [], [0], false],
       [2, [], [0, 1], false],
-      [3, [], [0, 1], true],
+      // The file's last line: nothing of any of these subtrees remains below
+      // it, so the tail carries none of them.
+      [3, [], [], true],
     ]);
 
     // Under a heading, both tracks are populated and neither absorbs the other.
@@ -366,7 +368,7 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       [1, [0], [], true],
       [2, [0], [], false],
       [3, [0], [1], false],
-      [4, [0], [1], true],
+      [4, [], [], true],
     ]);
 
     // A list attached to a paragraph sits one level deeper — the paragraph owns
@@ -375,7 +377,7 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       [0, [], [], false],
       [1, [0], [], false],
       [2, [0], [1], false],
-      [3, [0], [1], true],
+      [3, [], [], true],
     ]);
 
     // A multi-line item's continuation carries exactly what its first line does.
@@ -385,17 +387,19 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       [2, [0], [], false],
       [3, [0], [1], false],
       [4, [0], [1], false],
-      [5, [0], [1], true],
+      [5, [], [], true],
     ]);
 
     // A blank line between two items keeps both tracks, so a guide drawn from
-    // either does not break across the gap.
+    // either does not break across the gap — the half of the rule the tail cut
+    // leaves alone: line 1 has content of the same ancestry below it, line 4
+    // does not.
     expect(depthsOf(['- one', '', '- two', '\t- child', ''].join('\n'))).toEqual([
       [0, [], [], false],
       [1, [], [], true],
       [2, [], [], false],
       [3, [], [0], false],
-      [4, [], [0], true],
+      [4, [], [], true],
     ]);
   });
 
@@ -529,6 +533,109 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       expect(byLine.get(1)?.guideDepths).toEqual([]);
     });
   });
+
+  describe('guide tails (a guide ends at its subtree’s last content line)', () => {
+    const byLine = (md: string) =>
+      new Map(computeLineGuides(parse(md)).map((f) => [f.lineNumber, f]));
+
+    it('ends a guide at its subtree’s last content line, not in the blanks below it', () => {
+      // 0 "# Doc"  1 ""  2 "## A"  3 ""  4 "para"  5 ""  6 ""  7 "## B"  8 ""  9 "other"
+      const md = ['# Doc', '', '## A', '', 'para', '', '', '## B', '', 'other', ''].join('\n');
+      const g = byLine(md);
+      expect(g.get(4)?.guideDepths).toEqual([0, 1]); // "para", inside both
+      // The blanks are past everything "## A" contains, and "## B" is at A's own
+      // level — so A's guide stops at "para" while "# Doc"'s carries on.
+      expect(g.get(5)?.guideDepths).toEqual([0]);
+      expect(g.get(6)?.guideDepths).toEqual([0]);
+      expect(g.get(7)?.guideDepths).toEqual([0]); // "## B"'s own line
+    });
+
+    it('does not run a guide off the end of the document', () => {
+      const g = byLine(['# Doc', '', '## A', '', 'para', ''].join('\n'));
+      expect(g.get(4)?.guideDepths).toEqual([0, 1]);
+      expect(g.get(5)?.guideDepths).toEqual([]);
+      // Still a fact, and still flagged — only its depths narrowed.
+      expect(g.get(5)?.isGapLine).toBe(true);
+    });
+
+    it('ends every guide one run of blanks closes on the SAME row', () => {
+      // 0 "# A"  1 ""  2 "## B"  3 ""  4 "### C"  5 ""  6 "deep"  7 ""  8 ""  9 "# A2"
+      const md = ['# A', '', '## B', '', '### C', '', 'deep', '', '', '# A2', '', 'x', ''].join(
+        '\n',
+      );
+      const g = byLine(md);
+      expect(g.get(6)?.guideDepths).toEqual([0, 1, 2]); // "deep"
+      // Every row of the run has the same content line below it ("# A2", which
+      // is inside none of the three), so all three end together on "deep"
+      // rather than dropping out one row at a time.
+      expect(g.get(7)?.guideDepths).toEqual([]);
+      expect(g.get(8)?.guideDepths).toEqual([]);
+    });
+
+    it('ends guides at different depths on different rows when content separates them', () => {
+      // 0 "# A"  1 "## B"  2 "in B"  3 ""  4 "## B2"  5 "in B2"  6 ""
+      const md = ['# A', '## B', 'in B', '', '## B2', 'in B2', ''].join('\n');
+      const g = byLine(md);
+      // "## B" holds nothing below "in B", so its guide ends there — but "# A"
+      // holds "## B2" below, so its guide runs through the blank and on.
+      expect(g.get(2)?.guideDepths).toEqual([0, 1]);
+      expect(g.get(3)?.guideDepths).toEqual([0]);
+      expect(g.get(5)?.guideDepths).toEqual([0, 1]);
+      expect(g.get(6)?.guideDepths).toEqual([]);
+    });
+
+    it('treats a blank line INSIDE an atom as content, not as a tail', () => {
+      // A fenced block swallows every line to its close, blank ones included,
+      // so the blank at 4 is one of the atom's own lines: nothing has ended
+      // there and the guide runs straight through it.
+      const md = ['# H', '', '```js', 'a', '', 'b', '```', ''].join('\n');
+      const g = byLine(md);
+      expect(g.get(4)?.isGapLine).toBe(false);
+      expect(g.get(4)?.guideDepths).toEqual([0]);
+      expect(g.get(3)?.guideDepths).toEqual([0]);
+      expect(g.get(5)?.guideDepths).toEqual([0]);
+      expect(g.get(7)?.guideDepths).toEqual([]); // the real tail
+    });
+
+    it('extends the guide to an open provisional position, and to the blanks between', () => {
+      // 0 "# H"  1 ""  2 "## A"  3 ""  4 "para"  5 ""  6 ""
+      const md = ['# H', '', '## A', '', 'para', '', ''].join('\n');
+      const closed = byLine(md);
+      expect(closed.get(5)?.guideDepths).toEqual([]);
+      expect(closed.get(6)?.guideDepths).toEqual([]);
+
+      // The SAME document with a position open on line 6, which is what makes
+      // this control exact: nothing about the text differs, only the caret.
+      const open = new Map(
+        computeLineGuides(parse(md), 6).map((f) => [f.lineNumber, f]),
+      );
+      expect(open.get(6)?.guideDepths).toEqual([0, 1]);
+      // And the row between, or the extension would have a hole in it.
+      expect(open.get(5)?.guideDepths).toEqual([0, 1]);
+    });
+
+    it('adds no DEPTH: a childless node with a position below it owns no guide', () => {
+      // "## A" has no children, so it owns no guide anywhere in this document.
+      // The position stands for one — rendering it would be rendering a node
+      // that does not exist yet.
+      const md = ['# H', '', '## A', ''].join('\n');
+      const open = new Map(
+        computeLineGuides(parse(md), 3).map((f) => [f.lineNumber, f]),
+      );
+      expect(open.get(3)?.guideDepths).toEqual([0]);
+    });
+
+    it('cuts a list tail like any other, on both tracks', () => {
+      // 0 "# H"  1 ""  2 "- one"  3 "\t- two"  4 ""  5 "# H2"
+      const md = ['# H', '', '- one', '\t- two', '', '# H2', ''].join('\n');
+      const g = byLine(md);
+      expect(g.get(3)?.guideDepths).toEqual([0]);
+      expect(g.get(3)?.listGuideDepths).toEqual([1]);
+      // Nothing of the heading's subtree or of "- one"'s remains below.
+      expect(g.get(4)?.guideDepths).toEqual([]);
+      expect(g.get(4)?.listGuideDepths).toEqual([]);
+    });
+  });
 });
 
 describe('computePositionTrail: caret-derived accents (hierarchy-position-indicators)', () => {
@@ -603,8 +710,9 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
         [3, '0:full,1:full'], // B's gap — inside both
         [4, '0:full,1:full'], // ### C
         [5, '0:full,1:full'],
-        [6, '0:full,1:full'], // text under C
-        [7, '0:full,1:full'],
+        [6, '0:full,1:full'], // text under C — the subtree's last content line
+        // Line 7 is the trailing gap below everything. The base guide ends at
+        // 6, so an accent there would sit on a column with nothing under it.
       ]);
     });
 
@@ -619,12 +727,66 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       const md = ['# One', '', '## Under one', '', '# Two', '', '## Under two', ''].join('\n');
       //           0         1    2              3    4        5    6              7
       const t = trail(md, 6, FULL); // caret under "# Two"
-      // Only "# Two"'s subtree (lines 5-7) is accented; "# One"'s (1-3) is not.
+      // Only "# Two"'s subtree is accented; "# One"'s (1-3) is not — and it
+      // stops at line 6, its last content line, not in the gap below it.
       expect(shape(t)).toEqual([
         [5, '0:full'],
         [6, '0:full'],
-        [7, '0:full'],
       ]);
+    });
+
+    it("ends a 'full' accent exactly where the guide it accents ends", () => {
+      // Stated as the relationship rather than as two line numbers: every row an
+      // accent lands on carries a guide at that same depth. That is the whole
+      // invariant, and it survives a change to either extent.
+      const md = ['# A', '', '## B', '', 'para', '', '', '# A2', '', 'x', ''].join('\n');
+      const guides = new Map(computeLineGuides(parse(md)).map((g) => [g.lineNumber, g]));
+      for (const style of [FULL, LINEAGE]) {
+        const t = trail(md, 4, style);
+        expect(t.byLine.size).toBeGreaterThan(0);
+        for (const [line, fact] of t.byLine) {
+          for (const accent of fact.accents) {
+            expect(guides.get(line)?.guideDepths).toContain(accent.depth);
+          }
+        }
+      }
+    });
+
+    it("draws no 'full' accent on the trailing gap below the subtree", () => {
+      // 0 "# A"  1 ""  2 "## B"  3 ""  4 "para"  5 ""  6 ""
+      const md = ['# A', '', '## B', '', 'para', '', ''].join('\n');
+      const t = trail(md, 4, FULL);
+      expect(t.byLine.get(4)?.accents.map((a) => a.depth)).toEqual([0, 1]);
+      expect(t.byLine.get(5)).toBeUndefined();
+      expect(t.byLine.get(6)).toBeUndefined();
+    });
+
+    it("reaches an open position's own row, the way the extended guide does", () => {
+      // `computeTrail` computes the trail against the MATERIALIZED document, in
+      // which the position's row is a node's own line — so it reaches that row
+      // without being told to, and lands where the extended guide lands.
+      const md = ['# H', '', '## A', '', 'para', '', ''].join('\n');
+      const probe = md.split('\n');
+      probe[6] = 'x';
+      const open = new Map(computeLineGuides(parse(md), 6).map((g) => [g.lineNumber, g]));
+      expect(open.get(6)?.guideDepths).toEqual([0, 1]);
+      expect(trail(probe.join('\n'), 6, FULL).byLine.get(6)?.accents.map((a) => a.depth)).toEqual([
+        0, 1,
+      ]);
+    });
+
+    it('accents a depth the document has no guide at, below a childless node', () => {
+      // The other side of computing against the materialized document: "## A"
+      // is childless in the real one and owns no guide anywhere, but the
+      // position makes it a parent, so the trail accents its depth on a row the
+      // base layer draws nothing at. Pinned here as a fact about the trail —
+      // the clip that answers it lives in `guideBackground`, which imports
+      // `obsidian` and so is e2e's to cover, not vitest's.
+      const md = ['# H', '', '## A', ''].join('\n');
+      const t = trail(['# H', '', '## A', 'x'].join('\n'), 3, FULL);
+      expect(t.byLine.get(3)?.accents.map((a) => a.depth)).toEqual([0, 1]);
+      const guides = new Map(computeLineGuides(parse(md), 3).map((g) => [g.lineNumber, g]));
+      expect(guides.get(3)?.guideDepths).toEqual([0]);
     });
 
     it('accents a guide on the same gap lines the base guide layer covers', () => {
@@ -766,8 +928,10 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
 
     it('combines full guides with lineage markers', () => {
       const t = trail(NESTED, 4, { guides: 'full', markers: 'lineage' });
-      // Full extents, as the guides axis alone would give…
-      expect(t.byLine.get(7)?.accents.map((a) => a.depth)).toEqual([0, 1]);
+      // Full extents, as the guides axis alone would give — through line 6, the
+      // last content line, with nothing on the trailing gap at 7.
+      expect(t.byLine.get(6)?.accents.map((a) => a.depth)).toEqual([0, 1]);
+      expect(t.byLine.get(7)).toBeUndefined();
       // …plus every ancestor's marker, as the markers axis alone would give.
       expect(ancestors(t)).toEqual([
         [0, false],
@@ -953,13 +1117,16 @@ describe('provisionalFact: what a caret-occupied blank line would become', () =>
   it('leaves the line’s GUIDES exactly where they were (design D8)', () => {
     // The fact and the guide come from different documents — the probe's and
     // the real one's — so the two must agree about this line, or the guide
-    // column would shift as the fact appears.
+    // column would shift as the fact appears. The real one is asked with the
+    // position open, which is how `factsFor` asks it: a position counts as
+    // content for where a guide ENDS, and the probe's row is content outright,
+    // so anything else would make the two disagree by construction.
     for (const [md, line] of [
       [['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4],
       [['# H', '', '- alpha', '  - beta', '    ', ''].join('\n'), 4],
       [['- item', '', '\t', '', '\tpara', ''].join('\n'), 2],
     ] as const) {
-      const real = computeLineGuides(parse(md)).find((g) => g.lineNumber === line)!;
+      const real = computeLineGuides(parse(md), line).find((g) => g.lineNumber === line)!;
       const probe = md.split('\n');
       probe[line] = `${probe[line]}x`;
       const previewed = computeLineGuides(parse(probe.join('\n'))).find(
