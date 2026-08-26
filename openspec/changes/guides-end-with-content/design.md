@@ -150,10 +150,10 @@ past its own last item is the same defect in the same layer.
 restates it
 
 That change renames and rewrites the guide requirement ("Indentation guides render every
-ancestor level, including list levels") and is at its final task, so it archives first and its
-text is the one this change edits. If the order turns out otherwise, the delta's `### Requirement:`
-header has to be retargeted at the name currently in `openspec/specs/outline-decorations/spec.md` —
-the rule it states is unaffected either way. Task 0 checks this before anything else.
+ancestor level, including list levels"), and it is archived before this one merges — decided,
+not inferred from its progress. So the main spec carries that name by the time this delta is
+applied, and its text is the one this change edits. Task 0 is the check that the archive
+actually happened, not a fork in the plan.
 
 ## Risks / Trade-offs
 

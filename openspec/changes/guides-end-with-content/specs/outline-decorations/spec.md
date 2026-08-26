@@ -61,17 +61,17 @@ be the same either way.
 - **THEN** no guide renders on that final blank row
 
 #### Scenario: Nested subtrees closing together end on the same row
-- **WHEN** a run of blank lines closes three nested levels at once, and content at the
-  outermost of those levels follows the run
-- **THEN** all three guides end on the last content line above the run, every row of the run
-  renders the same guides as every other, and those are exactly the guides whose subtrees
-  continue below it
+- **WHEN** a run of blank lines closes two nested subsections at once, and the section
+  containing them continues with more content below the run
+- **THEN** both subsection guides end on the last content line above the run, and the
+  containing section's guide renders on every row of the run — each row of a run carries the
+  same guides as every other
 
 #### Scenario: Guides at different depths end on different rows
-- **WHEN** a section's last child subtree ends at one content line and the section's own last
-  content line is a later one
-- **THEN** the deeper guide ends on the earlier row and the shallower one continues past it,
-  each ending on its own subtree's last content line
+- **WHEN** a subsection is followed by a later sibling inside the same section, so the section
+  holds content the subsection's own subtree does not
+- **THEN** the subsection's guide ends at its own last content line while the section's guide
+  carries on past it, each ending on its own subtree's last content line
 
 #### Scenario: A blank line inside a subtree keeps its guide
 - **WHEN** a blank line separates two siblings that are both inside the same ancestor's subtree

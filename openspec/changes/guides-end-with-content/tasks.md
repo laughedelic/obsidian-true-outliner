@@ -1,10 +1,9 @@
 ## 0. Sequencing check (design D8)
 
-- [ ] 0.1 Re-read `openspec/specs/outline-decorations/spec.md` and confirm the guide requirement
-      is the one `lists-on-the-outline-grid` restates ("Indentation guides render every ancestor
-      level, including list levels"). If that change has not archived yet, retarget this change's
-      delta header at the name actually in the main spec — the rule it states does not change
-      either way.
+- [ ] 0.1 Confirm `lists-on-the-outline-grid` has been archived, so
+      `openspec/specs/outline-decorations/spec.md` carries the requirement this delta targets
+      ("Indentation guides render every ancestor level, including list levels"). That ordering is
+      decided; this is the check that it happened, and the delta cannot apply before it does.
 
 ## 1. The extent, in the facts
 
