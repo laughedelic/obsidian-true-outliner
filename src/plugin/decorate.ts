@@ -6,14 +6,25 @@
  * decorations.ts sets `padding-left`/`margin-left` = `depth × unit` directly,
  * which is additive in effect because there is nothing native to add to.
  *
- * List items are different: Obsidian already hangs their native bullet/
- * number via its own `text-indent`/`padding-left` pair, per raw nesting
- * level. That pair is NEVER touched here — instead, `supplementalDepth`
- * captures only the contribution from non-list-item ancestors (e.g. a
- * heading a list sits under), and decorations.ts adds it as `margin-left`,
- * a box-model property native list rendering doesn't otherwise use. A list
- * with no non-list-item ancestors gets supplementalDepth 0 everywhere in it
- * — byte-identical to outline-mode-off, a permanent regression invariant.
+ * List items are different: Obsidian hangs their native bullet/number via its
+ * own `text-indent`/`padding-left` pair, per raw nesting level.
+ * `supplementalDepth` captures the contribution from non-list-item ancestors
+ * (e.g. a heading a list sits under), which decorations.ts adds as
+ * `margin-left` — a box-model property native list rendering doesn't otherwise
+ * use, so that part stays additive and moves the line box alone.
+ *
+ * What happens INSIDE the line box is no longer Obsidian's:
+ * `lists-on-the-outline-grid` states the hang from the item's own depth rather
+ * than reading the pair Obsidian measures, and states the leading whitespace's
+ * width too, so a list level steps by the same unit every other kind does. The
+ * facts this module publishes for that (`depth` alongside `supplementalDepth`,
+ * and `listGuideDepths`) are what the CSS computes from.
+ *
+ * Byte-identity with stock Obsidian is therefore a property of outline mode
+ * OFF, and only of that: with the mode off no decoration of any kind applies.
+ * It used to be claimed of a pure list with the mode ON — a "permanent
+ * regression invariant" — and that claim was exactly what kept lists off the
+ * grid; `outline-decorations` replaced it with the one-grid requirement.
  */
 
 import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
@@ -323,15 +334,21 @@ function restoreLine(doc: OutlineDoc, target: number, text: string): OutlineDoc 
  * docs/research/09-experiment-2-guide-lines.md) — the CSS
  * stacked-gradient alternative to Experiment 2a's pixel-measured overlay.
  *
- * A depth `d` is active on a line when some strict, non-list-item ancestor
- * at tree depth `d` sits above the line's own node — i.e. that ancestor
- * "owns" a guide, and every line inside its subtree (its own multi-line
- * continuations included, but never the ancestor's own lines themselves)
- * should render that guide. List-item ancestors never own a guide,
- * deliberately: same real-vault finding Experiment 2a made — Obsidian's
- * native indent guides already connect one bullet precisely to the next
- * within a list, and a guide of ours alongside them either doubles up or
- * reads as unevenly spaced against native per-level width.
+ * A depth `d` is active on a line when some strict ancestor at tree depth `d`
+ * sits above the line's own node — i.e. that ancestor "owns" a guide, and every
+ * line inside its subtree (its own multi-line continuations included, but never
+ * the ancestor's own lines themselves) should render that guide.
+ *
+ * Ancestors arrive on TWO tracks, `guideDepths` and `listGuideDepths`, which
+ * the consumer folds together. The split is historical rather than meaningful:
+ * list-item ancestors used to own no guide at all, on the real-vault finding
+ * Experiment 2a made — Obsidian's native indent guides already connected one
+ * bullet to the next, on columns our unit did not match, so a guide of ours
+ * beside them doubled up or read as unevenly spaced.
+ * `lists-on-the-outline-grid` put every list level on `depth × unit` and
+ * suppressed the native line, so they own guides like any other kind now. The
+ * tracks stay separate because a consumer still has reason to know which
+ * levels are list levels; nothing drops one of them.
  *
  * Unlike Experiment 2a's `computeGuides` (a per-NODE fact requiring a
  * two-pass walk to find each ancestor's subtree span), this is a per-LINE
@@ -364,11 +381,11 @@ export interface LineGuideFact {
   /** 0-indexed absolute line number in the document. */
   readonly lineNumber: number;
   /**
-   * Ascending tree depths of every strict, non-list-item ancestor whose
-   * guide is active on this line. Empty for a top-level node's own lines
-   * (no ancestors at all) and for any line whose every ancestor is itself
-   * a list-item chain (deferred entirely to native indent guides, same as
-   * Experiment 2a's `deep-nesting` fixture result).
+   * Ascending tree depths of every strict, NON-list-item ancestor whose guide
+   * is active on this line. Empty for a top-level node's own lines (no
+   * ancestors at all), and for any line whose every ancestor is a list item —
+   * those arrive on `listGuideDepths` instead. Both tracks render; see the doc
+   * comment above for why they are published separately.
    */
   readonly guideDepths: readonly number[];
   /**
@@ -379,6 +396,21 @@ export interface LineGuideFact {
    * and additionally decorates any gap-only line found here.
    */
   readonly isGapLine: boolean;
+  /**
+   * The depths of every strict LIST-ITEM ancestor active on this line —
+   * exactly the depths `guideDepths` deliberately excludes, kept separately
+   * rather than merged in.
+   *
+   * A list-item ancestor used to own no guide in the base layer, because
+   * Obsidian's own native indent guides already connected one bullet to the
+   * next, on columns our fixed unit did not match. `lists-on-the-outline-grid`
+   * pushed `--list-indent` to our own unit, so those columns coincide and this
+   * layer draws them: the walk publishes these depths unconditionally, every
+   * consumer folds them in, and the native guide is suppressed on those lines.
+   * Emitted for gap lines too, so a blank line inside a list keeps the guide
+   * continuous the same way it already does between blocks.
+   */
+  readonly listGuideDepths: readonly number[];
 }
 
 /**
@@ -391,30 +423,56 @@ export function computeLineGuides(doc: OutlineDoc): LineGuideFact[] {
   const facts: LineGuideFact[] = [];
   let current = doc.preamble.length;
 
-  const walk = (node: OutlineNode, depth: number, guideDepths: readonly number[]): void => {
+  const walk = (
+    node: OutlineNode,
+    depth: number,
+    guideDepths: readonly number[],
+    listGuideDepths: readonly number[],
+  ): void => {
     for (let i = 0; i < node.lines.length; i++) {
-      facts.push({ lineNumber: current + i, guideDepths, isGapLine: false });
+      facts.push({ lineNumber: current + i, guideDepths, listGuideDepths, isGapLine: false });
     }
     current += node.lines.length;
 
     // This node starts owning a guide for its own children from here on —
     // unless it's a list item, which never owns one (see doc comment above).
-    const childGuideDepths = node.kind === 'list-item' ? guideDepths : [...guideDepths, depth];
+    const isListItem = node.kind === 'list-item';
+    const childGuideDepths = isListItem ? guideDepths : [...guideDepths, depth];
+    // A list item's own contribution goes on the separate list track instead
+    // (see `listGuideDepths`). Any other kind adds nothing to that track but
+    // must CARRY it: a paragraph child of a list item is still inside that
+    // item, so everything below the paragraph is too. An earlier version reset
+    // the track to empty here, reasoning that a non-list node "ends the list
+    // chain" — which is true of the chain and false of the ancestry. It dropped
+    // the outer guide from every descendant of a mixed chain: in
+    // heading > item > paragraph > item, the inner item rendered guides at
+    // depths 0 and 2 and none at 1, though the item at 1 is a strict ancestor
+    // that owns one.
+    const childListGuideDepths = isListItem ? [...listGuideDepths, depth] : listGuideDepths;
 
     // Every trailing gap gets a fact now, for full continuity (see the doc
     // comment above): a leaf's own gap uses its own guideDepths; a node
     // with children's gap is already "inside" its subtree, so it uses
     // childGuideDepths instead — the same depths its first child gets.
-    const gapGuideDepths = node.children.length === 0 ? guideDepths : childGuideDepths;
+    const leaf = node.children.length === 0;
+    const gapGuideDepths = leaf ? guideDepths : childGuideDepths;
+    const gapListGuideDepths = leaf ? listGuideDepths : childListGuideDepths;
     for (let i = 0; i < node.trailingGap.length; i++) {
-      facts.push({ lineNumber: current + i, guideDepths: gapGuideDepths, isGapLine: true });
+      facts.push({
+        lineNumber: current + i,
+        guideDepths: gapGuideDepths,
+        listGuideDepths: gapListGuideDepths,
+        isGapLine: true,
+      });
     }
     current += node.trailingGap.length;
 
-    node.children.forEach((child) => walk(child, depth + 1, childGuideDepths));
+    node.children.forEach((child) =>
+      walk(child, depth + 1, childGuideDepths, childListGuideDepths),
+    );
   };
 
-  doc.children.forEach((node) => walk(node, 0, []));
+  doc.children.forEach((node) => walk(node, 0, [], []));
   return facts;
 }
 
@@ -599,22 +657,20 @@ function push(byLine: Map<number, PositionTrailFact>, lineNumber: number, accent
  * each row" question is testable without CM6 or Obsidian, the same split that
  * made `computeLineGuides` cheap to get right.
  *
- * List-item ancestors never contribute a SEGMENT, for exactly the reason they
- * never own a guide (`computeLineGuides`): their columns are Obsidian's own
- * native list metrics, not our `depth × unit` ones, so an accent placed at our
- * column for a list level would land beside the list rather than on it. Under
- * `guides: 'full'` that costs nothing — a list ancestor owns no guide to
- * accent. Under `guides: 'lineage'` a segment spans from one non-list ancestor
- * to the next, passing THROUGH any list levels between them at the shallower
- * column.
+ * EVERY ancestor contributes a segment, list items included, at its own
+ * `depth × unit` column and in the same weight as any other level's. They were
+ * excluded until `lists-on-the-outline-grid`, for exactly the reason they owned
+ * no guide (`computeLineGuides`): their columns were Obsidian's own native list
+ * metrics, so an accent placed at our column would have landed beside the list
+ * rather than on it. Both halves of that are gone — the column exists, and the
+ * guide under it is ours — so `'full'` accents a list ancestor's guide like any
+ * other and `'lineage'` runs unbroken into a list instead of stopping at the
+ * last non-list ancestor.
  *
- * Their MARKERS are a different matter, and are accented like any other
- * ancestor's: a bullet is a real element at the real native column, so
- * accenting it needs none of the geometry we cannot address. That is what lets
- * `markers: 'lineage'` say something useful inside a deep list — the levels
- * show up as a run of accented bullets even though no line can be drawn between
- * them. Drawing those lines is still a deliberate gap, recorded in
- * docs/research/14.
+ * Their MARKERS were accented all along, and still are: a bullet is a real
+ * element at the real column, so accenting it never needed geometry we could
+ * not address. Inside a deep list that used to be all `markers: 'lineage'` had
+ * to say; now the segments join them up.
  */
 export function computePositionTrail(
   doc: OutlineDoc,
@@ -634,17 +690,21 @@ export function computePositionTrail(
     // `computeLineGuides` gives that depth, including the gap lines it
     // deliberately covers for continuity.
     for (const a of ancestors) {
-      if (a.isListItem) continue;
       for (let line = a.ownEnd + 1; line <= a.subtreeEnd; line++) {
         push(byLine, line, { depth: a.depth, extent: 'full' });
       }
     }
   } else if (highlight.guides === 'lineage') {
-    // Only non-list ancestors own a column to draw a segment on; the current
-    // node is always the terminal, whatever its kind.
-    const rungs = [...ancestors.filter((a) => !a.isListItem), currentNode];
+    // EVERY ancestor is a rung, list items included. They were excluded while
+    // a list level had no column this layer could address — the omission
+    // `hierarchy-position-indicators` used to state as a requirement, and the
+    // reason the trail simply stopped at the last non-list ancestor. Since
+    // `lists-on-the-outline-grid` puts a list level at `depth × unit` like
+    // every other kind, the column exists and the route runs unbroken into the
+    // list.
+    const rungs = [...ancestors, currentNode];
     for (let i = 0; i < rungs.length - 1; i++) {
-      const from = rungs[i]!; // never a list item: only the terminal can be one
+      const from = rungs[i]!;
       const to = rungs[i + 1]!;
       // Starts at `ownEnd + 1`, the SAME row `'full'` starts on: a node's guide
       // does not exist on its own rows at all (`computeLineGuides`), so

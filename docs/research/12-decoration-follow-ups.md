@@ -158,6 +158,23 @@ plugin on than off, which is the one hard invariant `outline-decorations` states
 lists. Doing it anyway is a change of its own, with that requirement amended deliberately
 rather than broken in passing.
 
+**First offset closed 2026-08-25** by `lists-on-the-outline-grid` (design D9). Both conditions
+the paragraph above named are met: that change already amends the pure-list invariant
+deliberately, and it already overrides `.cm-hmd-list-indent`'s width — but STATES it from the
+item's own depth rather than measuring the marker, so the per-line, per-theme measurement is
+not needed after all. A continuation line takes the whole stated hang where a first line takes
+the hang less its marker gutter. Measured after: exact for every kind whose marker fits the
+gutter. A marker wider than the gutter (`10. `) pushes its own first row out and its
+continuation follows the grid's text column instead, 8.16px left of that row in the bundled
+theme — the same wide-marker exception the grid states elsewhere, and the only part that would
+still need the marker's glyph width to close.
+
+The second offset, about the CARET rather than the text, is untouched and stays open.
+
+Worth keeping as a lesson: "not closable from where this layer stands" was true of the
+mechanism examined and false of the problem, the same shape as the two probes that concluded
+native list columns could only be followed.
+
 ### A structural key pressed on a provisional position leaves the blank line in the file
 
 Found while closing `a-position-does-not-split-its-node`, and out of its scope deliberately.
@@ -354,6 +371,15 @@ switchable without breaking the indentation underneath:
   every kind, closer to a traditional outliner's look. (Experiment 5b's uniform dot lost
   the head-to-head as the *default*, but as an opt-in preset under the 5a mechanism it's
   just an icon-set swap, none of 5b's positioning machinery.)
+- **List bullets belong on the same appearance surface** — Obsidian exposes
+  `--list-bullet-size`/`-radius`/`-border`/`-transform` and `--list-marker-color`, all
+  confirmed effective in Live Preview, so a bullet-style setting is variables only. Folded
+  into [16-native-list-decoration.md](16-native-list-decoration.md)'s phase 3 so lists and
+  blocks get one marker-appearance surface rather than two.
+- **The indentation unit** gets its prerequisite from phase 1 there: `--to-decor-unit` has to
+  become a real declaration before it can be pushed into `--list-indent`. That change stops at
+  the declaration and leaves the unit fixed — making it user-configurable stays here, with the
+  rest of this entry.
 
 User CSS snippets remain the escape hatch for anything finer-grained than whatever
 settings surface we commit to (design.md Non-Goals) — the settings axis should stay
@@ -383,6 +409,22 @@ Measurements and the full argument:
 [14-experiment-position-indicators.md](14-experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns).
 Pairs naturally with the "native list decoration experiments" entry below — both are about owning
 list geometry rather than deferring to it.
+
+**Closed 2026-08-22** by `lists-on-the-outline-grid`: list levels sit on `depth × unit`, the
+existing gradient draws them, and `computePositionTrail`'s two list-item exclusions are gone,
+so the trail steps one level per ancestor whatever its kind. No second mechanism was needed.
+
+The blocker's remaining half — "`.cm-indent` spans do not correspond to list levels" — was also
+answered without one, later in the same change: the spans do not, but the single
+`.cm-hmd-list-indent` WRAPPER around them does, and stating its width from the item's own depth
+puts two- and three-space levels on the grid too. See that change's design D9.
+
+**Amended 2026-08-20** ([16-native-list-decoration.md](16-native-list-decoration.md)): the
+blocker above holds only while native list columns are taken as given. They are not — they are
+computed from `--list-indent`, which we can set to our own unit, and once every list level sits
+on `depth × unit` the existing gradient can draw list segments with no measurement and no second
+mechanism. This entry now closes as part of that doc's phase 2 rather than needing an overlay of
+its own.
 
 ### Marker/guide interactions (hover and click)
 
@@ -418,17 +460,29 @@ pure `decorate()`/`computeLineGuides()` layer does.
 
 ### Other design ideas
 
-- **Shrinking only our own added list margin** — the standing open question from
-  Experiment 1's review (list items sit visibly right of same-depth siblings due to
-  Obsidian's native hang). Full framing, including the two known risks (clamping, and
-  compensating from the list *root*'s hang, not per-item):
+- ~~**Shrinking only our own added list margin**~~ — **closed** by
+  `lists-on-the-outline-grid`, and dissolved rather than answered. The question assumed the
+  native hang was a given to compensate for; the change states the hang itself from
+  `(depth − supplementalDepth) × unit + gutter`, so there is no residual margin left to shrink.
+  Original framing:
   [10-experiment-5-block-markers.md](10-experiment-5-block-markers.md#open-question-shrinking-only-our-own-added-list-margin).
-  A design decision to surface deliberately, not implement in passing.
-- **Native list decoration experiments** — beyond the margin question above: spacing,
-  alignment, and bullet-marker style for lists could all be revisited. Not important
-  now; native list rendering is deliberately untouched today (the additive-only
-  discipline), so any change here needs the same experiment-and-look rigor the original
-  series used.
+- **Native list decoration experiments** — **DONE** (`lists-on-the-outline-grid`). List levels
+  step by the outline unit, our own gradient draws every level, the caret trail reaches into
+  lists, the bullet sits on its own column at a marker's weight, and the hanging indent is
+  stated rather than measured. What follows is the research that got there; the residuals it
+  left are listed at the end of this entry.
+
+  **Researched and planned 2026-08-20**:
+  [16-native-list-decoration.md](16-native-list-decoration.md). Obsidian computes list
+  columns from public CSS variables (`--list-indent`, `--indentation-guide-editing-indent`,
+  the `--list-bullet-*` set), so the columns can be *set* onto our own decoration grid
+  instead of measured and followed. Measured: one variable puts every tab- or 4-space-indented
+  list level on `--to-decor-unit`, with the native hanging indent recomputing itself, and a
+  second puts the native list guides on our own guide columns. That doc carries the
+  measurements, the residual gaps (2- and 3-space files, a stale hang after a mode toggle,
+  the bullet's own column), and a four-phase plan. Phase 1 subsumes the margin question
+  above: once list levels step by our unit there is no separate "shrink our own added margin"
+  problem left to solve.
 - **Collapsing gap lines.** Blank separator lines between paragraphs/headings/blocks are
   fully preserved today; once the outline structure is explicit, they're arguably
   redundant, and hiding/collapsing them (as a **configurable option**) would tighten the
@@ -456,6 +510,24 @@ pure `decorate()`/`computeLineGuides()` layer does.
   rather than promise pixel fidelity.
 
 ### Vertical-alignment polish (minor, recorded from real-vault use)
+
+**Amended 2026-08-25** (`lists-on-the-outline-grid`): a node's FOLD CHEVRON now follows its own
+mark vertically, measured per line, so the anchors below no longer drag the chevron around with
+them. One kind is left out and belongs to this entry: an **ordered item's chevron**. Its mark is
+its glyphs, and no element's box is where they sit — `.cm-formatting-list-ol`'s box is the text
+row, whose centre the chevron already shares, while the digits rest on the baseline about 1.7px
+lower, where the bullet beside them sits. Closing it needs the ink's own extent, which no rect
+exposes; a canvas `TextMetrics.actualBoundingBoxAscent` would give it, at the cost of a second
+measurement mechanism for one kind of marker.
+
+**Amended 2026-08-22** (`lists-on-the-outline-grid`): a synthetic marker and a list bullet now
+share a column but not a vertical anchor, and deliberately so. Unifying them on
+`vertical-align: middle` was built and reversed — `middle` resolves against the parent's
+x-height, so on a heading it drops the icon below the heading's own glyphs (measured: an H1's
+icon went from 8.45px above its text-rect centre to 2.96px below). The bullet keeps the optical
+centre, the icon keeps `baseline`, and they differ by ~7px on a body row. Whether that reads as
+wrong, and what a single anchor would have to be, joins this entry.
+
 
 The table and callout icons currently flex-center vertically within the widget's full
 box; for consistency with everything else (markers otherwise track the first text row)

@@ -151,19 +151,37 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
       await h.waitForNotice('Outline mode on');
       await h.dismissNotices();
     }
-    // Line 8 is "9. nine", line 9 is "10. ten" — flat list, supplementalDepth
-    // 0 for all (no non-list ancestors), so this is a pure native-rendering
-    // regression check: our decoration must add nothing that could overlap.
+    // Line 8 is "9. nine", line 9 is "10. ten" — a flat list, so every item is
+    // on the same column, and the question is what the extra digit does.
+    //
+    // This used to assert that each marker's left edge sat exactly on the
+    // line's own left edge. `lists-on-the-outline-grid` deliberately ends that:
+    // a marker is positioned by its COLUMN, and an ordered number is shifted
+    // half a gutter left of the box its text follows so a single digit centres
+    // on that column. Every marker in the layer now paints left of the content
+    // origin at depth 0 — a bullet's dot and a block icon always did.
+    //
+    // What the test is actually for survives unchanged: the wider marker must
+    // not run into its own text.
     const nineMarker = await h.getLineChildRects(8, '.cm-formatting-list');
     const tenMarker = await h.getLineChildRects(9, '.cm-formatting-list');
+    const nineText = await h.getLineChildRects(8, '.cm-list-1:not(.cm-formatting)');
+    const tenText = await h.getLineChildRects(9, '.cm-list-1:not(.cm-formatting)');
     expect(nineMarker.length).toBeGreaterThan(0);
     expect(tenMarker.length).toBeGreaterThan(0);
-    // The marker must not be wider than the text start position allows —
-    // i.e. marker's right edge must not exceed the line's own left+margin.
-    const nineRect = await h.getLineRect(8);
-    const tenRect = await h.getLineRect(9);
-    expect(nineMarker[0]!.left).toBeCloseTo(nineRect.left, 0);
-    expect(tenMarker[0]!.left).toBeCloseTo(tenRect.left, 0);
+
+    // One left edge for the whole list, whatever the digit count.
+    expect(tenMarker[0]!.left).toBeCloseTo(nineMarker[0]!.left, 0);
+    // The wider marker takes more room, and takes it from its OWN text.
+    expect(tenMarker[0]!.width).toBeGreaterThan(nineMarker[0]!.width);
+    expect(tenText[0]!.left).toBeGreaterThan(nineText[0]!.left);
+    // And neither runs into it.
+    for (const [marker, text] of [
+      [nineMarker[0]!, nineText[0]!],
+      [tenMarker[0]!, tenText[0]!],
+    ] as const) {
+      expect(marker.left + marker.width).toBeLessThanOrEqual(text.left + 0.5);
+    }
   });
 
   it('multiline continuation: continuation lines indent identically to the node’s first line', async function () {

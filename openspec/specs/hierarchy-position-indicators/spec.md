@@ -208,47 +208,51 @@ without drawing anything across the columns between them.
 
 **Covered by**: `tests/decorate.test.ts` ("'path' style" suite, including "accents every ancestor's own marker, which is what replaced the elbows", "starts each segment exactly where the guides style starts its own", "skips a multi-line ancestor’s OWN rows, continuation lines included", and the arriving segment's stop); `e2e/specs/55-position-indicators.e2e.ts` ("runs a connected path from the root to the caret, and stops there", "accents every ancestor’s marker — the junction that replaced the elbows", "keeps the base guide continuous through a half-accented row").
 
-### Requirement: Trail rendering through list nesting uses native list chrome or is omitted
+### Requirement: Trail rendering through list nesting uses the same columns as every other level
 
-Where the current node's ancestor chain runs through list nesting, any trail rendering at those
-levels SHALL be positioned on Obsidian's own native list columns and bullets, never on a column
-this plugin computes for non-list nodes. If the geometry needed to draw a SEGMENT at a native
-list column is unavailable, those levels SHALL render no segment at all; a misaligned segment
-SHALL NOT be rendered in its place. The trail's segments through non-list levels SHALL render
-regardless.
+Where the current node's ancestor chain runs through list nesting, the trail SHALL render at
+those levels exactly as it renders at any other: a segment on that ancestor's own depth
+column, drawn by the same mechanism, in the same weight and colour as a segment at a heading's
+level. A list ancestor SHALL NOT be skipped, and no level of the chain SHALL be left without a
+segment on the grounds of its kind.
 
-A list ancestor's own MARKER is not subject to that limitation — it is a real element already at
-the real native column — so a list-item ancestor SHALL render its native
-bullet accented like any other ancestor's marker, whether or not a segment can be drawn at its
-level.
+This SUPERSEDES the previous omission, which required list levels to be positioned on
+Obsidian's own native list columns or else render nothing. That omission existed because list
+levels had no column this plugin could address; `outline-decorations` now puts every list
+level on the same grid as every other kind, so the column exists and the trail uses it.
 
-#### Scenario: A trail through a list aligns with native nesting
+A list ancestor's own MARKER continues to be accented like any other ancestor's, whether or not
+a segment is drawn at its level.
+
+#### Scenario: A trail through a list draws at every level
 
 - **WHEN** the caret is inside a list nested several levels deep under a heading, with a trail
   style active
-- **THEN** whatever renders at the list's levels sits on Obsidian's own list columns, and the
-  segment at the heading's level sits on the heading's own guide column
+- **THEN** a segment renders at each list level's own column as well as at the heading's, all
+  on the same grid and in the same weight
 
-#### Scenario: Missing segment geometry degrades to omission, not misalignment
+#### Scenario: A pure list shows its levels through segments and bullets together
 
-- **WHEN** the geometry needed for a segment at a native list column is unavailable
-- **THEN** those levels render no segment, the non-list levels of the trail still render, and
-  nothing renders at an incorrect column
+- **WHEN** the caret is inside a deeply nested pure list — no non-list ancestor anywhere — and
+  both settings are at a state that renders
+- **THEN** each ancestor level renders its segment, and each ancestor list item renders its
+  native bullet accented
 
-#### Scenario: A pure list still shows its levels through accented bullets
+#### Scenario: The lineage route runs unbroken into a list
 
-- **WHEN** the caret is inside a deeply nested pure list — no non-list ancestor anywhere, so no
-  segment can be drawn at all — and the marker setting is `lineage`
-- **THEN** every ancestor list item renders its native bullet accented, and no segment renders
-  anywhere
-
-**Covered by**: `tests/decorate.test.ts` ("list levels (native columns this layer cannot address)" suite, including "still accents the ancestor bullets in a pure list, where no line can be drawn"); `e2e/specs/55-position-indicators.e2e.ts` ("reaches a list item without drawing at a native list column", "accents ancestor BULLETS in a list, where no segment can be drawn"). Segments at native list columns are the deliberate omission — rationale and the measurements a later pass needs: `docs/research/14`.
+- **WHEN** the caret is on a list item several levels inside a list that itself sits under two
+  headings, and the guide setting is `lineage`
+- **THEN** the accented route steps in one level per ancestor from the outline root to the
+  caret, with no level of the chain missing and no gap where the headings hand over to the
+  list
 
 ### Requirement: Position indicators never change layout geometry
 
 Enabling, disabling, or switching any position-indicator setting SHALL NOT change any line's
 indentation, marker gutter, marker size or position, guide column, or text position. Only colors
-and other purely visual attributes SHALL differ between settings.
+and other purely visual attributes SHALL differ between settings. This SHALL hold for list items
+exactly as for every other kind: a list item's own indentation, bullet position and text
+position SHALL be identical at every setting value.
 
 #### Scenario: Toggling indicators never reflows text
 
@@ -261,8 +265,12 @@ and other purely visual attributes SHALL differ between settings.
 - **WHEN** both settings are `off`
 - **THEN** the note renders exactly as the base decoration layers alone render it
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("changes no geometry across every setting combination" — measures every line's position, padding, margin, gutter, and marker rect across all nine combinations (3 guide states × 3 marker states) — and "with both off, renders exactly what the base layers render").
+#### Scenario: A list's geometry is constant across every setting
 
+- **WHEN** the caret is inside a nested list and the settings are cycled through every
+  combination
+- **THEN** every list line's indentation, bullet column and text column are unchanged
+  throughout
 ### Requirement: Indicators track the caret and settings changes live
 
 The layer SHALL recompute on selection changes, not only on document changes, so the indicators

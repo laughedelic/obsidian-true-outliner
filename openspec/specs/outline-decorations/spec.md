@@ -28,65 +28,101 @@ decorations present.
 **Covered by**: `e2e/specs/51-guides-gradient.e2e.ts` ("draws no guides with outline mode
 off"), `e2e/specs/52-block-markers-icons.e2e.ts` ("draws no markers with outline mode off").
 
-### Requirement: A pure list renders byte-identical to outline-mode-off
-A document consisting entirely of list items with no non-list-item ancestor (no heading or
-paragraph above any node in the list) SHALL render with zero contribution from the base
-decoration layers: no added indentation, no guide, no marker. Every list item's
-`supplementalDepth` SHALL be 0, and no ancestor exists to own a guide.
+### Requirement: One indentation grid for every kind
 
-This invariant governs the base layers — indentation, guides, and markers — and holds
-unconditionally for them. It does NOT extend to decoration layers derived from the current
-selection or caret rather than from the document (escalated-selection chrome, and the
-position-indicator layer defined by `hierarchy-position-indicators`), which by their nature
-render only in response to where the user currently is and MAY accent Obsidian's own native list
-chrome inside a pure list. Those layers SHALL still leave every base-layer contribution at zero,
-so a pure list's geometry is unchanged whatever they render.
+In outline mode, the distance between one tree level and the next SHALL be the same for every
+kind, including list items. A list level SHALL step by the outline unit rather than by
+Obsidian's own list-indent value, so that a node's rendered column is a function of its tree
+depth alone and never of the kind that encodes it.
 
-#### Scenario: Pure list nesting shows no decoration
-- **WHEN** a document is a deeply nested list with no heading or paragraph ancestor anywhere
-  in it
-- **THEN** the base layers contribute nothing: every list item's rendered position is identical
-  to outline-mode-off, no guide renders anywhere, and no synthetic marker is added — the only
-  marker present is Obsidian's own native bullet, which the base layers never restyle
+This SUPERSEDES the previous guarantee that a pure list renders byte-identical to
+outline-mode-off. Byte-identity with stock Obsidian is now stated of outline mode OFF only:
+with the mode off, every list — pure or not — SHALL render exactly as stock Obsidian renders
+it, with no contribution from any decoration layer.
 
-#### Scenario: A caret-derived accent in a pure list changes no geometry
-- **WHEN** a pure-list document is open in outline mode with the caret inside it and the
-  position-indicator settings at any value
-- **THEN** every list item's rendered position is identical to outline-mode-off, and the base
-  layers still contribute no indentation, no guide, and no marker
+The grid SHALL be derived from a single unit value used by every layer that positions
+anything: indentation, guides, markers, and any accent drawn on them. A layer SHALL NOT
+compute a column from a second source.
 
-**Covered by**: `tests/decorate.test.ts` ("is 0 for a list with no non-list-item ancestors
-(byte-identical invariant)", "draws nothing anywhere in a pure list, in either style"),
-`e2e/specs/51-guides-gradient.e2e.ts` ("a pure list nesting fixture (no non-list ancestor)
-draws no guides at all"), `e2e/specs/55-position-indicators.e2e.ts` ("leaves a pure list’s
-geometry byte-identical to outline-mode-off" — measures every line's position with the caret
-inside a pure list at the strongest trail setting).
+The grid SHALL hold whatever a list's SOURCE indentation is made of. Obsidian resolves a tab or
+exactly four spaces into one indent unit and renders the remainder at its literal width, so a
+file indented in twos or threes walks right by a fraction of a level at a time; and with its
+own "Show indentation guides" setting off it resolves nothing at all, not even four spaces.
+Neither SHALL reach the rendered column: the plugin SHALL state a list line's indentation width
+from the item's own depth rather than accept whatever the leading whitespace measured, so a
+two-space file, a three-space file and a tab file render the same grid, with that setting on or
+off.
 
-### Requirement: Additive-only indentation, native list rendering untouched
+What this does NOT change is the parse: which levels exist is Markdown's business and is
+already decided by the time this layer runs.
+
+#### Scenario: A list level and a heading level are the same distance
+
+- **WHEN** a document contains a heading three tree levels deep and a list item three tree
+  levels deep, in a file indented with tabs
+- **THEN** both render at the same column, and each level of the list is one unit from the
+  last — the same unit that separates the heading levels
+
+#### Scenario: Ordered lists and task lists take the same grid
+
+- **WHEN** a nested ordered list and a nested task list are open in outline mode
+- **THEN** each of their levels steps by the same unit as a bullet list's
+
+#### Scenario: A space-indented file takes the same grid as a tab-indented one
+
+- **WHEN** the same list structure is written with tabs, with two spaces per level, and with
+  three spaces per level
+- **THEN** all three render every level on the same columns, one unit apart, with each item's
+  marker on its own level's column
+
+#### Scenario: The grid does not depend on Obsidian's indentation-guide setting
+
+- **WHEN** a nested list is open in outline mode and Obsidian's own "Show indentation guides"
+  setting is turned off
+- **THEN** every level renders on exactly the columns it rendered on with the setting on
+
+#### Scenario: Outline mode off is stock
+
+- **WHEN** outline mode is turned off on a note containing a nested list
+- **THEN** every list line renders exactly as stock Obsidian renders it — the same columns,
+  the same bullet, the same guides — with no decoration contribution of any kind
+
+#### Scenario: A note open without outline mode is unaffected by one that has it
+
+- **WHEN** one note with outline mode on and one without are open at the same time
+- **THEN** the note without it renders its lists exactly as stock Obsidian does
+
+### Requirement: Indentation is additive, and every kind takes the same grid
 Every node's lines SHALL carry an indentation contribution equal to `depth × unit`,
 computed from the node's distance from the document root in the parsed tree — not from raw
 markdown indentation or heading level. Which CSS property carries that contribution SHALL be
 determined by the line's RENDERED FORM, not by its node's kind: a line rendered as plain
 text with no visible box of its own takes it as `padding-left`; a line that renders a
 visible box of its own — an atom, or any line Obsidian replaces with an opaque widget —
-takes it as `margin-left`, since padding does not move a visible box's own edges. List items
-SHALL NEVER have their native `text-indent`/`padding-left` hang pair modified; instead they
-SHALL receive `supplementalDepth × unit` as `margin-left`, where `supplementalDepth` is the
-count of non-list-item ancestors above the nearest list root. Nodes at the same tree depth
-SHALL receive the same indentation contribution regardless of whether their depth is encoded
-via heading level, list indentation, or paragraph adjacency, AND regardless of whether the
-line is currently rendered as plain text or as an opaque widget.
+takes it as `margin-left`, since padding does not move a visible box's own edges.
+
+A LIST ITEM takes its contribution in two parts, which together put it on that same grid:
+`supplementalDepth × unit` as `margin-left`, where `supplementalDepth` is the count of
+non-list-item ancestors above the nearest list root, plus the item's own depth WITHIN its
+list, which Obsidian's own list rendering supplies once the outline unit is the unit it
+renders a list level at. The plugin SHALL retarget that native rendering by supplying the
+unit, and SHALL state the item's own hanging indent; it SHALL NOT reposition a list item by
+overriding native rendering line by line.
+
+Nodes at the same tree depth SHALL receive the same indentation contribution regardless of
+whether their depth is encoded via heading level, list indentation, or paragraph adjacency,
+AND regardless of whether the line is currently rendered as plain text or as an opaque widget.
 
 #### Scenario: Heading and list depth align
 - **WHEN** a `### Heading` two tree-levels deep (nested under an `#` and a `##` ancestor)
   and a twice-indented list item are both visible in the same document
 - **THEN** both render the same indentation contribution
 
-#### Scenario: A list shifts as a whole under a non-list ancestor, internal spacing untouched
+#### Scenario: A list shifts as a whole under a non-list ancestor, and steps by the unit within itself
 - **WHEN** a list sits under a heading
 - **THEN** the list's start position shifts right by the heading's own depth contribution,
-  while spacing between the list's own nesting levels is pixel-identical to
-  outline-mode-off
+  and each of its own nesting levels is one unit from the last — the same unit the heading
+  levels use
 
 #### Scenario: Multiline continuation lines match their node's first line
 - **WHEN** a paragraph or list item spans multiple physical lines (via a hard line break)
@@ -100,18 +136,29 @@ line is currently rendered as plain text or as an opaque widget.
 - **THEN** both start at the same column — the widget-rendered line's indentation
   contribution is its node's, exactly as though it had rendered as plain text
 
-**Covered by**: `tests/decorate.test.ts` ("agrees across heading, list, and
-paragraph-adjacency encodings", "includes multiline node continuation lines at the node's
-own depth", "is constant across an entire nested list under a heading, equal to the root's
-own depth", "re-roots at a list item that starts a new chain under a non-list-item
-ancestor", "recomputes independently for separate lists under separate heading depths");
-`e2e/specs/50-decorations.e2e.ts` ("heading-then-list: list shifts right by the heading
-depth, per-level spacing untouched", "wide-numbering: no marker/text overlap across the
-9->10 digit-width boundary", "multiline continuation: continuation lines indent identically
-to the node's first line", "fold indicator on a parent list item does not collide with
-decorated content", plus this change's embed-fixture coverage asserting that a
-widget-rendered embed line starts at the same column as a plain paragraph at the same tree
-depth).
+### Requirement: A list item's hanging indent is stated, not measured
+
+A list item's soft-wrapped rows SHALL align with the start of that item's own content. The
+plugin SHALL state that alignment from the values it already knows — the item's tree depth,
+its list root's depth, the unit, and the marker gutter — rather than relying on a measurement
+of the rendered marker.
+
+This is required because a measurement of the marker's own extent reports where its TEXT ends
+rather than where the item's content begins, and because a measurement is cached against the
+rendering that produced it and does not follow a later change to the grid.
+
+#### Scenario: A wrapped nested item aligns under its own text
+
+- **WHEN** a list item several levels deep is long enough to soft-wrap
+- **THEN** its wrapped rows start at the same column as its own first row's text, not at the
+  marker column and not at the line start
+
+#### Scenario: Turning outline mode on corrects wrapping immediately
+
+- **WHEN** outline mode is turned on for a note already open, containing a soft-wrapping
+  nested list item
+- **THEN** that item's wrapped rows align with its content on the same render, with no note
+  switch, reload, or edit required
 
 ### Requirement: Indentation and markers compose with Obsidian's native base margin
 Obsidian's "readable line width" feature applies a native, uniform base margin to every
@@ -128,25 +175,38 @@ contributions SHALL be added to that native base, never replace it.
 Obsidian's own native base margin instead of replacing it (readable-line-width / community
 themes)").
 
-### Requirement: Indentation guides render only where native list guides have no representation
-Every line SHALL carry an indentation-guide decoration for each strict, non-list-item
-ancestor at a shallower tree depth — i.e. a guide is "owned" by a heading, paragraph, or
-atom ancestor with descendants, and every line inside its subtree renders that guide. A
-list-item ancestor SHALL NEVER own a guide: Obsidian's native list indent guides already
-connect one bullet to the next within a list, and this layer only fills the gap those native
-guides don't cover (a non-list ancestor bridging into or between blocks). Guides SHALL
-render continuously through blank separator lines between sibling blocks, not just through
-node content lines.
+### Requirement: Indentation guides render every ancestor level, including list levels
+Every line SHALL carry an indentation-guide decoration for each strict ancestor at a shallower
+tree depth, whatever that ancestor's kind — a heading, paragraph or atom with descendants, and
+a list item with descendants alike. Every line inside an ancestor's subtree renders that
+ancestor's guide, on that ancestor's own depth column.
+
+The plugin SHALL own this rendering rather than share it: wherever it draws a guide for a list
+level it SHALL suppress Obsidian's own indent guide for that level, so exactly one line renders
+per level. Guides SHALL render continuously through blank separator lines between sibling
+blocks, not just through node content lines.
+
+Obsidian's own "Show indentation guides" setting SHALL remain the user's to set and SHALL NOT
+be changed by the plugin; suppression SHALL be scoped to outline-mode list lines, leaving every
+other context — other notes, reading view, the mode turned off — showing whatever that setting
+asks for. Nor SHALL any of this layer's own geometry depend on it: that setting also governs
+whether Obsidian quantises a list line's leading whitespace at all, and the rendered grid SHALL
+be the same either way.
+
+#### Scenario: A list's own nesting renders guides
+- **WHEN** a list is nested several levels deep
+- **THEN** each level renders a guide on its own depth column, matching the guides a
+  heading or paragraph of the same depth would render, and no second line renders beside it
 
 #### Scenario: Non-list ancestor's guide bridges through a list
 - **WHEN** a list sits under a heading
 - **THEN** every line of the list, including its own nested levels, renders the heading's
-  guide; the list's own internal nesting renders no guide of its own
+  guide as well as the list's own
 
-#### Scenario: A pure list nesting has no guide at all
+#### Scenario: A pure list renders its own guides
 - **WHEN** a document is a deeply nested list with no non-list ancestor
-- **THEN** no guide renders anywhere in it, deferring entirely to Obsidian's native list
-  indent guides
+- **THEN** each of its levels renders this layer's own guide, on the same grid a mixed
+  document uses
 
 #### Scenario: Guides span blank lines between siblings
 - **WHEN** a blank line separates two sibling blocks, or precedes a node's own first child
@@ -156,25 +216,6 @@ node content lines.
 - **WHEN** a node spans multiple physical lines
 - **THEN** every continuation line renders the same active guide depths as the node's first
   line
-
-**Covered by**: `tests/decorate.test.ts` (`computeLineGuides` suite: "produces empty
-guideDepths for every line of a flat, childless document", "a leaf node's own line has no
-active guide (only strict ancestors count)", "flags every fact isGapLine: false except a
-leaf's own trailing blank separator lines", "a non-list ancestor bridges a guide onto every
-descendant line, including list-item ones", "a pure list nesting (no non-list ancestor) has
-no active guide anywhere", "a list item never itself owns a guide for its own children", "a
-multi-line (Shift+Enter) node's continuation line inherits the same guideDepths as its first
-line", "nests: a deeper non-list ancestor's own guide is appended to its parent's, not
-replacing it", "is a strict superset of decorate()'s line coverage (every decorate() line
-plus gap-only lines)"); `e2e/specs/51-guides-gradient.e2e.ts` ("a non-list ancestor's guide
-sets a resolved gradient background on its own descendant BLOCK lines", "heading-then-list:
-the bridging guide DOES render through list-item lines too", "a pure list nesting fixture
-(no non-list ancestor) draws no guides at all", "multiline continuation: a guide renders
-identically on a BLOCK node's own first line AND its continuation line", "multiline
-continuation through a LIST-ITEM child: both lines render the bridging guide", "nests
-correctly: each deeper (non-list) ancestor's descendant carries one more active gradient
-layer", "every blank gap line between … also carries the guide — true continuity, no
-breaks", "updates after a document edit without a mode toggle").
 
 ### Requirement: Guides coexist with native blockquote chrome and table scrolling
 The guide mechanism SHALL NOT remove or replace Obsidian's native blockquote left-bar
@@ -199,13 +240,18 @@ position and background resolve as set, unbeaten by Obsidian's own CSS").
 
 ### Requirement: Block markers identify node kind, gated by a visibility setting
 Every marker-eligible node's true first line SHALL render a synthetic marker distinct per
-node kind. List items SHALL NEVER receive a marker — their native bullet/number already
-signals the node. A marker SHALL appear only on a node's own first line, never on
+node kind. List items SHALL NEVER receive a synthetic marker — their native bullet or number
+already signals the node, and the plugin styles and positions that native marker rather than
+adding one of its own. A marker SHALL appear only on a node's own first line, never on
 continuation lines or blank gap lines. Which kinds actually render a marker SHALL be
 governed by the `markerVisibility` setting (`'all'`, `'with-children'`, or
 `'headings-and-paragraphs'`); the space reserved for a marker SHALL remain constant
 regardless of this setting, so toggling it changes only whether the icon is drawn, never
-text position.
+text position. `markerVisibility` SHALL NOT hide a list item's native marker at any value.
+
+A list item's native marker SHALL be given a visual weight comparable to a synthetic marker's,
+and SHALL take its colour from the same token the synthetic markers use, so a snippet retunes
+both together.
 
 #### Scenario: Every eligible kind gets a distinct marker under 'all'
 - **WHEN** `markerVisibility` is `'all'` and a document contains a heading, paragraph, code
@@ -215,8 +261,13 @@ text position.
 
 #### Scenario: List items are unchanged
 - **WHEN** a list item is rendered in outline mode, at any `markerVisibility` setting
-- **THEN** it shows Obsidian's native bullet/number exactly as it would outside outline
-  mode, with no additional synthetic marker
+- **THEN** `markerVisibility` changes nothing about it: no synthetic marker is ever added,
+  and its native bullet or number is never hidden
+
+#### Scenario: A native bullet carries a marker's weight
+- **WHEN** a list item and a paragraph are visible in the same document
+- **THEN** the bullet reads at a comparable visual weight to the paragraph's marker, and both
+  resolve their colour from the same token
 
 #### Scenario: 'with-children' hides leaf markers, including atoms
 - **WHEN** `markerVisibility` is `'with-children'`
@@ -237,22 +288,6 @@ text position.
 - **WHEN** `markerVisibility` is changed while a note is open in outline mode
 - **THEN** the next render reflects the new setting, including for widget-replaced atoms
   whose decoration output would otherwise be byte-identical across the change
-
-**Covered by**: `tests/decorate.test.ts` ("marks only the first line of each node as
-isFirstLine", "flags hasNativeMarker only for list-item first lines", "carries the node
-kind at every line, including list-item continuations", "carries whether the node has
-children, constant across its own lines"); `e2e/specs/52-block-markers-icons.e2e.ts`
-("plain-line kinds (heading/paragraph/code/quote) each get exactly one marker, on the first
-line only", "widget-replaced atom kinds (table/callout/html/hr) each get exactly one marker
-child", "list items get no marker at all (native bullet/number only)", "marker doesn't
-repeat/duplicate across a live document edit (idempotent DOM patch)", "multi-line
-continuation: a code fence's marker sits only on the opener line, indentation stays
-consistent across all its lines", "'with-children': only branch nodes get a marker,
-regardless of kind", "'with-children': a widget-replaced atom (table) with children
-obviously still gets no marker — atoms are always leaves", "'headings-and-paragraphs': only
-those two kinds get a marker, leaf or not — atoms never do", "changing marker visibility
-live (no rebuild) toggles a leaf marker on the very next edit", "hiding a marker never
-reflows the reserved gutter — text position is unaffected").
 
 ### Requirement: Markers are fixed-size and coexist with native and guide chrome
 A marker's size SHALL be a fixed length (never `em`, which would resolve against the
@@ -290,6 +325,114 @@ paragraph's (native padding/text-indent compensation)", "heading marker vertical
 from the line's own center is small and doesn't grow with heading level (H1 vs H3)",
 "native fold chevron glyph sits between the marker and an ancestor's guide line, clear of
 both").
+
+### Requirement: Markers and guides share one column definition
+
+Every layer that positions something at a depth's column — the guide gradient, a marker's own
+offset, and any accent drawn on either — SHALL derive that column from ONE definition, so no
+two of them can be changed independently.
+
+Every marker that stands for a node SHALL have its visible centre on that column, so the
+visible centre of a guide line and the visible centre of the marker on it coincide. That is
+every synthetic block marker, an unordered list item's native bullet, and a task item's
+checkbox — a checkbox is the same kind of mark as a bullet and takes the column the same way,
+whatever its own width. Its width and hit area SHALL NOT be changed to achieve that.
+
+An ordered item's number is positioned by the same rule with one qualification, because its
+mark IS its glyphs and their width is the font's and the number's: it SHALL be shifted onto the
+column by a fixed amount rather than by half its own width. That amount SHALL be half a block
+marker's own width, so an ordered number and a block marker at the same depth begin on the same
+left edge — the comparison a reader makes when a numbered list sits above or below a paragraph.
+Every number in a list SHALL therefore share one left edge; a number wider than the gutter
+leans right into the space its own text already reserves; and none SHALL overlap its own item's
+text.
+
+Shifting each number by half its OWN width is explicitly rejected: it centres every number but
+reaches so far left that no fold chevron can fit beside it without crossing the parent level's
+guide (measured, `100. ` reaches 19px left of its column against a parent guide 24px away).
+
+A node's fold chevron, where Obsidian renders one, SHALL be centred on that node's own mark —
+horizontally at the same distance from it whatever the node's kind, and vertically on the mark's
+own centre. The chevron's placement SHALL follow the mark rather than the line, since the mark
+is what the reader relates it to.
+
+The vertical half of that rule does NOT extend to an ordered item, and the exception is stated
+rather than left to the implementation. Every other kind's mark is an element whose box can be
+measured — a synthetic icon, a bullet, a checkbox — while an ordered item's mark IS its glyphs,
+and no box holds them: the marker span's box is the whole text row, whose centre the chevron
+already shares, and the digits rest on the baseline about 1.7px below it. Reading ink out of a
+text run needs font metrics no rect exposes, so an ordered item's chevron SHALL keep the row's
+own centre, about 1.7px off its digits' — a recorded residual, not a target this layer claims to
+have hit.
+
+A marker's VERTICAL placement is NOT unified across kinds, and that is a decision rather than
+an omission. Each kind SHALL use the anchor that reads correctly at every font size it can
+appear at: a list bullet SHALL take the optical centre of its own text row, and a synthetic
+block marker SHALL take the text baseline. A single numeric anchor SHALL NOT be imposed on
+both. `vertical-align: middle` resolves against the PARENT's x-height, so on a heading it
+drops a block marker below the heading's own glyphs (measured: an H1's icon moved from 8.45px
+above its text-rect centre to 2.96px below it) — a 13.6px outline glyph in the text flow and a
+6px dot in a flex box do not read as aligned at one offset. Whether the resulting difference on
+a body row reads as wrong is recorded as a follow-up, not decided here.
+
+#### Scenario: A bullet sits on its own guide, not beside it
+
+- **WHEN** an unordered list item has children, so a guide descends from it through its subtree
+- **THEN** the bullet's visible centre and the guide's visible centre are the same column
+
+#### Scenario: A block marker and a bullet agree on the column
+
+- **WHEN** a paragraph and an unordered list item at the same tree depth are visible in one
+  document
+- **THEN** their markers render on the same column, and their text starts at the same column
+  one marker gutter further right
+
+#### Scenario: A wide ordered marker starts on the column and pushes its own text
+
+- **WHEN** an ordered list contains both single- and double-digit items
+- **THEN** every marker starts at its own depth column, and the wider one pushes its own text
+  right rather than overlapping it or crossing the column
+
+#### Scenario: An ordered list's numbers share the left edge a block marker starts on
+
+- **WHEN** an ordered list contains single- and multi-digit items, with a paragraph at the same
+  depth
+- **THEN** every number begins at the same left edge, and that edge is the one the paragraph's
+  own marker begins at; and no number overlaps its own item's text
+
+#### Scenario: A list item's continuation line sits under its own text
+
+- **WHEN** a list item spans more than one document line — a bullet, an ordered item and a task
+  item each with a continuation
+- **THEN** each continuation's text begins on the same column as its own item's text, one
+  marker gutter right of the depth column, and its own soft-wrapped rows land there too
+
+#### Scenario: A task item's text starts on the same column as a bullet item's
+
+- **WHEN** a list contains a task item, a plain item and an ordered item at one depth
+- **THEN** all three items' text begins on the same column, one marker gutter right of the
+  depth column — the space Obsidian leaves between a checkbox and its text SHALL NOT push a
+  task item's text further out than its neighbours'
+
+#### Scenario: A fold chevron is centred on the mark it belongs to
+
+- **WHEN** foldable nodes of several kinds are visible in one document — headings at more than
+  one level, a paragraph, a bullet item, a task item
+- **THEN** each chevron's painted glyph and its own node's mark share a vertical centre,
+  whatever font size that row is rendered at
+
+#### Scenario: A fold chevron sits where a block's chevron sits
+
+- **WHEN** a list item has children, so Obsidian renders its fold chevron, and a foldable block
+  is visible in the same document
+- **THEN** the chevron sits the same distance from its own marker as the block's chevron sits
+  from its own, clear of that marker and clear of the parent level's guide column
+
+#### Scenario: A checkbox and a bullet in one list share a column
+
+- **WHEN** a list contains both task items and plain items
+- **THEN** every marker's visible centre is on the same column, so no item's mark sits nearer
+  its own text than its neighbours' do
 
 ### Requirement: Nested per-cell editors receive no decorations
 Obsidian renders an actively-edited table cell in Live Preview as its own independent CM6

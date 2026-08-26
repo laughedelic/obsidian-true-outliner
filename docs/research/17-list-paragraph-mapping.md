@@ -317,6 +317,14 @@ two-space, ordered, task and wrapping fixtures, and a mapping change moves depth
 mixed documents those fixtures use. Doing the mapping first invalidates the fixtures mid-flight;
 doing it after gives the new depths a settled reference to be judged against.
 
+**Amended:** the grid change's D9 states a list line's indentation width from the item's own
+depth, so Obsidian's rendering quantum — a tab or exactly four spaces — no longer reaches the
+rendered column at all. That is NOT the "new information about Obsidian's indent quantization"
+§6 says reading B would need: what changed is what the editor DRAWS, not what Markdown parses,
+and B was ruled out on the parse. The one thing it does settle is that a two-space document is
+no longer visually penalised, so the two-space default fallback in §6's carry-forwards is now a
+pure encoding question with no rendering consequence attached.
+
 ## 8. What is decided, and what is not
 
 **Decided:** a reorder refuses the arrangement it cannot encode (`reorder-absorption`). That

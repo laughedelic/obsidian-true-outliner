@@ -1,0 +1,114 @@
+## Why
+
+Outline mode renders headings, paragraphs and atoms on one grid — a depth column every
+`--to-decor-unit`, a marker centred on that column, a guide descending from it — and then
+hands lists back to Obsidian. The result is two layouts in one document: a list level steps
+`2.25em` where every other level steps `1.5rem`, a list's guides sit on native columns that
+our own grid never touches, and a list ancestor gets no caret trail at all because there is no
+column of ours to draw it on.
+
+The experiment series left it that way deliberately, and two later probes concluded that
+native list columns could only be FOLLOWED, by per-item pixel measurement — a second rendering
+mechanism alongside the measurement-free gradient the whole layer rests on
+([docs/research/14](../../../docs/research/14-experiment-position-indicators.md), finding 3).
+That conclusion was right about the mechanism it examined and wrong about the problem.
+Obsidian computes list columns from public CSS variables, so they can be SET rather than
+followed. [docs/research/16](../../../docs/research/16-native-list-decoration.md) measures the
+whole surface against a running Obsidian 1.13.4 and confirms it: one variable puts every tab-
+or four-space-indented list level on our own unit, with Obsidian's own hanging indent
+re-deriving itself, and a second puts its guides on our columns. No measurement, no second
+mechanism.
+
+A demo build of exactly that was reviewed by hand and accepted. This change makes it the
+behaviour.
+
+## What Changes
+
+- **List levels step by the outline unit.** `--to-decor-unit` is pushed into Obsidian's own
+  `--list-indent` on outline-mode list lines, so a list level and a heading level are the same
+  distance. **BREAKING** for the rendering contract: a pure list no longer renders
+  byte-identical to outline-mode-off.
+- **Our own guides draw every list level.** The native list guide is switched off on those
+  lines and `computeLineGuides`' list-item exclusion is lifted, so a list level's guide is the
+  same gradient, the same colour and the same column as a heading's.
+- **The caret trail reaches into lists.** With list levels on the grid,
+  `computePositionTrail`'s two `isListItem` exclusions are removed and the position indicator
+  accents list levels like any other — closing the omission
+  `hierarchy-position-indicators` currently states as a requirement.
+- **A list marker sits on its own depth column**, with the item's text at the marker gutter,
+  so a guide descends out of its bullet the way it descends out of a block marker.
+- **We write the hanging indent instead of reading Obsidian's.** Measured: the marker gutter
+  makes every soft-wrapped list row land 16px left of its own item's text, because
+  `coordsAtPos` — and therefore Obsidian's own measurement — reports the end of the marker's
+  TEXT rather than the end of its padded box. Writing the pair from
+  `(depth − supplementalDepth) × unit + gutter` is exact, and being a `calc()` it also removes
+  the stale-cache defect where a live change to `--list-indent` left the old wrap column in
+  place.
+- **The bullet gets the weight of a marker**: `--list-bullet-size` `0.38em`, measured against
+  the block icons' ink; the colour token is unchanged so lists and blocks retune together. An
+  ordered number takes the left edge a block marker starts on, by a fixed half-icon shift.
+- **A fold chevron sits where a block's chevron sits.** Obsidian anchors a list line's chevron
+  at the item's content origin, which the grid now puts on the marker's own centre. The glyph
+  is moved by the block rule's distance minus that rule's gutter term, so both kinds land the
+  same 3px from their own marker rather than each being placed by a constant of its own.
+- **Markers and guides share one HORIZONTAL column definition.** Measured: every marker's
+  centre sat at exactly `depth × unit` while the guide painted its 1px as
+  `[column, column + 1]`, so every marker — bullets and block icons alike — was half a pixel
+  left of the line it belongs to. Resolved from one shared definition rather than
+  per-consumer. The VERTICAL anchor is deliberately not unified: `vertical-align: middle` is
+  right for a bullet and wrong for a block icon, whose parent may be a heading, so the bullet
+  takes the optical centre and the icon keeps the baseline. Built, looked at, reversed — see
+  design D6a; the residual difference on a body row is a recorded follow-up.
+- **No new settings.** The demo build's two experimental dropdowns are removed; this is one
+  behaviour, not an option.
+
+- **The leading whitespace's WIDTH is stated too, not just the indent unit.** Setting
+  `--list-indent` retargets the levels Obsidian resolves; it does nothing for the ones it does
+  not. Obsidian quantises a tab or exactly four spaces and renders the remainder at the font's
+  space advance, so a two-space file walked right a fraction of a level at a time (measured:
+  levels 1, 3 and 5 on columns, levels 2 and 4 8.38px off) while our guides stayed a unit
+  apart — bullets ended up sitting on the guides. Both the quantised part and the leftover
+  share one wrapper element, so sizing that wrapper from the item's own depth states the answer
+  for whatever it contains. This also removes the layer's dependence on Obsidian's own "Show
+  indentation guides" setting, which governs whether anything is quantised at all.
+- **A task item's text starts where every other kind's does.** Obsidian leaves the space after
+  `]` as the first character of the content span, where the marker span's `min-width` cannot
+  absorb it the way it absorbs a bullet's, so a task's text sat 4.19px out of line with its
+  neighbours'. The label is sized one space short of the gutter instead, from a live-measured
+  space advance — no CSS unit expresses one.
+
+Deliberately NOT in scope: making the indent unit a user-facing setting, which belongs with the
+wider layer-configurability item.
+
+## Capabilities
+
+### New Capabilities
+
+None. This changes how existing layers render, not what the plugin can do.
+
+### Modified Capabilities
+
+- `outline-decorations`: the pure-list byte-identical requirement is replaced by a one-grid
+  requirement; indentation, guides and markers gain list-item cases; the hanging indent
+  becomes ours to state.
+- `hierarchy-position-indicators`: "Trail rendering through list nesting uses native list
+  chrome or is omitted" is replaced — list levels now have a column of ours and render the
+  trail like any other level.
+
+## Impact
+
+- `src/plugin/decorate.ts` — `LineGuideFact` carries the list-item ancestor depths;
+  `computePositionTrail` stops excluding list ancestors. Pure functions, unit-tested.
+- `src/plugin/decorations.ts` — list lines emit their own depth and the classes the new CSS
+  hangs off; the guide background includes list levels.
+- `src/plugin/mode-registry.ts`, `src/plugin/main.ts` — the two experimental settings and
+  their persisted fields are removed.
+- `styles.css` — the list rules: the unit, the guide handover, the marker column, the hanging
+  indent, the bullet weight, and the shared column definition markers and guides both read.
+- `tests/decorate.test.ts` — three trail tests assert the omission being closed and are
+  rewritten to assert the new behaviour; new coverage for the list-ancestor guide depths.
+- `e2e/specs/50–55` — the decoration suites gain list-grid cases; the fixture corpus grows a
+  list-geometry fixture. `test-vault/Notes/List decoration demo.md` stays as a real-vault
+  fixture.
+- No change to the document model, the parse, any structural operation, or anything written to
+  disk. The layer stays a pure rendering projection.

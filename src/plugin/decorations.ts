@@ -175,12 +175,44 @@ function docFacts(state: EditorState): DocFacts {
 // box by exactly `--to-own-shift` units to reach any shallower ancestor's
 // column, with no measurement beyond the JS constants this module already
 // computes.
-const UNIT = 'var(--to-decor-unit, 1.5rem)';
+// No literal fallback: styles.css declares `--to-decor-unit` on `.cm-content`,
+// which is the single source. A fallback here would be a second copy of the
+// number, and the two would eventually disagree.
+const UNIT = 'var(--to-decor-unit)';
+
+/**
+ * A depth's COLUMN: the single x this layer positions everything at. A guide's
+ * visible centre, a marker's visible centre and an accent's visible centre are
+ * all this value, and every one of them derives it from here.
+ *
+ * Stated as a function rather than left to each call site because the three
+ * disagreed. Measured before this existed: a marker's centre sat at exactly
+ * `depth × unit` while a guide painted its 1px as `[column, column + 1]`, so
+ * every marker in the layer — bullets and block icons alike — was half a pixel
+ * left of the line it belongs to. Half a CSS pixel is a whole device pixel at
+ * 2x, and against a 1px line it reads. The lesson doc 11 draws from Experiment
+ * 5b's three near-identical bugs applies exactly: when two things must move
+ * together, make it impossible to change one without the other.
+ */
+function columnExpr(depth: number): string {
+  return `calc(${depth} * ${UNIT})`;
+}
+
+/**
+ * Where a stripe of width `w` must START for its own centre to land on
+ * `depth`'s column. Every painted stripe goes through this; nothing positions
+ * itself at the raw column and hopes.
+ */
+function stripeStartExpr(depth: number, width: string): string {
+  return `calc(${columnExpr(depth)} - ${width} / 2)`;
+}
+
+const GUIDE_WIDTH = '1px';
 
 function guideLayer(depth: number): string {
   return (
-    `repeating-linear-gradient(to right, var(--to-guide-color) 0 1px, transparent 1px ${UNIT}) ` +
-    `calc(${depth} * ${UNIT}) 0 / ${UNIT} 100% no-repeat`
+    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${GUIDE_WIDTH}, transparent ${GUIDE_WIDTH} ${UNIT}) ` +
+    `${stripeStartExpr(depth, GUIDE_WIDTH)} 0 / ${UNIT} 100% no-repeat`
   );
 }
 
@@ -229,7 +261,9 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
 function accentLayer(depth: number, extent: TrailExtent): string {
   const gradient = `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH})`;
   const height = extent === 'full' ? '100%' : 'var(--to-accent-stop, 50%)';
-  return `${gradient} calc(${depth} * ${UNIT}) top / ${UNIT} ${height} no-repeat`;
+  // Centred on the column through the same helper the plain guide uses, so an
+  // accent can never sit half a pixel off the guide it is brightening.
+  return `${gradient} ${stripeStartExpr(depth, TRAIL_WIDTH)} top / ${UNIT} ${height} no-repeat`;
 }
 
 /**
@@ -259,9 +293,38 @@ function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFa
   return layers.join(', ');
 }
 
-/** Whether a line renders the `::after` overlay at all. */
-function hasOverlay(guide: LineGuideFact, trail?: PositionTrailFact): boolean {
-  return guide.guideDepths.length > 0 || trail !== undefined;
+/**
+ * Every guide depth a line draws: the non-list ancestors the base layer has
+ * always covered, plus the list-item ancestors it used to withhold.
+ *
+ * The withholding was correct while a list level had no column this layer could
+ * address — Obsidian's own indent guides sat on columns our fixed unit did not
+ * match, so drawing ours alongside either doubled up or read as unevenly
+ * spaced. `lists-on-the-outline-grid` removes that premise: a list level at
+ * tree depth `d` now renders at exactly `d * unit`, the same column this
+ * gradient draws on, and the native line is suppressed on those lines.
+ *
+ * Sorted, not concatenated: the two tracks interleave. Inside
+ * heading > item > paragraph > item, a line below the inner item carries
+ * guideDepths [0, 2] and listGuideDepths [1, 3], and `LineGuideFact` documents
+ * both as ascending. Nothing in the rendering depends on the order — each depth
+ * paints at its own X — but a caller that reads the array should not have to
+ * know that.
+ */
+function activeGuideDepths(guide: LineGuideFact): readonly number[] {
+  if (guide.listGuideDepths.length === 0) return guide.guideDepths;
+  return [...guide.guideDepths, ...guide.listGuideDepths].sort((a, b) => a - b);
+}
+
+/**
+ * Whether a line renders the `::after` overlay at all, given the depths the
+ * caller has ALREADY resolved — `activeGuideDepths` can allocate, and every
+ * caller needs the depths themselves a moment later, so resolving them once per
+ * line and passing them here is the difference between one allocation and two.
+ * The trail test comes first because it is a bare comparison.
+ */
+function hasOverlay(depths: readonly number[], trail?: PositionTrailFact): boolean {
+  return trail !== undefined || depths.length > 0;
 }
 
 /**
@@ -896,7 +959,7 @@ function plainOwnShiftExpr(fact: LineDecorationFact): string {
 
 function lineDecoration(
   fact: LineDecorationFact,
-  guide: LineGuideFact,
+  depths: readonly number[],
   trail: PositionTrail,
   markerAccent: boolean,
 ): Decoration {
@@ -906,6 +969,26 @@ function lineDecoration(
   if (fact.isListItem) {
     cls = 'to-decor-list';
     styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
+    // The item's own tree depth as well as its list root's: the difference is
+    // the item's depth WITHIN its list, which is how far Obsidian's own list
+    // rendering carries it right of the line box, and therefore what the
+    // stated hanging indent has to account for.
+    styles.push(`--to-depth: ${fact.depth}`);
+    // The gutter too, even though a list line reserves none of its OWN: its
+    // native marker occupies the same gutter every other kind's marker does,
+    // and the rules that size the marker span and state the hang both read it.
+    // Publishing it here rather than falling back to a literal in the CSS keeps
+    // `MARKER_GUTTER_CSS` the single source.
+    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
+    // The marker's own share of the stated hang. A first line spends the gutter
+    // on its native bullet/number/checkbox, so its leading whitespace stops one
+    // gutter short of its text; a CONTINUATION line has no marker and belongs
+    // under the item's TEXT, so its whitespace takes the whole hang. Without
+    // this the rule that states the whitespace width (styles.css) would put a
+    // continuation on the marker's column, a gutter left of the row above it.
+    // `hasNativeMarker` is exactly "list-item first line" and had no consumer
+    // until now.
+    styles.push(`--to-list-marker-cols: ${fact.hasNativeMarker ? MARKER_GUTTER_CSS : '0px'}`);
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
@@ -919,9 +1002,9 @@ function lineDecoration(
   cls += markerClasses(trail, fact.lineNumber, markerAccent);
 
   const lineTrail = trail.byLine.get(fact.lineNumber);
-  if (hasOverlay(guide, lineTrail)) {
+  if (hasOverlay(depths, lineTrail)) {
     cls += ' to-decor-guides';
-    styles.push(`--to-guides: ${guideBackground(guide.guideDepths, lineTrail)}`);
+    styles.push(`--to-guides: ${guideBackground(depths, lineTrail)}`);
     styles.push(`--to-own-shift: ${plainOwnShiftExpr(fact)}`);
   }
 
@@ -934,10 +1017,10 @@ function lineDecoration(
 // not the full lineDecoration() treatment. A trail accent can land on such a
 // line too (a path segment passing through the gap between two blocks), so the
 // background is built from both sources here as well.
-function gapLineDecoration(guide: LineGuideFact, lineTrail?: PositionTrailFact): Decoration {
+function gapLineDecoration(depths: readonly number[], lineTrail?: PositionTrailFact): Decoration {
   return Decoration.line({
     class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guideBackground(guide.guideDepths, lineTrail)}` },
+    attributes: { style: `--to-guides: ${guideBackground(depths, lineTrail)}` },
   });
 }
 
@@ -965,13 +1048,18 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const from = state.doc.line(guide.lineNumber + 1).from; // CM6 lines are 1-indexed
     const lineTrail = trail.byLine.get(guide.lineNumber);
     const fact = factsByLine.get(guide.lineNumber);
+    const depths = activeGuideDepths(guide);
     if (guide.isGapLine && !fact) {
-      if (!hasOverlay(guide, lineTrail)) continue; // nothing to draw
-      builder.add(from, from, gapLineDecoration(guide, lineTrail));
+      if (!hasOverlay(depths, lineTrail)) continue; // nothing to draw
+      builder.add(from, from, gapLineDecoration(depths, lineTrail));
       continue;
     }
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
-    builder.add(from, from, lineDecoration(fact, guide, trail, modes.markerHighlight !== 'off'));
+    builder.add(
+      from,
+      from,
+      lineDecoration(fact, depths, trail, modes.markerHighlight !== 'off'),
+    );
   }
   return builder.finish();
 }
@@ -1861,6 +1949,16 @@ class MarginCompensation implements PluginValue {
    */
   private lastDeadRight = '';
 
+  /** Last published `--to-space-advance`, so an unchanged one is not rewritten. */
+  private lastSpaceAdvance = '';
+
+  /**
+   * Lines currently carrying a `--to-chevron-dy`, kept so the next render can
+   * clear exactly those instead of rescanning. Elements CM6 has since detached
+   * are harmless to call `removeProperty` on.
+   */
+  private chevronDyLines: HTMLElement[] = [];
+
   /**
    * Lines currently carrying a measured `--to-accent-stop`, kept so the next
    * render can clear exactly those instead of rescanning every line. Elements
@@ -1916,8 +2014,19 @@ class MarginCompensation implements PluginValue {
   }
 
   private measureChevron(): void {
+    // From a BLOCK line's chevron, because the block rule is the only consumer.
+    // Measured, the wrapper's width is not a property of the chevron but of the
+    // line it sits on: 15px on a heading or paragraph, 30.8px on a list item
+    // (`--list-bullet-end-padding` widens it), 10px on a task line. Querying
+    // the first chevron of ANY kind therefore published whichever the viewport
+    // happened to start with, and a list item's 20.8px dead space turns the
+    // block transform from -23.8px into -9px — every heading's chevron jumping
+    // ~15px right, onto its own marker. Reported from real use as an
+    // intermittent glitch that a scroll or a fold could trigger and reopening
+    // the note would clear, which is exactly the shape of a viewport-order
+    // dependency.
     const wrapper = this.view.contentDOM.querySelector<HTMLElement>(
-      '.cm-fold-indicator .collapse-indicator',
+      '.cm-line.to-decor-block .cm-fold-indicator .collapse-indicator',
     );
     const glyph = wrapper?.querySelector('svg');
     if (!wrapper || !glyph) return;
@@ -1928,6 +2037,132 @@ class MarginCompensation implements PluginValue {
     if (deadRight === this.lastDeadRight) return;
     this.lastDeadRight = deadRight;
     this.view.dom.setCssProps({ '--to-chevron-dead-right': deadRight });
+  }
+
+  /**
+   * Per line, how far the fold chevron has to move to sit on its own marker.
+   *
+   * Obsidian centres `.collapse-indicator` on the line's CONTENT BOX (measured:
+   * `position: absolute; top: 0; bottom: 0; display: flex; align-items:
+   * center`). Every marker kind uses a different vertical anchor — a block
+   * icon's SVG baseline-aligns inside its wrapper and overflows it downward, a
+   * bullet takes the optical centre, a checkbox its own box (design D6a, which
+   * records why one anchor cannot serve them all). So the chevron and the mark
+   * it belongs to disagree by an amount that varies with kind AND font size:
+   * measured, +2.67px on an H1, +1.67 on an H2, −0.80 on a paragraph, +1.78 on
+   * a bullet, +2.25 on a checkbox. No CSS expression produces that set, and a
+   * fitted one would be a constant per theme rather than a rule.
+   *
+   * So it is measured, per line, for the few lines that have a chevron at all.
+   * Reads are batched ahead of writes, and a line whose value has not changed
+   * is not written — the same discipline `measureAccentStops` uses for the
+   * property it publishes on lines.
+   *
+   * The measurement is taken against the ALREADY-TRANSFORMED chevron and adds
+   * back whatever is currently applied, which is what makes it converge instead
+   * of oscillating: a vertical position, unlike the width difference
+   * `measureChevron` takes, is not translation-invariant. One decimal place, so
+   * sub-tenth-pixel wobble rounds away and the value settles.
+   */
+  private measureChevronRows(): void {
+    const updates: { line: HTMLElement; dy: string }[] = [];
+    const seen = new Set<HTMLElement>();
+    for (const line of Array.from(
+      this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'),
+    )) {
+      const glyph = line.querySelector('.cm-fold-indicator .collapse-indicator svg');
+      // The mark this line's chevron belongs to, in the order the kinds are
+      // mutually exclusive: a synthetic icon, a bullet, a checkbox.
+      //
+      // An ordered item is deliberately absent. Its mark IS its glyphs, and no
+      // element's box is where they sit: `.cm-formatting-list-ol`'s box is the
+      // text row (measured, its centre and the chevron's already coincide),
+      // while the digits themselves rest on the baseline, cap-height tall,
+      // about 1.7px lower — the same place the bullet beside them sits. Reading
+      // ink out of a text run needs font metrics no rect exposes, so anchoring
+      // to the span would state a number that is not the mark's centre. Left
+      // without an offset, which leaves an ordered chevron where every kind's
+      // was before this measurement existed; recorded as a follow-up.
+      const marker =
+        line.querySelector(':scope > .to-decor-marker-icon svg') ??
+        line.querySelector('.list-bullet') ??
+        line.querySelector('.task-list-item-checkbox');
+      if (!glyph || !marker) continue;
+      const glyphRect = glyph.getBoundingClientRect();
+      const markerRect = marker.getBoundingClientRect();
+      if (glyphRect.height === 0 || markerRect.height === 0) continue; // not laid out
+      const applied = parseFloat(line.style.getPropertyValue('--to-chevron-dy')) || 0;
+      const dy =
+        markerRect.top +
+        markerRect.height / 2 -
+        (glyphRect.top + glyphRect.height / 2) +
+        applied;
+      updates.push({ line, dy: `${dy.toFixed(1)}px` });
+      seen.add(line);
+    }
+    for (const line of this.chevronDyLines) {
+      if (!seen.has(line)) line.style.removeProperty('--to-chevron-dy');
+    }
+    for (const { line, dy } of updates) {
+      if (line.style.getPropertyValue('--to-chevron-dy') !== dy) {
+        line.style.setProperty('--to-chevron-dy', dy);
+      }
+    }
+    this.chevronDyLines = updates.map((u) => u.line);
+  }
+
+  /**
+   * The advance width of one space in the editor's content font, published for
+   * the task-line rule in styles.css.
+   *
+   * A task item's text is one space further right than every other kind's, and
+   * the space is not ours to remove: Obsidian tokenises `- ` into the marker
+   * span, `[ ]` into the checkbox, and leaves the space that follows as the
+   * first character of the CONTENT span. On a bullet line the equivalent space
+   * falls inside the marker span, which the grid rules size to the gutter, so
+   * it is absorbed and the text lands on the column. On a task line there is
+   * nothing to absorb it.
+   *
+   * So the label is sized one space SHORT of the gutter, and this measures how
+   * short. No CSS unit expresses it — `ch` is the digit's advance (9.6px where
+   * a space is 4.19px in the bundled font) — and hardcoding one font's number
+   * is the mistake this layer keeps rediscovering, so it is read live, the same
+   * pattern and the same reasons as `measureChevron` above: `view.dom` rather
+   * than `contentDOM` to stay outside CM6's observed subtree, and only on a
+   * real change.
+   *
+   * Measured from a rendered task line's own leading space rather than from a
+   * bullet's, so the number is the very one being compensated. A note with no
+   * task line in the viewport yields none — and needs none, the rule having
+   * nothing to apply to. The CSS fallback (`0.26em`) reproduces the bundled
+   * font's measurement to within 0.03px and covers the first paint.
+   */
+  private measureSpaceAdvance(): void {
+    const label = this.view.contentDOM.querySelector<HTMLElement>(
+      '.cm-line.to-decor-list.HyperMD-task-line .task-list-label',
+    );
+    if (!label) return;
+    // `Node`, not `Text`: `Text` in this module is CodeMirror's document type.
+    let text: Node | null = null;
+    for (let node = label.nextSibling; node && !text; node = node.nextSibling) {
+      const found =
+        node.nodeType === Node.TEXT_NODE
+          ? node
+          : document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
+      if (found?.nodeValue) text = found;
+    }
+    // Only a leading space is ours to absorb; anything else means Obsidian
+    // tokenised the line differently than this rule assumes.
+    if (!text?.nodeValue?.startsWith(' ')) return;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 1);
+    const width = range.getBoundingClientRect().width;
+    if (width === 0) return;
+    const advance = `${width.toFixed(2)}px`;
+    if (advance === this.lastSpaceAdvance) return;
+    this.lastSpaceAdvance = advance;
+    this.view.dom.setCssProps({ '--to-space-advance': advance });
   }
 
   /**
@@ -1978,6 +2213,8 @@ class MarginCompensation implements PluginValue {
     // so a theme switch mid-session corrects on the next update.
     this.view.dom.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
     this.measureChevron();
+    this.measureChevronRows();
+    this.measureSpaceAdvance();
     this.measureSelectionColor();
 
     // `factsFor`, not `docFacts`: a line Obsidian renders as a widget takes the
@@ -2177,9 +2414,10 @@ class MarginCompensation implements PluginValue {
 
         const guide = guidesByLine.get(lineNumber);
         const lineTrail = trail.byLine.get(lineNumber);
-        if (guide && hasOverlay(guide, lineTrail)) {
+        const depths = guide ? activeGuideDepths(guide) : [];
+        if (guide && hasOverlay(depths, lineTrail)) {
           el.classList.add('to-decor-guides');
-          el.style.setProperty('--to-guides', guideBackground(guide.guideDepths, lineTrail));
+          el.style.setProperty('--to-guides', guideBackground(depths, lineTrail));
           el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
         } else {
           el.classList.remove('to-decor-guides');
@@ -2327,7 +2565,11 @@ class MarginCompensation implements PluginValue {
     this.view.dom.style.removeProperty('--to-marker-icon-size');
     this.view.dom.style.removeProperty('--to-chevron-dead-right');
     this.view.dom.style.removeProperty('--to-selected-bg');
+    this.view.dom.style.removeProperty('--to-space-advance');
     this.lastDeadRight = '';
+    this.lastSpaceAdvance = '';
+    for (const line of this.chevronDyLines) line.style.removeProperty('--to-chevron-dy');
+    this.chevronDyLines = [];
     // Swept by our OWN patch class, not by `WIDGET_LINE_SELECTOR`, and
     // deliberately unscoped. An element we patched may since have been
     // re-parented inside a `.cm-line` (see WIDGET_PATCHED_CLASS), where the

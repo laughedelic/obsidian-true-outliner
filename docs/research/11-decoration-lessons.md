@@ -245,6 +245,84 @@ finding came from.
   DOM node actually carries that dimension — a "reasonable-sounding" selector (the outer
   wrapper, the one with the semantic class name) is not guaranteed to be the right one.
 
+## Native chrome: retargeting rather than replacing
+
+Findings from `lists-on-the-outline-grid` (measurements:
+[16-native-list-decoration.md](16-native-list-decoration.md)).
+
+- **Look for the variable before building the mechanism.** Two probes concluded that native
+  list columns could only be FOLLOWED, by per-item pixel measurement, and planned a second
+  rendering mechanism alongside the measurement-free gradient. They were measuring the right
+  thing and asking the wrong question: the columns are computed from public CSS variables, so
+  they can be SET. The cost of the wrong question was a deferred feature and a planned overlay
+  layer that turned out to be unnecessary.
+- **Override the variable the consuming rule reads, not an intermediate one.**
+  `--list-padding-inline-start: var(--list-indent-editing)` is declared high in the tree, so
+  overriding `--list-indent-editing` further down does nothing — the substitution already
+  happened above. Overriding `--list-padding-inline-start` itself works. `--list-indent` is
+  consumed directly by `.cm-line`/`.cm-indent` and can be scoped as far down as a single line's
+  own class, which is what gates all of this on outline mode with no second condition.
+- **Obsidian's list hanging indent is a cached live measurement, and its cache does not watch
+  attributes.** It observes `childList`, `characterData` and `subtree`, so anything that
+  changes the rendered width of a list prefix through CSS alone leaves the hang stale until the
+  line's text changes or the view is rebuilt. It also measures `coordsAtPos` at the end of the
+  marker, which is the end of the marker's TEXT rather than of its padded box. Both are reasons
+  to STATE a value the layer already knows instead of reading one back.
+- **`--list-indent` is `em`-based.** Anything of ours flowing into it must be `rem`, or the
+  Experiment 1 font-size bug returns through a new door.
+- **A user setting can move geometry, not just paint.** With Obsidian's "Show indentation
+  guides" off, the `.cm-indent` spans do not exist at all, and space-indented list levels
+  change width. Any reasoning about list columns has to name which side of that setting it
+  holds on — or reach for a box that exists on both sides of it. `.cm-hmd-list-indent`, the
+  single wrapper Obsidian puts around ALL of a list line's leading whitespace, is emitted
+  either way; stating ITS width makes the setting, and the four-space quantum inside it,
+  stop mattering.
+- **When one fix serves both a reported bug and an accepted residual, the residual was a
+  mis-scoped bug.** "Two- and three-space files stay misaligned" and "space-indented files
+  depend on a setting the user owns" were both written down as things to document rather than
+  fix, with a normalize-indentation command as the notional durable answer. One rule removed
+  both — and it was found only because a manual pass reported the visible half. An accepted
+  residual is worth re-costing whenever something adjacent moves.
+- **A space's advance has no CSS unit.** `ch` is the digit's advance (9.6px where a space is
+  4.19px in the bundled font). A layout that must cancel exactly one space — a task item's
+  text, which Obsidian leaves the space after `]` in front of, outside the marker span that
+  absorbs a bullet's — has to measure it, by the same live-measurement pattern as the fold
+  chevron's dead space.
+- **A fallback tuned to the bundled font makes its own measurement untestable by position.**
+  `--to-space-advance`'s `0.26em` fallback is within 0.03px of the real advance, so every
+  rendered-position assertion still passed with the measurement deleted — confirmed by
+  deleting it. Assert the published property against the thing it compensates, not the
+  position it produces.
+- **A representative measurement is only representative of the population its rule covers.**
+  `--to-chevron-dead-right` is measured from one chevron per render and consumed by the rule for
+  BLOCK lines, but the query took the first chevron of ANY kind — and the wrapper's width turns
+  out to be a property of the LINE: 15px on a heading or paragraph, 30.8px on a list item
+  (`--list-bullet-end-padding` widens it), 10px on a task line. So the published value was
+  whichever kind the viewport happened to start with, and a list item's threw every heading's
+  chevron ~15px right onto its own marker. It surfaced as an intermittent glitch that scrolling
+  or folding could trigger and reopening the note cleared — the signature of a viewport-order
+  dependency, CM6 rendering only the viewport and a fresh view starting the cache empty. The
+  query and the rule must name the same population; nothing else warns, because the wrong value
+  still renders something and a fixture corpus that puts a heading first in every note never
+  produces it.
+- **A measured POSITION is not translation-invariant, so a correction derived from it must add
+  back what it already applied.** The chevron's dead space is a width DIFFERENCE, so measuring an
+  already-transformed chevron is safe. Its vertical offset is a position, so writing
+  `markerCy − chevronCy` straight back flips sign every render. `+ currentlyApplied` converges in
+  one step and stays put.
+- **A second placement of the same chrome should be derived from the first, not chosen
+  again.** The fold chevron is placed once for block lines and once for list lines. Choosing
+  the list distance independently (half a gutter plus 2px) landed it 2.2px from the block
+  one — enough for a reader to see, since a heading and a list item are foldable side by side.
+  The two anchors differ by exactly the marker gutter (text origin against content origin), so
+  the second rule is the first minus that term, and the e2e assertion is that they agree.
+- **`vertical-align: middle` resolves against the PARENT's x-height, which makes it
+  font-size-relative in a way that bites on headings.** It is the right optical anchor for a
+  small mark beside body text and the wrong one for a marker on an H1, where it drops the mark
+  below the heading's own glyphs. Two marks of different size and box model may simply not
+  share one numeric vertical anchor; that is worth discovering by looking rather than asserting
+  in a spec.
+
 ## Verification and process discipline
 
 - **The synthetic corpus, even a deliberately adversarial one, missed all three real bugs

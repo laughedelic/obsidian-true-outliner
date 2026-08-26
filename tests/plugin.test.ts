@@ -14,7 +14,11 @@ import {
   splitNode,
 } from '../src/ops';
 import { applyEdits, diffLines, type Edit } from '../src/result';
-import { OutlineModeRegistry } from '../src/plugin/mode-registry';
+import {
+  DEFAULT_DATA,
+  OutlineModeRegistry,
+  normalizePluginData,
+} from '../src/plugin/mode-registry';
 import { nodeAtLine } from '../src/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
 import { planKey } from '../src/plugin/grammar';
@@ -58,6 +62,90 @@ describe('mode registry', () => {
     await registry.handleDelete('new.md');
     expect(registry.isOutline('new.md')).toBe(false);
     expect(saves.at(-1)).toEqual([]);
+  });
+});
+
+describe('persisted plugin data', () => {
+  it('drops a key it does not know, so a retired setting stays retired', () => {
+    // The defect this exists for: `{ ...DEFAULT_DATA, ...loadData() }` keeps
+    // every key the file holds, so deleting a setting's TYPE leaves its VALUE
+    // on the object and the next save writes it back. Picking known keys is
+    // what makes a removal a removal.
+    const onDisk = {
+      ...DEFAULT_DATA,
+      listLayout: 'own-guides',
+      listBullet: 'column',
+      somethingElseEntirely: 42,
+    };
+    const normalized = normalizePluginData(onDisk);
+    expect(Object.keys(normalized).sort()).toEqual(Object.keys(DEFAULT_DATA).sort());
+    expect(normalized).not.toHaveProperty('listLayout');
+    expect(normalized).not.toHaveProperty('listBullet');
+  });
+
+  it('keeps every known value it is given', () => {
+    const onDisk = {
+      outlinePaths: ['a.md'],
+      coexistenceWarned: true,
+      debugCrossCheck: true,
+      markerVisibility: 'with-children' as const,
+      guideHighlight: 'lineage' as const,
+      markerHighlight: 'lineage' as const,
+    };
+    expect(normalizePluginData(onDisk)).toEqual(onDisk);
+  });
+
+  it('fills in a key the file does not have, rather than leaving it undefined', () => {
+    const normalized = normalizePluginData({ outlinePaths: ['a.md'] });
+    expect(normalized.outlinePaths).toEqual(['a.md']);
+    expect(normalized.markerVisibility).toBe(DEFAULT_DATA.markerVisibility);
+    expect(normalized.guideHighlight).toBe(DEFAULT_DATA.guideHighlight);
+  });
+
+  it('falls back per field when a stored value has the wrong type', () => {
+    // `data.json` is a plain file a user can edit and an older build can have
+    // written, so a field can hold anything. Measured before this check
+    // existed: `outlinePaths: 42` makes `hydrate`'s `new Set(paths)` throw out
+    // of `onload`, so the plugin does not load at all.
+    for (const bad of [42, 'note.md', null, {}, true]) {
+      expect(normalizePluginData({ outlinePaths: bad }).outlinePaths).toEqual([]);
+    }
+    expect(normalizePluginData({ coexistenceWarned: 'yes' }).coexistenceWarned).toBe(false);
+    expect(normalizePluginData({ debugCrossCheck: 1 }).debugCrossCheck).toBe(false);
+    // an unknown enum state reaches a settings dropdown with no matching option
+    expect(normalizePluginData({ markerVisibility: 'bogus' }).markerVisibility).toBe(
+      DEFAULT_DATA.markerVisibility,
+    );
+    expect(normalizePluginData({ guideHighlight: 'lineage-ish' }).guideHighlight).toBe(
+      DEFAULT_DATA.guideHighlight,
+    );
+    expect(normalizePluginData({ markerHighlight: 7 }).markerHighlight).toBe(
+      DEFAULT_DATA.markerHighlight,
+    );
+    // and a prototype key is a string but not a known state
+    expect(normalizePluginData({ guideHighlight: 'toString' }).guideHighlight).toBe(
+      DEFAULT_DATA.guideHighlight,
+    );
+  });
+
+  it('keeps the good entries when only some of outlinePaths are bad', () => {
+    // One bad entry should cost that note's state, not every note's.
+    expect(normalizePluginData({ outlinePaths: ['a.md', 3, null, 'b.md'] }).outlinePaths).toEqual([
+      'a.md',
+      'b.md',
+    ]);
+  });
+
+  it('never hands back the shared default array', () => {
+    const first = normalizePluginData({});
+    first.outlinePaths.push('a.md');
+    expect(normalizePluginData({}).outlinePaths).toEqual([]);
+    expect(DEFAULT_DATA.outlinePaths).toEqual([]);
+  });
+
+  it('answers with defaults for no stored data at all', () => {
+    expect(normalizePluginData(null)).toEqual(DEFAULT_DATA);
+    expect(normalizePluginData(undefined)).toEqual(DEFAULT_DATA);
   });
 });
 

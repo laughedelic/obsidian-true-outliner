@@ -21,6 +21,7 @@ import { applyEdits } from '../result';
 import {
   OutlineModeRegistry,
   DEFAULT_DATA,
+  normalizePluginData,
   type GuideHighlight,
   type MarkerHighlight,
   type PluginData,
@@ -143,7 +144,7 @@ export default class TrueOutlinerPlugin extends Plugin {
 
   override async onload(): Promise<void> {
     this.showDevBuildStamp();
-    this.data = { ...DEFAULT_DATA, ...((await this.loadData()) as Partial<PluginData> | null) };
+    this.data = normalizePluginData(await this.loadData());
     this.registry = new OutlineModeRegistry(async (paths) => {
       this.data.outlinePaths = paths;
       await this.saveData(this.data);
