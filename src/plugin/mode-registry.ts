@@ -21,8 +21,9 @@
  *   currently does. Atoms never qualify (they can't have children at all);
  *   list items are already excluded from markers unconditionally.
  */
-export type MarkerVisibility = 'all' | 'with-children' | 'headings-and-paragraphs';
-export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = 'all';
+export type MarkerVisibility =
+  "all" | "with-children" | "headings-and-paragraphs";
+export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = "all";
 
 /**
  * The two position-indicator axes (hierarchy-position-indicators). Re-exported
@@ -38,10 +39,10 @@ export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = 'all';
  * Each axis is a three-state enum rather than a pair of toggles, so its own two
  * renderings can never double up on the same level.
  */
-export type { GuideHighlight, MarkerHighlight } from './decorate';
-import type { GuideHighlight, MarkerHighlight } from './decorate';
-export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = 'full';
-export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = 'current';
+export type { GuideHighlight, MarkerHighlight } from "./decorate";
+import type { GuideHighlight, MarkerHighlight } from "./decorate";
+export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = "full";
+export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = "current";
 
 export interface PluginData {
   outlinePaths: string[];
@@ -67,6 +68,37 @@ export const DEFAULT_DATA: PluginData = {
 };
 
 /**
+ * The states each enum field may hold, as a `Record` over the union rather than
+ * an array: adding a state to the type without adding it here is a compile
+ * error, so the runtime check cannot fall behind the type it guards.
+ */
+const KNOWN_MARKER_VISIBILITY: Record<MarkerVisibility, true> = {
+  all: true,
+  "with-children": true,
+  "headings-and-paragraphs": true,
+};
+const KNOWN_GUIDE_HIGHLIGHT: Record<GuideHighlight, true> = {
+  off: true,
+  full: true,
+  lineage: true,
+};
+const KNOWN_MARKER_HIGHLIGHT: Record<MarkerHighlight, true> = {
+  off: true,
+  current: true,
+  lineage: true,
+};
+
+const oneOf = <T extends string>(
+  known: Record<T, true>,
+  value: unknown,
+  fallback: T,
+): T =>
+  typeof value === "string" &&
+  Object.prototype.hasOwnProperty.call(known, value)
+    ? (value as T)
+    : fallback;
+
+/**
  * `PluginData` built from whatever is on disk: every KNOWN key taken from the
  * file when present and from `DEFAULT_DATA` when not, and nothing else carried
  * across.
@@ -79,21 +111,51 @@ export const DEFAULT_DATA: PluginData = {
  * the first change to retire a setting and found exactly that; an allow-list
  * means the next one is free.
  *
+ * Every value is TYPE-CHECKED, not just picked. `data.json` is a plain file a
+ * user can edit and an older build can have written, so a field can hold
+ * anything: measured, `outlinePaths: 42` makes `hydrate`'s `new Set(paths)`
+ * throw out of `onload` and the plugin never loads at all, while
+ * `outlinePaths: "note.md"` quietly becomes one outline path per CHARACTER, and
+ * an unknown enum state reaches a settings dropdown with no matching option. A
+ * field that fails its check falls back to its default; it is not repaired and
+ * not carried through.
+ *
  * Unrecognized keys are dropped on the first save. Nothing is migrated: a
  * retired setting's values map onto whatever behaviour replaced it, which is
  * the change's business and not this function's.
  */
 export function normalizePluginData(raw: unknown): PluginData {
-  const stored = (raw ?? {}) as Partial<PluginData>;
-  const pick = <K extends keyof PluginData>(key: K): PluginData[K] =>
-    stored[key] === undefined ? DEFAULT_DATA[key] : stored[key];
+  const stored = (raw ?? {}) as Record<string, unknown>;
+  const bool = (value: unknown, fallback: boolean): boolean =>
+    typeof value === "boolean" ? value : fallback;
   return {
-    outlinePaths: pick('outlinePaths'),
-    coexistenceWarned: pick('coexistenceWarned'),
-    debugCrossCheck: pick('debugCrossCheck'),
-    markerVisibility: pick('markerVisibility'),
-    guideHighlight: pick('guideHighlight'),
-    markerHighlight: pick('markerHighlight'),
+    // Filtered rather than rejected wholesale: a file that picked up one bad
+    // entry should lose that note's state, not every note's.
+    outlinePaths: Array.isArray(stored.outlinePaths)
+      ? stored.outlinePaths.filter(
+          (path): path is string => typeof path === "string",
+        )
+      : [...DEFAULT_DATA.outlinePaths],
+    coexistenceWarned: bool(
+      stored.coexistenceWarned,
+      DEFAULT_DATA.coexistenceWarned,
+    ),
+    debugCrossCheck: bool(stored.debugCrossCheck, DEFAULT_DATA.debugCrossCheck),
+    markerVisibility: oneOf(
+      KNOWN_MARKER_VISIBILITY,
+      stored.markerVisibility,
+      DEFAULT_DATA.markerVisibility,
+    ),
+    guideHighlight: oneOf(
+      KNOWN_GUIDE_HIGHLIGHT,
+      stored.guideHighlight,
+      DEFAULT_DATA.guideHighlight,
+    ),
+    markerHighlight: oneOf(
+      KNOWN_MARKER_HIGHLIGHT,
+      stored.markerHighlight,
+      DEFAULT_DATA.markerHighlight,
+    ),
   };
 }
 

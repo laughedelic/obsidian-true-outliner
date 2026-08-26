@@ -269,8 +269,6 @@ export default class TrueOutlinerPlugin extends Plugin {
     await this.forceRedraw();
   }
 
-
-
   /**
    * A plain cursor nudge (what `refreshDecorations` uses for the mode
    * toggle) forces `computeDecorations`/`computeMarkers` to recompute, but

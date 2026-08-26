@@ -2040,32 +2040,6 @@ class MarginCompensation implements PluginValue {
   }
 
   /**
-   * The advance width of one space in the editor's content font, published for
-   * the task-line rule in styles.css.
-   *
-   * A task item's text is one space further right than every other kind's, and
-   * the space is not ours to remove: Obsidian tokenises `- ` into the marker
-   * span, `[ ]` into the checkbox, and leaves the space that follows as the
-   * first character of the CONTENT span. On a bullet line the equivalent space
-   * falls inside the marker span, which the grid rules size to the gutter, so
-   * it is absorbed and the text lands on the column. On a task line there is
-   * nothing to absorb it.
-   *
-   * So the label is sized one space SHORT of the gutter, and this measures how
-   * short. No CSS unit expresses it — `ch` is the digit's advance (9.6px where
-   * a space is 4.19px in the bundled font) — and hardcoding one font's number
-   * is the mistake this layer keeps rediscovering, so it is read live, the same
-   * pattern and the same reasons as `measureChevron` above: `view.dom` rather
-   * than `contentDOM` to stay outside CM6's observed subtree, and only on a
-   * real change.
-   *
-   * Measured from a rendered task line's own leading space rather than from a
-   * bullet's, so the number is the very one being compensated. A note with no
-   * task line in the viewport yields none — and needs none, the rule having
-   * nothing to apply to. The CSS fallback (`0.26em`) reproduces the bundled
-   * font's measurement to within 0.03px and covers the first paint.
-   */
-  /**
    * Per line, how far the fold chevron has to move to sit on its own marker.
    *
    * Obsidian centres `.collapse-indicator` on the line's CONTENT BOX (measured:
@@ -2137,6 +2111,32 @@ class MarginCompensation implements PluginValue {
     this.chevronDyLines = updates.map((u) => u.line);
   }
 
+  /**
+   * The advance width of one space in the editor's content font, published for
+   * the task-line rule in styles.css.
+   *
+   * A task item's text is one space further right than every other kind's, and
+   * the space is not ours to remove: Obsidian tokenises `- ` into the marker
+   * span, `[ ]` into the checkbox, and leaves the space that follows as the
+   * first character of the CONTENT span. On a bullet line the equivalent space
+   * falls inside the marker span, which the grid rules size to the gutter, so
+   * it is absorbed and the text lands on the column. On a task line there is
+   * nothing to absorb it.
+   *
+   * So the label is sized one space SHORT of the gutter, and this measures how
+   * short. No CSS unit expresses it — `ch` is the digit's advance (9.6px where
+   * a space is 4.19px in the bundled font) — and hardcoding one font's number
+   * is the mistake this layer keeps rediscovering, so it is read live, the same
+   * pattern and the same reasons as `measureChevron` above: `view.dom` rather
+   * than `contentDOM` to stay outside CM6's observed subtree, and only on a
+   * real change.
+   *
+   * Measured from a rendered task line's own leading space rather than from a
+   * bullet's, so the number is the very one being compensated. A note with no
+   * task line in the viewport yields none — and needs none, the rule having
+   * nothing to apply to. The CSS fallback (`0.26em`) reproduces the bundled
+   * font's measurement to within 0.03px and covers the first paint.
+   */
   private measureSpaceAdvance(): void {
     const label = this.view.contentDOM.querySelector<HTMLElement>(
       '.cm-line.to-decor-list.HyperMD-task-line .task-list-label',

@@ -102,6 +102,47 @@ describe('persisted plugin data', () => {
     expect(normalized.guideHighlight).toBe(DEFAULT_DATA.guideHighlight);
   });
 
+  it('falls back per field when a stored value has the wrong type', () => {
+    // `data.json` is a plain file a user can edit and an older build can have
+    // written, so a field can hold anything. Measured before this check
+    // existed: `outlinePaths: 42` makes `hydrate`'s `new Set(paths)` throw out
+    // of `onload`, so the plugin does not load at all.
+    for (const bad of [42, 'note.md', null, {}, true]) {
+      expect(normalizePluginData({ outlinePaths: bad }).outlinePaths).toEqual([]);
+    }
+    expect(normalizePluginData({ coexistenceWarned: 'yes' }).coexistenceWarned).toBe(false);
+    expect(normalizePluginData({ debugCrossCheck: 1 }).debugCrossCheck).toBe(false);
+    // an unknown enum state reaches a settings dropdown with no matching option
+    expect(normalizePluginData({ markerVisibility: 'bogus' }).markerVisibility).toBe(
+      DEFAULT_DATA.markerVisibility,
+    );
+    expect(normalizePluginData({ guideHighlight: 'lineage-ish' }).guideHighlight).toBe(
+      DEFAULT_DATA.guideHighlight,
+    );
+    expect(normalizePluginData({ markerHighlight: 7 }).markerHighlight).toBe(
+      DEFAULT_DATA.markerHighlight,
+    );
+    // and a prototype key is a string but not a known state
+    expect(normalizePluginData({ guideHighlight: 'toString' }).guideHighlight).toBe(
+      DEFAULT_DATA.guideHighlight,
+    );
+  });
+
+  it('keeps the good entries when only some of outlinePaths are bad', () => {
+    // One bad entry should cost that note's state, not every note's.
+    expect(normalizePluginData({ outlinePaths: ['a.md', 3, null, 'b.md'] }).outlinePaths).toEqual([
+      'a.md',
+      'b.md',
+    ]);
+  });
+
+  it('never hands back the shared default array', () => {
+    const first = normalizePluginData({});
+    first.outlinePaths.push('a.md');
+    expect(normalizePluginData({}).outlinePaths).toEqual([]);
+    expect(DEFAULT_DATA.outlinePaths).toEqual([]);
+  });
+
   it('answers with defaults for no stored data at all', () => {
     expect(normalizePluginData(null)).toEqual(DEFAULT_DATA);
     expect(normalizePluginData(undefined)).toEqual(DEFAULT_DATA);
