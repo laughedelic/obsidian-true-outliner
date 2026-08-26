@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M1019MJA4WR736D671D1DZSM",
+  "strategy": "manual-commit",
+  "branch": "feat/lists-on-the-outline-grid",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/plugin/main.ts",
+    "src/plugin/mode-registry.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1404,
+    "cache_creation_tokens": 5472585,
+    "cache_read_tokens": 302016851,
+    "output_tokens": 705244,
+    "api_call_count": 702
+  }
+}
