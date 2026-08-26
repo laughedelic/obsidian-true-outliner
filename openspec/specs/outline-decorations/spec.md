@@ -186,6 +186,19 @@ level it SHALL suppress Obsidian's own indent guide for that level, so exactly o
 per level. Guides SHALL render continuously through blank separator lines between sibling
 blocks, not just through node content lines.
 
+A guide SHALL END at the last CONTENT line of the subtree it covers — the last line in that
+subtree that belongs to some node's own lines — and SHALL NOT render on the blank separator
+lines below that. A guide therefore never descends past the content it belongs to: not into the
+gap before a sibling at a shallower level, and not into the blank line a file ends on. Where one
+run of blanks closes several nested subtrees at once, every one of those guides ends on the same
+row — the last content line above the run — since every row inside the run has the same content
+below it. Guides end on DIFFERENT rows only where their subtrees' last content lines differ,
+which takes content between them.
+
+Ending a guide SHALL NOT introduce a break above it. A blank line with more of that ancestor's
+own subtree still below it SHALL carry the guide exactly as it does today, so a guide is always
+one unbroken run from its first row to its last, whatever blank lines fall inside it.
+
 Obsidian's own "Show indentation guides" setting SHALL remain the user's to set and SHALL NOT
 be changed by the plugin; suppression SHALL be scoped to outline-mode list lines, leaving every
 other context — other notes, reading view, the mode turned off — showing whatever that setting
@@ -211,6 +224,34 @@ be the same either way.
 #### Scenario: Guides span blank lines between siblings
 - **WHEN** a blank line separates two sibling blocks, or precedes a node's own first child
 - **THEN** the guide renders through that blank line with no visible break
+
+#### Scenario: A guide stops at the last content line of its subtree
+- **WHEN** a section's last paragraph is followed by blank lines and then a heading at the
+  section's own level, so the blanks are past everything that section contains
+- **THEN** that section's guide renders on the paragraph's row and on none of the blank rows
+  below it
+
+#### Scenario: A guide does not run off the end of the document
+- **WHEN** a note ends with a trailing blank line below the last node of a nested section
+- **THEN** no guide renders on that final blank row
+
+#### Scenario: Nested subtrees closing together end on the same row
+- **WHEN** a run of blank lines closes two nested subsections at once, and the section
+  containing them continues with more content below the run
+- **THEN** both subsection guides end on the last content line above the run, and the
+  containing section's guide renders on every row of the run — each row of a run carries the
+  same guides as every other
+
+#### Scenario: Guides at different depths end on different rows
+- **WHEN** a subsection is followed by a later sibling inside the same section, so the section
+  holds content the subsection's own subtree does not
+- **THEN** the subsection's guide ends at its own last content line while the section's guide
+  carries on past it, each ending on its own subtree's last content line
+
+#### Scenario: A blank line inside a subtree keeps its guide
+- **WHEN** a blank line separates two siblings that are both inside the same ancestor's subtree
+- **THEN** that ancestor's guide renders on the blank row, unchanged — the tail rule removes
+  nothing above the last content line
 
 #### Scenario: Multiline continuation carries the same guide as the first line
 - **WHEN** a node spans multiple physical lines
@@ -562,9 +603,8 @@ INDENTATION AND MARKER facts from the line the document's own parse would produc
 character were typed at the caret: the same indentation regime (block padding, atom/list
 margin), the same depth or `supplementalDepth`, the same node kind, and the same marker
 treatment. Those facts, and the position-indicator treatment covered below, are the whole of
-what this rule governs for that line — its own GUIDES are not among them, and continue to come
-from the document as it actually is. What happens to every OTHER line is a separate rule, stated
-below.
+what this rule governs for that line — its own GUIDES are governed by a rule of their own,
+stated below. What happens to every OTHER line is a separate rule, stated below as well.
 
 The rendering SHALL be derived from the document text and the caret alone. It SHALL NOT
 depend on which key produced the position, on any editor state remembering it, or on the
@@ -574,9 +614,12 @@ that node's own continuation line. This is the same distinction
 `outline-keyboard-grammar`'s "Provisional positions" requirement already requires the
 document alone to carry.
 
-**No line renders differently because a position is open.** That is the invariant, and it is
-what the rest of this rule serves. An open position SHALL NOT move any other line, add or
-remove any other line's marker, or change any other line's depth. Which facts satisfy that
+**No other line's GEOMETRY changes because a position is open.** That is the invariant, and it
+is what the rest of this rule serves. An open position SHALL NOT move any other line, add or
+remove any other line's marker, or change any other line's depth. Its one effect beyond its own
+row is the guide extension stated below, which moves nothing and adds only continuity: the rows
+it covers are the blank rows between the position and the last content line above it, which are
+exactly the rows an extended guide would otherwise have a hole in. Which facts satisfy that
 depends on what the position did to the parse, and there are exactly two cases:
 
 - A position that BISECTS a node — one opened interior to a multi-line node, where the blank
@@ -608,15 +651,22 @@ Marker rules apply unchanged rather than as a special case: the position renders
 only where a real line of the same shape would — a new-node position is a first line and is
 marker-eligible, subject to the `markerVisibility` setting; a continuation position is not a
 first line and renders no marker; a position whose materialized line would be a list item
-renders no synthetic marker at all. Guides on the POSITION'S OWN line SHALL continue to render
-from the document's own gap-line guide rule, unchanged; where a bisection has moved another
-line's guides, those come from the resolved outline with that line's other facts.
+renders no synthetic marker at all. A provisional position SHALL count as CONTENT for the guide
+extent (`outline-decorations`' guide requirement): every guide that reaches the last content
+line above the position SHALL reach the position's own row as well, and SHALL render on each
+blank row in between, so the extension is one unbroken run. WHICH guides those are still comes
+from the document as it actually is — a position adds no depth to a line and removes none, and a
+position that is not past its subtree's last content line extends nothing, because the guides
+already reach it. When the caret leaves, the extension leaves with it and each guide ends at its
+subtree's last content line again. Where a bisection has moved another line's guides, those come
+from the resolved outline with that line's other facts.
 
-This is a caret-derived layer, in the sense the pure-list invariant already carves out for
-such layers: it renders only where the user currently is, and it SHALL leave every base-layer
-contribution untouched. In a pure list a continuation position's `supplementalDepth` is 0, so
-it contributes no geometry at all, and a line the position displaced regains exactly the
-geometry it had, which in a pure list is none of ours.
+This is a caret-derived layer: it renders only where the user currently is, and it SHALL
+contribute no geometry of its own. The position's own row SHALL render at exactly the column
+that row renders at once its content is really there, and a line the position displaced SHALL
+regain exactly the geometry it had. That holds in a pure list like anywhere else — what a pure
+list renders is whatever the one indentation grid renders for it, and this layer adds nothing
+on top.
 
 The layer SHALL NOT mutate document state: no transaction, no cursor movement, no history
 entry. When the caret leaves the position, the decoration SHALL disappear with it, leaving no
@@ -629,7 +679,7 @@ own text metric, and is not claimed here. On a list continuation position spanni
 one nesting level, stock Obsidian measures a caret at the end of an indent run by that run's
 text rather than by the width of the span containing it, so the caret still shifts as the
 first character lands — byte-identical with this plugin disabled, measured and recorded in
-[docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).
+`docs/research/12-decoration-follow-ups.md`.
 Closing it would mean overriding the width of DOM this layer does not own, which is a change
 of its own.
 
@@ -657,6 +707,18 @@ of its own.
   item, so that line stops being a node of its own in the raw parse
 - **THEN** that line renders exactly as it did before the keypress, at its own depth and with its
   own marker
+
+#### Scenario: The guide reaches a position opened past the end of a section
+- **WHEN** the caret opens a provisional position on the blank line below the last paragraph of
+  a nested section, so the position sits past that section's last content line
+- **THEN** every guide that reaches the paragraph reaches the position's own row too, with no
+  break on any blank row between them, and the position's marker is not left hanging beside a
+  guide that stopped above it
+
+#### Scenario: The extension leaves with the caret
+- **WHEN** the caret moves off such a position
+- **THEN** each guide ends at its subtree's last content line again, and no blank row below it
+  renders a guide
 
 #### Scenario: A guide does not blink out on an untouched line
 - **WHEN** a bisection changes which node a following list attaches to, so an ancestor's guide
@@ -692,8 +754,8 @@ of its own.
 #### Scenario: A pure list's geometry is unchanged
 - **WHEN** the caret sits on a provisional position inside a list with no non-list ancestor
   anywhere
-- **THEN** every line's rendered position, including the provisional one's, is identical to
-  outline-mode-off, and no synthetic marker is drawn
+- **THEN** every line renders at exactly the column it renders at with the position closed, the
+  position's own row included, and no synthetic marker is drawn
 
 #### Scenario: Neighbouring lines are unaffected
 - **WHEN** a provisional position is open below a node that currently has no children
@@ -740,5 +802,7 @@ one; and a bisected item's second line measured against its own pre-keypress col
 absence on a continuation position, the `markerVisibility` setting governing it, the
 childless-heading neighbour that must not gain one, and the absent marker on a bisected node's
 displaced line); `e2e/specs/53-decoration-contracts.e2e.ts` (buffer, cursor, and undo stack
-unchanged by the rendering).
-
+unchanged by the rendering); and, for the guide extension, `tests/decorate.test.ts` (a position
+past a subtree's last content line, the blank rows between the two, and the same document
+without the position as the negative control) plus `e2e/specs/51-guides-gradient.e2e.ts` (the
+gradient present on the position's row and absent once the caret leaves).

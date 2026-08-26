@@ -284,7 +284,7 @@ function accentLayer(depth: number, extent: TrailExtent): string {
  */
 function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFact): string {
   if (!trail) return guideDepths.map(guideLayer).join(', ');
-  const accents = new Map(trail.accents.map((a) => [a.depth, a.extent]));
+  const accents = accentsOn(guideDepths, trail);
   const layers: string[] = [];
   for (const [depth, extent] of accents) layers.push(accentLayer(depth, extent));
   for (const depth of guideDepths) {
@@ -317,14 +317,40 @@ function activeGuideDepths(guide: LineGuideFact): readonly number[] {
 }
 
 /**
+ * The accents a line actually draws: those whose depth the line carries a guide
+ * at. An accent is a treatment OF a guide, so one at any other depth would be a
+ * stripe with nothing under it.
+ *
+ * The clip lives here, at the one point every accent passes through, rather
+ * than in whichever computation produced a stray one. Today's producer is the
+ * trail: it is computed against the MATERIALIZED document when a provisional
+ * position is open (`computeTrail`), and that document has an ancestor the real
+ * one does not — a position below a childless node makes that node a parent, so
+ * the trail accents its depth on a row the base layer draws no guide at. Fixing
+ * it there would leave the invariant resting on two computations staying in
+ * step; fixing it here makes it structural.
+ */
+function accentsOn(
+  guideDepths: readonly number[],
+  trail: PositionTrailFact,
+): Map<number, TrailExtent> {
+  return new Map(
+    trail.accents.filter((a) => guideDepths.includes(a.depth)).map((a) => [a.depth, a.extent]),
+  );
+}
+
+/**
  * Whether a line renders the `::after` overlay at all, given the depths the
  * caller has ALREADY resolved — `activeGuideDepths` can allocate, and every
  * caller needs the depths themselves a moment later, so resolving them once per
  * line and passing them here is the difference between one allocation and two.
- * The trail test comes first because it is a bare comparison.
+ *
+ * The trail no longer enters into it: an accent that survives the clip above
+ * sits on a depth this line carries, so a line with no depths has nothing to
+ * draw whatever the trail says about it.
  */
-function hasOverlay(depths: readonly number[], trail?: PositionTrailFact): boolean {
-  return trail !== undefined || depths.length > 0;
+function hasOverlay(depths: readonly number[]): boolean {
+  return depths.length > 0;
 }
 
 /**
@@ -424,7 +450,10 @@ function factsFor(state: EditorState): DocFacts {
     computed = docFacts(state);
   } else if (provisional.joins) {
     const facts = decorate(provisional.doc);
-    const guides = computeLineGuides(provisional.doc);
+    // The row is one of a node's own lines in the resolved outline, so the
+    // provisional argument is a no-op here — passed anyway rather than gated,
+    // since a gate is one more thing to get wrong and this one buys nothing.
+    const guides = computeLineGuides(provisional.doc, provisional.line);
     computed = {
       facts,
       factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
@@ -434,10 +463,18 @@ function factsFor(state: EditorState): DocFacts {
   } else {
     const base = docFacts(state);
     const facts = [...base.facts, provisional.fact].sort((a, b) => a.lineNumber - b.lineNumber);
+    // Guides still come from the document as it actually is — the position adds
+    // no depth to any line — but its row counts as content for where a guide
+    // ENDS, so a position opened past a subtree's last content line is not left
+    // with its marker below a guide that stopped above it. Recomputed rather
+    // than reused from `base`, which was trimmed without knowing about it.
+    const guides = computeLineGuides(parsedDoc(state.doc).doc, provisional.line);
     computed = {
       ...base,
       facts,
       factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
+      guides,
+      guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
     };
   }
 
@@ -1002,7 +1039,7 @@ function lineDecoration(
   cls += markerClasses(trail, fact.lineNumber, markerAccent);
 
   const lineTrail = trail.byLine.get(fact.lineNumber);
-  if (hasOverlay(depths, lineTrail)) {
+  if (hasOverlay(depths)) {
     cls += ' to-decor-guides';
     styles.push(`--to-guides: ${guideBackground(depths, lineTrail)}`);
     styles.push(`--to-own-shift: ${plainOwnShiftExpr(fact)}`);
@@ -1050,7 +1087,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const fact = factsByLine.get(guide.lineNumber);
     const depths = activeGuideDepths(guide);
     if (guide.isGapLine && !fact) {
-      if (!hasOverlay(depths, lineTrail)) continue; // nothing to draw
+      if (!hasOverlay(depths)) continue; // nothing to draw
       builder.add(from, from, gapLineDecoration(depths, lineTrail));
       continue;
     }
@@ -2415,7 +2452,7 @@ class MarginCompensation implements PluginValue {
         const guide = guidesByLine.get(lineNumber);
         const lineTrail = trail.byLine.get(lineNumber);
         const depths = guide ? activeGuideDepths(guide) : [];
-        if (guide && hasOverlay(depths, lineTrail)) {
+        if (guide && hasOverlay(depths)) {
           el.classList.add('to-decor-guides');
           el.style.setProperty('--to-guides', guideBackground(depths, lineTrail));
           el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
