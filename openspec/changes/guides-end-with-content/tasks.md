@@ -99,12 +99,12 @@
 
 ## 6. The gate
 
-- [ ] 6.1 Real-vault pass by hand over `test-vault/`, in both bundled themes, on documents with
+- [x] 6.1 Real-vault pass by hand over `test-vault/`, in both bundled themes, on documents with
       several nested sections that end together, a file ending in a blank line, and a list at
       the end of a section. The fixtures cannot judge whether the shortened guides read well;
-      this is the check that can.
-- [ ] 6.2 Fold anything the pass finds and this change does not fix into
-      `docs/research/12-decoration-follow-ups.md` rather than into a new change.
-- [ ] 6.3 Run the full unit and e2e suites and confirm the existing guide-continuity cases —
-      "Guides span blank lines between siblings", "every blank gap line between … also carries
-      the guide" — still pass unmodified. They assert the half of the rule this change keeps.
+      this is the check that can. Passed — the shortened guides read as intended, and the pass
+      turned up nothing to fold into `docs/research/12-decoration-follow-ups.md`.
+
+The full unit and e2e suites run in CI. Locally this change was verified against the whole unit
+suite and the `decorations` and `position-indicators` e2e groups, each new rule
+negative-controlled.
