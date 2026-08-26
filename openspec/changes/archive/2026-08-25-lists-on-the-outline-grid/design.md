@@ -396,8 +396,11 @@ the general defect in place and needs another patch the next time a setting is r
 - **Theme collision.** A theme that sets `--list-indent` itself (Minimal does, at `2em`, via
   Style Settings) loses that setting inside outline mode; Minimal additionally puts its own
   `--list-edit-offset` margin on list lines, which our own `margin-left !important` replaces.
-  → Include Minimal in the manual pass, as `docs/research/12`'s existing Minimal entry
-  requires.
+  → **Accepted, unverified.** Third-party theme support was descoped by the maintainer during
+  the review round, so the Minimal pass was not run against the final rules. What the grid does
+  under Minimal is not known; `docs/research/12`'s Minimal entry carries the question forward.
+  The bundled themes are covered by the screenshot pass and by `56-list-grid`'s both-themes
+  case.
 - **Three existing trail tests assert the behaviour being removed** ("runs the segment at the
   shallower non-list column, through the list levels", "accents only the non-list ancestor in
   the guides style", "draws no segment anywhere in a pure list, in either style"). → They are

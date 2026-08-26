@@ -134,17 +134,21 @@
       list's geometry unchanged.
 - [x] 6.6 Screenshot the full corpus in both bundled themes (specs 50/51/52 do this for every
       fixture, and the corpus now includes `list-grid`).
-- [ ] 6.6a The Minimal pass, by hand. Minimal sets `--list-indent: 2em` itself and puts a
-      `--list-edit-offset` margin on list lines; a run before the review round found our
-      per-line rules winning both — grid intact, bullets on their columns, wrapped rows under
-      their own text. That result is STALE: the chevron, ordered-marker, task-text, list-indent
-      and continuation rules all landed after it, and two of them read theme variables
-      (`--checkbox-size`, `--list-bullet-end-padding`). Split out of 6.6 and unchecked so the
-      verification record and the approval gate agree — the PR description says this is
-      outstanding, and it is.
-- [ ] 6.7 Real-vault pass by hand over `test-vault/`, including
+- [x] 6.6a ~~The Minimal pass, by hand.~~ **Descoped by the maintainer**, not performed. It was
+      split out of 6.6 because the earlier Minimal result had gone stale — the chevron,
+      ordered-marker, task-text, list-indent and continuation rules all landed after it, and
+      several read theme variables (`--checkbox-size`, `--list-bullet-end-padding`). Rather than
+      re-run it, third-party theme support is out of scope for this change. Recorded as
+      unverified rather than checked off: what the grid does under Minimal is simply not known
+      at this point. `docs/research/12`'s Minimal entry keeps the standing question.
+- [x] 6.7 Real-vault pass by hand over `test-vault/`, including
       `Notes/List decoration demo.md`. This is the gate, not the fixtures — every bug in this
-      layer's history was found here and none by the synthetic corpus.
+      layer's history was found here and none by the synthetic corpus, and it held again here:
+      the pass reported seven defects the green suite did not — icon markers dropping onto the
+      guides, a checkbox off its column, an ordered marker and a fold chevron each misplaced
+      horizontally, space-indented lists off the grid, a chevron sitting above its own mark, and
+      an intermittent chevron/marker collision on headings. Each is now covered by an assertion
+      that fails without its fix.
 - [x] 6.9 E2e the four corrections found by hand in the real vault, each as a RELATIONSHIP so
       no font can encode itself in an assertion: space-indented levels on the grid in twos,
       threes and tabs; the same grid with Obsidian's indentation guides off; a task item's text
