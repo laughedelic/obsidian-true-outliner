@@ -247,12 +247,15 @@
 }
 
 /*
- * An ordered item's number is a node marker like any other, so it centres on
- * the column too. It cannot do that by shrinking its box the way a bullet does
+ * An ordered item's number is a node marker like any other, so it takes the
+ * column too. It cannot CENTRE on it by shrinking its box the way a bullet does
  * — the glyphs ARE the mark, and their width is the font's and the number's —
  * so the box keeps its layout position (text stays at `column + gutter`) and
- * the painted glyphs are shifted half their own width left. `transform` is what
- * makes that free: it moves the ink without moving anything around it.
+ * the painted glyphs are shifted left by a fixed amount. `transform` is what
+ * makes that free: it moves the ink without moving anything around it. What the
+ * shift buys is a shared LEFT EDGE, not centring; only a number narrow enough
+ * to fit the gutter ends up centred, and that is a consequence rather than the
+ * rule.
  *
  * The shift is a FIXED half-icon, not half the number's own width. Centring
  * each number on its own width was tried and measured: `1. ` centres exactly,
