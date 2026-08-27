@@ -133,6 +133,18 @@ this change: its column intact, and its caret still short of it where the span's
 what binds. That residual is a pre-existing defect left standing, not a new one — and the
 column, which every other requirement here rests on, is what wins the conflict.
 
+What the gate covers is exactly the compensation, and no more. The ordered marker's half-icon
+SHIFT predates this work and is what puts a number's left edge on a block icon's, so it stays
+ungated; only the margin that cancels it is gated, and the two are gated together because
+applying one without the other moves the column. A first version gated the shift with them and
+moved a multi-space number's ink half an icon right of where it has always sat.
+
+The gate also narrows which markers can supply `--to-space-advance` (D4), since a marker whose
+whitespace is not one space is not measuring the character these rules subtract. The scan
+therefore reads every plain marker in view rather than the first: one multi-space item at the
+top of a note otherwise sent the whole viewport to the CSS fallback — and the items that DO get
+sized are precisely the ones whose measurement it would have been.
+
 ### D3 — The ordered marker's digits are wrapped by a decoration of ours, and that box carries the width
 
 There is no element inside an ordered marker to widen, and no arrangement of padding, margin

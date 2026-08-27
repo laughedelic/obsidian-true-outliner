@@ -2316,14 +2316,22 @@ class MarginCompensation implements PluginValue {
    * only when it is exactly that one space: a marker written with a tab, or
    * with several spaces, is not the character these rules subtract. */
   private markerTrailingSpace(): Node | null {
-    const span = this.view.contentDOM.querySelector<HTMLElement>(
+    // EVERY plain marker in view, not the first: a marker written with two
+    // spaces or a tab is ordinary markdown and its last text node is not the
+    // character these rules subtract, so taking only the first one let a single
+    // such item at the top of a note send the whole viewport to the CSS
+    // fallback — and the items that DO get sized are exactly the ones whose
+    // measurement it would have been.
+    const spans = this.view.contentDOM.querySelectorAll<HTMLElement>(
       '.cm-line.to-decor-list:not(.HyperMD-task-line) .cm-formatting-list',
     );
-    if (!span) return null;
-    const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
-    let last: Node | null = null;
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) last = node;
-    return last?.nodeValue === ' ' ? last : null;
+    for (const span of Array.from(spans)) {
+      const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
+      let last: Node | null = null;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) last = node;
+      if (last?.nodeValue === ' ') return last;
+    }
+    return null;
   }
 
   private measureSpaceAdvance(): void {

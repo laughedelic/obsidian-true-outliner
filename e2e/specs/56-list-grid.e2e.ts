@@ -677,7 +677,10 @@ describe('lists on the outline grid', function () {
     // ordered digits' box — so a note with no task line in it needs the value
     // just as much. Before the second source existed this document published
     // nothing and laid its whole list grid out from the fallback.
-    await open(['# H', '', '- one', '1. two', ''].join('\n'));
+    // The multi-space item FIRST: its own last text node is not the character
+    // these rules subtract, and scanning only the first marker in view sent the
+    // whole viewport to the CSS fallback because of it.
+    await open(['# H', '', '-  two spaces', '- one space', '1. two', ''].join('\n'));
     const published = await browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -756,6 +759,10 @@ describe('lists on the outline grid', function () {
     // An ordered marker whose whitespace already carries it past the gutter
     // keeps pushing its own text out, uncompensated.
     expect(at(rows, 7).textX! - at(rows, 7).column).toBeGreaterThanOrEqual(GUTTER);
+    // The half-icon shift is NOT gated with the sizing: it predates this work and
+    // is what puts a number on a block icon's left edge. Gating it moved a
+    // multi-space number's ink half an icon right of where it has always sat.
+    expect(at(rows, 7).markerBox!.l).toBeCloseTo(at(rows, 6).markerBox!.l, 1);
   });
 
   it('renders the same grid with Obsidian’s indentation guides off', async function () {

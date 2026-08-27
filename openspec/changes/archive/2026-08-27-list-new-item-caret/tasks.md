@@ -67,7 +67,14 @@
       bullet's does, and a tab-separated marker keeps its own stop — asserted as relationships,
       never as pixels a space's width decides.
 - [x] 3a.4 Negative control: ungate the rules and confirm that case fails.
-- [x] 3a.5 Record what the gate leaves unfixed — an empty multi-space bullet's caret is still
+- [x] 3a.5 Gate the compensation and nothing else: the ordered half-icon SHIFT predates this
+      work and stays ungated, with only the margin that cancels it gated alongside the sizing —
+      the two must move together or the column does. E2e that a multi-space number's ink starts
+      where a one-space number's does.
+- [x] 3a.6 Read every plain marker in view when measuring the space advance, not the first: a
+      marker whose whitespace is not one space cannot supply it, and one such item at the top of
+      a note sent the whole viewport to the fallback. The existing e2e case puts one first.
+- [x] 3a.7 Record what the gate leaves unfixed — an empty multi-space bullet's caret is still
       short of its column, which is where it was before this change.
 
 ## 4. Where the space advance comes from (design D4)

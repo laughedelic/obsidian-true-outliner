@@ -274,16 +274,30 @@
  */
 .markdown-source-view.mod-cm6
   .cm-content
+  > .cm-line.to-decor-list:not(.HyperMD-task-line)
+  .cm-formatting-list-ol {
+  /* UNGATED. This shift predates the caret work and is what puts a number's own
+   * left edge on a block icon's; every ordered marker takes it, whatever its
+   * whitespace. Gating it with the rule below moved the ink of a multi-space or
+   * tab-separated number half an icon right of where it has always sat. */
+  transform: translateX(calc(var(--to-marker-icon-size, 0.85rem) / -2));
+}
+
+/*
+ * The shift's own compensation, gated with the sizing it belongs to
+ * (`to-decor-marker-1sp`).
+ *
+ * `transform` moves ink, not layout, so the item's own text kept starting at the
+ * box's untransformed right edge — a gap between a number and its text as wide
+ * as the shift, widest on a marker too wide for the gutter, where it shows most.
+ * The box moves with the ink instead, and the digits' rule below hands the shift
+ * back so the text column is where it always was. Both halves are gated: they
+ * cancel each other, so applying one without the other moves the column.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
   > .cm-line.to-decor-list.to-decor-marker-1sp:not(.HyperMD-task-line)
   .cm-formatting-list-ol {
-  transform: translateX(calc(var(--to-marker-icon-size, 0.85rem) / -2));
-  /*
-   * `transform` moves ink, not layout, so the item's own text kept starting at
-   * the box's untransformed right edge — a gap between a number and its text as
-   * wide as the shift, widest on a marker too wide for the gutter, where it
-   * shows most. The box moves with the ink instead, and the digits' own rule
-   * below hands the shift back so the text column is where it always was.
-   */
   margin-inline-end: calc(var(--to-marker-icon-size, 0.85rem) / -2);
 }
 
