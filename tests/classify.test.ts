@@ -203,6 +203,48 @@ describe('classify: chrome-boundary deletion shapes (chrome-transparency amendme
     ).toBe('boundary-crossing-edit');
   });
 
+  it('a TASK item has two such columns, and the one where its text begins counts', () => {
+    // The mechanism, not the outcome: `computeVerdict` was already producing a
+    // merge for this shape when handed the class by hand, and the keypress
+    // still did nothing in a real editor — because this classifier never gave
+    // it that class, so the enforcement layer was never consulted.
+    const tasks = parse('- [x] foo\n- [ ] bar\n');
+    for (const ch of [2, 6]) {
+      expect(
+        classify(
+          facts({
+            userEvent: 'delete.backward',
+            changedLineSpans: [
+              { fromLine: 1, toLine: 1, insertedText: '', fromCh: ch - 1, toCh: ch },
+            ],
+            cursorBefore: { line: 1, ch },
+          }),
+          tasks,
+        ),
+      ).toBe('boundary-crossing-edit');
+    }
+  });
+
+  it('a column INSIDE the checkbox is an ordinary edit, not a boundary crossing', () => {
+    // Deleting `[` is editing the marker's own characters. Only the two columns
+    // where content begins carry the merge intent.
+    const tasks = parse('- [x] foo\n- [ ] bar\n');
+    for (const ch of [3, 4, 5]) {
+      expect(
+        classify(
+          facts({
+            userEvent: 'delete.backward',
+            changedLineSpans: [
+              { fromLine: 1, toLine: 1, insertedText: '', fromCh: ch - 1, toCh: ch },
+            ],
+            cursorBefore: { line: 1, ch },
+          }),
+          tasks,
+        ),
+      ).not.toBe('boundary-crossing-edit');
+    }
+  });
+
   it('the same span without the cursor fact stays within-node (conservative default)', () => {
     expect(
       classify(

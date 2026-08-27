@@ -104,6 +104,27 @@
 - [x] 5a.5 E2e in `30-keyboard-grammar.e2e.ts`: the gesture as reported — cursor where a task
       item's text begins, Enter, then type — and the children case as a buffer assertion.
 
+## 5b. The same column in the Backspace path (design D5b)
+
+- [x] 5b.1 One exported predicate over the two content-start columns (`isContentStartCh`,
+      src/ops.ts), called by both gates rather than written twice — they have to agree
+      exactly or the keypress either falls through or arrives with nothing to do.
+- [x] 5b.2 `classify.ts`'s marker-space deletion shape accepts either column. This is the gate
+      that was missing: without it the keypress never reached the enforcement layer at all.
+- [x] 5b.3 `enforce.ts`'s merge recognition reads the same predicate.
+- [x] 5b.4 `mergeNodes` strips an absorbed item's task marker with its list marker, keeping the
+      strip on `LIST_MARKER_SPLIT_RE` so `- # title` keeps its `#` and a bare `-` its marker.
+- [x] 5b.5 Unit-test the CLASSIFICATION, not just the verdict: both columns classify as
+      boundary-crossing, positions inside `[ ]` do not. A verdict-level test passes against
+      the unfixed code, because the class it is handed is the thing that was missing.
+- [x] 5b.6 Unit-test the merge itself in `tests/edit-ops.test.ts`, with the two shapes the
+      shorter strip would break pinned beside it.
+- [x] 5b.7 Negative controls: narrow the predicate and confirm the classification and both
+      Backspace cases fail while the OTHER column's case still passes; disable the strip and
+      confirm the merge cases fail while the hash and bracket pins hold.
+- [x] 5b.8 E2e in `62-outline-edit-enforcement.e2e.ts`: the keypress, the buffer, the join-point
+      cursor, and one undo step.
+
 ## 6. Rendered verification (design D6, D7)
 
 - [x] 6.1 New cases in `e2e/specs/56-list-grid.e2e.ts`, measuring `.cm-cursor`'s own client rect

@@ -56,6 +56,11 @@ writes a marker and then puts the caret in front of it, so using it destroys it.
   task marker on the way — which is the defect the 2026-08-07 split amendment was written to
   remove, surviving in the one place that amendment could not see. A position INSIDE `[ ]`
   means the same thing and no longer divides the marker.
+- **Backspace where a task item's text begins joins it to the item above**, instead of
+  deleting one character and leaving a broken `- [ ]bar`. Three gates read the item's content
+  column and all three read the short one: the classifier that decides the deletion crosses a
+  boundary at all, the recognizer that reads it as a merge intent, and the merge itself, which
+  carried the absorbed item's `[ ] ` into the survivor's text.
 - **The text column, the marker column, the hanging indent and the wrapped-row column do not
   move.** They are correct today and `e2e/specs/56-list-grid.e2e.ts` asserts all four; this
   change is measured against them holding.
@@ -92,8 +97,12 @@ places it.
   task-marker clause — where a placement would land inside a marker this grammar wrote,
   it lands after it instead.
 - `structural-operations`: "Node split" states where a TASK item's content column falls, so
-  the insert-before outcome covers the position a user reads as its content start. A prefix
-  for splitting only; the caret, Home and the ladder are untouched.
+  the insert-before outcome covers the position a user reads as its content start; "Adjacent-
+  node merge" states that an absorbed item's task marker is stripped with its list marker.
+  Prefixes for these gestures only; the caret, Home and the ladder are untouched.
+- `node-edit-enforcement`: "Content-adjacent deletions become merges or vetoes" states that a
+  task item has TWO content-start positions and both are recognized, while a position inside
+  the marker is ordinary editing.
 
 ## Impact
 
@@ -105,10 +114,14 @@ places it.
   `--to-chevron-dy` by the same route.
 - `src/caret-policy.ts` — the task-marker clause, applied where the procedure resolves a
   content start, not at any one call site.
-- `src/ops.ts` — `splitNode`'s own content-start column counts a leading task marker.
-  `contentColumnCh` keeps its other callers unchanged.
-- `tests/split.test.ts` — the insert-before outcome, the children case, every position inside
-  the marker, and the interior splits pinned unchanged.
+- `src/ops.ts` — a marker-prefix column that counts a leading task marker, and one predicate
+  over it that `classify.ts` and `enforce.ts` share so their two gates cannot drift.
+  `splitNode` and `mergeNodes` read it; `contentColumnCh` keeps its other callers unchanged.
+- `src/classify.ts`, `src/enforce.ts` — the marker-space deletion shape accepts either of a
+  task item's content-start columns.
+- `tests/split.test.ts`, `tests/edit-ops.test.ts`, `tests/classify.test.ts`,
+  `tests/enforce.test.ts` — the insert-before outcome and its children case, the merge strip,
+  and the classification itself, which is the gate a verdict-level test cannot reach.
 - `tests/caret-placement.test.ts` — the new placement rule, and the non-task cases pinned
   unchanged.
 - `e2e/specs/56-list-grid.e2e.ts` — caret geometry for an empty item at each kind and depth,

@@ -165,6 +165,40 @@ describe('mergeNodes', () => {
     expect(result.value.anchor).toEqual({ line: 0, ch: '- alpha'.length });
   });
 
+  it('strips the absorbed item’s TASK marker along with its list marker', () => {
+    // It states something about the item being absorbed, and that item is about
+    // to stop existing. Carried into the survivor's text it read
+    // `- [x] foo[ ] bar` — a literal `[ ]` mid-line, neither a checkbox nor
+    // anything typed. The survivor keeps its own box.
+    const md = '- [x] foo\n- [ ] bar\n';
+    const doc = parse(md);
+    const result = mergeNodes(doc, byLine(doc, '- [x] foo').id);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('- [x] foobar\n');
+    expect(result.value.anchor).toEqual({ line: 0, ch: '- [x] foo'.length });
+  });
+
+  it('leaves an absorbed item’s own text alone when it merely starts with a bracket', () => {
+    // `[ ]` is a task marker only with the whitespace that follows it; `[x]y`
+    // is text, and a merge that stripped it would be eating content.
+    const md = '- alpha\n- [x]y\n';
+    const doc = parse(md);
+    const result = mergeNodes(doc, byLine(doc, '- alpha').id);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('- alpha[x]y\n');
+  });
+
+  it('strips only the LIST marker from content that starts with a hash', () => {
+    // The strip stays on the list-marker regex: `markerPrefixCh` is built on
+    // `contentColumnCh`, which also swallows an ATX prefix, so the shorter
+    // spelling would eat this `#` — and pass every other case in this file.
+    const md = '- alpha\n- # title\n';
+    const doc = parse(md);
+    const result = mergeNodes(doc, byLine(doc, '- alpha').id);
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('- alpha# title\n');
+  });
+
   it('merge cursor lands at the join point even when `first` spans multiple lines', () => {
     const md = '- alpha\n  more\n- beta\n';
     const doc = parse(md);

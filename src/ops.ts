@@ -960,28 +960,52 @@ function itemStyleFrom(donor: OutlineNode | undefined): ListStyle {
 }
 
 /**
- * Where a line's own content begins for the purpose of SPLITTING it — past the
- * indentation, the list marker, and a task marker that follows.
+ * The end of a line's full MARKER PREFIX: its indentation, its list marker, and
+ * a task marker following that. Where the line's own content begins, for the
+ * structural gestures that treat every marker on the line as chrome.
  *
  * `contentColumnCh` stops after `- `, which is right for the questions it
- * answers and wrong for this one. A task item's `[ ] ` is not text the user is
- * dividing: a line break in front of it, behind it, or in the middle of it all
- * mean the same thing, "put a new item above this one". Measured before this
- * existed, on `- [ ] bar` with a child and the caret where its text begins:
- * the interior path took over and produced `- [ ] ` with `bar` demoted to a
- * CHILD, its task marker dropped — which is the defect the 2026-08-07 amendment
- * was written to remove, surviving in the one place that amendment could not
- * see, because `contentColumnCh` does not count `[ ] ` as part of the prefix.
- * A position inside `[ ]` is worse still: it divided the marker itself.
+ * answers and wrong for these. A task item's `[ ] ` is not text a line break
+ * divides or a join absorbs: in front of it, behind it, or in the middle of it
+ * all mean the same thing about the item as a whole. Measured before this
+ * existed, on `- [ ] bar`:
  *
- * Splitting only. Nothing else moves: `[ ]` stays content to the caret, to
- * `contentColumnCh`'s other callers, and to the selection ladder — the question
- * `enter-and-shift-enter-grammar` D5 holds out of scope stays out of it.
+ * - SPLIT at the position its text begins took the interior path. With a child
+ *   below, that produced `- [ ] ` with `bar` demoted to a CHILD and its task
+ *   marker dropped — the defect the 2026-08-07 amendment to "Node split" was
+ *   written to remove, surviving where the amendment could not see because
+ *   `contentColumnCh` does not count `[ ] `. Inside `[ ]` it divided the marker.
+ * - The BACKSPACE gate (`recognizeMergeIntent`, enforce.ts) did not fire at all
+ *   there, so the keypress fell through to an ordinary character deletion and
+ *   left `- [ ]bar` — a broken checkbox rather than a join.
+ *
+ * These gestures only. `[ ]` stays content to the caret, to `contentColumnCh`'s
+ * other callers, and to the selection ladder — the question
+ * `enter-and-shift-enter-grammar` D5 holds out of scope stays out of it. A hard
+ * continuation line still pads to the list marker alone (`itemMarkerText`),
+ * which is markdown's own rule about what continues a list item and not this
+ * question.
  */
-function splitContentColumnCh(line: string): number {
+export function markerPrefixCh(line: string): number {
   const afterMarker = contentColumnCh(line);
   const task = TASK_MARKER_RE.exec(line.slice(afterMarker));
   return afterMarker + (task?.[0].length ?? 0);
+}
+
+/**
+ * Whether `ch` is a column at which this line's own content begins.
+ *
+ * A task item has TWO, and both are places a caret really sits: after `- `,
+ * where Home lands, and after `- [ ] `, where the item's text begins. Every
+ * other kind has one, so the pair collapses.
+ *
+ * One predicate because two gates must agree about it — `classify.ts` decides
+ * that a marker-space deletion crosses a boundary, and `enforce.ts` decides what
+ * that crossing means. If they disagreed the keypress would either fall through
+ * to a native edit or reach the enforcement layer with nothing to do.
+ */
+export function isContentStartCh(line: string, ch: number): boolean {
+  return ch === contentColumnCh(line) || ch === markerPrefixCh(line);
 }
 
 /**
@@ -1094,7 +1118,7 @@ export function splitNode(
   // A setext heading's second line is its underline, not text — no split point.
   if (node.kind === 'heading' && node.setext && lineIndex !== 0) return reject('cannot-split');
   const line = node.lines[lineIndex]!;
-  const contentStart = splitContentColumnCh(line);
+  const contentStart = markerPrefixCh(line);
   // Never split inside indentation or a marker.
   const ch = Math.min(Math.max(position.ch, contentStart), line.length);
 
@@ -1636,14 +1660,27 @@ function rawSuccessorPath(doc: OutlineDoc, path: NodePath): NodePath | undefined
 }
 
 /**
- * `second`'s content as bare text lines: first line stripped of any list
- * marker, continuation lines stripped of their leading whitespace — the
+ * `second`'s content as bare text lines: first line stripped of its list marker
+ * and any task marker, continuation lines stripped of their leading whitespace — the
  * kind-free content the merge appends, re-clothed in `first`'s own encoding.
+ *
+ * A TASK marker goes with the list marker it follows. It states something about
+ * the item being absorbed, and that item is about to stop existing; carrying it
+ * into the survivor's text made `- [x] foo` + `- [ ] bar` read `- [x] foo[ ] bar`
+ * — a literal `[ ]` in the middle of a line, which is neither a checkbox nor
+ * anything the user typed. The survivor keeps its OWN marker, task marker
+ * included, exactly as it keeps its own kind.
  */
 function bareContentLines(node: OutlineNode): string[] {
   const first = node.lines[0] ?? '';
+  // `LIST_MARKER_SPLIT_RE`, not `markerPrefixCh`: that one is built on
+  // `contentColumnCh`, which also swallows an ATX prefix (`- # title` would
+  // lose its `#`) and requires whitespace after the marker (a bare `-` would
+  // keep it). Neither is right for stripping an absorbed item's own encoding.
   const match = node.kind === 'list-item' ? LIST_MARKER_SPLIT_RE.exec(first) : null;
-  const head = match ? first.slice(match[0].length) : first.trimStart();
+  const afterMarker = match ? first.slice(match[0].length) : first.trimStart();
+  const task = match ? TASK_MARKER_RE.exec(afterMarker) : null;
+  const head = task ? afterMarker.slice(task[0].length) : afterMarker;
   return [head, ...node.lines.slice(1).map((line) => line.trimStart())];
 }
 

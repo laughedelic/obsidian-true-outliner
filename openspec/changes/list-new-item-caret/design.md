@@ -240,6 +240,47 @@ Splitting only, and stated that way in the delta. A ticked box is still content 
 caret — D5's placement rule leaves `- [x] ` alone — but a line break in front of one still
 means "a new item above", so this boundary does not read the box's state.
 
+### D5b — The same column, in the Backspace path — and it takes three gates, not one
+
+Reported straight after D5a, and worse than the merge defect predicted from reading the code:
+Backspace where a task item's text begins did not merge at all. It deleted one character and
+left `- [ ]bar` — a broken checkbox with both nodes still there.
+
+Three places read the item's content column, and all three read the short one:
+
+1. `classify.ts`'s `crossesViaChromeDeletion` decides that a single-character deletion at a
+   list item's content column CROSSES a boundary. At ch 6 it did not match, so the keypress
+   was classified as ordinary within-node authoring and the enforcement layer never ran.
+2. `enforce.ts`'s `recognizeMergeIntent` reads the same shape as a merge intent.
+3. `mergeNodes` strips the absorbed item's LIST marker only, so even once the first two fire,
+   `- [x] foo` + `- [ ] bar` read `- [x] foo[ ] bar`.
+
+The first is why a verdict-level test passed while the editor did nothing: handed the class by
+hand, `computeVerdict` already produced the merge. The test asserted the outcome and the
+mechanism was never reached — so the classifier now has its own case, and the e2e presses the
+key.
+
+(1) and (2) must agree exactly: if the classifier admits an edit the recognizer does not
+understand, the keypress reaches the enforcement layer with nothing to do; if the recognizer
+is wider, its extra cases are unreachable. So the column test is ONE exported predicate
+(`isContentStartCh`) that both call, rather than the same expression written twice.
+
+A task item has TWO content-start columns and the predicate accepts both. After `- ` is where
+Home lands and was already recognized; after `- [ ] ` is where the item's text begins.
+Widening must not trade one for the other, which is what its own test pins.
+
+Positions INSIDE `[ ]` are deliberately excluded here, where the split (D5a) includes them.
+The two gestures ask different questions: a line break inside a marker can only produce a
+broken marker, so every position in it means the same thing; a DELETION inside one is
+ordinary editing of characters the user can see, and stealing it would make the checkbox
+unremovable by the obvious gesture.
+
+For (3), the strip stays on `LIST_MARKER_SPLIT_RE` with the task marker taken after it, NOT on
+`markerPrefixCh`. That column is built on `contentColumnCh`, which also swallows an ATX prefix
+and requires whitespace after the marker — so the shorter spelling would eat the `#` from
+`- # title` and keep the `-` on a bare `-`. It passes every other test in the file, which is
+why the two shapes are pinned.
+
 ### D6 — Verify with `coordsAtPos`, which IS the caret here
 
 An earlier draft said the opposite, on the strength of `56-list-grid`'s header recording that

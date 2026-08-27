@@ -176,3 +176,113 @@ and the per-kind whitespace difference were found in the same pass.)*
   with a single new paragraph child `world` — the underline stays with the
   heading, it does not become part of the remainder or get treated as a
   continuation line of the title
+
+### Requirement: Adjacent-node merge
+A `mergeNodes` operation SHALL join a node (`first`) with its immediately following
+content-space neighbor (`second`) under a per-kind algebra, appending `second`'s
+content directly to the end of `first`'s content — never leaving a continuation-line
+remnant standing where the old separation was — consuming `first`'s trailing gap,
+and re-parenting `second`'s children under the merged node. Joins that would absorb
+a heading (and thereby its section's positional anchor), involve an atom on either
+side, or produce markdown that re-parses to a different structure than the merged
+tree SHALL be rejected with a typed reason.
+
+When `first` is a heading, the merged node's trailing gap SHALL instead be whichever
+of `first`'s or `second`'s own trailing gap has MORE lines, rather than
+unconditionally `second`'s. A heading's own gap is its established separation from
+its content — a section-level property, not a property of whichever node happened to
+be absorbed — and SHALL NOT be silently shrunk merely because the absorbed node's own
+gap happened to be smaller (e.g. two adjacent list items needing no separation from
+each other). This preserves the ordinary (non-heading `first`) convention unchanged:
+only a heading `first` triggers the comparison, and even then `second`'s gap still
+wins whenever it is the longer of the two (e.g. when `second` is the document's own
+terminal node and carries the file's trailing-newline representation).
+
+*(Amended 2026-07-21 from the original conservative table, per the real-vault manual
+pass: cross-kind content joins ARE the expected behavior — a list item's text merges
+into its parent paragraph — and children re-parent rather than reject, matching
+content-space outliner semantics. See node-edit-enforcement's chrome-transparency
+requirement.)*
+
+*(Amended 2026-07-24, found via manual testing of the heading-Enter-splits-paragraph
+change: merging content into a heading then later splitting back out was silently
+shrinking the heading's own gap to whatever the absorbed node's gap happened to be —
+root cause predates that change, surfaced by it.)*
+
+Re-parented children's indentation SHALL be shifted to match the merged node's ACTUAL
+child indentation — sampled from a real surviving sibling child when one exists —
+rather than an assumed marker-width-aligned column formula. Many documents (tab-
+indented ones especially) indent children further than the formula assumes (e.g. a
+full tab past the marker rather than exactly its width), and shifting by the wrong
+delta corrupts a pure-tab-indented subtree with spaces at the fractional remainder.
+
+"Immediately following content-space neighbor" is the node's document-order
+successor: its own first child if it has one, else its next sibling, else the
+nearest ancestor's next sibling (`rawSuccessorPath`) — the same node whose content
+begins nearest below `first`'s content end, regardless of intervening gap lines.
+
+Preconditions checked before the kind table: no following neighbor at all (last
+node in the document) rejects with `no-following-neighbor`.
+
+The per-kind merge table (rows = `first`, columns = `second`), pinned by
+implementation and exercised by the property suite:
+
+| First ＼ Second | paragraph / list-item | heading | atom |
+|---|---|---|---|
+| **paragraph / list-item** | join: `second`'s first content line (its list marker stripped, and a TASK marker with it) appends to `first`'s last content line; `second`'s continuation lines become `first`-kind continuations; `first` keeps its own kind and marker; `second`'s children re-parent under the merged node at `second`'s former position, re-encoded for the new scope | reject `merge-not-expressible` — absorbing a heading destroys its section's positional anchor | reject `merge-not-expressible` — atoms are opaque units |
+| **heading** | join iff `second`'s content is a single line: it appends to the heading's text line, and `second`'s children re-parent as section children; multi-line content rejects `merge-not-expressible` (a markdown heading cannot hold continuation lines) | reject `merge-not-expressible` | reject `merge-not-expressible` |
+| **atom** | reject `merge-not-expressible` | reject `merge-not-expressible` | reject `merge-not-expressible` |
+
+#### Scenario: Paragraph merge appends at content end
+- **WHEN** `mergeNodes` joins two paragraphs separated by a blank gap line
+- **THEN** the result is one paragraph node whose last content line is the direct
+  concatenation of the two texts, the gap is gone, and all other lines are
+  byte-identical
+
+#### Scenario: Cross-kind join keeps the survivor's encoding
+- **WHEN** `mergeNodes` joins a paragraph with its first child list item
+- **THEN** the item's text (marker stripped) appends to the paragraph's text, the
+  merged node stays a paragraph, and the item's children re-parent under it
+
+#### Scenario: Children re-parent instead of rejecting
+- **WHEN** `mergeNodes` absorbs a node that has children of its own
+- **THEN** those children keep their order and relative structure under the merged
+  node, re-encoded for the new scope, and the result re-parses to exactly that tree
+
+#### Scenario: Single-line content joins a heading
+- **WHEN** `mergeNodes` joins a heading with a following single-line paragraph
+- **THEN** the paragraph's text appends to the heading's title line; a multi-line
+  paragraph in the same position is rejected with `merge-not-expressible`
+
+#### Scenario: A heading absorbing content keeps its OWN gap when it is the longer one
+- **WHEN** a heading with a real blank-line gap before its content absorbs a child
+  whose own trailing gap is empty (e.g. the child was itself tightly adjacent to a
+  following sibling)
+- **THEN** the merged heading's trailing gap is the heading's own original gap, not
+  the absorbed child's — whatever follows stays separated from the heading exactly
+  as it was before the merge
+
+#### Scenario: A heading absorbing its own terminal child still keeps that child's gap
+- **WHEN** a heading with NO gap of its own absorbs a child that is the document's
+  own last node (whose trailing gap carries the file's trailing-newline
+  representation)
+- **THEN** the merged heading's trailing gap is the absorbed child's (the longer of
+  the two), unchanged from before this amendment
+
+#### Scenario: Tab-indented grandchildren survive a merge without space corruption
+- **WHEN** `mergeNodes` absorbs a list item whose own children are indented a full
+  tab past the marker (not exactly the marker's own width), and those children have
+  further-nested tab-indented children of their own
+- **THEN** every re-parented line's indentation is shifted by whole tab units to
+  match the merged node's real child column — no line ends up with a mix of spaces
+  and tabs, and every re-parented node still parses as the same kind it was before
+
+A task marker on the ABSORBED node SHALL be stripped along with its list marker. It states
+something about a node that is ceasing to exist, and carrying it into the survivor's text
+produces a literal `[ ]` mid-line — neither a checkbox nor anything the user wrote. The
+SURVIVOR keeps its own marker, task marker included, exactly as it keeps its own kind.
+
+#### Scenario: An absorbed task item's box goes with its marker
+- **WHEN** `- [ ] bar` is merged into `- [x] foo`
+- **THEN** the result is `- [x] foobar` — the survivor's own box is unchanged and no `[ ]`
+  appears in its text
