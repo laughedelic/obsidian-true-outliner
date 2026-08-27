@@ -81,9 +81,11 @@ Non-goals, each for its own reason:
   caret agrees with it; the shift to 20 happens when the caret leaves and the checkbox
   renders. That is live preview expanding source on every task line, empty or not, and not
   something this layer introduced or can address from where it stands.
-- **A marker wider than the gutter.** `10. ` measures 28px against a 20px gutter, so its own
-  text already reaches past the text column and there is no gap to close. The wide-marker
-  exception the grid states elsewhere covers the caret too.
+- **Forcing a marker wider than the gutter back onto it.** `10. ` measures 28px against a 20px
+  gutter, so its text starts past the gutter and stays there; the wide-marker exception the grid
+  states elsewhere covers the caret too. The half-icon gap between such a number and its own
+  text IS closed here — see the ordered marker's new margin above — but the marker keeps pushing
+  its text out rather than being squeezed onto a column it does not fit.
 - **The caret on a whitespace-only CONTINUATION line**, which `docs/research/12` records as
   still open. It is the same mechanism through a different element (`.cm-hmd-list-indent`, now
   carrying a stated width), so this change measures it rather than closing it, and carries no

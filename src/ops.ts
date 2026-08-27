@@ -996,8 +996,15 @@ export function markerPrefixCh(line: string): number {
   // text. Every splittable kind reads this, so Enter inside those characters was
   // clamped and rerouted to the content-start path — measured: `[ ] note` split
   // at ch 2 inserted an empty paragraph above instead of dividing the text.
-  const listEnd = LIST_MARKER_SPLIT_RE.exec(line)?.[0].length;
-  if (listEnd === undefined) return content;
+  const marker = LIST_MARKER_SPLIT_RE.exec(line);
+  // The marker's own trailing whitespace must be NONEMPTY, which is what the
+  // parser requires of a list item (`LIST_ITEM_RE`, parse.ts) and what this
+  // regex does not: it accepts `-[ ] note`, which parses as a PARAGRAPH whose
+  // text happens to start with a hyphen. Measured before this condition: every
+  // position through ch 5 on that line clamped to 5 and inserted an empty
+  // paragraph above instead of dividing the text.
+  if (!marker || marker[3] === '') return content;
+  const listEnd = marker[0].length;
   const task = taskMarkerLength(line.slice(listEnd));
   return task === 0 ? content : listEnd + task;
 }

@@ -130,10 +130,19 @@ export async function setCursorSettled(line: number, ch: number): Promise<void> 
     line,
     ch,
   );
+  // STABLE, not merely correct once. The dispatch this outwaits arrives on a
+  // later render pass, so a check that passes the instant the cursor is set
+  // proves nothing — it just runs before the mount. Requiring the position to
+  // hold across several polls spans that pass. It cannot be PROVEN settled, only
+  // held long enough that a same-pass move would have landed; the timeout is
+  // what makes a position that never holds fail loudly instead of quietly.
+  const STABLE_POLLS = 4;
+  let stable = 0;
   await browser.waitUntil(
     async () => {
       const at = await getCursor();
-      if (at.line === target.line && at.ch === target.ch) return true;
+      if (at.line === target.line && at.ch === target.ch) return ++stable >= STABLE_POLLS;
+      stable = 0;
       await setCursor(target.line, target.ch);
       return false;
     },
@@ -141,7 +150,7 @@ export async function setCursorSettled(line: number, ch: number): Promise<void> 
       timeout: waitBudget(3000),
       interval: 50,
       timeoutMsg:
-        `cursor never settled at ${target.line}:${target.ch} ` +
+        `cursor never held ${target.line}:${target.ch} ` +
         `(requested ${line}:${ch})`,
     },
   );

@@ -517,6 +517,11 @@ describe('splitNode', () => {
     expect(splitOk('- # [ ] title\n', '- # [ ] title', { line: 0, ch: 5 }).text).toBe(
       '- # [\n- ] title\n',
     );
+    // No space after the hyphen, so the parser reads a PARAGRAPH — this regex
+    // accepts what that one rejects unless the whitespace is required.
+    expect(splitOk('-[ ] note\n', '-[ ] note', { line: 0, ch: 3 }).text).toBe(
+      '-[ \n\n] note\n',
+    );
   });
 
   it('a plain item is unaffected by the task rule', () => {

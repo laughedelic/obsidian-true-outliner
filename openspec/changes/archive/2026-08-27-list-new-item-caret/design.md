@@ -345,10 +345,12 @@ content end coincide and the exception is a no-op by construction.
   block icon, and the wide-marker push-out) are relationships rather than pixels and both still
   hold; they must be shown to pass unchanged, and the delta states the move so it is not read
   as a regression later.
-- **D5 widens which keypresses can move a caret four characters.** A user who deliberately put
-  the caret in front of `[ ]` and then pressed Tab finds it at the line's end. Accepted: the
-  position they lose is one where typing destroys the marker, and the item is empty, so nothing
-  else about the line depends on the column.
+- **D5 moves a caret four characters, so its reach is where the risk lives.** The first version
+  reached too far: it took a `derived` placement whose mapped column was the boundary, which is
+  the column Home lands on, so Tab relocated a caret the user had put there. D5 records that
+  correction. What remains is that a caret this procedure CHOOSES lands four characters right of
+  where the same operation would leave one on any other kind — intended, and the reason every
+  case that must NOT move has a test of its own.
 
 ## Open Questions
 

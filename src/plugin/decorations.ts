@@ -1574,7 +1574,10 @@ function computeOrderedDigits(state: EditorState, modes: DecorationSource): Deco
     if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
     const match = ORDERED_DIGITS_RE.exec(line.text);
-    if (!match) continue; // a bullet or a task; styles.css handles those
+    // A bullet has `.list-bullet` and needs no mark of ours. An ordered TASK
+    // item does match, and is marked: only its CSS sizing is scoped away from
+    // task lines, so the span it gets is inert rather than absent.
+    if (!match) continue;
     const from = line.from + match[1]!.length;
     builder.add(from, from + match[2]!.length, Decoration.mark({ class: ORDERED_DIGITS_CLASS }));
   }
