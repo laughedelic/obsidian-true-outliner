@@ -277,6 +277,40 @@
   > .cm-line.to-decor-list:not(.HyperMD-task-line)
   .cm-formatting-list-ol {
   transform: translateX(calc(var(--to-marker-icon-size, 0.85rem) / -2));
+  /*
+   * `transform` moves ink, not layout, so the item's own text kept starting at
+   * the box's untransformed right edge — a gap between a number and its text as
+   * wide as the shift, widest on a marker too wide for the gutter, where it
+   * shows most. The box moves with the ink instead, and the digits' own rule
+   * below hands the shift back so the text column is where it always was.
+   */
+  margin-inline-end: calc(var(--to-marker-icon-size, 0.85rem) / -2);
+}
+
+/*
+ * The digits' own box (`ORDERED_DIGITS_CLASS`, decorations.ts).
+ *
+ * An ordered marker is glyphs and nothing else: no `.list-bullet` to carry the
+ * gutter, and — measured on the caret's own line — no element of Obsidian's
+ * own either. So the caret measurement the bullet rule above describes has
+ * nothing inside it to reach, and no width given to the span around the glyphs
+ * can change that. The decoration supplies one element; this sizes it.
+ *
+ * One space short of the gutter for the same reason the bullet is, plus the
+ * shift the rule above takes off the box. `min-width`, so a marker whose glyphs
+ * exceed it (`10. `) overflows and pushes its own text out — and the caret goes
+ * with it, because the run and the box now end together whatever the digits
+ * measure.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-decor-list:not(.HyperMD-task-line)
+  .to-decor-ol-digits {
+  display: inline-block;
+  min-width: calc(
+    var(--to-marker-gutter) - var(--to-space-advance, 0.26em) +
+      var(--to-marker-icon-size, 0.85rem) / 2
+  );
 }
 
 /*
@@ -400,6 +434,27 @@
   > .cm-line.to-decor-list:not(.HyperMD-task-line)
   .list-bullet {
   width: 0;
+  /*
+   * The caret's own share of the gutter.
+   *
+   * CM6 places a caret from a DOM range ending at the position, whose rect
+   * covers the text it crosses plus any element it FULLY CONTAINS. The
+   * `min-width` that sizes the marker SPAN is past that range's end, so the
+   * caret never sees it: on an item with content the position resolves to the
+   * following content span and lands on the text column anyway, and on an empty
+   * one the caret stops where the marker's glyphs stop.
+   *
+   * This element is inside that range, so its width counts. PADDING rather than
+   * `width` because the dot is an absolutely positioned `::after` resolved
+   * against the CONTENT box: a zero-width content box is what puts the dot on
+   * the depth column, and growing the width moves the dot by half the growth.
+   * Padding grows the border box and leaves the content box where it is.
+   *
+   * One space short of the gutter, because the marker's own trailing space
+   * follows this element and completes the run. `--to-space-advance` is
+   * measured live (`MarginCompensation`); no CSS unit expresses it.
+   */
+  padding-inline-end: calc(var(--to-marker-gutter) - var(--to-space-advance, 0.26em));
   /* Dot-sized rather than line-height-tall, so `vertical-align: middle` has the
    * dot's own box to align and lands it on the same optical centre every
    * synthetic marker uses. Natively the box is the full line height and its

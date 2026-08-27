@@ -25,6 +25,7 @@
 
 import type { OutlineDoc, OutlineNode } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
+import { itemContentIsEmpty } from './ops';
 import {
   isAddressable,
   nodeContentEnd,
@@ -313,5 +314,37 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
   // state the selection track parks — so it is filed, not pre-decided here.
   if (bystander) caret = avoidCapturing(facts.after, caret);
 
-  return { caret };
+  return { caret: pastEmptyTaskMarker(facts.after, caret) };
+}
+
+/**
+ * A caret at the content start of an item whose only content is an unchecked
+ * task marker goes to that item's content END instead.
+ *
+ * The marker there is one the keyboard grammar's own continuation rule wrote —
+ * a split of a task item carries `[ ] ` to the new item — and the content start
+ * is in FRONT of it, so typing the first character of what the item is for
+ * produces `- foo[ ] ` and destroys it.
+ *
+ * Stated on the resulting position rather than inside a `CaretOp` case: the
+ * same position is reachable through more than one of them, and a case-by-case
+ * rule is one a case added later can forget. On an item whose content is a bare
+ * marker the two positions coincide, so this is a no-op for every kind but
+ * this one.
+ *
+ * `itemContentIsEmpty` rather than a second definition of emptiness — it is the
+ * predicate Enter's own unwrap ladder consults, so the two cannot drift, and it
+ * already carries the carve-out this needs: a CHECKED box is content the user
+ * ticked and is never skipped.
+ *
+ * Not a claim that `[ ]` is chrome (`enter-and-shift-enter-grammar` D5). The
+ * content boundary, addressability, Home and the selection ladder are all
+ * untouched; one placement moves by four characters.
+ */
+function pastEmptyTaskMarker(doc: OutlineDoc, caret: LinePos): LinePos {
+  const node = nodeAtLine(doc, caret.line);
+  if (!node || !itemContentIsEmpty(node)) return caret;
+  const start = nodeContentStart(doc, node);
+  if (start.line !== caret.line || start.ch !== caret.ch) return caret;
+  return nodeContentEnd(doc, node);
 }

@@ -17,9 +17,17 @@ This is a rendering requirement about where the caret is PAINTED, and carries no
 which document positions a caret may occupy; `content-space-caret` owns that and is unchanged
 by it.
 
-Nothing else this capability positions SHALL move to achieve it. A marker's own column, the
-item's text column, the stated hanging indent and the column a soft-wrapped row lands on are
-all correct and SHALL be identical before and after, for every list kind and at every depth.
+Nothing else this capability positions SHALL move to achieve it, with ONE stated exception. A
+marker's own column, an item's text column, the stated hanging indent and the column a
+soft-wrapped row lands on SHALL be identical before and after, for every list kind and at
+every depth.
+
+The exception: an ordered item whose marker is WIDER than the gutter SHALL begin its text
+where its own number ends, rather than one half-marker-icon further right. The number is
+shifted onto its column by a transform, which moves ink and not layout, so that item's text
+previously began at a point neither the number nor the grid names — the untransformed box's
+edge. This SHALL close that gap. An ordered item whose marker fits the gutter is unaffected,
+its text column being the gutter either way.
 
 #### Scenario: An empty bullet item's caret is where its first character will be
 
@@ -50,4 +58,12 @@ all correct and SHALL be identical before and after, for every list kind and at 
 - **WHEN** a document containing bullet, ordered and task items at several depths, with
   soft-wrapped and hard-continued items among them, is rendered
 - **THEN** every marker's column, every item's text column, every stated hanging indent and
-  every wrapped row's column is what it was before this requirement existed
+  every wrapped row's column is what it was before this requirement existed — save the one
+  stated exception below
+
+#### Scenario: A wide ordered marker's text follows its own number
+
+- **WHEN** a list contains a `9. ` item and a `10. ` item at the same depth
+- **THEN** both numbers still begin on the same left edge, the `10. ` item's text still begins
+  further right than the `9. ` item's, and it begins where its own number ends rather than a
+  half-marker-icon beyond it

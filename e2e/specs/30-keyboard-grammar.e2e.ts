@@ -285,6 +285,26 @@ describe('keyboard grammar', function () {
     expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
   });
 
+  it('Enter on a task item leaves the cursor past the box, so typing fills the item', async function () {
+    // The reported defect, as a document outcome rather than a coordinate: the
+    // continuation rule writes `[ ] ` and used to leave the cursor in FRONT of
+    // it, so the first character typed broke the marker into `- foo[ ] `.
+    await grammarNote('- [x] done\n', 0, 10);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- [x] done\n- [ ] \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 6 });
+
+    await h.keys.type('foo');
+    expect(await h.getBuffer()).toBe('- [x] done\n- [ ] foo\n');
+  });
+
+  it('Enter on a plain item is unchanged — its marker has nothing past it', async function () {
+    await grammarNote('- alpha\n', 0, 7);
+    await h.keys.enter();
+    await h.keys.type('foo');
+    expect(await h.getBuffer()).toBe('- alpha\n- foo\n');
+  });
+
   it('Enter at paragraph end: blank line + cursor; typing creates the sibling', async function () {
     await grammarNote('thought\n\nnext\n', 0, 7);
     await h.keys.enter();

@@ -1531,6 +1531,56 @@ class DecorationsPlugin implements PluginValue {
   }
 }
 
+/**
+ * An ordered item's digits, wrapped so the caret has something to measure.
+ *
+ * CM6 places a caret from a DOM Range ending at the position, and that range's
+ * rect covers the text it crosses plus any element it FULLY CONTAINS. Width
+ * given to an ancestor — the `min-width` that sizes a marker span to the gutter
+ * — lies past the range's end and is invisible to it. On an item with content
+ * the position resolves to the following content span and lands on the text
+ * column anyway; on an EMPTY item the marker's own run is all there is, so the
+ * caret stops wherever the glyphs stop.
+ *
+ * A bullet has an element in that position already (`.list-bullet`, which
+ * styles.css widens). An ordered marker does not: measured against Obsidian
+ * 1.13.7, `.list-number` is not emitted on the caret's own line, and the span
+ * holds the raw text `2. ` with no child at all. This supplies one. The width
+ * and the half-icon shift then live on it (styles.css), where the range reaches
+ * them.
+ *
+ * The mark covers the digits and their punctuation only, never the whitespace
+ * that follows: the whitespace is what the range ends AT, and a box the range
+ * ends inside contributes nothing. Whatever that whitespace measures — one
+ * space, several, a tab — the marker span's own width and the text column stay
+ * equal to each other, because both are the same sum.
+ */
+export const ORDERED_DIGITS_CLASS = 'to-decor-ol-digits';
+
+/** `1.`, `12)` — the run a mark covers, with its offset in the line. */
+const ORDERED_DIGITS_RE = /^([ \t]*)(\d{1,9}[.)])/;
+
+function computeOrderedDigits(state: EditorState, modes: DecorationSource): DecorationSet {
+  const path = state.field(editorInfoField, false)?.file?.path;
+  if (!path || !modes.isOutline(path)) return Decoration.none;
+
+  const totalLines = state.doc.lines;
+  const builder = new RangeSetBuilder<Decoration>();
+  const { facts } = factsFor(state);
+  for (const fact of facts) {
+    // Exactly "list-item first line" — a continuation line repeats no marker,
+    // and no other kind has one of this shape.
+    if (!fact.hasNativeMarker) continue;
+    if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
+    const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
+    const match = ORDERED_DIGITS_RE.exec(line.text);
+    if (!match) continue; // a bullet or a task; styles.css handles those
+    const from = line.from + match[1]!.length;
+    builder.add(from, from + match[2]!.length, Decoration.mark({ class: ORDERED_DIGITS_CLASS }));
+  }
+  return builder.finish();
+}
+
 class MarkersPlugin implements PluginValue {
   decorations: DecorationSet;
 
@@ -1548,6 +1598,26 @@ class MarkersPlugin implements PluginValue {
   private compute(): DecorationSet {
     if (isNestedEditor(this.view)) return Decoration.none;
     return computeMarkers(this.view.state, this.modes);
+  }
+}
+
+class OrderedDigitsPlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly modes: DecorationSource,
+  ) {
+    this.decorations = this.compute();
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  private compute(): DecorationSet {
+    if (isNestedEditor(this.view)) return Decoration.none;
+    return computeOrderedDigits(this.view.state, this.modes);
   }
 }
 
@@ -2168,17 +2238,25 @@ class MarginCompensation implements PluginValue {
    * than `contentDOM` to stay outside CM6's observed subtree, and only on a
    * real change.
    *
-   * Measured from a rendered task line's own leading space rather than from a
-   * bullet's, so the number is the very one being compensated. A note with no
-   * task line in the viewport yields none — and needs none, the rule having
-   * nothing to apply to. The CSS fallback (`0.26em`) reproduces the bundled
-   * font's measurement to within 0.03px and covers the first paint.
+   * Three rules read it now, not one: the task label, the bullet's own width and
+   * the ordered digits' box all stop one space short of the gutter, because on
+   * every kind the marker's trailing space completes the run. So it is a list
+   * line's metric rather than a task label's, and any list line may supply it.
+   *
+   * Two sources, in that order. A task line's leading content space is the one
+   * being compensated where the label rule applies, so it is preferred where a
+   * task line is in the viewport; a plain marker span's own trailing space is
+   * the same character in the same font at the same size, and covers the notes
+   * that have no task line — which, before the bullet and ordered rules existed,
+   * needed no value at all. The CSS fallback (`0.26em`) reproduces the bundled
+   * font's measurement to within 0.03px and covers the first paint only.
    */
-  private measureSpaceAdvance(): void {
+  /** The space Obsidian leaves after a rendered checkbox, when one is in view. */
+  private taskLabelSpace(): Node | null {
     const label = this.view.contentDOM.querySelector<HTMLElement>(
       '.cm-line.to-decor-list.HyperMD-task-line .task-list-label',
     );
-    if (!label) return;
+    if (!label) return null;
     // `Node`, not `Text`: `Text` in this module is CodeMirror's document type.
     let text: Node | null = null;
     for (let node = label.nextSibling; node && !text; node = node.nextSibling) {
@@ -2190,7 +2268,27 @@ class MarginCompensation implements PluginValue {
     }
     // Only a leading space is ours to absorb; anything else means Obsidian
     // tokenised the line differently than this rule assumes.
-    if (!text?.nodeValue?.startsWith(' ')) return;
+    return text?.nodeValue?.startsWith(' ') ? text : null;
+  }
+
+  /** The space a plain list marker ends in — `- `, `1. ` — as the same metric
+   * from a note with no task line in it. The marker span's LAST text node, and
+   * only when it is exactly that one space: a marker written with a tab, or
+   * with several spaces, is not the character these rules subtract. */
+  private markerTrailingSpace(): Node | null {
+    const span = this.view.contentDOM.querySelector<HTMLElement>(
+      '.cm-line.to-decor-list:not(.HyperMD-task-line) .cm-formatting-list',
+    );
+    if (!span) return null;
+    const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
+    let last: Node | null = null;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) last = node;
+    return last?.nodeValue === ' ' ? last : null;
+  }
+
+  private measureSpaceAdvance(): void {
+    const text = this.taskLabelSpace() ?? this.markerTrailingSpace();
+    if (!text) return;
     const range = document.createRange();
     range.setStart(text, 0);
     range.setEnd(text, 1);
@@ -2648,6 +2746,15 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // sidestepping any need to reason about Decoration.line/Decoration.
     // widget ordering at the same document position.
     ViewPlugin.define((view) => new MarkersPlugin(view, modes), {
+      decorations: (v) => v.decorations,
+    }),
+    // The ordered marker's digits, wrapped so the caret can measure them
+    // (`computeOrderedDigits`). Its own plugin for the same reason the two
+    // above are: CM6 merges decoration sets from separate sources, and a
+    // `Decoration.mark` inside a line whose start already carries a
+    // `Decoration.line` would otherwise have to be ordered against it by hand
+    // in one `RangeSetBuilder`.
+    ViewPlugin.define((view) => new OrderedDigitsPlugin(view, modes), {
       decorations: (v) => v.decorations,
     }),
     // A fourth, independent plugin for escalated-selection chrome

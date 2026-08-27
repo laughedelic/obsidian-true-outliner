@@ -174,6 +174,39 @@ function geometry(): Promise<LineGeometry[]> {
   });
 }
 
+/**
+ * The caret's own x, in the same frame `geometry()` reports columns in.
+ *
+ * `coordsAtPos` is the instrument here, and deliberately: Obsidian renders
+ * `.cm-layer.cm-cursorLayer` empty and lets the browser draw the caret from the
+ * DOM selection, and the two agree to the hundredth of a pixel. This suite's
+ * header warns off `coordsAtPos` for a MARKER's box, which is a different
+ * quantity — there it reports the end of the marker's text rather than of its
+ * padded box, which is exactly the thing a caret is.
+ */
+function caretX(lineIndex: number, ch: number): Promise<number> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, lineIndex: number, ch: number) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      cm.focus();
+      const line = cm.state.doc.line(lineIndex + 1);
+      cm.dispatch({ selection: { anchor: line.from + ch } });
+      const coords = cm.coordsAtPos(line.from + ch);
+      if (!coords) throw new Error(`no coords for line ${lineIndex} ch ${ch}`);
+      // Relative to the CONTENT box, the frame `geometry()` reports every
+      // column in — a list line's own box is margin-shifted by its
+      // supplemental depth, so a line-relative x would be a unit short of the
+      // text column it has to be compared with.
+      return +(coords.left - cm.contentDOM.getBoundingClientRect().left).toFixed(2);
+    },
+    lineIndex,
+    ch,
+  );
+}
+
 let seq = 0;
 async function open(md: string, mode: 'on' | 'off' = 'on'): Promise<LineGeometry[]> {
   const note = `Scratch/list-grid-${++seq}.md`;
@@ -637,6 +670,73 @@ describe('lists on the outline grid', function () {
     // a real px value, not the em fallback showing through
     expect(measured.published).toMatch(/^[\d.]+px$/);
     expect(parseFloat(measured.published)).toBeCloseTo(measured.actual, 1);
+  });
+
+  it('publishes it from a plain list too, with no task line anywhere', async function () {
+    // Three rules read this now — the task label, the bullet's own width and the
+    // ordered digits' box — so a note with no task line in it needs the value
+    // just as much. Before the second source existed this document published
+    // nothing and laid its whole list grid out from the fallback.
+    await open(['# H', '', '- one', '1. two', ''].join('\n'));
+    const published = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      return getComputedStyle(cm.dom).getPropertyValue('--to-space-advance').trim();
+    });
+    expect(published).toMatch(/^[\d.]+px$/);
+  });
+
+  /*
+   * The caret on an EMPTY item (list-new-item-caret).
+   *
+   * Only an empty item can show this: with content, CM6 resolves the position
+   * to the start of the following content span and lands on the text column
+   * whatever the marker's own run measures. So every case here reads the caret
+   * on a line that is nothing but its marker, and compares it to a column taken
+   * from a SIBLING that does have text — a relationship, not a pixel.
+   */
+  it('puts an empty bullet item’s caret on its own text column, at two depths', async function () {
+    const rows = await open(['# H', '', '- alpha', '- ', '\t- beta', '\t- ', ''].join('\n'));
+    const top = at(rows, 3);
+    const nested = at(rows, 5);
+    expect(top.textX).toBeNull(); // nothing but the marker on either line
+    expect(nested.textX).toBeNull();
+    // The column its own first character will take, from the sibling above it.
+    expect(await caretX(3, 2)).toBeCloseTo(at(rows, 2).textX!, 1);
+    expect(await caretX(5, 3)).toBeCloseTo(at(rows, 4).textX!, 1);
+  });
+
+  it('puts an empty ordered item’s caret on the same column as a bullet’s', async function () {
+    const rows = await open(['# H', '', '- alpha', '- ', '2. ', ''].join('\n'));
+    expect(await caretX(4, 3)).toBeCloseTo(await caretX(3, 2), 1);
+    expect(await caretX(4, 3)).toBeCloseTo(at(rows, 2).textX!, 1);
+  });
+
+  it('follows a wide ordered marker’s own text out past the gutter', async function () {
+    // `10. ` exceeds the gutter, so its item's text column is the marker's own
+    // right edge rather than the gutter — and the caret goes there with it.
+    const rows = await open(['# H', '', '10. tenth', '10. ', ''].join('\n'));
+    const withText = at(rows, 2);
+    expect(withText.textX! - withText.column).toBeGreaterThan(GUTTER);
+    expect(await caretX(3, 4)).toBeCloseTo(withText.textX!, 1);
+  });
+
+  it('does not move the caret when the first character is typed', async function () {
+    // The defect as reported: the caret sat against the marker and jumped right
+    // on the first keystroke. Same position, before and after.
+    await open(['# H', '', '- alpha', '- ', ''].join('\n'));
+    const before = await caretX(3, 2);
+    await browser.keys(['x']);
+    await browser.pause(200);
+    const after = await caretX(3, 2);
+    expect(after).toBeCloseTo(before, 1);
+  });
+
+  it('leaves an item WITH content where it already was', async function () {
+    const rows = await open(['# H', '', '- alpha', '1. two', ''].join('\n'));
+    expect(await caretX(2, 2)).toBeCloseTo(at(rows, 2).textX!, 1);
+    expect(await caretX(3, 3)).toBeCloseTo(at(rows, 3).textX!, 1);
   });
 
   it('renders the same grid with Obsidian’s indentation guides off', async function () {

@@ -51,10 +51,11 @@ anchor unchanged, so that is the caret the user gets. Typing there yields `- foo
 
 **Non-Goals:**
 
-- No new rendering mechanism. Nothing here is allowed to introduce a per-line pixel
-  measurement; the one font metric already measured (`--to-space-advance`) may be reused and
-  its measurement SOURCE widened, and that is the extent of it. If a kind cannot be closed
-  within that budget, the residual is recorded rather than paid for with new machinery.
+- No pixel measurement added. The one font metric already measured (`--to-space-advance`) may
+  be reused and its measurement SOURCE widened, and that is the extent of it. Every column
+  here stays a `calc()` over facts the layer already publishes. A `Decoration.mark` is new to
+  this layer but not a new mechanism in that sense — it is the same CM6 decoration API the
+  line and widget decorations already use, and it measures nothing.
 - Nothing about which positions a caret may occupy. `content-space-caret` is untouched, `[ ]`
   stays addressable, and Home is unchanged.
 - Nothing about the raw-source-to-rendered transition on a task line; see proposal.md.
@@ -68,18 +69,23 @@ This is the constraint everything else follows from, and it is what
 following content starts at the span's right edge, and gives the caret nothing, because the
 range ends inside the span.
 
-An element BEFORE the position works — a range that fully contains an inline-block covers its
-border box, padding included. A pseudo-element does not: `::after` is not a DOM node, so a
-range that ends at the preceding text node does not reach it. That rules out the cheapest-
-looking fix (`content: ''` padding on the marker span) before it is tried.
+An element BEFORE the position works — a range that FULLY CONTAINS an inline-block covers its
+border box, padding included. An element the range merely ends INSIDE contributes only up to
+the endpoint, which is the same reason the span's own `min-width` is invisible. A
+pseudo-element is not a DOM node at all, so `::after` on the marker span is unreachable too;
+that rules out the cheapest-looking fix before it is tried.
 
-So each kind needs a real element between the depth column and the position. Both exist:
-`.list-bullet` for an unordered item and `.list-number` for an ordered one. Both are present
-on the caret's own line — `.list-bullet` confirmed live (docs/research/14, cited by the
-accent rules), and `.list-number` implied by the same rules, which colour it for the CURRENT
-node and would be dead code if it disappeared under the caret. **Task 1 measures both before
-anything is built**, because if either is absent on the caret's own line that kind's lever
-does not exist and D2/D3 collapse to "record the residual".
+So each kind needs a real element between the depth column and the position, ending before the
+marker's trailing space. Task 1 measured which kinds have one, and they differ:
+
+- **A bullet has one.** `.list-bullet` is present on the caret's own line, `display:
+  inline-flex`, `width: 0`, with an absolutely positioned `::after` at `left: -3.04px`. D2
+  widens it.
+- **An ordered marker has none.** `.list-number` is NOT emitted on the caret's own line: the
+  span holds the raw text `2. ` and no child element at all. An earlier draft of D3 assumed
+  otherwise, from the accent rules that colour `.list-number` for the current node — which
+  turn out to apply only where the line is rendered rather than sourced. D3 supplies the
+  element instead.
 
 ### D2 — The bullet takes the gutter as trailing PADDING, not as width
 
@@ -105,37 +111,46 @@ to put the dot back. Same result, two coupled rules instead of one, and it re-ce
 this layer does not otherwise position. Take it only if the padding box turns out not to
 behave as assumed — which task 1 measures rather than argues.
 
-### D3 — The ordered number's shift moves onto the number itself, so the run ends on the column
+### D3 — The ordered marker's digits are wrapped by a decoration of ours, and that box carries the width
 
-The `transform` is the larger half of the ordered deficit, and it cannot simply be dropped:
-it is what puts a number's left edge where a block marker's is (`outline-decorations`, and
-`56-list-grid` asserts it). Nor can it be compensated on the span — padding after the digits
-is past the range's end, exactly as in D1.
+There is no element inside an ordered marker to widen, and no arrangement of padding, margin
+or `min-width` on the span around it can substitute for one: the gap has to sit between the
+digits and the position, and both ends of that gap are fixed — the digits' left edge by the
+half-icon shift the shared-column requirement pins, and their width by the font. Four
+arrangements were worked through against the measurements before this one; each moved the
+digits, the text column, or nothing at all.
 
-Give the shift and the width to `.list-number` instead:
+So the layer supplies the element. A `Decoration.mark` covers the marker's digits and their
+punctuation — `1.`, `12)` — and never the whitespace that follows, since the whitespace is
+what the range ends AT. The class it carries is sized in `styles.css` the way `.list-bullet`
+is: one space short of the gutter, plus the half-icon the span now gives back.
 
-```
-.list-number { display: inline-block; min-width: calc(var(--to-marker-gutter) - var(--to-space-advance) + var(--to-marker-icon-size) / 2); margin-inline-start: calc(var(--to-marker-icon-size) / -2); }
-```
+The span keeps its `transform` and gains `margin-inline-end: calc(icon / -2)`. `transform`
+moves ink and not layout, so before this the item's own text began at the box's UNTRANSFORMED
+right edge — a gap between a number and its text exactly as wide as the shift. Pulling the box
+in by the same amount puts the text back where it was for a marker that fits the gutter, and
+closes that gap for one that does not.
 
-The digits' painted left edge is where the transform put it. The run ends at
-`−icon/2 + (gutter − advance + icon/2) + advance` = the gutter, so the caret lands on the text
-column. The span's own width is the sum of its children's margin boxes, which is the same
-gutter, so the text column does not move either. `min-width` rather than `width` keeps the
-wide-marker exception intact: `10.` overflows its own box, pushes its item's text out, and the
-caret follows it there — which is what the new requirement says it must do.
+Measured after building, against Obsidian 1.13.7 (caret x / that item's own text column):
+`2. ` 20.02 / 20.02, `1. alpha` 20.02 / 20.02, `10. ` 21.36 / 21.36, `100. ` 31.12 / 31.12,
+with the digits' painted left edge on −6.8 in every case. CM6 nests the mark INSIDE Obsidian's
+own token span rather than splitting it, which is the arrangement the arithmetic assumes.
 
-This is the one place the change touches something `56-list-grid` already measures (the
-ordered number's left edge, and the wide-marker push-out). Both are relationships, not pixels,
-and both are preserved by construction — but they are the assertions most likely to catch a
-mistake here, which is the point of them.
+`min-width`, so a marker whose glyphs exceed it overflows, pushes its own text out, and takes
+the caret with it — the run and the box end together whatever the digits measure, so the
+wide-marker exception needs no case of its own.
 
-Alternatives rejected: shifting the outer span by a negative margin and widening its
-`min-width` to compensate leaves the run's end exactly where the transform left it (the text
-moves with the box), so it buys nothing; suppressing the shift while the item is empty makes
-the mark's own position depend on whether the item has content, which is the chrome-shape
-dependence this codebase refuses elsewhere; and publishing a per-line measured slack buys the
-same answer for a new measurement mechanism, against D-none-of-that in Non-Goals.
+**This is a deliberate behaviour change beyond the caret**, and the delta states it: a `10. `
+item's text moves one half-icon LEFT, onto the point where its own number ends. That column
+was previously the sum of the untransformed box and a shift applied only to the ink, which is
+not a position anything intended. It also narrows an existing mismatch this change did not set
+out to touch — a wide marker's soft-wrapped rows follow the stated hang while its first row
+follows the marker, and the two were 8.16px apart.
+
+Alternatives rejected: a widget between the digits and the space, or a per-line published
+slack, both of which need the digits' own width measured and so buy the same answer for a new
+measurement mechanism; and suppressing the shift while an item is empty, which makes the
+mark's position depend on whether the item has content.
 
 ### D4 — Widen where `--to-space-advance` is measured from, since D2 and D3 make every list line depend on it
 
@@ -178,22 +193,34 @@ happens to be that content start. That is the intended behaviour, not an acciden
 argument for moving the caret is that typing at that position destroys a marker this grammar
 wrote, and that argument does not depend on which key produced the position.
 
+It closes that kind's geometry as well, which was not the expectation. Measured: with the
+caret at the content start Obsidian renders the line as source and the caret sits at 11.42,
+where that line's own text also begins; with it at the content end — `- [ ] |` — Obsidian
+renders the `.task-list-label` checkbox and the caret measures 19.99, the gutter. So a task
+item needs no CSS of its own here, and the delta's caret requirement is satisfied for it by
+this rule rather than by D2 or D3.
+
 `enter-and-shift-enter-grammar` D5 held "is `[ ]` chrome?" out of scope, and this stays out of
 it. Nothing here changes addressability, the content boundary, Home, or the selection ladder;
 one placement moves by four characters.
 
-### D6 — Verify against the rendered caret, never against `coordsAtPos`
+### D6 — Verify with `coordsAtPos`, which IS the caret here
 
-`56-list-grid`'s header already records that `coordsAtPos` reports the end of a marker's TEXT
-rather than of its box, and that an assertion built on it agreed with the 16px soft-wrap defect
-it was supposed to catch. This defect is the same function reporting the same thing, so an
-e2e that measures the caret with `coordsAtPos` would confirm the bug and pass.
+An earlier draft said the opposite, on the strength of `56-list-grid`'s header recording that
+`coordsAtPos` reports the end of a marker's TEXT rather than of its box. That is true, and it
+is why an assertion built on it agreed with the 16px soft-wrap defect — but the quantity it
+was reporting wrongly there was a marker's BOX. A caret is the other thing.
 
-Measure `.cm-cursor`'s own client rect — what the user actually looks at — and assert it
-against the item's own text column, taken from a sibling item's text node the same way that
-suite already takes text columns. Assert the RELATIONSHIP, never a pixel a glyph's width
-decides: CI's font is not macOS's, and every rewrite this suite has needed came from
-forgetting that.
+Measured: Obsidian renders `.cm-layer.cm-cursorLayer` and leaves it empty — the caret is the
+browser's own, drawn from the DOM selection — so there is no `.cm-cursor` element to measure,
+and the draft's instruction was unfollowable. `coordsAtPos` and the DOM selection's own
+`getBoundingClientRect` agreed to the hundredth of a pixel across all eight probe
+measurements. Either is the caret; `coordsAtPos` is the one the harness already has.
+
+The assertions still take the RELATIONSHIP and never a pixel a glyph's width decides — the
+caret against the item's own text column, taken from a sibling item's text node the way that
+suite already takes text columns. CI's font is not macOS's, and every rewrite this suite has
+needed came from forgetting that.
 
 ### D7 — Negative controls before the fix is trusted
 
@@ -205,12 +232,12 @@ content end coincide and the exception is a no-op by construction.
 
 ## Risks / Trade-offs
 
-- **`.list-bullet` or `.list-number` is absent on the caret's own line** → D2/D3 lose their
-  lever entirely. Measured first (task 1), before any rule is written. If a kind has no
-  element, that kind's residual is recorded in `docs/research/12` and its scenarios are dropped
-  from the delta rather than being asserted against a fix that does not exist.
-- **The range rect may not include an inline-block's padding** → D2's fallback (width plus a
-  re-centred `::after`) is stated and costs one extra rule. Same measurement decides it.
+- **The ordered case now rests on a decoration rather than on Obsidian's own DOM.** A mark
+  where Obsidian already has a token span is a place the two could collide — measured, CM6
+  nests ours inside theirs and splits nothing, but that is an arrangement CM6 chooses and not
+  one this layer states. The e2e asserts the resulting geometry rather than the nesting, so a
+  future CM6 that nested the other way fails loudly on the column rather than silently on the
+  DOM shape.
 - **`--to-space-advance` gains two more consumers**, so a bad measurement now misplaces every
   list line's text run rather than one label's. Mitigated by D4 and by an e2e that a
   bullet-only document publishes a measured value, not the fallback — the suite already has
@@ -219,10 +246,11 @@ content end coincide and the exception is a no-op by construction.
   are the same elements the layer already restyles for size, weight and accent colour, so the
   exposure is not new; the assertions are relationships rather than pixels, so a theme that
   changes the font does not break them.
-- **The ordered rule moves the number's own positioning from the span to the child.** That is
-  the riskiest edit here, because it re-expresses something already correct. It is guarded by
-  the two `56-list-grid` assertions written for it (the shared left edge with a block icon, and
-  the wide-marker push-out), which must be shown to pass unchanged.
+- **A wide ordered marker's text column moves**, by design and not as a side effect — see D3.
+  The two `56-list-grid` assertions written for the ordered marker (the shared left edge with a
+  block icon, and the wide-marker push-out) are relationships rather than pixels and both still
+  hold; they must be shown to pass unchanged, and the delta states the move so it is not read
+  as a regression later.
 - **D5 widens which keypresses can move a caret four characters.** A user who deliberately put
   the caret in front of `[ ]` and then pressed Tab finds it at the line's end. Accepted: the
   position they lose is one where typing destroys the marker, and the item is empty, so nothing

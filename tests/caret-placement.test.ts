@@ -22,6 +22,7 @@ import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { computeVerdict, type EditFact, type Verdict } from '../src/enforce';
 import { applyEdits } from '../src/result';
 import { planKey, type GrammarKey, plannedCaret } from '../src/plugin/grammar';
+import { contentBoundaryCh, isAddressable } from '../src/caret';
 
 const pos = (line: number, ch: number) => ({ line, ch });
 
@@ -257,5 +258,74 @@ describe('a block-cover dispatch states a selection, not a caret', () => {
     // Same shape as before this capability existed: a bare offset, and the
     // mapped column rather than the node's content start.
     expect(typeof withRange.plan.selection).toBe('number');
+  });
+});
+
+/**
+ * The one exception `list-new-item-caret` adds: a caret that would land at the
+ * content start of an item whose only content is an UNCHECKED task marker goes
+ * to the item's content end instead.
+ *
+ * The marker there is one the grammar's own continuation rule wrote, so the
+ * content start in front of it is a position where typing the first character
+ * of what the item is for destroys it. Asserted through the resulting line
+ * text, because `{line, ch}` alone cannot say which side of `[ ] ` a column is.
+ */
+describe('a caret lands past an empty item’s task marker', () => {
+  it('Enter at the end of a task item lands after the box, not in front of it', () => {
+    const landing = grammarLanding('- [x] done\n', { line: 0, ch: 10 }, 'split');
+    expect(landing.line).toBe('- [ ] ');
+    // Was `ch: 2` — between `- ` and `[ ] `, where typing produced `- foo[ ] `.
+    expect(landing.ch).toBe('- [ ] '.length);
+  });
+
+  it('the same for an item created ABOVE, at the donor’s content start', () => {
+    // A split AT the content start inserts the empty sibling before the donor,
+    // so the same marker is written by the other branch of the same rule.
+    const landing = grammarLanding('- [x] done\n', { line: 0, ch: 2 }, 'split');
+    expect(landing.line).toBe('- [ ] ');
+    expect(landing.ch).toBe('- [ ] '.length);
+  });
+
+  it('a nested task item keeps its own indentation in the column', () => {
+    const landing = grammarLanding('- top\n\t- [ ] one\n', { line: 1, ch: 10 }, 'split');
+    expect(landing.line).toBe('\t- [ ] ');
+    expect(landing.ch).toBe('\t- [ ] '.length);
+  });
+
+  it('a plain item is unaffected — its two positions coincide', () => {
+    const landing = grammarLanding('- alpha\n', { line: 0, ch: 7 }, 'split');
+    expect(landing.line).toBe('- ');
+    expect(landing.ch).toBe(2);
+  });
+
+  it('an item with text past the marker keeps the ordinary content start', () => {
+    // Splitting mid-text gives the new item real content, so the exception's
+    // condition does not hold and the caret stays where it always was.
+    const landing = grammarLanding('- [ ] alpha beta\n', { line: 0, ch: 11 }, 'split');
+    expect(landing.line).toBe('- [ ] beta');
+    expect(landing.ch).toBe(2);
+  });
+
+  it('the marker stays ordinary content — every position in it is addressable', () => {
+    // What `enter-and-shift-enter-grammar` D5 protects, and what this exception
+    // must not quietly take: `[ ]` is content, so the boundary is still after
+    // `- ` and every column past it can hold a caret.
+    const doc = parse('- [ ] \n');
+    const node = byLine(doc, '- [ ] ');
+    expect(contentBoundaryCh(node, node.lines[0]!)).toBe(2);
+    for (let ch = 2; ch <= '- [ ] '.length; ch++) {
+      expect(isAddressable(doc, { line: 0, ch })).toBe(true);
+    }
+  });
+
+  it('a CHECKED empty box is content the user ticked, and is not skipped', () => {
+    const doc = parse('- top\n- [x] \n');
+    const node = byLine(doc, '- [x] ');
+    // The predicate the rule reads, asserted directly: everything else in this
+    // group depends on it drawing the line here and not one marker wider.
+    expect(node.lines[0]).toBe('- [x] ');
+    const landing = grammarLanding('- top\n- [x] \n', { line: 1, ch: 2 }, 'move-up');
+    expect(landing.ch).toBe(2);
   });
 });
