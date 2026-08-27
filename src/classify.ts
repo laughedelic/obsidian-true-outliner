@@ -15,7 +15,7 @@
 import type { OutlineDoc } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
 import { parse } from './parse';
-import { contentColumnCh } from './ops';
+import { isContentStartCh } from './ops';
 import { coveredSubtreeRoots } from './escalate';
 import type { LinePos, LineRange } from './line-pos';
 
@@ -310,9 +310,16 @@ function crossesViaChromeDeletion(
     const node = nodeAtLine(doc, span.fromLine);
     if (!node || node.kind !== 'list-item') return false;
     if (nodeStartLine(doc, node.id) !== span.fromLine) return false;
-    const contentCol = contentColumnCh(node.lines[0] ?? '');
+    // Two columns on a task item — after `- ` and after `- [ ] ` — and the
+    // second is where the item's text begins, so it is the one a user reaches
+    // by pressing Home and then Backspace. Recognising only the first left that
+    // keypress classified as an ordinary within-node edit, so the enforcement
+    // layer never saw it and the deletion went through natively as `- [ ]bar`.
+    const line = node.lines[0] ?? '';
     return (
-      span.toCh === contentCol && cursor.line === span.fromLine && cursor.ch === contentCol
+      isContentStartCh(line, span.toCh) &&
+      cursor.line === span.fromLine &&
+      cursor.ch === span.toCh
     );
   }
 

@@ -169,11 +169,106 @@ continuation follows the grid's text column instead, 8.16px left of that row in 
 theme — the same wide-marker exception the grid states elsewhere, and the only part that would
 still need the marker's glyph width to close.
 
-The second offset, about the CARET rather than the text, is untouched and stays open.
+The second offset, about the CARET rather than the text, is still open, and the number above
+is stale — `lists-on-the-outline-grid` changed its sign. Re-measured 2026-08-27 against
+Obsidian 1.13.7, on `\t  ` as the whitespace-only continuation of a depth-1 item: the wrapper's
+STATED width is 44px (the item's own hang) while the text inside it — one `.cm-indent` holding
+the tab, one `.cm-indent-spacing` holding two spaces — runs to 48.38px. The same continuation
+carrying text puts the caret on 44, because CM6 resolves that position to the following
+content span; with nothing following, the caret takes the text's end and lands 4.38px PAST its
+own column instead of 19.25px short of it.
+
+That is the mechanism the entry below this one describes, arriving through the other side: a
+box and its text disagreeing, with the caret following the text. It does not close the same
+way. There the marker's box was wider than its text and an element inside the run could take
+up the slack; here the text is wider than the box, `overflow: hidden` hides the excess from
+the eye but not from the measurement, and closing it means making `.cm-indent` and
+`.cm-indent-spacing` sum to the stated hang rather than adding anything.
 
 Worth keeping as a lesson: "not closable from where this layer stands" was true of the
 mechanism examined and false of the problem, the same shape as the two probes that concluded
 native list columns could only be followed.
+
+### An empty list item's caret is measured from the marker's TEXT, not from its box
+
+**Graduated** — closed by `list-new-item-caret`. Recorded here for the LEVERS it measures,
+which several of the entries above and below turn on: what a caret's own measurement does and
+does not see. One case of the same family stays open and is recorded in the entry above.
+
+CM6 measures a caret from a DOM Range that ends at the position. The rect of that range covers
+the text it crosses and any element it FULLY CONTAINS — an element the range merely ends
+inside contributes only up to the endpoint. Width given to an ancestor, such as the
+`min-width` that sizes a marker span to the gutter, lies past the range's end and is invisible
+to it. On an item WITH content the position resolves to the start of the following content
+span and lands on the text column anyway; on an EMPTY item the marker's own run is all there
+is to measure.
+
+Measured against Obsidian 1.13.7 in the e2e harness, bundled theme, 16px root, unit 24px,
+gutter 20px. `x` is relative to the line's own box; "run end" is a Range over the marker span's
+own text.
+
+| Empty item | Caret | Marker run end | Marker span box | Text column (same shape, with text) |
+|---|---|---|---|---|
+| `- ` | 4.19 | 4.19 | [0, 20] | 20 |
+| `- ` nested one level | 28.19 | 28.19 | [24, 44] | 44 |
+| `2. ` | 11.59 | 11.59 | painted [−6.8, 13.2], layout [0, 20] | 20 |
+| `10. ` | 21.36 | 21.36 | painted [−6.8, 21.36], layout [0, 28.16] | 28.16 |
+| `- [ ] `, caret at ch 2 | 11.42 | 11.42 | [0, 11.42] | 11.42 |
+| `- [ ] `, caret at ch 6 | 19.99 | — (widget) | — | — |
+
+Four findings, each of which decided something:
+
+1. **The native caret is the caret.** Obsidian renders `.cm-layer.cm-cursorLayer` but leaves it
+   empty — the caret is the browser's own, drawn from the DOM selection. `coordsAtPos` and the
+   DOM selection's own rect agreed to the hundredth of a pixel in all eight measurements, so
+   `coordsAtPos` is the right instrument for a CARET even though it is the wrong one for a
+   marker's BOX (the soft-wrap defect `lists-on-the-outline-grid` closed).
+2. **A bullet has an element inside the run; an ordered number does not.** `.list-bullet` is
+   present on the caret's own line, `display: inline-flex`, `width: 0`, with an absolutely
+   positioned `::after` at `left: -3.04px` — so the dot's centre is on the depth column because
+   the box is zero-wide there. `.list-number` is NOT emitted on the caret's own line: the
+   ordered marker span holds the raw text `2. ` and no child element at all.
+3. **Trailing PADDING on the bullet moves the caret and leaves the dot alone; width moves
+   both.** With `padding-inline-end: 10px` the caret went 4.19 → 14.19 and the dot's centre
+   stayed on 0; with `width: 10px` the caret went to 14.19 and the dot's centre moved to 5,
+   because the `::after`'s own `left` is resolved against the content box. With
+   `padding-inline-end: calc(var(--to-marker-gutter) - var(--to-space-advance))` the caret
+   landed on 20.02 against a text column of 20.
+4. **A task item's caret at its content END renders the checkbox and lands on the text
+   column.** With the caret at ch 2 the line shows raw source (`- ` span, `[ ]` span, one
+   space) and every column is the source's. With it at ch 6 — `- [ ] |` — Obsidian renders the
+   `.task-list-label` widget and the caret measures 19.99, the gutter. The placement change and
+   the geometry are the same fix for that kind.
+
+The ordered case is the one finding 2 leaves without a lever, and it is two terms: the
+`translateX(-icon/2)` that puts a number's left edge on a block icon's moves the measured run
+as well as the ink, and the `min-width` slack accounts for the rest. `transform` does not move
+LAYOUT, which is why the following text still starts at the untransformed box edge — and why a
+wide `10. ` renders its text 6.8px right of where its own glyphs end.
+
+**How it was closed.** A `Decoration.mark` supplies the element finding 2 says Obsidian does
+not: it wraps the marker's digits, and `styles.css` sizes that box the way it sizes
+`.list-bullet`. The span also gives back the shift with a negative inline-end margin, so a
+number's own text stops trailing 6.8px behind its glyphs. After: caret and text column agree at
+20.02 for `- ` and `2. `, 21.36 for `10. `, 31.12 for `100. `, with every number's painted left
+edge still on −6.8.
+
+One case the close does NOT reach: a marker followed by more than one space. The sizing adds
+"the gutter, less one space", which is the shortfall only when the marker carries exactly one,
+so it is gated on that (`ONE_SPACE_MARKER_CLASS`) and a wider marker renders as it always did —
+its column intact, its empty-item caret still short of it. Closing that needs the free space
+distributed by the layout engine; measured, making the marker span a flex container moves the
+bullet's dot off its column, because the growth lands on the content box Obsidian centres the
+dot in.
+
+A fourth finding came out of the same family later, and is worth keeping beside these because
+it is not about pixels at all: `contentColumnCh` stops after a list marker, so on a task item
+the column a user reads as "where content starts" was four characters right of the one the code
+used. That gap turned up in four places — the split's insert-before test, the classifier that
+decides a Backspace crosses a boundary, the merge's own marker strip, and caret placement —
+each with its own symptom. The lesson is the one this file keeps relearning: a boundary that
+several gestures share needs one definition, and a marker Obsidian renders as chrome is not
+automatically chrome to the code that reads the line.
 
 ### A structural key pressed on a provisional position leaves the blank line in the file
 

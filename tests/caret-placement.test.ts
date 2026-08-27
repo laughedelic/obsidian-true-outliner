@@ -22,6 +22,7 @@ import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { computeVerdict, type EditFact, type Verdict } from '../src/enforce';
 import { applyEdits } from '../src/result';
 import { planKey, type GrammarKey, plannedCaret } from '../src/plugin/grammar';
+import { contentBoundaryCh, isAddressable } from '../src/caret';
 
 const pos = (line: number, ch: number) => ({ line, ch });
 
@@ -257,5 +258,101 @@ describe('a block-cover dispatch states a selection, not a caret', () => {
     // Same shape as before this capability existed: a bare offset, and the
     // mapped column rather than the node's content start.
     expect(typeof withRange.plan.selection).toBe('number');
+  });
+});
+
+/**
+ * The one exception `list-new-item-caret` adds: a caret that would land at a
+ * task item's content start goes past the task marker, to where the item's own
+ * text begins.
+ *
+ * Written first for an EMPTY item only, and widened after a report that an
+ * interior split misplaced the caret the same way — the marker sits between the
+ * boundary and the text whether or not there is text after it, and typing in
+ * front of it destroys it either way. Asserted through the resulting line text,
+ * because `{line, ch}` alone cannot say which side of `[ ] ` a column is.
+ */
+describe('a caret lands past a task item’s marker', () => {
+  it('Enter at the end of a task item lands after the box, not in front of it', () => {
+    const landing = grammarLanding('- [x] done\n', { line: 0, ch: 10 }, 'split');
+    expect(landing.line).toBe('- [ ] ');
+    // Was `ch: 2` — between `- ` and `[ ] `, where typing produced `- foo[ ] `.
+    expect(landing.ch).toBe('- [ ] '.length);
+  });
+
+  it('the same for an item created ABOVE, at the donor’s content start', () => {
+    // A split AT the content start inserts the empty sibling before the donor,
+    // so the same marker is written by the other branch of the same rule.
+    const landing = grammarLanding('- [x] done\n', { line: 0, ch: 2 }, 'split');
+    expect(landing.line).toBe('- [ ] ');
+    expect(landing.ch).toBe('- [ ] '.length);
+  });
+
+  it('a nested task item keeps its own indentation in the column', () => {
+    const landing = grammarLanding('- top\n\t- [ ] one\n', { line: 1, ch: 10 }, 'split');
+    expect(landing.line).toBe('\t- [ ] ');
+    expect(landing.ch).toBe('\t- [ ] '.length);
+  });
+
+  it('a plain item is unaffected — its two positions coincide', () => {
+    const landing = grammarLanding('- alpha\n', { line: 0, ch: 7 }, 'split');
+    expect(landing.line).toBe('- ');
+    expect(landing.ch).toBe(2);
+  });
+
+  it('an interior split lands where the new item’s own text begins', () => {
+    // Was `ch: 2`, on the narrower rule that asked whether the item was empty:
+    // splitting `- [ ] foo|bar` left the caret in front of the new item's box,
+    // where the first character typed would have destroyed it.
+    const landing = grammarLanding('- [ ] alpha beta\n', { line: 0, ch: 11 }, 'split');
+    expect(landing.line).toBe('- [ ] beta');
+    expect(landing.ch).toBe('- [ ] '.length);
+  });
+
+  it('a column the user chose inside the marker is kept, not snapped', () => {
+    // An indent carries a caret parked inside `[ ]` along; `[ ]` stays editable.
+    const landing = grammarLanding('- top\n- [ ] alpha\n', { line: 1, ch: 4 }, 'indent');
+    // Two columns past the item's own `[`, wherever the indent unit put it.
+    expect(landing.ch).toBe(landing.line.indexOf('[') + 2);
+  });
+
+  it('and so is the column Home itself lands on', () => {
+    // The hard case, and the one the first version of this rule got wrong: ch 2
+    // is BOTH the boundary the rule fires on and a column the user can choose —
+    // it is exactly where Home lands. A `derived` placement carries the user's
+    // own column forward, so an indent from there must not relocate it, or Home
+    // and Tab disagree about a position `content-space-caret` keeps addressable.
+    const landing = grammarLanding('- top\n- [ ] alpha\n', { line: 1, ch: 2 }, 'indent');
+    expect(landing.ch).toBe(landing.line.indexOf('['));
+  });
+
+  it('but a placement the procedure CHOOSES still moves past the marker', () => {
+    // The other side of the same line: `subject` picks the content start rather
+    // than carrying one, so it takes the rule.
+    const landing = grammarLanding('- top\n- [ ] alpha\n', { line: 1, ch: 11 }, 'move-up');
+    expect(landing.line).toBe('- [ ] alpha');
+    expect(landing.ch).toBe('- [ ] '.length);
+  });
+
+  it('the marker stays ordinary content — every position in it is addressable', () => {
+    // What `enter-and-shift-enter-grammar` D5 protects, and what this exception
+    // must not quietly take: `[ ]` is content, so the boundary is still after
+    // `- ` and every column past it can hold a caret.
+    const doc = parse('- [ ] \n');
+    const node = byLine(doc, '- [ ] ');
+    expect(contentBoundaryCh(node, node.lines[0]!)).toBe(2);
+    for (let ch = 2; ch <= '- [ ] '.length; ch++) {
+      expect(isAddressable(doc, { line: 0, ch })).toBe(true);
+    }
+  });
+
+  it('a CHECKED box is not a special case — the text begins in the same place', () => {
+    // Was `ch: 2`, on the narrower rule, which borrowed `itemContentIsEmpty`'s
+    // carve-out for a ticked box. That carve-out belongs to the unwrap ladder,
+    // which decides whether an item may be outdented away; where an item's text
+    // begins is not a function of its state.
+    const landing = grammarLanding('- top\n- [x] done\n', { line: 1, ch: 10 }, 'move-up');
+    expect(landing.line).toBe('- [x] done');
+    expect(landing.ch).toBe('- [x] '.length);
   });
 });

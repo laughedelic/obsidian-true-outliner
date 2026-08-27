@@ -1,0 +1,150 @@
+## Why
+
+Press Enter on a bullet item in outline mode and the caret lands hard against the bullet,
+about 16px left of where the first character will appear; the moment one is typed the caret
+jumps right to meet it. Reported from manual testing, reproduced, and traced.
+
+It is a regression from `lists-on-the-outline-grid` (archived 2026-08-25). Task 3.4 of that
+change gave `.cm-formatting-list` `display: inline-block` and `min-width:
+var(--to-marker-gutter)`, which is what makes an item's text column the gutter by
+construction. That sizes the marker's BOX. CM6 measures a caret from the TEXT RUN inside it,
+and the two are no longer the same thing: a bullet's `-` lives in a `width: 0`
+`.list-bullet`, so the text of `- ` measures only its trailing space. On an item WITH content
+the position resolves to the start of the following content span and lands correctly; on an
+EMPTY item there is no following span, so the caret takes the end of the marker's text.
+
+Measured (bundled theme, macOS, 16px root, unit 24px, gutter 20px), caret x against the
+item's own text column:
+
+| Empty item | Caret | Text column | Short by |
+|---|---|---|---|
+| `- ` | 4.19 | 20 | 15.81 |
+| `- ` nested one level | 28.19 | 44 | 15.81 |
+| `2. ` | 11.59 | 20 | 8.41 |
+| `- [ ] ` | 11.42 | 20 | 8.58 |
+| paragraph | 20 | 20 | — |
+
+With `styles.css` from before that change, every kind's caret sat exactly on its marker box's
+right edge, because without `min-width` the box WAS the text. Block lines are unaffected
+throughout: their gutter is line padding, not a box inside the text run.
+
+An empty item is not a rare state — it is what every Enter produces, and what deleting an
+item's text leaves behind. It is also the one moment the caret is the only thing on the line,
+so there is nothing else to read the column from.
+
+The same keypress on a TASK item has a second defect, independent of geometry and older than
+it. Enter on `- [x] done` writes `- [ ] ` and leaves the caret at the item's content start,
+which is between `- ` and `[ ] `. Typing there produces `- foo[ ] ` — the continuation rule
+writes a marker and then puts the caret in front of it, so using it destroys it.
+
+That one turned out to be a family. `contentColumnCh` stops after a list marker, so on a task
+item the column a reader points at as "where the content starts" is four characters right of
+the one the code uses — and four separate gestures read the short one, each with its own
+symptom: the split's insert-before test, the classifier that decides a Backspace crosses a
+node boundary, the merge's own marker strip, and caret placement. Three surfaced from use
+after the first was fixed. They are all here, because they are one boundary.
+
+## What Changes
+
+- **An empty list item's caret sits on the item's own text column** — where its first
+  character will land, for a bullet and for an ordered item, at every nesting depth. The
+  marker's width has to be carried by an element the caret's own measurement crosses, rather
+  than by the span around it; which element, per kind, is what this change settles.
+- **A caret placed at a task item's content start lands past the marker**, where the item's
+  own text begins — whether the item was just created empty or kept its text through a split,
+  and whether or not its box is ticked. Enter on a task item then leaves the caret where the
+  text goes, so typing produces `- [ ] foo` rather than `- foo[ ] `. This is a placement rule
+  only: `[ ]` stays ordinary content, still reachable, still where Home lands, addressability
+  untouched, and a column the user chose is never snapped to it — the question
+  `enter-and-shift-enter-grammar` D5 held out of scope stays out of scope.
+- **A line break where a task item's text begins puts a new item ABOVE it**, as it does on a
+  bullet, instead of taking the interior-split path. `contentColumnCh` stops after `- `, so
+  the position a user reads as that item's content start was interior to the operation. On a
+  childless item that produced the right text and left the caret on the wrong node; on an item
+  WITH children it demoted the item's own text into a child of an empty parent and dropped its
+  task marker on the way — which is the defect the 2026-08-07 split amendment was written to
+  remove, surviving in the one place that amendment could not see. A position INSIDE `[ ]`
+  means the same thing and no longer divides the marker.
+- **Backspace where a task item's text begins joins it to the item above**, instead of
+  deleting one character and leaving a broken `- [ ]bar`. Three gates read the item's content
+  column and all three read the short one: the classifier that decides the deletion crosses a
+  boundary at all, the recognizer that reads it as a merge intent, and the merge itself, which
+  carried the absorbed item's `[ ] ` into the survivor's text.
+- **The text column, the marker column, the hanging indent and the wrapped-row column do not
+  move.** They are correct today and `e2e/specs/56-list-grid.e2e.ts` asserts all four; this
+  change is measured against them holding.
+
+Non-goals, each for its own reason:
+
+- **The raw-source jump on a task line.** With the caret on it, Obsidian renders `- [ ] ` as
+  source with no `.task-list-label`, so the line's own text column IS 11.42 there and the
+  caret agrees with it; the shift to 20 happens when the caret leaves and the checkbox
+  renders. That is live preview expanding source on every task line, empty or not, and not
+  something this layer introduced or can address from where it stands.
+- **Forcing a marker wider than the gutter back onto it.** `10. ` measures 28px against a 20px
+  gutter, so its text starts past the gutter and stays there; the wide-marker exception the grid
+  states elsewhere covers the caret too. The half-icon gap between such a number and its own
+  text IS closed here — see the ordered marker's new margin above — but the marker keeps pushing
+  its text out rather than being squeezed onto a column it does not fit.
+- **The caret on a whitespace-only CONTINUATION line**, which `docs/research/12` records as
+  still open. It is the same mechanism through a different element (`.cm-hmd-list-indent`, now
+  carrying a stated width), so this change measures it rather than closing it, and carries no
+  requirement of its own for it. Measured: the sign has flipped since that entry was written —
+  the caret overshoots its column by 4.38px where the record has it 19.25px short — and the
+  lever here does not reach it, because there the text is WIDER than its box. The corrected
+  number is in the research doc.
+
+## Capabilities
+
+### New Capabilities
+
+None. This corrects where an existing layer renders the caret and where an existing procedure
+places it.
+
+### Modified Capabilities
+
+- `outline-decorations`: a new requirement puts the caret on the item's own text column. The
+  existing column requirement states where a marker, a text column and a wrapped row land, all
+  of which hold and none of which change; what no requirement states is that the caret agrees
+  with the text column on an item that has no text yet.
+- `caret-placement-policy`: "A caret's content start has one definition" gains the
+  task-marker clause — a placement at a task item's content start lands past the marker,
+  where the item's own text begins.
+- `structural-operations`: "Node split" states where a TASK item's content column falls, so
+  the insert-before outcome covers the position a user reads as its content start; "Adjacent-
+  node merge" states that an absorbed item's task marker is stripped with its list marker.
+  Prefixes for these gestures only; the caret, Home and the ladder are untouched.
+- `node-edit-enforcement`: "Content-adjacent deletions become merges or vetoes" states that a
+  task item has TWO content-start positions and both are recognized, while a position inside
+  the marker is ordinary editing.
+
+## Impact
+
+- `styles.css` — the list-grid section's marker rules. The width that makes the text column
+  moves onto elements inside the marker's text run; the ordered marker's `transform` is
+  re-examined, since it moves the measured run as well as the ink.
+- `src/plugin/decorations.ts` — a `Decoration.mark` over an ordered marker's digits, supplying
+  the element Obsidian does not emit on the caret's own line, from its own ViewPlugin as the
+  marker widgets and selection chrome already do; and `MarginCompensation`'s space-advance
+  measurement gains a second source, since three rules read that value now rather than one.
+- `src/caret-policy.ts` — the task-marker clause, applied where the procedure resolves a
+  content start, not at any one call site.
+- `src/ops.ts` — a marker-prefix column that counts a leading task marker, and one predicate
+  over it that `classify.ts` and `enforce.ts` share so their two gates cannot drift.
+  `splitNode` and `mergeNodes` read it; `contentColumnCh` keeps its other callers unchanged.
+- `src/classify.ts`, `src/enforce.ts` — the marker-space deletion shape accepts either of a
+  task item's content-start columns.
+- `tests/split.test.ts`, `tests/edit-ops.test.ts`, `tests/classify.test.ts`,
+  `tests/enforce.test.ts` — the insert-before outcome and its children case, the merge strip,
+  and the classification itself, which is the gate a verdict-level test cannot reach.
+- `tests/caret-placement.test.ts` — the new placement rule, and the non-task cases pinned
+  unchanged.
+- `e2e/specs/56-list-grid.e2e.ts` — caret geometry for an empty item at each kind and depth,
+  alongside the four columns it already guards.
+- `e2e/specs/30-keyboard-grammar.e2e.ts` — Enter on a task item, then a character, yields
+  `- [ ] foo`.
+- No change to the document model or the parse. What is written to disk DOES change, in the
+  two places this change makes task-aware: a line break where a task item's text begins now
+  writes an empty item above rather than dividing the item, and a merge no longer carries the
+  absorbed item's `[ ] ` into the survivor's text. Both are stated as requirements above. No
+  other gesture's output moves.

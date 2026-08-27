@@ -196,6 +196,22 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(await h.getBuffer()).toBe('- alpha\n- beta\n');
   });
 
+  it('Backspace where a task item\'s text begins merges it into the item above', async function () {
+    // Reported: this keypress was not recognised as a merge at all, so it fell
+    // through to an ordinary character deletion and left `- [ ]bar` — a broken
+    // checkbox, with both nodes still there.
+    await outlineNote('- [x] foo\n- [ ] bar\n');
+    // Settled: this line's checkbox widget mounts after the cursor is set and
+    // moves it if it wins the race, and Backspace from the wrong place vetoes
+    // silently instead of merging.
+    await h.setCursorSettled(1, '- [ ] '.length);
+    await browser.keys(Key.Backspace);
+    expect(await h.getBuffer()).toBe('- [x] foobar\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: '- [x] foo'.length });
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe('- [x] foo\n- [ ] bar\n');
+  });
+
   it('Delete at a list item\'s end mirrors Backspace-at-start behavior; cursor also at the join point', async function () {
     await outlineNote('- alpha\n- beta\n');
     await h.setCursor(0, '- alpha'.length); // end of "- alpha"

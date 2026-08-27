@@ -228,6 +228,39 @@ describe('computeVerdict: boundary merges (D4)', () => {
     expect(applyVerdict(md, verdict)).toBe('- alphabeta\n');
   });
 
+  it('Backspace where a TASK item\'s text begins merges, instead of breaking the checkbox', () => {
+    const md = '- [x] foo\n- [ ] bar\n';
+    const doc = parse(md);
+    // The reported shape: the cursor sits after the checkbox, where the item's
+    // text begins. Only `- `'s own column was recognised, so this keypress fell
+    // through to an ordinary deletion and left `- [ ]bar`.
+    const edit: EditFact = { from: pos(1, 5), to: pos(1, 6), insert: '', cursorBefore: pos(1, 6) };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(applyVerdict(md, verdict)).toBe('- [x] foobar\n');
+  });
+
+  it('and the absorbed item\'s task marker goes with its list marker', () => {
+    // The survivor keeps its OWN box; the absorbed one is about to stop
+    // existing, so carrying its `[ ] ` into the text made `- [x] foo[ ] bar`.
+    const md = '- plain\n- [ ] bar\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(1, 5), to: pos(1, 6), insert: '', cursorBefore: pos(1, 6) };
+    expect(applyVerdict(md, computeVerdict('boundary-crossing-edit', doc, edit))).toBe(
+      '- plainbar\n',
+    );
+  });
+
+  it('Backspace at a task item\'s OTHER content column still merges', () => {
+    // Where Home lands, in front of the box. It was already recognised and
+    // stays so — widening the gate must not trade one column for the other.
+    const md = '- [x] foo\n- [ ] bar\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(1, 1), to: pos(1, 2), insert: '', cursorBefore: pos(1, 2) };
+    expect(applyVerdict(md, computeVerdict('boundary-crossing-edit', doc, edit))).toBe(
+      '- [x] foobar\n',
+    );
+  });
+
   it('marker-space Backspace merges a first child item into its parent paragraph', () => {
     const md = 'Para.\n- item\n';
     const doc = parse(md);

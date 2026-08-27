@@ -463,7 +463,11 @@ UNCHECKED whatever the original's state); paragraphs gain the separating blank l
 the boundary rules require.
 
 A split position at the node's own CONTENT START — its first line, at or before its
-content column — SHALL INSERT BEFORE the node rather than split it. The node's own
+content column — SHALL INSERT BEFORE the node rather than split it. For a list item
+carrying a TASK MARKER, that content column SHALL fall after the marker: a position in
+front of `[ ]`, inside it, or immediately after it all name the same intent, and none of
+them divides the marker. The marker is a prefix for SPLITTING only — it remains ordinary
+content to the caret, to Home, and to the selection ladder. The node's own
 lines, children, depth and trailing gap SHALL be unchanged, and the operation's anchor
 SHALL be the inserted empty position, not the node's text. Where the node's SIBLING
 scope has an empty markdown encoding, an empty node SHALL be materialized there: a list
@@ -544,6 +548,18 @@ and the per-kind whitespace difference were found in the same pass.)*
   end of its own text
 - **THEN** the item's OWN trailing gap widens by two blank lines with the cursor on the
   first — between the item and that paragraph — and nothing is added after the subtree
+
+#### Scenario: Split where a task item's text begins inserts an empty item before it
+- **WHEN** `- [ ] bar` with a child is split at the position its text begins — after the
+  checkbox
+- **THEN** an empty `- [ ] ` is inserted as its preceding sibling, `- [ ] bar` keeps its own
+  line, marker, depth and child verbatim, and the anchor is in the new empty item
+
+#### Scenario: A position inside a task marker never divides it
+- **WHEN** a task item is split at any position from its list marker's end through its task
+  marker's end
+- **THEN** every one of them produces the same result as the scenario above, and no result
+  contains a partial `[ ]`
 
 #### Scenario: Split at a node's content start inserts an empty sibling before it
 - **WHEN** `- alpha` with a child `- child` is split at its content column
@@ -710,7 +726,7 @@ implementation and exercised by the property suite:
 
 | First ＼ Second | paragraph / list-item | heading | atom |
 |---|---|---|---|
-| **paragraph / list-item** | join: `second`'s first content line (marker stripped) appends to `first`'s last content line; `second`'s continuation lines become `first`-kind continuations; `first` keeps its own kind and marker; `second`'s children re-parent under the merged node at `second`'s former position, re-encoded for the new scope | reject `merge-not-expressible` — absorbing a heading destroys its section's positional anchor | reject `merge-not-expressible` — atoms are opaque units |
+| **paragraph / list-item** | join: `second`'s first content line (its list marker stripped, and a TASK marker with it) appends to `first`'s last content line; `second`'s continuation lines become `first`-kind continuations; `first` keeps its own kind and marker; `second`'s children re-parent under the merged node at `second`'s former position, re-encoded for the new scope | reject `merge-not-expressible` — absorbing a heading destroys its section's positional anchor | reject `merge-not-expressible` — atoms are opaque units |
 | **heading** | join iff `second`'s content is a single line: it appends to the heading's text line, and `second`'s children re-parent as section children; multi-line content rejects `merge-not-expressible` (a markdown heading cannot hold continuation lines) | reject `merge-not-expressible` | reject `merge-not-expressible` |
 | **atom** | reject `merge-not-expressible` | reject `merge-not-expressible` | reject `merge-not-expressible` |
 
@@ -757,6 +773,16 @@ implementation and exercised by the property suite:
 - **THEN** every re-parented line's indentation is shifted by whole tab units to
   match the merged node's real child column — no line ends up with a mix of spaces
   and tabs, and every re-parented node still parses as the same kind it was before
+
+A task marker on the ABSORBED node SHALL be stripped along with its list marker. It states
+something about a node that is ceasing to exist, and carrying it into the survivor's text
+produces a literal `[ ]` mid-line — neither a checkbox nor anything the user wrote. The
+SURVIVOR keeps its own marker, task marker included, exactly as it keeps its own kind.
+
+#### Scenario: An absorbed task item's box goes with its marker
+- **WHEN** `- [ ] bar` is merged into `- [x] foo`
+- **THEN** the result is `- [x] foobar` — the survivor's own box is unchanged and no `[ ]`
+  appears in its text
 
 ### Requirement: Subtree insertion at a boundary
 An `insertSubtrees` operation SHALL splice a parsed sequence of whole subtrees into

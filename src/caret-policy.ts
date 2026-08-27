@@ -25,7 +25,9 @@
 
 import type { OutlineDoc, OutlineNode } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
+import { taskMarkerLength } from './ops';
 import {
+  contentBoundaryCh,
   isAddressable,
   nodeContentEnd,
   nodeContentStart,
@@ -272,6 +274,8 @@ function findById(doc: OutlineDoc, id: number): OutlineNode | undefined {
 export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
   let caret: LinePos;
   let bystander = false;
+  /** The caret IS the user's own column, carried forward — not one chosen here. */
+  let mapped = false;
 
   switch (op.kind) {
     case 'derived':
@@ -279,10 +283,8 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
       // position being mapped is the main selection HEAD, which is a caret
       // only when the selection is empty — with a block cover active it is
       // the cover's end, and a cover ends on the trailing gap line it owns.
-      caret =
-        facts.mapped !== undefined && isAddressable(facts.after, facts.mapped)
-          ? facts.mapped
-          : subjectCaret(facts.after, facts.anchor);
+      mapped = facts.mapped !== undefined && isAddressable(facts.after, facts.mapped);
+      caret = mapped ? facts.mapped! : subjectCaret(facts.after, facts.anchor);
       break;
     case 'subject':
       caret = subjectCaret(facts.after, facts.anchor);
@@ -313,5 +315,49 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
   // state the selection track parks — so it is filed, not pre-decided here.
   if (bystander) caret = avoidCapturing(facts.after, caret);
 
-  return { caret };
+  // Not on a MAPPED caret: that one is the user's own column carried forward, and
+  // the column they chose may BE this boundary — Home lands there. An indent
+  // that relocated it would put Home and Tab at odds over a position
+  // `content-space-caret` deliberately keeps addressable.
+  return { caret: mapped ? caret : pastTaskMarker(facts.after, caret) };
+}
+
+/**
+ * A caret at a task item's content start moves past the task marker, to where
+ * the item's own text begins.
+ *
+ * `[ ] ` sits between the marker boundary every other kind has and the place a
+ * reader would point at as the start of the item. Leaving a caret in front of it
+ * is not a near miss: typing the first character of what the item is FOR
+ * produces `- foo[ ] bar` and destroys it. That is true of an item the grammar
+ * just created empty and of one that kept its text through a split, so the rule
+ * does not ask which.
+ *
+ * Nor does it ask whether the box is ticked. Where an item's text begins is not
+ * a function of its state — `itemContentIsEmpty`'s carve-out for a CHECKED box
+ * belongs to the unwrap ladder, which decides whether an item may be outdented
+ * away, a different question with a different answer.
+ *
+ * Stated on the resulting position rather than inside a `CaretOp` case: the same
+ * position is reachable through more than one of them, and a case-by-case rule
+ * is one a case added later can forget.
+ *
+ * Built on `caret.ts`'s own boundary, not on `ops.ts`' finished column — that
+ * one swallows an ATX prefix too, and would move this caret onto the `#` of
+ * `- # title`, which `caret-placement-policy` states it must not.
+ *
+ * Not a claim that `[ ]` is chrome (`enter-and-shift-enter-grammar` D5). The
+ * content boundary, addressability, Home and the selection ladder are untouched;
+ * a caret an operation PLACES moves by four characters, and one the user puts
+ * there stays where they put it.
+ */
+function pastTaskMarker(doc: OutlineDoc, caret: LinePos): LinePos {
+  const node = nodeAtLine(doc, caret.line);
+  if (!node || node.kind !== 'list-item') return caret;
+  if (nodeStartLine(doc, node.id) !== caret.line) return caret;
+  const line = node.lines[0] ?? '';
+  const boundary = contentBoundaryCh(node, line);
+  if (caret.ch !== boundary) return caret;
+  const task = taskMarkerLength(line.slice(boundary));
+  return task === 0 ? caret : { line: caret.line, ch: boundary + task };
 }

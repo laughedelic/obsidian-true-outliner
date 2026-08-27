@@ -25,6 +25,7 @@ import {
   deleteSubtrees,
   finalize,
   insertSubtrees,
+  isContentStartCh,
   mergeNodes,
   reencodeBlocksForDestination,
   type OpOutput,
@@ -148,12 +149,19 @@ function recognizeMergeIntent(
   // Marker-space deletion at a list item's content start (classified
   // boundary-crossing by the chrome-deletion fact): merge the item into
   // its content-space predecessor.
+  //
+  // A TASK item has two such columns — after `- ` and after `- [ ] ` — and both
+  // are places the caret really sits: the first is where Home lands, the second
+  // is where the item's text begins. Only the first was recognised, so
+  // Backspace where the text begins fell through to an ordinary character
+  // deletion and left `- [ ]bar`: a broken checkbox instead of a join.
   if (edit.from.line === edit.to.line && edit.to.ch - edit.from.ch === 1) {
     const node = nodeAtLine(doc, edit.from.line);
+    const line = node?.lines[0] ?? '';
     if (
       node?.kind === 'list-item' &&
       nodeStartLine(doc, node.id) === edit.from.line &&
-      edit.to.ch === contentColumnCh(node.lines[0] ?? '') &&
+      isContentStartCh(line, edit.to.ch) &&
       posEq(edit.cursorBefore, edit.to)
     ) {
       const predecessor = contentSpacePredecessor(doc, node.id);

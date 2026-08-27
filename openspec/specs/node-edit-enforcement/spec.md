@@ -217,7 +217,10 @@ producing the same edit from the same cursor position is enforced identically):
   into chrome (the separator newline, a gap line's newline, or a list marker's
   trailing space) — merges that node into its content-space predecessor (the node
   whose content ends nearest above; possibly its parent or a previous sibling's
-  deepest descendant).
+  deepest descendant). A TASK item has TWO such positions, and BOTH SHALL be
+  recognized: after its list marker, where Home lands, and after its task marker,
+  where the item's own text begins. A position INSIDE the task marker SHALL NOT be —
+  those characters are the marker's own, and deleting one is ordinary editing.
 - Delete with the cursor at a node's last content character — deleting forward into
   chrome — merges the node's content-space successor into it. When no successor
   exists, the edit passes natively (trailing whitespace editing, nothing structural
@@ -256,6 +259,17 @@ editing.
 - **WHEN** the user presses Backspace at the first character of a heading (a merge
   that would absorb the heading and destroy its section's anchor)
 - **THEN** the document is unchanged and the rejection cue is shown
+
+#### Scenario: Backspace where a task item's text begins merges it
+- **WHEN** the cursor sits immediately after `- [ ] ` on `- [ ] bar`, below `- [x] foo`, and
+  Backspace is pressed
+- **THEN** the two items become `- [x] foobar` in one undo step, with the cursor at the join
+  point — not a character deletion leaving a broken `- [ ]bar` and two nodes
+
+#### Scenario: Both of a task item's content-start positions behave alike
+- **WHEN** Backspace is pressed at either the position after `- ` or the position after
+  `- [ ] ` on the same task item
+- **THEN** both are recognized as the same merge intent and produce the same result
 
 ### Requirement: Structural pastes splice at node boundaries
 A paste or text drop whose inserted content parses as a STRUCTURAL block sequence
