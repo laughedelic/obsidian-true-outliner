@@ -48,6 +48,14 @@ writes a marker and then puts the caret in front of it, so using it destroys it.
   `- [ ] foo`. This is a placement rule only: `[ ]` stays ordinary content, still reachable,
   still where Home lands, and addressability is untouched — the question
   `enter-and-shift-enter-grammar` D5 held out of scope stays out of scope.
+- **A line break where a task item's text begins puts a new item ABOVE it**, as it does on a
+  bullet, instead of taking the interior-split path. `contentColumnCh` stops after `- `, so
+  the position a user reads as that item's content start was interior to the operation. On a
+  childless item that produced the right text and left the caret on the wrong node; on an item
+  WITH children it demoted the item's own text into a child of an empty parent and dropped its
+  task marker on the way — which is the defect the 2026-08-07 split amendment was written to
+  remove, surviving in the one place that amendment could not see. A position INSIDE `[ ]`
+  means the same thing and no longer divides the marker.
 - **The text column, the marker column, the hanging indent and the wrapped-row column do not
   move.** They are correct today and `e2e/specs/56-list-grid.e2e.ts` asserts all four; this
   change is measured against them holding.
@@ -83,6 +91,9 @@ places it.
 - `caret-placement-policy`: "A caret's content start has one definition" gains the
   task-marker clause — where a placement would land inside a marker this grammar wrote,
   it lands after it instead.
+- `structural-operations`: "Node split" states where a TASK item's content column falls, so
+  the insert-before outcome covers the position a user reads as its content start. A prefix
+  for splitting only; the caret, Home and the ladder are untouched.
 
 ## Impact
 
@@ -94,6 +105,10 @@ places it.
   `--to-chevron-dy` by the same route.
 - `src/caret-policy.ts` — the task-marker clause, applied where the procedure resolves a
   content start, not at any one call site.
+- `src/ops.ts` — `splitNode`'s own content-start column counts a leading task marker.
+  `contentColumnCh` keeps its other callers unchanged.
+- `tests/split.test.ts` — the insert-before outcome, the children case, every position inside
+  the marker, and the interior splits pinned unchanged.
 - `tests/caret-placement.test.ts` — the new placement rule, and the non-task cases pinned
   unchanged.
 - `e2e/specs/56-list-grid.e2e.ts` — caret geometry for an empty item at each kind and depth,

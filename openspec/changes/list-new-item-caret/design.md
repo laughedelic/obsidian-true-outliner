@@ -204,6 +204,42 @@ this rule rather than by D2 or D3.
 it. Nothing here changes addressability, the content boundary, Home, or the selection ladder;
 one placement moves by four characters.
 
+### D5a — Splitting gets its own content-start column; `contentColumnCh` keeps its callers
+
+Reported after the caret work landed, and a second instance of the same shape: a task
+marker sitting between the user's idea of where content starts and the code's.
+
+`splitNode` decides between its two outcomes by comparing the position to
+`contentColumnCh`, which stops after `- `. So on `- [ ] bar` the position a user reads as
+the item's content start is ch 6 while the operation's is ch 2, and ch 6 took the INTERIOR
+path. Measured, both halves:
+
+- Childless: `- [x] foo` / `- [ ] bar` split at ch 6 produced the right TEXT
+  (`- [ ] ` above `- [ ] bar`) and anchored on the lower node — the item that kept its text,
+  not the empty one just made.
+- With children: `- [ ] bar` over `- kid` produced `- [ ] ` with `bar` demoted to a CHILD,
+  its task marker gone. That is precisely what the 2026-08-07 amendment to "Node split" was
+  written to remove — "a split at a node's content start demoted the node's own text into a
+  child of an empty parent" — surviving in the one place the amendment could not reach,
+  because `contentColumnCh` does not count `[ ] ` as part of the prefix.
+- Inside the marker: ch 3 divided it, yielding `- [` and `- [ ] ] bar`.
+
+The fix is a split-specific boundary, not a change to `contentColumnCh`. That helper answers
+several other questions — split-point clamping's siblings, chrome recognition, transaction
+classification, the selection ladder — and `caret-placement-policy` states that its marker
+boundary is unchanged and keeps them. Moving it would be the "is `[ ]` chrome" decision D5
+refuses, arrived at sideways.
+
+The clamp `splitNode` already applies is what makes this one rule cover the whole marker:
+a position is raised to the content column before the comparison, so every position from
+the list marker's end through the task marker's end resolves to the same intent, and the
+marker-interior case needs no rule of its own. That mechanism predates this change; it is
+the column it clamps to that was short.
+
+Splitting only, and stated that way in the delta. A ticked box is still content to the
+caret — D5's placement rule leaves `- [x] ` alone — but a line break in front of one still
+means "a new item above", so this boundary does not read the box's state.
+
 ### D6 — Verify with `coordsAtPos`, which IS the caret here
 
 An earlier draft said the opposite, on the strength of `56-list-grid`'s header recording that

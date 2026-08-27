@@ -960,6 +960,31 @@ function itemStyleFrom(donor: OutlineNode | undefined): ListStyle {
 }
 
 /**
+ * Where a line's own content begins for the purpose of SPLITTING it — past the
+ * indentation, the list marker, and a task marker that follows.
+ *
+ * `contentColumnCh` stops after `- `, which is right for the questions it
+ * answers and wrong for this one. A task item's `[ ] ` is not text the user is
+ * dividing: a line break in front of it, behind it, or in the middle of it all
+ * mean the same thing, "put a new item above this one". Measured before this
+ * existed, on `- [ ] bar` with a child and the caret where its text begins:
+ * the interior path took over and produced `- [ ] ` with `bar` demoted to a
+ * CHILD, its task marker dropped — which is the defect the 2026-08-07 amendment
+ * was written to remove, surviving in the one place that amendment could not
+ * see, because `contentColumnCh` does not count `[ ] ` as part of the prefix.
+ * A position inside `[ ]` is worse still: it divided the marker itself.
+ *
+ * Splitting only. Nothing else moves: `[ ]` stays content to the caret, to
+ * `contentColumnCh`'s other callers, and to the selection ladder — the question
+ * `enter-and-shift-enter-grammar` D5 holds out of scope stays out of it.
+ */
+function splitContentColumnCh(line: string): number {
+  const afterMarker = contentColumnCh(line);
+  const task = TASK_MARKER_RE.exec(line.slice(afterMarker));
+  return afterMarker + (task?.[0].length ?? 0);
+}
+
+/**
  * The content-start outcome of `splitNode`: an empty node of the SAME KIND
  * immediately BEFORE `node`, which keeps its own lines, children and depth
  * verbatim. The node's own kind IS its sibling scope's kind, so no destination
@@ -1069,14 +1094,15 @@ export function splitNode(
   // A setext heading's second line is its underline, not text — no split point.
   if (node.kind === 'heading' && node.setext && lineIndex !== 0) return reject('cannot-split');
   const line = node.lines[lineIndex]!;
-  // Never split inside indentation or a list marker.
-  const ch = Math.min(Math.max(position.ch, contentColumnCh(line)), line.length);
+  const contentStart = splitContentColumnCh(line);
+  // Never split inside indentation or a marker.
+  const ch = Math.min(Math.max(position.ch, contentStart), line.length);
 
   // CONTENT START: insert before, divide nothing (structural-operations' "Node
   // split", 2026-08-07 amendment). The clamp above is what makes a caret inside
   // a marker reach this test as a content-start position, so the marker-interior
   // case needs no rule of its own.
-  if (lineIndex === 0 && ch === contentColumnCh(line)) {
+  if (lineIndex === 0 && ch === contentStart) {
     return insertEmptyBefore(doc, path, node);
   }
 

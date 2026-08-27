@@ -460,6 +460,51 @@ describe('splitNode', () => {
     expect(atStart.text).toBe('- [ ] \n- [x] done\n');
   });
 
+  it('a split where a task item’s TEXT begins inserts an empty item above it', () => {
+    // `contentColumnCh` stops after `- `, so the position a user reads as this
+    // item's content start reached the INTERIOR path. Childless, that produced
+    // the right text and anchored on the wrong node.
+    const { text, result } = splitOk('- [x] foo\n- [ ] bar\n', '- [ ] bar', { line: 1, ch: 6 });
+    expect(text).toBe('- [x] foo\n- [ ] \n- [ ] bar\n');
+    // The NEW empty item, not the one that kept the text.
+    expect(result.anchor).toEqual({ line: 1, ch: 2 });
+  });
+
+  it('and does not demote the item’s own text into a child of an empty parent', () => {
+    // The structural half, and the reason this is more than a caret: the
+    // content-adjacent rule fired on a position that is not interior at all, so
+    // `bar` became a CHILD and lost its task marker on the way. That is the
+    // defect the 2026-08-07 amendment removed for every kind whose marker
+    // `contentColumnCh` recognises; `[ ] ` is not one of them.
+    const { text } = splitOk('- [ ] bar\n\t- kid\n', '- [ ] bar', { line: 0, ch: 6 });
+    expect(text).toBe('- [ ] \n- [ ] bar\n\t- kid\n');
+  });
+
+  it('a position inside the checkbox means the same thing, and never divides it', () => {
+    // `- [`, `- [ `, `- [ ]` — all reachable, since `[ ]` stays addressable.
+    // Before, ch 3 produced `- [` + `- [ ] ] bar`, dividing the marker itself.
+    for (const ch of [2, 3, 4, 5, 6]) {
+      const { text } = splitOk('- [ ] bar\n', '- [ ] bar', { line: 0, ch });
+      expect(text).toBe('- [ ] \n- [ ] bar\n');
+    }
+  });
+
+  it('an interior split of a task item is untouched', () => {
+    // One character past the new boundary is interior like any other.
+    const mid = splitOk('- [ ] alpha\n', '- [ ] alpha', { line: 0, ch: 7 });
+    expect(mid.text).toBe('- [ ] a\n- [ ] lpha\n');
+    const end = splitOk('- [ ] alpha\n', '- [ ] alpha', { line: 0, ch: 11 });
+    expect(end.text).toBe('- [ ] alpha\n- [ ] \n');
+  });
+
+  it('a CHECKED item’s marker is a prefix for splitting too', () => {
+    // Splitting is not the caret: the placement rule leaves a ticked box alone
+    // because it is content the user entered, but a line break in front of one
+    // still means "a new item above", not "divide this marker".
+    const { text } = splitOk('- [x] done\n', '- [x] done', { line: 0, ch: 6 });
+    expect(text).toBe('- [ ] \n- [x] done\n');
+  });
+
   it('a plain item is unaffected by the task rule', () => {
     const { text } = splitOk('- alpha\n', '- alpha', { line: 0, ch: 7 });
     expect(text).toBe('- alpha\n- \n');

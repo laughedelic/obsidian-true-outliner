@@ -298,6 +298,25 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('- [x] done\n- [ ] foo\n');
   });
 
+  it('Enter where a task item’s text begins puts the new item ABOVE it', async function () {
+    // The gesture as a user makes it: cursor where the text starts, which on a
+    // task line is right after the checkbox. Same meaning as on a bullet — a new
+    // item above — and the cursor stays on the new one.
+    await grammarNote('- [x] foo\n- [ ] bar\n', 1, 6);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- [x] foo\n- [ ] \n- [ ] bar\n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 6 });
+
+    await h.keys.type('new');
+    expect(await h.getBuffer()).toBe('- [x] foo\n- [ ] new\n- [ ] bar\n');
+  });
+
+  it('and does not demote a task item’s own text into a child', async function () {
+    await grammarNote('- [ ] bar\n\t- kid\n', 0, 6);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- [ ] \n- [ ] bar\n\t- kid\n');
+  });
+
   it('Enter on a plain item is unchanged — its marker has nothing past it', async function () {
     await grammarNote('- alpha\n', 0, 7);
     await h.keys.enter();

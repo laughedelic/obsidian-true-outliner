@@ -87,6 +87,23 @@
       the buffer reads `- [ ] foo`. This is the defect as it was reported — a document outcome,
       not a caret coordinate.
 
+## 5a. Where a task item's content starts, for splitting (design D5a)
+
+- [x] 5a.1 Give `splitNode` its own content-start column (`src/ops.ts`): past the indentation,
+      the list marker, and a leading task marker. Use it for both the clamp and the
+      content-start test, so the marker-interior case keeps needing no rule of its own.
+      `contentColumnCh` is unchanged and keeps its other callers.
+- [x] 5a.2 Unit-test in `tests/split.test.ts`: the insert-before outcome and its anchor; the
+      children case, which is where the old path corrupted the tree; every position from the
+      list marker's end through the task marker's end giving one result; and a CHECKED item,
+      whose box is content to the caret but a prefix to the split.
+- [x] 5a.3 Pin the interior splits unchanged — mid-text and end-of-node still divide the item
+      and still carry the marker to the new one.
+- [x] 5a.4 Negative control: restore the old column and confirm 5a.2's four cases fail while
+      5a.3's still pass.
+- [x] 5a.5 E2e in `30-keyboard-grammar.e2e.ts`: the gesture as reported — cursor where a task
+      item's text begins, Enter, then type — and the children case as a buffer assertion.
+
 ## 6. Rendered verification (design D6, D7)
 
 - [x] 6.1 New cases in `e2e/specs/56-list-grid.e2e.ts`, measuring `.cm-cursor`'s own client rect
