@@ -23,7 +23,10 @@ async function grammarNote(content: string, line: number, ch: number): Promise<v
     await h.waitForNotice('Outline mode on');
     await h.dismissNotices();
   }
-  await h.setCursor(line, ch);
+  // Settled, not just set: a task line's checkbox widget mounts after this and
+  // moves the caret if it wins the race (see the helper). Every test here
+  // presses a key from the position this sets, so it has to be a fact.
+  await h.setCursorSettled(line, ch);
 }
 
 async function modeOff(): Promise<void> {

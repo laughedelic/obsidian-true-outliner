@@ -96,6 +96,57 @@ export function setCursor(line: number, ch: number): Promise<void> {
 }
 
 /** Focus the editor and set a multi-line selection (anchor → head). */
+/**
+ * Sets the cursor and waits until it actually reads back there.
+ *
+ * On a line Obsidian renders a widget for — a task item's checkbox — the mount
+ * issues a SEPARATE, later, unannotated selection dispatch that moves the caret
+ * (docs/research/04 Q25; `resolveForeignCursors` in transaction-filter.ts
+ * corrects where such a caret lands, not the fact that it moved). A test that
+ * sets the cursor and immediately presses a key races that mount: on desktop the
+ * set wins, under mobile emulation it does not, and the keypress then acts from
+ * wherever the mount left the caret — silently testing a different gesture.
+ *
+ * So the position is re-asserted until it holds. This is a PRECONDITION only:
+ * every assertion about where a caret ENDS UP is made after the gesture, so
+ * settling the start cannot hide a placement bug. It fails loudly rather than
+ * proceeding from the wrong place.
+ */
+export async function setCursorSettled(line: number, ch: number): Promise<void> {
+  // The target is what the editor RESOLVES the request to, read in the same
+  // call that makes it: a `ch` past the line's end clamps to its length, and a
+  // position inside a marker is pulled to content start by this plugin's own
+  // filter. Both are synchronous with the dispatch, so this reads the truth
+  // before any later mount can move it — where waiting on the literal `(line,
+  // ch)` would spin forever on a caller that deliberately overshoots.
+  const target = await browser.executeObsidian(
+    ({ app, obsidian }, line, ch) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      view.editor.focus();
+      view.editor.setCursor({ line, ch });
+      return view.editor.getCursor();
+    },
+    line,
+    ch,
+  );
+  await browser.waitUntil(
+    async () => {
+      const at = await getCursor();
+      if (at.line === target.line && at.ch === target.ch) return true;
+      await setCursor(target.line, target.ch);
+      return false;
+    },
+    {
+      timeout: waitBudget(3000),
+      interval: 50,
+      timeoutMsg:
+        `cursor never settled at ${target.line}:${target.ch} ` +
+        `(requested ${line}:${ch})`,
+    },
+  );
+}
+
 export function setSelection(
   anchor: { line: number; ch: number },
   head: { line: number; ch: number },

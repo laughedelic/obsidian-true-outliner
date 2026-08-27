@@ -201,7 +201,10 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     // through to an ordinary character deletion and left `- [ ]bar` — a broken
     // checkbox, with both nodes still there.
     await outlineNote('- [x] foo\n- [ ] bar\n');
-    await h.setCursor(1, '- [ ] '.length);
+    // Settled: this line's checkbox widget mounts after the cursor is set and
+    // moves it if it wins the race, and Backspace from the wrong place vetoes
+    // silently instead of merging.
+    await h.setCursorSettled(1, '- [ ] '.length);
     await browser.keys(Key.Backspace);
     expect(await h.getBuffer()).toBe('- [x] foobar\n');
     expect(await h.getCursor()).toEqual({ line: 0, ch: '- [x] foo'.length });
