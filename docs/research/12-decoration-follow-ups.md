@@ -191,9 +191,9 @@ native list columns could only be followed.
 
 ### An empty list item's caret is measured from the marker's TEXT, not from its box
 
-Reported from manual testing after `lists-on-the-outline-grid` shipped, and being closed by
-`list-new-item-caret`. Recorded here for the LEVERS it measures, which several of the entries
-above and below turn on: what a caret's own measurement does and does not see.
+**Graduated** — closed by `list-new-item-caret`. Recorded here for the LEVERS it measures,
+which several of the entries above and below turn on: what a caret's own measurement does and
+does not see. One case of the same family stays open and is recorded in the entry above.
 
 CM6 measures a caret from a DOM Range that ends at the position. The rect of that range covers
 the text it crosses and any element it FULLY CONTAINS — an element the range merely ends
@@ -245,6 +245,22 @@ The ordered case is the one finding 2 leaves without a lever, and it is two term
 as well as the ink, and the `min-width` slack accounts for the rest. `transform` does not move
 LAYOUT, which is why the following text still starts at the untransformed box edge — and why a
 wide `10. ` renders its text 6.8px right of where its own glyphs end.
+
+**How it was closed.** A `Decoration.mark` supplies the element finding 2 says Obsidian does
+not: it wraps the marker's digits, and `styles.css` sizes that box the way it sizes
+`.list-bullet`. The span also gives back the shift with a negative inline-end margin, so a
+number's own text stops trailing 6.8px behind its glyphs. After: caret and text column agree at
+20.02 for `- ` and `2. `, 21.36 for `10. `, 31.12 for `100. `, with every number's painted left
+edge still on −6.8.
+
+A fourth finding came out of the same family later, and is worth keeping beside these because
+it is not about pixels at all: `contentColumnCh` stops after a list marker, so on a task item
+the column a user reads as "where content starts" was four characters right of the one the code
+used. That gap turned up in four places — the split's insert-before test, the classifier that
+decides a Backspace crosses a boundary, the merge's own marker strip, and caret placement —
+each with its own symptom. The lesson is the one this file keeps relearning: a boundary that
+several gestures share needs one definition, and a marker Obsidian renders as chrome is not
+automatically chrome to the code that reads the line.
 
 ### A structural key pressed on a provisional position leaves the blank line in the file
 

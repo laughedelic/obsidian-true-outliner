@@ -346,11 +346,17 @@ content end coincide and the exception is a no-op by construction.
 
 ## Open Questions
 
-- **The caret on a whitespace-only continuation line** — `docs/research/12` records it as the
-  second, still-open offset of the same family: at end-of-line CM6 measured the caret from the
-  whitespace's own metrics inside a wider span. `lists-on-the-outline-grid` has since given
-  `.cm-hmd-list-indent` a STATED width, which is the D1 shape exactly — a box wider than its
-  text — so the number that doc recorded is stale in an unknown direction. Task 6 measures it
-  and either closes it with the same lever or records what it now is. Deferrable because the
-  answer changes neither the requirements above nor the approach: it is a third instance of a
-  mechanism this change already settles for two.
+None left open. The one this change carried is answered below, and recorded where the defect
+lives rather than here.
+
+- **The caret on a whitespace-only continuation line** — `docs/research/12` recorded it as the
+  second, still-open offset of the same family, and its number was stale in an unknown
+  direction because `lists-on-the-outline-grid` had since given `.cm-hmd-list-indent` a STATED
+  width. Measured (task 7): the sign has flipped. The stated width is 44px against the
+  whitespace's own 48.38px, so the caret now overshoots its column by 4.38px where the old
+  entry had it 19.25px short. It is the D1 mechanism from the other side, and it does not
+  close the same way — there a box was wider than its text and an element inside the run could
+  take up the slack; here the text is wider than the box, `overflow: hidden` hides the excess
+  from the eye but not from the measurement, and closing it means making `.cm-indent` and
+  `.cm-indent-spacing` sum to the hang. Left open, with the corrected number in the research
+  doc.

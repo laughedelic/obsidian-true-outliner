@@ -37,16 +37,25 @@ it. Enter on `- [x] done` writes `- [ ] ` and leaves the caret at the item's con
 which is between `- ` and `[ ] `. Typing there produces `- foo[ ] ` — the continuation rule
 writes a marker and then puts the caret in front of it, so using it destroys it.
 
+That one turned out to be a family. `contentColumnCh` stops after a list marker, so on a task
+item the column a reader points at as "where the content starts" is four characters right of
+the one the code uses — and four separate gestures read the short one, each with its own
+symptom: the split's insert-before test, the classifier that decides a Backspace crosses a
+node boundary, the merge's own marker strip, and caret placement. Three surfaced from use
+after the first was fixed. They are all here, because they are one boundary.
+
 ## What Changes
 
 - **An empty list item's caret sits on the item's own text column** — where its first
   character will land, for a bullet and for an ordered item, at every nesting depth. The
   marker's width has to be carried by an element the caret's own measurement crosses, rather
   than by the span around it; which element, per kind, is what this change settles.
-- **A caret placed on an item whose whole content is a task marker lands after that marker.**
-  Enter on a task item then leaves the caret where the text goes, so typing produces
-  `- [ ] foo`. This is a placement rule only: `[ ]` stays ordinary content, still reachable,
-  still where Home lands, and addressability is untouched — the question
+- **A caret placed at a task item's content start lands past the marker**, where the item's
+  own text begins — whether the item was just created empty or kept its text through a split,
+  and whether or not its box is ticked. Enter on a task item then leaves the caret where the
+  text goes, so typing produces `- [ ] foo` rather than `- foo[ ] `. This is a placement rule
+  only: `[ ]` stays ordinary content, still reachable, still where Home lands, addressability
+  untouched, and a column the user chose is never snapped to it — the question
   `enter-and-shift-enter-grammar` D5 held out of scope stays out of scope.
 - **A line break where a task item's text begins puts a new item ABOVE it**, as it does on a
   bullet, instead of taking the interior-split path. `contentColumnCh` stops after `- `, so
@@ -77,8 +86,11 @@ Non-goals, each for its own reason:
   exception the grid states elsewhere covers the caret too.
 - **The caret on a whitespace-only CONTINUATION line**, which `docs/research/12` records as
   still open. It is the same mechanism through a different element (`.cm-hmd-list-indent`, now
-  carrying a stated width), so this change measures it and either closes it with the same
-  lever or records the measurement — it does not carry a requirement of its own here.
+  carrying a stated width), so this change measures it rather than closing it, and carries no
+  requirement of its own for it. Measured: the sign has flipped since that entry was written —
+  the caret overshoots its column by 4.38px where the record has it 19.25px short — and the
+  lever here does not reach it, because there the text is WIDER than its box. The corrected
+  number is in the research doc.
 
 ## Capabilities
 
@@ -94,8 +106,8 @@ places it.
   of which hold and none of which change; what no requirement states is that the caret agrees
   with the text column on an item that has no text yet.
 - `caret-placement-policy`: "A caret's content start has one definition" gains the
-  task-marker clause — where a placement would land inside a marker this grammar wrote,
-  it lands after it instead.
+  task-marker clause — a placement at a task item's content start lands past the marker,
+  where the item's own text begins.
 - `structural-operations`: "Node split" states where a TASK item's content column falls, so
   the insert-before outcome covers the position a user reads as its content start; "Adjacent-
   node merge" states that an absorbed item's task marker is stripped with its list marker.
@@ -109,9 +121,10 @@ places it.
 - `styles.css` — the list-grid section's marker rules. The width that makes the text column
   moves onto elements inside the marker's text run; the ordered marker's `transform` is
   re-examined, since it moves the measured run as well as the ink.
-- `src/plugin/decorations.ts` — only if measurement shows a per-line measured value is needed
-  for the ordered case; `MarginCompensation` already publishes `--to-space-advance` and
-  `--to-chevron-dy` by the same route.
+- `src/plugin/decorations.ts` — a `Decoration.mark` over an ordered marker's digits, supplying
+  the element Obsidian does not emit on the caret's own line, from its own ViewPlugin as the
+  marker widgets and selection chrome already do; and `MarginCompensation`'s space-advance
+  measurement gains a second source, since three rules read that value now rather than one.
 - `src/caret-policy.ts` — the task-marker clause, applied where the procedure resolves a
   content start, not at any one call site.
 - `src/ops.ts` — a marker-prefix column that counts a leading task marker, and one predicate
