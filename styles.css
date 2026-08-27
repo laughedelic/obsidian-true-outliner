@@ -274,7 +274,7 @@
  */
 .markdown-source-view.mod-cm6
   .cm-content
-  > .cm-line.to-decor-list:not(.HyperMD-task-line)
+  > .cm-line.to-decor-list.to-decor-marker-1sp:not(.HyperMD-task-line)
   .cm-formatting-list-ol {
   transform: translateX(calc(var(--to-marker-icon-size, 0.85rem) / -2));
   /*
@@ -304,7 +304,7 @@
  */
 .markdown-source-view.mod-cm6
   .cm-content
-  > .cm-line.to-decor-list:not(.HyperMD-task-line)
+  > .cm-line.to-decor-list.to-decor-marker-1sp:not(.HyperMD-task-line)
   .to-decor-ol-digits {
   display: inline-block;
   min-width: calc(
@@ -434,6 +434,27 @@
   > .cm-line.to-decor-list:not(.HyperMD-task-line)
   .list-bullet {
   width: 0;
+  /* Dot-sized rather than line-height-tall, so `vertical-align: middle` has the
+   * dot's own box to align and lands it on the same optical centre every
+   * synthetic marker uses. Natively the box is the full line height and its
+   * flex-centred `::after` therefore sits on the text RECT's centre, about
+   * 1.4px below the optical one and ~5px below where a block marker sits —
+   * the two-rules-for-one-column problem. */
+  height: var(--list-bullet-size);
+  vertical-align: middle;
+}
+
+/*
+ * The bullet's own share of the gutter, gated on `to-decor-marker-1sp`
+ * (`ONE_SPACE_MARKER_CLASS`, decorations.ts). What it adds is "the gutter, less
+ * one space", which is the shortfall only when the marker's whitespace IS one
+ * space; on `-  foo` or `-\tfoo` it was added on top of the whitespace already
+ * there and pushed the item's own text off its column.
+ */
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-decor-list.to-decor-marker-1sp:not(.HyperMD-task-line)
+  .list-bullet {
   /*
    * The caret's own share of the gutter.
    *
@@ -455,14 +476,6 @@
    * measured live (`MarginCompensation`); no CSS unit expresses it.
    */
   padding-inline-end: calc(var(--to-marker-gutter) - var(--to-space-advance, 0.26em));
-  /* Dot-sized rather than line-height-tall, so `vertical-align: middle` has the
-   * dot's own box to align and lands it on the same optical centre every
-   * synthetic marker uses. Natively the box is the full line height and its
-   * flex-centred `::after` therefore sits on the text RECT's centre, about
-   * 1.4px below the optical one and ~5px below where a block marker sits —
-   * the two-rules-for-one-column problem. */
-  height: var(--list-bullet-size);
-  vertical-align: middle;
 }
 
 /*

@@ -253,6 +253,14 @@ number's own text stops trailing 6.8px behind its glyphs. After: caret and text 
 20.02 for `- ` and `2. `, 21.36 for `10. `, 31.12 for `100. `, with every number's painted left
 edge still on −6.8.
 
+One case the close does NOT reach: a marker followed by more than one space. The sizing adds
+"the gutter, less one space", which is the shortfall only when the marker carries exactly one,
+so it is gated on that (`ONE_SPACE_MARKER_CLASS`) and a wider marker renders as it always did —
+its column intact, its empty-item caret still short of it. Closing that needs the free space
+distributed by the layout engine; measured, making the marker span a flex container moves the
+bullet's dot off its column, because the growth lands on the content box Obsidian centres the
+dot in.
+
 A fourth finding came out of the same family later, and is worth keeping beside these because
 it is not about pixels at all: `contentColumnCh` stops after a list marker, so on a task item
 the column a user reads as "where content starts" was four characters right of the one the code

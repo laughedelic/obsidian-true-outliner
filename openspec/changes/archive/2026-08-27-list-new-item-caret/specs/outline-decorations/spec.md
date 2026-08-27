@@ -20,7 +20,9 @@ by it.
 Nothing else this capability positions SHALL move to achieve it, with ONE stated exception. A
 marker's own column, an item's text column, the stated hanging indent and the column a
 soft-wrapped row lands on SHALL be identical before and after, for every list kind and at
-every depth.
+every depth — including a marker followed by MORE than one space, or by a tab, both of which
+are ordinary markdown. Where the caret cannot be brought to such an item's text column without
+moving that column, the column wins and the caret is left where it was.
 
 The exception: an ordered item whose marker is WIDER than the gutter SHALL begin its text
 where its own number ends, rather than one half-marker-icon further right. The number is
@@ -46,6 +48,12 @@ its text column being the gutter either way.
 
 - **WHEN** an empty `2. ` item and an empty `- ` item sit at the same depth
 - **THEN** both carets render on the same column, which is that depth's own text column
+
+#### Scenario: A marker with extra whitespace keeps its own column
+- **WHEN** a list contains `- one`, `-  two` and `-\tthree`
+- **THEN** the two-space item's text begins on the same column as the one-space item's, and
+  the tab-separated item begins where its own tab stop puts it — none of them moved to make
+  room for the caret
 
 #### Scenario: An item with content is unchanged
 

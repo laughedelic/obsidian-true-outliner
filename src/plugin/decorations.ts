@@ -995,6 +995,7 @@ function plainOwnShiftExpr(fact: LineDecorationFact): string {
 }
 
 function lineDecoration(
+  lineText: string,
   fact: LineDecorationFact,
   depths: readonly number[],
   trail: PositionTrail,
@@ -1026,6 +1027,9 @@ function lineDecoration(
     // `hasNativeMarker` is exactly "list-item first line" and had no consumer
     // until now.
     styles.push(`--to-list-marker-cols: ${fact.hasNativeMarker ? MARKER_GUTTER_CSS : '0px'}`);
+    if (fact.hasNativeMarker && ONE_SPACE_MARKER_RE.test(lineText)) {
+      cls += ` ${ONE_SPACE_MARKER_CLASS}`;
+    }
   } else if (fact.isAtom) {
     cls = 'to-decor-atom';
     styles.push(`--to-depth: ${fact.depth}`);
@@ -1095,7 +1099,13 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     builder.add(
       from,
       from,
-      lineDecoration(fact, depths, trail, modes.markerHighlight !== 'off'),
+      lineDecoration(
+        state.doc.line(guide.lineNumber + 1).text,
+        fact,
+        depths,
+        trail,
+        modes.markerHighlight !== 'off',
+      ),
     );
   }
   return builder.finish();
@@ -1556,6 +1566,33 @@ class DecorationsPlugin implements PluginValue {
  * equal to each other, because both are the same sum.
  */
 export const ORDERED_DIGITS_CLASS = 'to-decor-ol-digits';
+
+/**
+ * Set on a list line whose marker is followed by EXACTLY ONE space — the shape
+ * the marker-sizing rules in styles.css compensate for, and the only one they
+ * can.
+ *
+ * Those rules add a fixed width to the mark, sized as "the gutter, less one
+ * space". That is right when the marker's own whitespace IS one space, and
+ * wrong otherwise: the width is added ON TOP of whatever whitespace the line
+ * carries, so `-  foo` and `-\tfoo` — both ordinary markdown — had their text
+ * pushed past the column their one-space siblings sit on, and a tab crossed to
+ * the next stop. Measured: `-  foo` moved 20 → 24.18, `2.  foo` 22.58 → 24.19,
+ * and `3.\tfoo` 24 → 41.2.
+ *
+ * A rule that adapts to the actual run needs the free space distributed by the
+ * layout engine, which means making the marker span a flex container — measured
+ * too, and it moves the bullet's dot off its column (the growth lands on the
+ * content box, where Obsidian centres the dot) and re-anchors a tab to a
+ * different stop. So the compensation is gated instead: a marker whose
+ * whitespace is not one space renders exactly as it did before this change, with
+ * its column intact and its caret still short of it — a pre-existing defect left
+ * standing rather than a new one introduced.
+ */
+export const ONE_SPACE_MARKER_CLASS = 'to-decor-marker-1sp';
+
+/** A list marker followed by exactly one space, and nothing else after it. */
+const ONE_SPACE_MARKER_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)]) (?![ \t])/;
 
 /** `1.`, `12)` — the run a mark covers, with its offset in the line. */
 const ORDERED_DIGITS_RE = /^([ \t]*)(\d{1,9}[.)])/;

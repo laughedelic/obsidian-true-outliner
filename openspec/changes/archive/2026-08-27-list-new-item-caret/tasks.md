@@ -57,6 +57,19 @@
       icon size, not from the marker span's box, and `56-list-grid` measures its distance from
       the mark. Run those cases.
 
+## 3a. Gate the compensation on a one-space marker (design D2a)
+
+- [x] 3a.1 Mark the lines the sizing rules can apply to (`ONE_SPACE_MARKER_CLASS`,
+      decorations.ts): a list marker followed by exactly one space, nothing else.
+- [x] 3a.2 Scope the bullet padding, the ordered digits' width and the ordered span's margin to
+      that class, so a marker with more whitespace renders as it did before this change.
+- [x] 3a.3 E2e in `56-list-grid.e2e.ts`: a two-space bullet's text begins where a one-space
+      bullet's does, and a tab-separated marker keeps its own stop — asserted as relationships,
+      never as pixels a space's width decides.
+- [x] 3a.4 Negative control: ungate the rules and confirm that case fails.
+- [x] 3a.5 Record what the gate leaves unfixed — an empty multi-space bullet's caret is still
+      short of its column, which is where it was before this change.
+
 ## 4. Where the space advance comes from (design D4)
 
 - [x] 4.1 Widen `MarginCompensation.measureSpaceAdvance` (src/plugin/decorations.ts) to measure

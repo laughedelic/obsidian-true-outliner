@@ -739,6 +739,25 @@ describe('lists on the outline grid', function () {
     expect(await caretX(3, 3)).toBeCloseTo(at(rows, 3).textX!, 1);
   });
 
+  it('leaves a marker with more than one trailing space on its own column', async function () {
+    // The compensation is sized "gutter, less one space", so it is gated on the
+    // marker actually having one (`ONE_SPACE_MARKER_CLASS`). Ungated it was
+    // added on top of whatever whitespace the line carried: `-  foo` moved 20 →
+    // 24.18 and `3.\tfoo` 24 → 41.2, off the column their one-space siblings
+    // sit on. Assert the RELATIONSHIP — a two-space bullet starts where a
+    // one-space bullet's text starts, whatever the font makes of a space.
+    const rows = await open(
+      ['# H', '', '- one', '-  two', '-\tthree', '', '1. one', '2.  two', ''].join('\n'),
+    );
+    expect(at(rows, 3).textX).toBeCloseTo(at(rows, 2).textX!, 1);
+    // A tab is quantised to its own stop, so it lands where it always did rather
+    // than on the gutter — the point is that this rule does not move it.
+    expect(at(rows, 4).textX! - at(rows, 4).column).toBeGreaterThanOrEqual(GUTTER);
+    // An ordered marker whose whitespace already carries it past the gutter
+    // keeps pushing its own text out, uncompensated.
+    expect(at(rows, 7).textX! - at(rows, 7).column).toBeGreaterThanOrEqual(GUTTER);
+  });
+
   it('renders the same grid with Obsidian’s indentation guides off', async function () {
     // With that setting off Obsidian emits no `.cm-indent` at all and nothing
     // is quantised, so even a FOUR-space level rendered short of its column.

@@ -111,6 +111,28 @@ to put the dot back. Same result, two coupled rules instead of one, and it re-ce
 this layer does not otherwise position. Take it only if the padding box turns out not to
 behave as assumed — which task 1 measures rather than argues.
 
+### D2a — The compensation is gated on the marker having exactly one trailing space
+
+D2 and D3 both size their box as "the gutter, less one space", which is the shortfall only
+when the marker's own whitespace IS one space. A marker may carry more: `-  foo` and `-\tfoo`
+are ordinary markdown. There the fixed width is added ON TOP of the whitespace already
+present, and the item's text moves off the column its one-space siblings sit on. Measured:
+`-  foo` 20 → 24.18, `2.  foo` 22.58 → 24.19, and `3.\tfoo` 24 → 41.2 — that last one because a
+wider digits box pushes the tab past its own stop.
+
+A rule that adapts to the actual run needs the FREE space, which only the layout engine can
+distribute — flexbox. Measured too, and rejected: making the marker span a flex container fixes
+every column, but the growth lands on the bullet's CONTENT box, where Obsidian centres its dot,
+so the dot leaves the depth column; pinning the dot back means restyling a pseudo-element this
+layer otherwise only recolours, and a tab inside a flex container re-anchors to a different
+stop. Two new couplings to fix a case that was never right anyway.
+
+So the compensation is gated instead. `ONE_SPACE_MARKER_CLASS` marks the lines whose marker
+the rules can size, and a marker with any other whitespace renders exactly as it did before
+this change: its column intact, and its caret still short of it where the span's `min-width` is
+what binds. That residual is a pre-existing defect left standing, not a new one — and the
+column, which every other requirement here rests on, is what wins the conflict.
+
 ### D3 — The ordered marker's digits are wrapped by a decoration of ours, and that box carries the width
 
 There is no element inside an ordered marker to widen, and no arrangement of padding, margin
