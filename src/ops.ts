@@ -987,8 +987,19 @@ function itemStyleFrom(donor: OutlineNode | undefined): ListStyle {
  * question.
  */
 export function markerPrefixCh(line: string): number {
-  const afterMarker = contentColumnCh(line);
-  return afterMarker + taskMarkerLength(line.slice(afterMarker));
+  const content = contentColumnCh(line);
+  // The task marker has to follow an actual LIST marker, and follow it
+  // DIRECTLY. `contentColumnCh` swallows an ATX prefix and bare indentation
+  // too, so measuring the task marker from its boundary found one that was
+  // ordinary content: a paragraph reading `[ ] note` reported a prefix of 4, and
+  // `# [ ] title` and `- # [ ] title` reported prefixes reaching past their own
+  // text. Every splittable kind reads this, so Enter inside those characters was
+  // clamped and rerouted to the content-start path — measured: `[ ] note` split
+  // at ch 2 inserted an empty paragraph above instead of dividing the text.
+  const listEnd = LIST_MARKER_SPLIT_RE.exec(line)?.[0].length;
+  if (listEnd === undefined) return content;
+  const task = taskMarkerLength(line.slice(listEnd));
+  return task === 0 ? content : listEnd + task;
 }
 
 /**

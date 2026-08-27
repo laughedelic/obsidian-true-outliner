@@ -197,12 +197,18 @@ swallows an ATX prefix, so sharing it would move this caret onto the `#` of `- #
 which this same requirement states it must not. What the two share is the task marker's own
 length, exported for the purpose, so each adds it to its own boundary.
 
-Its reach is deliberately wide: it also catches a `derived` placement whose mapped column
-happens to be that content start. That is the intended behaviour, not an accident — the
-argument for moving the caret is that typing at that position destroys the marker, and that
-argument does not depend on which key produced the position. It reaches no further than that
-one column, so a caret the user parked INSIDE `[ ]` is carried along unchanged by the same
-operations.
+It applies to a caret this procedure CHOOSES, not to one it carries. A first version made no
+such distinction, on the argument that typing at that position destroys the marker whatever
+key produced it — and review caught what that missed: the boundary is not only where the rule
+fires, it is also where HOME lands, so a `derived` placement carrying the user's own column
+forward could be carrying exactly this one. Measured: Tab from ch 2 on `- [ ] alpha` snapped
+to 8 while ch 4 and ch 8 were preserved. That put Home and Tab at odds over a position
+`content-space-caret` deliberately keeps addressable, and contradicted this capability's own
+statement that an operation preserving a column carries it unchanged.
+
+So `derived` is excluded exactly when its mapped position is the one used. Where that position
+is unusable and the procedure falls back to the subject's content start, it has chosen, and the
+rule applies again.
 
 It closes that kind's geometry as well, which was not the expectation. Measured: with the
 caret at the content start Obsidian renders the line as source and the caret sits at 11.42,

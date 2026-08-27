@@ -64,10 +64,11 @@ ask about markers, not about where a caret may sit.
 - **THEN** the caret is past `[x] `, in the same place an unchecked item's would be
 
 #### Scenario: A column the user chose is not snapped to it
-- **WHEN** the caret sits inside `[ ]` and an operation that preserves the caret's own column
-  runs
-- **THEN** the caret keeps that column — the exception governs where a caret is PLACED, not
-  where one already is
+- **WHEN** the caret sits inside `[ ]`, or on the boundary in front of it where Home lands,
+  and an operation that preserves the caret's own column runs
+- **THEN** the caret keeps that column in both cases — the exception governs where a caret is
+  PLACED, not where one already is, and the boundary is a column the user can choose as well
+  as the one this exception fires on
 
 #### Scenario: A plain empty item is unaffected
 - **WHEN** Enter is pressed at the end of `- alpha`, so a new `- ` item is created

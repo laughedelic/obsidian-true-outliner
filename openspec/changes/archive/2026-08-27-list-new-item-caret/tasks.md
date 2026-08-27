@@ -10,9 +10,13 @@
       is absent, D3 has no lever and the ordered scenarios come out of the delta — record the
       finding and say so rather than substituting a different mechanism.
 - [x] 1.3 Confirm the range semantics D1 rests on, directly rather than by reasoning: give a
-      list-bullet element a trailing padding by hand, then read `.cm-cursor`'s x on that line.
-      The caret moves by the padding or D2's fallback (width plus a re-centred `::after`) is the
-      one to build.
+      list-bullet element a trailing padding by hand, then read the caret's x on that line. The
+      caret moves by the padding or D2's fallback (width plus a re-centred `::after`) is the one
+      to build. Measured: it moves by exactly the padding, and the dot stays on its column. This
+      task was written to read `.cm-cursor`; the same pass found there is no such element —
+      Obsidian leaves the cursor layer empty and the browser draws the caret from the DOM
+      selection, so it was read through `coordsAtPos`, which agrees with that selection's own
+      rect to the hundredth of a pixel (design D6).
 - [x] 1.4 Record all three in `docs/research/12-decoration-follow-ups.md` alongside the
       measurement table this change already carries, whichever way they come out. A measurement
       that decided a design is worth as much as one that found a defect.
@@ -143,9 +147,12 @@
 
 ## 6. Rendered verification (design D6, D7)
 
-- [x] 6.1 New cases in `e2e/specs/56-list-grid.e2e.ts`, measuring `.cm-cursor`'s own client rect
-      and never `coordsAtPos` — that function reports the end of a marker's text and so agrees
-      with this defect, as the suite's own header already records for the soft-wrap case.
+- [x] 6.1 New cases in `e2e/specs/56-list-grid.e2e.ts`, measuring the caret through
+      `coordsAtPos`. This task originally said the opposite — measure `.cm-cursor` and never
+      `coordsAtPos` — on the strength of the suite's own header, which warns off that function
+      for a MARKER's box. Task 1.3 measured that there is no `.cm-cursor` to read and that for a
+      CARET the function agrees with the DOM selection exactly, so D6 was rewritten and this
+      with it.
 - [x] 6.2 An empty `- ` item's caret sits on that item's own text column, at the top level and
       nested two levels deep. Take the text column the way this suite already takes one — from a
       sibling item's text node — so the assertion is a relationship and not a pixel.

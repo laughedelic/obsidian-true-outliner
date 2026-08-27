@@ -310,12 +310,28 @@ describe('a caret lands past a task item’s marker', () => {
   });
 
   it('a column the user chose inside the marker is kept, not snapped', () => {
-    // The rule fires on the content start alone, so it never overrides a column
-    // the user picked — an indent still carries a caret parked inside `[ ]`
-    // along, and `[ ]` stays editable by hand.
+    // An indent carries a caret parked inside `[ ]` along; `[ ]` stays editable.
     const landing = grammarLanding('- top\n- [ ] alpha\n', { line: 1, ch: 4 }, 'indent');
     // Two columns past the item's own `[`, wherever the indent unit put it.
     expect(landing.ch).toBe(landing.line.indexOf('[') + 2);
+  });
+
+  it('and so is the column Home itself lands on', () => {
+    // The hard case, and the one the first version of this rule got wrong: ch 2
+    // is BOTH the boundary the rule fires on and a column the user can choose —
+    // it is exactly where Home lands. A `derived` placement carries the user's
+    // own column forward, so an indent from there must not relocate it, or Home
+    // and Tab disagree about a position `content-space-caret` keeps addressable.
+    const landing = grammarLanding('- top\n- [ ] alpha\n', { line: 1, ch: 2 }, 'indent');
+    expect(landing.ch).toBe(landing.line.indexOf('['));
+  });
+
+  it('but a placement the procedure CHOOSES still moves past the marker', () => {
+    // The other side of the same line: `subject` picks the content start rather
+    // than carrying one, so it takes the rule.
+    const landing = grammarLanding('- top\n- [ ] alpha\n', { line: 1, ch: 11 }, 'move-up');
+    expect(landing.line).toBe('- [ ] alpha');
+    expect(landing.ch).toBe('- [ ] '.length);
   });
 
   it('the marker stays ordinary content — every position in it is addressable', () => {

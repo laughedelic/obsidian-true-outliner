@@ -141,5 +141,8 @@ places it.
   alongside the four columns it already guards.
 - `e2e/specs/30-keyboard-grammar.e2e.ts` — Enter on a task item, then a character, yields
   `- [ ] foo`.
-- No change to the document model, the parse, or anything written to disk beyond where a
-  caret sits.
+- No change to the document model or the parse. What is written to disk DOES change, in the
+  two places this change makes task-aware: a line break where a task item's text begins now
+  writes an empty item above rather than dividing the item, and a merge no longer carries the
+  absorbed item's `[ ] ` into the survivor's text. Both are stated as requirements above. No
+  other gesture's output moves.

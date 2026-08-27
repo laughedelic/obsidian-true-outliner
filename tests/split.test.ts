@@ -505,6 +505,20 @@ describe('splitNode', () => {
     expect(text).toBe('- [ ] \n- [x] done\n');
   });
 
+  it('a task marker counts only where it follows a LIST marker, directly', () => {
+    // `contentColumnCh` swallows an ATX prefix and bare indentation, so measuring
+    // the task marker from its boundary found one in ordinary content. Each of
+    // these was rerouted to the content-start path — an empty node inserted above
+    // instead of the text being divided.
+    expect(splitOk('[ ] note\n', '[ ] note', { line: 0, ch: 2 }).text).toBe('[ \n\n] note\n');
+    expect(splitOk('# [ ] title\n', '# [ ] title', { line: 0, ch: 4 }).text).toBe(
+      '# [ \n\n] title\n',
+    );
+    expect(splitOk('- # [ ] title\n', '- # [ ] title', { line: 0, ch: 5 }).text).toBe(
+      '- # [\n- ] title\n',
+    );
+  });
+
   it('a plain item is unaffected by the task rule', () => {
     const { text } = splitOk('- alpha\n', '- alpha', { line: 0, ch: 7 });
     expect(text).toBe('- alpha\n- \n');

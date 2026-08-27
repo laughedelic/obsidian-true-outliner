@@ -274,6 +274,8 @@ function findById(doc: OutlineDoc, id: number): OutlineNode | undefined {
 export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
   let caret: LinePos;
   let bystander = false;
+  /** The caret IS the user's own column, carried forward — not one chosen here. */
+  let mapped = false;
 
   switch (op.kind) {
     case 'derived':
@@ -281,10 +283,8 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
       // position being mapped is the main selection HEAD, which is a caret
       // only when the selection is empty — with a block cover active it is
       // the cover's end, and a cover ends on the trailing gap line it owns.
-      caret =
-        facts.mapped !== undefined && isAddressable(facts.after, facts.mapped)
-          ? facts.mapped
-          : subjectCaret(facts.after, facts.anchor);
+      mapped = facts.mapped !== undefined && isAddressable(facts.after, facts.mapped);
+      caret = mapped ? facts.mapped! : subjectCaret(facts.after, facts.anchor);
       break;
     case 'subject':
       caret = subjectCaret(facts.after, facts.anchor);
@@ -315,7 +315,11 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
   // state the selection track parks — so it is filed, not pre-decided here.
   if (bystander) caret = avoidCapturing(facts.after, caret);
 
-  return { caret: pastTaskMarker(facts.after, caret) };
+  // Not on a MAPPED caret: that one is the user's own column carried forward, and
+  // the column they chose may BE this boundary — Home lands there. An indent
+  // that relocated it would put Home and Tab at odds over a position
+  // `content-space-caret` deliberately keeps addressable.
+  return { caret: mapped ? caret : pastTaskMarker(facts.after, caret) };
 }
 
 /**
