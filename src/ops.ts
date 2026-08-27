@@ -988,8 +988,21 @@ function itemStyleFrom(donor: OutlineNode | undefined): ListStyle {
  */
 export function markerPrefixCh(line: string): number {
   const afterMarker = contentColumnCh(line);
-  const task = TASK_MARKER_RE.exec(line.slice(afterMarker));
-  return afterMarker + (task?.[0].length ?? 0);
+  return afterMarker + taskMarkerLength(line.slice(afterMarker));
+}
+
+/**
+ * The length of a task marker at the start of `content`, or 0.
+ *
+ * Exported so a caller can add it to ITS OWN marker boundary rather than to
+ * this module's. The two in play differ: `contentColumnCh` also swallows an ATX
+ * prefix, which is right where a `- # title` split lands and wrong for the
+ * caret, whose own boundary (`caret.ts`) leaves the `#` addressable. Sharing the
+ * finished column instead of this length would have moved that caret onto the
+ * `#` — `caret-placement-policy` states it must not.
+ */
+export function taskMarkerLength(content: string): number {
+  return TASK_MARKER_RE.exec(content)?.[0].length ?? 0;
 }
 
 /**

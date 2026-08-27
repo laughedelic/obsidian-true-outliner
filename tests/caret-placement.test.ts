@@ -262,16 +262,17 @@ describe('a block-cover dispatch states a selection, not a caret', () => {
 });
 
 /**
- * The one exception `list-new-item-caret` adds: a caret that would land at the
- * content start of an item whose only content is an UNCHECKED task marker goes
- * to the item's content end instead.
+ * The one exception `list-new-item-caret` adds: a caret that would land at a
+ * task item's content start goes past the task marker, to where the item's own
+ * text begins.
  *
- * The marker there is one the grammar's own continuation rule wrote, so the
- * content start in front of it is a position where typing the first character
- * of what the item is for destroys it. Asserted through the resulting line
- * text, because `{line, ch}` alone cannot say which side of `[ ] ` a column is.
+ * Written first for an EMPTY item only, and widened after a report that an
+ * interior split misplaced the caret the same way — the marker sits between the
+ * boundary and the text whether or not there is text after it, and typing in
+ * front of it destroys it either way. Asserted through the resulting line text,
+ * because `{line, ch}` alone cannot say which side of `[ ] ` a column is.
  */
-describe('a caret lands past an empty item’s task marker', () => {
+describe('a caret lands past a task item’s marker', () => {
   it('Enter at the end of a task item lands after the box, not in front of it', () => {
     const landing = grammarLanding('- [x] done\n', { line: 0, ch: 10 }, 'split');
     expect(landing.line).toBe('- [ ] ');
@@ -299,12 +300,22 @@ describe('a caret lands past an empty item’s task marker', () => {
     expect(landing.ch).toBe(2);
   });
 
-  it('an item with text past the marker keeps the ordinary content start', () => {
-    // Splitting mid-text gives the new item real content, so the exception's
-    // condition does not hold and the caret stays where it always was.
+  it('an interior split lands where the new item’s own text begins', () => {
+    // Was `ch: 2`, on the narrower rule that asked whether the item was empty:
+    // splitting `- [ ] foo|bar` left the caret in front of the new item's box,
+    // where the first character typed would have destroyed it.
     const landing = grammarLanding('- [ ] alpha beta\n', { line: 0, ch: 11 }, 'split');
     expect(landing.line).toBe('- [ ] beta');
-    expect(landing.ch).toBe(2);
+    expect(landing.ch).toBe('- [ ] '.length);
+  });
+
+  it('a column the user chose inside the marker is kept, not snapped', () => {
+    // The rule fires on the content start alone, so it never overrides a column
+    // the user picked — an indent still carries a caret parked inside `[ ]`
+    // along, and `[ ]` stays editable by hand.
+    const landing = grammarLanding('- top\n- [ ] alpha\n', { line: 1, ch: 4 }, 'indent');
+    // Two columns past the item's own `[`, wherever the indent unit put it.
+    expect(landing.ch).toBe(landing.line.indexOf('[') + 2);
   });
 
   it('the marker stays ordinary content — every position in it is addressable', () => {
@@ -319,13 +330,13 @@ describe('a caret lands past an empty item’s task marker', () => {
     }
   });
 
-  it('a CHECKED empty box is content the user ticked, and is not skipped', () => {
-    const doc = parse('- top\n- [x] \n');
-    const node = byLine(doc, '- [x] ');
-    // The predicate the rule reads, asserted directly: everything else in this
-    // group depends on it drawing the line here and not one marker wider.
-    expect(node.lines[0]).toBe('- [x] ');
-    const landing = grammarLanding('- top\n- [x] \n', { line: 1, ch: 2 }, 'move-up');
-    expect(landing.ch).toBe(2);
+  it('a CHECKED box is not a special case — the text begins in the same place', () => {
+    // Was `ch: 2`, on the narrower rule, which borrowed `itemContentIsEmpty`'s
+    // carve-out for a ticked box. That carve-out belongs to the unwrap ladder,
+    // which decides whether an item may be outdented away; where an item's text
+    // begins is not a function of its state.
+    const landing = grammarLanding('- top\n- [x] done\n', { line: 1, ch: 10 }, 'move-up');
+    expect(landing.line).toBe('- [x] done');
+    expect(landing.ch).toBe('- [x] '.length);
   });
 });

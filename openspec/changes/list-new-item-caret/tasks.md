@@ -87,6 +87,22 @@
       the buffer reads `- [ ] foo`. This is the defect as it was reported — a document outcome,
       not a caret coordinate.
 
+## 5c. The placement rule, widened past the empty case (design D5)
+
+- [x] 5c.1 Condition the rule on a task marker at the item's content start rather than on
+      `itemContentIsEmpty`: an interior split of `- [ ] foobar` left the caret in front of the
+      new item's box, and a ticked box was exempted by a carve-out that belongs to the unwrap
+      ladder, not to where an item's text begins.
+- [x] 5c.2 Measure from `caret.ts`'s own boundary, adding the task marker's exported length —
+      `ops.ts`' finished column swallows an ATX prefix and would move this caret onto the `#`
+      of `- # title`, which the same requirement forbids.
+- [x] 5c.3 Flip the two expectations the narrow rule pinned, each naming what it now says and
+      what it used to, per that file's own convention.
+- [x] 5c.4 Pin what the widening must not take: a column the user chose inside `[ ]` is carried
+      forward by an operation that preserves one, not snapped to the marker's end.
+- [x] 5c.5 Negative control: five cases fail with the rule disabled, including the two flipped.
+- [x] 5c.6 E2e in `30-keyboard-grammar.e2e.ts`: Enter mid-text in a task item, then type.
+
 ## 5a. Where a task item's content starts, for splitting (design D5a)
 
 - [x] 5a.1 Give `splitNode` its own content-start column (`src/ops.ts`): past the indentation,

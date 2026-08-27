@@ -183,15 +183,26 @@ rather than on any one `CaretOp` case. Three reasons: the same keypress reaches 
 through more than one case, a case-by-case rule is one that a future case can forget, and the
 outcome form is a total function of the result tree, which is what the policy already is.
 
-The condition reuses `ops.ts`' `itemContentIsEmpty` rather than a second definition of
-emptiness. That predicate already carries the carve-out this needs — UNCHECKED only, because a
-ticked box is content the user entered and must never be skipped — and it is the same
-predicate Enter's unwrap ladder consults, so the two cannot drift.
+The condition is the presence of a task marker at the item's content start, and nothing else.
+An earlier version asked instead whether the item was EMPTY, reusing `itemContentIsEmpty` —
+which was too narrow twice over, reported after it shipped: an interior split of `- [ ] foobar`
+left the caret in front of the new item's box, and a ticked box was exempted for a reason that
+belongs to a different question. `itemContentIsEmpty`'s carve-out serves the unwrap ladder,
+which decides whether Enter may outdent an item away; where an item's TEXT begins is not a
+function of its state, and an item created empty and one that kept its text present the same
+position.
+
+The boundary it measures from is `caret.ts`'s, not `ops.ts`' finished column. That one also
+swallows an ATX prefix, so sharing it would move this caret onto the `#` of `- # title` —
+which this same requirement states it must not. What the two share is the task marker's own
+length, exported for the purpose, so each adds it to its own boundary.
 
 Its reach is deliberately wide: it also catches a `derived` placement whose mapped column
 happens to be that content start. That is the intended behaviour, not an accident — the
-argument for moving the caret is that typing at that position destroys a marker this grammar
-wrote, and that argument does not depend on which key produced the position.
+argument for moving the caret is that typing at that position destroys the marker, and that
+argument does not depend on which key produced the position. It reaches no further than that
+one column, so a caret the user parked INSIDE `[ ]` is carried along unchanged by the same
+operations.
 
 It closes that kind's geometry as well, which was not the expectation. Measured: with the
 caret at the content start Obsidian renders the line as source and the caret sits at 11.42,

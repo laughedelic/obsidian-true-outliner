@@ -311,6 +311,19 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('- [x] foo\n- [ ] new\n- [ ] bar\n');
   });
 
+  it('Enter mid-text in a task item lands where the new item’s text begins', async function () {
+    // `- [ ] foo|bar`: the split carries the box to the new item, and the cursor
+    // belongs after it — in front of it, the first character typed would read
+    // `- foo[ ] bar`.
+    await grammarNote('- [ ] foobar\n', 0, 9);
+    await h.keys.enter();
+    expect(await h.getBuffer()).toBe('- [ ] foo\n- [ ] bar\n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: '- [ ] '.length });
+
+    await h.keys.type('X');
+    expect(await h.getBuffer()).toBe('- [ ] foo\n- [ ] Xbar\n');
+  });
+
   it('and does not demote a task item’s own text into a child', async function () {
     await grammarNote('- [ ] bar\n\t- kid\n', 0, 6);
     await h.keys.enter();

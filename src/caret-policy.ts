@@ -25,8 +25,9 @@
 
 import type { OutlineDoc, OutlineNode } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
-import { itemContentIsEmpty } from './ops';
+import { taskMarkerLength } from './ops';
 import {
+  contentBoundaryCh,
   isAddressable,
   nodeContentEnd,
   nodeContentStart,
@@ -314,37 +315,45 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
   // state the selection track parks — so it is filed, not pre-decided here.
   if (bystander) caret = avoidCapturing(facts.after, caret);
 
-  return { caret: pastEmptyTaskMarker(facts.after, caret) };
+  return { caret: pastTaskMarker(facts.after, caret) };
 }
 
 /**
- * A caret at the content start of an item whose only content is an unchecked
- * task marker goes to that item's content END instead.
+ * A caret at a task item's content start moves past the task marker, to where
+ * the item's own text begins.
  *
- * The marker there is one the keyboard grammar's own continuation rule wrote —
- * a split of a task item carries `[ ] ` to the new item — and the content start
- * is in FRONT of it, so typing the first character of what the item is for
- * produces `- foo[ ] ` and destroys it.
+ * `[ ] ` sits between the marker boundary every other kind has and the place a
+ * reader would point at as the start of the item. Leaving a caret in front of it
+ * is not a near miss: typing the first character of what the item is FOR
+ * produces `- foo[ ] bar` and destroys it. That is true of an item the grammar
+ * just created empty and of one that kept its text through a split, so the rule
+ * does not ask which.
  *
- * Stated on the resulting position rather than inside a `CaretOp` case: the
- * same position is reachable through more than one of them, and a case-by-case
- * rule is one a case added later can forget. On an item whose content is a bare
- * marker the two positions coincide, so this is a no-op for every kind but
- * this one.
+ * Nor does it ask whether the box is ticked. Where an item's text begins is not
+ * a function of its state — `itemContentIsEmpty`'s carve-out for a CHECKED box
+ * belongs to the unwrap ladder, which decides whether an item may be outdented
+ * away, a different question with a different answer.
  *
- * `itemContentIsEmpty` rather than a second definition of emptiness — it is the
- * predicate Enter's own unwrap ladder consults, so the two cannot drift, and it
- * already carries the carve-out this needs: a CHECKED box is content the user
- * ticked and is never skipped.
+ * Stated on the resulting position rather than inside a `CaretOp` case: the same
+ * position is reachable through more than one of them, and a case-by-case rule
+ * is one a case added later can forget.
+ *
+ * Built on `caret.ts`'s own boundary, not on `ops.ts`' finished column — that
+ * one swallows an ATX prefix too, and would move this caret onto the `#` of
+ * `- # title`, which `caret-placement-policy` states it must not.
  *
  * Not a claim that `[ ]` is chrome (`enter-and-shift-enter-grammar` D5). The
- * content boundary, addressability, Home and the selection ladder are all
- * untouched; one placement moves by four characters.
+ * content boundary, addressability, Home and the selection ladder are untouched;
+ * a caret an operation PLACES moves by four characters, and one the user puts
+ * there stays where they put it.
  */
-function pastEmptyTaskMarker(doc: OutlineDoc, caret: LinePos): LinePos {
+function pastTaskMarker(doc: OutlineDoc, caret: LinePos): LinePos {
   const node = nodeAtLine(doc, caret.line);
-  if (!node || !itemContentIsEmpty(node)) return caret;
-  const start = nodeContentStart(doc, node);
-  if (start.line !== caret.line || start.ch !== caret.ch) return caret;
-  return nodeContentEnd(doc, node);
+  if (!node || node.kind !== 'list-item') return caret;
+  if (nodeStartLine(doc, node.id) !== caret.line) return caret;
+  const line = node.lines[0] ?? '';
+  const boundary = contentBoundaryCh(node, line);
+  if (caret.ch !== boundary) return caret;
+  const task = taskMarkerLength(line.slice(boundary));
+  return task === 0 ? caret : { line: caret.line, ch: boundary + task };
 }
