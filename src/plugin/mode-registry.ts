@@ -147,6 +147,10 @@ export function normalizePluginData(raw: unknown): PluginData {
       DEFAULT_DATA.coexistenceWarned,
     ),
     debugCrossCheck: bool(stored.debugCrossCheck, DEFAULT_DATA.debugCrossCheck),
+    debugFooterWidget: bool(
+      stored.debugFooterWidget,
+      DEFAULT_DATA.debugFooterWidget,
+    ),
     markerVisibility: oneOf(
       KNOWN_MARKER_VISIBILITY,
       stored.markerVisibility,

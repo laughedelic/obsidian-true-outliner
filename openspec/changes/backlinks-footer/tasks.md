@@ -98,14 +98,22 @@ next begins; green unit tests are never the gate for anything visual.
 
 ## 7. Chrome refactor (S4 informs this)
 
-- [ ] 7.1 Spike S4: port the guide gradient, marker widget and depth rules to a non-`.cm-line`
-      DOM against the corpus, in both bundled themes; screenshot every fixture; record the verdict
-- [ ] 7.2 Split `styles.css` into a surface-neutral token layer (geometry and colour custom
+> **Order adjusted during apply.** 7.2 and 7.3 stand alone and are done: the token layer is
+> extracted and the editor is proven unchanged by it. 7.1 (S4's screenshot verdict) and 7.4
+> (the footer-scoped layer) both need a footer DOM to render, which is group 8 — CSS written
+> against a DOM that does not exist yet cannot be verified, and a screenshot pass needs
+> something to screenshot. Both move into group 8, where they land with the markup they
+> describe.
+
+- [ ] 7.1 Spike S4 *(runs in group 8)*: port the guide gradient, marker widget and depth rules
+      to a non-`.cm-line` DOM against the corpus, in both bundled themes; screenshot every
+      fixture; record the verdict
+- [x] 7.2 Split `styles.css` into a surface-neutral token layer (geometry and colour custom
       properties, no surface selectors) and the existing CM6-scoped layer that consumes it —
       behaviour-preserving, same properties and values, moved only
-- [ ] 7.3 Run the existing decoration e2e suites and a corpus screenshot pass in both themes to
+- [x] 7.3 Run the existing decoration e2e suites and a corpus screenshot pass in both themes to
       prove the editor is unchanged by the split
-- [ ] 7.4 Add the footer-scoped layer consuming the same tokens
+- [ ] 7.4 Add the footer-scoped layer consuming the same tokens *(runs in group 8, with the DOM it styles)*
 
 ## 8. Footer surface
 

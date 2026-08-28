@@ -15,6 +15,55 @@
  */
 
 /*
+ * ===========================================================================
+ * Chrome tokens — the outline's visual vocabulary, surface-neutral
+ * ===========================================================================
+ *
+ * Defined on `body` rather than on any one surface, because there are now two:
+ * the editor's `.cm-line` chrome and the backlinks footer, which is not made of
+ * `.cm-line`s. A token defined inside one surface's selector is not a shared
+ * vocabulary, it is that surface's private value that the other one has to
+ * duplicate — and duplicated constants agree only until someone edits one.
+ *
+ * Moving them UP the tree also keeps the snippet story intact: a theme that
+ * retuned these at `.cm-content` level still wins on specificity, and can now
+ * retune both surfaces at once from `body` instead.
+ *
+ * The matching JS constants live in `src/plugin/chrome-tokens.ts`; the names
+ * here and there are the contract between them.
+ */
+body {
+  /* The outline unit: one tree level's worth of horizontal distance, and the
+   * only number any layer may derive a column from. Declared rather than left
+   * to `var(--to-decor-unit)` fallbacks scattered through the rules and the JS,
+   * because it also feeds Obsidian's own `--list-indent`
+   * (lists-on-the-outline-grid) — two literals that must agree is exactly the
+   * shape this layer has been bitten by before. A snippet can retune it, and
+   * every kind moves together.
+   *
+   * `rem`, never `em`: a custom property resolves where it is USED, so an `em`
+   * unit would inflate on a heading's larger font — the Experiment 1 bug. That
+   * matters doubly here, since Obsidian's own `--list-indent` IS `em` based and
+   * this value replaces it inside outline mode.
+   *
+   * Declared on `body` rather than on `.cm-content` so the backlinks footer,
+   * which is not made of `.cm-line`s, reads the same one. The `--list-indent`
+   * bridge that consumes it stays gated on `.to-decor-list`, so outline mode
+   * off is still untouched. */
+  --to-decor-unit: 1.5rem;
+
+  --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
+  --to-decor-accent: var(--text-accent);
+
+  /* Same width as an unaccented guide, so an accent is purely a change of
+   * colour: the line does not thicken as the caret moves into a subtree, and an
+   * accented guide sits on exactly the columns and weight the unaccented one
+   * did. A heavier value reads as emphasis-by-weight and makes the accented
+   * column visibly jump; retune with a snippet if that is wanted. */
+  --to-trail-width: 1px;
+}
+
+/*
  * `--to-marker-gutter` (Experiment 5a, see
  * docs/research/10-experiment-5-block-markers.md): a fixed, additive
  * reservation for a per-kind block marker icon, on top of the existing
@@ -595,31 +644,10 @@
  * Both accent variables resolve from the active theme, so a snippet can
  * retune color and weight with no plugin setting and no geometry change —
  * the theming pattern docs/research/12 recommends, and the same pair
- * Logseq's own bullet_threading.css exposes.
+ * Logseq's own bullet_threading.css exposes. They are declared in the chrome
+ * token layer at the top of this file, not here, because the footer draws the
+ * same accents and a token scoped to one surface is not a shared vocabulary.
  */
-.markdown-source-view.mod-cm6 .cm-content {
-  /* The outline unit: one tree level's worth of horizontal distance, and the
-   * only number any layer may derive a column from. Declared here rather than
-   * left to `var(--to-decor-unit)` fallbacks scattered through the
-   * rules and the JS, because it now also feeds Obsidian's own `--list-indent`
-   * (lists-on-the-outline-grid) — two literals that must agree is exactly the
-   * shape this layer has been bitten by before. A snippet can retune it, and
-   * every kind moves together.
-   *
-   * `rem`, never `em`: a custom property resolves where it is USED, so an
-   * `em` unit would inflate on a heading's larger font — the Experiment 1 bug.
-   * That matters doubly here, since Obsidian's own `--list-indent` IS `em`
-   * based and this value replaces it inside outline mode. */
-  --to-decor-unit: 1.5rem;
-  --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
-  --to-decor-accent: var(--text-accent);
-  /* Same width as an unaccented guide (`guideLayer`'s own 1px), so an accent is
-   * purely a change of color: the line does not thicken as the caret moves into
-   * a subtree, and an accented guide sits on exactly the columns and weight the
-   * unaccented one did. A heavier value reads as emphasis-by-weight and makes
-   * the accented column visibly jump; retune with a snippet if that is wanted. */
-  --to-trail-width: 1px;
-}
 
 /*
  * Accented markers: the current node's, and — in the `path` trail style —

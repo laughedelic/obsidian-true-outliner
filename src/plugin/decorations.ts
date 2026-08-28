@@ -74,6 +74,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
+import { MARKER_GUTTER_CSS, MARKER_ICON_CSS, UNIT_EXPR } from './chrome-tokens';
 import type { NodeKind, OutlineDoc } from '../model';
 import { parse } from '../parse';
 import { coveredForestOf, coveredSubtreeRoots } from '../escalate';
@@ -175,10 +176,13 @@ function docFacts(state: EditorState): DocFacts {
 // box by exactly `--to-own-shift` units to reach any shallower ancestor's
 // column, with no measurement beyond the JS constants this module already
 // computes.
-// No literal fallback: styles.css declares `--to-decor-unit` on `.cm-content`,
-// which is the single source. A fallback here would be a second copy of the
-// number, and the two would eventually disagree.
-const UNIT = 'var(--to-decor-unit)';
+// No literal fallback: styles.css declares `--to-decor-unit`, which is the
+// single source. A fallback here would be a second copy of the number, and the
+// two would eventually disagree. The expression itself comes from
+// chrome-tokens.ts, shared with the backlinks footer for the same reason one
+// level up: two surfaces each spelling out the same `var()` is the same
+// duplication wearing a different hat.
+const UNIT = UNIT_EXPR;
 
 /**
  * A depth's COLUMN: the single x this layer positions everything at. A guide's
@@ -678,15 +682,13 @@ function shouldShowMarker(fact: LineDecorationFact, visibility: MarkerVisibility
   }
 }
 
-const MARKER_GUTTER_REM = 1.25;
-const MARKER_ICON_REM = 0.85;
-// The actual CSS length emitted per line (see lineDecoration()) — a single
-// source of truth the static CSS rules, the live margin overrides, AND the
-// marker's own left-offset calc all agree with. Every non-list-item line
-// reserves this gutter unconditionally (see lineDecoration()'s own
-// reasoning for why list items don't).
-const MARKER_GUTTER_CSS = `${MARKER_GUTTER_REM}rem`;
-const MARKER_ICON_CSS = `${MARKER_ICON_REM}rem`;
+// The lengths themselves now live in chrome-tokens.ts, shared with the
+// backlinks footer: two surfaces each holding their own copy of "how wide is
+// one level of indentation" agree only until someone changes one of them. What
+// stays true here is what it always was — one source of truth the static CSS
+// rules, the live margin overrides, and the marker's own left-offset calc all
+// agree with. Every non-list-item line reserves the gutter unconditionally (see
+// lineDecoration()'s own reasoning for why list items don't).
 
 /**
  * Where a marker icon's own LEFT edge should sit, given `targetRelExpr` — a

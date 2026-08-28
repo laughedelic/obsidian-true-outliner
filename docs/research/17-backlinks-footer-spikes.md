@@ -38,7 +38,7 @@ One rule is specific to this series:
 | **S1** | Can a block widget at `doc.length` coexist with the enforcement layer? | Done | **Yes — proceed**, with one mechanism correction: block decorations must come from a `StateField`, not a `ViewPlugin` |
 | **S2** | Does the widget survive the editor's lifecycle? | Done | **Yes — proceed**, but a `StateField` needs an explicit invalidation bridge: the shared mode-toggle nudge is a no-op selection set and produces no transaction |
 | **S3** | Does `decorate()` hold up on a foreign, projected tree? | Done | **Yes** — node-identity facts are invariant; position facts describe the tree passed in, which corrected a spec claim |
-| **S4** | What does outline chrome cost outside `.cm-line`? | Not started | — |
+| **S4** | What does outline chrome cost outside `.cm-line`? | Preparation done | Token layer extracted and the editor proven unchanged by it; the visual verdict needs a footer DOM and runs with it |
 | **S5** | What does a real vault cost? | Not started | — |
 
 ## The fixture corpus
@@ -291,7 +291,37 @@ notes with our own parser instead of reconstructing structure from `CachedMetada
 marker widget, depth rules — against a different DOM, and whether the token split D-C proposes
 is sufficient or the chrome needs restructuring.
 
-*Not yet run.*
+**Preparation done; the visual verdict runs with the footer DOM.**
+
+### Finding — the token layer was thinner than the design assumed, and lived in the wrong place
+
+Only three custom properties were ever declared in CSS (`--to-guide-color`, `--to-decor-accent`,
+`--to-trail-width`), all scoped to `.markdown-source-view.mod-cm6 .cm-content`. The geometry the
+design called tokens — the indentation unit, the marker gutter, the icon size — lived as
+constants inside `decorations.ts` and reached CSS only as inline styles.
+
+`--to-decor-unit` turned out never to be **set** at all: every call site reads it as
+`var(--to-decor-unit, 1.5rem)`, so the fallback was the real value and the token existed purely
+as a snippet-facing knob. Repeating that fallback at each call site is exactly how two surfaces
+drift apart while both look correct.
+
+Split accordingly, and behaviour-preservingly:
+
+- The colour and width tokens move to `body` — surface-neutral, because there are now two
+  surfaces and a token declared inside one of them is that surface's private value, not a shared
+  vocabulary. Snippets that retuned them at `.cm-content` still win on specificity, and can now
+  retune both surfaces at once from above.
+- The geometry moves to `src/plugin/chrome-tokens.ts`, which `decorations.ts` now consumes
+  instead of holding its own copy, and which the footer will consume too.
+- `--to-decor-unit` is declared once, with the value its fallback always had.
+
+Verified unchanged: 92 assertions across `50-decorations`, `51-guides-gradient`,
+`52-block-markers-icons`, `53-decoration-contracts` and `55-position-indicators`.
+
+What is left of S4 is its real question — whether that vocabulary is *sufficient* to draw the
+same chrome on a non-`.cm-line` DOM, or whether the chrome needs restructuring. That cannot be
+answered without a footer DOM to draw into, and a screenshot pass needs something to
+screenshot, so it runs alongside the footer rather than ahead of it.
 
 ## S5 — real-vault cost
 
