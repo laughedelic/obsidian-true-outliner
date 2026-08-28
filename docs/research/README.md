@@ -27,8 +27,8 @@ Research date: July 2026.
 | [15-enter-and-shift-enter-catalogue.md](15-enter-and-shift-enter-catalogue.md) | Measured catalogue of Enter / Shift+Enter across 49 cursor positions, the ten defects it found, and what the `enter-and-shift-enter-grammar` change did with each. A **pre-change** record: read the specs for current behavior |
 | [16-native-list-decoration.md](16-native-list-decoration.md) | How Obsidian actually computes list geometry in Live Preview (public CSS variables, the `.cm-indent` quantizer, the cached hanging-indent measurement), what a measurement pass validated about retargeting it onto our own decoration grid, and the phased plan for bringing list decoration up to the level of the other kinds |
 | [17-list-paragraph-mapping.md](17-list-paragraph-mapping.md) | **Open question** (Q34): should a list following a paragraph be that paragraph's child? The attachment rule's cost measured, the four candidate readings, what other formats and outliners do, why the indentation encoding is ruled out, and how to pick the question up |
-| [16-structured-backlinks.md](16-structured-backlinks.md) | The structured-backlinks layer (README vision, Q10): prior art across Roam/Logseq/Tana/Orca and the three Obsidian attempts, what the public API does and does not permit (core backlinks have **no** public surface at all), and the fourteen design decisions taken against the interactive prototype — plus what is still open |
-| [17-backlinks-footer-spikes.md](17-backlinks-footer-spikes.md) | **Hub** for the backlinks-footer spike series: ground rules (inherited from 07), the shared fixture corpus and what each fixture is diagnostic for, and the results table — including S1, which may veto the footer surface outright |
+| [18-structured-backlinks.md](18-structured-backlinks.md) | The structured-backlinks layer (README vision, Q10): prior art across Roam/Logseq/Tana/Orca and the three Obsidian attempts, what the public API does and does not permit (core backlinks have **no** public surface at all), and the seventeen design decisions taken against the interactive prototype — plus what is still open |
+| [19-backlinks-footer-spikes.md](19-backlinks-footer-spikes.md) | **Hub** for the backlinks-footer spike series: ground rules (inherited from 07), the shared fixture corpus and what each fixture is diagnostic for, and the results table — including S1, which may veto the footer surface outright |
 
 ## TL;DR
 
@@ -83,7 +83,7 @@ Research date: July 2026.
    scope v1; tasks are plain content v1; CM6-native undo v1; toggle state in plugin data.
 
 All pre-planning questions are decided; Q10 (backlinks placement) was deferred as post-v1 and is
-now answered in [16-structured-backlinks.md](16-structured-backlinks.md) — an in-document footer
+now answered in [18-structured-backlinks.md](18-structured-backlinks.md) — an in-document footer
 first, sidebar pane later. Decision log: [04-open-questions.md](04-open-questions.md).
 
 ## Where this project starts from

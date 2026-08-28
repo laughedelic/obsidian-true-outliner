@@ -28,6 +28,7 @@ const LABELS = {
   4: 'shell',
   5: 'decorations',
   6: 'selection',
+  7: 'backlinks',
   // Its own group: the longest spec in the suite, and its own feature.
   55: 'position-indicators',
 };

@@ -1,5 +1,5 @@
 /**
- * Spike S3 (docs/research/17-backlinks-footer-spikes.md): does `decorate()`
+ * Spike S3 (docs/research/19-backlinks-footer-spikes.md): does `decorate()`
  * hold up on a foreign, projected tree?
  *
  * Design decision D-A makes the footer render from the same `decorate()` the
@@ -27,7 +27,7 @@ import type { OutlineNode } from '../src/model';
 
 const vault = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'test-vault');
 
-/** Every corpus note that references the target, per docs/research/17. */
+/** Every corpus note that references the target, per docs/research/19. */
 const CORPUS = [
   'Backlinks/Deep chain.md',
   'Backlinks/Branching arms.md',

@@ -56,7 +56,7 @@ export interface PluginData {
   guideHighlight: GuideHighlight;
   /** See `MarkerHighlight`. */
   markerHighlight: MarkerHighlight;
-  /** Spike S1 apparatus (docs/research/17): mounts a content-free block widget
+  /** Spike S1 apparatus (docs/research/19): mounts a content-free block widget
    * at the end of an outline note so its effect on the enforcement layer can be
    * measured with and without it, inside one running app. Not a feature; removed
    * when the spike closes. */

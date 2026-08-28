@@ -6,7 +6,7 @@ governs — by running small, isolated, falsifiable prototypes before any of the
 built on top of them.
 
 Design decisions this series tests are recorded in
-[16-structured-backlinks.md](16-structured-backlinks.md); the change's own design rationale is
+[18-structured-backlinks.md](18-structured-backlinks.md); the change's own design rationale is
 `openspec/changes/backlinks-footer/design.md` (D-A … D-G).
 
 **Status: in progress.** Spikes are run in order; each is closed with a verdict in the results
@@ -112,7 +112,7 @@ established pattern, and a design that assumed it could was wrong on the mechani
 
 The prior art already said so and we did not transfer it: `influx` anchors its footer from a
 `StateField` (`src/cm6/StatefulDecorationSet.tsx`), which
-[16-structured-backlinks.md](16-structured-backlinks.md) cites for the *anchoring* while
+[18-structured-backlinks.md](18-structured-backlinks.md) cites for the *anchoring* while
 recording the mechanism only as `registerEditorExtension`. Reading a reference implementation
 for the answer we were looking for, and not for the one we would need next, is the transferable
 lesson.
@@ -162,7 +162,7 @@ change.
 **Question.** Whether the widget survives mode toggling, file switching, multiple leaves on one
 file, view-mode switching, print/export and the mobile viewport without leaking DOM or
 duplicating itself — the failure `coalesce` fights with a `MutationObserver` and an
-orphaned-container sweeper (see [16](16-structured-backlinks.md), "Prior art").
+orphaned-container sweeper (see [16](18-structured-backlinks.md), "Prior art").
 
 **Verdict: proceed.** No leaks, no orphans, no duplicates. One real defect found and fixed: a
 `StateField` needs an invalidation signal the existing decoration layers never needed.

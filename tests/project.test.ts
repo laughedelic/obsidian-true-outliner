@@ -33,7 +33,7 @@ function shape(doc: OutlineDoc): string[] {
   return out;
 }
 
-/** The user-supplied branching shape from docs/research/16, D4. */
+/** The user-supplied branching shape from docs/research/18, D4. */
 const BRANCHING = `- a
 \t- b
 \t\t- x first mention
@@ -211,7 +211,7 @@ function render(rows: LineageRow[]): string[] {
 
 describe('lineage: collapsing', () => {
   it('collapses each sub-branch independently, not only the common prefix', () => {
-    // The exact shape and expected output from docs/research/16, D4.
+    // The exact shape and expected output from docs/research/18, D4.
     const doc = parse(BRANCHING);
     const matches = containing('mention');
     const rows = collapseLineage(project(doc, matches, { descendantDepth: 0 }).children, matches);

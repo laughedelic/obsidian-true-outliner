@@ -1,5 +1,5 @@
 /**
- * Spike S1 (docs/research/17-backlinks-footer-spikes.md): the smallest possible
+ * Spike S1 (docs/research/19-backlinks-footer-spikes.md): the smallest possible
  * block widget at the end of the document, so we can measure what its PRESENCE
  * does to the enforcement layer before any backlinks feature is built on it.
  *
@@ -34,7 +34,7 @@
  * `side: -1` places the widget BEFORE the position, i.e. after all document
  * content, matching where the real footer would anchor — the same anchoring
  * `influx` uses, and (unremarked at the time) from a `StateField` as well; see
- * docs/research/16.
+ * docs/research/18.
  */
 
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';

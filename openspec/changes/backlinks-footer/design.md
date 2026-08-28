@@ -160,7 +160,7 @@ Measured consequence: the widget's presence changes no observable behaviour — 
 the select-all ladder, structural operations and undo are identical with and without it — at a
 cost of a few extra `programmatic` transactions where caret resolution runs one more correction
 next to the widget and reaches the same position. Full write-up:
-`docs/research/17-backlinks-footer-spikes.md`, S1.
+`docs/research/19-backlinks-footer-spikes.md`, S1.
 
 ### D-G. Progressive paint, and why the footer can afford it
 

@@ -34,7 +34,7 @@ import { SourceTreeCache } from './source-tree-cache';
  * `note` and `anchor` split on WHAT is addressed — the whole note, or a node
  * inside it. `embed` and `property` split on HOW it is written. The taxonomy
  * deliberately flattens two axes into one list because that is how a reader
- * thinks about them; see docs/research/16, D14.
+ * thinks about them; see docs/research/18, D14.
  */
 export type ReferenceKind = 'note' | 'anchor' | 'embed' | 'property';
 

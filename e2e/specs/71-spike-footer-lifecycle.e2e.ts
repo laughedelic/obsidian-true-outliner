@@ -1,12 +1,12 @@
 /**
- * Spike S2 (docs/research/17-backlinks-footer-spikes.md): does the block widget
+ * Spike S2 (docs/research/19-backlinks-footer-spikes.md): does the block widget
  * survive the editor's lifecycle?
  *
  * S1 established that the widget can exist without perturbing the enforcement
  * layer. This asks the separate question of whether it stays correct as editors
  * are created, destroyed, split, switched and re-rendered — the failure mode
  * `coalesce` fights with a `MutationObserver` and an orphaned-container sweeper
- * (docs/research/16, "Prior art"). If a defence like that turns out to be
+ * (docs/research/18, "Prior art"). If a defence like that turns out to be
  * needed here, it is far cheaper to know now than after the footer has content.
  *
  * The invariant under test throughout: **exactly one widget per editor showing
@@ -227,7 +227,7 @@ describe('spike S2: end-of-document block widget lifecycle', function () {
    * window ("Browser.getWindowForTarget wasn't found"), and emulating a viewport
    * inside the page would exercise CSS rather than the editor's own re-measure —
    * a test that looks like coverage and is not. Resize, print/export and the
-   * mobile viewport are recorded as manual-pass items in docs/research/17 (S2),
+   * mobile viewport are recorded as manual-pass items in docs/research/19 (S2),
    * where the mandatory real-vault pass covers them.
    */
 });

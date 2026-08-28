@@ -225,7 +225,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
-    // Spike S1 apparatus (docs/research/17) — inert unless its debug setting is
+    // Spike S1 apparatus (docs/research/19) — inert unless its debug setting is
     // on. Registered LAST among the decoration producers so that if its presence
     // changes anything measurable, the change is attributable to it and not to
     // extension ordering among the established layers.
@@ -274,7 +274,7 @@ export default class TrueOutlinerPlugin extends Plugin {
 
   /** See `SpikeFooterSource.footerRevision` — bumped whenever outline mode or
    * the debug flag changes, so the footer's StateField gets a real transaction
-   * to recompute on (docs/research/17, S2). */
+   * to recompute on (docs/research/19, S2). */
   private footerRev = 0;
 
   get footerRevision(): number {

@@ -5,7 +5,7 @@ verbatim: one technique per spike, isolated; a fixed shared fixture corpus scree
 time; a mandatory real-vault pass before any spike is called done; a recorded verdict before the
 next begins; green unit tests are never the gate for anything visual.
 
-- [x] 1.1 Create `docs/research/17-backlinks-footer-spikes.md` as the series hub: ground rules
+- [x] 1.1 Create `docs/research/19-backlinks-footer-spikes.md` as the series hub: ground rules
       (inherited, not restated), the results table with one row per spike awaiting a verdict, and
       the map to per-spike sections
 - [x] 1.2 Assemble the shared fixture corpus in `test-vault/`: a target note referenced from
@@ -73,7 +73,7 @@ next begins; green unit tests are never the gate for anything visual.
       of non-match, non-branch-point nodes collapse into chains; the terminating branch point
       joins its chain; a terminating match does not
 - [x] 5.5 Unit-test lineage recursion explicitly with the `a/b → c/d → e/f/g` shape from
-      `docs/research/16`: each arm collapses independently, not only the common prefix
+      `docs/research/18`: each arm collapses independently, not only the common prefix
 - [x] 5.6 Unit-test the edge cases: a one-element chain still forms a chain; a root-level match
       forms none; a chain reports its first element's kind; elements stay individually addressable
 
@@ -154,7 +154,7 @@ next begins; green unit tests are never the gate for anything visual.
 
 ## 10. Close-out
 
-- [ ] 10.1 Update `docs/research/16-structured-backlinks.md` where a spike result contradicts or
+- [ ] 10.1 Update `docs/research/18-structured-backlinks.md` where a spike result contradicts or
       sharpens a recorded decision
 - [ ] 10.2 Confirm `openspec validate backlinks-footer --strict` passes and every spec scenario
       has either automated coverage or a recorded manual verification

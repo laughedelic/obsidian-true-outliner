@@ -11,7 +11,7 @@ before it asks. It also settles the one place the plugin collides with Obsidian 
 core Backlinks plugin's own in-document section, which renders the same references with no
 lineage directly below ours.
 
-Design decisions are recorded in `docs/research/16-structured-backlinks.md` (D8, D10, D12,
+Design decisions are recorded in `docs/research/18-structured-backlinks.md` (D8, D10, D12,
 D14, D15).
 
 ## What Changes

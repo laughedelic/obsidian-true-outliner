@@ -1,5 +1,5 @@
 /**
- * Spike S1 (docs/research/17-backlinks-footer-spikes.md): does a block widget
+ * Spike S1 (docs/research/19-backlinks-footer-spikes.md): does a block widget
  * at `doc.length` perturb the enforcement layer?
  *
  * The question is comparative, not absolute — "where does the caret land with a

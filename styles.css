@@ -1153,7 +1153,7 @@ body {
 }
 
 /*
- * Spike S1 apparatus (docs/research/17-backlinks-footer-spikes.md) — the
+ * Spike S1 apparatus (docs/research/19-backlinks-footer-spikes.md) — the
  * content-free block widget whose only job is to have a PRESENCE and a HEIGHT,
  * so its effect on scroll extent, click-below-last-line targeting and print
  * pagination is observable. Deliberately unstyled beyond that: anything more
