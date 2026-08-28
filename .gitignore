@@ -20,5 +20,9 @@ dist/
 /test-vault/.obsidian/workspace.json
 /test-vault/.obsidian/workspace-mobile.json
 
+# Hub-scale backlink fixture — several hundred generated notes whose only property is
+# bulk. Reproduce with `node scripts/gen-backlink-hub.mjs`; see docs/research/17.
+/test-vault/Backlinks/Hub/
+
 # e2e harness
 .obsidian-cache/

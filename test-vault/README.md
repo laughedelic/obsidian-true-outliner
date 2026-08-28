@@ -29,3 +29,4 @@ Then follow `openspec/changes/editor-core/verification.md`.
 | `Notes/Sourdough Log` | list-only note (visually unchanged in outline mode) |
 | `Notes/Reading – The Design of Everyday Things` | quotes, multiline items |
 | `Notes/Edge Case Zoo` | adversarial structures for rejection cues |
+| `Backlinks/*` | backlink fixtures: deep lineage, branching arms, atom/anchor/alias/property/embed references — all pointing at `Projects/Aurora Dashboard` |
