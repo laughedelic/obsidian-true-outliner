@@ -56,6 +56,11 @@ export interface PluginData {
   guideHighlight: GuideHighlight;
   /** See `MarkerHighlight`. */
   markerHighlight: MarkerHighlight;
+  /** Spike S1 apparatus (docs/research/17): mounts a content-free block widget
+   * at the end of an outline note so its effect on the enforcement layer can be
+   * measured with and without it, inside one running app. Not a feature; removed
+   * when the spike closes. */
+  debugFooterWidget: boolean;
 }
 
 export const DEFAULT_DATA: PluginData = {
@@ -65,6 +70,7 @@ export const DEFAULT_DATA: PluginData = {
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
   guideHighlight: DEFAULT_GUIDE_HIGHLIGHT,
   markerHighlight: DEFAULT_MARKER_HIGHLIGHT,
+  debugFooterWidget: false,
 };
 
 /**

@@ -1123,3 +1123,17 @@
 .markdown-source-view.mod-cm6 .cm-editor.to-decor-block-selecting .cm-selectionLayer .cm-selectionBackground {
   background: transparent;
 }
+
+/*
+ * Spike S1 apparatus (docs/research/17-backlinks-footer-spikes.md) — the
+ * content-free block widget whose only job is to have a PRESENCE and a HEIGHT,
+ * so its effect on scroll extent, click-below-last-line targeting and print
+ * pagination is observable. Deliberately unstyled beyond that: anything more
+ * would be measuring the styling rather than the widget. Removed with the rest
+ * of the spike apparatus when S1 closes.
+ */
+.to-spike-footer {
+  height: 120px;
+  border-top: 1px dashed var(--background-modifier-border);
+  margin-top: 1rem;
+}

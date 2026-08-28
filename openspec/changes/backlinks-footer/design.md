@@ -97,10 +97,17 @@ around it is ours. A `MarkdownRenderChild` per row gives lifecycle for cleanup.
 
 ### D-E. The index is a reverse map with a two-level cache
 
-`resolvedLinks` gives forward links for the whole vault; the reverse map is built once at
-`onLayoutReady` and updated incrementally on `metadataCache` `changed`/`resolve`/`resolved`/
-`deleted`. Reference *positions and kinds* come from `getFileCache(f).links` / `.embeds` /
-`.frontmatterLinks`; `parseLinktext` + `resolveSubpath` classify a reference as Note or Anchor.
+The reverse map is built once at `onLayoutReady` and updated incrementally on
+`metadataCache` `changed` / `deleted` and `vault.on('rename')`.
+
+**Enumeration walks `getFileCache` across the vault's markdown files, not `resolvedLinks`**
+(revised during implementation; the first draft named `resolvedLinks`). `resolvedLinks` is the
+cheaper reverse index, but it reports only counts — not whether a reference was a plain link, an
+anchored link, an embed or a frontmatter property, and not where it sits. Every one of those has
+to come from `getFileCache` anyway, and that is also an in-memory read, so taking both from the
+same place removes a way for the two to disagree. Reference kinds come from
+`getFileCache(f).links` / `.embeds` / `.frontmatterLinks`, with `parseLinktext` +
+`getFirstLinkpathDest` resolving the destination and separating Note from Anchor.
 
 Source trees are parsed with our own `parse()` from `cachedRead()`, cached by path + mtime —
 **not** reconstructed from `CachedMetadata`. The cache could supply hierarchy for free, but it

@@ -13,9 +13,10 @@ This is the layer named in the README's vision and deferred as post-v1 in
 
 ## What Changes
 
-- **A backlink index.** A reverse map from `metadataCache.resolvedLinks`, kept fresh on the
-  four metadata events, plus a per-file cache of parsed source trees keyed on path + mtime.
-  Nothing here reads private API; `getBacklinksForFile` is not public and is not used.
+- **A backlink index.** A reverse map built from each file's `CachedMetadata`, kept fresh on
+  the metadata and rename events, plus a per-file cache of parsed source trees keyed on
+  path + mtime. Nothing here reads private API; `getBacklinksForFile` is not public and is not
+  used.
 - **Pruned tree projection in the mapping core.** A pure function over `OutlineNode`: keep the
   root-paths that reach a matching node plus each match's own children, then squash
   single-child runs into lineage chains — recursively, so every sub-branch squashes on its own
@@ -68,6 +69,6 @@ This is the layer named in the README's vision and deferred as post-v1 in
   `progressive-select-all`, `caret-placement-policy` and the transaction filter. If those
   cannot coexist, the surface decision (D1) reopens — which is why the spike runs first and
   can veto the rest of the change.
-- **Public APIs only**: `resolvedLinks`, `getFileCache`, `parseLinktext`, `resolveSubpath`,
+- **Public APIs only**: `getFileCache`, `parseLinktext`, `getFirstLinkpathDest`,
   `cachedRead`, `MarkdownRenderer.render`, `openLinkText`, `registerHoverLinkSource`,
   `registerEditorExtension`. No monkey-patching, no `any`-casts into internals.

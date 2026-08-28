@@ -32,6 +32,8 @@ import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension, setMotionProbe } from './keymap';
 import { nestedEditorExtension } from './nested-editor';
+import { spikeFooterExtension } from './spike-footer-widget';
+import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
@@ -118,6 +120,8 @@ const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
 export default class TrueOutlinerPlugin extends Plugin {
   private data: PluginData = { ...DEFAULT_DATA };
+  /** Which notes reference which — see backlink-index.ts. */
+  readonly backlinks = new BacklinkIndex(this.app);
   private registry!: OutlineModeRegistry;
   /** Public so the e2e harness can read classification evidence the same
    * way it already reads `isOutline` (design.md D8). */
@@ -179,6 +183,20 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {
         if (file instanceof TFile) void this.registry.handleRename(oldPath, file.path);
+        // The index keys sources by path, so a rename is a removal plus an add;
+        // leaving the old key would report references from a file that is gone.
+        this.backlinks.removeSource(oldPath);
+        if (file instanceof TFile) this.backlinks.reindex(file);
+      }),
+    );
+    this.registerEvent(
+      this.app.metadataCache.on('changed', (file) => {
+        this.backlinks.reindex(file);
+      }),
+    );
+    this.registerEvent(
+      this.app.metadataCache.on('deleted', (file) => {
+        this.backlinks.removeSource(file.path);
       }),
     );
     this.registerEvent(
@@ -207,6 +225,11 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
+    // Spike S1 apparatus (docs/research/17) — inert unless its debug setting is
+    // on. Registered LAST among the decoration producers so that if its presence
+    // changes anything measurable, the change is attributable to it and not to
+    // extension ordering among the established layers.
+    this.registerEditorExtension(spikeFooterExtension(this));
     // Re-asserts the cursor of operations that CHOOSE one (move, split, merge,
     // paste, structural delete) so redo restores it — history recomputes a
     // cursor by mapping, which cannot reproduce a choice (history-caret.ts).
@@ -223,7 +246,13 @@ export default class TrueOutlinerPlugin extends Plugin {
 
     this.addSettingTab(new TrueOutlinerSettingTab(this.app, this));
 
-    this.app.workspace.onLayoutReady(() => void this.warnAboutConflicts());
+    this.app.workspace.onLayoutReady(() => {
+      void this.warnAboutConflicts();
+      // Deferred to layout-ready: before it, the metadata cache may still be
+      // filling, and an index built from a half-populated cache would be wrong
+      // in a way nothing later corrects.
+      this.backlinks.rebuild();
+    });
   }
 
   isOutline(path: string): boolean {
@@ -237,6 +266,29 @@ export default class TrueOutlinerPlugin extends Plugin {
   async setDebugCrossCheck(value: boolean): Promise<void> {
     this.data.debugCrossCheck = value;
     await this.saveData(this.data);
+  }
+
+  get debugFooterWidget(): boolean {
+    return this.data.debugFooterWidget;
+  }
+
+  /** See `SpikeFooterSource.footerRevision` — bumped whenever outline mode or
+   * the debug flag changes, so the footer's StateField gets a real transaction
+   * to recompute on (docs/research/17, S2). */
+  private footerRev = 0;
+
+  get footerRevision(): number {
+    return this.footerRev;
+  }
+
+  async setDebugFooterWidget(value: boolean): Promise<void> {
+    this.data.debugFooterWidget = value;
+    this.footerRev++;
+    await this.saveData(this.data);
+    // The widget is produced by a ViewPlugin that recomputes on update, and
+    // toggling a setting is not itself an editor update — the same nudge the
+    // other decoration settings use.
+    await this.forceRedraw();
   }
 
   get markerVisibility(): MarkerVisibility {
@@ -323,6 +375,7 @@ export default class TrueOutlinerPlugin extends Plugin {
 
   private async toggleMode(path: string): Promise<void> {
     const on = await this.registry.toggle(path);
+    this.footerRev++;
     new Notice(on ? 'Outline mode on' : 'Outline mode off', 1500);
     this.refreshDecorations(path);
   }
@@ -566,6 +619,11 @@ const SETTING_DEBUG_CROSSCHECK = {
   desc: 'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
 } as const;
 
+const SETTING_DEBUG_FOOTER_WIDGET = {
+  name: 'Debug: end-of-document block widget (spike S1)',
+  desc: 'Mounts an empty block widget at the end of an outline note. Measurement apparatus for the backlinks footer spike; renders nothing useful and is removed when that spike closes.',
+} as const;
+
 const SETTING_MARKER_VISIBILITY = {
   name: 'Debug: block marker visibility (experiment 5a)',
   desc: 'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
@@ -602,6 +660,10 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
       {
         ...SETTING_DEBUG_CROSSCHECK,
         control: { type: 'toggle', key: 'debugCrossCheck', defaultValue: false },
+      },
+      {
+        ...SETTING_DEBUG_FOOTER_WIDGET,
+        control: { type: 'toggle', key: 'debugFooterWidget', defaultValue: false },
       },
       {
         ...SETTING_MARKER_VISIBILITY,
@@ -641,6 +703,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     switch (key) {
       case 'debugCrossCheck':
         return this.plugin.debugCrossCheck;
+      case 'debugFooterWidget':
+        return this.plugin.debugFooterWidget;
       case 'markerVisibility':
         return this.plugin.markerVisibility;
       case 'guideHighlight':
@@ -656,6 +720,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     switch (key) {
       case 'debugCrossCheck':
         await this.plugin.setDebugCrossCheck(Boolean(value));
+        break;
+      case 'debugFooterWidget':
+        await this.plugin.setDebugFooterWidget(Boolean(value));
         break;
       case 'markerVisibility':
         await this.plugin.setMarkerVisibility(value as MarkerVisibility);
@@ -679,6 +746,14 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         toggle
           .setValue(this.plugin.debugCrossCheck)
           .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_DEBUG_FOOTER_WIDGET.name)
+      .setDesc(SETTING_DEBUG_FOOTER_WIDGET.desc)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.debugFooterWidget)
+          .onChange((value) => void this.plugin.setDebugFooterWidget(value)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_MARKER_VISIBILITY.name)
