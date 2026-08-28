@@ -73,6 +73,9 @@ export interface PlacedSource {
    * projection rebuilds any node whose children changed.
    */
   readonly matches: NodePredicate;
+  /** Node id -> the kind of reference found in it. Keyed by NODE, because that
+   * is what a row is: a line key would never match what the renderer asks. */
+  readonly kinds: ReadonlyMap<number, ReferenceKind>;
   /** References with no position in the tree, in frontmatter order. */
   readonly properties: readonly BacklinkReference[];
 }
@@ -154,16 +157,22 @@ export class BacklinkIndex {
 
     const doc = await this.trees.get(file);
     const matchedIds = new Set<number>();
+    const kinds = new Map<number, ReferenceKind>();
     for (const ref of refs) {
       if (ref.line === undefined) continue;
       const node = nodeAtLine(doc, ref.line);
-      if (node) matchedIds.add(node.id);
+      if (!node) continue;
+      matchedIds.add(node.id);
+      // A node can hold more than one reference; the first kind wins, which
+      // only decides a marker and never whether the node is a reference at all.
+      if (!kinds.has(node.id)) kinds.set(node.id, ref.kind);
     }
 
     return {
       path: sourcePath,
       doc,
       matches: (node: OutlineNode) => matchedIds.has(node.id),
+      kinds,
       properties: refs.filter((r) => r.kind === 'property'),
     };
   }

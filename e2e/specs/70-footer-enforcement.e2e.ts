@@ -1,6 +1,13 @@
 /**
- * Spike S1 (docs/research/19-backlinks-footer-spikes.md): does a block widget
- * at `doc.length` perturb the enforcement layer?
+ * Spike S1 (docs/research/19-backlinks-footer-spikes.md), kept as a standing
+ * contract: does the footer's block widget at `doc.length` perturb the
+ * enforcement layer?
+ *
+ * Originally measured against content-free apparatus, so that "the widget is
+ * here" could not be confounded with "the content did something". That
+ * apparatus is gone now the real footer exists, and these assertions moved onto
+ * it — the invariants are permanent properties of the footer, not one-off
+ * measurements, and they are worth more asserted against the real thing.
  *
  * The question is comparative, not absolute — "where does the caret land with a
  * widget present" is only meaningful against where it lands without one. So
@@ -10,8 +17,10 @@
  * as a hardcoded expectation that would have to be re-derived whenever caret
  * policy legitimately changes.
  *
- * That framing is also why the widget is content-free (see
- * src/plugin/spike-footer-widget.ts): the variable under test is its presence.
+ * The differential framing is what makes the assertion survive the footer
+ * gaining content: what is being compared is the editor's behaviour with the
+ * footer present against the same behaviour without it, never the footer's own
+ * appearance.
  *
  * A failure here is a real answer, not a broken test. It reopens the surface
  * decision (D1) rather than being worked around — see the change's design.md,
@@ -23,12 +32,12 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 
 const NOTE = 'Backlinks/Deep chain.md';
-const WIDGET_SELECTOR = '.to-spike-footer';
+const WIDGET_SELECTOR = '.to-backlinks';
 
-async function setWidget(on: boolean): Promise<void> {
+async function setFooter(on: boolean): Promise<void> {
   await browser.executeObsidian(
     async ({ plugins }, enabled) => {
-      await (plugins.trueOutliner as any).setDebugFooterWidget(enabled);
+      await (plugins.trueOutliner as any).setBacklinksFooter(enabled);
     },
     on,
   );
@@ -168,17 +177,17 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
   });
 
   after(async function () {
-    await setWidget(false);
+    await setFooter(false);
   });
 
   it('mounts exactly one widget in outline mode, and none off-mode', async function () {
     await h.openNote(NOTE);
     await ensureOutlineMode(NOTE);
 
-    await setWidget(false);
+    await setFooter(false);
     expect(await widgetCount()).toBe(0);
 
-    await setWidget(true);
+    await setFooter(true);
     await h.waitForContentChildCount(WIDGET_SELECTOR, 1);
     expect(await widgetCount()).toBe(1);
 
@@ -192,14 +201,14 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     await h.toggleOutlineMode();
     await h.waitForNotice('Outline mode on');
     await h.dismissNotices();
-    await setWidget(false);
+    await setFooter(false);
   });
 
   it('does not change caret placement, selection escalation, or structural ops', async function () {
-    await setWidget(false);
+    await setFooter(false);
     const without = await measure();
 
-    await setWidget(true);
+    await setFooter(true);
     await h.waitForContentChildCount(WIDGET_SELECTOR, 1);
     const withWidget = await measure();
 
@@ -237,12 +246,12 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
   it('leaves the document byte-identical after mounting and unmounting', async function () {
     await h.openNote(NOTE);
     await ensureOutlineMode(NOTE);
-    await setWidget(false);
+    await setFooter(false);
     const before = await h.getBuffer();
 
-    await setWidget(true);
+    await setFooter(true);
     await h.waitForContentChildCount(WIDGET_SELECTOR, 1);
-    await setWidget(false);
+    await setFooter(false);
 
     expect(await h.getBuffer()).toBe(before);
     // A single undo must revert a real prior edit, not an entry the widget's
@@ -250,9 +259,9 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     await h.setCursor(0, 0);
     await h.keys.type('x');
     const edited = await h.getBuffer();
-    await setWidget(true);
+    await setFooter(true);
     await h.waitForContentChildCount(WIDGET_SELECTOR, 1);
-    await setWidget(false);
+    await setFooter(false);
     await h.keys.undo();
     expect(await h.getBuffer()).toBe(before);
     expect(edited).not.toBe(before);

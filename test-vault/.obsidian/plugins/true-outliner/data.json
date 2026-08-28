@@ -2,14 +2,19 @@
   "outlinePaths": [
     "Journal/2026-07-07.md",
     "Journal/2026-07-08.md",
-    "Journal/2026-07-10.md",
+    "Notes/Edge Case Zoo.md",
     "Notes/List decoration demo.md",
     "Notes/Sourdough Log.md",
+    "People/Jonas Beck.md",
+    "People/Maya Lindqvist.md",
     "Projects/Aurora Dashboard.md",
     "Projects/Kitchen Renovation.md",
     "README.md"
   ],
   "coexistenceWarned": false,
   "debugCrossCheck": true,
-  "markerVisibility": "all"
+  "debugFooterWidget": true,
+  "markerVisibility": "all",
+  "guideHighlight": "full",
+  "markerHighlight": "current"
 }

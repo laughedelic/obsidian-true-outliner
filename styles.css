@@ -1152,16 +1152,203 @@ body {
   background: transparent;
 }
 
+
 /*
- * Spike S1 apparatus (docs/research/19-backlinks-footer-spikes.md) — the
- * content-free block widget whose only job is to have a PRESENCE and a HEIGHT,
- * so its effect on scroll extent, click-below-last-line targeting and print
- * pagination is observable. Deliberately unstyled beyond that: anything more
- * would be measuring the styling rather than the widget. Removed with the rest
- * of the spike apparatus when S1 closes.
+ * ===========================================================================
+ * BACKLINKS FOOTER — the outline vocabulary on a DOM that is not `.cm-line`
+ * ===========================================================================
+ *
+ * The second surface the chrome token layer at the top of this file exists for.
+ * Geometry and colour come from those tokens; nothing here restates a number
+ * the editor also uses, which is the whole point of having them.
+ *
+ * Rows deliberately mirror the editor's own structure — a marker gutter, then
+ * content, with depth applied to the row's own box — so the two scopes stay
+ * legible against each other. What is NOT shared is the DOM: the footer's rows
+ * are ordinary divs, and trying to make them `.cm-line`s in order to reuse the
+ * selectors above was considered and rejected (design.md D-C).
+ *
+ * Carded, not flowing: at full note width the identical chrome would otherwise
+ * make another note's tree read as part of this one (docs/research/18, D6).
  */
-.to-spike-footer {
-  height: 120px;
-  border-top: 1px dashed var(--background-modifier-border);
-  margin-top: 1rem;
+.to-backlinks {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+}
+
+.to-backlinks-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.to-backlinks-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+  color: var(--to-decor-accent);
+}
+
+.to-backlinks-title {
+  font-weight: var(--font-semibold);
+}
+
+.to-backlinks-totals {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* A note nothing links to still ends predictably: one quiet line where the
+ * populated header would be, rather than the section appearing and vanishing as
+ * a note gains its first reference (docs/research/18, D9). */
+.to-backlinks.is-dormant .to-backlinks-dormant {
+  color: var(--text-faint);
+}
+
+.to-backlinks-group {
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 0.5rem 0.75rem 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.to-backlinks-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.to-backlinks-group-head:hover {
+  color: var(--text-normal);
+}
+
+.to-backlinks-chevron {
+  display: flex;
+  width: 0.7rem;
+  height: 0.7rem;
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.to-backlinks-group-name {
+  font-weight: var(--font-semibold);
+}
+
+.to-backlinks-group-folder,
+.to-backlinks-group-count {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.to-backlinks-group-count {
+  margin-inline-start: auto;
+}
+
+.to-backlinks-resolving {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  padding: 0.2rem 0 0.2rem var(--to-marker-gutter);
+}
+
+.to-backlinks-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 0.1rem 0;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.to-backlinks-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* Markers are NOTATION, not emphasis: a node's marker says what kind of node it
+ * is and nothing else, so a lineage segment and a reference of the same kind
+ * are drawn identically. Only the text separates them (docs/research/18, D4). */
+.to-backlinks-marker {
+  flex: 0 0 var(--to-marker-gutter);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  height: 1.5em;
+  color: var(--text-faint);
+}
+
+.to-backlinks-marker > svg {
+  width: var(--to-marker-icon-size, 0.85rem);
+  height: var(--to-marker-icon-size, 0.85rem);
+}
+
+.to-backlinks-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.to-backlinks-row.is-lineage .to-backlinks-content {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.55;
+}
+
+.to-backlinks-sep {
+  color: var(--text-faint);
+  opacity: 0.7;
+  padding: 0 0.35em;
+}
+
+.to-backlinks-row.is-reference .to-backlinks-content {
+  color: var(--text-normal);
+}
+
+.to-backlinks-prop-name {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  background: var(--background-modifier-form-field);
+  border-radius: var(--radius-s);
+  padding: 0 0.35em;
+  margin-inline-end: 0.4em;
+}
+
+/* An embed is a transclusion, not a mention, and should not be read as one. */
+.to-backlinks-tag {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 0.3em;
+  margin-inline-start: 0.4em;
+  white-space: nowrap;
+}
+
+/* The outline's own fold affordance, beside the marker, rather than a bespoke
+ * badge: the reader already knows this control from the editor. */
+.to-backlinks-fold {
+  display: flex;
+  align-items: center;
+  width: 0.7rem;
+  height: 1.5em;
+  margin-inline-start: -0.7rem;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.to-backlinks-fold:hover {
+  color: var(--text-normal);
+}
+
+.to-backlinks-row p {
+  margin: 0;
 }

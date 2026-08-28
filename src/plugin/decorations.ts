@@ -750,11 +750,15 @@ const STROKE_ATTRS = {
 /**
  * Builds one distinct, self-drawn SVG icon per eligible node kind — via DOM
  * APIs directly (element creation + attribute setting in code), not a
- * data-URI string. Not a final design; exact shapes are expected to be
+ * data-URI string.
+ *
+ * Exported because the backlinks footer draws the same vocabulary on a
+ * different DOM. A node's marker says what KIND of node it is; two surfaces
+ * drawing that from two icon sets would be two answers to one question. Not a final design; exact shapes are expected to be
  * tuned by eye during real-vault review, like every other visual call in
  * this project (see the plan's own framing of Experiment 5a).
  */
-function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
+export function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
   // `aria-hidden`: the marker is purely decorative chrome (the node's kind
   // is already in the accessible text itself — heading level, code fence,
   // etc.), so screen readers should skip it entirely (hardening 5.6).

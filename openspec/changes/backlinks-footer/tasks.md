@@ -113,28 +113,28 @@ next begins; green unit tests are never the gate for anything visual.
       behaviour-preserving, same properties and values, moved only
 - [x] 7.3 Run the existing decoration e2e suites and a corpus screenshot pass in both themes to
       prove the editor is unchanged by the split
-- [ ] 7.4 Add the footer-scoped layer consuming the same tokens *(runs in group 8, with the DOM it styles)*
+- [x] 7.4 Add the footer-scoped layer consuming the same tokens *(runs in group 8, with the DOM it styles)*
 
 ## 8. Footer surface
 
-- [ ] 8.1 Render the footer as a block widget at document end, gated on outline mode and the
+- [x] 8.1 Render the footer as a block widget at document end, gated on outline mode and the
       editing view, using the mechanism S1 and S2 settled on
-- [ ] 8.2 Render group cards: source note name, folder, per-note count, collapse; and the footer
+- [x] 8.2 Render group cards: source note name, folder, per-note count, collapse; and the footer
       totals
-- [ ] 8.3 Render rows from `decorate(projected)` — lineage lines, referencing nodes, one level of
+- [x] 8.3 Render rows from `decorate(projected)` — lineage lines, referencing nodes, one level of
       children — with markers drawn identically for lineage and reference, emphasis carried by
       text treatment only
-- [ ] 8.4 Render node content through `MarkdownRenderer.render` with `sourcePath` set to the
+- [x] 8.4 Render node content through `MarkdownRenderer.render` with `sourcePath` set to the
       referencing note, wrapped in a `MarkdownRenderChild` for lifecycle
-- [ ] 8.5 Add the fold affordance for children that have children, matching the editor's own
+- [x] 8.5 Add the fold affordance for children that have children, matching the editor's own
       fold chevron placement
-- [ ] 8.6 Add the property row kind (no lineage, no indent, property name shown) and the embed
+- [x] 8.6 Add the property row kind (no lineage, no indent, property name shown) and the embed
       marking
-- [ ] 8.7 Implement progressive paint: totals and note names first, groups filling in per source
+- [x] 8.7 Implement progressive paint: totals and note names first, groups filling in per source
       as parses land, a resolving indication that shows no fabricated structure
-- [ ] 8.8 Implement navigation: clicking a reference or a lineage element opens the source at
+- [x] 8.8 Implement navigation: clicking a reference or a lineage element opens the source at
       that node, honouring Obsidian's new-pane modifiers
-- [ ] 8.9 Implement the dormant state for a note with no references
+- [x] 8.9 Implement the dormant state for a note with no references
 
 ## 9. Verification
 

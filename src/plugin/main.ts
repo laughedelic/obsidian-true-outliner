@@ -32,7 +32,7 @@ import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension, setMotionProbe } from './keymap';
 import { nestedEditorExtension } from './nested-editor';
-import { spikeFooterExtension } from './spike-footer-widget';
+import { backlinksFooterExtension, repaintFooters } from './backlinks-footer';
 import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
@@ -192,6 +192,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEvent(
       this.app.metadataCache.on('changed', (file) => {
         this.backlinks.reindex(file);
+        repaintFooters();
       }),
     );
     this.registerEvent(
@@ -225,11 +226,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
-    // Spike S1 apparatus (docs/research/19) — inert unless its debug setting is
-    // on. Registered LAST among the decoration producers so that if its presence
-    // changes anything measurable, the change is attributable to it and not to
-    // extension ordering among the established layers.
-    this.registerEditorExtension(spikeFooterExtension(this));
+    // Registered LAST among the decoration producers: it is the only block
+    // decoration here, and keeping it last means any interaction with the
+    // established layers is attributable to it rather than to ordering.
+    this.registerEditorExtension(backlinksFooterExtension(this));
     // Re-asserts the cursor of operations that CHOOSE one (move, split, merge,
     // paste, structural delete) so redo restores it — history recomputes a
     // cursor by mapping, which cannot reproduce a choice (history-caret.ts).
@@ -268,8 +268,8 @@ export default class TrueOutlinerPlugin extends Plugin {
     await this.saveData(this.data);
   }
 
-  get debugFooterWidget(): boolean {
-    return this.data.debugFooterWidget;
+  get backlinksFooter(): boolean {
+    return this.data.backlinksFooter;
   }
 
   /** See `SpikeFooterSource.footerRevision` — bumped whenever outline mode or
@@ -281,8 +281,8 @@ export default class TrueOutlinerPlugin extends Plugin {
     return this.footerRev;
   }
 
-  async setDebugFooterWidget(value: boolean): Promise<void> {
-    this.data.debugFooterWidget = value;
+  async setBacklinksFooter(value: boolean): Promise<void> {
+    this.data.backlinksFooter = value;
     this.footerRev++;
     await this.saveData(this.data);
     // The widget is produced by a ViewPlugin that recomputes on update, and
@@ -619,9 +619,9 @@ const SETTING_DEBUG_CROSSCHECK = {
   desc: 'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
 } as const;
 
-const SETTING_DEBUG_FOOTER_WIDGET = {
-  name: 'Debug: end-of-document block widget (spike S1)',
-  desc: 'Mounts an empty block widget at the end of an outline note. Measurement apparatus for the backlinks footer spike; renders nothing useful and is removed when that spike closes.',
+const SETTING_BACKLINKS_FOOTER = {
+  name: 'Show structured backlinks below notes',
+  desc: 'Renders every reference to the open note beneath it, each in the tree of the note it came from. Outline mode only.',
 } as const;
 
 const SETTING_MARKER_VISIBILITY = {
@@ -662,8 +662,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         control: { type: 'toggle', key: 'debugCrossCheck', defaultValue: false },
       },
       {
-        ...SETTING_DEBUG_FOOTER_WIDGET,
-        control: { type: 'toggle', key: 'debugFooterWidget', defaultValue: false },
+        ...SETTING_BACKLINKS_FOOTER,
+        control: { type: 'toggle', key: 'backlinksFooter', defaultValue: true },
       },
       {
         ...SETTING_MARKER_VISIBILITY,
@@ -703,8 +703,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     switch (key) {
       case 'debugCrossCheck':
         return this.plugin.debugCrossCheck;
-      case 'debugFooterWidget':
-        return this.plugin.debugFooterWidget;
+      case 'backlinksFooter':
+        return this.plugin.backlinksFooter;
       case 'markerVisibility':
         return this.plugin.markerVisibility;
       case 'guideHighlight':
@@ -721,8 +721,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
       case 'debugCrossCheck':
         await this.plugin.setDebugCrossCheck(Boolean(value));
         break;
-      case 'debugFooterWidget':
-        await this.plugin.setDebugFooterWidget(Boolean(value));
+      case 'backlinksFooter':
+        await this.plugin.setBacklinksFooter(Boolean(value));
         break;
       case 'markerVisibility':
         await this.plugin.setMarkerVisibility(value as MarkerVisibility);
@@ -748,12 +748,12 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
       );
     new Setting(this.containerEl)
-      .setName(SETTING_DEBUG_FOOTER_WIDGET.name)
-      .setDesc(SETTING_DEBUG_FOOTER_WIDGET.desc)
+      .setName(SETTING_BACKLINKS_FOOTER.name)
+      .setDesc(SETTING_BACKLINKS_FOOTER.desc)
       .addToggle((toggle) =>
         toggle
-          .setValue(this.plugin.debugFooterWidget)
-          .onChange((value) => void this.plugin.setDebugFooterWidget(value)),
+          .setValue(this.plugin.backlinksFooter)
+          .onChange((value) => void this.plugin.setBacklinksFooter(value)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_MARKER_VISIBILITY.name)

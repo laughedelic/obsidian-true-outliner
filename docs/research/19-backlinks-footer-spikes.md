@@ -38,7 +38,7 @@ One rule is specific to this series:
 | **S1** | Can a block widget at `doc.length` coexist with the enforcement layer? | Done | **Yes — proceed**, with one mechanism correction: block decorations must come from a `StateField`, not a `ViewPlugin` |
 | **S2** | Does the widget survive the editor's lifecycle? | Done | **Yes — proceed**, but a `StateField` needs an explicit invalidation bridge: the shared mode-toggle nudge is a no-op selection set and produces no transaction |
 | **S3** | Does `decorate()` hold up on a foreign, projected tree? | Done | **Yes** — node-identity facts are invariant; position facts describe the tree passed in, which corrected a spec claim |
-| **S4** | What does outline chrome cost outside `.cm-line`? | Preparation done | Token layer extracted and the editor proven unchanged by it; the visual verdict needs a footer DOM and runs with it |
+| **S4** | What does outline chrome cost outside `.cm-line`? | Rendering done, screenshots pending | Token layer extracted and the editor proven unchanged by it; the visual verdict needs a footer DOM and runs with it |
 | **S5** | What does a real vault cost? | Not started | — |
 
 ## The fixture corpus
@@ -318,10 +318,51 @@ Split accordingly, and behaviour-preservingly:
 Verified unchanged: 92 assertions across `50-decorations`, `51-guides-gradient`,
 `52-block-markers-icons`, `53-decoration-contracts` and `55-position-indicators`.
 
-What is left of S4 is its real question — whether that vocabulary is *sufficient* to draw the
-same chrome on a non-`.cm-line` DOM, or whether the chrome needs restructuring. That cannot be
-answered without a footer DOM to draw into, and a screenshot pass needs something to
-screenshot, so it runs alongside the footer rather than ahead of it.
+### Finding — the vocabulary was sufficient; no chrome restructuring needed
+
+With the footer built, the answer is yes. Its rows consume `--to-decor-unit` and
+`--to-marker-gutter` for geometry, `buildMarkerIcon` for kind notation, and the theme
+variables for colour, without a single value restated. Nothing about the chrome had to change
+to draw on ordinary `div`s rather than `.cm-line`s.
+
+Two things did have to be handled, neither a chrome problem:
+
+- **Node text must be dedented before rendering.** A node's own lines carry the indentation
+  that expresses its depth, and markdown reads a leading tab as a CODE BLOCK — so a nested list
+  item rendered verbatim came out as raw text with its `-` marker and `[[link]]` brackets
+  showing, while a top-level paragraph in the same footer rendered correctly. Depth is the
+  row's job; the text starts at column 0.
+- **An embed of the target renders as a link, not a transclusion.** Left alone, an
+  `![[Target#Heading]]` reference transcluded the target into its own footer — the reader asked
+  where it was referenced, not to read it again.
+
+The screenshot pass across both bundled themes is still outstanding.
+
+### Finding — the footer only exists once the reader reaches it
+
+Not a defect, but the single most surprising property of the surface, and worth stating because
+every future assertion about the footer depends on it.
+
+CodeMirror **virtualises**: a document long enough for its end to fall outside the viewport
+represents that region as a `cm-gap`, and nothing in it has DOM. The footer sits at
+`doc.length`. On a long note it therefore does not exist until the reader scrolls to the
+bottom.
+
+This was found the expensive way — a footer that rendered perfectly for short notes and not at
+all for `Projects/Aurora Dashboard.md`, through several wrong hypotheses (scale, then a
+per-path controller cache, then the note's own structure) before the DOM tail showed a
+`cm-gap` sitting where the widget should have been. Two useful consequences:
+
+- **It is free until it is read.** No index work, no file reads, no parsing happens for a note
+  nobody scrolls to the end of. The volume problem `backlinks-controls` addresses is
+  correspondingly smaller than S5 will suggest on paper.
+- **Every test must scroll first.** An assertion that opens a note and looks for the footer
+  passes or fails on the note's length, which is not what it was written to measure.
+
+A real defect was found on the way, and fixed: controllers were cached per note PATH, so a note
+open in two editors shared one element — and an element can only be in one place, so the second
+mount stole it from the first and the first's teardown disposed it. Each widget instance owns
+its own controller now. Precisely the "one widget per editor" invariant S2 exists to hold.
 
 ## S5 — real-vault cost
 

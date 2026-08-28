@@ -1,6 +1,9 @@
 /**
- * Spike S2 (docs/research/19-backlinks-footer-spikes.md): does the block widget
- * survive the editor's lifecycle?
+ * Spike S2 (docs/research/19-backlinks-footer-spikes.md), kept as a standing
+ * contract: does the footer survive the editor's lifecycle?
+ *
+ * Measured against the real footer now that it exists; see the note in spec 70
+ * on why the spike apparatus it originally used is gone.
  *
  * S1 established that the widget can exist without perturbing the enforcement
  * layer. This asks the separate question of whether it stays correct as editors
@@ -22,12 +25,12 @@ import * as h from '../helpers.js';
 const NOTE = 'Backlinks/Deep chain.md';
 const OTHER = 'Backlinks/Branching arms.md';
 const PLAIN = 'Notes/Sourdough Log.md';
-const WIDGET_SELECTOR = '.to-spike-footer';
+const WIDGET_SELECTOR = '.to-backlinks';
 
-async function setWidget(on: boolean): Promise<void> {
+async function setFooter(on: boolean): Promise<void> {
   await browser.executeObsidian(
     async ({ plugins }, enabled) => {
-      await (plugins.trueOutliner as any).setDebugFooterWidget(enabled);
+      await (plugins.trueOutliner as any).setBacklinksFooter(enabled);
     },
     on,
   );
@@ -117,7 +120,7 @@ describe('spike S2: end-of-document block widget lifecycle', function () {
     await h.pinPositionIndicatorsOff();
     await h.openNote(NOTE);
     await ensureOutlineMode(NOTE);
-    await setWidget(true);
+    await setFooter(true);
   });
 
   afterEach(async function () {
@@ -126,7 +129,7 @@ describe('spike S2: end-of-document block widget lifecycle', function () {
 
   after(async function () {
     await closeExtraLeaves();
-    await setWidget(false);
+    await setFooter(false);
   });
 
   it('survives repeated outline-mode toggling without leaking or duplicating', async function () {
