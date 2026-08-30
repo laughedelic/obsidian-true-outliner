@@ -128,6 +128,31 @@ describe('footer model', () => {
     ]);
   });
 
+  /**
+   * A reference inside another reference's subtree used to be rendered twice:
+   * once as dim context under its parent (the descendant pass) and once as
+   * itself (the lineage pass, which emits every match). Nothing in the original
+   * corpus nested one reference inside another, so it went unseen until
+   * `Backlinks/Kinds gallery.md` — where every list item under a referencing
+   * paragraph duplicated, ten rows into twenty.
+   */
+  it('renders a reference nested inside another reference exactly once', () => {
+    const doc = parse(`- [[Aurora Dashboard]] outer
+\t- plain child
+\t- [[Aurora Dashboard]] inner
+\t\t- child of inner
+`);
+    const rows = buildRows(doc, referencesTarget, [], noKind, noneExpanded);
+    expect(render(rows)).toEqual([
+      '* [[Aurora Dashboard]] outer',
+      '  . plain child',
+      '  * [[Aurora Dashboard]] inner',
+      '    . child of inner',
+    ]);
+    const inner = rows.filter((r) => r.type === 'node' && r.markdown.includes(']] inner'));
+    expect(inner).toHaveLength(1);
+  });
+
   it('drops the fold count once a row is expanded', () => {
     const doc = parse(`- [[Aurora Dashboard]] hit
 \t- child with kids

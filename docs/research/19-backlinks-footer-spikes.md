@@ -56,6 +56,9 @@ sprint` heading for anchor and embed cases to resolve against.
 | `Backlinks/Severity study writeup.md` | frontmatter property link; embed of a heading | S3 — the two reference kinds with no ordinary position in the block tree |
 | existing `Journal/2026-07-07.md` | reference in a root-level paragraph, siblings pruned | S3 — the no-ancestor case |
 | existing `Notes/Reading – The Design of Everyday Things.md` | reference two levels deep with a pruned sibling subtree and a multi-line ancestor | S3 — pruning a sibling that leads nowhere |
+| `Backlinks/Kinds gallery.md` | one reference per node kind — heading, paragraph, bullet, ordered, two-digit ordered, open and done task, quote, callout, table, html — several of them nested under a referencing paragraph | S4 — every marker's alignment against its own text, side by side; and the first fixture in which one reference sits inside another's subtree |
+| `Backlinks/Family tree.md` | references carrying real subtrees: children, grandchildren past the depth bound, a four-deep chain, and children of mixed kinds | S4 — descendant rows, the depth bound and the fold affordance |
+| `Backlinks/Reference target.md` | the target of the two fixtures above, and of nothing else | keeps their footer readable; the hub note is the volume case, not the legibility one |
 | `Backlinks/Hub/` (generated) | 120 notes, 400 references, mixed kinds and depths | S5 — index build, per-source parse, projection and first paint at scale |
 
 The hub fixture is generated rather than tracked — several hundred near-identical notes whose
@@ -390,6 +393,54 @@ measuring the footer against a `.cm-line` in the same session rather than by loo
 Measured after all three, against a `.cm-line` in the same session: marker-to-text gap 13.2px on
 both surfaces, marker-to-text vertical offset −0.8px on both. `74-footer-chrome-pass` holds that
 as a relationship rather than a pixel count, since CI's font is not a developer's.
+
+### Finding — the marker sat above its text on BOTH surfaces, and the box was not where it looked
+
+−0.8px against the line box still read as high, because a line box is not what the eye centres
+on: text is optically centred on its x-height midline, which sits above the box's centre. Two
+causes, and the first is why the arithmetic never added up:
+
+- **An inline-block's baseline is its last LINE BOX's baseline**, not its bottom edge. The marker
+  span inherited the line's 24px `line-height`, so it carried an internal strut whose baseline sat
+  ~17.5px down a box only 13.6px tall — lifting the icon ~4.4px above where every placement
+  calculation in `decorations.ts` and `chrome-line.ts` assumed it was. `line-height: 0` (and a
+  `display: block` SVG) leaves no line box, so the spec's fallback applies and the baseline is the
+  bottom margin edge, which is what that arithmetic means.
+- **`baseline` then centres the box `iconSize / 2` above the baseline**, where the text's optical
+  centre is `0.5ex` above it. `top: calc(var(--to-marker-icon-size) / 2 - 0.5ex)` closes exactly
+  that difference, in `ex` — which IS the font's x-height — so it holds at any text size.
+  `vertical-align: middle` is the alignment that claims to do this and does not: it centres the
+  margin box on `baseline + x-height/2`, the same answer only when the box's height happens to
+  match the x-height.
+
+Measured after: the icon's centre and the text's x-height midline coincide to **0.00px** on every
+kind and at every text size, heading and atom included, on both surfaces.
+
+### Finding — a reference inside another reference's subtree rendered twice
+
+Found by `Kinds gallery`, the first fixture with that shape. `collapseLineage` emits every match
+as its own row; `buildRows` independently emits each match's source-tree descendants. Where a
+match sat inside another match's subtree the two overlapped, and ten references rendered as
+twenty rows — once as dim context under the parent, once as themselves. `emitDescendants` now
+skips matches, and does not recurse into them: their own row carries their own subtree.
+
+Not a rendering bug, and not one any amount of looking at the old corpus would have surfaced.
+
+### Open — the kinds gallery's remaining rows
+
+Three defects the gallery exposes and this pass does not close, recorded so they are not
+rediscovered:
+
+- **Atom rows split marker from content.** A quote, callout or table arrives from
+  `MarkdownRenderer` as a genuine block, and the footer draws the inline marker mechanism beside
+  it — so the marker lands at the row's top-left with the content below. The editor already has
+  the answer for exactly these kinds: `.to-decor-marker-icon--widget`, absolutely positioned and
+  vertically centred, which the widget-replaced atoms use. The footer needs the same branch.
+- **Heading rows render as `<h1>` blocks**, with the same split, and the marker takes the row's
+  font rather than the heading's — so the `ex` correction is computed against the wrong text.
+- **Ordered items show a bullet.** Unwrapping `<ol><li>` discards the number, and the footer draws
+  the generic list marker. The number is closer to content than to notation, and probably belongs
+  in the row.
 
 Two further things had to be handled, neither a chrome problem:
 

@@ -797,8 +797,12 @@ export function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       // A bullet. The EDITOR never asks for this one — a list line there keeps
       // its native marker, which is editable text the reader typed. The
       // backlinks footer does: it renders list items unwrapped, with no native
-      // marker to keep, so it draws the same dot the reader would have seen.
-      children.push(svgEl('circle', { cx: '8', cy: '8', r: '2', fill: 'currentColor' }));
+      // marker to keep, so it draws the bullet the reader would have seen.
+      //
+      // Larger than the fallback dot below, because it stands in for a real
+      // bullet rather than marking an unclassified node: at r=2 it read as a
+      // speck beside 16px text.
+      children.push(svgEl('circle', { cx: '8', cy: '8', r: '3', fill: 'currentColor' }));
       break;
     default:
       // A small dot keeps this exhaustive-in-spirit without dead code paths.

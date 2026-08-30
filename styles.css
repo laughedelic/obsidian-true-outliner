@@ -901,7 +901,37 @@ body {
   display: inline-block;
   position: relative;
   left: var(--to-marker-left, 0px);
+  /*
+   * `baseline` puts the icon's whole box ABOVE the baseline, so its centre lands
+   * `iconSize / 2` up — while the text it sits beside is optically centred on its
+   * x-height midline, `0.5ex` up. Measured against the bundled themes, that left
+   * every marker ~2.6px high on a 16px line: small, and legible as wrong.
+   *
+   * `top` corrects the difference without touching layout (the box is already
+   * `position: relative` for the horizontal shift). Expressed in `ex`, which IS
+   * the font's x-height, so it stays right at any text size and in any theme —
+   * a fitted pixel would encode this machine's font.
+   *
+   * `vertical-align: middle` is the alignment that claims to do this, and does
+   * not: it centres the MARGIN box on `baseline + x-height/2`, which is the same
+   * answer only when the box's height happens to match the x-height. Ours is a
+   * fixed constant, so it overshot — recorded here because the earlier attempt
+   * is otherwise inviting to repeat.
+   */
   vertical-align: baseline;
+  /*
+   * Zero, so the span's own baseline IS its bottom edge.
+   *
+   * An inline-block's baseline is the baseline of its last LINE BOX, and this
+   * span inherits the line's `line-height` — so it carried a 24px internal
+   * strut whose baseline sat ~17.5px below the box top, on a box only 13.6px
+   * tall. Aligning THAT to the text's baseline lifted the whole icon ~4.4px
+   * above where a reading of the box would put it. With no line box left, the
+   * spec's fallback applies and the baseline is the bottom margin edge, which
+   * is what the placement arithmetic above and in chrome-line.ts assumes.
+   */
+  line-height: 0;
+  top: calc(var(--to-marker-icon-size, 0.85rem) / 2 - 0.5ex);
   /* --to-marker-icon-size is set on the content DOM from its JS source of
    * truth (MARKER_ICON_CSS, decorations.ts); the fallback matches it. */
   width: var(--to-marker-icon-size, 0.85rem);
@@ -909,6 +939,15 @@ body {
   margin-left: calc(-1 * var(--to-marker-icon-size, 0.85rem));
   pointer-events: none;
   color: var(--text-faint);
+}
+
+/* Block, so no inline formatting context is created inside the span at all —
+ * the same conclusion as `line-height: 0` above, reached a second way, and the
+ * one that also holds inside the flex variant below. */
+.to-decor-marker-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .to-decor-marker-icon--widget {

@@ -24,6 +24,9 @@ const OUT = path.join(process.cwd(), '.obsidian-cache', 'footer-chrome');
 const HUB = 'Projects/Aurora Dashboard.md';
 /** A second target, small enough that its whole footer fits one frame. */
 const SMALL = 'People/Priya Nair.md';
+/** Referenced only by the two marker-alignment fixtures, so its footer shows one
+ * row per node kind and one reference carrying a real subtree. */
+const KINDS = 'Backlinks/Reference target.md';
 
 /**
  * The footer lives at `doc.length`, and CodeMirror virtualises: in a document
@@ -70,7 +73,17 @@ function rowChrome(): Promise<
 
 async function shoot(name: string): Promise<void> {
   fs.mkdirSync(OUT, { recursive: true });
-  await browser.saveScreenshot(path.join(OUT, `${name}.png`));
+  // Two frames, because a footer is routinely taller than the viewport and the
+  // pass is about the whole of it: one anchored at the footer's own top, one at
+  // the document's end. An element screenshot is not the answer — the driver
+  // clips it to the viewport anyway.
+  await browser.executeObsidian(() => {
+    document.querySelector('.workspace-leaf.mod-active .to-backlinks')?.scrollIntoView(true);
+  });
+  await browser.pause(300);
+  await browser.saveScreenshot(path.join(OUT, `${name}-top.png`));
+  await scrollToEnd();
+  await browser.saveScreenshot(path.join(OUT, `${name}-end.png`));
 }
 
 describe('backlinks footer: outline chrome outside .cm-line', function () {
@@ -194,7 +207,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
   });
 
   it('renders the corpus in both bundled themes', async function () {
-    for (const [label, target] of [['small', SMALL], ['hub', HUB]] as const) {
+    for (const [label, target] of [['small', SMALL], ['kinds', KINDS], ['hub', HUB]] as const) {
       for (const dark of [true, false]) {
         await h.setTheme(dark);
         await h.openNote(target);

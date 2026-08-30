@@ -246,6 +246,15 @@ export function buildRows(
   ): void {
     if (remaining <= 0) return;
     for (const node of nodes) {
+      // A descendant that is ITSELF a reference already has a row: the lineage
+      // pass emits every match, and emits it marked as one. Rendering it here
+      // as well showed it twice — once as dim context under its parent and once
+      // as the reference it is. Its own subtree comes with its own row, so this
+      // does not recurse into it either.
+      //
+      // Only reachable when one reference sits inside another's subtree, which
+      // is why it survived until the corpus had a note shaped that way.
+      if (matches(node)) continue;
       const open = expanded(node);
       const hidden = node.children.length > 0 && remaining === 1 && !open
         ? countDescendants(node)
