@@ -24,3 +24,16 @@ A paragraph mentions [[Reference target]] and runs on for long enough that the r
 | A table cell mentions [[Reference target]] | Maya |
 
 <div>An HTML block mentions <a href="#">Aurora Dashboard</a>, and a real link too: [[Reference target]]</div>
+
+A hard-wrapped paragraph, whose lines are continuations of one thought
+rather than separate records, and whose reference to [[Reference target]]
+falls on its second line on purpose.
+
+| Surface | Owner | Status |
+| --- | --- | --- |
+| Desktop triage | Maya | shipped |
+| Mobile triage mentions [[Reference target]] | Priya | in review |
+| Tablet triage | Sam | blocked |
+
+> [!tip] A titled callout
+> whose body mentions [[Reference target]] rather than its title.

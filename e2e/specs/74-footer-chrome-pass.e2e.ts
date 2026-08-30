@@ -347,11 +347,41 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
   });
 
   /**
-   * The three shapes the reading-mode renderer answers in, each needing its own
-   * marker mechanism. All three were wrong until `Backlinks/Kinds gallery.md`
-   * put one reference of every kind on a single screen.
+   * The invariant the whole rendering model rests on, and the one assertion
+   * that would have caught every defect a reader found by looking: a row is a
+   * LINE, so nothing block-level may appear in one.
+   *
+   * The model strips a node's block syntax before the renderer ever sees it
+   * (D18), so this holds by construction rather than by cleanup — which is
+   * exactly why it is worth asserting: a stripping miss is silent otherwise.
    */
-  it('draws each kind’s marker by the mechanism that kind needs', async function () {
+  it('never puts a block-level element in a row', async function () {
+    for (const target of [KINDS, SMALL, HUB]) {
+      await h.openNote(target);
+      await ensureOutlineMode(target);
+      await scrollToEnd();
+
+      const offenders = await browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        if (!root) return [];
+        const BLOCK = 'h1,h2,h3,h4,h5,h6,p,ul,ol,li,blockquote,table,pre,hr,div';
+        return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).flatMap((row) =>
+          Array.from(row.querySelectorAll(BLOCK)).map(
+            (el) => `${el.tagName} in "${(row.textContent ?? '').trim().slice(0, 40)}"`,
+          ),
+        );
+      });
+
+      expect(offenders).toEqual([]);
+    }
+  });
+
+  /**
+   * Kind is said once, by the marker. A heading row that also took a heading's
+   * size would say it twice, in the channel a reader reads first — which is how
+   * the footer came to read as a scrapbook of other documents.
+   */
+  it('says a row’s kind once, in its marker', async function () {
     await h.openNote(KINDS);
     await ensureOutlineMode(KINDS);
     await scrollToEnd();
@@ -360,49 +390,53 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       if (!root) return [];
       return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
-        const icon = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
-        const ol = el.querySelector<HTMLElement>(':scope > .to-backlinks-ol-marker');
-        const content = el.querySelector<HTMLElement>(':scope > .to-backlinks-content');
-        const r = el.getBoundingClientRect();
-        const i = icon?.getBoundingClientRect();
-        const c = content?.getBoundingClientRect();
+        const cs = getComputedStyle(el);
         return {
-          atom: el.classList.contains('to-decor-atom'),
-          heading: /to-backlinks-h[1-6]/.test(el.className),
-          widgetMarker: icon?.classList.contains('to-decor-marker-icon--widget') ?? false,
-          ordered: ol ? { text: (ol.textContent ?? '').trim(), right: ol.getBoundingClientRect().right } : null,
-          contentLeft: c?.left ?? 0,
-          // How far the marker's centre sits from the row's, as a fraction of
-          // the row's height — 0 means centred on the box.
-          centredness: i && r.height > 0 ? Math.abs(i.top + i.height / 2 - (r.top + r.height / 2)) / r.height : null,
+          text: (el.textContent ?? '').trim().slice(0, 40),
+          fontSize: parseFloat(cs.fontSize),
+          height: el.getBoundingClientRect().height,
+          hasCheckbox: !!el.querySelector(':scope > .to-decor-marker-icon'),
+          ordinal: el.querySelector('.to-backlinks-ordinal')?.textContent ?? null,
         };
       });
     });
 
     expect(rows.length).toBeGreaterThan(0);
+    // Every row reads at one size: a heading's row is not bigger than a
+    // paragraph's, because its heading-ness is in the marker.
+    const sizes = new Set(rows.map((r) => r.fontSize));
+    expect(sizes.size).toBe(1);
 
-    // An atom is a real block from the renderer, with no text run to sit
-    // beside: its marker is positioned against the row's box and centred on it.
-    const atoms = rows.filter((r) => r.atom);
-    expect(atoms.length).toBeGreaterThan(0);
-    for (const atom of atoms) {
-      expect(atom.widgetMarker).toBe(true);
-      expect(atom.centredness).toBeLessThan(0.1);
-    }
+    // An ordered item's number is its marker, two digits included.
+    const ordinals = rows.map((r) => r.ordinal).filter((o): o is string => o !== null);
+    expect(ordinals).toContain('10.');
+  });
 
-    // A heading takes its size on the ROW, so the marker beside it is centred
-    // against the text it actually sits next to.
-    expect(rows.some((r) => r.heading)).toBe(true);
+  /**
+   * One rhythm. A row whose content came back as a block used to be several
+   * lines tall while its neighbours were one, which is what broke the outline
+   * into a patchwork — assertable directly rather than left to the eye.
+   */
+  it('gives every single-line row the same height', async function () {
+    await h.openNote(KINDS);
+    await ensureOutlineMode(KINDS);
+    await scrollToEnd();
 
-    // An ordered item keeps its own number, right-anchored before the text —
-    // including a two-digit one, which has to grow leftward rather than run
-    // underneath its own text.
-    const ordered = rows.map((r) => r.ordered).filter((o): o is NonNullable<typeof o> => o !== null);
-    expect(ordered.length).toBeGreaterThan(0);
-    expect(ordered.some((o) => o.text.length > 2)).toBe(true);
-    for (const o of ordered) {
-      const row = rows.find((r) => r.ordered === o)!;
-      expect(o.right).toBeLessThanOrEqual(row.contentLeft);
-    }
+    const heights = await browser.executeObsidian(() => {
+      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+      if (!root) return [];
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row'))
+        .map((el) => {
+          const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+          const h = el.getBoundingClientRect().height;
+          // Rows that genuinely wrap are not what this measures.
+          return h < lineHeight * 1.8 ? h : null;
+        })
+        .filter((h): h is number => h !== null);
+    });
+
+    expect(heights.length).toBeGreaterThan(3);
+    // Not a pixel count: the spread across every kind is what matters.
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(2);
   });
 });

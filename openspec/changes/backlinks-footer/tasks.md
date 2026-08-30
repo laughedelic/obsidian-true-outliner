@@ -148,22 +148,22 @@ next begins; green unit tests are never the gate for anything visual.
 > the footer read as a scrapbook of other documents' fragments rather than as an index of
 > mentions. Validated against a working prototype before being written down.
 
-- [ ] 8b.1 Implement `inlineTextOf(node)`: strip the block prefix — heading hashes, quote carets,
+- [x] 8b.1 Implement `inlineTextOf(node)`: strip the block prefix — heading hashes, quote carets,
       list marker, checkbox, ordered number, callout type token — so the renderer is only ever
       handed inline markdown and returns a single paragraph
-- [ ] 8b.2 Apply the prose/record split: paragraph, heading, quote and callout lines join into one
+- [x] 8b.2 Apply the prose/record split: paragraph, heading, quote and callout lines join into one
       row; a code row shows the line the reference sits on; a table row shows the header row and
       the reference's own row, cells joined
-- [ ] 8b.3 Render an HTML block's text content as plain text, not as markdown — Obsidian does not
+- [x] 8b.3 Render an HTML block's text content as plain text, not as markdown — Obsidian does not
       resolve wikilinks inside an HTML block, so rendering it as markdown only pretends to
-- [ ] 8b.4 Move a task's checked state into the marker: the checkbox replaces the bullet, drawn on
+- [x] 8b.4 Move a task's checked state into the marker: the checkbox replaces the bullet, drawn on
       the marker column, with no checkbox inside the row's text
-- [ ] 8b.5 Align the ordered-item number marker with the editor's own ordered markers, reusing the
+- [x] 8b.5 Align the ordered-item number marker with the editor's own ordered markers, reusing the
       list-grid geometry rather than a footer-local approximation (docs/research/16)
-- [ ] 8b.6 Delete what the model removes: the footer's widget-atom marker branch and the
+- [x] 8b.6 Delete what the model removes: the footer's widget-atom marker branch and the
       heading-size branch, and the CSS that served them. `markerAnchorLeftExpr` stays in
       `chrome-line.ts` — it is the editor's
-- [ ] 8b.7 Extend `Backlinks/Kinds gallery.md` so every kind in the D18 table has a reference,
+- [x] 8b.7 Extend `Backlinks/Kinds gallery.md` so every kind in the D18 table has a reference,
       including a hard-wrapped paragraph, a multi-row table with a header, and a titled callout
       whose reference sits in the BODY rather than the title
 
@@ -173,8 +173,11 @@ next begins; green unit tests are never the gate for anything visual.
 > screenshots, and it missed six defects a reader found immediately. Every assertion below is
 > mechanical.
 
-- [ ] 8c.1 The single invariant that catches the whole class: **no row contains a block-level
-      element**. Asserted over every row of every fixture, in both themes
+- [x] 8c.1 The single invariant that catches the whole class: **no row contains a block-level
+      element**. Asserted over every row of every fixture, in both themes. *Caught a real defect
+      on its first run: `MarkdownRenderer` resolves asynchronously, so an embed tag appended
+      beside a pending render left the `<p>` unwrapped — `unwrapBlocks` only unwraps a LONE
+      wrapper. The render target is its own span now.*
 - [ ] 8c.2 Per-kind matrix over `Kinds gallery`: for every kind, assert the marker is present and
       of that kind, sits on the depth's column, and is centred on its own text's x-height band
 - [ ] 8c.3 Per-kind matrix, continued: assert every row's height is within one line-height of a

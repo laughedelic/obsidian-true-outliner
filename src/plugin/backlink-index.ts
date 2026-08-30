@@ -24,7 +24,7 @@
 
 import { TFile, parseLinktext, type App, type CachedMetadata, type Reference } from 'obsidian';
 import type { OutlineDoc, OutlineNode } from '../model';
-import { nodeAtLine } from '../locate';
+import { nodeAtLine, nodeStartLine } from '../locate';
 import type { NodePredicate } from '../project';
 import { SourceTreeCache } from './source-tree-cache';
 
@@ -76,6 +76,15 @@ export interface PlacedSource {
   /** Node id -> the kind of reference found in it. Keyed by NODE, because that
    * is what a row is: a line key would never match what the renderer asks. */
   readonly kinds: ReadonlyMap<number, ReferenceKind>;
+  /**
+   * Node id -> which of that node's OWN lines the reference sits on, counted
+   * from the node's first line.
+   *
+   * A node whose lines are records rather than continuations — a table, a code
+   * fence — renders one line, and this says which (D18). Node-local rather than
+   * absolute because a projected tree's line numbers are its own.
+   */
+  readonly refLines: ReadonlyMap<number, number>;
   /** References with no position in the tree, in frontmatter order. */
   readonly properties: readonly BacklinkReference[];
 }
@@ -158,6 +167,7 @@ export class BacklinkIndex {
     const doc = await this.trees.get(file);
     const matchedIds = new Set<number>();
     const kinds = new Map<number, ReferenceKind>();
+    const refLines = new Map<number, number>();
     for (const ref of refs) {
       if (ref.line === undefined) continue;
       const node = nodeAtLine(doc, ref.line);
@@ -166,6 +176,9 @@ export class BacklinkIndex {
       // A node can hold more than one reference; the first kind wins, which
       // only decides a marker and never whether the node is a reference at all.
       if (!kinds.has(node.id)) kinds.set(node.id, ref.kind);
+      if (!refLines.has(node.id)) {
+        refLines.set(node.id, ref.line - nodeStartLine(doc, node.id));
+      }
     }
 
     return {
@@ -173,6 +186,7 @@ export class BacklinkIndex {
       doc,
       matches: (node: OutlineNode) => matchedIds.has(node.id),
       kinds,
+      refLines,
       properties: refs.filter((r) => r.kind === 'property'),
     };
   }

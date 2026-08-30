@@ -39,7 +39,6 @@ import { buildMarkerIcon } from './decorations';
 import {
   MARKER_LEFT_SHIFT_EXPR,
   applyLineChrome,
-  atomMarkerLeftExpr,
   lineChrome,
   plainGuideBackground,
 } from './chrome-line';
@@ -175,6 +174,7 @@ class FooterController {
       placed.properties,
       (node: OutlineNode) => placed.kinds.get(node.id),
       (node: OutlineNode) => state.expandedRows.has(`${sourcePath}:${node.id}`),
+      (node: OutlineNode) => placed.refLines.get(node.id),
     );
 
     const built = createDiv();
@@ -296,11 +296,11 @@ class FooterController {
     el.appendChild(markerFor(row));
 
     const content = el.createSpan({ cls: 'to-backlinks-content' });
-    // An embed of the target, rendered inside the target's OWN footer, would
-    // transclude the note into itself — the reader asked where it was
-    // referenced, not to read it again. Rendered as a link instead, and marked.
-    const markdown = row.referenceKind === 'embed' ? row.markdown.replace(/!\[\[/g, '[[') : row.markdown;
-    void this.renderMarkdown(content, markdown, sourcePath, el);
+    // The rendered content gets its own span: `MarkdownRenderer` resolves
+    // asynchronously, and `unwrapBlocks` only unwraps a LONE wrapper — so a tag
+    // appended beside it in the meantime left the `<p>` in place, which is a
+    // block element in a row and exactly what the model forbids.
+    this.renderContent(content.createSpan(), row, sourcePath);
     if (row.referenceKind === 'embed') {
       content.createSpan({ cls: 'to-backlinks-tag', text: 'embed' });
     }
@@ -322,19 +322,38 @@ class FooterController {
    * Unwrapped, the row's marker and text sit in one inline flow, exactly as a
    * `.cm-line`'s do.
    */
-  private async renderMarkdown(
-    el: HTMLElement,
-    markdown: string,
-    sourcePath: string,
-    row?: HTMLElement,
-  ): Promise<void> {
+  private async renderMarkdown(el: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
     await MarkdownRenderer.render(this.source.app, markdown, el, sourcePath, this.component);
-    const heading = unwrapBlocks(el);
-    // A heading's SIZE belongs to the row, not to the text inside it: the
-    // marker is a sibling of the content, so if only the text grew, the marker
-    // would be centred against the row's font while sitting beside much bigger
-    // text — the `0.5ex` correction computed from the wrong font.
-    if (heading && row) row.addClass(`to-backlinks-h${heading}`);
+    unwrapBlocks(el);
+  }
+
+  /**
+   * A node row's content, by the one of three ways it is to be rendered (D18).
+   *
+   * Only `markdown` reaches Obsidian, and by then the model has already removed
+   * the node's block syntax — so the renderer is asked for inline content and
+   * returns a single paragraph, which `unwrapBlocks` flattens.
+   */
+  private renderContent(
+    el: HTMLElement,
+    row: Extract<FooterRow, { type: 'node' }>,
+    sourcePath: string,
+  ): void {
+    if (row.markdown.length === 0) return;
+    if (row.render === 'text') {
+      el.setText(row.markdown);
+      return;
+    }
+    if (row.render === 'code') {
+      el.createEl('code', { cls: 'to-backlinks-code', text: row.markdown });
+      return;
+    }
+    // An embed of the target, rendered inside the target's OWN footer, would
+    // transclude the note into itself — the reader asked where it was
+    // referenced, not to read it again. Rendered as a link instead, and marked.
+    const markdown =
+      row.referenceKind === 'embed' ? row.markdown.replace(/!\[\[/g, '[[') : row.markdown;
+    void this.renderMarkdown(el, markdown, sourcePath);
   }
 
   private open(sourcePath: string): void {
@@ -360,31 +379,44 @@ class FooterController {
  * - Everything else sits in the inline flow, beside the first text run.
  */
 function markerFor(row: Extract<FooterRow, { type: 'node' }>): HTMLElement {
-  const ordered = orderedMarkerOf(row.markdown);
-  if (ordered) return orderedMarker(ordered);
-  if (row.fact.isAtom) return atomMarker(buildMarkerIcon(row.fact.kind), row.fact);
+  if (row.task !== undefined) return markerSlot(checkboxGlyph(row.task));
+  if (row.ordinal) return ordinalMarker(row.ordinal);
   return markerSlot(buildMarkerIcon(row.fact.kind));
 }
 
-/** `1.`, `10)` — an ordered item's own label, as written. */
-function orderedMarkerOf(markdown: string): string | undefined {
-  return /^\s*(\d{1,9}[.)])\s/.exec(markdown.split('\n')[0] ?? '')?.[1];
+/**
+ * An ordered item's number, in the marker's place.
+ *
+ * Inline rather than absolute, and sized so its LEFT edge lands on the block
+ * icon's — which is the rule the editor's own ordered markers follow, and for
+ * the reason recorded there: a fixed left edge reads as a column, where centring
+ * each number on its own width leaves `10.` and `100.` ragged and eats the room
+ * the fold chevron needs. A number too wide for the slot grows right and pushes
+ * its own text out, exactly as it does in the editor.
+ */
+function ordinalMarker(label: string): HTMLElement {
+  return createSpan({ cls: 'to-backlinks-ordinal', text: label });
 }
 
-function orderedMarker(label: string): HTMLElement {
-  const el = createSpan({ cls: 'to-backlinks-ol-marker', text: label });
-  return el;
-}
-
-/** An atom's marker, positioned against the row's own box. */
-function atomMarker(icon: Element, fact: FooterRow['fact']): HTMLElement {
-  const el = createSpan({ cls: 'to-decor-marker-icon to-decor-marker-icon--widget' });
-  el.setCssProps({ '--to-marker-left': atomMarkerLeftExpr(fact) });
-  // `el` was created on the line above and is not mounted until the caller
-  // attaches the row it belongs to.
-  // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-  el.appendChild(icon);
-  return el;
+/** A task's state, drawn where its bullet would be. Not interactive: the footer
+ * is read-only (D2), and a checkbox that looks clickable and is not is worse
+ * than one that does not. */
+function checkboxGlyph(done: boolean): SVGSVGElement {
+  const box = 'M2.8 2.8h10.4v10.4h-10.4z';
+  return done
+    ? glyph(16, [box, 'M5 8.2l2.4 2.4 4-4.8'], {
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': '1.6',
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+      })
+    : glyph(16, [box], {
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': '1.6',
+        'stroke-linejoin': 'round',
+      });
 }
 
 /**
@@ -419,19 +451,19 @@ function markerSlot(icon: Element): HTMLElement {
  */
 const BLOCK_WRAPPERS = new Set(['P', 'UL', 'OL', 'LI', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
 
-/** Returns the heading level unwrapped along the way, if any, so the caller can
- * give the ROW that heading's size. */
-function unwrapBlocks(el: HTMLElement): number | undefined {
-  let heading: number | undefined;
+/**
+ * The safety net, not the mechanism: the model strips block syntax before the
+ * renderer ever sees the text (D18), so a lone `<p>` is all this normally
+ * unwraps. The wider set stays because a stripping miss must not put a block
+ * element in a row — the one invariant the whole model rests on.
+ */
+function unwrapBlocks(el: HTMLElement): void {
   for (;;) {
     const only = el.children.length === 1 ? el.firstElementChild : null;
     if (!only || !BLOCK_WRAPPERS.has(only.tagName)) break;
-    const level = /^H([1-6])$/.exec(only.tagName);
-    if (level) heading = Number(level[1]);
     only.replaceWith(...Array.from(only.childNodes));
   }
   trimEdgeWhitespace(el);
-  return heading;
 }
 
 /**

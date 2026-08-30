@@ -172,3 +172,91 @@ describe('splitPath', () => {
     expect(splitPath('Root.md')).toEqual({ name: 'Root', folder: '' });
   });
 });
+
+/**
+ * The per-kind content rules of D18, read off the fixture that exists to hold
+ * one reference of every kind. Model-level, because every one of these rules is
+ * a decision about WHICH TEXT a row carries — no DOM required to be sure of it,
+ * and the e2e matrix then only has to check that the DOM says what the model
+ * said.
+ */
+describe('row content is notation, not reproduction (D18)', () => {
+  const GALLERY = 'Backlinks/Kinds gallery.md';
+  const mentionsTarget = (node: OutlineNode): boolean =>
+    node.lines.some((l) => l.includes('[[Reference target]]'));
+  /** Which of the node's own lines carries the link — what the index supplies
+   * at runtime, computed here from the same text. */
+  const refLine = (node: OutlineNode): number | undefined => {
+    const i = node.lines.findIndex((l) => l.includes('[[Reference target]]'));
+    return i === -1 ? undefined : i;
+  };
+
+  const galleryRows = (): FooterRow[] =>
+    buildRows(parse(read(GALLERY)), mentionsTarget, [], noKind, noneExpanded, refLine);
+
+  const rowStartingWith = (prefix: string): Extract<FooterRow, { type: 'node' }> => {
+    const row = galleryRows().find((r) => r.type === 'node' && r.markdown.startsWith(prefix));
+    if (row?.type !== 'node') throw new Error(`no row starting with ${JSON.stringify(prefix)}`);
+    return row;
+  };
+
+  it('strips a heading to its text', () => {
+    const row = rowStartingWith('A heading mentions');
+    expect(row.markdown).toBe('A heading mentions [[Reference target]]');
+    expect(row.fact.kind).toBe('heading');
+  });
+
+  it('strips a quote to its text', () => {
+    const row = rowStartingWith('A quote mentions');
+    expect(row.markdown.startsWith('>')).toBe(false);
+    expect(row.fact.kind).toBe('quote');
+  });
+
+  it('moves a task’s state into the row, out of its text', () => {
+    const open = rowStartingWith('an open task');
+    const done = rowStartingWith('a done task');
+    expect(open.task).toBe(false);
+    expect(done.task).toBe(true);
+    // The checkbox is drawn by the marker; the text must not repeat it.
+    expect(open.markdown).not.toContain('[ ]');
+    expect(done.markdown).not.toContain('[x]');
+  });
+
+  it('moves an ordered item’s number into the row, out of its text', () => {
+    const row = rowStartingWith('a two-digit ordered item');
+    expect(row.ordinal).toBe('10.');
+    expect(row.markdown.startsWith('a two-digit')).toBe(true);
+  });
+
+  it('joins a hard-wrapped paragraph’s lines into one row', () => {
+    const row = rowStartingWith('A hard-wrapped paragraph');
+    expect(row.markdown).toContain('falls');
+    expect(row.markdown).not.toContain('\n');
+  });
+
+  it('shows a table’s header row and the reference’s own row', () => {
+    const row = rowStartingWith('Surface · Owner · Status');
+    expect(row.markdown).toBe(
+      'Surface · Owner · Status — Mobile triage mentions [[Reference target]] · Priya · in review',
+    );
+    // The rows the reference is not on stay out.
+    expect(row.markdown).not.toContain('Desktop triage');
+    expect(row.markdown).not.toContain('Tablet triage');
+  });
+
+  it('shows a callout’s body line when the reference is in the body', () => {
+    const row = rowStartingWith('whose body mentions');
+    expect(row.markdown).toBe('whose body mentions [[Reference target]] rather than its title.');
+    expect(row.markdown).not.toContain('[!tip]');
+  });
+
+  it('shows an HTML block’s text, not its markup', () => {
+    const row = galleryRows().find((r) => r.type === 'node' && r.fact.kind === 'html');
+    if (row?.type !== 'node') throw new Error('no html row');
+    expect(row.render).toBe('text');
+    expect(row.markdown).not.toContain('<div>');
+    expect(row.markdown).not.toContain('href');
+    expect(row.markdown).toContain('An HTML block mentions');
+  });
+});
+

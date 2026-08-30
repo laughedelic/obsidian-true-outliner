@@ -54,8 +54,22 @@ export type FooterRow =
     })
   | (FooterRowBase & {
       readonly type: 'node';
-      /** The node's own source text, for Obsidian to render. */
+      /**
+       * The node's content as INLINE markdown: its block syntax removed, so
+       * nothing block-level can reach the row (D18). Kind is said once, by the
+       * marker; a row that also carried its kind's typography would say it
+       * twice, in the channel a reader reads first.
+       */
       readonly markdown: string;
+      /** How `markdown` is to be turned into DOM. */
+      readonly render: RowRender;
+      /** A task's checked state, when this row is one. Drawn by the marker, in
+       * the bullet's place — it is state the reader is looking for, not
+       * presentation. */
+      readonly task?: boolean | undefined;
+      /** An ordered item's own label (`10.`), when this row is one. Drawn by
+       * the marker, in the bullet's place. */
+      readonly ordinal?: string | undefined;
       /** True when this node is one the reference was found in. */
       readonly isReference: boolean;
       /** Kind of reference, when this row is one and the kind is worth marking. */
@@ -93,6 +107,17 @@ export interface FooterModel {
   readonly groups: readonly FooterGroup[];
 }
 
+/**
+ * How a row's content becomes DOM.
+ *
+ * - `markdown` — inline markdown, rendered by Obsidian, so links and emphasis
+ *   look as they do anywhere else.
+ * - `text` — plain text, rendered by nobody. An HTML block's wikilinks are not
+ *   resolved by Obsidian, so rendering it as markdown would only pretend to.
+ * - `code` — plain text in a monospace run.
+ */
+export type RowRender = 'markdown' | 'text' | 'code';
+
 /** `Notes/Sub/Thing.md` -> `{ name: 'Thing', folder: 'Notes/Sub' }`. */
 export function splitPath(path: string): { name: string; folder: string } {
   const slash = path.lastIndexOf('/');
@@ -129,21 +154,144 @@ function factsByNode(doc: OutlineDoc): Map<OutlineNode, LineDecorationFact> {
   return out;
 }
 
-/**
- * A node's own text, dedented, without the trailing gap it owns.
+/** A row's content, and how to render it — the whole of D18's per-kind table.
  *
- * The dedent is not cosmetic. A node's lines carry the indentation that
- * expresses its depth in the source note, and markdown reads a leading tab (or
- * four spaces) as a CODE BLOCK — so a nested list item rendered verbatim came
- * out as raw text with its `-` marker and `[[link]]` brackets showing, while a
- * top-level paragraph in the same footer rendered correctly. Depth is expressed
- * by the row's own indentation here; the text itself must start at column 0.
+ * `refLine` is which of the node's OWN lines carries the reference, counted
+ * from its first. Absent for a node that is context rather than a match, and
+ * for kinds that do not use it.
  */
-function markdownOf(node: OutlineNode): string {
-  const first = node.lines[0] ?? '';
-  const indent = first.slice(0, first.length - first.trimStart().length);
-  if (!indent) return node.lines.join('\n');
-  return node.lines.map((l) => (l.startsWith(indent) ? l.slice(indent.length) : l.trimStart())).join('\n');
+interface RowContent {
+  readonly markdown: string;
+  readonly render: RowRender;
+  readonly task?: boolean | undefined;
+  readonly ordinal?: string | undefined;
+}
+
+/**
+ * The split this switch encodes: `code` and `table` lines are separate RECORDS,
+ * so joining them would fabricate a sentence the source does not contain; every
+ * other kind's lines are continuations of one thought and join. `callout` needs
+ * neither rule — its title names it, and only a reference in the body displaces
+ * that.
+ */
+function contentOf(node: OutlineNode, refLine: number | undefined): RowContent {
+  const task = taskStateOf(node);
+  const ordinal = ordinalOf(node);
+  const extra = { ...(task !== undefined ? { task } : {}), ...(ordinal ? { ordinal } : {}) };
+
+  switch (node.kind) {
+    case 'hr':
+      // Nothing to say: the marker is the whole node.
+      return { markdown: '', render: 'markdown', ...extra };
+    case 'html':
+      // Obsidian does not resolve wikilinks inside an HTML block, so rendering
+      // one as markdown shows the reader `[[Target]]` and calls it a link. Its
+      // TEXT is what the block says; its tags are how it says it, and a footer
+      // row is not the place to read markup.
+      return { markdown: htmlTextOf(node), render: 'text', ...extra };
+    case 'code':
+      return { markdown: codeLineOf(node, refLine), render: 'code', ...extra };
+    case 'table':
+      return { markdown: tableTextOf(node, refLine), render: 'markdown', ...extra };
+    case 'callout':
+      return { markdown: calloutTextOf(node, refLine), render: 'markdown', ...extra };
+    default:
+      return { markdown: proseOf(node), render: 'markdown', ...extra };
+  }
+}
+
+/** Continuation lines, joined: a paragraph, heading, quote or list item's lines
+ * are one thought wrapped, not several records. */
+function proseOf(node: OutlineNode): string {
+  return node.lines.map(stripBlockPrefix).filter((l) => l.length > 0).join(' ');
+}
+
+/**
+ * One line's leading block syntax: quote carets, heading hashes, a list marker
+ * with its optional checkbox, an ordered number. Whatever survives is inline.
+ *
+ * Order matters: a quoted heading is `> # Title`, and a task's checkbox sits
+ * after its bullet.
+ */
+function stripBlockPrefix(line: string): string {
+  return line
+    .trim()
+    .replace(/^(?:>\s?)+/, '')
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/, '')
+    .trim();
+}
+
+/** `- [x] ` — a task's state, or absent when the item is not a task. */
+function taskStateOf(node: OutlineNode): boolean | undefined {
+  if (node.kind !== 'list-item') return undefined;
+  const m = /^\s*[-*+]\s+\[([ xX])\]\s/.exec(node.lines[0] ?? '');
+  return m ? m[1] !== ' ' : undefined;
+}
+
+/** `10.` — an ordered item's own label, as written. */
+function ordinalOf(node: OutlineNode): string | undefined {
+  if (node.kind !== 'list-item') return undefined;
+  return /^\s*(\d{1,9}[.)])\s/.exec(node.lines[0] ?? '')?.[1];
+}
+
+/** A fence's lines are statements, not a sentence: show the one the reference
+ * is on, or the first real line when it is context rather than a match. */
+function codeLineOf(node: OutlineNode, refLine: number | undefined): string {
+  const isFence = (l: string): boolean => /^\s*(?:```|~~~)/.test(l);
+  const at = refLine !== undefined ? node.lines[refLine] : undefined;
+  if (at !== undefined && !isFence(at)) return at.trim();
+  return (node.lines.find((l) => !isFence(l) && l.trim().length > 0) ?? '').trim();
+}
+
+/** An HTML block's visible text: tags removed, entities left to the DOM. */
+function htmlTextOf(node: OutlineNode): string {
+  return node.lines
+    .join(' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const TABLE_SEPARATOR = /^\s*\|?[\s:|-]+\|?\s*$/;
+
+/**
+ * A table's header row and the reference's own row.
+ *
+ * The header survives here and nowhere else in the footer, because a bare cell
+ * value is not interpretable without its column name — `Maya` says nothing
+ * until `Owner` is beside it.
+ */
+function tableTextOf(node: OutlineNode, refLine: number | undefined): string {
+  const cells = (line: string): string =>
+    line
+      .replace(/^\s*\|/, '')
+      .replace(/\|\s*$/, '')
+      .split('|')
+      .map((c) => c.trim())
+      .join(' · ');
+
+  const header = node.lines[0];
+  if (header === undefined) return '';
+  const at = refLine !== undefined ? node.lines[refLine] : undefined;
+  if (at === undefined || refLine === 0 || TABLE_SEPARATOR.test(at)) return cells(header);
+  return `${cells(header)} — ${cells(at)}`;
+}
+
+/**
+ * A callout's title, with its `[!type]` token dropped — the marker already says
+ * callout, so the token would be the kind said a second time. A reference in the
+ * BODY shows that body line instead, since the title is not where it is.
+ */
+function calloutTextOf(node: OutlineNode, refLine: number | undefined): string {
+  if (refLine !== undefined && refLine > 0) {
+    const body = node.lines[refLine];
+    if (body !== undefined) return stripBlockPrefix(body);
+  }
+  const title = stripBlockPrefix(node.lines[0] ?? '').replace(/^\[![a-zA-Z-]+\][-+]?\s*/, '').trim();
+  // An untitled callout has only its type; its first body line names it instead.
+  if (title.length > 0) return title;
+  return stripBlockPrefix(node.lines[1] ?? '');
 }
 
 /**
@@ -164,6 +312,10 @@ export function buildRows(
   properties: readonly BacklinkReference[],
   kindOf: (node: OutlineNode) => BacklinkReference['kind'] | undefined,
   expanded: (node: OutlineNode) => boolean,
+  /** Which of a matched node's own lines carries its reference, counted from
+   * the node's first. Only the record kinds read it (D18); a caller with no
+   * placement to offer leaves it out. */
+  refLineOf: (node: OutlineNode) => number | undefined = () => undefined,
 ): FooterRow[] {
   const rows: FooterRow[] = [];
 
@@ -218,7 +370,7 @@ export function buildRows(
       type: 'node',
       depth: row.depth,
       guideDepths: guideDepthsFor(row.depth),
-      markdown: markdownOf(row.node),
+      ...contentOf(row.node, refLineOf(row.node)),
       // The projected fact says what KIND of node this is; its depth is the
       // projection's, and the rendered tree collapsed lineage out from under
       // it. The row's own depth is the one the chrome lays out against.
@@ -263,7 +415,9 @@ export function buildRows(
         type: 'node',
         depth,
         guideDepths: guideDepthsFor(depth),
-        markdown: markdownOf(node),
+        // A descendant is context, so it carries no reference line: a record
+        // kind here shows its first line rather than a line nothing points at.
+        ...contentOf(node, undefined),
         fact: syntheticFact(node, depth),
         isReference: false,
         referenceKind: undefined,
