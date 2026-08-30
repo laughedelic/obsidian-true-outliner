@@ -39,7 +39,7 @@ One rule is specific to this series:
 | **S2** | Does the widget survive the editor's lifecycle? | Done | **Yes — proceed**, but a `StateField` needs an explicit invalidation bridge: the shared mode-toggle nudge is a no-op selection set and produces no transaction |
 | **S3** | Does `decorate()` hold up on a foreign, projected tree? | Done | **Yes** — node-identity facts are invariant; position facts describe the tree passed in, which corrected a spec claim |
 | **S4** | What does outline chrome cost outside `.cm-line`? | Done | **The token vocabulary was NOT sufficient** — the editor positions nothing in JS, so a surface that shares only the tokens reimplements the layout and diverges. What must be shared is the class + custom-property contract, and the footer now consumes it |
-| **S6** | Would rendering the footer some other way be cheaper? | Done | **No — both alternatives are worse.** Markdown loses the outline entirely; a per-group editor loses Live Preview *and* our decorations |
+| **S6** | Would rendering the footer some other way be cheaper? | Done, with a correction | **No — both alternatives are worse.** Markdown loses the outline entirely; a bare CodeMirror per group loses Live Preview *and* our decorations. **The editor result does not generalise**: it was measured on a bare `EditorView`, not on a real embedded `WorkspaceLeaf`, which is a different technique — see [20](20-surfaces-and-embedding.md) |
 | **S5** | What does a real vault cost? | Not started | — |
 
 ## The fixture corpus
@@ -519,13 +519,28 @@ markdown spelling is simply lost — a collapsed lineage degrades to `a › b �
 and node kind disappears. The vertical spacing is *worse* than the current chrome, not better,
 because every row becomes an `<li>` carrying list margins rather than only the descendants.
 
-### Finding — a per-group editor loses Live Preview *and* our decorations
+### Correction — what the editor finding does and does not cover
+
+The finding below is true of a bare `EditorView` and **does not rule out embedding a real
+Obsidian editor**, which is a different technique with different properties. Recorded here
+because the original write-up read as though it did.
+
+A bare `new EditorView({ state, extensions })` is a CodeMirror instance. Mounting a real
+`WorkspaceLeaf` holding a real `MarkdownView` — the detached-`WorkspaceSplit` technique used by
+Hover Editor and its descendants — gives Live Preview and our decorations by construction,
+because the editor *is* Obsidian's. It is not the answer for the footer, for reasons of
+granularity and cost rather than fidelity, and it is the strongest known candidate for an
+editable mirrors view. Both are worked through in
+[20-surfaces-and-embedding.md](20-surfaces-and-embedding.md).
+
+### Finding — a bare per-group editor loses Live Preview *and* our decorations
 
 `cmLines: 7, markers: 0`, and the rendered text reads ``- `team.1` [[Priya Nair]]`` — raw
 markdown, brackets and all. Two separate failures land together:
 
 - **Live Preview is not a CodeMirror feature.** It is Obsidian's view layer, built on a
-  `MarkdownView` that a bare `EditorView` does not have. A synthetic editor renders source.
+  `MarkdownView` that a bare `EditorView` does not have. A synthetic editor renders source. This
+  is exactly the property a real embedded leaf would have and this apparatus did not.
 - **Our decorations did not attach**, despite `decorationsExtension` being in the extension
   list and `editorInfoField` hand-seeded to claim an outline-mode file. The stack expects an
   editor Obsidian created; seeding one field is not the same as being one.
