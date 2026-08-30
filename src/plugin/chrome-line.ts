@@ -130,6 +130,33 @@ export function ownShiftExpr(fact: LineDecorationFact, nativeList = true): strin
  */
 export const MARKER_LEFT_SHIFT_EXPR = `calc(${MARKER_ICON_CSS} * 0.5 - ${MARKER_GUTTER_CSS})`;
 
+/**
+ * Where a marker icon's own LEFT edge should sit, given `targetRelExpr` — a CSS
+ * length expression for "the shared target column (where this depth's guide
+ * renders), relative to the box the marker is about to become a child of".
+ *
+ * Each caller derives that from its own already-established `--to-own-shift`
+ * formula, so the marker stays correct if those formulas change. Used by the
+ * ABSOLUTE mechanism: a node with a visible box has no text run to sit beside,
+ * so the marker is positioned against the box instead of placed in its flow.
+ * The plain-line mechanism uses `MARKER_LEFT_SHIFT_EXPR`.
+ */
+export function markerAnchorLeftExpr(targetRelExpr: string): string {
+  return `calc(${targetRelExpr} - (${MARKER_ICON_CSS} / 2))`;
+}
+
+/**
+ * The absolute placement for an atom row whose box this surface positioned
+ * itself, rather than one Obsidian rendered and the editor had to measure.
+ *
+ * The shift for an atom is `depth * unit + gutter`, so the column lands exactly
+ * one gutter left of the box's own edge whatever the depth — the depth terms
+ * cancel, as they do for the inline mechanism.
+ */
+export function atomMarkerLeftExpr(fact: LineDecorationFact): string {
+  return markerAnchorLeftExpr(`calc(${columnExpr(fact.depth)} - (${ownShiftExpr(fact, false)}))`);
+}
+
 /** A class list and the custom properties that go with it. Deliberately data:
  * the caller decides whether that becomes a CM6 `Decoration` or an element's
  * `class` and `style`. */

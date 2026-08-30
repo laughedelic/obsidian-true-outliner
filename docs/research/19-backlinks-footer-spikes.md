@@ -426,21 +426,33 @@ skips matches, and does not recurse into them: their own row carries their own s
 
 Not a rendering bug, and not one any amount of looking at the old corpus would have surfaced.
 
-### Open — the kinds gallery's remaining rows
+### Finding — three marker mechanisms, because the renderer answers in three shapes
 
-Three defects the gallery exposes and this pass does not close, recorded so they are not
-rediscovered:
+The gallery exposed three defects at once, and they turned out to be one question: the
+reading-mode renderer returns more than one kind of thing, and a single marker mechanism cannot
+serve all of them. Closed as follows, and held by `74-footer-chrome-pass`.
 
-- **Atom rows split marker from content.** A quote, callout or table arrives from
-  `MarkdownRenderer` as a genuine block, and the footer draws the inline marker mechanism beside
-  it — so the marker lands at the row's top-left with the content below. The editor already has
-  the answer for exactly these kinds: `.to-decor-marker-icon--widget`, absolutely positioned and
-  vertically centred, which the widget-replaced atoms use. The footer needs the same branch.
-- **Heading rows render as `<h1>` blocks**, with the same split, and the marker takes the row's
-  font rather than the heading's — so the `ex` correction is computed against the wrong text.
-- **Ordered items show a bullet.** Unwrapping `<ol><li>` discards the number, and the footer draws
-  the generic list marker. The number is closer to content than to notation, and probably belongs
-  in the row.
+- **Atoms are real blocks.** A quote, callout, table, code fence or html block arrives with no
+  text run to sit beside, so the inline marker landed at the row's top-left with the content
+  below it. They now use the editor's own absolute mechanism —
+  `.to-decor-marker-icon--widget`, positioned by `markerAnchorLeftExpr`, which moved into
+  `chrome-line.ts` for the purpose. Note the atom set is WIDER here than in the editor, where a
+  quote and a code fence are still `.cm-line`s: this renderer returns a block for every one of
+  them.
+- **A heading's size belongs to the row, not to its text.** `<h1>` is unwrapped and the row
+  carries the heading level, because the marker is a sibling of the content — size the text alone
+  and the `0.5ex` correction resolves against the row's font while the marker sits beside much
+  bigger text, which is the defect this whole pass started from.
+- **An ordered item's number is content, not notation.** Unwrapping the `<ol>` discards it, so it
+  is read back off the source line and drawn in the gutter. Anchored by its RIGHT edge rather
+  than given the gutter's width: a fixed-width box with `text-align: right` does not survive a
+  label wider than it, because an overflowing line box stops honouring the alignment and spills
+  off the END edge — measured, `10.` ran rightwards underneath its own text, and before
+  `white-space: nowrap` it broke over two lines onto the row below, covering that row's marker.
+
+This is the finding that generalises: these are not footer defects, they are what any surface
+built on `MarkdownRenderer` has to answer, and reading mode will meet all three. See
+[20-surfaces-and-embedding.md](20-surfaces-and-embedding.md).
 
 Two further things had to be handled, neither a chrome problem:
 

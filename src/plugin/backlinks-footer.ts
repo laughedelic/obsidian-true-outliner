@@ -39,6 +39,7 @@ import { buildMarkerIcon } from './decorations';
 import {
   MARKER_LEFT_SHIFT_EXPR,
   applyLineChrome,
+  atomMarkerLeftExpr,
   lineChrome,
   plainGuideBackground,
 } from './chrome-line';
@@ -292,14 +293,14 @@ class FooterController {
     }
 
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-    el.appendChild(markerSlot(buildMarkerIcon(row.fact.kind)));
+    el.appendChild(markerFor(row));
 
     const content = el.createSpan({ cls: 'to-backlinks-content' });
     // An embed of the target, rendered inside the target's OWN footer, would
     // transclude the note into itself — the reader asked where it was
     // referenced, not to read it again. Rendered as a link instead, and marked.
     const markdown = row.referenceKind === 'embed' ? row.markdown.replace(/!\[\[/g, '[[') : row.markdown;
-    void this.renderMarkdown(content, markdown, sourcePath);
+    void this.renderMarkdown(content, markdown, sourcePath, el);
     if (row.referenceKind === 'embed') {
       content.createSpan({ cls: 'to-backlinks-tag', text: 'embed' });
     }
@@ -321,14 +322,69 @@ class FooterController {
    * Unwrapped, the row's marker and text sit in one inline flow, exactly as a
    * `.cm-line`'s do.
    */
-  private async renderMarkdown(el: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
+  private async renderMarkdown(
+    el: HTMLElement,
+    markdown: string,
+    sourcePath: string,
+    row?: HTMLElement,
+  ): Promise<void> {
     await MarkdownRenderer.render(this.source.app, markdown, el, sourcePath, this.component);
-    unwrapBlocks(el);
+    const heading = unwrapBlocks(el);
+    // A heading's SIZE belongs to the row, not to the text inside it: the
+    // marker is a sibling of the content, so if only the text grew, the marker
+    // would be centred against the row's font while sitting beside much bigger
+    // text — the `0.5ex` correction computed from the wrong font.
+    if (heading && row) row.addClass(`to-backlinks-h${heading}`);
   }
 
   private open(sourcePath: string): void {
     void this.source.app.workspace.openLinkText(sourcePath, this.targetPath, false);
   }
+}
+
+/**
+ * The marker for a node row, by the mechanism its kind needs.
+ *
+ * Three, because the footer's content comes from the reading-mode renderer and
+ * that renderer answers in three shapes:
+ *
+ * - An ORDERED item's number is not notation, it is what the item is called.
+ *   Unwrapping the `<ol>` discards it, so it is read back off the source line
+ *   and drawn in the gutter, right-aligned against the text the way a list
+ *   numbers itself.
+ * - An ATOM (quote, callout, table, code, html) arrives as a real block with no
+ *   text run to sit beside, so its marker is positioned against the row's box —
+ *   the same absolute mechanism the editor uses for its widget atoms. Note the
+ *   set is wider here than in the editor, where a quote and a code fence are
+ *   still `.cm-line`s; this renderer returns a block for every one of them.
+ * - Everything else sits in the inline flow, beside the first text run.
+ */
+function markerFor(row: Extract<FooterRow, { type: 'node' }>): HTMLElement {
+  const ordered = orderedMarkerOf(row.markdown);
+  if (ordered) return orderedMarker(ordered);
+  if (row.fact.isAtom) return atomMarker(buildMarkerIcon(row.fact.kind), row.fact);
+  return markerSlot(buildMarkerIcon(row.fact.kind));
+}
+
+/** `1.`, `10)` — an ordered item's own label, as written. */
+function orderedMarkerOf(markdown: string): string | undefined {
+  return /^\s*(\d{1,9}[.)])\s/.exec(markdown.split('\n')[0] ?? '')?.[1];
+}
+
+function orderedMarker(label: string): HTMLElement {
+  const el = createSpan({ cls: 'to-backlinks-ol-marker', text: label });
+  return el;
+}
+
+/** An atom's marker, positioned against the row's own box. */
+function atomMarker(icon: Element, fact: FooterRow['fact']): HTMLElement {
+  const el = createSpan({ cls: 'to-decor-marker-icon to-decor-marker-icon--widget' });
+  el.setCssProps({ '--to-marker-left': atomMarkerLeftExpr(fact) });
+  // `el` was created on the line above and is not mounted until the caller
+  // attaches the row it belongs to.
+  // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+  el.appendChild(icon);
+  return el;
 }
 
 /**
@@ -361,15 +417,21 @@ function markerSlot(icon: Element): HTMLElement {
  * element that is not a lone wrapper, so a row whose markdown genuinely holds
  * several blocks keeps them.
  */
-const BLOCK_WRAPPERS = new Set(['P', 'UL', 'OL', 'LI', 'DIV']);
+const BLOCK_WRAPPERS = new Set(['P', 'UL', 'OL', 'LI', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
 
-function unwrapBlocks(el: HTMLElement): void {
+/** Returns the heading level unwrapped along the way, if any, so the caller can
+ * give the ROW that heading's size. */
+function unwrapBlocks(el: HTMLElement): number | undefined {
+  let heading: number | undefined;
   for (;;) {
     const only = el.children.length === 1 ? el.firstElementChild : null;
     if (!only || !BLOCK_WRAPPERS.has(only.tagName)) break;
+    const level = /^H([1-6])$/.exec(only.tagName);
+    if (level) heading = Number(level[1]);
     only.replaceWith(...Array.from(only.childNodes));
   }
   trimEdgeWhitespace(el);
+  return heading;
 }
 
 /**

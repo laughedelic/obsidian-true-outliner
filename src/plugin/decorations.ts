@@ -79,6 +79,7 @@ import {
   chromeStyle,
   guideLayer,
   lineChrome,
+  markerAnchorLeftExpr,
   MARKER_LEFT_SHIFT_EXPR,
   ownShiftExpr as plainOwnShiftExpr,
   plainGuideBackground,
@@ -669,22 +670,9 @@ function shouldShowMarker(fact: LineDecorationFact, visibility: MarkerVisibility
 // agree with. Every non-list-item line reserves the gutter unconditionally (see
 // lineDecoration()'s own reasoning for why list items don't).
 
-/**
- * Where a marker icon's own LEFT edge should sit, given `targetRelExpr` — a
- * CSS length expression for "the shared target column (where the guide for
- * this depth renders), relative to the box the marker is about to become a
- * child of" (see call sites: block/atom/widget-atom each derive this from
- * their own already-established `--to-own-shift`-style formula, so the
- * marker automatically stays correct if those formulas ever change). Used
- * only by the widget-atom mechanism below (table/callout/hr/html) — the
- * plain-line mechanism uses `MARKER_LEFT_SHIFT_EXPR` instead (see its own
- * doc comment for why the two need different math). Centers the icon on the
- * target column (the placement exploration's winner — see the module doc
- * comment above).
- */
-function markerAnchorLeftExpr(targetRelExpr: string): string {
-  return `calc(${targetRelExpr} - (${MARKER_ICON_CSS} / 2))`;
-}
+// `markerAnchorLeftExpr` — the absolute (widget-atom) marker placement — moved
+// to chrome-line.ts with the rest of the contract, since the footer positions
+// its own atom markers with it. Its derivation moved with it.
 
 // `MARKER_LEFT_SHIFT_EXPR` — the plain-line marker's placement — moved to
 // chrome-line.ts with the rest of the contract; the footer draws every one of

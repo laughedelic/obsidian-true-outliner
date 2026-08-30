@@ -181,9 +181,11 @@ whoever picks mirrors up, not to the implementation.
 
 ## Where this leaves the order of work
 
-1. **Finish the three kind items in the footer** — atoms through the editor's existing
-   widget-atom marker mechanism, headings, ordered numbering. Recorded as open in 19, S4. This is
-   the reading-mode rendering problem, done once, in the cheapest surface.
+1. ~~**Finish the three kind items in the footer**~~ — **done.** Atoms now take the editor's
+   absolute marker mechanism (`markerAnchorLeftExpr`, moved into `chrome-line.ts`), a heading's
+   size is carried by the row rather than its text, and an ordered item's number is read off the
+   source line and right-anchored in the gutter. Written up in 19, S4. Everything learned there
+   applies to reading mode unchanged — that was the point of doing it here.
 2. **Reading mode** is then mostly the `getSectionInfo` join plus the four unknowns above.
 3. **Mirrors** reopens with the embedded-leaf technique as a named candidate, where the
    private-API question is decided on its own merits for a feature that actually needs it.
