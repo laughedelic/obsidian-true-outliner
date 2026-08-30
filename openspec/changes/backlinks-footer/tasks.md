@@ -141,6 +141,53 @@ next begins; green unit tests are never the gate for anything visual.
       that node, honouring Obsidian's new-pane modifiers
 - [x] 8.9 Implement the dormant state for a note with no references
 
+## 8b. Rendering model — content is notation, not reproduction (D-I / D18)
+
+> **Added after group 8 shipped and was looked at.** The specs said what structure a row carries
+> and nothing about its content, so the implementation reproduced each kind's own typography and
+> the footer read as a scrapbook of other documents' fragments rather than as an index of
+> mentions. Validated against a working prototype before being written down.
+
+- [ ] 8b.1 Implement `inlineTextOf(node)`: strip the block prefix — heading hashes, quote carets,
+      list marker, checkbox, ordered number, callout type token — so the renderer is only ever
+      handed inline markdown and returns a single paragraph
+- [ ] 8b.2 Apply the prose/record split: paragraph, heading, quote and callout lines join into one
+      row; a code row shows the line the reference sits on; a table row shows the header row and
+      the reference's own row, cells joined
+- [ ] 8b.3 Render an HTML block's text content as plain text, not as markdown — Obsidian does not
+      resolve wikilinks inside an HTML block, so rendering it as markdown only pretends to
+- [ ] 8b.4 Move a task's checked state into the marker: the checkbox replaces the bullet, drawn on
+      the marker column, with no checkbox inside the row's text
+- [ ] 8b.5 Align the ordered-item number marker with the editor's own ordered markers, reusing the
+      list-grid geometry rather than a footer-local approximation (docs/research/16)
+- [ ] 8b.6 Delete what the model removes: the footer's widget-atom marker branch and the
+      heading-size branch, and the CSS that served them. `markerAnchorLeftExpr` stays in
+      `chrome-line.ts` — it is the editor's
+- [ ] 8b.7 Extend `Backlinks/Kinds gallery.md` so every kind in the D18 table has a reference,
+      including a hard-wrapped paragraph, a multi-row table with a header, and a titled callout
+      whose reference sits in the BODY rather than the title
+
+## 8c. Conformance matrix (replaces spot-checking)
+
+> The previous verification was geometric spot-checks on a couple of rows plus a human reading
+> screenshots, and it missed six defects a reader found immediately. Every assertion below is
+> mechanical.
+
+- [ ] 8c.1 The single invariant that catches the whole class: **no row contains a block-level
+      element**. Asserted over every row of every fixture, in both themes
+- [ ] 8c.2 Per-kind matrix over `Kinds gallery`: for every kind, assert the marker is present and
+      of that kind, sits on the depth's column, and is centred on its own text's x-height band
+- [ ] 8c.3 Per-kind matrix, continued: assert every row's height is within one line-height of a
+      plain paragraph row's — the machine-checkable form of "the outline has one rhythm"
+- [ ] 8c.4 Assert the per-kind content rules directly: a heading row's font-size equals a
+      paragraph row's; a task row's marker is a checkbox and its text holds none; an ordered row's
+      marker is its number; a callout row shows no type token; a table row shows exactly two
+      source rows
+- [ ] 8c.5 Commit screenshot baselines per fixture and theme, and diff against them, so a
+      rendering change fails a test rather than waiting to be noticed
+- [ ] 8c.6 Run the matrix on mobile as well as desktop — the viewport differences are exactly
+      where the earlier assertions turned out to be measuring the wrong thing
+
 ## 9. Verification
 
 - [ ] 9.1 e2e: the footer renders in outline mode and not off-mode, and not in reading view

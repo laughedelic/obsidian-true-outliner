@@ -316,6 +316,58 @@ in common and nothing else, and unifying the presentation is the expensive mista
 here. Build the function generically, keep the surfaces apart, and do not generalise further
 until a second consumer actually exists.
 
+### D18. Content is notation, not reproduction
+
+**Revises nothing above; supplies what the exploration never asked.** Every decision to this
+point is about STRUCTURE — which nodes appear, at what depth, in what order, with which marker.
+None of them says what a row's own content should look like, and that silence is what let the
+first implementation answer "whatever Obsidian's reading-mode renderer returns."
+
+Reproduction is the wrong answer, and the reason is already in D4: **a marker is notation.** It
+says what kind of node this is. Rendering the kind's own typography as well — a heading at
+heading size, a callout in its coloured box, a table with its frame, a quote with its bar — says
+the same thing a second time, louder, in a channel the reader reads first. The result stops
+reading as an index of mentions and starts reading as a scrapbook of other documents'
+fragments. Measured on `Backlinks/Kinds gallery.md`, and confirmed against a working prototype
+of the alternative.
+
+So: **the footer's chrome carries structure; a row's content is inline markdown only.** Links,
+emphasis, code spans, tags, math — everything that lives *inside* a line. Nothing block-level
+ever enters a row. Block syntax is stripped before the content is handed to the renderer, so the
+renderer is never asked for a document in the first place.
+
+Two things move from content into notation, because they are neither presentation nor prose:
+
+- **A task's checkbox replaces its bullet.** Checked-ness is state the reader is looking for, and
+  it belongs where the kind is said. A checkbox nested *inside* a bullet — what the reproduction
+  model produced — says "list item containing a checkbox", which is not what a task is.
+- **An ordered item's number replaces its bullet**, drawn on the outline grid the editor's own
+  ordered markers use.
+
+What each kind shows, decided against the prototype:
+
+| Kind | Row content |
+| --- | --- |
+| paragraph, heading, quote | the node's lines, block syntax stripped, joined into one flowing row — they are continuations of one thought |
+| list item | the item's text; the bullet is the marker |
+| ordered item | the item's text; the NUMBER is the marker |
+| task | the item's text; the CHECKBOX is the marker, in the bullet's place |
+| callout | the callout's title, with the `[!type]` token dropped — the marker already says callout. When the reference sits in the body rather than the title, the body line instead |
+| code | the line the reference sits on, monospaced. Lines in a fence are separate records, not continuations |
+| table | the header row and the reference's own row, cells joined. A bare cell value is not interpretable without its column name, which is why the header survives here and nowhere else |
+| html | the block's text content, as plain text — Obsidian does not resolve wikilinks inside an HTML block, so rendering it as markdown would only pretend |
+| hr | marker only; there is no text |
+
+**Why the initial exploration missed this.** The prototype it was designed against was a mockup:
+its rows held text the designer wrote, so the question "what happens when real markdown of every
+kind passes through" never arose. It only becomes visible once a real corpus renders, which is
+what `Kinds gallery` exists for now.
+
+**Consequence for reading mode.** Doc 20 claimed the footer's per-kind rendering work was the
+reading-mode rendering problem solved once. That was wrong and is corrected there: reading mode
+must be faithful, because it *is* the document, while the footer must not be. What the two
+genuinely share is the chrome contract in `chrome-line.ts` — depth, guides, markers, the column.
+
 ## Open questions
 
 1. **Footer collapse state** — per note, global, or not persisted?

@@ -636,6 +636,18 @@ whole embedded block's height — visibly further from its first text row than a
 since an embed is usually taller. Confirmed in that change's own screenshot pass. Same
 fix, one more kind to cover.
 
+- **The backlinks footer's fold affordance is not the outline's.** Two defects, one
+  cause: the footer draws its own chevron rather than reusing the editor's fold chrome.
+  It is permanently visible, where the editor's appears on hover; and a folded row's own
+  appearance does not change, where the outline's marker is supposed to say that
+  something is hidden beneath it. Deliberately left out of `backlinks-footer`, which is
+  about the rendering model — this one is interaction, and fixing it properly means
+  touching fold chrome the editor already owns, so it belongs with that chrome rather
+  than beside it. `docs/research/18` D7 is the design decision it has to satisfy; the
+  footer's current implementation is `to-backlinks-fold` in `backlinks-footer.ts` and the
+  rule of the same name in `styles.css`, both of which should end up deleted rather than
+  fixed in place.
+
 ## Verification-infrastructure ideas
 
 - **Community-theme sweep as repeatable infrastructure.** The hardening pass probed

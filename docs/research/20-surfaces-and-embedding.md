@@ -53,8 +53,19 @@ building it sat exactly on that seam, and reads as a small CSS bug until traced:
 - An `<ol>`'s number discarded when the wrapper is unwrapped.
 - Atoms (quote, callout, table) arriving as genuine blocks rather than as lines.
 
-This is the useful reframing: those are not footer polish. They are **the reading-mode rendering
-problem**, being solved in the surface where it is cheapest to iterate.
+**Corrected.** An earlier version of this section drew the wrong conclusion from it: that the
+footer's per-kind rendering work *was* the reading-mode rendering problem, solved once in the
+cheapest surface. That does not hold, and the mistake is worth keeping visible.
+
+Reading mode must be FAITHFUL — it is the document, and a heading there is a heading. The footer
+must not be: its job is to index mentions, and reproducing each kind's typography makes it read
+as a scrapbook of other documents (docs/research/18, D18). The two surfaces want opposite things
+at the content layer, so nothing about *how a quote or a callout renders* transfers between them.
+
+What genuinely transfers is the layer above: the chrome contract in `chrome-line.ts` — depth,
+guides, markers, the column arithmetic. That is real, and it is what makes reading mode a
+tractable third surface rather than a separate rendering logic. The estimate below is unchanged;
+only the claim about which work counts toward it is.
 
 ## Surface 3 — reading mode
 
@@ -181,11 +192,11 @@ whoever picks mirrors up, not to the implementation.
 
 ## Where this leaves the order of work
 
-1. ~~**Finish the three kind items in the footer**~~ — **done.** Atoms now take the editor's
-   absolute marker mechanism (`markerAnchorLeftExpr`, moved into `chrome-line.ts`), a heading's
-   size is carried by the row rather than its text, and an ordered item's number is read off the
-   source line and right-anchored in the gutter. Written up in 19, S4. Everything learned there
-   applies to reading mode unchanged — that was the point of doing it here.
+1. **Settle the footer's own rendering model first** — done, as D18: content is notation, not
+   reproduction. Two of the three per-kind mechanisms built before that decision (the atom
+   absolute marker, the heading's size) are removed by it; the ordered-number marker survives.
+   What that work bought was not reading-mode progress but the corpus and the measurements that
+   made the model's wrongness visible.
 2. **Reading mode** is then mostly the `getSectionInfo` join plus the four unknowns above.
 3. **Mirrors** reopens with the embedded-leaf technique as a named candidate, where the
    private-API question is decided on its own merits for a feature that actually needs it.

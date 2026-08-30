@@ -170,6 +170,36 @@ is acceptable *specifically because this is a footer*: everything below it is th
 document, so nothing the reader is looking at moves. This is a genuine argument for the surface,
 not only for the loading state.
 
+### D-I. A row's content is inline markdown, and block syntax never reaches the renderer
+
+**Added after the first implementation shipped and was looked at.** The specs said what
+STRUCTURE a footer row carries and were silent on its CONTENT, so the implementation answered
+"whatever `MarkdownRenderer.render` returns" — a document. Reproducing each kind's own typography
+turned out to fight the chrome rather than support it: kind was said twice, and the louder
+channel won. Recorded as D18 in docs/research/18; the spec now carries the requirement whose
+absence allowed it.
+
+Mechanically, the decision is one function and one deletion. `inlineTextOf(node)` strips the
+node's block prefix — heading hashes, quote carets, list marker, checkbox, ordered number, callout
+type token — before the text is handed to the renderer, which then returns a single `<p>` that
+`unwrapBlocks` already flattens. What goes away is the branching that grew to cope with the
+alternative: the widget-atom marker path in the footer, and the heading-size path.
+
+Three per-kind rules that do not follow mechanically, decided against a working prototype:
+
+- **Prose joins, records do not.** A paragraph, heading, quote or callout's lines are
+  continuations of one thought and join into one row. A code fence's and a table's are separate
+  records; the row shows the line the reference sits on.
+- **A table keeps its header.** A bare cell value is not interpretable without its column name,
+  so the header row survives alongside the reference's own row. The only place in the footer where
+  a row shows a line the reference is not on, and it is deliberate.
+- **A callout shows its title, without the type token.** The marker already says callout, so
+  `[!note]` is redundant; the title does the job a heading's text does. A reference in the body
+  shows the body line instead.
+
+`markerAnchorLeftExpr` stays in `chrome-line.ts` even though the footer no longer calls it: it is
+the editor's widget-atom placement, which is where it came from.
+
 ## Risks / Trade-offs
 
 - **The widget cannot coexist with the enforcement layer** → S1 runs first and can veto. The
@@ -188,9 +218,17 @@ not only for the loading state.
 - **Cache staleness on external edits** (sync, another device) → the metadata events fire for
   those too; the mtime key means a changed file re-parses. Deletion of a source file must evict
   or the footer shows a reference to a file that no longer exists.
-- **Two renderers drift over time even with a shared fact layer** → accepted. The mitigation is
-  that the *fact* layer is shared and asserted equal (S3); pixel-level parity between surfaces
-  is explicitly not a goal, since the footer is smaller type in a card.
+- **Two renderers drift over time even with a shared fact layer** → the fact layer is shared and
+  asserted equal (S3), and since D-C's extraction the CHROME contract is shared too, so a row's
+  marker, column and guides are the editor's by construction and asserted against it. What is
+  deliberately not shared is content rendering: the editor shows source, the footer shows
+  notation (D-I), and reading mode would show the document. Those are three different answers on
+  purpose, and the conformance matrix is what stops the footer's drifting into either of the
+  others unnoticed.
+- **A per-kind rendering rule is invisible until the right note exists** → the whole reason two
+  models shipped before the right one. Mitigated structurally: `Backlinks/Kinds gallery.md` holds
+  one reference of every kind, the matrix asserts every kind's row mechanically, and the single
+  invariant "a row contains no block-level element" catches the entire class at once.
 
 ## Open Questions
 

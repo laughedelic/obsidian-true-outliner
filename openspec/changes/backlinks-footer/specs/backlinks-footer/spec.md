@@ -99,6 +99,67 @@ referencing node it leads to.
 - **WHEN** a lineage element and a referencing node are of the same kind
 - **THEN** their markers are drawn identically, and only the text differs in size and colour
 
+### Requirement: A row renders node text, not a node document
+
+A row's content SHALL be inline content only: links, emphasis, code spans, tags and math — what
+lives inside a line. A row SHALL NOT contain block-level elements. A node's block syntax SHALL be
+removed before its content is rendered, so no heading, list, blockquote, table, callout or code
+block is produced.
+
+Kind SHALL be expressed once, by the row's marker. A row SHALL NOT additionally carry the
+typography of its kind: no heading sizes, no callout box, no quote bar, no table frame.
+
+Two properties SHALL move from content into the marker, because they are state rather than
+presentation: a task's checkbox SHALL replace its bullet, and an ordered item's number SHALL
+replace its bullet, both drawn on the same column every other marker uses.
+
+A multi-line node SHALL render according to whether its lines are continuations or records.
+Paragraph, heading, quote and callout lines SHALL join into one flowing row. Code and table lines
+SHALL NOT join: a code row SHALL show the line the reference sits on, and a table row SHALL show
+the table's header row together with the reference's own row.
+
+#### Scenario: No block elements reach a row
+
+- **WHEN** a source note references the target from a heading, a quote, a callout, a table and a
+  fenced code block
+- **THEN** no row in the footer contains a heading, blockquote, list, table or code-block element
+
+#### Scenario: Kind is said once
+
+- **WHEN** a reference sits in a level-one heading
+- **THEN** the row carries the heading marker, and its text is rendered at the same size as a
+  paragraph row's
+
+#### Scenario: A task's checkbox is its marker
+
+- **WHEN** a reference sits in a checked task item
+- **THEN** the row's marker is a checked checkbox, drawn where a bullet would be, and no checkbox
+  appears inside the row's text
+
+#### Scenario: An ordered item's number is its marker
+
+- **WHEN** a reference sits in the tenth item of an ordered list
+- **THEN** the row's marker is `10.`, aligned on the same column a bullet would occupy, and the
+  row's text begins where every other row's text begins
+
+#### Scenario: A callout shows its title without its type token
+
+- **WHEN** a reference sits in the title of a `[!note]` callout
+- **THEN** the row shows the callout's title, the `[!note]` token does not appear, and the row
+  carries the callout marker
+
+#### Scenario: A table row keeps its header
+
+- **WHEN** a reference sits in a cell of a table's third row
+- **THEN** the row shows the table's header row and that third row, and no other row of the table
+
+#### Scenario: Prose lines join, record lines do not
+
+- **WHEN** a reference sits in a paragraph hard-wrapped across three lines
+- **THEN** the row shows all three lines joined into one
+- **WHEN** a reference sits in one line of a fenced code block
+- **THEN** the row shows only that line
+
 ### Requirement: A reference shows one level of children, deeper subtrees folded
 
 The children of a referencing node SHALL render. A child that has children of its own SHALL
