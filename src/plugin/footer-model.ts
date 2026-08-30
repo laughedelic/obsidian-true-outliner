@@ -22,35 +22,58 @@ import type { BacklinkReference } from './backlink-index';
  * mean something, without pasting whole subtrees under every reference. */
 export const DESCENDANT_DEPTH = 1;
 
+/** Fields every row kind carries, because every row is a line of the outline
+ * and draws the same chrome from them. */
+interface FooterRowBase {
+  readonly depth: number;
+  /**
+   * The depths this row draws a guide at — one per ancestor row above it.
+   *
+   * Derived from the row's own depth rather than from `computeLineGuides`,
+   * which answers a different question: its depths are the PROJECTION's, and
+   * the footer renders the COLLAPSED tree, where a three-node lineage chain is
+   * one row at one depth. `collapseLineage` emits a strict preorder in which
+   * every row at depth d has exactly one ancestor row at each shallower depth
+   * (its `below = depth + 1` step is unconditional), so the ancestors' depths
+   * are exactly `0 … d-1`. `tests/lineage.test.ts` holds that invariant.
+   */
+  readonly guideDepths: readonly number[];
+  /** What the shared chrome contract reads. Synthetic for rows that are not a
+   * single projected node — a lineage chain, a frontmatter property. */
+  readonly fact: LineDecorationFact;
+}
+
 export type FooterRow =
-  | {
+  | (FooterRowBase & {
       readonly type: 'lineage';
-      readonly depth: number;
       /** Each element's own first line, root-most first. */
       readonly segments: readonly string[];
       /** The first element's kind, so the row can carry the same marker an
        * ordinary node of that kind would. */
       readonly kind: LineDecorationFact['kind'];
-    }
-  | {
+    })
+  | (FooterRowBase & {
       readonly type: 'node';
-      readonly depth: number;
       /** The node's own source text, for Obsidian to render. */
       readonly markdown: string;
-      readonly fact: LineDecorationFact;
       /** True when this node is one the reference was found in. */
       readonly isReference: boolean;
       /** Kind of reference, when this row is one and the kind is worth marking. */
       readonly referenceKind?: BacklinkReference['kind'] | undefined;
       /** Descendants hidden behind this row's fold affordance; 0 when none. */
       readonly foldedCount: number;
-    }
-  | {
+    })
+  | (FooterRowBase & {
       readonly type: 'property';
       readonly depth: 0;
       readonly property: string;
       readonly markdown: string;
-    };
+    });
+
+/** One guide per ancestor row — see `FooterRowBase.guideDepths`. */
+function guideDepthsFor(depth: number): number[] {
+  return Array.from({ length: depth }, (_, i) => i);
+}
 
 export interface FooterGroup {
   readonly path: string;
@@ -148,6 +171,8 @@ export function buildRows(
     rows.push({
       type: 'property',
       depth: 0,
+      guideDepths: [],
+      fact: rowFact('paragraph', 0),
       property: ref.property ?? '',
       markdown: ref.original,
     });
@@ -174,6 +199,11 @@ export function buildRows(
       rows.push({
         type: 'lineage',
         depth: row.depth,
+        guideDepths: guideDepthsFor(row.depth),
+        // A chain renders as one line of dim text whatever its elements were,
+        // so it takes a plain block line's chrome even when its first element
+        // is an atom kind — a lineage row is never a callout box.
+        fact: rowFact(row.kind, row.depth),
         // First line only: continuation lines are context for reading a node,
         // not for naming it (docs/research/18, D5).
         segments: row.elements.map((n) => n.lines[0] ?? ''),
@@ -187,8 +217,12 @@ export function buildRows(
     rows.push({
       type: 'node',
       depth: row.depth,
+      guideDepths: guideDepthsFor(row.depth),
       markdown: markdownOf(row.node),
-      fact,
+      // The projected fact says what KIND of node this is; its depth is the
+      // projection's, and the rendered tree collapsed lineage out from under
+      // it. The row's own depth is the one the chrome lays out against.
+      fact: { ...fact, depth: row.depth },
       isReference: true,
       referenceKind: kindOf(row.node),
       foldedCount: 0,
@@ -219,6 +253,7 @@ export function buildRows(
       rows.push({
         type: 'node',
         depth,
+        guideDepths: guideDepthsFor(depth),
         markdown: markdownOf(node),
         fact: syntheticFact(node, depth),
         isReference: false,
@@ -230,6 +265,26 @@ export function buildRows(
       emitDescendants(node.children, depth + 1, open ? remaining : remaining - 1);
     }
   }
+}
+
+/**
+ * A plain block line of `kind` at `depth` — the fact for a row that is not a
+ * projected node at all: a collapsed lineage chain, or a frontmatter property.
+ * Never an atom and never a list item, because both of those describe how a
+ * node's own box is rendered and such a row has no node.
+ */
+function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDecorationFact {
+  return {
+    lineNumber: 0,
+    depth,
+    isFirstLine: true,
+    hasNativeMarker: false,
+    isAtom: false,
+    isListItem: false,
+    supplementalDepth: 0,
+    kind,
+    hasChildren: false,
+  };
 }
 
 /**

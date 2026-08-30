@@ -98,22 +98,27 @@ next begins; green unit tests are never the gate for anything visual.
 
 ## 7. Chrome refactor (S4 informs this)
 
-> **Order adjusted during apply.** 7.2 and 7.3 stand alone and are done: the token layer is
-> extracted and the editor is proven unchanged by it. 7.1 (S4's screenshot verdict) and 7.4
+> **Order adjusted during apply.** 7.2 and 7.3 stand alone and were done first: the token layer
+> is extracted and the editor is proven unchanged by it. 7.1 (S4's screenshot verdict) and 7.4
 > (the footer-scoped layer) both need a footer DOM to render, which is group 8 — CSS written
 > against a DOM that does not exist yet cannot be verified, and a screenshot pass needs
-> something to screenshot. Both move into group 8, where they land with the markup they
-> describe.
+> something to screenshot. Both ran after group 8, against the markup they describe.
+>
+> **Scope corrected by the result.** S4's first verdict said the token vocabulary was
+> sufficient. Measured against the rendered footer it was not: the editor computes no geometry
+> in JS, so a surface sharing only the tokens writes its own layout rules and diverges. The
+> shared unit is the fact→(class, custom properties) contract, now `src/plugin/chrome-line.ts`.
+> S6 (below) confirmed the two alternatives to consuming it are both worse.
 
-- [ ] 7.1 Spike S4 *(runs in group 8)*: port the guide gradient, marker widget and depth rules
-      to a non-`.cm-line` DOM against the corpus, in both bundled themes; screenshot every
-      fixture; record the verdict
+- [x] 7.1 Spike S4: port the guide gradient, marker widget and depth rules to a non-`.cm-line`
+      DOM against the corpus, in both bundled themes; screenshot every fixture; record the
+      verdict
 - [x] 7.2 Split `styles.css` into a surface-neutral token layer (geometry and colour custom
       properties, no surface selectors) and the existing CM6-scoped layer that consumes it —
       behaviour-preserving, same properties and values, moved only
 - [x] 7.3 Run the existing decoration e2e suites and a corpus screenshot pass in both themes to
       prove the editor is unchanged by the split
-- [x] 7.4 Add the footer-scoped layer consuming the same tokens *(runs in group 8, with the DOM it styles)*
+- [x] 7.4 Add the footer-scoped layer consuming the same tokens *(ran after group 8, with the DOM it styles)*
 
 ## 8. Footer surface
 
@@ -151,6 +156,14 @@ next begins; green unit tests are never the gate for anything visual.
       for its cap defaults
 - [ ] 9.7 Close every spike row in the hub doc with a verdict, and record cross-spike lessons
       where they belong (`docs/research/11` for decoration/CM6 findings)
+
+## 9b. Spike S6 — is there a cheaper renderer than our own chrome?
+
+- [x] 9b.1 Build both alternatives behind a switch: the group as one markdown list, and a real
+      CodeMirror per group running the plugin's decoration stack
+- [x] 9b.2 Render the same note in all three modes across both bundled themes, screenshot, and
+      compare as pictures rather than as arguments
+- [x] 9b.3 Record the S6 verdict and remove the apparatus
 
 ## 10. Close-out
 

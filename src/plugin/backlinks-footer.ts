@@ -36,7 +36,12 @@ import { Component, MarkdownRenderer, editorInfoField, type App } from 'obsidian
 import type { ModeSource } from './keymap';
 import { nestedEditorField } from './nested-editor';
 import { buildMarkerIcon } from './decorations';
-import { UNIT_EXPR, CHROME_VARS, MARKER_GUTTER_CSS } from './chrome-tokens';
+import {
+  MARKER_LEFT_SHIFT_EXPR,
+  applyLineChrome,
+  lineChrome,
+  plainGuideBackground,
+} from './chrome-line';
 import { buildRows, splitPath, type FooterRow } from './footer-model';
 import type { BacklinkIndex } from './backlink-index';
 import type { OutlineNode } from '../model';
@@ -224,31 +229,47 @@ class FooterController {
     });
   }
 
+  /**
+   * One row, drawn as an outline line.
+   *
+   * The row IS a line: it takes the same class and custom properties
+   * `lineChrome` gives a `.cm-line`, and `styles.css` lays it out with the same
+   * rules. Nothing here computes an offset. The footer's earlier version had a
+   * flex gutter of its own and set `margin-inline-start` by hand, which is how
+   * its bullets ended up off the editor's column and its guides absent
+   * altogether (docs/research/19, S4).
+   *
+   * `nativeList: false` because the footer draws every marker itself: the
+   * rendered `<li>` is unwrapped in `renderMarkdown`, so a list row is an
+   * ordinary block line here rather than something Obsidian's list rendering
+   * has already positioned.
+   */
   private renderRow(body: HTMLElement, sourcePath: string, row: FooterRow): void {
     const el = body.createDiv({ cls: 'to-backlinks-row' });
+    applyLineChrome(el, lineChrome(row.fact, {
+      nativeList: false,
+      // A row with no ancestor row above it draws nothing, exactly as a
+      // top-level line in the editor does.
+      ...(row.guideDepths.length > 0
+        ? { guides: plainGuideBackground(row.guideDepths) }
+        : {}),
+    }));
 
     if (row.type === 'property') {
       el.addClass('is-property');
       // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-      el.appendChild(gutter(propertyGlyph()));
-      const content = el.createDiv({ cls: 'to-backlinks-content' });
+      el.appendChild(markerSlot(propertyGlyph()));
+      const content = el.createSpan({ cls: 'to-backlinks-content' });
       content.createSpan({ cls: 'to-backlinks-prop-name', text: row.property });
       void this.renderMarkdown(content.createSpan(), row.markdown, sourcePath);
       return;
     }
 
-    // Depth is applied the way the editor applies it, from the shared unit —
-    // margin for atoms, whose visible box must move, padding for everything
-    // else (the distinction `decorate()` exists to make).
-    const indent = `calc(${row.depth} * ${UNIT_EXPR})`;
-    el.style.setProperty(CHROME_VARS.markerGutter, MARKER_GUTTER_CSS);
-    el.style.marginInlineStart = indent;
-
     if (row.type === 'lineage') {
       el.addClass('is-lineage');
       // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-      el.appendChild(gutter(buildMarkerIcon(row.kind)));
-      const content = el.createDiv({ cls: 'to-backlinks-content' });
+      el.appendChild(markerSlot(buildMarkerIcon(row.kind)));
+      const content = el.createSpan({ cls: 'to-backlinks-content' });
       row.segments.forEach((segment, i) => {
         if (i > 0) content.createSpan({ cls: 'to-backlinks-sep', text: '›' });
         content.createSpan({ text: firstLineText(segment) });
@@ -258,7 +279,6 @@ class FooterController {
     }
 
     if (row.isReference) el.addClass('is-reference');
-    if (row.fact.isAtom) el.addClass('is-atom');
 
     if (row.foldedCount > 0) {
       const fold = el.createSpan({ cls: 'to-backlinks-fold' });
@@ -271,11 +291,10 @@ class FooterController {
       });
     }
 
-    // A list item brings its own marker glyph; drawing ours too would double up.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-    el.appendChild(gutter(row.fact.hasNativeMarker ? null : buildMarkerIcon(row.fact.kind)));
+    el.appendChild(markerSlot(buildMarkerIcon(row.fact.kind)));
 
-    const content = el.createDiv({ cls: 'to-backlinks-content' });
+    const content = el.createSpan({ cls: 'to-backlinks-content' });
     // An embed of the target, rendered inside the target's OWN footer, would
     // transclude the note into itself — the reader asked where it was
     // referenced, not to read it again. Rendered as a link instead, and marked.
@@ -287,16 +306,24 @@ class FooterController {
     el.addEventListener('click', () => this.open(sourcePath));
   }
 
-  /** Obsidian renders the node's own text, so links, tags, checkboxes and
+  /**
+   * Obsidian renders the node's own text, so links, tags, checkboxes and
    * formatting look exactly as they do anywhere else. `sourcePath` is the
    * REFERENCING note, so its relative links resolve from where they were
-   * written rather than from the note being read. */
+   * written rather than from the note being read.
+   *
+   * The result is then unwrapped down to inline content. `MarkdownRenderer`
+   * answers with a document — a `<p>`, or a `<ul><li>` for a list item — and a
+   * document brings a document's block margins and its own list indentation.
+   * That is what put a reference row's children far right of the marker column
+   * with large gaps between them: the row already expresses depth through the
+   * shared chrome, and the wrapper was expressing it a second time, differently.
+   * Unwrapped, the row's marker and text sit in one inline flow, exactly as a
+   * `.cm-line`'s do.
+   */
   private async renderMarkdown(el: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
     await MarkdownRenderer.render(this.source.app, markdown, el, sourcePath, this.component);
-    // Obsidian wraps rendered markdown in a <p>; the footer's rows are already
-    // block-level, and the extra element only adds margins to fight.
-    const only = el.children.length === 1 ? el.firstElementChild : null;
-    if (only?.tagName === 'P') only.replaceWith(...Array.from(only.childNodes));
+    unwrapBlocks(el);
   }
 
   private open(sourcePath: string): void {
@@ -304,15 +331,65 @@ class FooterController {
   }
 }
 
-/** The marker column: same width as the editor's, empty when a node brings its
- * own glyph. */
-function gutter(icon: Element | null): HTMLElement {
-  const el = createDiv({ cls: 'to-backlinks-marker' });
+/**
+ * A row's marker, built exactly the way the editor builds a plain line's: an
+ * inline `.to-decor-marker-icon` span carrying the shared left shift, sitting
+ * at the start of the row's own text.
+ *
+ * Same class, same shift expression, same inline-flow mechanism — so the icon
+ * lands on `depth * unit`, the column its guide is drawn on, and it aligns to
+ * the row text's own baseline rather than to the row box (the reason the editor
+ * chose inline flow over absolute positioning: a heading's box carries
+ * asymmetric spacing that would pull the icon visibly high).
+ */
+function markerSlot(icon: Element): HTMLElement {
+  const el = createSpan({ cls: 'to-decor-marker-icon' });
+  el.setCssProps({ '--to-marker-left': MARKER_LEFT_SHIFT_EXPR });
   // `el` was created on the line above and is not mounted until the caller
   // attaches the row it belongs to.
   // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-  if (icon) el.appendChild(icon);
+  el.appendChild(icon);
   return el;
+}
+
+/**
+ * Strips the block wrappers `MarkdownRenderer` returns, leaving inline content.
+ *
+ * Applied repeatedly from the outside in, because a list item arrives as
+ * `<ul><li>…` — two wrappers deep — and a single pass would leave the `<li>`
+ * behind with its list-item display and its marker box. Stops at the first
+ * element that is not a lone wrapper, so a row whose markdown genuinely holds
+ * several blocks keeps them.
+ */
+const BLOCK_WRAPPERS = new Set(['P', 'UL', 'OL', 'LI', 'DIV']);
+
+function unwrapBlocks(el: HTMLElement): void {
+  for (;;) {
+    const only = el.children.length === 1 ? el.firstElementChild : null;
+    if (!only || !BLOCK_WRAPPERS.has(only.tagName)) break;
+    only.replaceWith(...Array.from(only.childNodes));
+  }
+  trimEdgeWhitespace(el);
+}
+
+/**
+ * Drops the whitespace Obsidian's own HTML carries between a wrapper and its
+ * content — the newline inside an `<li>`, say.
+ *
+ * Inside a block that whitespace would collapse away entirely, which is why it
+ * is invisible in Obsidian's own rendering. Here the content follows an inline
+ * marker, so it collapses to a real SPACE instead: measured, it pushed a list
+ * row's text 3.6px right of the column, against the 13.2px gap the editor's own
+ * lines hold between marker and text.
+ */
+function trimEdgeWhitespace(el: HTMLElement): void {
+  const isBlank = (n: ChildNode): boolean => n.nodeType === Node.TEXT_NODE && !(n.textContent ?? '').trim();
+  while (el.firstChild && isBlank(el.firstChild)) el.firstChild.remove();
+  while (el.lastChild && isBlank(el.lastChild)) el.lastChild.remove();
+  const first = el.firstChild;
+  if (first?.nodeType === Node.TEXT_NODE) {
+    first.textContent = (first.textContent ?? '').replace(/^\s+/, '');
+  }
 }
 
 /** A lineage segment names its node, so it shows the node's first line only. */

@@ -79,7 +79,12 @@ body {
  * `::after` with the guide or blockquote's native bar) a containing block
  * matching this line's own box.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block {
+/* Two surfaces, one rule. The backlinks footer's rows are not `.cm-line`s and
+ * are not children of `.cm-content`, but they carry the same class and the same
+ * custom properties (`chrome-line.ts`), so they take the same layout from the
+ * same declarations rather than from a parallel set that drifts. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block,
+.to-backlinks-row.to-decor-block {
   position: relative;
   padding-left: calc(
     var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px)
@@ -111,7 +116,8 @@ body {
 /* Atoms (code/table/quote/callout/html/hr) render a visible background or
  * border box; padding-left only shifts an element's own content, never
  * that box, so atoms need margin-left instead. */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom {
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom,
+.to-backlinks-row.to-decor-atom {
   position: relative;
   margin-left: calc(
     var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px)
@@ -594,11 +600,13 @@ body {
  * unused (`content: none`) by every kind this rule targets, including all
  * four widget kinds, before switching to it.
  */
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides,
+.to-backlinks-row.to-decor-guides {
   position: relative;
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides::after {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides::after,
+.to-backlinks-row.to-decor-guides::after {
   content: '';
   position: absolute;
   top: 0;
@@ -1171,10 +1179,40 @@ body {
  * Carded, not flowing: at full note width the identical chrome would otherwise
  * make another note's tree read as part of this one (docs/research/18, D6).
  */
+/*
+ * Rendered content, not source text.
+ *
+ * The footer is a block widget inside `.cm-content`, so it inherits CodeMirror's
+ * `white-space: pre-wrap` — correct for an editor, where every space and newline
+ * in the document is a character the reader typed. It is wrong here: these rows
+ * hold markdown Obsidian has already rendered, and the newlines Obsidian's own
+ * HTML carries between an `<li>` and its text became HARD LINE BREAKS, putting
+ * every list-derived row's text on the line below its own marker (measured: a
+ * depth-1 row was 37.6px tall against a depth-0 row's 20.7px, with the content
+ * box 18px below the icon).
+ */
 .to-backlinks {
+  white-space: normal;
   margin-top: 2.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--background-modifier-border);
+}
+
+/*
+ * The footer's own chrome — its heading, its group headers — is UI, and reads at
+ * UI size. A ROW is not: it holds a node of a note, and it reads at the size
+ * that note's text reads at.
+ *
+ * The whole footer used to be UI-small. That is what put every marker high
+ * against its text: the chrome's geometry is in `rem`, tuned against the
+ * editor's text size, so shrinking only the text left a marker whose box no
+ * longer matched the line it sat on — measured, the marker's centre was 1.8px
+ * above the text's against the editor's own 0.8px.
+ */
+.to-backlinks-head,
+.to-backlinks-group-head,
+.to-backlinks-resolving,
+.to-backlinks-dormant {
   font-size: var(--font-ui-small);
 }
 
@@ -1254,49 +1292,57 @@ body {
 .to-backlinks-resolving {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
-  padding: 0.2rem 0 0.2rem var(--to-marker-gutter);
+  padding: 0.2rem 0 0.2rem var(--to-marker-gutter, 1.25rem);
 }
 
+/*
+ * A row IS an outline line. Its depth, its marker column and its guides all
+ * come from the shared contract above (`.to-decor-block` / `.to-decor-atom` /
+ * `.to-decor-guides`), so nothing here positions anything — this rule only says
+ * how a footer row differs from an editor line: it is clickable, and it is a
+ * little tighter vertically.
+ *
+ * It used to be a flex container with a fixed-width marker cell and its own
+ * `margin-inline-start`. That is what put its bullets off the editor's column
+ * and left it with no guides at all: a second layout answering the same
+ * question differently (docs/research/19, S4).
+ */
 .to-backlinks-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
   padding: 0.1rem 0;
-  border-radius: var(--radius-s);
   cursor: pointer;
+  /*
+   * The guide overlay is a `z-index: -1` pseudo-element, and negative-z children
+   * paint before the in-flow block backgrounds of their stacking context — so
+   * the group card's own background covered every guide. The editor never hits
+   * this because a `.cm-line` has no opaque box between it and its stacking
+   * context. Making the row a stacking context of its own scopes the overlay to
+   * it: still behind the row's text, no longer behind the card. */
+  isolation: isolate;
 }
 
-.to-backlinks-row:hover {
-  background: var(--background-modifier-hover);
+/* No per-row background: a hover block per line broke the outline into rows the
+ * editor does not have, and the guide overlay paints behind the row's own
+ * background (`z-index: -1`), so a filled row would hide the guides it sits on.
+ * The affordance is on the text instead. */
+.to-backlinks-row:hover .to-backlinks-content {
+  color: var(--text-normal);
 }
 
 /* Markers are NOTATION, not emphasis: a node's marker says what kind of node it
  * is and nothing else, so a lineage segment and a reference of the same kind
- * are drawn identically. Only the text separates them (docs/research/18, D4). */
-.to-backlinks-marker {
-  flex: 0 0 var(--to-marker-gutter);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  height: 1.5em;
-  color: var(--text-faint);
-}
-
-.to-backlinks-marker > svg {
-  width: var(--to-marker-icon-size, 0.85rem);
-  height: var(--to-marker-icon-size, 0.85rem);
-}
-
+ * are drawn identically. Only the text separates them (docs/research/18, D4).
+ * The icon itself is `.to-decor-marker-icon`, shared with the editor — sized,
+ * shifted and coloured by that rule, not by this one. */
 .to-backlinks-content {
-  flex: 1 1 auto;
-  min-width: 0;
   overflow-wrap: break-word;
 }
 
+/* Context, not substance: dimmer and a little smaller. Relative to the row, not
+ * to the UI scale — an absolute size here would decouple the text from the
+ * marker beside it, which is the mistake the rule above records. */
 .to-backlinks-row.is-lineage .to-backlinks-content {
   color: var(--text-faint);
-  font-size: var(--font-ui-smaller);
-  line-height: 1.55;
+  font-size: 0.92em;
 }
 
 .to-backlinks-sep {
@@ -1332,15 +1378,28 @@ body {
   white-space: nowrap;
 }
 
-/* The outline's own fold affordance, beside the marker, rather than a bespoke
- * badge: the reader already knows this control from the editor. */
+/*
+ * The outline's own fold affordance, beside the marker, rather than a bespoke
+ * badge: the reader already knows this control from the editor.
+ *
+ * Placed where the editor places its own — right edge at
+ * `column - icon/2 - 3px`, clear of the marker's left edge by the same 3px
+ * visual gap (see the `.cm-fold-indicator` rules above, whose gutter term is a
+ * block chevron's anchor at the TEXT origin; this one is anchored on the row
+ * box, so the column is spelled out instead). Absolutely positioned inside the
+ * row, which `.to-decor-block` has already made a containing block, so it takes
+ * no width in the inline flow and cannot push the text off its column. */
 .to-backlinks-fold {
+  position: absolute;
+  left: calc(
+    var(--to-depth, 0) * var(--to-decor-unit) - var(--to-marker-icon-size, 0.85rem) / 2 - 3px -
+      var(--to-fold-size)
+  );
+  --to-fold-size: 0.7rem;
   display: flex;
   align-items: center;
-  width: 0.7rem;
+  width: var(--to-fold-size);
   height: 1.5em;
-  margin-inline-start: -0.7rem;
-  flex-shrink: 0;
   color: var(--text-faint);
   cursor: pointer;
 }
@@ -1349,6 +1408,9 @@ body {
   color: var(--text-normal);
 }
 
-.to-backlinks-row p {
+/* A row whose markdown holds more than one block keeps them (`unwrapBlocks`
+ * only strips a LONE wrapper), and those still arrive with document margins. */
+.to-backlinks-row :is(p, ul, ol) {
   margin: 0;
+  padding: 0;
 }

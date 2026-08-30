@@ -298,4 +298,35 @@ describe('lineage: collapsing', () => {
       '    . child two',
     ]);
   });
+
+  /**
+   * The invariant the backlinks footer's guides rest on. A row draws one guide
+   * per ancestor row above it, and it computes that set from its own depth
+   * alone (`guideDepthsFor` in footer-model.ts) — which is only correct if the
+   * emitted rows form a strict preorder with no depth ever skipped. Asserted
+   * here, at the function that has to keep it, rather than trusted from a
+   * reading of the code.
+   */
+  it('emits a strict preorder: a row at depth d always has an ancestor row at every shallower depth', () => {
+    fc.assert(
+      fc.property(arbMarkdownText, (text) => {
+        const doc = parse(text);
+        const all = walk(doc.children);
+        if (all.length === 0) return;
+        // A predicate matching a slice of the tree, so chains actually form.
+        const matches: NodePredicate = (n) => n.id % 3 === 0;
+        const projected = project(doc, matches, { descendantDepth: 1 });
+        const rows = collapseLineage(projected.children, matches);
+
+        // The depth of the row most recently seen at each level.
+        const open: number[] = [];
+        for (const row of rows) {
+          expect(row.depth).toBeLessThanOrEqual(open.length);
+          open.length = row.depth;
+          open.push(row.depth);
+        }
+      }),
+      { numRuns: 200 },
+    );
+  });
 });

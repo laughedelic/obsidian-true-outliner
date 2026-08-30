@@ -75,6 +75,15 @@ import {
 } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
 import { MARKER_GUTTER_CSS, MARKER_ICON_CSS, UNIT_EXPR } from './chrome-tokens';
+import {
+  chromeStyle,
+  guideLayer,
+  lineChrome,
+  MARKER_LEFT_SHIFT_EXPR,
+  ownShiftExpr as plainOwnShiftExpr,
+  plainGuideBackground,
+  stripeStartExpr,
+} from './chrome-line';
 import type { NodeKind, OutlineDoc } from '../model';
 import { parse } from '../parse';
 import { coveredForestOf, coveredSubtreeRoots } from '../escalate';
@@ -184,41 +193,11 @@ function docFacts(state: EditorState): DocFacts {
 // duplication wearing a different hat.
 const UNIT = UNIT_EXPR;
 
-/**
- * A depth's COLUMN: the single x this layer positions everything at. A guide's
- * visible centre, a marker's visible centre and an accent's visible centre are
- * all this value, and every one of them derives it from here.
- *
- * Stated as a function rather than left to each call site because the three
- * disagreed. Measured before this existed: a marker's centre sat at exactly
- * `depth × unit` while a guide painted its 1px as `[column, column + 1]`, so
- * every marker in the layer — bullets and block icons alike — was half a pixel
- * left of the line it belongs to. Half a CSS pixel is a whole device pixel at
- * 2x, and against a 1px line it reads. The lesson doc 11 draws from Experiment
- * 5b's three near-identical bugs applies exactly: when two things must move
- * together, make it impossible to change one without the other.
- */
-function columnExpr(depth: number): string {
-  return `calc(${depth} * ${UNIT})`;
-}
-
-/**
- * Where a stripe of width `w` must START for its own centre to land on
- * `depth`'s column. Every painted stripe goes through this; nothing positions
- * itself at the raw column and hopes.
- */
-function stripeStartExpr(depth: number, width: string): string {
-  return `calc(${columnExpr(depth)} - ${width} / 2)`;
-}
-
-const GUIDE_WIDTH = '1px';
-
-function guideLayer(depth: number): string {
-  return (
-    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${GUIDE_WIDTH}, transparent ${GUIDE_WIDTH} ${UNIT}) ` +
-    `${stripeStartExpr(depth, GUIDE_WIDTH)} 0 / ${UNIT} 100% no-repeat`
-  );
-}
+// `columnExpr`, `stripeStartExpr`, `guideLayer` and `GUIDE_WIDTH` moved to
+// chrome-line.ts when the backlinks footer became a second surface drawing the
+// same guides. Their reasoning moved with them; nothing here changed but where
+// they live. Everything below this point is editor-only, because it is all
+// derived from the caret.
 
 // ---- Position indicators (hierarchy-position-indicators) -------------------
 //
@@ -287,7 +266,7 @@ function accentLayer(depth: number, extent: TrailExtent): string {
  * instead — see `MarkerHighlight` in decorate.ts.
  */
 function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFact): string {
-  if (!trail) return guideDepths.map(guideLayer).join(', ');
+  if (!trail) return plainGuideBackground(guideDepths);
   const accents = accentsOn(guideDepths, trail);
   const layers: string[] = [];
   for (const [depth, extent] of accents) layers.push(accentLayer(depth, extent));
@@ -707,26 +686,9 @@ function markerAnchorLeftExpr(targetRelExpr: string): string {
   return `calc(${targetRelExpr} - (${MARKER_ICON_CSS} / 2))`;
 }
 
-/**
- * Horizontal placement for the CM6-widget (plain-line) marker mechanism —
- * see `MarkerWidget`'s own doc comment for why this uses a fundamentally
- * different technique (inline + `vertical-align`, not `position: absolute`
- * relative to the line's own box) from the widget-atom mechanism above.
- *
- * Because the widget is always inserted at the exact position where the
- * node's own text starts (CM6 `Decoration.widget` at the line's first
- * character, `side: -1`), and — by construction — that text position is
- * always exactly `gutter` to the right of the shared target column,
- * regardless of kind or depth (that IS the definition of the gutter), the
- * needed shift collapses to a single depth/kind-independent expression:
- * `iconSize * 0.5 - gutter` (icon centered on the column). Worked through
- * concretely for both block (padding-shifted text, unshifted box) and
- * atom-plain (margin-shifted box, unshifted-relative-to-box text) — the
- * depth terms cancel identically in both cases, confirmed by hand before
- * relying on it here (see the git history of this comment for the full
- * derivation).
- */
-const MARKER_LEFT_SHIFT_EXPR = `calc(${MARKER_ICON_CSS} * 0.5 - ${MARKER_GUTTER_CSS})`;
+// `MARKER_LEFT_SHIFT_EXPR` — the plain-line marker's placement — moved to
+// chrome-line.ts with the rest of the contract; the footer draws every one of
+// its markers through the same mechanism. Its derivation moved with it.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -831,9 +793,15 @@ export function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       // A single bold horizontal bar.
       children.push(svgEl('rect', { x: '2', y: '7', width: '12', height: '2', fill: 'currentColor' }));
       break;
+    case 'list-item':
+      // A bullet. The EDITOR never asks for this one — a list line there keeps
+      // its native marker, which is editable text the reader typed. The
+      // backlinks footer does: it renders list items unwrapped, with no native
+      // marker to keep, so it draws the same dot the reader would have seen.
+      children.push(svgEl('circle', { cx: '8', cy: '8', r: '2', fill: 'currentColor' }));
+      break;
     default:
-      // Unreachable for list-item (excluded by every caller) — a small dot
-      // keeps this exhaustive-in-spirit without dead code paths elsewhere.
+      // A small dot keeps this exhaustive-in-spirit without dead code paths.
       children.push(svgEl('circle', { cx: '8', cy: '8', r: '2', fill: 'currentColor' }));
   }
 
@@ -976,30 +944,10 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
 }
 
 /**
- * Own-shift expression (units of `--to-decor-unit`, plus the marker gutter
- * where applicable): how far this line's own box has been shifted right by
- * its own margin-left/padding-left — the exact compensation a leftward-
- * reaching overlay (a guide, or escalated-selection chrome, below) needs to
- * widen its box by to reach a shallower ancestor's column (see the doc
- * comment above `guideLayer`). `'0px'` means the box isn't shifted at all
- * (block lines: padding-left never moves the box). Static/formula-based —
- * NOT the more precise, live-measured value `MarginCompensation` computes
- * per widget atom (which additionally corrects for native padding); callers
- * needing that precision use their own value instead of this one.
+ * One line's decoration: the shared class-and-property contract, plus the two
+ * things only an editor has — the caret trail's marker classes, and the accent
+ * layers folded into the guide background.
  */
-function plainOwnShiftExpr(fact: LineDecorationFact): string {
-  if (fact.isListItem) {
-    // List items get no marker gutter (native bullet/number only).
-    return fact.supplementalDepth > 0 ? `calc(${fact.supplementalDepth} * ${UNIT})` : '0px';
-  }
-  if (fact.isAtom) {
-    // Every non-list line reserves the marker gutter, so the box is always
-    // shifted by at least the gutter, even at depth 0.
-    return `calc(${fact.depth} * ${UNIT} + var(--to-marker-gutter, 0px))`;
-  }
-  return '0px'; // padding-left never shifts a block line's own box
-}
-
 function lineDecoration(
   lineText: string,
   fact: LineDecorationFact,
@@ -1007,55 +955,13 @@ function lineDecoration(
   trail: PositionTrail,
   markerAccent: boolean,
 ): Decoration {
-  const styles: string[] = [];
-  let cls: string;
-
-  if (fact.isListItem) {
-    cls = 'to-decor-list';
-    styles.push(`--to-supp-depth: ${fact.supplementalDepth}`);
-    // The item's own tree depth as well as its list root's: the difference is
-    // the item's depth WITHIN its list, which is how far Obsidian's own list
-    // rendering carries it right of the line box, and therefore what the
-    // stated hanging indent has to account for.
-    styles.push(`--to-depth: ${fact.depth}`);
-    // The gutter too, even though a list line reserves none of its OWN: its
-    // native marker occupies the same gutter every other kind's marker does,
-    // and the rules that size the marker span and state the hang both read it.
-    // Publishing it here rather than falling back to a literal in the CSS keeps
-    // `MARKER_GUTTER_CSS` the single source.
-    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
-    // The marker's own share of the stated hang. A first line spends the gutter
-    // on its native bullet/number/checkbox, so its leading whitespace stops one
-    // gutter short of its text; a CONTINUATION line has no marker and belongs
-    // under the item's TEXT, so its whitespace takes the whole hang. Without
-    // this the rule that states the whitespace width (styles.css) would put a
-    // continuation on the marker's column, a gutter left of the row above it.
-    // `hasNativeMarker` is exactly "list-item first line" and had no consumer
-    // until now.
-    styles.push(`--to-list-marker-cols: ${fact.hasNativeMarker ? MARKER_GUTTER_CSS : '0px'}`);
-    if (fact.hasNativeMarker && ONE_SPACE_MARKER_RE.test(lineText)) {
-      cls += ` ${ONE_SPACE_MARKER_CLASS}`;
-    }
-  } else if (fact.isAtom) {
-    cls = 'to-decor-atom';
-    styles.push(`--to-depth: ${fact.depth}`);
-    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
-  } else {
-    cls = 'to-decor-block';
-    styles.push(`--to-depth: ${fact.depth}`);
-    styles.push(`--to-marker-gutter: ${MARKER_GUTTER_CSS}`);
-  }
-
-  cls += markerClasses(trail, fact.lineNumber, markerAccent);
-
-  const lineTrail = trail.byLine.get(fact.lineNumber);
-  if (hasOverlay(depths)) {
-    cls += ' to-decor-guides';
-    styles.push(`--to-guides: ${guideBackground(depths, lineTrail)}`);
-    styles.push(`--to-own-shift: ${plainOwnShiftExpr(fact)}`);
-  }
-
-  return Decoration.line({ class: cls, attributes: { style: styles.join('; ') } });
+  const guides = hasOverlay(depths)
+    ? guideBackground(depths, trail.byLine.get(fact.lineNumber))
+    : undefined;
+  const chrome = lineChrome(fact, { lineText, guides });
+  const cls =
+    chrome.classes.join(' ') + markerClasses(trail, fact.lineNumber, markerAccent);
+  return Decoration.line({ class: cls, attributes: { style: chromeStyle(chrome) } });
 }
 
 // A blank trailingGap line carrying a guide (see computeLineGuides's doc
@@ -1595,10 +1501,7 @@ export const ORDERED_DIGITS_CLASS = 'to-decor-ol-digits';
  * its column intact and its caret still short of it — a pre-existing defect left
  * standing rather than a new one introduced.
  */
-export const ONE_SPACE_MARKER_CLASS = 'to-decor-marker-1sp';
-
-/** A list marker followed by exactly one space, and nothing else after it. */
-const ONE_SPACE_MARKER_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)]) (?![ \t])/;
+export { ONE_SPACE_MARKER_CLASS } from './chrome-line';
 
 /** `1.`, `12)` — the run a mark covers, with its offset in the line. */
 const ORDERED_DIGITS_RE = /^([ \t]*)(\d{1,9}[.)])/;

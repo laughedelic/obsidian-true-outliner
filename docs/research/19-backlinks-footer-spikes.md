@@ -38,7 +38,8 @@ One rule is specific to this series:
 | **S1** | Can a block widget at `doc.length` coexist with the enforcement layer? | Done | **Yes — proceed**, with one mechanism correction: block decorations must come from a `StateField`, not a `ViewPlugin` |
 | **S2** | Does the widget survive the editor's lifecycle? | Done | **Yes — proceed**, but a `StateField` needs an explicit invalidation bridge: the shared mode-toggle nudge is a no-op selection set and produces no transaction |
 | **S3** | Does `decorate()` hold up on a foreign, projected tree? | Done | **Yes** — node-identity facts are invariant; position facts describe the tree passed in, which corrected a spec claim |
-| **S4** | What does outline chrome cost outside `.cm-line`? | Rendering done, screenshots pending | Token layer extracted and the editor proven unchanged by it; the visual verdict needs a footer DOM and runs with it |
+| **S4** | What does outline chrome cost outside `.cm-line`? | Done | **The token vocabulary was NOT sufficient** — the editor positions nothing in JS, so a surface that shares only the tokens reimplements the layout and diverges. What must be shared is the class + custom-property contract, and the footer now consumes it |
+| **S6** | Would rendering the footer some other way be cheaper? | Done | **No — both alternatives are worse.** Markdown loses the outline entirely; a per-group editor loses Live Preview *and* our decorations |
 | **S5** | What does a real vault cost? | Not started | — |
 
 ## The fixture corpus
@@ -318,14 +319,79 @@ Split accordingly, and behaviour-preservingly:
 Verified unchanged: 92 assertions across `50-decorations`, `51-guides-gradient`,
 `52-block-markers-icons`, `53-decoration-contracts` and `55-position-indicators`.
 
-### Finding — the vocabulary was sufficient; no chrome restructuring needed
+### Finding — the vocabulary was sufficient, the CONTRACT was not
 
-With the footer built, the answer is yes. Its rows consume `--to-decor-unit` and
-`--to-marker-gutter` for geometry, `buildMarkerIcon` for kind notation, and the theme
-variables for colour, without a single value restated. Nothing about the chrome had to change
-to draw on ordinary `div`s rather than `.cm-line`s.
+This finding replaces an earlier one that called the vocabulary sufficient and stopped there.
+It was recorded before the footer had been looked at, on the evidence that the footer's rows
+consumed `--to-decor-unit`, `--to-marker-gutter` and `buildMarkerIcon` without restating a
+value. That is true, and it is not the question. The rendered footer did not look like the
+editor's outline, which was the explicit goal.
 
-Two things did have to be handled, neither a chrome problem:
+What the earlier verdict missed is where the editor's layout actually happens. `lineDecoration()`
+computes almost no geometry: it emits a **class** (`to-decor-block` / `to-decor-atom` /
+`to-decor-list`, plus `to-decor-guides`) and a set of **custom properties** (`--to-depth`,
+`--to-marker-gutter`, `--to-supp-depth`, `--to-own-shift`, `--to-list-marker-cols`,
+`--to-guides`), and `styles.css` derives every offset, hang and stripe from those. The tokens
+are the alphabet; that class-plus-properties pair is the sentence.
+
+A surface that shares only the alphabet writes its own sentences, and they differ. Measured
+against the corpus, three ways:
+
+- **No guide lines at all.** `computeLineGuides` and `guideBackground` were never called from
+  the footer, so `--to-guides` was never set and the whole gradient layer was absent.
+- **Bullets off the column.** The footer laid rows out with a fixed-width flex gutter; the
+  editor computes the column as `depth * unit + gutter` and centres the marker on it with
+  `stripeStartExpr`. The two agree only at depth 0.
+- **Depth applied through the wrong property.** The editor uses `padding-left` for block lines
+  and `margin-left` for atoms and list items — a distinction `--to-own-shift` exists to record,
+  because the guide layer must undo exactly the shift the line applied. The footer used one
+  rule for everything.
+
+The per-row hover boxes and the oversized gaps around reference rows have the same root: both
+are footer-local CSS invented to stand in for rules that already existed.
+
+**Corrected verdict: no chrome restructuring is needed, but the seam was in the wrong place.**
+The shared unit is the fact→(class, custom properties) mapping. It now lives in
+`src/plugin/chrome-line.ts` — `lineChrome()`, the column and stripe geometry, the guide layer
+builder and the plain-line marker placement — and `lineDecoration()` and the footer both call
+it. The three `styles.css` rules that lay a line out (the block depth rule, the atom depth rule,
+the guide overlay) carry a second selector for footer rows, so both surfaces take their layout
+from the same declarations.
+
+The editor was proven unchanged by the extraction before the footer consumed it: 1051 unit tests
+and 62 e2e assertions across `50-decorations`, `51-guides-gradient`, `52-block-markers-icons`,
+`53-decoration-contracts`, `55-position-indicators`, `56-list-grid` and `55-position-indicators`.
+
+### Finding — three defects the shared contract did not fix by itself
+
+Consuming the contract fixed the guides, the marker column and the row rhythm outright. Three
+things remained, each invisible in the editor for a reason worth recording, and each found by
+measuring the footer against a `.cm-line` in the same session rather than by looking.
+
+- **The guide overlay was scoped to the wrong stacking context.** It is a `z-index: -1`
+  pseudo-element, and negative-z children paint *before* the in-flow block backgrounds of their
+  stacking context — so the group card's opaque background covered every guide. A `.cm-line` has
+  no opaque box between it and its stacking context, so the editor never meets this. Fixed by
+  making the row a stacking context of its own (`isolation: isolate`), which scopes the overlay
+  to the row: still behind its text, no longer behind the card.
+- **Obsidian's own HTML whitespace became visible content.** The footer inherits CodeMirror's
+  `white-space: pre-wrap`, under which the newline inside a rendered `<li>` is a HARD BREAK: every
+  list-derived row's text landed on the line below its own marker (measured, a depth-1 row was
+  37.6px tall against a depth-0 row's 20.7px). Set to `normal`, that newline collapses to a
+  SPACE instead — invisible inside a block, but real after an inline marker, and worth 3.6px of
+  extra gap. Both halves are now handled: `normal` on the footer, and the edge whitespace
+  stripped in `unwrapBlocks`.
+- **The footer rendered at UI size while the chrome is sized in `rem`.** The marker's box is
+  0.85rem, tuned against the editor's text size; shrinking only the text left the marker's centre
+  1.8px above its text's, against the editor's own 0.8px. UI size now applies to the footer's own
+  chrome — its heading, its group headers — and a row reads at the size a note's text reads at,
+  because a row holds a node of a note.
+
+Measured after all three, against a `.cm-line` in the same session: marker-to-text gap 13.2px on
+both surfaces, marker-to-text vertical offset −0.8px on both. `74-footer-chrome-pass` holds that
+as a relationship rather than a pixel count, since CI's font is not a developer's.
+
+Two further things had to be handled, neither a chrome problem:
 
 - **Node text must be dedented before rendering.** A node's own lines carry the indentation
   that expresses its depth, and markdown reads a leading tab as a CODE BLOCK — so a nested list
@@ -335,8 +401,6 @@ Two things did have to be handled, neither a chrome problem:
 - **An embed of the target renders as a link, not a transclusion.** Left alone, an
   `![[Target#Heading]]` reference transcluded the target into its own footer — the reader asked
   where it was referenced, not to read it again.
-
-The screenshot pass across both bundled themes is still outstanding.
 
 ### Finding — the footer only exists once the reader reaches it
 
@@ -372,3 +436,55 @@ its own controller now. Precisely the "one widget per editor" invariant S2 exist
 until this spike reports.
 
 *Not yet run.*
+
+## S6 — is there a cheaper renderer than our own chrome?
+
+**Question.** S4's corrected verdict says the footer must consume the editor's own
+class-and-property contract. Before paying for that, the two obvious alternatives were built
+and looked at rather than argued about: hand each group to Obsidian as one nested markdown
+list, or mount a real CodeMirror per group running our decoration stack over a synthesised
+document.
+
+**Verdict: neither. Consume the real contract.** Both alternatives were rendered on the same
+note, same build, both bundled themes, and screenshotted side by side with the current chrome.
+
+### Method
+
+Apparatus: `src/plugin/footer-render-modes.ts` behind a `footerRenderMode` plugin-data key,
+switched in `FooterController.fillGroup`; `e2e/specs/79-render-mode-comparison.e2e.ts` renders
+`People/Priya Nair.md` in all three modes across both themes into
+`.obsidian-cache/footer-render-modes/`. Both were removed once this was recorded — the
+apparatus existed to answer one question, and a switch nobody will ever flip again is a
+liability, not a feature.
+
+Both alternatives need the group as markdown text first, which is itself informative: neither
+can show anything our own renderer cannot. They differ only in who draws it.
+
+### Finding — markdown loses the outline, and does not even gain spacing
+
+`liItems: 7, markers: 0, rows: 0`. Obsidian's own nested list is legible, but it is Obsidian's
+list: no kind markers, no guide gradient, no depth grid on our unit. Structure that has no
+markdown spelling is simply lost — a collapsed lineage degrades to `a › b › c` as plain text,
+and node kind disappears. The vertical spacing is *worse* than the current chrome, not better,
+because every row becomes an `<li>` carrying list margins rather than only the descendants.
+
+### Finding — a per-group editor loses Live Preview *and* our decorations
+
+`cmLines: 7, markers: 0`, and the rendered text reads ``- `team.1` [[Priya Nair]]`` — raw
+markdown, brackets and all. Two separate failures land together:
+
+- **Live Preview is not a CodeMirror feature.** It is Obsidian's view layer, built on a
+  `MarkdownView` that a bare `EditorView` does not have. A synthetic editor renders source.
+- **Our decorations did not attach**, despite `decorationsExtension` being in the extension
+  list and `editorInfoField` hand-seeded to claim an outline-mode file. The stack expects an
+  editor Obsidian created; seeding one field is not the same as being one.
+
+So the option that promised identical chrome by construction delivered neither Obsidian's
+rendering nor ours, at the cost of a full editor instance per group.
+
+### Consequence
+
+The comparison also explains the current chrome's defects without needing a fourth experiment.
+Every one of them is footer-local CSS standing in for a rule that already exists in
+`styles.css` — which is exactly what S4's corrected verdict predicts, and what group 7's
+re-scoping fixes.

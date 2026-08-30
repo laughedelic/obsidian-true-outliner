@@ -40,7 +40,14 @@ function dump(): Promise<string[]> {
     const out: string[] = [];
     root.querySelectorAll('.to-backlinks-head, .to-backlinks-group-head, .to-backlinks-row, .to-backlinks-dormant, .to-backlinks-resolving')
       .forEach((el) => {
-        const cls = el.className.replace('to-backlinks-', '').replace(/\s+/g, '+');
+        // Only the footer's OWN classes name what a line is. A row also carries
+        // the editor's chrome classes (`to-decor-block`, `to-decor-guides`),
+        // which say how it is drawn, not what it is — including them here would
+        // make every assertion below sensitive to a layout change.
+        const cls = Array.from(el.classList)
+          .filter((c) => c.startsWith('to-backlinks-') || c.startsWith('is-'))
+          .map((c) => c.replace('to-backlinks-', ''))
+          .join('+');
         out.push(`${cls}: ${(el.textContent ?? '').trim().slice(0, 70)}`);
       });
     return out;
