@@ -38,7 +38,7 @@ function dump(): Promise<string[]> {
     const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
     if (!root) return ['<no footer>'];
     const out: string[] = [];
-    root.querySelectorAll('.to-backlinks-head, .to-backlinks-group-head, .to-backlinks-row, .to-backlinks-dormant, .to-backlinks-resolving')
+    root.querySelectorAll('.to-backlinks-head, .to-backlinks-group-head, .to-backlinks-row, .to-backlinks-resolving')
       .forEach((el) => {
         // Only the footer's OWN classes name what a line is. A row also carries
         // the editor's chrome classes (`to-decor-block`, `to-decor-guides`),
@@ -79,13 +79,16 @@ describe('backlinks footer: first render', function () {
     expect(lines.some((l) => l.includes('[[Aurora Dashboard]]'))).toBe(false);
   });
 
-  it('shows a dormant line for a note nothing links to', async function () {
+  it('shows one header line, counted, for a note nothing links to', async function () {
     await h.openNote('Notes/Sourdough Log.md');
     await ensureOutlineMode('Notes/Sourdough Log.md');
     await scrollToEnd();
     await browser.waitUntil(
-      async () => (await dump()).some((l) => l.startsWith('dormant')),
-      { timeout: 8000, timeoutMsg: 'no dormant line' },
+      // The empty state is the section's own header with `0 references` beside
+      // it — the same one line a referenced note gets, with nothing under it,
+      // rather than a second thing to recognise.
+      async () => (await dump()).some((l) => l.startsWith('head') && l.includes('0 references')),
+      { timeout: 8000, timeoutMsg: 'no empty-state header' },
     );
   });
 });

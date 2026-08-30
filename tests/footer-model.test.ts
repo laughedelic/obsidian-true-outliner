@@ -153,6 +153,33 @@ describe('footer model', () => {
     expect(inner).toHaveLength(1);
   });
 
+  /**
+   * Order is part of what a document says. An ordered list whose `2.` precedes
+   * its `1.` is not the note that was written, and a reader looking at someone
+   * else's structure has no way to tell that the footer rearranged it.
+   *
+   * Regressed once: skipping matches in the descendant pass left them to the
+   * lineage pass, which emits in the PROJECTION's order — and the non-matching
+   * siblings between them are not in the projection, so every referenced child
+   * migrated below every unreferenced one.
+   */
+  it('keeps a reference’s children in source order, referenced or not', () => {
+    const doc = parse(`- [[Aurora Dashboard]] parent
+\t- first, no mention
+\t- second mentions [[Aurora Dashboard]]
+\t- third, no mention
+\t- fourth mentions [[Aurora Dashboard]]
+`);
+    const rows = buildRows(doc, referencesTarget, [], noKind, noneExpanded);
+    expect(render(rows)).toEqual([
+      '* [[Aurora Dashboard]] parent',
+      '  . first, no mention',
+      '  * second mentions [[Aurora Dashboard]]',
+      '  . third, no mention',
+      '  * fourth mentions [[Aurora Dashboard]]',
+    ]);
+  });
+
   it('drops the fold count once a row is expanded', () => {
     const doc = parse(`- [[Aurora Dashboard]] hit
 \t- child with kids

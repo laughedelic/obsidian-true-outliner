@@ -1231,8 +1231,10 @@ body {
  */
 .to-backlinks {
   white-space: normal;
-  margin-top: 2.5rem;
-  padding-top: 1rem;
+  /* The section is a different thing from the note above it, and the rule that
+   * says so needs air on both sides or it reads as the note's own underline. */
+  margin-top: 4rem;
+  padding-top: 1.75rem;
   border-top: 1px solid var(--background-modifier-border);
 }
 
@@ -1249,8 +1251,7 @@ body {
  */
 .to-backlinks-head,
 .to-backlinks-group-head,
-.to-backlinks-resolving,
-.to-backlinks-dormant {
+.to-backlinks-resolving {
   font-size: var(--font-ui-small);
 }
 
@@ -1260,6 +1261,23 @@ body {
   gap: 0.5rem;
   color: var(--text-muted);
   margin-bottom: 0.75rem;
+  cursor: pointer;
+}
+
+/* Folded, or empty: the header IS the section, so it owes nothing below it. */
+.to-backlinks-head.is-collapsed,
+.to-backlinks.is-dormant .to-backlinks-head {
+  margin-bottom: 0;
+}
+
+.to-backlinks.is-dormant .to-backlinks-head {
+  cursor: default;
+}
+
+/* The count sits at the far end of the line rather than beside the title, so
+ * the eye finds it in the same place whatever the title's length. */
+.to-backlinks-totals {
+  margin-inline-start: auto;
 }
 
 .to-backlinks-icon {
@@ -1281,10 +1299,6 @@ body {
 /* A note nothing links to still ends predictably: one quiet line where the
  * populated header would be, rather than the section appearing and vanishing as
  * a note gains its first reference (docs/research/18, D9). */
-.to-backlinks.is-dormant .to-backlinks-dormant {
-  color: var(--text-faint);
-}
-
 .to-backlinks-group {
   background: var(--background-primary-alt);
   border: 1px solid var(--background-modifier-border);
@@ -1348,6 +1362,10 @@ body {
 .to-backlinks-row {
   padding: 0.1rem 0;
   cursor: pointer;
+  /* Set on the ROW, so the marker's `0.5ex` correction resolves against the
+   * same font as the text beside it. The depth grid stays in `rem` — it is
+   * chrome, and it must line up with the editor's. */
+  font-size: 0.92em;
   /*
    * The guide overlay is a `z-index: -1` pseudo-element, and negative-z children
    * paint before the in-flow block backgrounds of their stacking context — so

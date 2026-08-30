@@ -355,6 +355,8 @@ export function buildRows(
   indexSource(doc.children);
 
   const factFor = (node: OutlineNode): LineDecorationFact | undefined => facts.get(node);
+  /** Nodes already given a row, so neither pass renders one twice. */
+  const emitted = new Set<number>();
 
   for (const row of collapseLineage(projected.children, matches)) {
     if (row.type === 'lineage') {
@@ -376,6 +378,11 @@ export function buildRows(
 
     const fact = factFor(row.node);
     if (!fact) continue;
+    // Already rendered as a descendant of an earlier match, in its own source
+    // position. The lineage pass emits every match in the PROJECTION's order,
+    // which drops the non-matching siblings between them.
+    if (emitted.has(row.node.id)) continue;
+    emitted.add(row.node.id);
     rows.push({
       type: 'node',
       depth: row.depth,
@@ -397,9 +404,22 @@ export function buildRows(
   return rows;
 
   /**
-   * A reference's own subtree, to `remaining` levels. A node at the boundary
-   * that still has children of its own carries their count instead of them, so
-   * the reader is told what is hidden rather than left to wonder.
+   * A reference's own subtree, in SOURCE ORDER, to `remaining` levels.
+   *
+   * Every child is emitted here, references included, because the reader is
+   * looking at a piece of someone's document and its order is part of what it
+   * says — an ordered list whose `2.` precedes its `1.` is not the note that was
+   * written. An earlier version skipped matches and left them to the lineage
+   * pass, which emits in the PROJECTION's order: the non-matching siblings
+   * between them are not in the projection, so every referenced child migrated
+   * below every unreferenced one.
+   *
+   * A match emitted here is marked as one, and `emitted` keeps the lineage pass
+   * from rendering it a second time.
+   *
+   * A node at the display boundary that still has children carries their count
+   * instead of them, so the reader is told what is hidden rather than left to
+   * wonder.
    */
   function emitDescendants(
     nodes: readonly OutlineNode[],
@@ -408,34 +428,34 @@ export function buildRows(
   ): void {
     if (remaining <= 0) return;
     for (const node of nodes) {
-      // A descendant that is ITSELF a reference already has a row: the lineage
-      // pass emits every match, and emits it marked as one. Rendering it here
-      // as well showed it twice — once as dim context under its parent and once
-      // as the reference it is. Its own subtree comes with its own row, so this
-      // does not recurse into it either.
-      //
-      // Only reachable when one reference sits inside another's subtree, which
-      // is why it survived until the corpus had a note shaped that way.
-      if (matches(node)) continue;
+      if (emitted.has(node.id)) continue;
+      emitted.add(node.id);
+      const isMatch = matches(node);
       const open = expanded(node);
-      const hidden = node.children.length > 0 && remaining === 1 && !open
+      // A reference is substance, not context: the depth bound describes how
+      // much CONTEXT to show around one, so it restarts at each one rather than
+      // burying a reference that happens to sit deep under another. The reset
+      // applies to what is shown BELOW the node, not to the node itself — a
+      // match's own children are shown, so it folds nothing.
+      const childBudget = isMatch ? DESCENDANT_DEPTH : open ? remaining : remaining - 1;
+      const hidden = !isMatch && node.children.length > 0 && remaining === 1 && !open
         ? countDescendants(node)
         : 0;
       rows.push({
         type: 'node',
         depth,
         guideDepths: guideDepthsFor(depth),
-        // A descendant is context, so it carries no reference line: a record
-        // kind here shows its first line rather than a line nothing points at.
-        ...contentOf(node, undefined),
+        // Only a reference has a line something points at; a context row shows
+        // its first line instead.
+        ...contentOf(node, isMatch ? refLineOf(node) : undefined),
         fact: syntheticFact(node, depth),
-        isReference: false,
-        referenceKind: undefined,
+        isReference: isMatch,
+        referenceKind: isMatch ? kindOf(node) : undefined,
         foldedCount: hidden,
       });
       // `open` lets one row escape the depth bound, which is exactly what
       // expanding it means.
-      emitDescendants(node.children, depth + 1, open ? remaining : remaining - 1);
+      emitDescendants(node.children, depth + 1, childBudget);
     }
   }
 }

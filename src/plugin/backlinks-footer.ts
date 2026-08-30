@@ -63,6 +63,8 @@ const refreshFooter = StateEffect.define<void>();
 /** Per-note view state: which groups are collapsed, which rows are expanded.
  * Outside the document, because none of it belongs in the file. */
 interface ViewState {
+  /** The whole section, folded away. */
+  collapsed: boolean;
   readonly collapsedGroups: Set<string>;
   readonly expandedRows: Set<string>;
 }
@@ -72,7 +74,7 @@ const viewStates = new Map<string, ViewState>();
 function viewStateFor(path: string): ViewState {
   let state = viewStates.get(path);
   if (!state) {
-    state = { collapsedGroups: new Set(), expandedRows: new Set() };
+    state = { collapsed: false, collapsedGroups: new Set(), expandedRows: new Set() };
     viewStates.set(path, state);
   }
   return state;
@@ -118,15 +120,14 @@ class FooterController {
     const summaries = this.source.backlinks.summaries(this.targetPath);
     const totals = this.source.backlinks.totals(this.targetPath);
 
-    this.renderHeader(root, totals);
+    const state = viewStateFor(this.targetPath);
+    this.renderHeader(root, totals, state.collapsed, summaries.length > 0);
     this.el.toggleClass('is-dormant', summaries.length === 0);
-    if (summaries.length === 0) {
-      this.renderDormant(root);
+    if (summaries.length === 0 || state.collapsed) {
       this.swap(root);
       return;
     }
 
-    const state = viewStateFor(this.targetPath);
     // Most recently modified first — the default sort (docs/research/18, D15).
     const ordered = [...summaries].sort((a, b) => b.path.localeCompare(a.path));
     const bodies: { path: string; body: HTMLElement }[] = [];
@@ -186,24 +187,47 @@ class FooterController {
     while (built.firstChild) body.appendChild(built.firstChild);
   }
 
-  private renderHeader(root: HTMLElement, totals: { references: number; notes: number }): void {
+  /**
+   * The section's own header: what this is, how much of it there is, and a way
+   * to fold the whole thing away.
+   *
+   * A note with no references gets the same one line, with `0 references`
+   * beside it — the dormant state is not a different thing to look at, it is
+   * this thing with nothing in it (docs/research/18, D9). One shape means one
+   * place for the eye to land whether or not the note is referenced.
+   */
+  private renderHeader(
+    root: HTMLElement,
+    totals: { references: number; notes: number },
+    collapsed: boolean,
+    foldable: boolean,
+  ): void {
     const head = root.createDiv({ cls: 'to-backlinks-head' });
+    head.toggleClass('is-collapsed', collapsed);
+    if (foldable) {
+      const chevron = head.createSpan({ cls: 'to-backlinks-chevron' });
+      // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+      chevron.appendChild(chevronGlyph(!collapsed));
+    }
     // `head` is inside the off-tree root this pass is building; nothing here is
     // mounted until `swap`.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     head.appendChild(linkGlyph());
     head.createSpan({ cls: 'to-backlinks-title', text: 'Structured backlinks' });
-    if (totals.references > 0) {
-      const refs = `${totals.references} ${totals.references === 1 ? 'reference' : 'references'}`;
-      const notes = `${totals.notes} ${totals.notes === 1 ? 'note' : 'notes'}`;
-      head.createSpan({ cls: 'to-backlinks-totals', text: `${refs} · ${notes}` });
-    }
-  }
 
-  /** A note nothing links to still ends predictably, rather than the footer
-   * appearing and vanishing as a note gains its first reference. */
-  private renderDormant(root: HTMLElement): void {
-    root.createDiv({ cls: 'to-backlinks-dormant', text: 'No linked references' });
+    const refs = `${totals.references} ${totals.references === 1 ? 'reference' : 'references'}`;
+    const counts =
+      totals.references > 0
+        ? `${refs} · ${totals.notes} ${totals.notes === 1 ? 'note' : 'notes'}`
+        : refs;
+    head.createSpan({ cls: 'to-backlinks-totals', text: counts });
+
+    if (!foldable) return;
+    head.addEventListener('click', () => {
+      const state = viewStateFor(this.targetPath);
+      state.collapsed = !state.collapsed;
+      void this.render();
+    });
   }
 
   private renderGroupHead(

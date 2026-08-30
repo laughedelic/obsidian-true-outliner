@@ -1,19 +1,25 @@
 {
   "outlinePaths": [
+    "Backlinks/Reference target.md",
     "Journal/2026-07-07.md",
     "Journal/2026-07-08.md",
+    "Journal/2026-07-10.md",
+    "Journal/2026-07-12.md",
     "Notes/Edge Case Zoo.md",
     "Notes/List decoration demo.md",
+    "Notes/Reading – The Design of Everyday Things.md",
     "Notes/Sourdough Log.md",
     "People/Jonas Beck.md",
     "People/Maya Lindqvist.md",
+    "People/Tomás Rivera.md",
     "Projects/Aurora Dashboard.md",
     "Projects/Kitchen Renovation.md",
+    "Projects/Trail Race Training.md",
     "README.md"
   ],
   "coexistenceWarned": false,
   "debugCrossCheck": true,
-  "debugFooterWidget": true,
+  "backlinksFooter": true,
   "markerVisibility": "all",
   "guideHighlight": "full",
   "markerHighlight": "current"
