@@ -219,24 +219,88 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
   });
 
   /**
-   * The goal of the whole exercise, stated as a measurement: a footer row must
-   * sit the way an editor line sits.
+   * The goal of the whole exercise, stated as a measurement: a marker sits on
+   * the optical centre of the text beside it, on either surface.
    *
-   * Compares a footer reference row against a `.cm-line` in the same session —
-   * a relationship, never a pixel count, because CI's font is not this
-   * machine's. Two numbers carry it: the horizontal gap between the marker's
-   * ink and the text beside it, and the vertical offset between their centres.
+   * Measured against the text's own X-HEIGHT BAND, not against its line box.
+   * The band is what the eye centres on and it is invariant to wrapping; a line
+   * box is neither. An earlier version of this compared the footer's line-box
+   * offset to the editor's and asserted they matched — which held on desktop and
+   * failed by 12px on mobile, where the narrow viewport wrapped the editor line
+   * being compared against and moved its box centre. That was the assertion
+   * being fragile, not the rendering.
    *
-   * Both have been wrong for reasons that looked like nothing: 3.6px of extra
-   * gap from a newline in Obsidian's own HTML collapsing to a space, and 1px of
-   * vertical drift from the footer rendering at UI size while the marker's box
-   * is sized in `rem` against the editor's text size.
+   * The band is read with two transient struts in the element's own font: a
+   * zero-height one gives the baseline, a `1ex`-tall one gives the x-height.
+   * Inserted at the START so a wrapped line cannot put them on a different
+   * visual row than the marker.
    */
-  it('sits a row the way the editor sits a line', async function () {
+  it('centres every marker on the optical middle of its own text', async function () {
     await h.openNote(SMALL);
     await ensureOutlineMode(SMALL);
 
-    const measure = (): Promise<{ editor: [number, number] | null; footer: Array<[number, number]> }> =>
+    const probe = (): Promise<Array<{ where: string; off: number }>> =>
+      browser.executeObsidian(() => {
+        const out: Array<{ where: string; off: number }> = [];
+        const leaf = document.querySelector('.workspace-leaf.mod-active');
+        if (!leaf) return out;
+
+        const measure = (host: HTMLElement, icon: HTMLElement, where: string): void => {
+          const base = document.createElement('span');
+          base.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+          const ex = document.createElement('span');
+          ex.style.cssText = 'display:inline-block;width:0;height:1ex;vertical-align:baseline';
+          host.insertBefore(base, host.firstChild);
+          host.insertBefore(ex, host.firstChild);
+          const baseline = base.getBoundingClientRect().top;
+          const xh = ex.getBoundingClientRect().height;
+          base.remove();
+          ex.remove();
+          if (xh <= 0) return;
+          const r = icon.getBoundingClientRect();
+          out.push({ where, off: r.top + r.height / 2 - (baseline - xh / 2) });
+        };
+
+        leaf.querySelectorAll<HTMLElement>('.cm-content > .cm-line').forEach((line, i) => {
+          const icon = line.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+          if (icon) measure(line, icon, `editor:${i}`);
+        });
+        leaf.querySelectorAll<HTMLElement>('.to-backlinks-row').forEach((row, i) => {
+          const icon = row.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+          // An atom's marker is centred on its BOX, not on a text run — that is
+          // a different contract, asserted in the per-kind test below.
+          if (icon && !icon.classList.contains('to-decor-marker-icon--widget')) {
+            measure(row, icon, `footer:${i}`);
+          }
+        });
+        return out;
+      });
+
+    const editor = (await probe()).filter((m) => m.where.startsWith('editor'));
+    expect(editor.length).toBeGreaterThan(0);
+    await scrollToEnd();
+    const footer = (await probe()).filter((m) => m.where.startsWith('footer'));
+    expect(footer.length).toBeGreaterThan(0);
+
+    // Sub-pixel, not "close enough": the correction is expressed in `ex`, so it
+    // is exact by construction at any text size — a drift here means something
+    // stopped resolving against the font it sits in.
+    for (const m of [...editor, ...footer]) {
+      expect(Math.abs(m.off)).toBeLessThan(1);
+    }
+  });
+
+  /**
+   * The horizontal half of the same contract, and the one that is genuinely a
+   * relationship between surfaces: a row reserves the same distance between its
+   * marker's ink and its text as an editor line does. Never a pixel count — CI's
+   * font is not a developer's.
+   */
+  it('holds the editor’s marker-to-text gap on a footer row', async function () {
+    await h.openNote(SMALL);
+    await ensureOutlineMode(SMALL);
+
+    const gaps = (): Promise<{ editor: number | null; footer: number[] }> =>
       browser.executeObsidian(() => {
         const leaf = document.querySelector('.workspace-leaf.mod-active');
         const firstText = (n: Node): Text | null => {
@@ -247,44 +311,38 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
           }
           return null;
         };
-        const pair = (marker: Element | null, host: Element | null): [number, number] | null => {
+        const gap = (marker: Element | null, host: Element | null): number | null => {
           const tn = host ? firstText(host) : null;
           if (!marker || !tn) return null;
-          const m = marker.getBoundingClientRect();
           const r = document.createRange();
           r.selectNodeContents(tn);
-          const t = r.getBoundingClientRect();
-          return [t.left - m.right, m.top + m.height / 2 - (t.top + t.height / 2)];
+          return r.getBoundingClientRect().left - marker.getBoundingClientRect().right;
         };
         const line = leaf?.querySelector('.cm-content > .cm-line.to-decor-block') ?? null;
         return {
-          editor: pair(line?.querySelector(':scope > .to-decor-marker-icon svg') ?? null, line),
+          editor: gap(line?.querySelector(':scope > .to-decor-marker-icon svg') ?? null, line),
           footer: Array.from(leaf?.querySelectorAll<HTMLElement>('.to-backlinks-row.is-reference') ?? [])
             .map((el) =>
-              pair(
+              gap(
                 el.querySelector(':scope > .to-decor-marker-icon svg'),
                 el.querySelector(':scope > .to-backlinks-content'),
               ),
             )
-            .filter((v): v is [number, number] => v !== null),
+            .filter((v): v is number => v !== null),
         };
       });
 
-    // The editor line has to be measured while it is on screen, and the footer
-    // only exists once scrolled to (CM6 virtualises).
-    const top = await measure();
+    const top = await gaps();
     expect(top.editor).not.toBeNull();
     await scrollToEnd();
-    const bottom = await measure();
+    const bottom = await gaps();
     expect(bottom.footer.length).toBeGreaterThan(0);
 
-    const [editorGap, editorDy] = top.editor!;
-    for (const [gap, dy] of bottom.footer) {
+    for (const g of bottom.footer) {
       // A row whose content starts with a non-text inline (a task checkbox)
       // measures that element's advance instead, which is not this contract.
-      if (gap > editorGap + 5) continue;
-      expect(Math.abs(gap - editorGap)).toBeLessThan(1);
-      expect(Math.abs(dy - editorDy)).toBeLessThan(1);
+      if (g > top.editor! + 5) continue;
+      expect(Math.abs(g - top.editor!)).toBeLessThan(1);
     }
   });
 
