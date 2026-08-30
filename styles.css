@@ -116,8 +116,7 @@ body {
 /* Atoms (code/table/quote/callout/html/hr) render a visible background or
  * border box; padding-left only shifts an element's own content, never
  * that box, so atoms need margin-left instead. */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom,
-.to-backlinks-row.to-decor-atom {
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-atom {
   position: relative;
   margin-left: calc(
     var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px)

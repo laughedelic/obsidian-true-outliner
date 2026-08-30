@@ -244,11 +244,21 @@ function codeLineOf(node: OutlineNode, refLine: number | undefined): string {
   return (node.lines.find((l) => !isFence(l) && l.trim().length > 0) ?? '').trim();
 }
 
-/** An HTML block's visible text: tags removed, entities left to the DOM. */
+/**
+ * An HTML block's visible text: tags removed, entities left to the DOM.
+ *
+ * A wikilink inside one is reduced to the text it would have shown. Obsidian
+ * does not resolve it, so rendering it as a link would lie — but showing the
+ * reader `[[Target]]` with its brackets is not the alternative, it is just
+ * source code in a row that holds no other source code.
+ */
 function htmlTextOf(node: OutlineNode): string {
   return node.lines
     .join(' ')
     .replace(/<[^>]*>/g, ' ')
+    .replace(/!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, target: string, alias?: string) =>
+      (alias ?? target).trim(),
+    )
     .replace(/\s+/g, ' ')
     .trim();
 }

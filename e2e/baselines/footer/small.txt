@@ -1,0 +1,9 @@
+# Aurora Dashboard
+[property is-property] team.1Priya Nair
+[lineage is-lineage] Aurora Dashboard›Current sprint›The severity-first layout is the bet. Everything else serves it.
+  [list-item is-reference] pair with Priya Nair on session recordings
+# 2026-07-08
+[paragraph is-reference] Aurora work went deep today. The insight from pairing with Priya Nair:
+  [list-item] users don't scan the dashboard left-to-right, they scan by alarm color
+  [list-item] which means the severity column should lead, not the timestamp
+  [list-item] prototype this before Wednesday

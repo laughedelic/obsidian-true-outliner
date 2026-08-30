@@ -240,15 +240,23 @@ class FooterController {
    * its bullets ended up off the editor's column and its guides absent
    * altogether (docs/research/19, S4).
    *
-   * `nativeList: false` because the footer draws every marker itself: the
-   * rendered `<li>` is unwrapped in `renderMarkdown`, so a list row is an
-   * ordinary block line here rather than something Obsidian's list rendering
-   * has already positioned.
+   * `nativeBlocks: false` because no row here has a block of its own: the
+   * rendered `<li>` is unwrapped and no atom keeps its box (D18), so every kind
+   * is laid out as an ordinary block line with our own marker. Left true, a
+   * quote or table row would take the atom rule, which moves the BOX by margin
+   * — and the marker, placed for a padding-shifted line, would land a gutter
+   * and a half away from its column.
    */
   private renderRow(body: HTMLElement, sourcePath: string, row: FooterRow): void {
     const el = body.createDiv({ cls: 'to-backlinks-row' });
+    // The row says what KIND of node it holds. The chrome class says how it is
+    // laid out (every footer row is a block line) and the marker says the kind
+    // in glyphs, but neither is readable — by a stylesheet, by a snippet, or by the
+    // conformance matrix, which has to check that each kind got the treatment
+    // its own rule promises.
+    el.dataset.kind = row.type === 'node' ? row.fact.kind : row.type;
     applyLineChrome(el, lineChrome(row.fact, {
-      nativeList: false,
+      nativeBlocks: false,
       // A row with no ancestor row above it draws nothing, exactly as a
       // top-level line in the editor does.
       ...(row.guideDepths.length > 0

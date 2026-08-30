@@ -100,12 +100,12 @@ export function plainGuideBackground(guideDepths: readonly number[]): string {
  * `MarginCompensation` computes per widget atom (which additionally corrects
  * for native padding); callers needing that precision use their own value.
  */
-export function ownShiftExpr(fact: LineDecorationFact, nativeList = true): string {
-  if (fact.isListItem && nativeList) {
+export function ownShiftExpr(fact: LineDecorationFact, nativeBlocks = true): string {
+  if (fact.isListItem && nativeBlocks) {
     // List items get no marker gutter (native bullet/number only).
     return fact.supplementalDepth > 0 ? `calc(${fact.supplementalDepth} * ${UNIT_EXPR})` : '0px';
   }
-  if (fact.isAtom) {
+  if (fact.isAtom && nativeBlocks) {
     // Every non-list line reserves the marker gutter, so the box is always
     // shifted by at least the gutter, even at depth 0.
     return `calc(${fact.depth} * ${UNIT_EXPR} + var(--to-marker-gutter, 0px))`;
@@ -180,31 +180,34 @@ export interface LineChromeOptions {
    */
   readonly guides?: string | undefined;
   /**
-   * Whether this surface renders list items through the platform's own list
-   * machinery — a native bullet in the gutter, and native indentation inside
-   * the line box that our rules then have to state around.
+   * Whether this surface renders a node through the platform's own BLOCK
+   * rendering — native list machinery for a list item, a visible box for an
+   * atom — or draws every node as one plain line.
    *
-   * True in the editor, where a list item is editable source text and its
-   * marker is characters the reader can type. False in the backlinks footer,
-   * which unwraps the rendered `<li>` and draws the marker itself like every
-   * other kind, so a list row there is laid out as an ordinary block line.
+   * True in the editor: a list item is editable source text whose marker is
+   * characters the reader can type, and a table or callout is a real box that
+   * depth has to move rather than indent into.
+   *
+   * False in the backlinks footer, where a row's content is inline by
+   * construction (D18): the rendered `<li>` is unwrapped, no atom keeps its box,
+   * and every kind is laid out as an ordinary block line with our own marker.
    *
    * An explicit option rather than a doctored `fact`: the difference is real
-   * and belongs to the SURFACE, and a fact that lied about `isListItem` would
-   * be wrong for every other reader of it.
+   * and belongs to the SURFACE, and a fact that lied about `isListItem` or
+   * `isAtom` would be wrong for every other reader of it.
    */
-  readonly nativeList?: boolean;
+  readonly nativeBlocks?: boolean;
 }
 
 /** The chrome for one row. */
 export function lineChrome(
   fact: LineDecorationFact,
-  { lineText = '', guides, nativeList = true }: LineChromeOptions = {},
+  { lineText = '', guides, nativeBlocks = true }: LineChromeOptions = {},
 ): LineChrome {
   const classes: string[] = [];
   const vars: Array<readonly [string, string]> = [];
 
-  if (fact.isListItem && nativeList) {
+  if (fact.isListItem && nativeBlocks) {
     classes.push(LIST_LINE_CLASS);
     vars.push(['--to-supp-depth', `${fact.supplementalDepth}`]);
     // The item's own tree depth as well as its list root's: the difference is
@@ -225,7 +228,9 @@ export function lineChrome(
       classes.push(ONE_SPACE_MARKER_CLASS);
     }
   } else {
-    classes.push(fact.isAtom ? ATOM_LINE_CLASS : BLOCK_LINE_CLASS);
+    // An atom's class exists to move its BOX. A surface that gives it no box
+    // must not ask for that, or the box moves and the content does not.
+    classes.push(fact.isAtom && nativeBlocks ? ATOM_LINE_CLASS : BLOCK_LINE_CLASS);
     vars.push(['--to-depth', `${fact.depth}`]);
     vars.push(['--to-marker-gutter', MARKER_GUTTER_CSS]);
   }
@@ -233,7 +238,7 @@ export function lineChrome(
   if (guides !== undefined) {
     classes.push(GUIDES_CLASS);
     vars.push(['--to-guides', guides]);
-    vars.push(['--to-own-shift', ownShiftExpr(fact, nativeList)]);
+    vars.push(['--to-own-shift', ownShiftExpr(fact, nativeBlocks)]);
   }
 
   return { classes, vars };

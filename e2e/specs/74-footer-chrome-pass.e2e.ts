@@ -19,6 +19,8 @@ import * as path from 'node:path';
 import * as h from '../helpers.js';
 
 const OUT = path.join(process.cwd(), '.obsidian-cache', 'footer-chrome');
+/** Committed, and diffed on every run — see the baseline test at the bottom. */
+const BASELINES = path.join(process.cwd(), 'e2e', 'baselines', 'footer');
 
 /** Every corpus fixture points here, so this note's footer is the corpus. */
 const HUB = 'Projects/Aurora Dashboard.md';
@@ -438,5 +440,220 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     expect(heights.length).toBeGreaterThan(3);
     // Not a pixel count: the spread across every kind is what matters.
     expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(2);
+  });
+
+  /**
+   * The per-kind matrix: for every kind the gallery holds, the row got the
+   * treatment that kind's rule promises.
+   *
+   * Read off `data-kind`, which the row publishes for exactly this reason — the
+   * chrome classes say how a row is laid out and the marker says its kind in
+   * glyphs, and neither is answerable from a test.
+   */
+  it('gives every kind the treatment its own rule promises', async function () {
+    await h.openNote(KINDS);
+    await ensureOutlineMode(KINDS);
+    await scrollToEnd();
+
+    const rows = await browser.executeObsidian(() => {
+      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+      if (!root) return [];
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
+        const icon = el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+        const ordinal = el.querySelector<HTMLElement>(':scope > .to-backlinks-ordinal');
+        const content = el.querySelector<HTMLElement>(':scope > .to-backlinks-content');
+        const marker = icon ?? ordinal;
+
+        // The text's own optical middle, in the row's own font.
+        const base = document.createElement('span');
+        base.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+        const ex = document.createElement('span');
+        ex.style.cssText = 'display:inline-block;width:0;height:1ex;vertical-align:baseline';
+        el.insertBefore(base, el.firstChild);
+        el.insertBefore(ex, el.firstChild);
+        const baseline = base.getBoundingClientRect().top;
+        const xh = ex.getBoundingClientRect().height;
+        base.remove();
+        ex.remove();
+
+        const m = marker?.getBoundingClientRect();
+        const c = content?.getBoundingClientRect();
+        const rowBox = el.getBoundingClientRect();
+        return {
+          kind: el.dataset.kind ?? '?',
+          depth: Number(el.style.getPropertyValue('--to-depth') || 0),
+          hasMarker: !!marker,
+          isOrdinal: !!ordinal,
+          hasCheckboxInText: !!content?.querySelector('input[type=checkbox]'),
+          text: (content?.textContent ?? '').trim(),
+          fontSize: parseFloat(getComputedStyle(el).fontSize),
+          // Marker ink relative to the text's optical middle, and to the row's
+          // own left edge — the column is `depth * unit` from there.
+          // Only meaningful for an ICON marker, whose box is a fixed square the
+          // `0.5ex` rule centres by hand. An ordinal is text on the row's own
+          // baseline — already aligned by typography, and its box centre is not
+          // its ink's.
+          opticalOffset: icon && xh > 0
+            ? icon.getBoundingClientRect().top + icon.getBoundingClientRect().height / 2 -
+              (baseline - xh / 2)
+            : null,
+          // What alignment means for a text marker: it shares a line with the
+          // text beside it.
+          sharesLineWithText: m && c ? c.top < m.bottom && m.top < c.bottom : null,
+          markerLeftInRow: m ? m.left - rowBox.left : null,
+          // MEASURED, not read: `getPropertyValue` returns the custom
+          // property's specified value (`1.5rem`), not a resolved length, so
+          // parsing it yields 1.5 and every column comparison silently passes
+          // against the wrong number.
+          unit: (() => {
+            const probe = document.createElement('div');
+            probe.style.cssText = 'position:absolute;width:var(--to-decor-unit);height:0';
+            el.appendChild(probe);
+            const w = probe.getBoundingClientRect().width;
+            probe.remove();
+            return w;
+          })(),
+        };
+      });
+    });
+
+    expect(rows.length).toBeGreaterThan(0);
+    const kinds = new Set(rows.map((r) => r.kind));
+    // The gallery exists to hold one of each; a kind quietly disappearing from
+    // it would silently shrink this matrix.
+    for (const kind of ['heading', 'paragraph', 'list-item', 'quote', 'callout', 'table', 'html']) {
+      expect(kinds).toContain(kind);
+    }
+
+    for (const row of rows) {
+      // Every row carries a marker, and it is aligned with its own text — by
+      // the measure that means something for the marker's own kind.
+      expect(row.hasMarker).toBe(true);
+      if (row.opticalOffset !== null) expect(Math.abs(row.opticalOffset)).toBeLessThan(1);
+      if (row.sharesLineWithText !== null) expect(row.sharesLineWithText).toBe(true);
+
+      // …and sits on its depth's column. An ordinal is left-aligned there by
+      // its own rule; an icon is centred on it.
+      if (row.markerLeftInRow !== null && row.unit > 0) {
+        const column = row.depth * row.unit;
+        expect(Math.abs(row.markerLeftInRow - column)).toBeLessThan(row.unit);
+      }
+
+      // A task's checkbox is its marker, so none survives in the text.
+      expect(row.hasCheckboxInText).toBe(false);
+    }
+
+    // Kind is said once: a heading row is not typographically a heading.
+    expect(new Set(rows.map((r) => r.fontSize)).size).toBe(1);
+
+    // A callout's type token never reaches the reader.
+    for (const row of rows.filter((r) => r.kind === 'callout')) {
+      expect(row.text).not.toMatch(/\[![a-z]+\]/i);
+    }
+
+    // A table row is its header plus the reference's own row, and nothing else.
+    for (const row of rows.filter((r) => r.kind === 'table')) {
+      expect(row.text).not.toContain('Desktop triage');
+      expect(row.text).not.toContain('Tablet triage');
+    }
+  });
+
+  /**
+   * One rhythm: every row is a whole number of text lines tall, and every kind
+   * agrees on what one line costs.
+   *
+   * Stated against the SHORTEST single-line row rather than against a
+   * paragraph's, because the gallery's paragraphs are deliberately long enough
+   * to wrap — there is no single-line paragraph to be the reference. The second
+   * half is what a spread check alone would miss: a wrapped row carrying a
+   * block's margins is still consistent with its neighbours and still wrong.
+   */
+  it('makes every row a whole number of text lines tall', async function () {
+    await h.openNote(KINDS);
+    await ensureOutlineMode(KINDS);
+    await scrollToEnd();
+
+    const rows = await browser.executeObsidian(() => {
+      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+      if (!root) return [];
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
+        const cs = getComputedStyle(el);
+        // The row's own padding is spent once, not per line, so it comes off
+        // before the height is compared against a multiple of a line.
+        const padding = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        return {
+          kind: el.dataset.kind ?? '?',
+          height: el.getBoundingClientRect().height - padding,
+          lineHeight: parseFloat(cs.lineHeight),
+        };
+      });
+    });
+
+    expect(rows.length).toBeGreaterThan(3);
+    const single = rows.filter((r) => r.height < r.lineHeight * 1.8);
+    expect(single.length).toBeGreaterThan(3);
+
+    const oneLine = Math.min(...single.map((r) => r.height));
+    for (const row of single) {
+      expect(Math.abs(row.height - oneLine)).toBeLessThan(2);
+    }
+
+    // A wrapped row is n lines and nothing more — no block margins riding along.
+    for (const row of rows) {
+      const lines = Math.round(row.height / oneLine);
+      expect(Math.abs(row.height - lines * oneLine)).toBeLessThan(2);
+    }
+  });
+
+  /**
+   * A committed structural baseline, diffed on every run.
+   *
+   * NOT a screenshot. A pixel baseline is guaranteed to differ between CI's
+   * fonts and a developer's — the lesson this repo already recorded about
+   * asserting glyph widths — so it would either be ignored or maintained per
+   * platform. What a rendering change actually alters is WHICH ROWS EXIST and
+   * what each carries, and that is platform-independent, reviewable in a diff,
+   * and fails loudly.
+   *
+   * Run with `UPDATE_BASELINES=1` to rewrite them after an intended change.
+   */
+  it('matches the committed structural baseline for every fixture', async function () {
+    for (const [name, target] of [['kinds', KINDS], ['small', SMALL]] as const) {
+      await h.openNote(target);
+      await ensureOutlineMode(target);
+      await scrollToEnd();
+
+      const snapshot = await browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        if (!root) return ['<no footer>'];
+        const out: string[] = [];
+        root.querySelectorAll<HTMLElement>('.to-backlinks-group').forEach((group) => {
+          out.push(`# ${group.querySelector('.to-backlinks-group-name')?.textContent ?? '?'}`);
+          group.querySelectorAll<HTMLElement>('.to-backlinks-row').forEach((el) => {
+            const roles = ['is-lineage', 'is-reference', 'is-property'].filter((c) =>
+              el.classList.contains(c),
+            );
+            const ordinal = el.querySelector('.to-backlinks-ordinal')?.textContent ?? '';
+            const text = (el.querySelector('.to-backlinks-content')?.textContent ?? '').trim();
+            out.push(
+              `${'  '.repeat(Number(el.style.getPropertyValue('--to-depth') || 0))}` +
+                `[${el.dataset.kind}${roles.length ? ` ${roles.join(' ')}` : ''}]` +
+                `${ordinal ? ` ${ordinal}` : ''} ${text}`,
+            );
+          });
+        });
+        return out;
+      });
+
+      const file = path.join(BASELINES, `${name}.txt`);
+      const actual = `${snapshot.join('\n')}\n`;
+      if (process.env.UPDATE_BASELINES) {
+        fs.mkdirSync(BASELINES, { recursive: true });
+        fs.writeFileSync(file, actual, 'utf8');
+        continue;
+      }
+      expect(fs.existsSync(file)).toBe(true);
+      expect(actual).toBe(fs.readFileSync(file, 'utf8'));
+    }
   });
 });

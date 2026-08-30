@@ -178,17 +178,28 @@ next begins; green unit tests are never the gate for anything visual.
       on its first run: `MarkdownRenderer` resolves asynchronously, so an embed tag appended
       beside a pending render left the `<p>` unwrapped — `unwrapBlocks` only unwraps a LONE
       wrapper. The render target is its own span now.*
-- [ ] 8c.2 Per-kind matrix over `Kinds gallery`: for every kind, assert the marker is present and
-      of that kind, sits on the depth's column, and is centred on its own text's x-height band
-- [ ] 8c.3 Per-kind matrix, continued: assert every row's height is within one line-height of a
-      plain paragraph row's — the machine-checkable form of "the outline has one rhythm"
-- [ ] 8c.4 Assert the per-kind content rules directly: a heading row's font-size equals a
-      paragraph row's; a task row's marker is a checkbox and its text holds none; an ordered row's
-      marker is its number; a callout row shows no type token; a table row shows exactly two
-      source rows
-- [ ] 8c.5 Commit screenshot baselines per fixture and theme, and diff against them, so a
-      rendering change fails a test rather than waiting to be noticed
-- [ ] 8c.6 Run the matrix on mobile as well as desktop — the viewport differences are exactly
+- [x] 8c.2 Per-kind matrix over `Kinds gallery`: for every kind, assert the marker is present and
+      of that kind, sits on the depth's column, and is aligned with its own text — by the measure
+      that means something for that marker: an icon is a fixed square centred by hand on the
+      x-height band, an ordinal is text already on the row's baseline. Rows publish `data-kind` so
+      the matrix can ask; the chrome class says how a row is laid out and the marker says the kind
+      in glyphs, and neither is answerable from a test
+- [x] 8c.3 Assert the rhythm: every single-line row is the same height, and every row is a whole
+      number of text lines tall once its own padding is taken off — the second half is what a
+      spread check alone misses, since a wrapped row carrying a block's margins is consistent with
+      its neighbours and still wrong
+- [x] 8c.4 Assert the per-kind content rules directly: one font-size across every kind; no
+      checkbox survives in a task row's text; an ordered row's marker is its number, `10.`
+      included; a callout row shows no type token; a table row shows neither of the rows the
+      reference is not on
+- [x] 8c.5 Commit a structural baseline per fixture and diff it on every run.
+      **Revised during apply: structural, not screenshots.** A pixel baseline is guaranteed to
+      differ between CI's fonts and a developer's — the lesson this repo already recorded about
+      asserting glyph widths — so it would be either ignored or maintained per platform. What a
+      rendering change actually alters is which rows exist and what each carries, which is
+      platform-independent, reviewable in a PR diff, and fails loudly. Confirmed: desktop and
+      mobile match the same baseline. `UPDATE_BASELINES=1` rewrites them after an intended change
+- [x] 8c.6 Run the matrix on mobile as well as desktop — the viewport differences are exactly
       where the earlier assertions turned out to be measuring the wrong thing
 
 ## 9. Verification
