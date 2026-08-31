@@ -73,20 +73,29 @@ export interface PlacedSource {
    * projection rebuilds any node whose children changed.
    */
   readonly matches: NodePredicate;
-  /** Node id -> the kind of reference found in it. Keyed by NODE, because that
-   * is what a row is: a line key would never match what the renderer asks. */
-  readonly kinds: ReadonlyMap<number, ReferenceKind>;
   /**
-   * Node id -> which of that node's OWN lines the reference sits on, counted
-   * from the node's first line.
+   * Node id -> what is known about the reference found in it. Keyed by NODE,
+   * because that is what a row is: a line key would never match what the
+   * renderer asks.
    *
-   * A node whose lines are records rather than continuations — a table, a code
-   * fence — renders one line, and this says which (D18). Node-local rather than
-   * absolute because a projected tree's line numbers are its own.
+   * `line` is node-local — counted from the node's own first line, not the
+   * document's — because a projected tree's line numbers are its own. A node
+   * whose lines are records rather than continuations (a table, a code fence)
+   * renders one line, and this says which (D18). `text` is the link as written,
+   * which is how a table row finds the cell the reference is actually in.
    */
-  readonly refLines: ReadonlyMap<number, number>;
+  readonly refs: ReadonlyMap<number, PlacedReference>;
   /** References with no position in the tree, in frontmatter order. */
   readonly properties: readonly BacklinkReference[];
+}
+
+/** What a placed reference tells the renderer about the node holding it. */
+export interface PlacedReference {
+  readonly kind: ReferenceKind;
+  /** Which of the node's own lines carries it, or absent when the node has one. */
+  readonly line?: number | undefined;
+  /** The link as written, alias and all. */
+  readonly text: string;
 }
 
 export class BacklinkIndex {
@@ -166,18 +175,21 @@ export class BacklinkIndex {
 
     const doc = await this.trees.get(file);
     const matchedIds = new Set<number>();
-    const kinds = new Map<number, ReferenceKind>();
-    const refLines = new Map<number, number>();
+    const placed = new Map<number, PlacedReference>();
     for (const ref of refs) {
       if (ref.line === undefined) continue;
       const node = nodeAtLine(doc, ref.line);
       if (!node) continue;
       matchedIds.add(node.id);
-      // A node can hold more than one reference; the first kind wins, which
-      // only decides a marker and never whether the node is a reference at all.
-      if (!kinds.has(node.id)) kinds.set(node.id, ref.kind);
-      if (!refLines.has(node.id)) {
-        refLines.set(node.id, ref.line - nodeStartLine(doc, node.id));
+      // A node can hold more than one reference; the first wins, which only
+      // decides a marker and which line to quote, never whether the node is a
+      // reference at all.
+      if (!placed.has(node.id)) {
+        placed.set(node.id, {
+          kind: ref.kind,
+          line: ref.line - nodeStartLine(doc, node.id),
+          text: ref.original,
+        });
       }
     }
 
@@ -185,8 +197,7 @@ export class BacklinkIndex {
       path: sourcePath,
       doc,
       matches: (node: OutlineNode) => matchedIds.has(node.id),
-      kinds,
-      refLines,
+      refs: placed,
       properties: refs.filter((r) => r.kind === 'property'),
     };
   }

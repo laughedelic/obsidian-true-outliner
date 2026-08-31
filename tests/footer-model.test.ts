@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
 import { buildRows, splitPath, type FooterRow } from '../src/plugin/footer-model';
 import type { OutlineNode } from '../src/model';
+import type { PlacedReference } from '../src/plugin/backlink-index';
 
 const vault = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'test-vault');
 const read = (rel: string): string => fs.readFileSync(path.join(vault, rel), 'utf8');
@@ -18,7 +19,7 @@ const read = (rel: string): string => fs.readFileSync(path.join(vault, rel), 'ut
 const referencesTarget = (node: OutlineNode): boolean =>
   node.lines.some((l) => l.includes('[[Aurora Dashboard'));
 
-const noKind = () => undefined;
+const noRef = () => undefined;
 const noneExpanded = () => false;
 
 /** A readable rendering of the rows, so failures show shape rather than JSON. */
@@ -37,7 +38,7 @@ function render(rows: readonly FooterRow[]): string[] {
 }
 
 function rowsFor(rel: string): FooterRow[] {
-  return buildRows(parse(read(rel)), referencesTarget, [], noKind, noneExpanded);
+  return buildRows(parse(read(rel)), referencesTarget, [], noRef, noneExpanded);
 }
 
 describe('footer model', () => {
@@ -101,7 +102,7 @@ describe('footer model', () => {
           original: '[[Aurora Dashboard]]',
         },
       ],
-      noKind,
+      noRef,
       noneExpanded,
     );
     const property = rows.find((r) => r.type === 'property');
@@ -119,7 +120,7 @@ describe('footer model', () => {
 \t\t\t- hidden grandchild
 \t\t\t- another hidden
 `);
-    const rows = buildRows(doc, referencesTarget, [], noKind, noneExpanded);
+    const rows = buildRows(doc, referencesTarget, [], noRef, noneExpanded);
     expect(render(rows)).toEqual([
       '~ outer',
       '  * [[Aurora Dashboard]] hit',
@@ -142,7 +143,7 @@ describe('footer model', () => {
 \t- [[Aurora Dashboard]] inner
 \t\t- child of inner
 `);
-    const rows = buildRows(doc, referencesTarget, [], noKind, noneExpanded);
+    const rows = buildRows(doc, referencesTarget, [], noRef, noneExpanded);
     expect(render(rows)).toEqual([
       '* [[Aurora Dashboard]] outer',
       '  . plain child',
@@ -170,7 +171,7 @@ describe('footer model', () => {
 \t- third, no mention
 \t- fourth mentions [[Aurora Dashboard]]
 `);
-    const rows = buildRows(doc, referencesTarget, [], noKind, noneExpanded);
+    const rows = buildRows(doc, referencesTarget, [], noRef, noneExpanded);
     expect(render(rows)).toEqual([
       '* [[Aurora Dashboard]] parent',
       '  . first, no mention',
@@ -186,7 +187,7 @@ describe('footer model', () => {
 \t\t- grandchild
 `);
     const expandAll = () => true;
-    const rows = buildRows(doc, referencesTarget, [], noKind, expandAll);
+    const rows = buildRows(doc, referencesTarget, [], noRef, expandAll);
     const child = rows.filter((r) => r.type === 'node').at(-1);
     if (child?.type !== 'node') throw new Error('expected node');
     expect(child.foldedCount).toBe(0);
@@ -211,15 +212,14 @@ describe('row content is notation, not reproduction (D18)', () => {
   const GALLERY = 'Backlinks/Kinds gallery.md';
   const mentionsTarget = (node: OutlineNode): boolean =>
     node.lines.some((l) => l.includes('[[Reference target]]'));
-  /** Which of the node's own lines carries the link — what the index supplies
-   * at runtime, computed here from the same text. */
-  const refLine = (node: OutlineNode): number | undefined => {
+  /** What the index supplies at runtime, computed here from the same text. */
+  const refAt = (node: OutlineNode): PlacedReference | undefined => {
     const i = node.lines.findIndex((l) => l.includes('[[Reference target]]'));
-    return i === -1 ? undefined : i;
+    return i === -1 ? undefined : { kind: 'note', line: i, text: '[[Reference target]]' };
   };
 
   const galleryRows = (): FooterRow[] =>
-    buildRows(parse(read(GALLERY)), mentionsTarget, [], noKind, noneExpanded, refLine);
+    buildRows(parse(read(GALLERY)), mentionsTarget, [], refAt, noneExpanded);
 
   const rowStartingWith = (prefix: string): Extract<FooterRow, { type: 'node' }> => {
     const row = galleryRows().find((r) => r.type === 'node' && r.markdown.startsWith(prefix));
@@ -261,14 +261,13 @@ describe('row content is notation, not reproduction (D18)', () => {
     expect(row.markdown).not.toContain('\n');
   });
 
-  it('shows a table’s header row and the reference’s own row', () => {
-    const row = rowStartingWith('Surface · Owner · Status');
-    expect(row.markdown).toBe(
-      'Surface · Owner · Status — Mobile triage mentions [[Reference target]] · Priya · in review',
-    );
-    // The rows the reference is not on stay out.
+  it('quotes only the table cell the reference is in', () => {
+    const row = rowStartingWith('Mobile triage mentions');
+    expect(row.markdown).toBe('Mobile triage mentions [[Reference target]]');
+    // Not the row's other cells, not the header, not the rows it is not on.
+    expect(row.markdown).not.toContain('Priya');
+    expect(row.markdown).not.toContain('Surface');
     expect(row.markdown).not.toContain('Desktop triage');
-    expect(row.markdown).not.toContain('Tablet triage');
   });
 
   it('shows a callout’s body line when the reference is in the body', () => {

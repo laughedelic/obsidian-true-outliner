@@ -10,10 +10,10 @@
     [list-item is-reference] a done task mentions Reference target
   [quote is-reference] A quote mentions Reference target, and carries on far enough to wrap onto a second line so the marker can be checked against a multi-line row.
   [callout is-reference] A callout mentions Reference target.
-  [table is-reference] Surface · Owner — A table cell mentions Reference target · Maya
+  [table is-reference] A table cell mentions Reference target
   [html] An HTML block mentions Aurora Dashboard , and a real link too: Reference target
   [paragraph is-reference] A hard-wrapped paragraph, whose lines are continuations of one thought rather than separate records, and whose reference to Reference target falls on its second line on purpose.
-  [table is-reference] Surface · Owner · Status — Mobile triage mentions Reference target · Priya · in review
+  [table is-reference] Mobile triage mentions Reference target
   [callout is-reference] whose body mentions Reference target rather than its title.
 # Family tree
 [lineage is-lineage] References that carry a subtree, so the footer's descendant rows, its depth bound and its fold affordance all have something to show.

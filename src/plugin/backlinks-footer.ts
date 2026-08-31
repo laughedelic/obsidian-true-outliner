@@ -226,9 +226,8 @@ class FooterController {
       placed.doc,
       placed.matches,
       placed.properties,
-      (node: OutlineNode) => placed.kinds.get(node.id),
+      (node: OutlineNode) => placed.refs.get(node.id),
       (node: OutlineNode) => state.expandedRows.has(`${sourcePath}:${node.id}`),
-      (node: OutlineNode) => placed.refLines.get(node.id),
     );
 
     const built = createDiv();

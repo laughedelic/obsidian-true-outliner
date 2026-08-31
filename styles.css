@@ -1345,12 +1345,22 @@ body {
 /* A note nothing links to still ends predictably: one quiet line where the
  * populated header would be, rather than the section appearing and vanishing as
  * a note gains its first reference (docs/research/18, D9). */
+/*
+ * Inset so the card's own contents land on the outline's SECOND column.
+ *
+ * The section's link icon sits on column 0 (`.to-backlinks-head`), so a group
+ * is one level under it — its fold chevron and its depth-0 markers belong at
+ * `1 × unit`, exactly where a note's second-level markers sit. The padding is
+ * that column minus the half-icon the rows already inset by, so the two add up
+ * to it rather than one of them guessing.
+ */
 .to-backlinks-group {
   position: relative;
   background: var(--background-primary-alt);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
-  padding: 0.5rem 0.75rem 0.6rem;
+  padding: 0.5rem var(--to-group-inset) 0.6rem;
+  --to-group-inset: calc(var(--to-decor-unit) - var(--to-marker-icon-size, 0.85rem) / 2);
   margin-bottom: 0.6rem;
 }
 

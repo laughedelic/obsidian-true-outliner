@@ -15,7 +15,7 @@ import { ATOM_KINDS, type OutlineDoc, type OutlineNode } from '../model';
 import { decorate, type LineDecorationFact } from './decorate';
 import { collapseLineage } from '../lineage';
 import { project, type NodePredicate } from '../project';
-import type { BacklinkReference } from './backlink-index';
+import type { BacklinkReference, PlacedReference } from './backlink-index';
 
 /** How many levels of a reference's own descendants the footer shows before
  * folding. One: enough to make a node like "Decisions that came out of it:"
@@ -174,7 +174,8 @@ interface RowContent {
  * neither rule — its title names it, and only a reference in the body displaces
  * that.
  */
-function contentOf(node: OutlineNode, refLine: number | undefined): RowContent {
+function contentOf(node: OutlineNode, ref: PlacedReference | undefined): RowContent {
+  const refLine = ref?.line;
   const task = taskStateOf(node);
   const ordinal = ordinalOf(node);
   const extra = { ...(task !== undefined ? { task } : {}), ...(ordinal ? { ordinal } : {}) };
@@ -192,7 +193,7 @@ function contentOf(node: OutlineNode, refLine: number | undefined): RowContent {
     case 'code':
       return { markdown: codeLineOf(node, refLine), render: 'code', ...extra };
     case 'table':
-      return { markdown: tableTextOf(node, refLine), render: 'markdown', ...extra };
+      return { markdown: tableTextOf(node, ref), render: 'markdown', ...extra };
     case 'callout':
       return { markdown: calloutTextOf(node, refLine), render: 'markdown', ...extra };
     default:
@@ -266,26 +267,34 @@ function htmlTextOf(node: OutlineNode): string {
 const TABLE_SEPARATOR = /^\s*\|?[\s:|-]+\|?\s*$/;
 
 /**
- * A table's header row and the reference's own row.
+ * The single CELL the reference sits in.
  *
- * The header survives here and nowhere else in the footer, because a bare cell
- * value is not interpretable without its column name — `Maya` says nothing
- * until `Owner` is beside it.
+ * An earlier version showed the header row alongside the reference's own row,
+ * on the reasoning that a bare value needs its column name. Seen in place it was
+ * the noisiest row in the footer: two rows of pipe-separated fields to say that
+ * one cell mentions the note. A cell is the smallest thing that can hold a
+ * reference, and quoting it is the same promise every other kind's row makes.
+ *
+ * Found by the reference's own text, not by position, because a row can hold
+ * more than one link and only one of them is the reason this row exists.
  */
-function tableTextOf(node: OutlineNode, refLine: number | undefined): string {
-  const cells = (line: string): string =>
+function tableTextOf(node: OutlineNode, ref: PlacedReference | undefined): string {
+  const cellsOf = (line: string): string[] =>
     line
       .replace(/^\s*\|/, '')
       .replace(/\|\s*$/, '')
       .split('|')
-      .map((c) => c.trim())
-      .join(' · ');
+      .map((c) => c.trim());
 
-  const header = node.lines[0];
-  if (header === undefined) return '';
-  const at = refLine !== undefined ? node.lines[refLine] : undefined;
-  if (at === undefined || refLine === 0 || TABLE_SEPARATOR.test(at)) return cells(header);
-  return `${cells(header)} — ${cells(at)}`;
+  const at = ref?.line !== undefined ? node.lines[ref.line] : undefined;
+  const row = at !== undefined && !TABLE_SEPARATOR.test(at) ? at : node.lines[0];
+  if (row === undefined) return '';
+
+  const cells = cellsOf(row);
+  const hit = ref?.text ? cells.find((c) => c.includes(ref.text)) : undefined;
+  // No reference to place — a table shown as CONTEXT — so its first cell names
+  // it, the way a first line names every other kind.
+  return hit ?? cells.find((c) => c.length > 0) ?? '';
 }
 
 /**
@@ -320,12 +329,13 @@ export function buildRows(
   doc: OutlineDoc,
   matches: NodePredicate,
   properties: readonly BacklinkReference[],
-  kindOf: (node: OutlineNode) => BacklinkReference['kind'] | undefined,
+  /**
+   * What is known about the reference in a node: its kind, which of the node's
+   * own lines carries it, and the link as written. One accessor rather than
+   * three, because every caller knows all three or none of them.
+   */
+  refOf: (node: OutlineNode) => PlacedReference | undefined,
   expanded: (node: OutlineNode) => boolean,
-  /** Which of a matched node's own lines carries its reference, counted from
-   * the node's first. Only the record kinds read it (D18); a caller with no
-   * placement to offer leaves it out. */
-  refLineOf: (node: OutlineNode) => number | undefined = () => undefined,
 ): FooterRow[] {
   const rows: FooterRow[] = [];
 
@@ -387,13 +397,13 @@ export function buildRows(
       type: 'node',
       depth: row.depth,
       guideDepths: guideDepthsFor(row.depth),
-      ...contentOf(row.node, refLineOf(row.node)),
+      ...contentOf(row.node, refOf(row.node)),
       // The projected fact says what KIND of node this is; its depth is the
       // projection's, and the rendered tree collapsed lineage out from under
       // it. The row's own depth is the one the chrome lays out against.
       fact: { ...fact, depth: row.depth },
       isReference: true,
-      referenceKind: kindOf(row.node),
+      referenceKind: refOf(row.node)?.kind,
       foldedCount: 0,
     });
 
@@ -447,10 +457,10 @@ export function buildRows(
         guideDepths: guideDepthsFor(depth),
         // Only a reference has a line something points at; a context row shows
         // its first line instead.
-        ...contentOf(node, isMatch ? refLineOf(node) : undefined),
+        ...contentOf(node, isMatch ? refOf(node) : undefined),
         fact: syntheticFact(node, depth),
         isReference: isMatch,
-        referenceKind: isMatch ? kindOf(node) : undefined,
+        referenceKind: isMatch ? refOf(node)?.kind : undefined,
         foldedCount: hidden,
       });
       // `open` lets one row escape the depth bound, which is exactly what
