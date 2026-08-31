@@ -650,6 +650,19 @@ fix, one more kind to cover.
 
 ## Verification-infrastructure ideas
 
+- **The verdict-timing p95 budget flakes at its boundary on CI.**
+  `62-outline-edit-enforcement`'s "verdict computation stays within budget"
+  asserts `p95 <= 8`ms, and a CI run measured 8.199 — a 2.5% overshoot on a TAIL
+  statistic on a shared runner. Reran unchanged and passed; the same commit's
+  group passed locally. The median assertions (`<= 3`ms) are nowhere near their
+  limit, so the guard is doing its job; it is the p95 that sits close enough to
+  the hardware's noise floor to trip occasionally. Worth deciding deliberately
+  rather than at the moment it next goes red: either widen the p95 alone (it
+  guards against a different failure than the median and can afford to be
+  looser), or take more measured rounds so the tail is sampled from more data.
+  Loosening it reflexively to clear a red build would quietly retire a real
+  regression guard.
+
 - **Community-theme sweep as repeatable infrastructure.** The hardening pass probed
   Minimal/Catppuccin/Things via a throwaway spec (install theme into the sandboxed vault,
   screenshot fixtures, review by eye) — clean results, but the probe wasn't kept. If
