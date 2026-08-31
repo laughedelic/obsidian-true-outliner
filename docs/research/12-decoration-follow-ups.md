@@ -661,6 +661,18 @@ fix, one more kind to cover.
 
 ## Verification-infrastructure ideas
 
+- **The footer's default sort has no test, and the obvious place for one was the
+  wrong place.** Groups are ordered by source mtime (D15). The structural
+  baseline captured that order implicitly and went red on CI for it — a fresh
+  checkout stamps every fixture with the same time, so CI ordered the groups
+  differently from a working copy while every row was identical. The baseline
+  now snapshots groups in NAME order, which is right for what it tests but
+  leaves the sort itself unverified. Testing it needs fixtures with controlled
+  mtimes, which the e2e harness cannot set from inside the app: it would have to
+  happen in `run-e2e.mjs` while staging the sandbox vault, before Obsidian
+  launches. Worth doing when the sort becomes configurable — `backlinks-controls`
+  owns sort options — rather than building the fixture machinery for one case.
+
 - **The verdict-timing p95 budget flakes at its boundary on CI.**
   `62-outline-edit-enforcement`'s "verdict computation stays within budget"
   asserts `p95 <= 8`ms, and a CI run measured 8.199 — a 2.5% overshoot on a TAIL

@@ -690,7 +690,22 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
         if (!root) return ['<no footer>'];
         const out: string[] = [];
-        root.querySelectorAll<HTMLElement>('.to-backlinks-group').forEach((group) => {
+        // Groups are snapshotted in NAME order, not the order they render in.
+        //
+        // The footer sorts them by modification time, which is a property of
+        // the filesystem rather than of the rendering: a fresh checkout gives
+        // every fixture the same timestamp, so CI ordered them differently from
+        // a working copy and the baseline failed with identical content. Sort
+        // order is a real contract, but it is not THIS test's — this one is
+        // about what each row carries, and it should not go red for a reason it
+        // cannot see.
+        const groups = Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-group')).sort(
+          (a, b) =>
+            (a.querySelector('.to-backlinks-group-name')?.textContent ?? '').localeCompare(
+              b.querySelector('.to-backlinks-group-name')?.textContent ?? '',
+            ),
+        );
+        groups.forEach((group) => {
           out.push(`# ${group.querySelector('.to-backlinks-group-name')?.textContent ?? '?'}`);
           group.querySelectorAll<HTMLElement>('.to-backlinks-row').forEach((el) => {
             const roles = ['is-lineage', 'is-reference', 'is-property'].filter((c) =>
