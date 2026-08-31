@@ -682,6 +682,25 @@ fix, one more kind to cover.
   launches. Worth doing when the sort becomes configurable — `backlinks-controls`
   owns sort options — rather than building the fixture machinery for one case.
 
+- **Parallel e2e workers share one OS clipboard, and two specs race for it.**
+  `pasteText` (helpers.ts) writes the system clipboard with
+  `navigator.clipboard.writeText` and then presses `Mod+V`;
+  `61-selection-enforcement` presses `Mod+C` into that same system clipboard.
+  Both live in the `selection` group, whose specs run in parallel Electron
+  instances, so 61's copy can land between 62's write and its paste — observed:
+  `62-outline-edit-enforcement`'s "block-level copy pasted mid-paragraph" got
+  61's `c2 / t1 / t2` fixture instead of its own `New block one.`, on CI only.
+  The clipboard is per-machine, so no amount of per-instance isolation helps.
+
+  Three fixes, and the obvious one is the worst. Replacing `pasteText` with a
+  synthetic `paste` ClipboardEvent removes the shared resource but stops
+  exercising a real paste — the same trap as asserting a caret with a dispatched
+  `MouseEvent`, which passes whether or not the code works. Better: keep the
+  real gesture and stop the concurrency, either by separating clipboard-using
+  specs into different GROUPS (they never run at once across groups) or by
+  giving them worker affinity. Cheapest correct version is probably the group
+  split, since `spec-groups.mjs` already derives groups from the numeric prefix.
+
 - **The verdict-timing p95 budget flakes at its boundary on CI.**
   `62-outline-edit-enforcement`'s "verdict computation stays within budget"
   asserts `p95 <= 8`ms, and a CI run measured 8.199 — a 2.5% overshoot on a TAIL
