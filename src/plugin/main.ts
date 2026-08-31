@@ -32,7 +32,11 @@ import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension, setMotionProbe } from './keymap';
 import { nestedEditorExtension } from './nested-editor';
-import { backlinksFooterExtension, repaintFooters } from './backlinks-footer';
+import {
+  backlinksFooterExtension,
+  pruneFooterViewState,
+  repaintFooters,
+} from './backlinks-footer';
 import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
@@ -230,6 +234,19 @@ export default class TrueOutlinerPlugin extends Plugin {
     // decoration here, and keeping it last means any interaction with the
     // established layers is attributable to it rather than to ordering.
     this.registerEditorExtension(backlinksFooterExtension(this));
+    // A footer's unfolded state belongs to the reading, not to the note: when
+    // its tab closes, the state goes with it. `layout-change` is the event that
+    // fires for a closed tab; the leaves still open name what to keep.
+    this.registerEvent(
+      this.app.workspace.on('layout-change', () => {
+        const open = new Set<string>();
+        this.app.workspace.getLeavesOfType('markdown').forEach((leaf) => {
+          const path = (leaf.view as MarkdownView).file?.path;
+          if (path) open.add(path);
+        });
+        pruneFooterViewState(open);
+      }),
+    );
     // Re-asserts the cursor of operations that CHOOSE one (move, split, merge,
     // paste, structural delete) so redo restores it — history recomputes a
     // cursor by mapping, which cannot reproduce a choice (history-caret.ts).

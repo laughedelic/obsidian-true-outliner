@@ -29,6 +29,9 @@ const SMALL = 'People/Priya Nair.md';
 /** Referenced only by the two marker-alignment fixtures, so its footer shows one
  * row per node kind and one reference carrying a real subtree. */
 const KINDS = 'Backlinks/Reference target.md';
+/** Nothing links here. The empty state is a rendering decision like any other,
+ * so it belongs in the pass rather than being taken on trust. */
+const DORMANT = 'Notes/Sourdough Log.md';
 
 /**
  * The footer lives at `doc.length`, and CodeMirror virtualises: in a document
@@ -84,6 +87,19 @@ async function shoot(name: string): Promise<void> {
   });
   await browser.pause(300);
   await browser.saveScreenshot(path.join(OUT, `${name}-top.png`));
+
+  // The SEAM: the note's last lines and the footer's first, in one frame.
+  // `scrollIntoView(true)` pins the footer's top edge to the top of the
+  // viewport, which puts everything above it off-screen — so the frame that
+  // shows the footer best is the one frame in which the gap between the note
+  // and the footer cannot be judged at all. Backing off half a viewport puts
+  // both sides of that boundary in view.
+  await browser.executeObsidian(() => {
+    const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
+    if (scroller) scroller.scrollTop -= scroller.clientHeight / 2;
+  });
+  await browser.pause(300);
+  await browser.saveScreenshot(path.join(OUT, `${name}-seam.png`));
   await scrollToEnd();
   await browser.saveScreenshot(path.join(OUT, `${name}-end.png`));
 }
@@ -209,7 +225,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
   });
 
   it('renders the corpus in both bundled themes', async function () {
-    for (const [label, target] of [['small', SMALL], ['kinds', KINDS], ['hub', HUB]] as const) {
+    for (const [label, target] of [['small', SMALL], ['kinds', KINDS], ['hub', HUB], ['dormant', DORMANT]] as const) {
       for (const dark of [true, false]) {
         await h.setTheme(dark);
         await h.openNote(target);

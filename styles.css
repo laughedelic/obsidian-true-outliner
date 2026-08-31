@@ -1235,7 +1235,6 @@ body {
    * says so needs air on both sides or it reads as the note's own underline. */
   margin-top: 4rem;
   padding-top: 1.75rem;
-  border-top: 1px solid var(--background-modifier-border);
 }
 
 /*
@@ -1272,6 +1271,11 @@ body {
 
 .to-backlinks.is-dormant .to-backlinks-head {
   cursor: default;
+  /* Nothing to read here, so nothing should ask to be read. Fading the whole
+   * head takes the icon with it — an icon at full strength beside faded text
+   * reads as a thing that failed to load rather than as an empty section. */
+  color: var(--text-faint);
+  opacity: 0.55;
 }
 
 /* The count sits at the far end of the line rather than beside the title, so
@@ -1300,6 +1304,7 @@ body {
  * populated header would be, rather than the section appearing and vanishing as
  * a note gains its first reference (docs/research/18, D9). */
 .to-backlinks-group {
+  position: relative;
   background: var(--background-primary-alt);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
@@ -1319,9 +1324,14 @@ body {
   color: var(--text-normal);
 }
 
+/* One box wide with a marker icon, so the chevron's centre and every depth-0
+ * marker's centre are the same column — the group's own control sits directly
+ * above the rows it opens. */
 .to-backlinks-chevron {
   display: flex;
-  width: 0.7rem;
+  align-items: center;
+  justify-content: center;
+  width: var(--to-marker-icon-size, 0.85rem);
   height: 0.7rem;
   flex-shrink: 0;
   color: var(--text-faint);
@@ -1433,9 +1443,14 @@ body {
   color: var(--text-muted);
 }
 
+/* Context, not substance — and the only thing that says so is COLOUR.
+ *
+ * Lineage used to be smaller as well, and after the row took a size of its own
+ * the two compounded: 0.92 of 0.92, visibly smaller than the mention it leads
+ * to rather than level with it. One size across every row reads as one outline,
+ * which is what it is. */
 .to-backlinks-row.is-lineage .to-backlinks-content {
   color: var(--text-faint);
-  font-size: 0.92em;
 }
 
 .to-backlinks-sep {
@@ -1506,4 +1521,83 @@ body {
 .to-backlinks-row :is(p, ul, ol) {
   margin: 0;
   padding: 0;
+}
+
+/* ── PROTOTYPE (uncommitted): volume caps ──────────────────────────────────
+ *
+ * Two caps, because the two things being capped are measured differently. A run
+ * of children is capped by COUNT, and the count is worth telling the reader —
+ * "4 more" is information. A section is capped by HEIGHT, because a count means
+ * nothing there: one group of ten short rows is shorter than another of three
+ * long ones.
+ *
+ * Both fade with `mask-image` rather than an overlaid gradient. A gradient has
+ * to know the background colour it is fading into, which is a theme's business
+ * and not ours; a mask fades the content itself and is right in every theme by
+ * construction.
+ */
+
+/* One long note's mentions, truncated. Per GROUP, because that is the unit a
+ * reader skims — a footer capped as a whole hides whole notes behind a single
+ * control, and which notes depends on how long the ones above them happened to
+ * be. `--to-backlinks-group-max` is the threshold, on the footer so a setting
+ * can drive it later. */
+.to-backlinks {
+  --to-backlinks-group-max: 16rem;
+}
+
+/*
+ * A depth-0 marker is CENTRED on its column, so half its ink sits left of the
+ * row's own box. Unindented, that ink lands on the card's edge — and once the
+ * body clips (`is-capped`), it is cut off outright, which read as the fade
+ * spilling onto the left edge. Half an icon of inset puts the column clear of
+ * the frame, and lands it on the same x as the group head's chevron.
+ */
+.to-backlinks-rows {
+  padding-left: calc(var(--to-marker-icon-size, 0.85rem) / 2);
+}
+
+/* The cap itself: height only, no visual effect on a group that fits under it.
+ * Applying the fade here as well is what put an edge-fade on short groups that
+ * had nothing to hide. */
+.to-backlinks-rows.is-capped {
+  max-height: var(--to-backlinks-group-max);
+  overflow: hidden;
+}
+
+/* The fade, and only once the cap is actually hiding something — measured, not
+ * assumed. */
+.to-backlinks-rows.is-truncated {
+  mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+}
+
+/* Centred on the card's bottom edge, straddling it: the control belongs to the
+ * whole group rather than to its last row, and it sits on the edge it moves.
+ * The card's own background behind it keeps the border from running through. */
+.to-backlinks-more {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1rem;
+  padding: 0 0.25rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.to-backlinks-more > svg {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.to-backlinks-more:hover {
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border-hover);
 }

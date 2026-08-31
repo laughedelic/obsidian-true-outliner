@@ -29,11 +29,11 @@ A hard-wrapped paragraph, whose lines are continuations of one thought
 rather than separate records, and whose reference to [[Reference target]]
 falls on its second line on purpose.
 
-| Surface | Owner | Status |
-| --- | --- | --- |
-| Desktop triage | Maya | shipped |
+| Surface                                     | Owner | Status    |
+| ------------------------------------------- | ----- | --------- |
+| Desktop triage                              | Maya  | shipped   |
 | Mobile triage mentions [[Reference target]] | Priya | in review |
-| Tablet triage | Sam | blocked |
+| Tablet triage                               | Sam   | blocked   |
 
 > [!tip] A titled callout
 > whose body mentions [[Reference target]] rather than its title.

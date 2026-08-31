@@ -65,16 +65,47 @@ const refreshFooter = StateEffect.define<void>();
 interface ViewState {
   /** The whole section, folded away. */
   collapsed: boolean;
+  /** Groups whose height cap the reader has lifted. */
+  readonly expandedGroups: Set<string>;
+  /** Groups measured as overflowing their cap at least once. An expanded group
+   * no longer overflows — it has no cap — so without this there is nothing to
+   * tell it apart from one that always fitted, and its fold control would
+   * vanish the moment it was used. */
+  readonly truncatable: Set<string>;
   readonly collapsedGroups: Set<string>;
   readonly expandedRows: Set<string>;
 }
 
 const viewStates = new Map<string, ViewState>();
 
+/**
+ * Forgets the view state of every note that is no longer open.
+ *
+ * What the reader unfolded is about the reading they are doing, not about the
+ * note: a group opened while chasing one question should not still be open a
+ * week later, and a footer that reopens in a shape nobody remembers choosing is
+ * a small mystery every time. Keyed to the tab rather than to the session,
+ * because closing a tab is the moment a reader means "done with that".
+ *
+ * Called on layout change, which fires when a tab closes. Reopening the same
+ * note in a still-open tab keeps its state, which is the point.
+ */
+export function pruneFooterViewState(openPaths: ReadonlySet<string>): void {
+  for (const path of viewStates.keys()) {
+    if (!openPaths.has(path)) viewStates.delete(path);
+  }
+}
+
 function viewStateFor(path: string): ViewState {
   let state = viewStates.get(path);
   if (!state) {
-    state = { collapsed: false, collapsedGroups: new Set(), expandedRows: new Set() };
+    state = {
+      collapsed: false,
+      expandedGroups: new Set(),
+      truncatable: new Set(),
+      collapsedGroups: new Set(),
+      expandedRows: new Set(),
+    };
     viewStates.set(path, state);
   }
   return state;
@@ -130,7 +161,7 @@ class FooterController {
 
     // Most recently modified first — the default sort (docs/research/18, D15).
     const ordered = [...summaries].sort((a, b) => b.path.localeCompare(a.path));
-    const bodies: { path: string; body: HTMLElement }[] = [];
+    const bodies: { path: string; body: HTMLElement; card: HTMLElement }[] = [];
 
     for (const summary of ordered) {
       const { name, folder } = splitPath(summary.path);
@@ -140,15 +171,20 @@ class FooterController {
       if (collapsed) continue;
 
       const body = card.createDiv({ cls: 'to-backlinks-rows' });
+      // Capped by HEIGHT rather than by row count: what makes a group hard to
+      // skim is how much of the screen it takes, and ten short rows take less
+      // than three long ones. The threshold is a custom property so a setting
+      // can drive it without this code knowing (docs/research/18, D10).
+      body.toggleClass('is-capped', !state.expandedGroups.has(summary.path));
       body.createDiv({ cls: 'to-backlinks-resolving', text: 'resolving…' });
-      bodies.push({ path: summary.path, body });
+      bodies.push({ path: summary.path, body, card });
     }
 
     this.swap(root);
     // Started only after the swap, so a fast read cannot fill a body that is
     // still detached and about to be replaced. Per source, so a slow read holds
     // up only its own group (D-G).
-    for (const { path, body } of bodies) void this.fillGroup(generation, path, body);
+    for (const { path, body, card } of bodies) void this.fillGroup(generation, path, body, card);
   }
 
   private swap(root: HTMLElement): void {
@@ -164,6 +200,7 @@ class FooterController {
     generation: number,
     sourcePath: string,
     body: HTMLElement,
+    card: HTMLElement,
   ): Promise<void> {
     const placed = await this.source.backlinks.place(this.targetPath, sourcePath);
     if (generation !== this.generation || !placed) return;
@@ -179,12 +216,58 @@ class FooterController {
     );
 
     const built = createDiv();
-    for (const row of rows) this.renderRow(built, sourcePath, row);
+    // Collected so the truncation measurement below happens against the rows as
+    // they will actually be, not as they are a frame after being appended.
+    const pending: Promise<void>[] = [];
+    for (const row of rows) this.renderRow(built, sourcePath, row, pending);
     body.empty();
     // Rows were built off-tree just above and are moved into the widget's own
     // subtree.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     while (built.firstChild) body.appendChild(built.firstChild);
+
+    // Truncation is decided AFTER the content settles, and only when the cap is
+    // hiding something worth a control.
+    //
+    // `MarkdownRenderer.render` resolves asynchronously, so measuring straight
+    // after appending measures rows that have not filled in yet — a group could
+    // report an overflow it was about to grow out of, or, once it had grown,
+    // fail to report one it now had. Both were visible: a "Show more" that
+    // revealed nothing when pressed.
+    await Promise.all(pending);
+    if (generation !== this.generation || !body.isConnected) return;
+
+    // A whole line of hidden content, not a stray pixel. An overflow smaller
+    // than that is a margin rounding out, and offering to reveal it is a
+    // promise the control cannot keep.
+    const state2 = viewStateFor(this.targetPath);
+    const expanded = state2.expandedGroups.has(sourcePath);
+    if (!expanded) {
+      const line = parseFloat(getComputedStyle(body).lineHeight) || 16;
+      const hidden = body.scrollHeight - body.clientHeight;
+      if (hidden < line) {
+        state2.truncatable.delete(sourcePath);
+        return;
+      }
+      state2.truncatable.add(sourcePath);
+      body.addClass('is-truncated');
+    } else if (!state2.truncatable.has(sourcePath)) {
+      return;
+    }
+
+    // Centred on the card's own bottom edge: the control belongs to the whole
+    // group, not to the last row, and the edge it sits on is the edge it moves.
+    const toggle = card.createDiv({ cls: 'to-backlinks-more' });
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM: the card is still off-tree
+    toggle.appendChild(capChevron(expanded));
+    toggle.setAttribute('aria-label', expanded ? 'Collapse' : 'Show more');
+    toggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const s = viewStateFor(this.targetPath);
+      if (expanded) s.expandedGroups.delete(sourcePath);
+      else s.expandedGroups.add(sourcePath);
+      void this.render();
+    });
   }
 
   /**
@@ -271,7 +354,12 @@ class FooterController {
    * — and the marker, placed for a padding-shifted line, would land a gutter
    * and a half away from its column.
    */
-  private renderRow(body: HTMLElement, sourcePath: string, row: FooterRow): void {
+  private renderRow(
+    body: HTMLElement,
+    sourcePath: string,
+    row: FooterRow,
+    pending: Promise<void>[],
+  ): void {
     const el = body.createDiv({ cls: 'to-backlinks-row' });
     // The row says what KIND of node it holds. The chrome class says how it is
     // laid out (every footer row is a block line) and the marker says the kind
@@ -294,7 +382,7 @@ class FooterController {
       el.appendChild(markerSlot(propertyGlyph()));
       const content = el.createSpan({ cls: 'to-backlinks-content' });
       content.createSpan({ cls: 'to-backlinks-prop-name', text: row.property });
-      void this.renderMarkdown(content.createSpan(), row.markdown, sourcePath);
+      pending.push(this.renderMarkdown(content.createSpan(), row.markdown, sourcePath));
       return;
     }
 
@@ -332,7 +420,7 @@ class FooterController {
     // asynchronously, and `unwrapBlocks` only unwraps a LONE wrapper — so a tag
     // appended beside it in the meantime left the `<p>` in place, which is a
     // block element in a row and exactly what the model forbids.
-    this.renderContent(content.createSpan(), row, sourcePath);
+    pending.push(this.renderContent(content.createSpan(), row, sourcePath));
     if (row.referenceKind === 'embed') {
       content.createSpan({ cls: 'to-backlinks-tag', text: 'embed' });
     }
@@ -370,22 +458,22 @@ class FooterController {
     el: HTMLElement,
     row: Extract<FooterRow, { type: 'node' }>,
     sourcePath: string,
-  ): void {
-    if (row.markdown.length === 0) return;
+  ): Promise<void> {
+    if (row.markdown.length === 0) return Promise.resolve();
     if (row.render === 'text') {
       el.setText(row.markdown);
-      return;
+      return Promise.resolve();
     }
     if (row.render === 'code') {
       el.createEl('code', { cls: 'to-backlinks-code', text: row.markdown });
-      return;
+      return Promise.resolve();
     }
     // An embed of the target, rendered inside the target's OWN footer, would
     // transclude the note into itself — the reader asked where it was
     // referenced, not to read it again. Rendered as a link instead, and marked.
     const markdown =
       row.referenceKind === 'embed' ? row.markdown.replace(/!\[\[/g, '[[') : row.markdown;
-    void this.renderMarkdown(el, markdown, sourcePath);
+    return this.renderMarkdown(el, markdown, sourcePath);
   }
 
   private open(sourcePath: string): void {
@@ -544,6 +632,19 @@ function linkGlyph(): SVGSVGElement {
   });
   el.addClass('to-backlinks-icon');
   return el;
+}
+
+/** The cap's own control: down to reveal what is hidden, up to put it back.
+ * Distinct from `chevronGlyph`, whose two states are a DISCLOSURE's — right for
+ * closed, down for open — and would read as the wrong axis on an edge. */
+function capChevron(up: boolean): SVGSVGElement {
+  return glyph(16, [up ? 'M3 10l5-5 5 5' : 'M3 6l5 5 5-5'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  });
 }
 
 function chevronGlyph(open: boolean): SVGSVGElement {
