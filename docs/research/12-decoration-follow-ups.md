@@ -648,6 +648,17 @@ fix, one more kind to cover.
   rule of the same name in `styles.css`, both of which should end up deleted rather than
   fixed in place.
 
+- **A node holding several references renders one row.** `place()` keeps the FIRST
+  reference per node, so a table with mentions in two different cells, or a code
+  fence with two, contributes 2 to the count and one row to the footer. The count
+  and the rows then disagree, and the second reference has no place a reader can
+  reach. Two honest resolutions: emit one row per reference (which means a row
+  key that is not the node id, and a decision about how two rows of the same node
+  order against its siblings), or define node-level deduplication explicitly and
+  count nodes rather than references. Found in review; deferred because it is a
+  model change rather than a rendering one, and the count/row contract should be
+  decided with `backlinks-controls`' counting rules rather than ahead of them.
+
 ## Verification-infrastructure ideas
 
 - **The verdict-timing p95 budget flakes at its boundary on CI.**

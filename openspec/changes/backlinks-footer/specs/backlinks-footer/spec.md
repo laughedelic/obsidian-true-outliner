@@ -116,7 +116,7 @@ replace its bullet, both drawn on the same column every other marker uses.
 A multi-line node SHALL render according to whether its lines are continuations or records.
 Paragraph, heading, quote and callout lines SHALL join into one flowing row. Code and table lines
 SHALL NOT join: a code row SHALL show the line the reference sits on, and a table row SHALL show
-the table's header row together with the reference's own row.
+only the cell the reference sits in.
 
 #### Scenario: No block elements reach a row
 
@@ -148,10 +148,11 @@ the table's header row together with the reference's own row.
 - **THEN** the row shows the callout's title, the `[!note]` token does not appear, and the row
   carries the callout marker
 
-#### Scenario: A table row keeps its header
+#### Scenario: A table shows the cell the reference is in
 
 - **WHEN** a reference sits in a cell of a table's third row
-- **THEN** the row shows the table's header row and that third row, and no other row of the table
+- **THEN** the row shows that cell and nothing else of the table — not its header, not its
+  sibling cells, not the rows the reference is not on
 
 #### Scenario: Prose lines join, record lines do not
 
@@ -199,6 +200,27 @@ mention.
 
 - **WHEN** a source note embeds the target
 - **THEN** the reference renders in tree context and is marked as an embed
+
+### Requirement: A long group is truncated, and says so
+
+A group whose rows exceed a height threshold SHALL be truncated with a visible fade and a control
+that reveals the rest and puts it back. Truncation SHALL be visual only: every reference SHALL
+remain present, in source order, so the group's own count and the footer's totals continue to
+describe the whole set rather than the visible part.
+
+The threshold SHALL be expressed so that a setting can drive it without the rendering knowing
+about settings. Choosing its default is `backlinks-controls`' work, informed by S5.
+
+#### Scenario: A long group is truncated rather than dropped
+
+- **WHEN** a source note contributes more rows than the threshold allows
+- **THEN** the group is clipped with a fade and offers a control to reveal the rest
+- **AND** its count still reports every reference, not the visible ones
+
+#### Scenario: A short group is untouched
+
+- **WHEN** a source note's rows fit within the threshold
+- **THEN** the group shows no fade and offers no control
 
 ### Requirement: The footer paints known information first and fills in context as it resolves
 

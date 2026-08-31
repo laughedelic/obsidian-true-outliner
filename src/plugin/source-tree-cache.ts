@@ -37,6 +37,12 @@ export class SourceTreeCache {
    * `cachedRead` rather than `read`: this is display, never a read-modify-write,
    * and Obsidian's own guidance is that `read` is only for the latter.
    */
+  /** The cached tree for a path, without reading or parsing. Undefined when
+   * nothing has parsed it yet — a caller that needs one on demand uses `get`. */
+  peek(path: string): OutlineDoc | undefined {
+    return this.entries.get(path)?.doc;
+  }
+
   async get(file: TFile): Promise<OutlineDoc> {
     const cached = this.entries.get(file.path);
     if (cached && cached.mtime === file.stat.mtime) return cached.doc;

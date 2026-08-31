@@ -354,7 +354,7 @@ What each kind shows, decided against the prototype:
 | task | the item's text; the CHECKBOX is the marker, in the bullet's place |
 | callout | the callout's title, with the `[!type]` token dropped — the marker already says callout. When the reference sits in the body rather than the title, the body line instead |
 | code | the line the reference sits on, monospaced. Lines in a fence are separate records, not continuations |
-| table | the header row and the reference's own row, cells joined. A bare cell value is not interpretable without its column name, which is why the header survives here and nowhere else |
+| table | the cell the reference is in, and nothing else. The header row was tried first — a bare value seems to need its column name — and in place it was the noisiest row in the footer: two rows of pipe-separated fields to say that one cell mentions the note. A cell is the smallest thing that can hold a reference, and quoting it is the promise every other kind's row makes. The cell is found by the reference's own TEXT, since a row can hold several links |
 | html | the block's text content, as plain text — Obsidian does not resolve wikilinks inside an HTML block, so rendering it as markdown would only pretend |
 | hr | marker only; there is no text |
 

@@ -27,7 +27,7 @@ function render(rows: readonly FooterRow[]): string[] {
   return rows.map((r) => {
     const indent = '  '.repeat(r.depth);
     if (r.type === 'lineage') {
-      return `${indent}~ ${r.segments.map((s) => s.replace(/^[\t\s-]+/, '').trim()).join(' > ')}`;
+      return `${indent}~ ${r.segments.map((seg) => seg.text.replace(/^[\t\s-]+/, '').trim()).join(' > ')}`;
     }
     if (r.type === 'property') return `${indent}[${r.property}] ${r.markdown}`;
     const first = r.markdown.split('\n')[0] ?? '';
@@ -86,7 +86,9 @@ describe('footer model', () => {
     const lineage = rows.find((r) => r.type === 'lineage');
     expect(lineage).toBeDefined();
     if (lineage?.type !== 'lineage') throw new Error('expected lineage');
-    expect(lineage.segments.join(' ')).toContain('Follow-ups from the review:');
+    expect(lineage.segments.map((s) => s.text).join(' ')).toContain(
+      'Follow-ups from the review:',
+    );
   });
 
   it('renders a frontmatter reference as a property row with no lineage', () => {

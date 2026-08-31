@@ -202,6 +202,22 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEvent(
       this.app.metadataCache.on('deleted', (file) => {
         this.backlinks.removeSource(file.path);
+        repaintFooters();
+      }),
+    );
+    // Everything the incremental paths cannot see.
+    //
+    // `changed` fires for a SOURCE whose text changed, which misses two real
+    // cases: a link that was unresolved becomes resolvable when its target is
+    // finally created, and a TARGET is renamed or moved — in both, no source's
+    // text need change, so no source is ever reindexed and the reference stays
+    // missing or stays filed under a path that no longer exists. `resolved`
+    // fires once the cache has finished settling after any of that, which is
+    // the one event that covers them all.
+    this.registerEvent(
+      this.app.metadataCache.on('resolved', () => {
+        this.backlinks.rebuild();
+        repaintFooters();
       }),
     );
     this.registerEvent(
@@ -269,6 +285,10 @@ export default class TrueOutlinerPlugin extends Plugin {
       // filling, and an index built from a half-populated cache would be wrong
       // in a way nothing later corrects.
       this.backlinks.rebuild();
+      // A footer mounted before this painted its first frame from an empty
+      // index, and nothing about building one is a transaction, so without this
+      // an already-open note reads "0 references" until an unrelated edit.
+      repaintFooters();
     });
   }
 

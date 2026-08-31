@@ -58,6 +58,9 @@ export interface BacklinkReference {
 export interface SourceSummary {
   readonly path: string;
   readonly count: number;
+  /** Last-modified time, for the default sort (docs/research/18, D15). From the
+   * vault's own file record, which is already in memory — no read. */
+  readonly mtime: number;
 }
 
 /** A source note's references, placed in its tree. */
@@ -139,7 +142,14 @@ export class BacklinkIndex {
   summaries(targetPath: string): SourceSummary[] {
     const bySource = this.byTarget.get(targetPath);
     if (!bySource) return [];
-    return [...bySource.entries()].map(([path, refs]) => ({ path, count: refs.length }));
+    return [...bySource.entries()].map(([path, refs]) => {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      return {
+        path,
+        count: refs.length,
+        mtime: file instanceof TFile ? file.stat.mtime : 0,
+      };
+    });
   }
 
   /** Every reference to `targetPath` from `sourcePath`, unplaced. */
@@ -200,6 +210,13 @@ export class BacklinkIndex {
       refs: placed,
       properties: refs.filter((r) => r.kind === 'property'),
     };
+  }
+
+  /** The parsed tree of a source already placed, for a caller that needs to
+   * locate one of its nodes. Never reads: a tree the footer has rendered is by
+   * definition already in the cache. */
+  treeFor(sourcePath: string): OutlineDoc | undefined {
+    return this.trees.peek(sourcePath);
   }
 
   /** Drops parsed trees; the reverse map is untouched. */

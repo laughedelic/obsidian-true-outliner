@@ -1566,6 +1566,18 @@ body {
   white-space: nowrap;
 }
 
+/* Each ancestor in a chain is its own link, so it needs its own hover — one
+ * underline under the whole row would claim the row goes somewhere it does
+ * not. */
+.to-backlinks-seg {
+  cursor: pointer;
+}
+
+.to-backlinks-seg:hover {
+  color: var(--text-normal);
+  text-decoration: underline;
+}
+
 /*
  * The outline's own fold affordance, beside the marker, rather than a bespoke
  * badge: the reader already knows this control from the editor.
@@ -1578,6 +1590,9 @@ body {
  * row, which `.to-decor-block` has already made a containing block, so it takes
  * no width in the inline flow and cannot push the text off its column. */
 .to-backlinks-fold {
+  padding: 0;
+  border: none;
+  background: none;
   position: absolute;
   left: calc(
     var(--to-depth, 0) * var(--to-decor-unit) - var(--to-marker-icon-size, 0.85rem) / 2 - 3px -
@@ -1654,6 +1669,15 @@ body {
 /* Centred on the card's bottom edge, straddling it: the control belongs to the
  * whole group rather than to its last row, and it sits on the edge it moves.
  * The card's own background behind it keeps the border from running through. */
+/* Real `button`s now, so they reset the platform's own chrome rather than
+ * inherit it. */
+.to-backlinks-more,
+.to-backlinks-fold {
+  appearance: none;
+  box-shadow: none;
+  font: inherit;
+}
+
 .to-backlinks-more {
   position: absolute;
   left: 50%;

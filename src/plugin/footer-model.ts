@@ -46,14 +46,23 @@ interface FooterRowBase {
 export type FooterRow =
   | (FooterRowBase & {
       readonly type: 'lineage';
-      /** Each element's own first line, root-most first. */
-      readonly segments: readonly string[];
+      /**
+       * Each element, root-most first: its identifying text and the node it
+       * names. The id is what makes a segment navigable — a chain is several
+       * ancestors on one row, and "open the source at that ancestor" cannot be
+       * answered by a row that only knows the note it came from.
+       */
+      readonly segments: readonly LineageSegment[];
       /** The first element's kind, so the row can carry the same marker an
        * ordinary node of that kind would. */
       readonly kind: LineDecorationFact['kind'];
     })
   | (FooterRowBase & {
       readonly type: 'node';
+      /** The source node this row shows. Every interaction that addresses a
+       * row — expanding it, opening its place in the source — needs the node,
+       * and a line number cannot serve: a synthetic fact's is always 0. */
+      readonly nodeId: number;
       /**
        * The node's content as INLINE markdown: its block syntax removed, so
        * nothing block-level can reach the row (D18). Kind is said once, by the
@@ -117,6 +126,12 @@ export interface FooterModel {
  * - `code` — plain text in a monospace run.
  */
 export type RowRender = 'markdown' | 'text' | 'code';
+
+/** One element of a collapsed lineage chain. */
+export interface LineageSegment {
+  readonly text: string;
+  readonly nodeId: number;
+}
 
 /** `Notes/Sub/Thing.md` -> `{ name: 'Thing', folder: 'Notes/Sub' }`. */
 export function splitPath(path: string): { name: string; folder: string } {
@@ -380,7 +395,7 @@ export function buildRows(
         fact: rowFact(row.kind, row.depth),
         // First line only: continuation lines are context for reading a node,
         // not for naming it (docs/research/18, D5).
-        segments: row.elements.map((n) => n.lines[0] ?? ''),
+        segments: row.elements.map((n) => ({ text: n.lines[0] ?? '', nodeId: n.id })),
         kind: row.kind,
       });
       continue;
@@ -397,6 +412,7 @@ export function buildRows(
       type: 'node',
       depth: row.depth,
       guideDepths: guideDepthsFor(row.depth),
+      nodeId: row.node.id,
       ...contentOf(row.node, refOf(row.node)),
       // The projected fact says what KIND of node this is; its depth is the
       // projection's, and the rendered tree collapsed lineage out from under
@@ -455,6 +471,7 @@ export function buildRows(
         type: 'node',
         depth,
         guideDepths: guideDepthsFor(depth),
+        nodeId: node.id,
         // Only a reference has a line something points at; a context row shows
         // its first line instead.
         ...contentOf(node, isMatch ? refOf(node) : undefined),

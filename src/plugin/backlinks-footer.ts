@@ -32,7 +32,14 @@
 
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
 import { StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
-import { Component, MarkdownRenderer, editorInfoField, type App } from 'obsidian';
+import {
+  Component,
+  Keymap,
+  MarkdownRenderer,
+  MarkdownView,
+  editorInfoField,
+  type App,
+} from 'obsidian';
 import type { ModeSource } from './keymap';
 import { nestedEditorField } from './nested-editor';
 import { buildMarkerIcon } from './decorations';
@@ -45,6 +52,7 @@ import {
 import { buildRows, splitPath, type FooterRow } from './footer-model';
 import type { BacklinkIndex } from './backlink-index';
 import type { OutlineNode } from '../model';
+import { nodeStartLine } from '../locate';
 
 export const FOOTER_CLASS = 'to-backlinks';
 
@@ -176,7 +184,11 @@ class FooterController {
     }
 
     // Most recently modified first — the default sort (docs/research/18, D15).
-    const ordered = [...summaries].sort((a, b) => b.path.localeCompare(a.path));
+    // Path is the tie-break only: it used to be the whole comparison, which
+    // sorted by filename backwards and called it recency.
+    const ordered = [...summaries].sort(
+      (a, b) => b.mtime - a.mtime || a.path.localeCompare(b.path),
+    );
     const bodies: { path: string; body: HTMLElement; card: HTMLElement }[] = [];
 
     for (const summary of ordered) {
@@ -272,10 +284,16 @@ class FooterController {
 
     // Centred on the card's own bottom edge: the control belongs to the whole
     // group, not to the last row, and the edge it sits on is the edge it moves.
-    const toggle = card.createDiv({ cls: 'to-backlinks-more' });
+    // A real `button`, not a clickable div: `aria-label` names a thing but does
+    // not make it operable — a div is not in the tab order and does not answer
+    // Enter or Space. `aria-expanded` is the part a label cannot carry at all,
+    // since the control's meaning is which way it will move.
+    const toggle = card.createEl('button', { cls: 'to-backlinks-more' });
+    toggle.type = 'button';
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: the card is still off-tree
     toggle.appendChild(capChevron(expanded));
-    toggle.setAttribute('aria-label', expanded ? 'Collapse' : 'Show more');
+    toggle.setAttribute('aria-label', expanded ? 'Show less' : 'Show more');
+    toggle.setAttribute('aria-expanded', String(expanded));
     toggle.addEventListener('click', (event) => {
       event.stopPropagation();
       const s = viewStateFor(this.targetPath);
@@ -302,6 +320,7 @@ class FooterController {
   ): void {
     const head = root.createDiv({ cls: 'to-backlinks-head' });
     head.toggleClass('is-collapsed', collapsed);
+    if (foldable) makeDisclosure(head, !collapsed, 'Structured backlinks');
     if (foldable) {
       const chevron = head.createSpan({ cls: 'to-backlinks-chevron' });
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
@@ -338,6 +357,7 @@ class FooterController {
   ): void {
     const head = card.createDiv({ cls: 'to-backlinks-group-head' });
     head.toggleClass('is-collapsed', collapsed);
+    makeDisclosure(head, !collapsed, name);
     const chevron = head.createSpan({ cls: 'to-backlinks-chevron' });
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     chevron.appendChild(chevronGlyph(!collapsed));
@@ -409,21 +429,35 @@ class FooterController {
       const content = el.createSpan({ cls: 'to-backlinks-content' });
       row.segments.forEach((segment, i) => {
         if (i > 0) content.createSpan({ cls: 'to-backlinks-sep', text: '›' });
-        content.createSpan({ text: firstLineText(segment) });
+        // Each ancestor is its own target. One handler on the row could only
+        // open the note, which is not what "a lineage element navigates to that
+        // ancestor" promises — a chain is several ancestors on one line.
+        const seg = content.createSpan({
+          cls: 'to-backlinks-seg',
+          text: firstLineText(segment.text),
+        });
+        seg.setAttribute('role', 'link');
+        seg.tabIndex = 0;
+        seg.addEventListener('click', (event) => {
+          event.stopPropagation();
+          this.open(event, sourcePath, segment.nodeId);
+        });
       });
-      el.addEventListener('click', () => this.open(sourcePath));
       return;
     }
 
     if (row.isReference) el.addClass('is-reference');
 
     if (row.foldedCount > 0) {
-      const fold = el.createSpan({ cls: 'to-backlinks-fold' });
+      const fold = el.createEl('button', { cls: 'to-backlinks-fold' });
+      fold.type = 'button';
+      fold.setAttribute('aria-label', `Show ${row.foldedCount} hidden`);
+      fold.setAttribute('aria-expanded', 'false');
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
       fold.appendChild(chevronGlyph(false));
       fold.addEventListener('click', (event) => {
         event.stopPropagation();
-        viewStateFor(this.targetPath).expandedRows.add(`${sourcePath}:${row.fact.lineNumber}`);
+        viewStateFor(this.targetPath).expandedRows.add(`${sourcePath}:${row.nodeId}`);
         void this.render();
       });
     }
@@ -440,7 +474,7 @@ class FooterController {
     if (row.referenceKind === 'embed') {
       content.createSpan({ cls: 'to-backlinks-tag', text: 'embed' });
     }
-    el.addEventListener('click', () => this.open(sourcePath));
+    el.addEventListener('click', (event) => this.open(event, sourcePath, row.nodeId));
   }
 
   /**
@@ -492,8 +526,43 @@ class FooterController {
     return this.renderMarkdown(el, markdown, sourcePath);
   }
 
-  private open(sourcePath: string): void {
-    void this.source.app.workspace.openLinkText(sourcePath, this.targetPath, false);
+  /**
+   * Opens a source note at the node that was clicked.
+   *
+   * Three things the first version got wrong, all of them promises the spec
+   * already made. It ignored the event, so `Mod`-click opened in place instead
+   * of a new pane. It opened the note's default location rather than the node,
+   * so a reference forty lines down arrived off screen. And it fired for clicks
+   * that had already been handled by something inside the row — a rendered
+   * `[[link]]` in a mention would navigate to the source note instead of to the
+   * link's own target, which is the opposite of what was clicked.
+   */
+  private open(event: MouseEvent, sourcePath: string, nodeId?: number): void {
+    // A nested link or control owns its own click. `defaultPrevented` covers
+    // Obsidian's own internal links, which handle themselves.
+    const target = event.target as HTMLElement | null;
+    if (event.defaultPrevented || target?.closest('a, button')) return;
+
+    const newLeaf = Keymap.isModEvent(event);
+    void this.source.app.workspace
+      .openLinkText(sourcePath, this.targetPath, newLeaf)
+      .then(() => {
+        if (nodeId === undefined) return;
+        this.revealNode(sourcePath, nodeId);
+      });
+  }
+
+  /** Puts the caret on the node's own first line in the note just opened, so a
+   * reference deep in a long note arrives on screen rather than at the top. */
+  private revealNode(sourcePath: string, nodeId: number): void {
+    const view = this.source.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view || view.file?.path !== sourcePath) return;
+    const doc = this.source.backlinks.treeFor(sourcePath);
+    if (!doc) return;
+    const line = nodeStartLine(doc, nodeId);
+    if (line < 0) return;
+    view.editor.setCursor({ line, ch: 0 });
+    view.editor.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: 0 } }, true);
   }
 }
 
@@ -620,6 +689,27 @@ function trimEdgeWhitespace(el: HTMLElement): void {
   if (first?.nodeType === Node.TEXT_NODE) {
     first.textContent = (first.textContent ?? '').replace(/^\s+/, '');
   }
+}
+
+/**
+ * Makes an element operable as a disclosure control.
+ *
+ * The heads are rows of several spans rather than single controls, so they
+ * cannot be `button` elements without nesting interactive content inside one.
+ * `role` plus a tab stop plus a key handler is the equivalent a composite row
+ * gets — and `aria-expanded` is the part that matters, because the control's
+ * meaning is which way it will move, which no label can say.
+ */
+function makeDisclosure(el: HTMLElement, expanded: boolean, label: string): void {
+  el.setAttribute('role', 'button');
+  el.setAttribute('aria-expanded', String(expanded));
+  el.setAttribute('aria-label', label);
+  el.tabIndex = 0;
+  el.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    el.click();
+  });
 }
 
 /** A lineage segment names its node, so it shows the node's first line only. */
