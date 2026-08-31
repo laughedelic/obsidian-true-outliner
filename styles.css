@@ -774,8 +774,18 @@ body {
  * a widget nested several levels deep can be well outside the widget's own
  * box — exactly the kind of escape `contain: paint` would otherwise clip.
  */
+/*
+ * The backlinks footer needs the same override, for the same root cause found
+ * on a new element. It is a block widget, so it IS
+ * `.cm-content > [contenteditable="false"]`, and once its header started
+ * placing the link icon on the depth-0 column — half an icon left of the
+ * widget's own box, exactly where every depth-0 marker sits — paint containment
+ * clipped it to a half-icon and swallowed the fold chevron whole. Same
+ * specificity requirement: the override has to match Obsidian's own chain.
+ */
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides,
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-marker,
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-backlinks,
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-node-selected {
   position: relative;
   contain: none !important;
@@ -1254,10 +1264,26 @@ body {
   font-size: var(--font-ui-small);
 }
 
+/*
+ * EXPERIMENT: the header as a node of the outline.
+ *
+ * The section's link icon is placed by the same arithmetic that places a
+ * depth-0 marker — centred on `column 0`, which for a child of `.cm-content` is
+ * the content origin — so it lands on the same x as every top-level marker in
+ * the note above, and the text beside it starts one gutter right, exactly as a
+ * depth-0 line's does. Nothing here is fitted: both offsets are the shared
+ * expressions, so the two surfaces cannot drift apart.
+ *
+ * The fold chevron takes the editor's own placement for a foldable line: right
+ * edge one visual gap clear of the marker's left edge. At depth 0 that overhangs
+ * the content area, which is what the editor's depth-0 chevrons do too.
+ */
 .to-backlinks-head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  padding-left: var(--to-marker-gutter, 1.25rem);
   color: var(--text-muted);
   margin-bottom: 0.75rem;
   cursor: pointer;
@@ -1278,6 +1304,13 @@ body {
   opacity: 0.55;
 }
 
+/* An accent is a claim on attention, and an empty section has nothing to claim
+ * it for. The icon takes the head's own colour so the line reads as one quiet
+ * thing rather than as a bright mark beside grey text. */
+.to-backlinks.is-dormant .to-backlinks-icon {
+  color: inherit;
+}
+
 /* The count sits at the far end of the line rather than beside the title, so
  * the eye finds it in the same place whatever the title's length. */
 .to-backlinks-totals {
@@ -1285,9 +1318,18 @@ body {
 }
 
 .to-backlinks-icon {
-  width: 0.95rem;
-  height: 0.95rem;
+  position: absolute;
+  left: calc(-1 * var(--to-marker-icon-size, 0.85rem) / 2);
+  width: var(--to-marker-icon-size, 0.85rem);
+  height: var(--to-marker-icon-size, 0.85rem);
   flex-shrink: 0;
+  /* A marker's colour, because on the depth-0 column that is what it now reads
+   * as. It brightens only when the section is folded, where it stops being
+   * notation and becomes the one thing saying there is more below. */
+  color: var(--text-faint);
+}
+
+.to-backlinks-head.is-collapsed .to-backlinks-icon {
   color: var(--to-decor-accent);
 }
 
@@ -1322,6 +1364,34 @@ body {
 
 .to-backlinks-group-head:hover {
   color: var(--text-normal);
+}
+
+/*
+ * The SECTION's fold appears when it has something to say: unfolded it waits
+ * for the pointer, the way the editor's own chevrons do; folded it stays,
+ * because it is then the only sign anything is there.
+ *
+ * A GROUP's chevron does not follow this rule, and that is deliberate. A group
+ * head is a row of its own — filename, folder, count — and hiding its chevron
+ * leaves a hole at the start of that row rather than a clean line. The
+ * consistency worth having here is with the other group heads beside it, not
+ * with the section above them.
+ */
+.to-backlinks-head:not(.is-collapsed) > .to-backlinks-chevron {
+  opacity: 0;
+}
+
+.to-backlinks-head:hover > .to-backlinks-chevron {
+  opacity: 1;
+}
+
+/* The SECTION's fold, placed where the editor places a foldable line's: clear of
+ * the marker's left edge by the same 3px gap. */
+.to-backlinks-head > .to-backlinks-chevron {
+  position: absolute;
+  left: calc(
+    -1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px + var(--to-fold-size, 0.7rem))
+  );
 }
 
 /* One box wide with a marker icon, so the chevron's centre and every depth-0

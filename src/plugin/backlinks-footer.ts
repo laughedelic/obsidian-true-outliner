@@ -123,6 +123,22 @@ class FooterController {
     private readonly targetPath: string,
   ) {
     this.el = createDiv({ cls: FOOTER_CLASS });
+    // Reading the footer is not editing the note.
+    //
+    // The footer is a block widget inside a contenteditable, so a click in it
+    // is a click in the editor as far as the BROWSER is concerned: it places a
+    // DOM selection at the nearest editable position — the end of the document
+    // — and CodeMirror then syncs its own selection from that. `ignoreEvent`
+    // does not help, because that governs whether CM6 handles the event, not
+    // whether the browser sets a selection before CM6 sees anything.
+    //
+    // Preventing the default on `mousedown` is what stops the selection from
+    // being made at all. It costs the ability to drag-select text inside the
+    // footer, which is the trade this makes deliberately: a reader glancing at
+    // where a note is referenced has not asked to move their cursor, and having
+    // it silently jump to the end of the note is the worse surprise. Links
+    // still work — they act on `click`, not on the default of `mousedown`.
+    this.el.addEventListener('mousedown', (event) => event.preventDefault());
     this.component.load();
     void this.render();
   }
@@ -322,6 +338,7 @@ class FooterController {
     collapsed: boolean,
   ): void {
     const head = card.createDiv({ cls: 'to-backlinks-group-head' });
+    head.toggleClass('is-collapsed', collapsed);
     const chevron = head.createSpan({ cls: 'to-backlinks-chevron' });
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     chevron.appendChild(chevronGlyph(!collapsed));

@@ -27,7 +27,7 @@
  * decision D-F.
  */
 
-import { browser, expect } from '@wdio/globals';
+import { $, browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 
@@ -241,6 +241,57 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     expect(Object.keys(withWidget.classifications).sort()).toEqual(
       Object.keys(without.classifications).sort(),
     );
+  });
+
+  /**
+   * Reading the footer is not editing the note.
+   *
+   * The footer is a block widget inside a contenteditable, so a click in it is
+   * a click in the editor as far as the browser is concerned: it puts a DOM
+   * selection at the nearest editable position — the document's end — and
+   * CodeMirror syncs from that. `ignoreEvent` does not prevent it, because that
+   * governs whether CM6 HANDLES an event, not whether the browser sets a
+   * selection before CM6 sees one.
+   */
+  it('does not move the caret when the footer is clicked', async function () {
+    await h.openNote(NOTE);
+    await ensureOutlineMode(NOTE);
+    await setFooter(true);
+
+    await browser.executeObsidian(() => {
+      const scroller = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
+      if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    });
+    await h.waitForContentChildCount(WIDGET_SELECTOR, 1);
+
+    // The editor must be UNFOCUSED. That is what "the first interaction" means,
+    // and it is the whole repro: with focus already in the editor the browser
+    // has a selection to keep and nothing moves, so a test that clicks a
+    // focused editor passes whether or not the fix is there. Measured both
+    // ways before this was written.
+    await browser.executeObsidian(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
+    await browser.pause(200);
+    const before = await h.getCursor();
+
+    // A REAL click, driven by the browser rather than dispatched into it —
+    // synthetic MouseEvents do not move the DOM selection, so a dispatched
+    // click also passes either way.
+    const title = await $('.workspace-leaf.mod-active .to-backlinks .to-backlinks-title');
+    await title.click();
+    await browser.pause(300);
+
+    // Without the fix this reports the document's very end, and the editor
+    // takes focus with it.
+    expect(await h.getCursor()).toEqual(before);
+    const focused = await browser.executeObsidian(
+      () =>
+        document
+          .querySelector('.workspace-leaf.mod-active .cm-editor')
+          ?.classList.contains('cm-focused') ?? false,
+    );
+    expect(focused).toBe(false);
   });
 
   it('leaves the document byte-identical after mounting and unmounting', async function () {

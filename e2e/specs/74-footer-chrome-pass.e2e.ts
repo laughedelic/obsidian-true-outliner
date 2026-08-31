@@ -622,6 +622,53 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
   });
 
   /**
+   * The section's header sits on the outline's own depth-0 column: its link
+   * icon is centred where every top-level marker in the note above is centred.
+   *
+   * Asserted because it is silently breakable. Obsidian sets
+   * `contain: paint !important` on `.cm-content > [contenteditable="false"]`,
+   * which the footer widget is — and paint containment clipped the icon to a
+   * half-icon and swallowed the fold chevron whole, with nothing in the DOM or
+   * the computed styles to say so. Only its rendered position tells.
+   */
+  it('puts the header’s icon on the same column as a top-level marker', async function () {
+    await h.openNote(KINDS);
+    await ensureOutlineMode(KINDS);
+
+    const editorColumn = await browser.executeObsidian(() => {
+      const icon = document.querySelector<HTMLElement>(
+        '.workspace-leaf.mod-active .cm-content > .cm-line .to-decor-marker-icon',
+      );
+      const line = icon?.closest<HTMLElement>('.cm-line');
+      if (!icon || !line || line.style.getPropertyValue('--to-depth').trim() !== '0') return null;
+      const r = icon.getBoundingClientRect();
+      return r.left + r.width / 2 - line.getBoundingClientRect().left;
+    });
+    expect(editorColumn).not.toBeNull();
+
+    await scrollToEnd();
+    const header = await browser.executeObsidian(() => {
+      const footer = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks');
+      const icon = footer?.querySelector<HTMLElement>('.to-backlinks-icon');
+      if (!footer || !icon) return null;
+      const r = icon.getBoundingClientRect();
+      return {
+        centre: r.left + r.width / 2 - footer.getBoundingClientRect().left,
+        // Nothing of it may be clipped away: paint containment showed up as a
+        // full-width box with only half of it painted, so width alone is not
+        // enough — the box must also start left of the footer's own edge.
+        overhang: footer.getBoundingClientRect().left - r.left,
+        contain: getComputedStyle(footer).contain,
+      };
+    });
+    expect(header).not.toBeNull();
+
+    expect(Math.abs(header!.centre - editorColumn!)).toBeLessThan(1);
+    expect(header!.overhang).toBeGreaterThan(0);
+    expect(header!.contain).not.toContain('paint');
+  });
+
+  /**
    * A committed structural baseline, diffed on every run.
    *
    * NOT a screenshot. A pixel baseline is guaranteed to differ between CI's
