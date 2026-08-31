@@ -1589,19 +1589,26 @@ body {
  * box, so the column is spelled out instead). Absolutely positioned inside the
  * row, which `.to-decor-block` has already made a containing block, so it takes
  * no width in the inline flow and cannot push the text off its column. */
+/*
+ * Centred in the gap between the guide it hangs off and the marker it belongs
+ * to: the guide runs at `(depth - 1) × unit`, the marker at `depth × unit`, so
+ * the midpoint is half a unit left of the marker. Previously it was pinned to
+ * the marker's left edge with a fixed 3px gap, which put it hard against the
+ * bullet and left the whole gap open on the other side.
+ */
 .to-backlinks-fold {
-  padding: 0;
-  border: none;
-  background: none;
   position: absolute;
   left: calc(
-    var(--to-depth, 0) * var(--to-decor-unit) - var(--to-marker-icon-size, 0.85rem) / 2 - 3px -
-      var(--to-fold-size)
+    (var(--to-depth, 0) - 0.5) * var(--to-decor-unit) - var(--to-fold-size) / 2
   );
   --to-fold-size: 0.7rem;
   display: flex;
   align-items: center;
+  justify-content: center;
   width: var(--to-fold-size);
+  /* One line tall, pinned below the row's own padding, so it centres on the
+   * FIRST line of a row that wraps rather than on the row's whole box. */
+  top: 0.1rem;
   height: 1.5em;
   color: var(--text-faint);
   cursor: pointer;
@@ -1669,13 +1676,35 @@ body {
 /* Centred on the card's bottom edge, straddling it: the control belongs to the
  * whole group rather than to its last row, and it sits on the edge it moves.
  * The card's own background behind it keeps the border from running through. */
-/* Real `button`s now, so they reset the platform's own chrome rather than
- * inherit it. */
+/*
+ * Real `button`s now, so they have to put down the platform's own chrome.
+ *
+ * The hover and focus states are listed explicitly, not for completeness:
+ * Obsidian styles `button:hover` and `button:focus`, and a one-class selector
+ * loses to those on specificity. So a reset written only for the resting state
+ * holds until the pointer arrives and then hands the button its bubble back —
+ * visible exactly when someone is about to click it, and nowhere else.
+ */
 .to-backlinks-more,
-.to-backlinks-fold {
+.to-backlinks-fold,
+.to-backlinks-more:hover,
+.to-backlinks-fold:hover,
+.to-backlinks-more:focus,
+.to-backlinks-fold:focus,
+.to-backlinks-more:focus-visible,
+.to-backlinks-fold:focus-visible {
   appearance: none;
   box-shadow: none;
   font: inherit;
+}
+
+.to-backlinks-fold,
+.to-backlinks-fold:hover,
+.to-backlinks-fold:focus,
+.to-backlinks-fold:focus-visible {
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 .to-backlinks-more {

@@ -659,6 +659,15 @@ fix, one more kind to cover.
   model change rather than a rendering one, and the count/row contract should be
   decided with `backlinks-controls`' counting rules rather than ahead of them.
 
+- **A footer row's fold only goes one way.** Expanding a row that hides
+  grandchildren works; there is no way back. Same shape as the group cap's
+  problem and the same fix: once expanded, the row's `foldedCount` is 0, so the
+  branch that draws the chevron no longer runs and there is nothing left to
+  click. The cap solved it by remembering that a group WAS truncatable
+  (`ViewState.truncatable`); a row needs the equivalent, keyed by node id
+  alongside `expandedRows`. Small, and deliberately left for its own pass rather
+  than folded into a visual round.
+
 ## Verification-infrastructure ideas
 
 - **The footer's default sort has no test, and the obvious place for one was the
