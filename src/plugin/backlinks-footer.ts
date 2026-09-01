@@ -436,7 +436,11 @@ class FooterController {
       el.appendChild(markerSlot(buildMarkerIcon(row.kind)));
       const content = el.createSpan({ cls: 'to-backlinks-content' });
       row.segments.forEach((segment, i) => {
-        if (i > 0) content.createSpan({ cls: 'to-backlinks-sep', text: '❯' });
+        if (i > 0) {
+          const sep = content.createSpan({ cls: 'to-backlinks-sep' });
+          // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
+          sep.appendChild(chevronGlyph(false));
+        }
         // Each ancestor is its own target. One handler on the row could only
         // open the note, which is not what "a lineage element navigates to that
         // ancestor" promises — a chain is several ancestors on one line.
@@ -774,6 +778,15 @@ function capChevron(up: boolean): SVGSVGElement {
   });
 }
 
+/**
+ * The chevron, in both the orientations this file needs.
+ *
+ * Also the lineage separator, which used to be the text glyph `❯` (U+276F).
+ * That is a DINGBAT: most UI fonts do not carry it, so it rendered from
+ * whatever fallback the platform chose, at a weight and baseline nobody picked
+ * and differing between machines. An SVG has none of that, and it means every
+ * chevron in the footer — fold, cap, separator — comes from one path.
+ */
 function chevronGlyph(open: boolean): SVGSVGElement {
   return glyph(16, [open ? 'M3 6l5 5 5-5' : 'M6 3l5 5-5 5'], {
     fill: 'none', stroke: 'currentColor', 'stroke-width': '2',

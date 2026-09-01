@@ -12,7 +12,7 @@
 [paragraph is-reference] A reference whose children are all different kinds, mentioning Reference target:
   [list-item] a bullet child
   [list-item] a task child
-[lineage is-lineage] Deep on purpose, so the collapsed lineage has something to collapse:❯one❯two❯three
+[lineage is-lineage] Deep on purpose, so the collapsed lineage has something to collapse:onetwothree
   [list-item is-reference] four mentions Reference target
     [list-item] a child of a deep mention
 # Kinds gallery
