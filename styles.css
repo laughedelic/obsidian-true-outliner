@@ -1677,34 +1677,50 @@ body {
  * whole group rather than to its last row, and it sits on the edge it moves.
  * The card's own background behind it keeps the border from running through. */
 /*
- * Real `button`s now, so they have to put down the platform's own chrome.
+ * Real `button`s have to put down the platform's own chrome, and doing that
+ * takes more specificity than one class.
  *
- * The hover and focus states are listed explicitly, not for completeness:
- * Obsidian styles `button:hover` and `button:focus`, and a one-class selector
- * loses to those on specificity. So a reset written only for the resting state
- * holds until the pointer arrives and then hands the button its bubble back —
- * visible exactly when someone is about to click it, and nowhere else.
+ * Obsidian styles buttons as `.markdown-source-view button` and friends — one
+ * class plus one element, which beats a bare `.to-backlinks-fold`. Measured:
+ * the resting button carried a solid background and an 8px radius while its
+ * `:hover` was correctly transparent, because the hover selector had two
+ * classes and won while the resting one had one and lost. Descendant-scoping
+ * every rule under `.to-backlinks` clears both, and the states are still listed
+ * because Obsidian styles those separately.
  */
-.to-backlinks-more,
-.to-backlinks-fold,
-.to-backlinks-more:hover,
-.to-backlinks-fold:hover,
-.to-backlinks-more:focus,
-.to-backlinks-fold:focus,
-.to-backlinks-more:focus-visible,
-.to-backlinks-fold:focus-visible {
+.to-backlinks .to-backlinks-more,
+.to-backlinks .to-backlinks-fold,
+.to-backlinks .to-backlinks-more:hover,
+.to-backlinks .to-backlinks-fold:hover,
+.to-backlinks .to-backlinks-more:focus,
+.to-backlinks .to-backlinks-fold:focus,
+.to-backlinks .to-backlinks-more:focus-visible,
+.to-backlinks .to-backlinks-fold:focus-visible {
   appearance: none;
   box-shadow: none;
   font: inherit;
 }
 
-.to-backlinks-fold,
-.to-backlinks-fold:hover,
-.to-backlinks-fold:focus,
-.to-backlinks-fold:focus-visible {
+/* No chrome at all: the glyph is the control. */
+.to-backlinks .to-backlinks-fold,
+.to-backlinks .to-backlinks-fold:hover,
+.to-backlinks .to-backlinks-fold:focus,
+.to-backlinks .to-backlinks-fold:focus-visible {
   padding: 0;
   border: none;
+  border-radius: 0;
   background: none;
+}
+
+/* The cap's pill, restated at the same specificity — its border and background
+ * are deliberate, and were losing to Obsidian's button chrome just as silently. */
+.to-backlinks .to-backlinks-more,
+.to-backlinks .to-backlinks-more:hover,
+.to-backlinks .to-backlinks-more:focus,
+.to-backlinks .to-backlinks-more:focus-visible {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
 }
 
 .to-backlinks-more {

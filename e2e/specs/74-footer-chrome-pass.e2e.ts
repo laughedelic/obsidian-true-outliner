@@ -12,7 +12,7 @@
  * Screenshots land in `.obsidian-cache/footer-chrome/` for the real-vault pass
  * the ground rules make mandatory.
  */
-import { browser, expect } from '@wdio/globals';
+import { $, browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -733,5 +733,49 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
       expect(fs.existsSync(file)).toBe(true);
       expect(actual).toBe(fs.readFileSync(file, 'utf8'));
     }
+  });
+
+  /**
+   * The footer's own controls carry no platform button chrome, in any state.
+   *
+   * They are real `button`s so a keyboard can reach them, which means putting
+   * down Obsidian's own styling — and that is a specificity fight, not a
+   * declaration. Obsidian styles buttons as `.markdown-source-view button`,
+   * one class plus one element, so a bare `.to-backlinks-fold` loses. Measured
+   * when it did: the resting button carried a solid background and an 8px
+   * radius while its `:hover` was correctly transparent, because the hover
+   * selector happened to have two classes and won.
+   *
+   * Both states are checked, because getting one right proves nothing about the
+   * other — that is exactly how this shipped.
+   */
+  it('leaves no button chrome on the footer’s own controls', async function () {
+    await h.openNote(KINDS);
+    await ensureOutlineMode(KINDS);
+    await scrollToEnd();
+
+    const chrome = (): Promise<{ bg: string; radius: string; border: string } | null> =>
+      browser.executeObsidian(() => {
+        const el = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-fold',
+        );
+        if (!el) return null;
+        const cs = getComputedStyle(el);
+        return { bg: cs.backgroundColor, radius: cs.borderRadius, border: cs.borderTopWidth };
+      });
+
+    const transparent = (v: string): boolean => v === 'transparent' || /,\s*0\)$/.test(v);
+
+    const rest = await chrome();
+    expect(rest).not.toBeNull();
+    expect(transparent(rest!.bg)).toBe(true);
+    expect(rest!.radius).toBe('0px');
+    expect(rest!.border).toBe('0px');
+
+    await (await $('.workspace-leaf.mod-active .to-backlinks-fold')).moveTo();
+    await browser.pause(200);
+    const hovered = await chrome();
+    expect(transparent(hovered!.bg)).toBe(true);
+    expect(hovered!.radius).toBe('0px');
   });
 });
