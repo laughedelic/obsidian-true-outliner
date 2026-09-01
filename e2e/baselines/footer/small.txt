@@ -5,5 +5,5 @@
   [list-item] prototype this before Wednesday
 # Aurora Dashboard
 [property is-property] team.1Priya Nair
-[lineage is-lineage] Aurora Dashboard›Current sprint›The severity-first layout is the bet. Everything else serves it.
+[lineage is-lineage] Aurora Dashboard❯Current sprint❯The severity-first layout is the bet. Everything else serves it.
   [list-item is-reference] pair with Priya Nair on session recordings

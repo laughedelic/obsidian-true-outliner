@@ -1533,10 +1533,19 @@ body {
   color: var(--text-faint);
 }
 
+/*
+ * The step between two ancestors in a collapsed chain.
+ *
+ * A heavier caret at the row's own colour rather than a light one dimmed
+ * further: the separator has to survive being the smallest mark on a row that
+ * is already smaller and dimmer than the note it quotes, and the previous
+ * `›` at 70% opacity did not — a three-segment chain read as one run of words.
+ * Chosen by rendering ten candidates in a real footer and looking (both
+ * themes), not by argument.
+ */
 .to-backlinks-sep {
-  color: var(--text-faint);
-  opacity: 0.7;
-  padding: 0 0.35em;
+  color: var(--text-muted);
+  padding: 0 0.5em;
 }
 
 .to-backlinks-row.is-reference .to-backlinks-content {

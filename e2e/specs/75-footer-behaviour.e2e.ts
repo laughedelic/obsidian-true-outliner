@@ -180,10 +180,16 @@ describe('backlinks footer: behaviour', function () {
     const references = shown.filter((r) => r.includes(':is-reference'));
     expect(references.length).toBeGreaterThan(0);
 
-    // A chain is ONE row carrying several ancestors, so a lineage row holds a
-    // separator; four ancestors must not become four rows.
-    const chain = lineage.find((r) => r.includes('›'));
-    expect(chain).toBeDefined();
+    // A chain is ONE row carrying several ancestors: four ancestors must not
+    // become four rows. Asked of the DOM rather than of a character — the
+    // separator's glyph is a design choice and this is not a test about it.
+    const chained = await browser.executeObsidian(
+      () =>
+        Array.from(
+          document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-row.is-lineage'),
+        ).filter((row) => row.querySelectorAll('.to-backlinks-sep').length > 0).length,
+    );
+    expect(chained).toBeGreaterThan(0);
 
     // Every reference sits under a lineage row or at the root — never orphaned
     // deeper than the row above it.

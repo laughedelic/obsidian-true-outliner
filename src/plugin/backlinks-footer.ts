@@ -428,7 +428,7 @@ class FooterController {
       el.appendChild(markerSlot(buildMarkerIcon(row.kind)));
       const content = el.createSpan({ cls: 'to-backlinks-content' });
       row.segments.forEach((segment, i) => {
-        if (i > 0) content.createSpan({ cls: 'to-backlinks-sep', text: '›' });
+        if (i > 0) content.createSpan({ cls: 'to-backlinks-sep', text: '❯' });
         // Each ancestor is its own target. One handler on the row could only
         // open the note, which is not what "a lineage element navigates to that
         // ancestor" promises — a chain is several ancestors on one line.
