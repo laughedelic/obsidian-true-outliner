@@ -502,14 +502,18 @@ until this spike reports.
 `e2e/specs/76-footer-cost.e2e.ts`, which reports rather than asserts — a budget invented before
 the feature has a cap would be a number defending itself.
 
-| | 145-file vault, target with 42 sources / 150 references |
+| | 145-file vault, target with ~48 sources / ~175 references |
 | --- | --- |
-| index build (whole vault) | **0.1–0.2 ms** |
-| summaries (the header's input) | **0.10 ms** |
-| place, all 42 sources | **2.0–2.2 ms** |
+| index build (whole vault) | **0.2–0.3 ms** |
+| summaries (the header's input) | **&lt;0.1 ms** |
+| place, all sources | **2.0–2.3 ms** |
 | place, per source | median **&lt;0.01 ms**, max **0.60 ms** |
-| first paint: header on screen | **253 ms** |
-| first paint: every group resolved | **253 ms** — the same frame |
+| first paint: header on screen | **250–330 ms** |
+| first paint: every group resolved | the **same frame** as the header |
+
+Counts are approximate on purpose: the specs sharing this run create and delete notes, so the
+target gains and loses a few sources depending on interleaving. Ranges, not points — the finding
+below does not turn on a digit.
 
 ### Finding — progressive paint saves no wall clock at this scale
 

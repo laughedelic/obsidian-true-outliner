@@ -106,9 +106,12 @@ describe('spike S5: what a hub note costs', function () {
       ].join('\n'),
     );
 
-    // Enough sources that the measurement is of a hub rather than of a note
-    // with a handful of backlinks. Not a threshold on the fixture's exact size,
-    // which is generated and may be regenerated at another scale.
+    // Enough sources that this is a hub's cost rather than an ordinary note's.
+    // Not a threshold on the fixture's exact size, which is generated and may be
+    // regenerated at another scale — but a floor, because a spike that silently
+    // measured eight backlinks and reported it as a hub would be worse than one
+    // that failed. `run-e2e.mjs` generates the fixture; if this trips, that step
+    // did not happen.
     expect(cost.sources).toBeGreaterThan(10);
 
     // The shape progressive paint depends on: what the header needs must be

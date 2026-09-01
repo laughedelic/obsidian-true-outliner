@@ -65,6 +65,18 @@ const run = (cmd, args, env) =>
 const build = run(process.execPath, ['esbuild.config.mjs', 'production', '--dev']);
 if (build !== 0) process.exit(build);
 
+// The hub fixture is generated, not tracked: several hundred near-identical
+// notes whose only property is bulk would be noise in every diff. Generating it
+// here is what makes that trade safe — it is deterministic (fixed seed), so the
+// corpus is the same on every machine, and without this step CI simply had no
+// hub. S5 then measured a note with eight backlinks and would have reported it
+// as a hub's cost, which is worse than failing.
+//
+// Before the drift snapshot, so the generated files are part of the baseline
+// rather than showing up as changes the run has to explain.
+const hub = run(process.execPath, ['scripts/gen-backlink-hub.mjs']);
+if (hub !== 0) process.exit(hub);
+
 const drift = (...args) => run(process.execPath, ['scripts/check-vault-drift.mjs', ...args]);
 if (drift('--snapshot') !== 0) process.exit(1);
 
