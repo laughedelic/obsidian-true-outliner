@@ -146,7 +146,15 @@ class FooterController {
     // where a note is referenced has not asked to move their cursor, and having
     // it silently jump to the end of the note is the worse surprise. Links
     // still work — they act on `click`, not on the default of `mousedown`.
-    this.el.addEventListener('mousedown', (event) => event.preventDefault());
+    // `pointerdown` as well as `mousedown`: the two cover different input
+    // paths, and only the pair covers both. A touch (or an emulated one) goes
+    // through the pointer sequence, where the compatibility `mousedown` arrives
+    // too late to stop the browser giving focus to whatever was tapped — so on
+    // touch the section head, which is deliberately tabbable for the keyboard,
+    // took focus away from the editor and the reader's next undo went nowhere.
+    const keepFocus = (event: Event): void => event.preventDefault();
+    this.el.addEventListener('pointerdown', keepFocus);
+    this.el.addEventListener('mousedown', keepFocus);
     this.component.load();
     void this.render();
   }

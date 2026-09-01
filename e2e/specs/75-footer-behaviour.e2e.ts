@@ -44,6 +44,20 @@ async function openFooter(notePath: string): Promise<void> {
   await h.openNote(notePath);
   await ensureOutlineMode(notePath);
   await scrollToEnd();
+  // The section's folded state is per note and outlives a test. One test folds
+  // it deliberately, and if its unfold does not land, every test after it sees a
+  // footer with no rows and fails for a reason that has nothing to do with what
+  // it asserts — four cascading failures from one, which hides the one.
+  const collapsed = await browser.executeObsidian(
+    () =>
+      document
+        .querySelector('.workspace-leaf.mod-active .to-backlinks-head')
+        ?.classList.contains('is-collapsed') ?? false,
+  );
+  if (collapsed) {
+    await (await $(`${FOOTER} .to-backlinks-title`)).click();
+    await browser.pause(300);
+  }
 }
 
 /** The footer's rows, as text — enough to assert shape without asserting pixels. */
@@ -144,25 +158,38 @@ describe('backlinks footer: behaviour', function () {
     await openFooter(TARGET);
     const before = await h.getBuffer();
 
-    // A real edit first, so there is something on the stack to lose.
-    await h.setCursorSettled(0, 0);
-    await browser.keys('X');
-    await browser.pause(200);
-    const edited = await h.getBuffer();
-    expect(edited).not.toBe(before);
+    try {
+      // A real edit first, so there is something on the stack to lose.
+      await h.setCursorSettled(0, 0);
+      await browser.keys('X');
+      await browser.pause(200);
+      const edited = await h.getBuffer();
+      expect(edited).not.toBe(before);
 
-    // Now read the footer: scroll it, click its header, fold and unfold it.
-    await scrollToEnd();
-    await (await $(`${FOOTER} .to-backlinks-title`)).click();
-    await browser.pause(200);
-    await (await $(`${FOOTER} .to-backlinks-title`)).click();
-    await browser.pause(200);
-    expect(await h.getBuffer()).toBe(edited);
+      // Now read the footer: scroll it, click its header, fold and unfold it.
+      await scrollToEnd();
+      await (await $(`${FOOTER} .to-backlinks-title`)).click();
+      await browser.pause(300);
+      await (await $(`${FOOTER} .to-backlinks-title`)).click();
+      await browser.pause(300);
+      expect(await h.getBuffer()).toBe(edited);
 
-    // One undo must land on the typed character, not on anything the footer did.
-    await h.keys.undo();
-    await browser.pause(200);
-    expect(await h.getBuffer()).toBe(before);
+      // One undo must land on the typed character, not on anything the footer
+      // did. Waited for rather than paused for: undo is dispatched through the
+      // editor and lands a frame or several later, and a fixed pause is a guess
+      // that gets it wrong on the slower platform only.
+      await h.keys.undo();
+      await browser.waitUntil(async () => (await h.getBuffer()) === before, {
+        timeout: 4000,
+        timeoutMsg: 'undo did not restore the pre-edit buffer',
+      });
+    } finally {
+      // Whatever happened, the next test starts from the fixture as written.
+      // Without this, one failure here left an edited note behind and every
+      // test after it in this file failed too — four cascading failures from
+      // one real one, which hides the real one.
+      if ((await h.getBuffer()) !== before) await h.setBuffer(before);
+    }
   });
 
   // ---- 9.3 lineage shape ---------------------------------------------------
@@ -332,22 +359,37 @@ describe('backlinks footer: behaviour', function () {
 
     // Strip the references out of one source and let the cache settle.
     const source = 'Backlinks/Family tree.md';
-    await browser.executeObsidian(async ({ app }, path: string) => {
+    const restore = await browser.executeObsidian(async ({ app }, path: string) => {
       const file = app.vault.getAbstractFileByPath(path);
-      if (file && 'stat' in file) {
-        const text = await app.vault.read(file as never);
-        await app.vault.modify(file as never, text.replace(/\[\[Reference target\]\]/g, 'nothing'));
-      }
+      if (!file || !('stat' in file)) return '';
+      const text = await app.vault.read(file as never);
+      await app.vault.modify(file as never, text.replace(/\[\[Reference target\]\]/g, 'nothing'));
+      return text;
     }, source);
 
-    await browser.waitUntil(
-      async () =>
-        (await browser.executeObsidian(
-          () =>
-            document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group').length,
-        )) < groupsBefore,
-      { timeout: 8000, timeoutMsg: 'the group never went away' },
-    );
+    try {
+      await browser.waitUntil(
+        async () =>
+          (await browser.executeObsidian(
+            () =>
+              document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group').length,
+          )) < groupsBefore,
+        { timeout: 8000, timeoutMsg: 'the group never went away' },
+      );
+    } finally {
+      // Put the fixture back. A test that mutates the vault and leaves it
+      // mutated makes every later test in the file depend on whether this one
+      // passed.
+      if (restore) {
+        await browser.executeObsidian(
+          async ({ app }, [path, text]: [string, string]) => {
+            const file = app.vault.getAbstractFileByPath(path);
+            if (file && 'stat' in file) await app.vault.modify(file as never, text);
+          },
+          [source, restore] as [string, string],
+        );
+      }
+    }
   });
 
   it('shows no footer chrome for a note nothing links to, beyond its own header', async function () {
