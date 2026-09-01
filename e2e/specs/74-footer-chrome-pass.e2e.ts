@@ -754,14 +754,26 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     await ensureOutlineMode(KINDS);
     await scrollToEnd();
 
-    const chrome = (): Promise<{ bg: string; radius: string; border: string } | null> =>
+    const chrome = (): Promise<{
+      bg: string;
+      radius: string;
+      border: string;
+      color: string;
+      markerColor: string;
+    } | null> =>
       browser.executeObsidian(() => {
-        const el = document.querySelector<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-fold',
-        );
-        if (!el) return null;
+        const root = document.querySelector('.workspace-leaf.mod-active');
+        const el = root?.querySelector<HTMLElement>('.to-backlinks-fold');
+        const marker = root?.querySelector<HTMLElement>('.to-backlinks .to-decor-marker-icon');
+        if (!el || !marker) return null;
         const cs = getComputedStyle(el);
-        return { bg: cs.backgroundColor, radius: cs.borderRadius, border: cs.borderTopWidth };
+        return {
+          bg: cs.backgroundColor,
+          radius: cs.borderRadius,
+          border: cs.borderTopWidth,
+          color: cs.color,
+          markerColor: getComputedStyle(marker).color,
+        };
       });
 
     const transparent = (v: string): boolean => v === 'transparent' || /,\s*0\)$/.test(v);
@@ -771,11 +783,28 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     expect(transparent(rest!.bg)).toBe(true);
     expect(rest!.radius).toBe('0px');
     expect(rest!.border).toBe('0px');
+    // A fold is notation about the outline, so it is drawn in a marker's own
+    // colour. Obsidian sets a button's colour at the same specificity it sets
+    // the background, so this lost in exactly the same way and had to be won
+    // back in exactly the same place.
+    expect(rest!.color).toBe(rest!.markerColor);
 
     await (await $('.workspace-leaf.mod-active .to-backlinks-fold')).moveTo();
     await browser.pause(200);
     const hovered = await chrome();
     expect(transparent(hovered!.bg)).toBe(true);
     expect(hovered!.radius).toBe('0px');
+
+    // The pointer is parked before leaving. A hover left in place is not this
+    // test's business but it becomes the next one's: a later read of the same
+    // element returns its HOVER colour, which cost a wrong diagnosis once.
+    await browser.performActions([
+      {
+        type: 'pointer',
+        id: 'mouse',
+        parameters: { pointerType: 'mouse' },
+        actions: [{ type: 'pointerMove', duration: 0, x: 2, y: 2 }],
+      },
+    ]);
   });
 });

@@ -1610,7 +1610,6 @@ body {
    * FIRST line of a row that wraps rather than on the row's whole box. */
   top: 0.1rem;
   height: 1.5em;
-  color: var(--text-faint);
   cursor: pointer;
 }
 
@@ -1701,7 +1700,14 @@ body {
   font: inherit;
 }
 
-/* No chrome at all: the glyph is the control. */
+/* No chrome at all: the glyph is the control, and it is drawn in a marker's own
+ * colour — a fold is notation about the outline, not a thing to notice.
+ *
+ * `color` belongs in THIS block and not with the geometry below for the same
+ * reason the background does: Obsidian sets a button's colour at one class plus
+ * one element, so a bare `.to-backlinks-fold` loses. Measured when it did — the
+ * chevron came out at `rgb(218,218,218)` beside markers at `rgb(102,102,102)`,
+ * which reads as an accent even though nothing accented it. */
 .to-backlinks .to-backlinks-fold,
 .to-backlinks .to-backlinks-fold:hover,
 .to-backlinks .to-backlinks-fold:focus,
@@ -1710,6 +1716,11 @@ body {
   border: none;
   border-radius: 0;
   background: none;
+  color: var(--text-faint);
+}
+
+.to-backlinks .to-backlinks-fold:hover {
+  color: var(--text-normal);
 }
 
 /* The cap's pill, restated at the same specificity — its border and background
