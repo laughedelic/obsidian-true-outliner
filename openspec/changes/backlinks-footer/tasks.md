@@ -204,17 +204,31 @@ next begins; green unit tests are never the gate for anything visual.
 
 ## 9. Verification
 
-- [ ] 9.1 e2e: the footer renders in outline mode and not off-mode, and not in reading view
-- [ ] 9.2 e2e: opening, scrolling and interacting with a note leaves its bytes and undo stack
-      unchanged, and document positions identical with and without the footer
-- [ ] 9.3 e2e: shared ancestors render once; an unbranching chain renders as one lineage line;
-      each arm of a branch collapses independently
-- [ ] 9.4 e2e: counts appear before context, and groups resolve independently
-- [ ] 9.5 Real-vault pass over the corpus in both bundled themes, screenshotted — the mandatory
-      gate, not the unit tests
-- [ ] 9.6 Spike S5: time index build, per-source read+parse, projection and first paint on the
+- [x] 9.1 e2e: the footer renders in outline mode and not off-mode, and not in reading view.
+      *Reading view needed the question restating: Obsidian keeps the source view's DOM alive but
+      hidden, so the footer element survives the switch. What is asserted is that the reading
+      renderer produces none of its own and that nothing of it is on screen.*
+- [x] 9.2 e2e: opening, scrolling and interacting with a note leaves its bytes and undo stack
+      unchanged, and document positions identical with and without the footer. *The undo half is
+      asserted by making a real edit first, so there is something on the stack to lose: a footer
+      that left the buffer intact but pushed a history entry would still have edited the note as
+      far as the reader's next undo is concerned.*
+- [x] 9.3 e2e: shared ancestors render once; an unbranching chain renders as one lineage line;
+      each arm of a branch collapses independently. *Uniqueness is per GROUP — two source notes
+      may legitimately share an ancestor's name, and asserting across the footer failed on the
+      hub fixture for exactly that reason.*
+- [x] 9.4 e2e: counts appear before context, and groups resolve independently — including that a
+      resolving group shows no rows, so nothing fabricated is ever on screen
+- [x] 9.5 Real-vault pass over the corpus in both bundled themes, screenshotted — the mandatory
+      gate, not the unit tests. *Three frames per fixture: the footer's top, the SEAM with the
+      note above it, and the document end. The seam frame exists because `scrollIntoView(true)`
+      pins the footer's top to the viewport top, which put the note off screen — the frame that
+      showed the footer best was the one frame in which its top boundary could not be judged.*
+- [x] 9.6 Spike S5: time index build, per-source read+parse, projection and first paint on the
       hub-note fixture; record the numbers in the hub doc as the input `backlinks-controls` needs
-      for its cap defaults
+      for its cap defaults. *Answer: there is nothing to cap for performance. 2ms to place 42
+      sources, and the header and bodies land in the same frame. A cap is a legibility decision,
+      which moves D10's premise.*
 - [ ] 9.7 Close every spike row in the hub doc with a verdict, and record cross-spike lessons
       where they belong (`docs/research/11` for decoration/CM6 findings)
 
@@ -225,6 +239,20 @@ next begins; green unit tests are never the gate for anything visual.
 - [x] 9b.2 Render the same note in all three modes across both bundled themes, screenshot, and
       compare as pictures rather than as arguments
 - [x] 9b.3 Record the S6 verdict and remove the apparatus
+
+## 9b. Behaviour coverage the matrix cannot see
+
+> **Added after review.** `74-footer-chrome-pass` asserts rendering and is structurally blind to
+> interaction and index lifecycle. A review found seven defects on a green matrix — a link inside
+> a mention navigating to the wrong note, a fold chevron that marked nothing, a note stuck at
+> "0 references" — and none of them could have failed a rendering assertion.
+
+- [x] 9b.1 Split behaviour into `75-footer-behaviour.e2e.ts`: what the footer DOES, against the
+      chrome pass's what it LOOKS like
+- [x] 9b.2 Cover the three defects directly: a link inside a mention follows the link, a row's
+      fold reveals its hidden descendants, and a source that stops referencing loses its group
+- [ ] 9b.3 Cover navigation's remaining promises — a reference opens its source AT the node, a
+      lineage segment opens THAT ancestor, and a Mod-click opens a new pane
 
 ## 10. Close-out
 

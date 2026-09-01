@@ -40,7 +40,7 @@ One rule is specific to this series:
 | **S3** | Does `decorate()` hold up on a foreign, projected tree? | Done | **Yes** — node-identity facts are invariant; position facts describe the tree passed in, which corrected a spec claim |
 | **S4** | What does outline chrome cost outside `.cm-line`? | Done | **The token vocabulary was NOT sufficient** — the editor positions nothing in JS, so a surface that shares only the tokens reimplements the layout and diverges. What must be shared is the class + custom-property contract, and the footer now consumes it |
 | **S6** | Would rendering the footer some other way be cheaper? | Done, with a correction | **No — both alternatives are worse.** Markdown loses the outline entirely; a bare CodeMirror per group loses Live Preview *and* our decorations. **The editor result does not generalise**: it was measured on a bare `EditorView`, not on a real embedded `WorkspaceLeaf`, which is a different technique — see [20](20-surfaces-and-embedding.md) |
-| **S5** | What does a real vault cost? | Not started | — |
+| **S5** | What does a real vault cost? | Done | **Nothing worth capping for.** Placement is ~2ms for 42 sources / 150 references, so progressive paint saves no wall clock and a cap is a LEGIBILITY decision, not a performance one |
 
 ## The fixture corpus
 
@@ -498,7 +498,40 @@ its own controller now. Precisely the "one widget per editor" invariant S2 exist
 `backlinks-controls` needs to choose cap defaults, which is why that change's design is held
 until this spike reports.
 
-*Not yet run.*
+**Verdict: there is no performance problem to cap.** Apparatus is
+`e2e/specs/76-footer-cost.e2e.ts`, which reports rather than asserts — a budget invented before
+the feature has a cap would be a number defending itself.
+
+| | 145-file vault, target with 42 sources / 150 references |
+| --- | --- |
+| index build (whole vault) | **0.1–0.2 ms** |
+| summaries (the header's input) | **0.10 ms** |
+| place, all 42 sources | **2.0–2.2 ms** |
+| place, per source | median **&lt;0.01 ms**, max **0.60 ms** |
+| first paint: header on screen | **253 ms** |
+| first paint: every group resolved | **253 ms** — the same frame |
+
+### Finding — progressive paint saves no wall clock at this scale
+
+Header and bodies land in the same frame, because placing all 42 sources costs 2ms and the
+253ms is the scroll and CodeMirror mounting the widget, not our work. D-G is therefore not
+buying latency here; what it still buys is a *shape* that stays correct when a vault is larger
+or slower than this one, and the absence of a frame that shows fabricated structure. Keeping it
+is cheap and removing it would be a bet on every vault resembling this fixture.
+
+### Finding — a cap is a legibility decision, not a performance one
+
+This is the input `backlinks-controls` was waiting for, and it moves the question. D10 framed
+volume as something to cap; these numbers say nothing needs capping to stay fast. The group
+height cap this change ships is justified entirely by *reading* — a hub note's footer is
+unskimmable long before it is slow — and `backlinks-controls` should choose its defaults on that
+basis rather than on a budget.
+
+**One caveat, stated because it bounds the claim.** `cachedRead` reads Obsidian's own in-memory
+file cache, and `clearTrees()` clears only OUR parse cache. So "cold" here means an unparsed
+tree, not an unread file. On a vault whose files are genuinely cold — first open after launch,
+or a synced vault — per-source cost would be higher, and the ordering of the four costs is what
+this spike establishes rather than their absolute values.
 
 ## S6 — is there a cheaper renderer than our own chrome?
 
