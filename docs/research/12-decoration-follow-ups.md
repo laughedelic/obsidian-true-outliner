@@ -701,19 +701,17 @@ fix, one more kind to cover.
   giving them worker affinity. Cheapest correct version is probably the group
   split, since `spec-groups.mjs` already derives groups from the numeric prefix.
 
-- **The verdict-timing p95 budget flakes at its boundary on CI.**
+- **The verdict-timing p95 budget flaked at its boundary on CI — acted on.**
   `62-outline-edit-enforcement`'s "verdict computation stays within budget"
-  asserts `p95 <= 8`ms, and a CI run measured 8.199 — a 2.5% overshoot on a TAIL
-  statistic on a shared runner. Reran unchanged and passed; the same commit's
-  group passed locally. The median assertions (`<= 3`ms) are nowhere near their
-  limit, so the guard is doing its job; it is the p95 that sits close enough to
-  the hardware's noise floor to trip occasionally. Worth deciding deliberately
-  rather than at the moment it next goes red: either widen the p95 alone (it
-  guards against a different failure than the median and can afford to be
-  looser), or take more measured rounds so the tail is sampled from more data.
-  Loosening it reflexively to clear a red build would quietly retire a real
-  regression guard.
-
+  asserts `p95 <= 8`ms and went red twice: 8.20ms on desktop, 8.10ms on mobile,
+  with the medians (`<= 3`ms) nowhere near their own limit both times. `p95` is a
+  plain quantile over collected samples, and at two measured rounds it sat close
+  enough to the maximum that one GC pause on a shared runner became the
+  statistic. Fixed by taking four measured rounds instead of two, which moves
+  the 95th percentile away from the worst sample; the threshold is unchanged,
+  because the bar was never the problem. Noted here in case the tail returns at
+  four rounds — the next honest step would be reporting the distribution rather
+  than widening the bar.
 - **Community-theme sweep as repeatable infrastructure.** The hardening pass probed
   Minimal/Catppuccin/Things via a throwaway spec (install theme into the sandboxed vault,
   screenshot fixtures, review by eye) — clean results, but the probe wasn't kept. If

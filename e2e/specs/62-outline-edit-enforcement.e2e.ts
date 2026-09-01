@@ -596,8 +596,22 @@ describe('node-edit-enforcement: Phase C evidence', function () {
 
     await driveOneRound(); // warm-up: JIT/GC settle, not measured
     await h.resetStats();
+    // FOUR measured rounds, not two.
+    //
+    // `p95` is a plain quantile over the samples collected, so at two rounds it
+    // sat close enough to the maximum that a single GC pause on a shared runner
+    // BECAME the statistic — observed twice on CI at 8.10ms and 8.20ms against
+    // an 8ms bar, on different platforms, with the medians nowhere near their
+    // own limit. Doubling the sample count moves the 95th percentile far enough
+    // from the worst sample that one outlier no longer decides it.
+    //
+    // The threshold is deliberately unchanged. Raising it would clear the red
+    // build by retiring the guard; the problem was never the bar, it was a tail
+    // statistic computed from too little data to mean what it says.
     await driveOneRound();
-    await driveOneRound(); // two more measured rounds — a stabler sample count
+    await driveOneRound();
+    await driveOneRound();
+    await driveOneRound();
 
     // Budget is looser than classification's own (D7's ≤1ms median): the
     // verdict layer does real tree surgery (parse/encode/ops) on top of
