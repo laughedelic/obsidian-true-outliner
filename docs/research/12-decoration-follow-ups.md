@@ -682,25 +682,25 @@ fix, one more kind to cover.
   launches. Worth doing when the sort becomes configurable — `backlinks-controls`
   owns sort options — rather than building the fixture machinery for one case.
 
-- **Parallel e2e workers share one OS clipboard, and two specs race for it.**
-  `pasteText` (helpers.ts) writes the system clipboard with
-  `navigator.clipboard.writeText` and then presses `Mod+V`;
-  `61-selection-enforcement` presses `Mod+C` into that same system clipboard.
-  Both live in the `selection` group, whose specs run in parallel Electron
-  instances, so 61's copy can land between 62's write and its paste — observed:
-  `62-outline-edit-enforcement`'s "block-level copy pasted mid-paragraph" got
-  61's `c2 / t1 / t2` fixture instead of its own `New block one.`, on CI only.
-  The clipboard is per-machine, so no amount of per-instance isolation helps.
+- **Parallel e2e workers shared one OS clipboard — fixed by serialising them.**
+  `pasteText` writes the system clipboard and presses Mod+V; `61` and `67` press
+  Mod+C into that same clipboard. All three were in `selection`, whose specs run
+  in parallel Electron instances, and one clipboard belongs to the machine — so
+  no per-instance isolation could help. Seen twice on CI, in both directions: a
+  paste receiving another spec's copied fixture (`c2 / t1 / t2` where
+  `New block one.` was expected), and a copy losing its content before its own
+  spec could read it.
 
-  Three fixes, and the obvious one is the worst. Replacing `pasteText` with a
-  synthetic `paste` ClipboardEvent removes the shared resource but stops
-  exercising a real paste — the same trap as asserting a caret with a dispatched
-  `MouseEvent`, which passes whether or not the code works. Better: keep the
-  real gesture and stop the concurrency, either by separating clipboard-using
-  specs into different GROUPS (they never run at once across groups) or by
-  giving them worker affinity. Cheapest correct version is probably the group
-  split, since `spec-groups.mjs` already derives groups from the numeric prefix.
+  The three specs are now a `clipboard` group that `run-e2e.mjs` forces to one
+  instance, whatever the caller asks for, because the constraint belongs to the
+  specs rather than to whoever invokes them. The rest of `selection` keeps its
+  parallelism, and the new group is its own CI job since the matrix is built
+  from `--list-groups`.
 
+  The tempting alternative was rejected: synthesising a `paste` ClipboardEvent
+  would remove the shared resource but stop exercising a real paste — the same
+  trap as asserting a caret with a dispatched MouseEvent — and the copy side
+  cannot be faked that way at all.
 - **The verdict-timing p95 budget flaked at its boundary on CI — acted on.**
   `62-outline-edit-enforcement`'s "verdict computation stays within budget"
   asserts `p95 <= 8`ms and went red twice: 8.20ms on desktop, 8.10ms on mobile,

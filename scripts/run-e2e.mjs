@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 import { binPath } from './bin-path.mjs';
-import { specGroups } from './spec-groups.mjs';
+import { EXCLUSIVE_GROUPS, specGroups } from './spec-groups.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -73,7 +73,14 @@ try {
   suite = run(
     wdio,
     ['run', mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts', ...specArgs],
-    mobile ? { OBSIDIAN_E2E_MOBILE: '1' } : undefined,
+    {
+      ...(mobile ? { OBSIDIAN_E2E_MOBILE: '1' } : {}),
+      // A group that contends for a machine-global resource runs one instance
+      // at a time, whatever the caller asked for. Overriding rather than
+      // trusting the caller because the constraint belongs to the specs, not to
+      // whoever happens to be invoking them.
+      ...(EXCLUSIVE_GROUPS.has(group) ? { E2E_MAX_INSTANCES: '1' } : {}),
+    },
   );
 } finally {
   // Keep the suite's status; if it passed but cleanup failed, fail with 1 so a
