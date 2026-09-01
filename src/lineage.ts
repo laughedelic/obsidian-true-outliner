@@ -109,11 +109,20 @@ export function collapseLineage(
     }
   }
 
-  /** A match's own subtree renders as plain nodes: it is what the reader asked
-   * to see, so none of it is context to be collapsed away. */
+  /**
+   * A match's own subtree renders as plain nodes: it is what the reader asked
+   * to see, so none of it is context to be collapsed away.
+   *
+   * `isMatch` still reports the predicate. A descendant that independently
+   * matches is both — a node inside someone else's subtree AND a result in its
+   * own right — and flattening that to `false` made the two indistinguishable
+   * to every consumer, contradicting what the field says it means. What these
+   * rows share is that they are not COLLAPSED, which is about presentation and
+   * is already said by their being node rows at all.
+   */
   function emitDescendants(list: readonly OutlineNode[], depth: number): void {
     for (const node of list) {
-      rows.push({ type: 'node', depth, node, isMatch: false });
+      rows.push({ type: 'node', depth, node, isMatch: matches(node) });
       emitDescendants(node.children, depth + 1);
     }
   }

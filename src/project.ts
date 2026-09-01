@@ -50,11 +50,16 @@ function prune(
   keepDescendants: number,
 ): OutlineNode | undefined {
   if (keepDescendants > 0) {
-    // Inside a match's subtree: keep everything to the remaining depth, without
-    // consulting the predicate again. A descendant that also matches is still
-    // just a descendant here; it gets its own entry from its own ancestor walk.
+    // Inside a match's subtree: this node is kept whatever it is. But a node
+    // that is ITSELF a match renews the allowance for its own children rather
+    // than spending the last of its ancestor's.
+    //
+    // Without that, `A(match) > B(match) > C` at `descendantDepth: 1` dropped
+    // C — B consumed A's final unit — though C is the immediate child of a
+    // match, and every match is owed its own level of context.
+    const next = matches(node) ? depth : keepDescendants - 1;
     const children = node.children
-      .map((child) => prune(child, matches, depth, keepDescendants - 1))
+      .map((child) => prune(child, matches, depth, next))
       .filter((child): child is OutlineNode => child !== undefined);
     return { ...node, children };
   }

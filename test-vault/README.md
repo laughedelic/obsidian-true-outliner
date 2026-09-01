@@ -29,4 +29,4 @@ Then follow `openspec/changes/editor-core/verification.md`.
 | `Notes/Sourdough Log` | list-only note (visually unchanged in outline mode) |
 | `Notes/Reading – The Design of Everyday Things` | quotes, multiline items |
 | `Notes/Edge Case Zoo` | adversarial structures for rejection cues |
-| `Backlinks/*` | backlink fixtures: deep lineage, branching arms, atom/anchor/alias/property/embed references — all pointing at `Projects/Aurora Dashboard` |
+| `Backlinks/*` | backlink fixtures against **two** targets. Deep lineage, branching arms, and atom/anchor/alias/property/embed references point at `Projects/Aurora Dashboard`, which is also the target of the generated `Backlinks/Hub/`. `Kinds gallery` and `Family tree` point at `Backlinks/Reference target` instead, so their footer is exactly those two notes and stays readable — the hub note is the volume case, not the legibility one |

@@ -418,12 +418,18 @@ export function buildRows(
       // projection's, and the rendered tree collapsed lineage out from under
       // it. The row's own depth is the one the chrome lays out against.
       fact: { ...fact, depth: row.depth },
-      isReference: true,
-      referenceKind: refOf(row.node)?.kind,
+      // What the lineage pass decided, not an assumption. It emits a match's
+      // own subtree as node rows too, and those are references only if they
+      // independently match — reading `true` here made every path node under an
+      // outer match a false reference, and gave it a descendant pass of its own.
+      isReference: row.isMatch,
+      referenceKind: row.isMatch ? refOf(row.node)?.kind : undefined,
       foldedCount: 0,
     });
 
-    const source = sourceById.get(row.node.id);
+    // Only a real match brings its own subtree; a path node under one is
+    // already being walked by the match above it.
+    const source = row.isMatch ? sourceById.get(row.node.id) : undefined;
     if (source) emitDescendants(source.children, row.depth + 1, DESCENDANT_DEPTH);
   }
 

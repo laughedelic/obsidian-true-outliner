@@ -436,9 +436,19 @@ class FooterController {
           cls: 'to-backlinks-seg',
           text: firstLineText(segment.text),
         });
+        // Focusable AND operable. `role="link"` with a tab stop and no key
+        // handler is a control the keyboard can reach and cannot use, which is
+        // worse than one it cannot reach at all — it advertises itself and then
+        // does nothing.
         seg.setAttribute('role', 'link');
         seg.tabIndex = 0;
         seg.addEventListener('click', (event) => {
+          event.stopPropagation();
+          this.open(event, sourcePath, segment.nodeId);
+        });
+        seg.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
           event.stopPropagation();
           this.open(event, sourcePath, segment.nodeId);
         });
@@ -537,12 +547,15 @@ class FooterController {
    * `[[link]]` in a mention would navigate to the source note instead of to the
    * link's own target, which is the opposite of what was clicked.
    */
-  private open(event: MouseEvent, sourcePath: string, nodeId?: number): void {
+  private open(event: MouseEvent | KeyboardEvent, sourcePath: string, nodeId?: number): void {
     // A nested link or control owns its own click. `defaultPrevented` covers
     // Obsidian's own internal links, which handle themselves.
     const target = event.target as HTMLElement | null;
     if (event.defaultPrevented || target?.closest('a, button')) return;
 
+    // `isModEvent` reads the modifier keys, which a KeyboardEvent carries just
+    // as a MouseEvent does — so Mod+Enter on a segment opens a new pane the
+    // same way Mod+click does.
     const newLeaf = Keymap.isModEvent(event);
     void this.source.app.workspace
       .openLinkText(sourcePath, this.targetPath, newLeaf)
@@ -860,4 +873,27 @@ export function backlinksFooterExtension(source: FooterSource): Extension {
  * document, which no transaction would otherwise announce. */
 export function repaintFooters(): void {
   for (const controller of liveControllers) void controller.render();
+}
+
+/**
+ * Wakes the footer's `StateField` in EVERY open markdown editor.
+ *
+ * Bumping the revision does not itself wake anything: `refreshBridge` is a
+ * ViewPlugin, and a ViewPlugin only observes the revision on ITS OWN view's
+ * next update. Nudging the active view therefore left every other visible
+ * footer stale — a note open in two splits, or the setting turned off while a
+ * second pane showed a footer, until that editor happened to receive an
+ * unrelated transaction.
+ *
+ * A dispatch with no changes and no selection is not an edit: it produces no
+ * document change and nothing for the transaction filter to classify. It exists
+ * only so each view runs its update cycle once.
+ */
+export function nudgeFooters(app: App): void {
+  for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+    const view = leaf.view;
+    if (!(view instanceof MarkdownView)) continue;
+    const cm = (view.editor as unknown as { cm?: EditorView }).cm;
+    if (cm) cm.dispatch({ effects: refreshFooter.of() });
+  }
 }

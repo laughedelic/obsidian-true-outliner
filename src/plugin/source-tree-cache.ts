@@ -47,8 +47,18 @@ export class SourceTreeCache {
     const cached = this.entries.get(file.path);
     if (cached && cached.mtime === file.stat.mtime) return cached.doc;
 
+    // The mtime is taken BEFORE the read, and the result is only cached if the
+    // file still carries it. Reading it afterwards files the text that was read
+    // under whatever the file became while the read was in flight — a stale
+    // parse under a current mtime, which nothing later invalidates because the
+    // key looks fresh. It can also clobber a newer concurrent `get`.
+    const readAt = file.stat.mtime;
     const doc = parse(await this.vault.cachedRead(file));
-    this.entries.set(file.path, { mtime: file.stat.mtime, doc });
+    // Changed under us: the parse is still correct for the text that was read,
+    // so it is returned, but caching it would file yesterday's tree under
+    // today's key. Leaving the entry absent costs one re-read and is the only
+    // outcome that cannot be wrong.
+    if (file.stat.mtime === readAt) this.entries.set(file.path, { mtime: readAt, doc });
     return doc;
   }
 

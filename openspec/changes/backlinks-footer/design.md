@@ -190,9 +190,12 @@ Three per-kind rules that do not follow mechanically, decided against a working 
 - **Prose joins, records do not.** A paragraph, heading, quote or callout's lines are
   continuations of one thought and join into one row. A code fence's and a table's are separate
   records; the row shows the line the reference sits on.
-- **A table keeps its header.** A bare cell value is not interpretable without its column name,
-  so the header row survives alongside the reference's own row. The only place in the footer where
-  a row shows a line the reference is not on, and it is deliberate.
+- **A table shows the cell the reference is in, and nothing else.** Keeping the header row
+  alongside it was tried first, on the reasoning that a bare cell value needs its column name.
+  Seen in place it was the noisiest row in the footer — two rows of pipe-separated fields to say
+  that one cell mentions the note — and the reasoning lost to the section's own purpose. The cell
+  is found by the reference's own TEXT, since a row can hold several links and only one of them
+  is why the row exists.
 - **A callout shows its title, without the type token.** The marker already says callout, so
   `[!note]` is redundant; the title does the job a heading's text does. A reference in the body
   shows the body line instead.

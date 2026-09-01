@@ -34,6 +34,7 @@ import { grammarExtension, setMotionProbe } from './keymap';
 import { nestedEditorExtension } from './nested-editor';
 import {
   backlinksFooterExtension,
+  nudgeFooters,
   pruneFooterViewState,
   repaintFooters,
 } from './backlinks-footer';
@@ -322,9 +323,11 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.data.backlinksFooter = value;
     this.footerRev++;
     await this.saveData(this.data);
-    // The widget is produced by a ViewPlugin that recomputes on update, and
-    // toggling a setting is not itself an editor update — the same nudge the
-    // other decoration settings use.
+    // EVERY open editor, not just the active one. The revision is observed by a
+    // per-view ViewPlugin, so a view that receives no transaction never notices
+    // it — which left a second split's footer showing a setting that had been
+    // turned off.
+    nudgeFooters(this.app);
     await this.forceRedraw();
   }
 
@@ -414,6 +417,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     const on = await this.registry.toggle(path);
     this.footerRev++;
     new Notice(on ? 'Outline mode on' : 'Outline mode off', 1500);
+    // The same note can be open in more than one split, and `refreshDecorations`
+    // reaches one of them. Every footer for this path has just become wrong.
+    nudgeFooters(this.app);
     this.refreshDecorations(path);
   }
 

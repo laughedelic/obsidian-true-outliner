@@ -68,6 +68,26 @@ describe('project: subset guarantees', () => {
     expect(shape(out)).toEqual(['- a', '  - b', '    - x first mention']);
   });
 
+  /**
+   * A match nested inside another match's subtree is owed its own level of
+   * context, not whatever its ancestor had left over.
+   *
+   * Threading the allowance down without re-asking the predicate spent it: for
+   * `A(match) > B(match) > C` at depth 1, B consumed A's final unit and C —
+   * the immediate child of a match — was dropped.
+   */
+  it('renews the descendant allowance at every match, not just the outermost', () => {
+    const doc = parse(`- A target
+\t- B target
+\t\t- C
+`);
+    expect(shape(project(doc, containing('target'), { descendantDepth: 1 }))).toEqual([
+      '- A target',
+      '  - B target',
+      '    - C',
+    ]);
+  });
+
   it('keeps descendants only to the requested depth', () => {
     const doc = parse(`- target
 \t- child
