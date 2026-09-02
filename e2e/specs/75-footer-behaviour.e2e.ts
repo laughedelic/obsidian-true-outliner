@@ -208,13 +208,14 @@ describe('backlinks footer: behaviour', function () {
     expect(references.length).toBeGreaterThan(0);
 
     // A chain is ONE row carrying several ancestors: four ancestors must not
-    // become four rows. Asked of the DOM rather than of a character — the
-    // separator's glyph is a design choice and this is not a test about it.
+    // become four rows. Counted by segments, which is what "several ancestors"
+    // means — not by whatever mark currently divides them, which is a design
+    // choice this test has no stake in.
     const chained = await browser.executeObsidian(
       () =>
         Array.from(
           document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-row.is-lineage'),
-        ).filter((row) => row.querySelectorAll('.to-backlinks-sep').length > 0).length,
+        ).filter((row) => row.querySelectorAll('.to-backlinks-seg').length > 1).length,
     );
     expect(chained).toBeGreaterThan(0);
 

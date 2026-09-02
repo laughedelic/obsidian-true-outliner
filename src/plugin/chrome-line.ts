@@ -25,7 +25,7 @@
  * properties get packed into.
  */
 
-import { MARKER_GUTTER_CSS, MARKER_ICON_CSS, UNIT_EXPR } from './chrome-tokens';
+import { MARKER_GUTTER_CSS, MARKER_ICON_CSS, MARKER_ICON_VAR, UNIT_EXPR } from './chrome-tokens';
 import type { LineDecorationFact } from './decorate';
 
 /** A line whose depth moves its text but not its box: `padding-left`. */
@@ -127,8 +127,14 @@ export function ownShiftExpr(fact: LineDecorationFact, nativeBlocks = true): str
  * margin-shifted atom, worked through by hand for both before being relied on.
  *
  * The footer uses it for every row, since every footer row is a plain line.
+ *
+ * The icon term is `MARKER_ICON_VAR`, not the literal, so a surface that resizes
+ * its own markers keeps them on their column — see that constant. The absolute
+ * helpers below still spell it literally: they serve the editor's widget atoms,
+ * which no surface scopes a size onto. Anything that starts scoping one must
+ * move them over too.
  */
-export const MARKER_LEFT_SHIFT_EXPR = `calc(${MARKER_ICON_CSS} * 0.5 - ${MARKER_GUTTER_CSS})`;
+export const MARKER_LEFT_SHIFT_EXPR = `calc(${MARKER_ICON_VAR} * 0.5 - ${MARKER_GUTTER_CSS})`;
 
 /**
  * Where a marker icon's own LEFT edge should sit, given `targetRelExpr` — a CSS
@@ -176,7 +182,9 @@ export interface LineChromeOptions {
    * The already-built guide background, or absent for a row that draws none. A
    * parameter rather than something computed here because the two surfaces
    * build it differently: the editor folds caret accents into the same
-   * comma-separated list, and the footer calls `plainGuideBackground`.
+   * comma-separated list, and `plainGuideBackground` builds a plain one for any
+   * surface that wants stripes without them. The footer passes nothing — it
+   * draws no guides.
    */
   readonly guides?: string | undefined;
   /**

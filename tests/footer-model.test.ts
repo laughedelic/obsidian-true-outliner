@@ -91,6 +91,24 @@ describe('footer model', () => {
     );
   });
 
+  it("carries each lineage element its own kind, not the chain leader's", () => {
+    // Every ancestor on a collapsed line is named by its own marker, so each
+    // segment has to bring its kind with it. Only a chain whose elements DIFFER
+    // can tell that apart from handing `row.kind` to all of them — this one is
+    // a heading above two list items, so a leader-for-everyone bug shows.
+    const rows = rowsFor('Backlinks/Branching arms.md');
+    const mixed = rows.find(
+      (r) => r.type === 'lineage' && new Set(r.segments.map((s) => s.kind)).size > 1,
+    );
+    expect(mixed).toBeDefined();
+    if (mixed?.type !== 'lineage') throw new Error('expected a mixed-kind lineage');
+
+    expect(mixed.segments.map((s) => s.kind)).toEqual(['heading', 'list-item', 'list-item']);
+    // The row's own marker stays the FIRST element's: that is what puts segment
+    // 0's icon in the gutter and leaves the rest to be drawn inline beside it.
+    expect(mixed.kind).toBe('heading');
+  });
+
   it('renders a frontmatter reference as a property row with no lineage', () => {
     const doc = parse(read('Backlinks/Severity study writeup.md'));
     const rows = buildRows(

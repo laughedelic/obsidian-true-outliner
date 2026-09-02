@@ -131,6 +131,9 @@ export type RowRender = 'markdown' | 'text' | 'code';
 export interface LineageSegment {
   readonly text: string;
   readonly nodeId: number;
+  /** This element's own kind, so every ancestor on the line is named rather
+   * than the chain standing for all of them under the first one's marker. */
+  readonly kind: LineDecorationFact['kind'];
 }
 
 /** `Notes/Sub/Thing.md` -> `{ name: 'Thing', folder: 'Notes/Sub' }`. */
@@ -395,7 +398,11 @@ export function buildRows(
         fact: rowFact(row.kind, row.depth),
         // First line only: continuation lines are context for reading a node,
         // not for naming it (docs/research/18, D5).
-        segments: row.elements.map((n) => ({ text: n.lines[0] ?? '', nodeId: n.id })),
+        segments: row.elements.map((n) => ({
+          text: n.lines[0] ?? '',
+          nodeId: n.id,
+          kind: n.kind,
+        })),
         kind: row.kind,
       });
       continue;

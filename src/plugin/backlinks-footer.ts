@@ -47,7 +47,6 @@ import {
   MARKER_LEFT_SHIFT_EXPR,
   applyLineChrome,
   lineChrome,
-  plainGuideBackground,
 } from './chrome-line';
 import { buildRows, splitPath, type FooterRow } from './footer-model';
 import type { BacklinkIndex } from './backlink-index';
@@ -411,14 +410,12 @@ class FooterController {
     // conformance matrix, which has to check that each kind got the treatment
     // its own rule promises.
     el.dataset.kind = row.type === 'node' ? row.fact.kind : row.type;
-    applyLineChrome(el, lineChrome(row.fact, {
-      nativeBlocks: false,
-      // A row with no ancestor row above it draws nothing, exactly as a
-      // top-level line in the editor does.
-      ...(row.guideDepths.length > 0
-        ? { guides: plainGuideBackground(row.guideDepths) }
-        : {}),
-    }));
+    // No `guides`. The footer is a quotation of a tree, not the tree itself, and
+    // at a card's scale the stripes crowded a body that is only ever a few rows
+    // deep — indentation alone carries the depth here. The model still reports
+    // `guideDepths`, so the decision is this one call site's to reverse when
+    // `backlinks-controls` makes it a setting.
+    applyLineChrome(el, lineChrome(row.fact, { nativeBlocks: false }));
 
     if (row.type === 'property') {
       el.addClass('is-property');
@@ -436,18 +433,21 @@ class FooterController {
       el.appendChild(markerSlot(buildMarkerIcon(row.kind)));
       const content = el.createSpan({ cls: 'to-backlinks-content' });
       row.segments.forEach((segment, i) => {
-        if (i > 0) {
-          const sep = content.createSpan({ cls: 'to-backlinks-sep' });
-          // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-          sep.appendChild(chevronGlyph(false));
-        }
         // Each ancestor is its own target. One handler on the row could only
         // open the note, which is not what "a lineage element navigates to that
         // ancestor" promises — a chain is several ancestors on one line.
-        const seg = content.createSpan({
-          cls: 'to-backlinks-seg',
-          text: firstLineText(segment.text),
-        });
+        const seg = content.createSpan({ cls: 'to-backlinks-seg' });
+        // Every ancestor names its own kind. The FIRST one's marker is the
+        // row's, already drawn in the gutter above, so only the rest need one
+        // here — and it goes inside the segment, not between two of them, so it
+        // shares that ancestor's link target and its hover rather than sitting
+        // in dead space.
+        if (i > 0) {
+          const icon = seg.createSpan({ cls: 'to-backlinks-seg-icon' });
+          // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
+          icon.appendChild(buildMarkerIcon(segment.kind));
+        }
+        seg.appendText(firstLineText(segment.text));
         // Focusable AND operable. `role="link"` with a tab stop and no key
         // handler is a control the keyboard can reach and cannot use, which is
         // worse than one it cannot reach at all — it advertises itself and then
@@ -781,11 +781,13 @@ function capChevron(up: boolean): SVGSVGElement {
 /**
  * The chevron, in both the orientations this file needs.
  *
- * Also the lineage separator, which used to be the text glyph `❯` (U+276F).
- * That is a DINGBAT: most UI fonts do not carry it, so it rendered from
- * whatever fallback the platform chose, at a weight and baseline nobody picked
- * and differing between machines. An SVG has none of that, and it means every
- * chevron in the footer — fold, cap, separator — comes from one path.
+ * Both chevrons in the footer — fold and cap — come from this one path.
+ *
+ * It was the lineage separator too, before every segment gained its own icon
+ * and the separator went. Before that it was the text glyph `❯` (U+276F), a
+ * DINGBAT most UI fonts do not carry: it rendered from whatever fallback the
+ * platform chose, at a weight and baseline nobody picked and differing between
+ * machines. Worth keeping in mind for any future mark — an SVG has none of that.
  */
 function chevronGlyph(open: boolean): SVGSVGElement {
   return glyph(16, [open ? 'M3 6l5 5 5-5' : 'M6 3l5 5-5 5'], {

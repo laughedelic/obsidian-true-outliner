@@ -47,6 +47,23 @@ export const CHROME_VARS = {
   trailWidth: '--to-trail-width',
 } as const;
 
+/**
+ * The marker glyph's box as a REFERENCE rather than a literal, for placement
+ * arithmetic that must survive a surface resizing its own markers.
+ *
+ * `.to-decor-marker-icon` takes its width, height, margin and baseline
+ * correction from this property, and its centre lands on the target column only
+ * while the horizontal shift agrees with them. Spelling the shift with the
+ * literal instead left the two free to disagree: overriding the property alone
+ * drifted the centre right by half the size delta — the column breaks silently,
+ * because everything still looks like a marker beside some text.
+ *
+ * The editor sets the property to exactly `MARKER_ICON_CSS`, so this changes no
+ * computed value there; it only makes a scoped override possible (the footer
+ * draws its markers smaller than the editor's).
+ */
+export const MARKER_ICON_VAR = `var(${CHROME_VARS.markerIcon}, ${MARKER_ICON_CSS})`;
+
 /** The expression every depth calculation multiplies by, on either surface.
  * No fallback: styles.css is the single declaration. */
 export const UNIT_EXPR = `var(${CHROME_VARS.unit})`;

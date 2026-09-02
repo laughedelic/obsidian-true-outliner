@@ -32,7 +32,14 @@ D14, D15).
   in-document backlinks section from our stylesheet. Turning it off restores both. There is no
   public API to read or change the core setting, so this is a deliberate one-way suppression
   the user can always reverse (D12).
-- **A settings tab section** for the caps and the coexistence toggle.
+- **A settings tab section** for the caps, the coexistence toggle, and the three appearance
+  settings deferred here from `backlinks-footer` (D19): **segment icons** on a lineage row (every
+  ancestor named, the default — or only the row's own marker, or none at all), **separator**
+  between ancestors (none, the default — or a chevron), and **guide lines** in the footer body
+  (off by default). Each is a rendering that change chose between and shipped one of; the model
+  still reports `guideDepths`, and the renderer is the single site that declines to draw them.
+  Colour and spacing are deliberately NOT settings: the chrome contract publishes the `--to-*`
+  custom properties, so a CSS snippet already covers them without new surface to maintain.
 - Not in this change: chronological mode (daily-notes filter with date-parsed sort), which is
   recorded as wanted and deferred (D15).
 
@@ -50,8 +57,8 @@ D14, D15).
   fade), and the rule that the reported count is always the true total even when the body is
   capped. The footer's unfiltered, uncapped rendering from the prior change becomes the special
   case of no filter and a cap not reached.
-- `plugin-shell`: gains settings for the two caps and the core-backlinks suppression, and the
-  stylesheet rule that suppression depends on.
+- `plugin-shell`: gains settings for the two caps, the core-backlinks suppression and the three
+  appearance settings, plus the stylesheet rule that suppression depends on.
 
 ## Impact
 

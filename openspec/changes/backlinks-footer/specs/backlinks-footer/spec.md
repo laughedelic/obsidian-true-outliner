@@ -81,8 +81,12 @@ point rather than each repeating it.
 
 Node kind notation — the marker drawn beside a node — SHALL be identical between a lineage
 element and a referencing node: same glyph for the same kind, same size, same colour. Emphasis
-SHALL be carried by text treatment alone, with lineage rendered smaller and dimmer than the
-referencing node it leads to.
+SHALL be carried by text treatment alone, with lineage rendered dimmer than the referencing node
+it leads to.
+
+Every element of a collapsed chain SHALL carry its own kind's marker: the first element's is the
+row's own marker, and each subsequent element's is drawn immediately before that element's text.
+No mark SHALL be drawn between two elements — they are separated by space alone.
 
 #### Scenario: Shared ancestors are not repeated
 
@@ -97,7 +101,13 @@ referencing node it leads to.
 #### Scenario: Markers do not encode emphasis
 
 - **WHEN** a lineage element and a referencing node are of the same kind
-- **THEN** their markers are drawn identically, and only the text differs in size and colour
+- **THEN** their markers are drawn identically, and only the text differs in colour
+
+#### Scenario: Every ancestor on a collapsed line is named
+
+- **WHEN** a lineage row carries three ancestors of two different kinds
+- **THEN** each is preceded by its own kind's marker — the first in the row's marker position,
+  the other two inline — and no separator glyph is drawn between them
 
 ### Requirement: A row renders node text, not a node document
 

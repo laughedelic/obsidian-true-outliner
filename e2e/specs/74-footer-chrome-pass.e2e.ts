@@ -160,15 +160,27 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     }
   });
 
-  it('gives a row with an ancestor row above it a guide, and a root row none', async function () {
+  /**
+   * The footer draws NO guides, at any depth — indentation alone carries depth
+   * here. Asserted over every row rather than over a deep one, because the bug
+   * this guards against is a row quietly regaining stripes, and a spot check on
+   * one depth would not see it.
+   *
+   * `backlinks-controls` makes this a setting. Until then the model still
+   * reports `guideDepths` and the renderer declines to use them, so the whole
+   * decision is one call site's — which is what this pins.
+   */
+  it('draws no guide lines, at any depth', async function () {
     await h.openNote(SMALL);
     await ensureOutlineMode(SMALL);
     await scrollToEnd();
 
     const rows = await rowChrome();
+    // A fixture with only root rows would pass this vacuously.
+    expect(rows.some((row) => Number(row.depth) > 0)).toBe(true);
     for (const row of rows) {
-      expect(row.guides).toBe(Number(row.depth) > 0);
-      expect(row.classes.includes('to-decor-guides')).toBe(Number(row.depth) > 0);
+      expect(row.guides).toBe(false);
+      expect(row.classes.includes('to-decor-guides')).toBe(false);
     }
   });
 
@@ -205,23 +217,95 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
   });
 
   /**
-   * The guide overlay is a `z-index: -1` pseudo-element, and negative-z children
-   * paint before the in-flow block backgrounds of their stacking context — so
-   * the group card's opaque background hid every guide until the row became a
-   * stacking context of its own. Nothing about the row's own computed style
-   * reveals that the guides are visible, so the mechanism is what is asserted.
+   * Every ancestor on a collapsed line is named by its own marker: the first
+   * one's is the row marker in the gutter, and the rest are drawn inline. So a
+   * chain of n elements carries n marks and n-1 of them sit inside the segments.
+   *
+   * Asserted by counting against the segments rather than against a fixed
+   * number, so the fixture can grow a branch without this needing an edit.
    */
-  it('scopes the guide overlay to the row, not to the card behind it', async function () {
+  it('names every ancestor on a lineage row, the first in the gutter', async function () {
     await h.openNote(SMALL);
     await ensureOutlineMode(SMALL);
     await scrollToEnd();
 
-    const isolated = await browser.executeObsidian(() => {
+    const chains = await browser.executeObsidian(() => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
-      const row = root?.querySelector<HTMLElement>('.to-backlinks-row.to-decor-guides');
-      return row ? getComputedStyle(row).isolation : '<no guided row>';
+      if (!root) return [];
+      return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row.is-lineage')).map(
+        (el) => ({
+          segments: el.querySelectorAll('.to-backlinks-seg').length,
+          inlineIcons: el.querySelectorAll('.to-backlinks-seg .to-backlinks-seg-icon').length,
+          rowMarkers: el.querySelectorAll(':scope > .to-decor-marker-icon').length,
+          // The mark that used to sit between two names, and must not return.
+          separators: el.querySelectorAll('.to-backlinks-sep').length,
+          // A leading icon on segment 0 would double the gutter marker.
+          firstHasIcon:
+            el.querySelector('.to-backlinks-seg')?.querySelector('.to-backlinks-seg-icon') != null,
+        }),
+      );
     });
-    expect(isolated).toBe('isolate');
+
+    expect(chains.length).toBeGreaterThan(0);
+    // A one-element chain has no inline icon at all, so it cannot show the bug.
+    expect(chains.some((c) => c.segments > 1)).toBe(true);
+    for (const chain of chains) {
+      expect(chain.rowMarkers).toBe(1);
+      expect(chain.inlineIcons).toBe(chain.segments - 1);
+      expect(chain.firstHasIcon).toBe(false);
+      expect(chain.separators).toBe(0);
+    }
+  });
+
+  /**
+   * The footer draws its markers smaller than the editor's, and the two sizes it
+   * uses must be ONE size: the row marker in the gutter and the icons inline
+   * beside it sit on the same line, so any disagreement reads immediately.
+   *
+   * The relationship, never the pixels — CI's font is not this machine's, and a
+   * fitted number would encode the wrong one (`0.8em` of a `0.92em` row resolves
+   * differently under a different root size).
+   */
+  it('draws every footer mark at one size, on its column', async function () {
+    await h.openNote(SMALL);
+    await ensureOutlineMode(SMALL);
+    await scrollToEnd();
+
+    const sizes = await browser.executeObsidian(() => {
+      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+      const chain = root?.querySelector<HTMLElement>('.to-backlinks-row.is-lineage');
+      const marker = chain?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+      const inline = chain?.querySelector<HTMLElement>('.to-backlinks-seg-icon');
+      // A DEPTH-0 row, where the arithmetic below has no depth term: its text
+      // starts one gutter in, and a marker centred on `text - gutter` therefore
+      // sits exactly on the row's own left edge. No CSS length has to be read
+      // back for that — and none can be: a custom property hands back the
+      // SPECIFIED value (`1.25rem`), not resolved pixels.
+      const root0 = root?.querySelector<HTMLElement>('.to-backlinks-row[style*="--to-depth: 0"]');
+      const marker0 = root0?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+      if (!root || !chain || !marker || !inline || !root0 || !marker0) return null;
+
+      const box = marker0.getBoundingClientRect();
+      return {
+        markerW: marker.getBoundingClientRect().width,
+        inlineW: inline.getBoundingClientRect().width,
+        // The editor's own constant, resolved: 0.85rem against the root font.
+        editorW: parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.85,
+        centreOffset: box.left + box.width / 2 - root0.getBoundingClientRect().left,
+      };
+    });
+
+    expect(sizes).not.toBeNull();
+    // One size for both marks in the footer.
+    expect(Math.abs(sizes!.markerW - sizes!.inlineW)).toBeLessThan(0.5);
+    // And smaller than the editor's, which is the point of scoping it at all.
+    expect(sizes!.markerW).toBeLessThan(sizes!.editorW);
+    // The column did not move with the size. This is what breaks if the shift
+    // expression goes back to spelling the icon size as a literal while
+    // `--to-marker-icon-size` is overridden: the centre drifts right by half the
+    // delta — under a pixel, and every marker still looks like a marker beside
+    // some text, which is why the tolerance is tighter than that drift.
+    expect(Math.abs(sizes!.centreOffset)).toBeLessThan(0.5);
   });
 
   it('renders the corpus in both bundled themes', async function () {

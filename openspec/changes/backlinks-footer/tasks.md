@@ -166,6 +166,12 @@ next begins; green unit tests are never the gate for anything visual.
 - [x] 8b.7 Extend `Backlinks/Kinds gallery.md` so every kind in the D18 table has a reference,
       including a hard-wrapped paragraph, a multi-row table with a header, and a titled callout
       whose reference sits in the BODY rather than the title
+- [x] 8b.8 Name every ancestor on a collapsed lineage row with its own kind's marker, and take
+      out the separator between them (D19). Uniform `0.8em` marks across the footer, muted rather
+      than faint, and no guide lines. The footer-wide scoping is the requirement, not a detail:
+      D4 forbids a marker encoding emphasis, so lineage and reference markers stay identical.
+      Requires `MARKER_LEFT_SHIFT_EXPR` to read the icon-size property instead of the literal, or
+      resizing the marker drifts it off its column by half the delta
 
 ## 8c. Conformance matrix (replaces spot-checking)
 

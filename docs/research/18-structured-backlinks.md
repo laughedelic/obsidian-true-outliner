@@ -368,6 +368,50 @@ reading-mode rendering problem solved once. That was wrong and is corrected ther
 must be faithful, because it *is* the document, while the footer must not be. What the two
 genuinely share is the chrome contract in `chrome-line.ts` — depth, guides, markers, the column.
 
+### D19. A lineage names every ancestor, and nothing stands between them
+
+**Revises D4's application to a collapsed chain.** D4 settled that a marker is notation, and a
+chain took one — its *first* element's. On a two-element chain that is harmless. Deeper, it is
+misleading in a specific way: the marker names the top of the trail while the reader is trying
+to see what the mention hangs off, which is the *last* element. A four-deep chain under a
+heading reported "heading" and said nothing about the list item the mention actually sat in.
+
+Picking the last element instead would have fixed that case and broken the mirror one. The
+answer is that a collapsed chain is several ancestors on one line, so it needs several marks:
+**every element carries its own kind's marker.** The first element's is the row marker already
+in the gutter; the rest are drawn inline, immediately before the text they name. Nothing is
+picked, so nothing is misreported.
+
+Four consequences follow, and they are one decision rather than four preferences:
+
+- **No separator.** A chevron divided the names when they were bare words. With an icon leading
+  every name, two marks sit between each pair and only one of them carries information. Space
+  alone divides them — the width the chevron's own margins held, so the chain's rhythm is
+  unchanged.
+- **One size, smaller than the editor's.** At the editor's `0.85rem` a four-deep trail reads as
+  a row of buttons. Every mark in the footer is `0.8em` of its row instead, which is also the
+  inline icons' size, so the two agree by construction rather than by two numbers kept in step.
+  The marker's *centre* is anchored independently of its size, so the column does not move —
+  but only because the placement arithmetic reads the size property rather than the literal
+  (`MARKER_ICON_VAR`; spelled as a literal, the centre drifts by half the delta, and the result
+  looks like a marker beside some text either way).
+- **Muted, not faint.** A `0.8em` mark at `--text-faint` is below reading. Applied footer-wide
+  and never to lineage alone: D4 forbids a marker encoding emphasis, so a lineage element and a
+  reference of the same kind stay identically drawn, and the text carries the difference.
+- **No guide lines.** The stripes crowded a body that is only ever a few rows deep, and with a
+  mark now on every segment they competed with the notation. Indentation carries depth here.
+  The footer is a quotation of a tree, not the tree.
+
+Chosen against real fixture content at the footer's true geometry, by rendering the
+alternatives — every-segment, last-only, row-marker-takes-the-last, and none-at-all — side by
+side and looking, in both themes. Not by argument.
+
+**Configurability is deferred, deliberately.** Each of these is a plausible setting, and
+`backlinks-controls` is where the three worth having go (segment icons, separator, guide lines).
+Shipping them here would have meant designing a settings surface before the default it varies
+had been chosen. The colour and spacing knobs are not planned as settings at all: the chrome
+contract publishes `--to-*` custom properties, so a CSS snippet already covers them.
+
 ## Open questions
 
 1. **Footer collapse state** — per note, global, or not persisted?

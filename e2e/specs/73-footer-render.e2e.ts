@@ -41,7 +41,7 @@ function dump(): Promise<string[]> {
     root.querySelectorAll('.to-backlinks-head, .to-backlinks-group-head, .to-backlinks-row, .to-backlinks-resolving')
       .forEach((el) => {
         // Only the footer's OWN classes name what a line is. A row also carries
-        // the editor's chrome classes (`to-decor-block`, `to-decor-guides`),
+        // the editor's chrome classes (`to-decor-block`, `to-decor-atom`),
         // which say how it is drawn, not what it is — including them here would
         // make every assertion below sensitive to a layout change.
         const cls = Array.from(el.classList)
