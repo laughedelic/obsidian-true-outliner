@@ -1,0 +1,2 @@
+/openspec-apply-change marker-text-gap.
+start by creating a branch for this. it will be a stacked PR on top of feat/backlinks-footer (#64 pr). that change is not finished yet, but it will be wrapped up before this gets merged. so take that into account.
