@@ -13,18 +13,18 @@
  * bullet's box is zero-width with the dot painted by an `::after`, so a gutter
  * checked against boxes would be checked against reserved space.
  *
- * Assert the RELATIONSHIP, never a glyph's width — CI's font is not a
- * developer's, and an ordered number's ink is the font's business. The two
- * pixel-valued assertions here are both font-INDEPENDENT: a checkbox is sized
- * from `--checkbox-size`, and the stated gap is a constant this spec imports
- * rather than spells. Which of the four marks is widest is NOT font-independent
- * — a wide enough font makes it the ordered number rather than the checkbox —
- * so nothing here assumes an ordering between those two.
+ * Assert the RELATIONSHIP, never a pixel a theme or a font decides. The only
+ * constant here is the stated gap, imported rather than spelled; every other
+ * quantity is this run's own measurement. In particular nothing names WHICH mark
+ * is widest: a checkbox is `--checkbox-size`, which Obsidian resolves
+ * differently per platform, and an ordered number's ink is whatever the reader's
+ * font draws. Both were assumed once and both were wrong — the checkbox on
+ * mobile, the ordered number on CI's Linux font.
  */
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
-import { MARKER_GAP_REM, WIDEST_MARK_INK_REM } from '../../src/plugin/chrome-tokens';
+import { MARKER_GAP_REM } from '../../src/plugin/chrome-tokens';
 
 interface Mark {
   kind: 'block-icon' | 'bullet' | 'checkbox' | 'ordered';
@@ -267,20 +267,43 @@ describe('the marker gutter is derived from the marks it holds', function () {
     for (const m of four) expect(m.textX).toBeCloseTo(four[0]!.textX, 1);
   });
 
-  it('leaves the widest qualifying mark exactly the stated gap from its text', async function () {
+  it('leaves the widest layer-sized mark exactly the stated gap from its text', async function () {
     const r = await open(FOUR_MARKS);
-    const checkbox = of(r, 'checkbox');
 
-    // The derivation's measured input. A checkbox is `--checkbox-size` and so
-    // is font-independent, which is what makes this assertable in pixels at
-    // all: if a theme resizes it, the derivation is stale and says so here
-    // rather than in a reader's misaligned outline.
-    expect(checkbox.inkRight).toBeCloseTo(WIDEST_MARK_INK_REM * r.remPx, 1);
+    // Found by measurement, not named: which of them is widest is the theme's
+    // business, and it changes. Naming the checkbox here would have asserted one
+    // platform's answer — measured, its `--checkbox-size` is 16px on desktop and
+    // 18.4px on mobile — and would have passed while the other platform's task
+    // row sat off the shared column.
+    const sized = siblings(r).filter((m) => m.kind !== 'ordered');
+    expect(sized.length).toBe(3);
+    const widest = sized.reduce((a, b) => (b.inkRight > a.inkRight ? b : a));
 
-    // ...and the derivation itself: gutter = that ink, plus the stated gap and
-    // nothing more. This is the assertion that fails if the constant is set
-    // to a number that merely works.
-    expect(checkbox.textX - checkbox.inkRight).toBeCloseTo(MARKER_GAP_REM * r.remPx, 1);
+    // The derivation itself: the gutter is that mark's ink plus the stated gap
+    // and nothing more. No pixel value of its own — the ink is this run's
+    // measurement and the gap is the constant — so it holds on any theme, and
+    // fails if the gutter stops being derived from what it has to hold.
+    expect(widest.textX - widest.inkRight).toBeCloseTo(MARKER_GAP_REM * r.remPx, 1);
+
+    // ...and nothing narrower is closer to its text than that.
+    for (const m of sized) {
+      expect(m.textX - m.inkRight).toBeGreaterThanOrEqual(MARKER_GAP_REM * r.remPx - 0.1);
+    }
+  });
+
+  /**
+   * An ordered number is drawn by the reader's FONT, so its ink is not a term in
+   * the derivation and its clearance is not the stated gap — measured, `1. ` is
+   * about 2px wider on CI's Linux font than on macOS. What it is owed is the
+   * floor its own box mechanism sets, which is what keeps it on the shared
+   * column; the test above covers that for every kind.
+   */
+  it('gives a font-drawn mark the floor rather than the stated gap', async function () {
+    const r = await open(FOUR_MARKS);
+    const ordered = of(r, 'ordered');
+    expect(ordered.textX - ordered.inkRight).toBeGreaterThanOrEqual(r.spaceAdvance);
+    // Still on the column: the derivation's actual promise for this kind.
+    expect(ordered.textX).toBeCloseTo(of(r, 'checkbox').textX, 1);
   });
 
   it('keeps every mark clear of its own text by at least one space’s advance', async function () {

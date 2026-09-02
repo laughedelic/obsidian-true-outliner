@@ -16,6 +16,19 @@ between kinds is the room left beside a mark narrower than that one, and never t
 text begins on: one gutter and marks of differing widths cannot deliver both a constant gap and
 a shared column, and the shared column is the one this layer is for.
 
+A qualifying mark whose size the READER'S ENVIRONMENT sets SHALL enter the derivation as that
+live value rather than as a number recorded from one environment. A checkbox is such a mark: it
+is drawn at the theme's own size, which the host resolves differently per platform, so a
+constant taken from one platform is wrong on another — and wrong in this layer's characteristic
+way, the mark rendering perfectly while its own text leaves the shared column.
+
+A qualifying mark whose ink the reader's FONT draws — a single-digit ordered number — CANNOT be
+a term in the derivation, its width being unknown before layout. Such a mark is guaranteed the
+FLOOR below rather than the stated gap, and the guarantee that matters for it is the shared
+column, not the distance. Where a font makes such a mark wider than the derivation allowed for,
+it spends part of the stated gap, and only once it would cross the floor does it leave the
+column — which the requirement's own scenario catches.
+
 The stated gap SHALL NOT be smaller than the advance of one space in the reader's font. This is
 a floor the existing mechanism sets rather than a preference: every mark whose row is written
 with a single space after it is sized as "the gutter, less one space", with that space
@@ -35,8 +48,8 @@ siblings', and that SHALL be accepted rather than corrected. Widening the gutter
 widest possible number fits is explicitly rejected: it would loosen every ordinary row to spare
 an occasional one, which is the opposite of what the gutter is being derived for.
 
-The measurements the derivation rests on SHALL be taken in ONE pass, across the bundled themes,
-against the rules currently in force. A value recorded by an earlier investigation SHALL NOT be
+The measurements the derivation rests on SHALL be taken in ONE pass, across the bundled themes
+AND the supported platforms, against the rules currently in force. A value recorded by an earlier investigation SHALL NOT be
 combined with one taken here — the marks are positioned by rules that have changed since, so
 figures from different passes do not describe the same rendering and cannot be compared.
 
@@ -65,6 +78,12 @@ on the column on both.
 - **WHEN** the derived gutter is smaller than the previous value
 - **THEN** every depth's column is where it was, each level remains one unit from the next, and
   only the distance between a mark and its own text changes
+
+#### Scenario: A platform that sizes a mark differently keeps its text on the column
+
+- **WHEN** the same outline renders where the host resolves a qualifying mark's own size to a
+  larger value than the environment the derivation was measured in
+- **THEN** the gutter grows with that mark, and every kind's text still begins on one column
 
 #### Scenario: A surface with smaller marks keeps its marks on the column
 

@@ -538,7 +538,12 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         const content = el.querySelector(':scope > .to-backlinks-content');
         if (!ordinal || !content) continue;
         const digits = inkRight(ordinal);
-        const text = content.getBoundingClientRect().left;
+        // The FIRST line box, not the union. A row's content wraps on a narrow
+        // viewport, and `getBoundingClientRect()` then spans every line — whose
+        // left edge is the continuation's, further left than the first line
+        // starts, so the clearance came out negative on a row that was fine.
+        const first = content.getClientRects()[0];
+        const text = first ? first.left : content.getBoundingClientRect().left;
         if (digits === null) continue;
         gaps.push({ label: (ordinal.textContent ?? '').trim(), clearance: text - digits });
       }

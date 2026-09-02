@@ -38,36 +38,44 @@ export const DECOR_UNIT_REM = 1.5;
 export const MARKER_GAP_REM = 0.375;
 
 /**
- * How far the widest QUALIFYING mark's ink reaches right of its own column.
+ * The ink the gutter reserves whatever the theme does — a floor, not the answer.
  *
- * Measured, and only true with respect to a measurement — the marks are drawn by
- * the reader's font and theme. A mark qualifies when this layer positions it on
- * the column and its width does not depend on its own content: the synthetic
- * block icon, a native bullet, a task checkbox, and a single-digit ordered
- * number. On the bundled themes the widest is the checkbox, at half its own
- * `--checkbox-size`.
+ * It covers the marks this layer draws for itself, which are much narrower than
+ * this (an icon's glyph, a bullet's dot), and it is set well above them for a
+ * second reason: a single-digit ordered number's own box is sized "gutter less
+ * one space", so a gutter that collapsed to the icon's width would push an
+ * ordered item's text off the column its siblings share.
  *
- * A multi-digit ordered number is deliberately not among them; it is permitted
- * to lean right into its own text's space instead. See the research doc, which
- * records what each mark measured and why that exclusion is the cheaper trade.
+ * A checkbox is not covered here, because it is not ours to predict — see the
+ * expression below.
  */
-export const WIDEST_MARK_INK_REM = 0.5;
+export const MIN_MARK_INK_REM = 0.5;
+
+/** The marker glyph's own box. */
+export const MARKER_ICON_REM = 0.85;
 
 /**
  * Horizontal room reserved for a block marker, left of a node's content.
  *
- * DERIVED, not chosen — that is what the two constants above are for. Lowering
- * it past what the widest mark needs does not clip that mark: it pushes that one
- * kind's text off the column every other kind shares, which reads as a rendering
- * bug rather than as a value set too small. The derivation's e2e spec is what
- * holds it.
+ * DERIVED, and derived AT RENDER TIME rather than frozen into a number here.
+ *
+ * The widest mark this layer positions is a task's checkbox, and its size is the
+ * theme's — `--checkbox-size`, which Obsidian resolves differently per platform
+ * (measured: 16px on desktop, 18.4px on mobile). A constant taken from one of
+ * them is wrong on the other, and wrong in the quiet way this whole derivation
+ * exists to prevent: the checkbox does not clip, its own text simply leaves the
+ * column every other kind's text sits on. So the checkbox term reads the live
+ * value and the arithmetic happens in CSS.
+ *
+ * What is NOT in the max is any mark drawn by the reader's FONT — a single-digit
+ * ordered number. Its ink is a glyph's width, unknowable before layout, so it
+ * cannot be a term here; the guarantee it gets instead is the floor its own box
+ * mechanism sets (one space's advance), which is what keeps it on the shared
+ * column. docs/research/21-marker-text-gap.md records both halves.
  */
-export const MARKER_GUTTER_REM = WIDEST_MARK_INK_REM + MARKER_GAP_REM;
-/** The marker glyph's own box. */
-export const MARKER_ICON_REM = 0.85;
-
 export const DECOR_UNIT_CSS = `${DECOR_UNIT_REM}rem`;
-export const MARKER_GUTTER_CSS = `${MARKER_GUTTER_REM}rem`;
+export const MARKER_GUTTER_CSS =
+  `calc(max(${MIN_MARK_INK_REM}rem, var(--checkbox-size, 1rem) / 2) + ${MARKER_GAP_REM}rem)`;
 export const MARKER_GAP_CSS = `${MARKER_GAP_REM}rem`;
 export const MARKER_ICON_CSS = `${MARKER_ICON_REM}rem`;
 
