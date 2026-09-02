@@ -1611,6 +1611,16 @@ body {
   margin-inline-start: 0.7em;
 }
 
+/* An ordered ancestor's number, inline, where every other kind gets an icon.
+ * Not the gutter's `.to-backlinks-ordinal` treatment: that one is a fixed slot
+ * with a negative margin, which belongs to a marker column this mark is not in.
+ * Here the number simply takes the width it needs, ahead of the name it labels. */
+.to-backlinks-seg-ord {
+  margin-inline-end: 0.3em;
+  color: var(--to-backlinks-mark);
+  font-variant-numeric: tabular-nums;
+}
+
 .to-backlinks-row.is-reference .to-backlinks-content {
   color: var(--text-normal);
 }

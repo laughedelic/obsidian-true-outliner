@@ -540,6 +540,107 @@ describe('backlinks footer: behaviour', function () {
     expect(shape!.onLineage).toBe(0);
   });
 
+  /**
+   * Review found this: `htmlTextOf` says it leaves entities "to the DOM", but
+   * the DOM never saw them — `setText` writes textContent, which escapes rather
+   * than decodes, so `A &amp; B` displayed the source of the ampersand.
+   *
+   * Asserted on the RENDERED text, which is the only place the bug was visible:
+   * the model's string legitimately still carries `&amp;`.
+   */
+  it('shows an HTML block’s entities as characters, not as their source', async function () {
+    await openFooter(TARGET);
+    const text = await browser.executeObsidian(() => {
+      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+      const row = Array.from(root?.querySelectorAll('.to-backlinks-row') ?? []).find((r) =>
+        (r.textContent ?? '').includes('An HTML block mentions'),
+      );
+      return row?.textContent ?? '<no html row>';
+    });
+    expect(text).toContain('An HTML block mentions');
+    expect(text).toContain('& entities');
+    expect(text).not.toContain('&amp;');
+  });
+
+  /**
+   * Review found this: a node row was clickable and nothing else. A keyboard-only
+   * reader could tab to the links inside a mention — which open the LINK's own
+   * target — and had no way at all to reach what the row is for, the referencing
+   * node. Lineage segments already carried this; node rows did not.
+   */
+  it('opens a reference from the keyboard, not only from a click', async function () {
+    await openFooter(HUB);
+
+    const focused = await browser.executeObsidian((_ctx, groupName: string) => {
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      for (const card of Array.from(cards)) {
+        if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
+        const rows = card.querySelectorAll<HTMLElement>('.to-backlinks-row');
+        const row = rows[rows.length - 1];
+        if (!row) return null;
+        return {
+          role: row.getAttribute('role'),
+          tabIndex: row.tabIndex,
+          // Focused directly: tabbing there from the editor would cross every
+          // row above it, and what is under test is the row, not the tab order.
+          ok: (row.focus(), document.activeElement === row),
+        };
+      }
+      return null;
+    }, 'Deep chain');
+
+    expect(focused).not.toBeNull();
+    expect(focused!.role).toBe('link');
+    expect(focused!.tabIndex).toBe(0);
+    expect(focused!.ok).toBe(true);
+
+    await browser.keys('Enter');
+    await browser.pause(700);
+
+    expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
+      DEEP_SOURCE,
+    );
+    // At the node, the same as a click — the keyboard path is the same promise.
+    expect((await h.getCursor()).line).toBe(7);
+  });
+
+  /**
+   * The same promise for a lineage segment, which shipped with `role="link"` and
+   * a tab stop and was INERT: its handler prevented the default before calling
+   * `open`, whose first guard is `defaultPrevented` — so it vetoed its own call.
+   * A focusable control that does nothing is worse than one you cannot reach,
+   * and only a keyboard test could see it.
+   */
+  it('opens a lineage segment from the keyboard', async function () {
+    await openFooter(HUB);
+
+    const ready = await browser.executeObsidian((_ctx, groupName: string) => {
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      for (const card of Array.from(cards)) {
+        if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
+        const segs = card.querySelectorAll<HTMLElement>('.to-backlinks-row.is-lineage .to-backlinks-seg');
+        const last = segs[segs.length - 1];
+        if (!last) return null;
+        last.focus();
+        return { count: segs.length, focused: document.activeElement === last };
+      }
+      return null;
+    }, 'Deep chain');
+
+    expect(ready).not.toBeNull();
+    expect(ready!.count).toBeGreaterThan(1);
+    expect(ready!.focused).toBe(true);
+
+    await browser.keys('Enter');
+    await browser.pause(700);
+
+    expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
+      DEEP_SOURCE,
+    );
+    // The chain's LAST ancestor, line 6 — the same answer its click gives.
+    expect((await h.getCursor()).line).toBe(6);
+  });
+
   // ---- 9b.3 navigation's remaining promises -------------------------------
 
   /**

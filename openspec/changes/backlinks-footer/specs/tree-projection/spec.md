@@ -65,8 +65,11 @@ consumer of a parsed document — including the decoration fact layer — accept
 special-casing and derives the same per-node facts it would derive for those nodes in a document
 where they sat at the same relative depths.
 
-Depth in a projection SHALL be measured within the projection, not inherited from the source: a
-node whose source ancestors were all pruned SHALL be at depth 0.
+Depth in a projection SHALL be measured within the projection, not inherited from the source.
+Because this operation retains every ancestor of a match, the two coincide for a match: its
+depth in the projection equals its depth in the source, and a match with no ancestors is at
+depth 0. What the rule forbids is a node carrying a remembered source depth — a consumer reads
+the tree it was handed, and nothing else.
 
 #### Scenario: The decoration fact layer accepts a projection
 
@@ -75,10 +78,11 @@ node whose source ancestors were all pruned SHALL be at depth 0.
   kind and atom/list-item classification matching what the same nodes yield in the source
   document
 
-#### Scenario: Depth is relative to the projection
+#### Scenario: Depth is the projection's own
 
-- **WHEN** every ancestor of a match is pruned because the caller requested no ancestors
-- **THEN** the match is at depth 0 in the projection
+- **WHEN** a match three levels deep is projected, and a match at the document root is projected
+- **THEN** the first is at depth 3 with its three ancestors above it, and the second is at depth
+  0 — each depth read from the projection itself, with no source depth carried across
 
 **Covered by**: `tests/project.test.ts` ("project: properties" — idempotent, preserves source
 document order, a predicate matching everything reproduces the source, never synthesises a

@@ -129,11 +129,21 @@ export type RowRender = 'markdown' | 'text' | 'code';
 
 /** One element of a collapsed lineage chain. */
 export interface LineageSegment {
+  /** The element's own text, with its block syntax already removed — including
+   * the checkbox and the ordered number, which are drawn as the marker. Stripped
+   * here rather than in the renderer so a segment and a node row of the same
+   * kind say the same thing. */
   readonly text: string;
   readonly nodeId: number;
   /** This element's own kind, so every ancestor on the line is named rather
    * than the chain standing for all of them under the first one's marker. */
   readonly kind: LineDecorationFact['kind'];
+  /** A task ancestor's state, drawn in its marker's place — the same rule a node
+   * row follows (D18). Without it a task ancestor took the generic bullet and
+   * kept its `[x]` in the text: the state said twice, in the wrong channel. */
+  readonly task?: boolean | undefined;
+  /** An ordered ancestor's own label, likewise drawn as its marker. */
+  readonly ordinal?: string | undefined;
 }
 
 /** `Notes/Sub/Thing.md` -> `{ name: 'Thing', folder: 'Notes/Sub' }`. */
@@ -297,12 +307,17 @@ const TABLE_SEPARATOR = /^\s*\|?[\s:|-]+\|?\s*$/;
  * more than one link and only one of them is the reason this row exists.
  */
 function tableTextOf(node: OutlineNode, ref: PlacedReference | undefined): string {
+  // Unescaped delimiters only. A table cell writes an aliased link as
+  // `[[Target\\|alias]]`, because a bare pipe there WOULD be a column break —
+  // so splitting on every pipe cut that cell in two, left no cell containing the
+  // reference's own text, and fell through to displaying the first cell instead.
+  // The escape is a table-syntax artefact, so it comes back out of the cell text.
   const cellsOf = (line: string): string[] =>
     line
       .replace(/^\s*\|/, '')
-      .replace(/\|\s*$/, '')
-      .split('|')
-      .map((c) => c.trim());
+      .replace(/(?<!\\)\|\s*$/, '')
+      .split(/(?<!\\)\|/)
+      .map((c) => c.replace(/\\\|/g, '|').trim());
 
   const at = ref?.line !== undefined ? node.lines[ref.line] : undefined;
   const row = at !== undefined && !TABLE_SEPARATOR.test(at) ? at : node.lines[0];
@@ -325,7 +340,12 @@ function calloutTextOf(node: OutlineNode, refLine: number | undefined): string {
     const body = node.lines[refLine];
     if (body !== undefined) return stripBlockPrefix(body);
   }
-  const title = stripBlockPrefix(node.lines[0] ?? '').replace(/^\[![a-zA-Z-]+\][-+]?\s*/, '').trim();
+  // Through the closing bracket, not a guessed alphabet. `parse.ts` classifies
+  // ANY `> [!…` line as a callout (CALLOUT_RE), so restricting the identifier to
+  // letters and hyphens here left `[!type_2]` or `[!step1]` classified as a
+  // callout and its token leaking into the row — the kind said twice, which is
+  // exactly what dropping the token is for.
+  const title = stripBlockPrefix(node.lines[0] ?? '').replace(/^\[![^\]]*\][-+]?\s*/, '').trim();
   // An untitled callout has only its type; its first body line names it instead.
   if (title.length > 0) return title;
   return stripBlockPrefix(node.lines[1] ?? '');
@@ -385,6 +405,17 @@ export function buildRows(
   const factFor = (node: OutlineNode): LineDecorationFact | undefined => facts.get(node);
   /** Nodes already given a row, so neither pass renders one twice. */
   const emitted = new Set<number>();
+  /**
+   * Every node the reader can actually SEE, by any route — a node row from
+   * either pass, or a segment on a lineage line.
+   *
+   * Deliberately not `emitted`, which governs which pass wins and must keep
+   * meaning exactly that: a lineage element is visible but is not "given a row",
+   * and folding the two together would change the dedup.
+   */
+  const visible = new Set<number>();
+  /** Rows whose fold count can only be computed once the walk is done. */
+  const folds: Array<{ index: number; node: OutlineNode }> = [];
 
   for (const row of collapseLineage(projected.children, matches)) {
     if (row.type === 'lineage') {
@@ -398,11 +429,20 @@ export function buildRows(
         fact: rowFact(row.kind, row.depth),
         // First line only: continuation lines are context for reading a node,
         // not for naming it (docs/research/18, D5).
-        segments: row.elements.map((n) => ({
-          text: n.lines[0] ?? '',
-          nodeId: n.id,
-          kind: n.kind,
-        })),
+        segments: row.elements.map((n) => {
+          visible.add(n.id);
+          const task = taskStateOf(n);
+          const ordinal = ordinalOf(n);
+          return {
+            // First line only: continuation lines are context for reading a
+            // node, not for naming it (docs/research/18, D5).
+            text: stripBlockPrefix(n.lines[0] ?? ''),
+            nodeId: n.id,
+            kind: n.kind,
+            ...(task !== undefined ? { task } : {}),
+            ...(ordinal ? { ordinal } : {}),
+          };
+        }),
         kind: row.kind,
       });
       continue;
@@ -415,6 +455,7 @@ export function buildRows(
     // which drops the non-matching siblings between them.
     if (emitted.has(row.node.id)) continue;
     emitted.add(row.node.id);
+    visible.add(row.node.id);
     rows.push({
       type: 'node',
       depth: row.depth,
@@ -438,6 +479,26 @@ export function buildRows(
     // already being walked by the match above it.
     const source = row.isMatch ? sourceById.get(row.node.id) : undefined;
     if (source) emitDescendants(source.children, row.depth + 1, DESCENDANT_DEPTH);
+  }
+
+  /*
+   * A fold reports what it actually withholds, which can only be known once
+   * every pass has run.
+   *
+   * Counted at push time it was every descendant, and that over-reports: a
+   * nested reference under a folded context row is emitted anyway — the lineage
+   * pass renders every match wherever it sits — so a row could say "+2" with one
+   * of the two already on screen beneath it, and expanding it revealed less than
+   * it promised or nothing at all.
+   *
+   * Descending stops at anything visible, because a visible node reports its own
+   * subtree through its own fold. Counting through it would attribute the same
+   * hidden rows to two different controls.
+   */
+  for (const { index, node } of folds) {
+    const row = rows[index];
+    if (row?.type !== 'node') continue;
+    rows[index] = { ...row, foldedCount: hiddenBelow(node, visible) };
   }
 
   return rows;
@@ -469,6 +530,7 @@ export function buildRows(
     for (const node of nodes) {
       if (emitted.has(node.id)) continue;
       emitted.add(node.id);
+      visible.add(node.id);
       const isMatch = matches(node);
       const open = expanded(node);
       // A reference is substance, not context: the depth bound describes how
@@ -477,9 +539,8 @@ export function buildRows(
       // applies to what is shown BELOW the node, not to the node itself — a
       // match's own children are shown, so it folds nothing.
       const childBudget = isMatch ? DESCENDANT_DEPTH : open ? remaining : remaining - 1;
-      const hidden = !isMatch && node.children.length > 0 && remaining === 1 && !open
-        ? countDescendants(node)
-        : 0;
+      const willFold = !isMatch && node.children.length > 0 && remaining === 1 && !open;
+      if (willFold) folds.push({ index: rows.length, node });
       rows.push({
         type: 'node',
         depth,
@@ -491,7 +552,8 @@ export function buildRows(
         fact: syntheticFact(node, depth),
         isReference: isMatch,
         referenceKind: isMatch ? refOf(node)?.kind : undefined,
-        foldedCount: hidden,
+        // Filled in after the walk — see `folds`.
+        foldedCount: 0,
       });
       // `open` lets one row escape the depth bound, which is exactly what
       // expanding it means.
@@ -545,11 +607,14 @@ function syntheticFact(node: OutlineNode, depth: number): LineDecorationFact {
   };
 }
 
-/** Every node beneath `node`, at any depth. */
-function countDescendants(node: OutlineNode): number {
+/** How many nodes beneath `node` this fold actually withholds: everything not
+ * already on screen by another route, not descending past one. */
+function hiddenBelow(node: OutlineNode, visible: ReadonlySet<number>): number {
   let total = 0;
   const walk = (nodes: readonly OutlineNode[]): void => {
     for (const child of nodes) {
+      // On screen by some other route, and the owner of its own subtree's count.
+      if (visible.has(child.id)) continue;
       total += 1;
       walk(child.children);
     }

@@ -55,6 +55,14 @@ if (argv.includes('--group')) {
   }
   specArgs.push(...specs.flatMap((spec) => ['--spec', spec]));
 }
+
+/**
+ * Whether this run will execute any spec from an exclusive group — true for the
+ * group itself, and true for the whole suite, which contains it.
+ */
+const runsExclusiveSpecs = argv.includes('--group')
+  ? EXCLUSIVE_GROUPS.has(group)
+  : Object.keys(specGroups()).some((g) => EXCLUSIVE_GROUPS.has(g));
 // Resolved before the build, so a missing install fails loudly and changes nothing.
 const wdio = binPath('wdio');
 
@@ -87,11 +95,20 @@ try {
     ['run', mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts', ...specArgs],
     {
       ...(mobile ? { OBSIDIAN_E2E_MOBILE: '1' } : {}),
-      // A group that contends for a machine-global resource runs one instance
-      // at a time, whatever the caller asked for. Overriding rather than
-      // trusting the caller because the constraint belongs to the specs, not to
-      // whoever happens to be invoking them.
-      ...(EXCLUSIVE_GROUPS.has(group) ? { E2E_MAX_INSTANCES: '1' } : {}),
+      // A run that includes specs contending for a machine-global resource goes
+      // one instance at a time, whatever the caller asked for. The constraint
+      // belongs to the specs, not to whoever happens to be invoking them.
+      //
+      // "Includes" rather than "is": with no `--group` the run is the whole
+      // suite, which contains the exclusive specs and had the same race — the
+      // guard only fired on the `--group` path, so the documented full-suite
+      // invocation was exactly the one it did not cover. CI never took that path
+      // (its matrix passes a group per job), which is why the hole survived.
+      //
+      // This does serialise a full local run. That is the honest cost: the
+      // alternative is two wdio invocations per run, and nothing's throughput
+      // depends on a path CI does not use.
+      ...(runsExclusiveSpecs ? { E2E_MAX_INSTANCES: '1' } : {}),
     },
   );
 } finally {

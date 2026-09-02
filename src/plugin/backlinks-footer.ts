@@ -48,9 +48,9 @@ import {
   applyLineChrome,
   lineChrome,
 } from './chrome-line';
-import { buildRows, splitPath, type FooterRow } from './footer-model';
+import { buildRows, splitPath, type FooterRow, type LineageSegment } from './footer-model';
 import type { BacklinkIndex } from './backlink-index';
-import type { OutlineNode } from '../model';
+import type { NodeKind, OutlineNode } from '../model';
 import { nodeStartLine } from '../locate';
 
 export const FOOTER_CLASS = 'to-backlinks';
@@ -429,8 +429,12 @@ class FooterController {
 
     if (row.type === 'lineage') {
       el.addClass('is-lineage');
+      // The gutter marker IS the first segment's, so it takes that segment's own
+      // state — a task ancestor gets its checkbox and an ordered one its number,
+      // the same rule a node row follows. `row.kind` alone gave both of them the
+      // generic bullet.
       // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-      el.appendChild(markerSlot(buildMarkerIcon(row.kind)));
+      el.appendChild(segmentMarker(row.segments[0], row.kind));
       const content = el.createSpan({ cls: 'to-backlinks-content' });
       row.segments.forEach((segment, i) => {
         // Each ancestor is its own target. One handler on the row could only
@@ -443,11 +447,20 @@ class FooterController {
         // shares that ancestor's link target and its hover rather than sitting
         // in dead space.
         if (i > 0) {
-          const icon = seg.createSpan({ cls: 'to-backlinks-seg-icon' });
-          // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-          icon.appendChild(buildMarkerIcon(segment.kind));
+          if (segment.ordinal) {
+            // Its number IS its mark, and the model has taken it out of the
+            // text — a bullet here would drop it entirely. No gutter slot: this
+            // one sits in the text run, where the number needs its own width.
+            seg.createSpan({ cls: 'to-backlinks-seg-ord', text: segment.ordinal });
+          } else {
+            const icon = seg.createSpan({ cls: 'to-backlinks-seg-icon' });
+            // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
+            icon.appendChild(segmentGlyph(segment));
+          }
         }
-        seg.appendText(firstLineText(segment.text));
+        // Already stripped by the model, which owns the rule so that a segment
+        // and a node row of the same kind say the same thing.
+        seg.appendText(segment.text);
         // Focusable AND operable. `role="link"` with a tab stop and no key
         // handler is a control the keyboard can reach and cannot use, which is
         // worse than one it cannot reach at all — it advertises itself and then
@@ -460,9 +473,15 @@ class FooterController {
         });
         seg.addEventListener('keydown', (event) => {
           if (event.key !== 'Enter') return;
+          // `open` BEFORE `preventDefault`, not after. Its first guard is
+          // `event.defaultPrevented`, which exists to let a nested link that has
+          // already handled itself win — so preventing the default first made
+          // this handler veto its own call, and Enter on a segment did nothing
+          // at all. Shipped that way: the segment was focusable and inert, which
+          // is worse than not being reachable.
+          this.open(event, sourcePath, segment.nodeId);
           event.preventDefault();
           event.stopPropagation();
-          this.open(event, sourcePath, segment.nodeId);
         });
       });
       return;
@@ -496,7 +515,24 @@ class FooterController {
     if (row.referenceKind === 'embed') {
       content.createSpan({ cls: 'to-backlinks-tag', text: 'embed' });
     }
+    // Reachable AND operable from the keyboard, on the same terms as a lineage
+    // segment. The row was clickable and nothing else: a keyboard-only reader
+    // could tab to the links INSIDE a mention — which go to the link's own
+    // target — and had no way at all to reach the thing the row is for, which is
+    // the referencing node. `role="link"` without a key handler would be worse
+    // than nothing: it advertises a control the keyboard can reach and cannot
+    // use.
+    el.setAttribute('role', 'link');
+    el.tabIndex = 0;
     el.addEventListener('click', (event) => this.open(event, sourcePath, row.nodeId));
+    el.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      // A nested link owns Enter when the focus is on IT, not on the row.
+      if (event.target !== el) return;
+      // Order matters — see the segment handler above.
+      this.open(event, sourcePath, row.nodeId);
+      event.preventDefault();
+    });
   }
 
   /**
@@ -533,7 +569,7 @@ class FooterController {
   ): Promise<void> {
     if (row.markdown.length === 0) return Promise.resolve();
     if (row.render === 'text') {
-      el.setText(row.markdown);
+      el.setText(decodeEntities(row.markdown));
       return Promise.resolve();
     }
     if (row.render === 'code') {
@@ -615,6 +651,30 @@ function markerFor(row: Extract<FooterRow, { type: 'node' }>): HTMLElement {
 }
 
 /**
+ * A lineage segment's mark, by the same rule `markerFor` applies to a node row:
+ * a task's checkbox and an ordered item's number replace the bullet, because
+ * they are state the reader is looking for rather than presentation (D18).
+ *
+ * `fallbackKind` covers a chain with no elements, which the model does not
+ * produce but the type permits.
+ */
+function segmentMarker(segment: LineageSegment | undefined, fallbackKind: NodeKind): HTMLElement {
+  if (!segment) return markerSlot(buildMarkerIcon(fallbackKind));
+  if (segment.task !== undefined) return markerSlot(checkboxGlyph(segment.task));
+  if (segment.ordinal) return ordinalMarker(segment.ordinal);
+  return markerSlot(buildMarkerIcon(segment.kind));
+}
+
+/** The same choice as `segmentMarker`, as a bare glyph for an INLINE segment
+ * icon — which sits in the text run and needs no gutter slot around it. An
+ * ordered segment never reaches here: its number is drawn as text instead,
+ * since no fixed-width icon box holds `10.`. */
+function segmentGlyph(segment: LineageSegment): Element {
+  if (segment.task !== undefined) return checkboxGlyph(segment.task);
+  return buildMarkerIcon(segment.kind);
+}
+
+/**
  * An ordered item's number, in the marker's place.
  *
  * Inline rather than absolute, and sized so its LEFT edge lands on the block
@@ -668,6 +728,27 @@ function markerSlot(icon: Element): HTMLElement {
   // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
   el.appendChild(icon);
   return el;
+}
+
+/**
+ * An HTML block's entities, decoded — `&amp;` shown as `&`.
+ *
+ * `htmlTextOf` deliberately leaves them encoded and says "left to the DOM", but
+ * the DOM never saw them: `setText` writes textContent, which ESCAPES rather
+ * than decodes, so a block containing `A &amp; B` displayed the ampersand's
+ * source instead of the ampersand.
+ *
+ * `DOMParser` rather than `innerHTML` on a scratch element: it parses without a
+ * live document, so nothing loads, runs, or is inserted anywhere. Safe on
+ * content this plugin does not control, which a note's HTML block is. The result
+ * still goes through `setText`, so a decoded `&lt;script&gt;` stays the text
+ * `<script>` and is never markup.
+ */
+function decodeEntities(text: string): string {
+  if (!text.includes('&')) return text;
+  return (
+    new DOMParser().parseFromString(text, 'text/html').documentElement.textContent ?? text
+  );
 }
 
 /**
@@ -735,11 +816,6 @@ function makeDisclosure(el: HTMLElement, expanded: boolean, label: string): void
     event.preventDefault();
     el.click();
   });
-}
-
-/** A lineage segment names its node, so it shows the node's first line only. */
-function firstLineText(line: string): string {
-  return line.replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+|#{1,6}\s+|>\s?)?/, '').trim();
 }
 
 /**
