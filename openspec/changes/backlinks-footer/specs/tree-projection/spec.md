@@ -53,6 +53,11 @@ source parent-child relationships restricted to the surviving set.
 - **WHEN** no node satisfies the predicate
 - **THEN** the projection contains no nodes, and this is a normal result rather than an error
 
+**Covered by**: `tests/project.test.ts` ("project: subset guarantees" — keeps only the paths
+that reach a match, keeps every ancestor in order, renews the descendant allowance at every
+match, keeps descendants only to the requested depth, carries node content through unmodified,
+yields an empty document when nothing matches, drops the preamble).
+
 ### Requirement: A projection is a valid document its consumers can treat as any other
 
 A projection SHALL be a document of the same type the parser produces, such that any pure
@@ -74,6 +79,11 @@ node whose source ancestors were all pruned SHALL be at depth 0.
 
 - **WHEN** every ancestor of a match is pruned because the caller requested no ancestors
 - **THEN** the match is at depth 0 in the projection
+
+**Covered by**: `tests/project.test.ts` ("project: properties" — idempotent, preserves source
+document order, a predicate matching everything reproduces the source, never synthesises a
+node) and `tests/projection-decorate.test.ts` (the projected tree decorates identically to the
+same nodes in the open document).
 
 ### Requirement: Lineage chains collapse unbranching ancestor runs
 
@@ -118,6 +128,11 @@ common prefix: after a branch point, each arm collapses on its own.
 - **WHEN** a match has no surviving ancestors
 - **THEN** no lineage chain is produced for it
 
+**Covered by**: `tests/project.test.ts` ("lineage: collapsing" — each sub-branch collapses
+independently, a terminating branch point is absorbed and a terminating match is not, a single
+ancestor still forms a chain, a match with no ancestors forms none, a match's own descendants
+render as plain nodes, and the emitted rows are a strict preorder).
+
 ### Requirement: A lineage chain identifies itself by its first element's kind
 
 Each lineage chain SHALL expose the node kind of its first element, so a consumer can mark the
@@ -134,3 +149,9 @@ re-deriving the chain.
 
 - **WHEN** a lineage chain of three elements is produced
 - **THEN** each element's own text is available separately, in order
+
+
+**Covered by**: `tests/project.test.ts` ("reports the first element kind and keeps elements
+addressable") and `tests/footer-model.test.ts` ("carries each lineage element its own kind, not
+the chain leader's" — the row keeps the first element's kind while every element also carries
+its own, which is what D19 draws).

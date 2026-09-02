@@ -276,7 +276,22 @@ next begins; green unit tests are never the gate for anything visual.
 
 ## 10. Close-out
 
-- [ ] 10.1 Update `docs/research/18-structured-backlinks.md` where a spike result contradicts or
-      sharpens a recorded decision
-- [ ] 10.2 Confirm `openspec validate backlinks-footer --strict` passes and every spec scenario
-      has either automated coverage or a recorded manual verification
+- [x] 10.1 Update `docs/research/18-structured-backlinks.md` where a spike result contradicts or
+      sharpens a recorded decision. *Two decisions rested on a cost that S5 measured away. D10's
+      caps opened with "each costing a file read and a parse" — placement is ~2ms for 42 sources,
+      so the caps survive as a LEGIBILITY decision and `backlinks-controls` must pick defaults on
+      that basis, not from an imagined read cost. D11's progressive paint buys no wall clock at
+      that speed; what it buys is that a count is never shown without the rows behind it, which
+      is a correctness property. All three open questions are answered and kept with their
+      answers, two of them answered differently from how they were asked — question 3 assumed the
+      shared thing was a token vocabulary, which is exactly what S4 disproved.*
+- [x] 10.2 Confirm `openspec validate backlinks-footer --strict` passes and every spec scenario
+      has either automated coverage or a recorded manual verification. *Validates clean. All 23
+      requirements across the four spec deltas now carry a `**Covered by**` line naming the tests,
+      which is what turned the audit from a formality into a real one: writing the lines found two
+      requirements whose coverage I had assumed and that did not exist. "A long group is truncated,
+      and says so" had NO test — the cap control, the reveal, and its surviving being used are now
+      covered. The embed TAG had none either: its classification was tested and nothing asserted
+      that the classification reached the row, so a tag on every row or on none would have passed.
+      One genuine manual item recorded rather than faked: the truncation FADE, a gradient over a
+      card edge that no assertion here can tell from its absence.*

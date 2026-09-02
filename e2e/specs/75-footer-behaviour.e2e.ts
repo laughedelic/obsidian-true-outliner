@@ -421,6 +421,125 @@ describe('backlinks footer: behaviour', function () {
     expect(await footerExists()).toBe(false);
   });
 
+  /**
+   * The one requirement the 10.2 coverage audit found with no test at all: a
+   * long group is truncated, and says so.
+   *
+   * Only measurable on a group that actually overflows. Not the hub fixture,
+   * counter-intuitively: it is broad rather than deep — 120 notes contributing a
+   * few references each — so every one of its groups fits. The corpus's tallest
+   * single group is `Kinds gallery`, one reference per node kind under
+   * `Reference target`. The cap is a HEIGHT (`--to-backlinks-group-max`),
+   * so "truncated" is a scrollHeight/clientHeight fact rather than a row count,
+   * and the control is only offered when more than one line is hidden — an
+   * offer to reveal a margin's rounding is a promise it cannot keep.
+   *
+   * The FADE is not asserted here. It is a gradient over a card's bottom edge,
+   * and nothing available to this harness distinguishes it from its absence;
+   * it was read on screen in the 9.5 real-vault pass, both themes.
+   */
+  it('offers a cap control on a group too long to fit, and honours it', async function () {
+    await openFooter(TARGET);
+
+    /** The state of the first group whose body overflows its cap. */
+    const capState = (): Promise<{
+      name: string;
+      hidden: number;
+      height: number;
+      toggles: number;
+      expanded: string;
+      label: string;
+    } | null> =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        if (!root) return null;
+        const toggle = root.querySelector<HTMLElement>('.to-backlinks-more');
+        const card = toggle?.closest('.to-backlinks-group');
+        if (!toggle || !card) return null;
+        const body = card.querySelector('.to-backlinks-rows');
+        return {
+          name: card.querySelector('.to-backlinks-group-name')?.textContent ?? '',
+          hidden: body ? body.scrollHeight - body.clientHeight : 0,
+          height: body?.getBoundingClientRect().height ?? 0,
+          toggles: root.querySelectorAll('.to-backlinks-more').length,
+          expanded: toggle.getAttribute('aria-expanded') ?? '',
+          label: toggle.getAttribute('aria-label') ?? '',
+        };
+      });
+
+    const before = await capState();
+    // The corpus is fixed; if it ever stops producing a group past the cap this
+    // must fail rather than pass by finding nothing to check.
+    expect(before).not.toBeNull();
+    expect(before!.hidden).toBeGreaterThan(0);
+    expect(before!.expanded).toBe('false');
+    expect(before!.label).toBe('Show more');
+
+    // Resolved at click time rather than stamped earlier: measuring the cap
+    // rebuilds the footer, so an attribute set before the measurement is gone by
+    // the time the control exists.
+    await (await $(`${FOOTER} .to-backlinks-more`)).click();
+    await browser.pause(400);
+
+    const after = await capState();
+    expect(after).not.toBeNull();
+    expect(after!.name).toBe(before!.name);
+    expect(after!.height).toBeGreaterThan(before!.height);
+    expect(after!.expanded).toBe('true');
+    // The control must SURVIVE being used. An expanded group no longer
+    // overflows, so without the `truncatable` set there would be nothing to tell
+    // it from one that always fitted, and the way back would vanish.
+    expect(after!.label).toBe('Show less');
+
+    // Put it back, so a later test does not inherit an expanded group.
+    await (await $(`${FOOTER} .to-backlinks-more`)).click();
+    await browser.pause(300);
+  });
+
+  /**
+   * The second gap the 10.2 audit found: the embed TAG had no rendering
+   * coverage anywhere — `72-backlink-index` asserts the classification, and
+   * nothing asserted that the classification reaches the row.
+   *
+   * `Backlinks/Severity study writeup.md` carries both kinds against the same
+   * target: a frontmatter property link and an `![[...#Current sprint]]` embed.
+   * So the contrast is inside one group, and a bug that tagged everything or
+   * nothing cannot pass.
+   */
+  it('marks an embed reference as one, and leaves a plain reference unmarked', async function () {
+    await openFooter(HUB);
+
+    const shape = await browser.executeObsidian(() => {
+      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+      if (!root) return null;
+      const rows = Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row'));
+      return {
+        total: rows.length,
+        tagged: rows.filter((r) => r.querySelector('.to-backlinks-tag')).length,
+        tagText: [
+          ...new Set(
+            rows
+              .map((r) => r.querySelector('.to-backlinks-tag')?.textContent ?? '')
+              .filter(Boolean),
+          ),
+        ],
+        // A tag belongs to a reference row, never to a lineage row.
+        onLineage: rows.filter(
+          (r) => r.classList.contains('is-lineage') && r.querySelector('.to-backlinks-tag'),
+        ).length,
+      };
+    });
+
+    expect(shape).not.toBeNull();
+    expect(shape!.total).toBeGreaterThan(0);
+    // At least one embed in the corpus, and not every row — the second half is
+    // what a "tag everything" bug fails.
+    expect(shape!.tagged).toBeGreaterThan(0);
+    expect(shape!.tagged).toBeLessThan(shape!.total);
+    expect(shape!.tagText).toEqual(['embed']);
+    expect(shape!.onLineage).toBe(0);
+  });
+
   // ---- 9b.3 navigation's remaining promises -------------------------------
 
   /**

@@ -230,6 +230,14 @@ the tree's own vocabulary, at the depth the missing nodes would occupy, reading 
 rather than ending. A count sentence alone was rejected as too quiet for a section a reader
 scrolls past.
 
+**Sharpened by S5: the premise was wrong, the conclusion survives.** This decision opens with
+cost — "each costing a file read and a parse" — and S5 measured it: placing all 42 sources of
+the hub fixture, 150 references, takes about 2ms, and the header and the group bodies land in
+the same frame. There is nothing to cap for performance. The caps are still wanted, but they are
+a **legibility** decision — a note should not be buried under four hundred backlinks — and
+`backlinks-controls` must choose its defaults on that basis. Choosing them from an imagined read
+cost would size them wrongly, and probably far too small.
+
 ### D11. First paint: progressive, never skeletal
 
 The reference count and the list of referencing notes are **instant** — they come from
@@ -240,6 +248,13 @@ show fake structure where real structure is already known.
 
 Groups hold their vertical space as they resolve so the document below the cursor does not
 jump.
+
+**Sharpened by S5: progressive paint buys no wall clock, and is still right.** At the measured
+2ms for a hub note, the header and the bodies arrive in the same frame — there is no perceptible
+staging to observe, and the mechanism saves nothing a reader could time. What it buys is the
+guarantee that the footer NEVER shows a count without the rows that justify it, and never
+fabricates a row while resolving. That is a correctness property, not a speed one, and it is
+what the e2e assertion holds. The architecture stays; only the reason for it changes.
 
 ### D12. Coexistence with core backlinks: hide by default, setting to keep both
 
@@ -414,14 +429,27 @@ contract publishes `--to-*` custom properties, so a CSS snippet already covers t
 
 ## Open questions
 
-1. **Footer collapse state** — per note, global, or not persisted?
-2. **The CM6 interaction budget.** A block widget at `doc.length` against
-   `content-space-caret`, `progressive-select-all`, `caret-placement-policy`, scroll and
-   print. This is the largest unknown in the first cut and wants a spike.
-3. **Two renderers.** Every decoration selector in `styles.css` is scoped
-   `.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-*`. The footer's rows are
-   not `.cm-line`s, so the chrome has to be refactored into surface-neutral tokens plus
-   surface-specific scoping before a second surface can reuse it.
+All three are now answered — by the spike series
+([19](19-backlinks-footer-spikes.md)) and by building the change. Kept with their answers
+rather than deleted, since two of them were answered differently from how they were asked.
+
+1. ~~**Footer collapse state** — per note, global, or not persisted?~~ **Per note, and not
+   persisted past the tab.** What a reader unfolded is about the reading they are doing, not
+   about the note: a group opened while chasing one question should not still be open a week
+   later. Keyed to the tab rather than to the session, because closing a tab is the moment a
+   reader means "done with that", and pruned on layout change.
+2. ~~**The CM6 interaction budget.**~~ **Answered by S1, and it cost one mechanism correction
+   rather than a redesign.** The widget changes no observable caret placement, selection
+   escalation or structural operation — but block decorations must come from a `StateField`,
+   which CodeMirror enforces, and a field then needs its own invalidation bridge because it
+   never sees the no-op transaction the shared mode-toggle nudge produces (S2).
+3. ~~**Two renderers.**~~ **Asked wrongly, and S4 says so.** The premise — that the chrome needs
+   refactoring into "surface-neutral tokens plus surface-specific scoping" — assumed the tokens
+   were the shared thing. They are not: the editor computes almost no geometry in JS, so a
+   surface holding only the vocabulary writes its own layout rules and diverges. What is shared
+   is the fact→(class, custom properties) CONTRACT, now `src/plugin/chrome-line.ts`, which both
+   surfaces call. S6 then confirmed the two alternatives to consuming it — a markdown list, and
+   a real CodeMirror per group — are both worse.
 
 ## Prototype
 
