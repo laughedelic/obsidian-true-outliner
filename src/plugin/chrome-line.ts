@@ -151,18 +151,6 @@ export function markerAnchorLeftExpr(targetRelExpr: string): string {
   return `calc(${targetRelExpr} - (${MARKER_ICON_CSS} / 2))`;
 }
 
-/**
- * The absolute placement for an atom row whose box this surface positioned
- * itself, rather than one Obsidian rendered and the editor had to measure.
- *
- * The shift for an atom is `depth * unit + gutter`, so the column lands exactly
- * one gutter left of the box's own edge whatever the depth — the depth terms
- * cancel, as they do for the inline mechanism.
- */
-export function atomMarkerLeftExpr(fact: LineDecorationFact): string {
-  return markerAnchorLeftExpr(`calc(${columnExpr(fact.depth)} - (${ownShiftExpr(fact, false)}))`);
-}
-
 /** A class list and the custom properties that go with it. Deliberately data:
  * the caller decides whether that becomes a CM6 `Decoration` or an element's
  * `class` and `style`. */
