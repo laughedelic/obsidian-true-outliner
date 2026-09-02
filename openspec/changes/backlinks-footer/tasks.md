@@ -235,8 +235,13 @@ next begins; green unit tests are never the gate for anything visual.
       for its cap defaults. *Answer: there is nothing to cap for performance. 2ms to place 42
       sources, and the header and bodies land in the same frame. A cap is a legibility decision,
       which moves D10's premise.*
-- [ ] 9.7 Close every spike row in the hub doc with a verdict, and record cross-spike lessons
-      where they belong (`docs/research/11` for decoration/CM6 findings)
+- [x] 9.7 Close every spike row in the hub doc with a verdict, and record cross-spike lessons
+      where they belong (`docs/research/11` for decoration/CM6 findings). *S4's section still
+      carried its superseded first reading ("preparation done, visual verdict to follow") above
+      the corrected one; both are kept, the wrong one labelled, because the mistake — assuming
+      the shared thing was the token vocabulary — is the finding. Doc 11 gains a
+      "Sharing chrome with a second surface" section plus the CM6 and CSS findings this series
+      produced.*
 
 ## 9b. Spike S6 — is there a cheaper renderer than our own chrome?
 
@@ -257,8 +262,17 @@ next begins; green unit tests are never the gate for anything visual.
       chrome pass's what it LOOKS like
 - [x] 9b.2 Cover the three defects directly: a link inside a mention follows the link, a row's
       fold reveals its hidden descendants, and a source that stops referencing loses its group
-- [ ] 9b.3 Cover navigation's remaining promises — a reference opens its source AT the node, a
-      lineage segment opens THAT ancestor, and a Mod-click opens a new pane
+- [x] 9b.3 Cover navigation's remaining promises — a reference opens its source AT the node, a
+      lineage segment opens THAT ancestor, and a Mod-click opens a new pane. *`Deep chain.md` is
+      the only fixture that can tell these apart: its reference is on line 7 under a five-element
+      chain on lines 0/2/3/4/6, so "opened the note", "opened at the reference" and "opened at
+      THIS ancestor" are three different answers — on a shallow fixture every one of them scores
+      correct. The Mod-click needed a harness finding: a held modifier does not survive between
+      separate `performActions` calls (recorded on `dispatchSelectOnlyRanges`), but two input
+      sources in ONE `browser.actions([...])` call are tick-aligned and do work. It failed first
+      for an unrelated reason — `performActions` does not scroll the way `.click()` does, so the
+      pointer landed on nothing; diagnosed rather than assumed, since the symptom looked exactly
+      like the modifier being ignored. Extracted as `h.modClick`.*
 
 ## 10. Close-out
 

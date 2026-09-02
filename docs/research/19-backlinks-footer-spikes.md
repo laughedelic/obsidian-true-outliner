@@ -9,8 +9,12 @@ Design decisions this series tests are recorded in
 [18-structured-backlinks.md](18-structured-backlinks.md); the change's own design rationale is
 `openspec/changes/backlinks-footer/design.md` (D-A … D-G).
 
-**Status: in progress.** Spikes are run in order; each is closed with a verdict in the results
-table below before the next begins.
+**Status: closed.** All six spikes ran and each carries a verdict in the results table below.
+Two of them changed the change rather than confirming it: S4's corrected verdict moved the seam
+from a token vocabulary to a class-and-property contract, and S5 removed the performance premise
+under D10's caps. The findings that generalise beyond this feature are carried into
+[11-decoration-lessons.md](11-decoration-lessons.md); the one that turned out to be about
+embedding rather than about the footer is in [20-surfaces-and-embedding.md](20-surfaces-and-embedding.md).
 
 ## Ground rules
 
@@ -295,7 +299,11 @@ notes with our own parser instead of reconstructing structure from `CachedMetada
 marker widget, depth rules — against a different DOM, and whether the token split D-C proposes
 is sufficient or the chrome needs restructuring.
 
-**Preparation done; the visual verdict runs with the footer DOM.**
+**Verdict: the token split was NOT sufficient — share the contract, not the vocabulary.** The
+first reading of this spike (below) was that preparation was done and the visual verdict would
+follow with the footer DOM. That reading was wrong in a way worth keeping: it assumed the
+tokens were the shared thing. They were not, and the corrected verdict further down is the one
+that governs.
 
 ### Finding — the token layer was thinner than the design assumed, and lived in the wrong place
 

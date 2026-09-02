@@ -420,4 +420,159 @@ describe('backlinks footer: behaviour', function () {
     await scrollToEnd();
     expect(await footerExists()).toBe(false);
   });
+
+  // ---- 9b.3 navigation's remaining promises -------------------------------
+
+  /**
+   * `Backlinks/Deep chain.md` is the fixture that can tell these apart. Its one
+   * reference sits on line 7 under a five-element chain whose elements are on
+   * lines 0, 2, 3, 4 and 6 — so "opened the note" (line 0), "opened at the
+   * reference" (7) and "opened at THIS ancestor" (0, 2, 3, 4, 6) are all
+   * different answers. A shallow fixture would score every one of them correct.
+   */
+  const DEEP_GROUP = 'Deep chain';
+
+  /** The rows of one named group in the open footer, as element indices. */
+  async function groupRowCount(name: string): Promise<number> {
+    return browser.executeObsidian((_ctx, groupName: string) => {
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      for (const card of Array.from(cards)) {
+        if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
+        return card.querySelectorAll('.to-backlinks-row').length;
+      }
+      return 0;
+    }, name);
+  }
+
+  /** Clicks the nth row (or the nth lineage segment of it) inside a named group.
+   *  Driven through a real element click so the handler sees a real event. */
+  async function clickInGroup(
+    name: string,
+    rowIndex: number,
+    segmentIndex?: number,
+  ): Promise<void> {
+    const selector = await browser.executeObsidian(
+      (_ctx, args: { groupName: string; row: number; seg: number }) => {
+        const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+        for (const card of Array.from(cards)) {
+          if (card.querySelector('.to-backlinks-group-name')?.textContent !== args.groupName)
+            continue;
+          const row = card.querySelectorAll<HTMLElement>('.to-backlinks-row')[args.row];
+          if (!row) return null;
+          const el =
+            args.seg >= 0
+              ? row.querySelectorAll<HTMLElement>('.to-backlinks-seg')[args.seg]
+              : row;
+          if (!el) return null;
+          // A stable handle for WebdriverIO, since these rows carry no id.
+          el.setAttribute('data-e2e-target', 'yes');
+          return '[data-e2e-target="yes"]';
+        }
+        return null;
+      },
+      { groupName: name, row: rowIndex, seg: segmentIndex ?? -1 },
+    );
+    expect(selector).not.toBeNull();
+    await (await $(selector!)).click();
+    await browser.pause(700);
+  }
+
+  async function clearTargets(): Promise<void> {
+    await browser.executeObsidian(() => {
+      document
+        .querySelectorAll('[data-e2e-target]')
+        .forEach((el) => el.removeAttribute('data-e2e-target'));
+    });
+  }
+
+  it('opens a reference at its own node, not at the top of its note', async function () {
+    await openFooter(HUB);
+    const count = await groupRowCount(DEEP_GROUP);
+    expect(count).toBeGreaterThan(1);
+
+    // The LAST row of the group is the reference; the rows above it are its
+    // lineage. Taken by position rather than by class so the assertion does not
+    // depend on how the reference row happens to be marked.
+    await clickInGroup(DEEP_GROUP, count - 1);
+
+    const opened = await browser.executeObsidian(
+      ({ app }) => app.workspace.getActiveFile()?.path ?? '',
+    );
+    expect(opened).toBe(DEEP_SOURCE);
+    // Line 7: the node the reference is in. Line 0 would mean "opened the note".
+    expect((await h.getCursor()).line).toBe(7);
+    await clearTargets();
+  });
+
+  it('opens a lineage segment at THAT ancestor, not at the chain’s first', async function () {
+    await openFooter(HUB);
+    const count = await groupRowCount(DEEP_GROUP);
+    expect(count).toBeGreaterThan(1);
+
+    // The chain's LAST element, which is the one a whole-row handler could not
+    // reach: it and the first element differ, so landing on either proves which
+    // handler ran.
+    const segments = await browser.executeObsidian((_ctx, groupName: string) => {
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      for (const card of Array.from(cards)) {
+        if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
+        const row = card.querySelector('.to-backlinks-row.is-lineage');
+        return row?.querySelectorAll('.to-backlinks-seg').length ?? 0;
+      }
+      return 0;
+    }, DEEP_GROUP);
+    expect(segments).toBeGreaterThan(1);
+
+    await clickInGroup(DEEP_GROUP, 0, segments - 1);
+    expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
+      DEEP_SOURCE,
+    );
+    // Line 6 — the chain's last ancestor. Line 0 would be its first, which is
+    // what a row-level handler or a first-segment default would give.
+    expect((await h.getCursor()).line).toBe(6);
+    await clearTargets();
+
+    // And the FIRST segment lands somewhere else, so the previous assertion is
+    // about the segment clicked rather than about the row.
+    await openFooter(HUB);
+    await clickInGroup(DEEP_GROUP, 0, 0);
+    expect((await h.getCursor()).line).toBe(0);
+    await clearTargets();
+  });
+
+  it('opens a new pane on Mod-click, leaving the current one alone', async function () {
+    await openFooter(HUB);
+    const before = await browser.executeObsidian(
+      ({ app }) => app.workspace.getLeavesOfType('markdown').length,
+    );
+    const count = await groupRowCount(DEEP_GROUP);
+
+    const selector = await browser.executeObsidian((_ctx, args: { groupName: string; row: number }) => {
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      for (const card of Array.from(cards)) {
+        if (card.querySelector('.to-backlinks-group-name')?.textContent !== args.groupName) continue;
+        const row = card.querySelectorAll<HTMLElement>('.to-backlinks-row')[args.row];
+        if (!row) return null;
+        row.setAttribute('data-e2e-target', 'yes');
+        return '[data-e2e-target="yes"]';
+      }
+      return null;
+    }, { groupName: DEEP_GROUP, row: count - 1 });
+    expect(selector).not.toBeNull();
+
+    await h.modClick(selector!);
+    await browser.pause(800);
+
+    const after = await browser.executeObsidian(
+      ({ app }) => app.workspace.getLeavesOfType('markdown').length,
+    );
+    // Without the modifier this same click navigates and REUSES the pane, so the
+    // leaf count is what isolates the modifier's effect (checked by dropping the
+    // key from the chain: 15 -> 15, and the note still opens).
+    expect(after).toBe(before + 1);
+    expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
+      DEEP_SOURCE,
+    );
+    await clearTargets();
+  });
 });

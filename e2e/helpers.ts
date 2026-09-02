@@ -486,6 +486,36 @@ export async function dispatchSelectOnlyRanges(
 }
 
 /**
+ * The platform's Mod key held across a REAL click, for a Mod-click gesture.
+ *
+ * Two input sources in ONE `browser.actions([...])` call, which WebDriver
+ * tick-aligns, so the key is genuinely down while the pointer goes down and up.
+ * A modifier held across SEPARATE `performActions` calls does not survive to the
+ * next one in this harness — see `dispatchSelectOnlyRanges` above, whose
+ * workaround exists for that reason. The single-chain form does work, and
+ * `75-footer-behaviour` uses it for Mod-click.
+ *
+ * `scrollIntoView` first is not optional: `performActions` does not scroll the
+ * way `element.click()` does, and a pointer moved to an element outside the
+ * viewport lands on whatever is there instead — silently, since a click that
+ * hits nothing throws nothing.
+ */
+export async function modClick(selector: string): Promise<void> {
+  const el = await $(selector);
+  await el.scrollIntoView({ block: 'center' });
+  await browser.pause(200);
+  await browser.actions([
+    browser.action('key').down(PRIMARY_MOD),
+    browser
+      .action('pointer', { parameters: { pointerType: 'mouse' } })
+      .move({ origin: el })
+      .down({ button: 0 })
+      .up({ button: 0 }),
+  ]);
+  await browser.action('key').up(PRIMARY_MOD).perform();
+}
+
+/**
  * Force-save the active view. Obsidian autosave is debounced (~2s); every
  * disk assertion must sit behind this boundary or it races.
  */
@@ -1172,7 +1202,9 @@ export async function dismissNotices(): Promise<void> {
 
 // ---- Keys -----------------------------------------------------------------
 
-const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
+/** The platform's Mod key. Exported because a spec driving a Mod-CLICK needs
+ * the same key the Mod-keystroke helpers below use. */
+export const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 
 export const keys = {
   tab: () => browser.keys(Key.Tab),

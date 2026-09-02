@@ -2,7 +2,9 @@
 
 The accumulated non-obvious findings from the whole decoration-experiments series
 (Experiments [1](08-experiment-1-additive-indentation.md),
-[2a/2b](09-experiment-2-guide-lines.md), and [5a/5b](10-experiment-5-block-markers.md)) —
+[2a/2b](09-experiment-2-guide-lines.md), and [5a/5b](10-experiment-5-block-markers.md)), plus
+the ones the backlinks-footer spike series turned up about rendering the same chrome on a
+SECOND surface ([19-backlinks-footer-spikes.md](19-backlinks-footer-spikes.md)) —
 carried forward the same way the original postmortem's own "carried-forward technical
 findings" section was meant to be used
 ([06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md), which
@@ -22,6 +24,26 @@ finding came from.
   against `!important`, the fix is matching its ancestor-chain specificity, not adding more
   `!important` (there's nowhere further to escalate past equal importance — the tie-break is
   specificity, then source order).
+- **Obsidian styles bare elements inside the editor, so a one-class selector loses to it.**
+  `.markdown-source-view button` is (0,1,1) and beats a plain `.my-button` at (0,1,0) — a
+  `<button>` in a widget therefore arrives wearing Obsidian's button chrome (background,
+  radius, border, colour) and a rule that looks like it should win silently does not. Scope the
+  rule under an ancestor of your own to match, and check the REST state as well as hover: the
+  bubble that prompted this was on rest, and a hover-only reading of it produced a fix that
+  changed nothing.
+- **An inline-block's baseline is its last LINE BOX's baseline, not its bottom edge.** A
+  fixed-size inline-block span inherits the line's `line-height` as an internal strut, so
+  aligning it to the surrounding text's baseline lifts the whole box by the difference —
+  measured at ~4.4px for a 13.6px marker on a 24px line, which reads as "the icon is too high"
+  and invites a hand-fitted pixel nudge. `line-height: 0` removes the internal line box, and
+  the spec's fallback then makes the baseline the bottom margin edge, which is what placement
+  arithmetic assumes in the first place.
+- **`getPropertyValue()` on a custom property returns the SPECIFIED value, not resolved
+  pixels.** `getComputedStyle(el).getPropertyValue('--to-decor-unit')` hands back `1.5rem`, so
+  `parseFloat` on it yields `1.5` and any arithmetic built on that is off by the root font size
+  without ever looking wrong. Read a resolved length from a real layout property or a rect
+  instead — this bit a test written in this very series, whose assertion then passed at both
+  the correct and the broken value.
 - **An inline style with `!important`, set via JS, always wins over any stylesheet rule**
   regardless of that rule's own specificity — a reliable escape hatch specifically for
   native-widget cascade fights that a CSS-only rule can't win.
@@ -190,6 +212,46 @@ finding came from.
   since the extension still computes, it just doesn't paint. Table cells are
   the one confirmed case so far, but any other Obsidian construct that edits a fragment of a
   document as its own nested editor would have the identical exposure.
+- **A BLOCK decoration cannot come from a `ViewPlugin` — CM6 refuses it outright.** Block
+  decorations change document height, and the view needs them before plugins run in order to
+  lay out, so they must come from a `StateField`. Every other decoration layer in this plugin
+  is a `ViewPlugin` because none of them uses a block decoration; the backlinks footer was the
+  first, and the constraint is a hard mechanism limit rather than a preference (spike S1).
+- **A `StateField` does not see a no-op transaction, and a `ViewPlugin` does.** A field
+  recomputes only when a transaction arrives. The shared mode-toggle nudge is a selection set
+  to the position the caret already occupies — enough for a `ViewPlugin` to observe, and
+  nothing at all to a field, which therefore kept rendering the previous mode's answer. Any
+  field-based layer needs its own explicit invalidation bridge rather than relying on the
+  nudge every existing layer already sits behind (spike S2).
+- **CM6 virtualises, so a widget at `doc.length` has no DOM until the reader scrolls to it.**
+  The region is a `cm-gap`. This is a feature — the footer costs nothing on a note nobody reads
+  to the bottom — but every assertion about such a widget has to reach it first, and a test
+  that queries for it without scrolling passes vacuously by finding nothing and asserting
+  nothing.
+
+## Sharing chrome with a second surface
+
+- **Sharing the token vocabulary is not sharing the layout.** The editor computes almost no
+  geometry in JS: a decoration puts a class on a line and publishes a handful of custom
+  properties, and every offset, hanging indent and guide stripe is derived from those in CSS.
+  A second surface given only the tokens — the unit, the gutter, the variable names — writes
+  its own rules from them and diverges in ways that all look like small CSS bugs: guides absent
+  because nothing set the property, markers off-column because a fixed gutter is not
+  `depth × unit + gutter`, depth applied through `padding` where the editor uses `margin` so
+  the guide overlay's counter-shift undoes the wrong amount. What has to be shared is the
+  class-plus-properties CONTRACT, in one module both surfaces call (spike S4's corrected
+  verdict — the first verdict said the tokens were sufficient, and was wrong).
+- **A placement expression must REFERENCE the property it depends on, never restate its
+  value.** A marker's box read its size from a custom property while the expression that
+  centred it on the column spelled the same size as a literal. Identical values, so nothing was
+  wrong until a surface scoped a different size onto itself — at which point the centre drifted
+  right by half the difference. Sub-pixel, silent, and invisible to review, because a marker
+  slightly off its column still looks like a marker beside some text. The same trap exists for
+  every other term in a shared placement formula that a surface might one day scope.
+- **A second surface will want the marks at a different size, and that is fine if the anchor is
+  size-independent.** A marker centred at `content-left − gutter` stays on its column at any
+  size, because the size terms cancel — which is what makes a smaller footer marker a free
+  change and a moved gutter an expensive one.
 
 ## Obsidian: native chrome and internals
 
