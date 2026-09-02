@@ -18,9 +18,12 @@
 
 ## 2. Derive and apply
 
-- [x] 2.1 Set `MARKER_GUTTER_REM` from the derivation. If it lands at or above today's 1.25rem,
+- [x] 2.1 Set the gutter from the derivation. If it lands at or above today's 1.25rem,
       stop and re-read the proposal — the honest outcome is that ordered lists bound the gap and
       it cannot tighten much
+      > Landed as `MARKER_GAP_REM` + `MIN_MARK_INK_REM` + `MARKER_GUTTER_CSS`, not as a single
+      > `MARKER_GUTTER_REM`: the checkbox term has to be read live (`var(--checkbox-size)`), so
+      > the gutter is a render-time CSS expression rather than a number
 - [x] 2.2 Confirm the eleven `styles.css` derivations follow with no edits. Any rule needing a
       hand-adjustment is a rule that had the old value baked into it, and is a defect this change
       should fix rather than route around
@@ -38,8 +41,12 @@
       `e2e/specs/56-list-grid.e2e.ts`. Prefer deriving the expectation from the published
       property over restating a new literal
 - [x] 3.2 New spec for the derivation itself: all four marks at one depth share a text column,
-      and each one's text begins the same distance after its own mark's ink. Assert the
-      relationship, never a pixel width — CI's font is not a developer's
+      and the widest LAYER-SIZED mark's text begins exactly the stated gap after its own ink.
+      Assert the relationship, never a pixel width — CI's font is not a developer's
+      > Written as "each one's text begins the same distance after its own mark's ink", which a
+      > shared column makes impossible: with one gutter and marks of differing widths, the gap
+      > after a narrower mark is necessarily larger. The measurement settled it in favour of the
+      > column; a font-drawn mark gets the floor, covered by its own case
 - [x] 3.3 Cover the multi-digit exception: `1.` and `10.` share a left edge, the wide one's text
       starts further right, and neither number overlaps its own text
 - [x] 3.4 Negative-control 3.2 by reverting the constant, and confirm it fails. A gap test that

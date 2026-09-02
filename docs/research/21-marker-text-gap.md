@@ -9,10 +9,13 @@ its value was `1.25rem` because that is what worked in Experiment 5a
 This document is that statement: one pass of commensurable measurements, the derivation they
 support, the one number chosen rather than derived, and the defects the derivation exposed.
 
-**Measurement pass: 2 September 2026.** Obsidian 1.13.7 (installer 1.5.8, darwin), both
-bundled themes, 16px root font, `--to-decor-unit` 1.5rem (24px), `--to-marker-icon-size`
+**Measurement pass: 2 September 2026.** ONE environment, deliberately — Obsidian 1.13.7
+(installer 1.5.8, darwin), both bundled themes, 16px root font, `--to-decor-unit` 1.5rem (24px), `--to-marker-icon-size`
 0.85rem (13.6px). Taken by a throwaway e2e probe in one run, against the rules currently in
-force. Superseded figures are listed at the end so nobody merges passes again.
+force. Figures quoted from other environments below — CI's Linux font, Obsidian's mobile
+checkbox — are named as such and are NOT combined with this pass; they are the evidence that the
+terms they belong to had to be read live rather than recorded. Superseded figures are listed at
+the end so nobody merges passes again.
 
 ## What was measured, and why ink
 
@@ -219,16 +222,24 @@ The fix is a `padding-inline-end` of the stated gap on the ordinal, inert while 
 
 ## Both surfaces, one gutter
 
-The derivation applied to the footer's own marks gives **7.34 + 6.00 = 13.34px** against the
-editor's 14.00px. The two differ by 0.66px — under a device pixel at 1x — because the footer's
-smaller icons are offset by its ordinal digits being the widest thing it draws.
+The derivation applied to the footer's own marks would give a smaller gutter than the editor's:
+its ordinal reaches +7.34px where the editor's checkbox reaches +8.00px, and its block icons are
+smaller again. Measured on desktop that is a 0.66px difference; on mobile, where the theme draws
+a larger checkbox that the footer does not use at all, it is 1.2px.
 
-So the footer takes the editor's gutter rather than one of its own — published on the section
-root, so its own chrome lays out against the same value its rows do. `MARKER_LEFT_SHIFT_EXPR`
-therefore keeps spelling the gutter as a literal, and the failure mode the proposal planned for
-— a mark's centre drifting half the difference off its column — does not arise. Had the two
-surfaces diverged, that expression would have had to read the gutter from the custom property,
-the same fix already applied to the icon size (`MARKER_ICON_VAR`).
+**The footer takes the editor's gutter anyway, and that is the requirement rather than a
+rounding.** The footer renders directly below the note's own content, and a reader comparing a
+footer row with a note line above it sees one column or two. Deriving each surface separately
+would put the footer's text 1.2px left of the editor's on mobile — two outlines that resemble
+each other rather than one outline continued. Sharing the LARGER of the two derivations costs
+the footer nothing: a gutter wider than its own marks need leaves them extra room, where one
+narrower than they need would take a kind off the column.
+
+It is published on the section root, so the footer's own chrome lays out against the same value
+its rows do. `MARKER_LEFT_SHIFT_EXPR` therefore keeps spelling the gutter rather than reading a
+per-surface property — the drift the proposal planned for cannot arise while there is one value.
+What the footer does scope for itself is its marker SIZE, and that is exactly why the placement
+arithmetic reads `MARKER_ICON_VAR`: the mark is smaller, its centre is still on the column.
 
 The footer's own mechanisms have more room than the editor's, not less: its ordinal slot is
 `gutter + icon/2` = 19.89px against 13.22px of digits, and it has no `--to-space-advance` term
