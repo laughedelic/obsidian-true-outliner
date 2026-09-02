@@ -419,7 +419,14 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
       const glyph = cLine.querySelector('.collapse-indicator svg') as SVGSVGElement | null;
       const marker = cLine.querySelector('.to-decor-marker-icon') as HTMLElement | null;
       const contentRect = cm.contentDOM.getBoundingClientRect();
-      const unitPx = parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5;
+      // Read, not spelled: the unit is a published property a snippet may
+      // override, so a literal here asserts the default rather than the grid.
+      const unitRaw = getComputedStyle(document.body).getPropertyValue('--to-decor-unit').trim();
+      const unitPx =
+        parseFloat(unitRaw) *
+        (unitRaw.endsWith('rem')
+          ? parseFloat(getComputedStyle(document.documentElement).fontSize)
+          : 1);
       return {
         glyphRect: glyph?.getBoundingClientRect(),
         markerRect: marker?.getBoundingClientRect(),

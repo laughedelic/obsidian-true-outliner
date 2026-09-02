@@ -17,12 +17,15 @@
  * expressions here read it without one. A literal fallback would be a second
  * copy of the number living in JS, and the two would eventually disagree —
  * the same reasoning `decorations.ts` records at its own `UNIT`, one level up.
+ *
+ * The unit goes further than that: this module holds NO form of its value, not
+ * even an unused one. Overriding the single declaration is the supported way to
+ * retune the outline's width, and that guarantee is only as good as the absence
+ * of second copies — a number cannot follow an override, so the first caller to
+ * position something from one would leave that piece behind on the old grid
+ * while every other layer moved. `UNIT_EXPR` is the only way to refer to it.
  */
 
-/** One level of indentation. Mirrors the value styles.css declares; kept here
- * only for callers that need the NUMBER rather than the CSS expression. Prefer
- * `UNIT_EXPR` — a literal in JS is a second copy of a value CSS owns. */
-export const DECOR_UNIT_REM = 1.5;
 /**
  * The visual gap between a mark's ink and the text that mark names.
  *
@@ -73,7 +76,6 @@ export const MARKER_ICON_REM = 0.85;
  * mechanism sets (one space's advance), which is what keeps it on the shared
  * column. docs/research/21-marker-text-gap.md records both halves.
  */
-export const DECOR_UNIT_CSS = `${DECOR_UNIT_REM}rem`;
 export const MARKER_GUTTER_CSS =
   `calc(max(${MIN_MARK_INK_REM}rem, var(--checkbox-size, 1rem) / 2) + ${MARKER_GAP_REM}rem)`;
 export const MARKER_GAP_CSS = `${MARKER_GAP_REM}rem`;
@@ -112,8 +114,13 @@ export const CHROME_VARS = {
  */
 export const MARKER_ICON_VAR = `var(${CHROME_VARS.markerIcon}, ${MARKER_ICON_CSS})`;
 
-/** The expression every depth calculation multiplies by, on either surface.
- * No fallback: styles.css is the single declaration. */
+/**
+ * The expression every depth calculation multiplies by, on either surface.
+ *
+ * No fallback, and no numeric sibling: styles.css holds the single declaration,
+ * and a snippet overriding it has to move every column on both surfaces at once.
+ * Anything here that resolved the unit to a number would be exempt from that.
+ */
 export const UNIT_EXPR = `var(${CHROME_VARS.unit})`;
 
 /** Indentation for `depth` levels, plus the marker gutter — the shared column

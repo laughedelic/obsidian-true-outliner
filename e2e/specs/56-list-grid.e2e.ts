@@ -233,7 +233,12 @@ const at = (rows: LineGeometry[], n: number): LineGeometry => {
   return row;
 };
 
-const UNIT = 24; // 1.5rem at a 16px root
+/**
+ * The unit this run's build publishes. Not a literal: overriding its single
+ * declaration is a supported adjustment, so a spelled value asserts the default
+ * rather than that a level steps by the unit in force.
+ */
+let UNIT = 0;
 /**
  * The gutter this run's build publishes, resolved in `before`. Not a literal:
  * it is derived from the marks it has to hold, so a spelled value asserts the
@@ -252,6 +257,7 @@ describe('lists on the outline grid', function () {
     // off one of its lines.
     await open(TABS);
     GUTTER = await h.publishedGutter();
+    UNIT = await h.publishedUnit();
   });
 
   afterEach(async function () {

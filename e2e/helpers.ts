@@ -785,6 +785,25 @@ export async function toggleOutlineMode(): Promise<void> {
  * editor rather than inside `.cm-content`, so the theme's own scoped values are
  * in the cascade without CodeMirror's managed DOM being touched.
  */
+/**
+ * The outline unit as the RENDERED document publishes it, in px.
+ *
+ * Read rather than restated, for the same reason as `publishedGutter`, and one
+ * more: overriding the unit's single declaration is a SUPPORTED adjustment, so a
+ * spec that spells its value asserts the default rather than that a level steps
+ * by whatever unit is in force.
+ *
+ * Declared on `body`, so any element inherits it.
+ */
+export function publishedUnit(): Promise<number> {
+  return browser.execute(() => {
+    const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const raw = getComputedStyle(document.body).getPropertyValue('--to-decor-unit').trim();
+    if (!raw) throw new Error('--to-decor-unit is not declared');
+    return raw.endsWith('rem') ? parseFloat(raw) * remPx : parseFloat(raw);
+  });
+}
+
 export function publishedGutter(): Promise<number> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
