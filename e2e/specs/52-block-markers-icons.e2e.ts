@@ -421,12 +421,15 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
       const contentRect = cm.contentDOM.getBoundingClientRect();
       // Read, not spelled: the unit is a published property a snippet may
       // override, so a literal here asserts the default rather than the grid.
-      const unitRaw = getComputedStyle(document.body).getPropertyValue('--to-decor-unit').trim();
-      const unitPx =
-        parseFloat(unitRaw) *
-        (unitRaw.endsWith('rem')
-          ? parseFloat(getComputedStyle(document.documentElement).fontSize)
-          : 1);
+      // Resolved through layout rather than parsed: an override may be any CSS
+      // length, and `getPropertyValue` hands back the token that was written —
+      // `1in` would parse as one pixel and `calc(2rem + 1px)` as NaN.
+      const probe = document.createElement('div');
+      probe.style.cssText =
+        'position:absolute;visibility:hidden;height:0;width:var(--to-decor-unit);';
+      document.body.appendChild(probe);
+      const unitPx = probe.getBoundingClientRect().width;
+      probe.remove();
       return {
         glyphRect: glyph?.getBoundingClientRect(),
         markerRect: marker?.getBoundingClientRect(),

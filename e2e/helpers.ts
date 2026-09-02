@@ -785,25 +785,6 @@ export async function toggleOutlineMode(): Promise<void> {
  * editor rather than inside `.cm-content`, so the theme's own scoped values are
  * in the cascade without CodeMirror's managed DOM being touched.
  */
-/**
- * The outline unit as the RENDERED document publishes it, in px.
- *
- * Read rather than restated, for the same reason as `publishedGutter`, and one
- * more: overriding the unit's single declaration is a SUPPORTED adjustment, so a
- * spec that spells its value asserts the default rather than that a level steps
- * by whatever unit is in force.
- *
- * Declared on `body`, so any element inherits it.
- */
-export function publishedUnit(): Promise<number> {
-  return browser.execute(() => {
-    const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    const raw = getComputedStyle(document.body).getPropertyValue('--to-decor-unit').trim();
-    if (!raw) throw new Error('--to-decor-unit is not declared');
-    return raw.endsWith('rem') ? parseFloat(raw) * remPx : parseFloat(raw);
-  });
-}
-
 export function publishedGutter(): Promise<number> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
@@ -826,6 +807,40 @@ export function publishedGutter(): Promise<number> {
     probe.style.setProperty('--to-marker-gutter', raw);
     probe.style.width = 'var(--to-marker-gutter)';
     host.appendChild(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return +width.toFixed(2);
+  });
+}
+
+/**
+ * The outline unit as the RENDERED document publishes it, in px.
+ *
+ * Read rather than restated: overriding the unit's single declaration is a
+ * SUPPORTED adjustment, so a spec that spells its value asserts the default
+ * rather than that a level steps by whatever unit is in force.
+ *
+ * RESOLVED rather than parsed, for the reason `publishedGutter` records and one
+ * more that belongs to this value in particular. What a reader may write in a
+ * snippet is any CSS length — `2rem`, `28px`, `1in`, `calc(2rem + 1px)` — and
+ * `getPropertyValue` hands back the token they wrote, not a length. Parsing it
+ * would read `1in` as one pixel and `calc(...)` as `NaN`, so a spec meant to
+ * hold the adjustment would mis-evaluate the very inputs the adjustment exists
+ * to support.
+ *
+ * A probe INHERITS the property rather than copying it, the unit being declared
+ * on `body` and inherited by everything — so this reads whatever is in force,
+ * including an override a snippet applied.
+ */
+export function publishedUnit(): Promise<number> {
+  return browser.execute(() => {
+    if (!getComputedStyle(document.body).getPropertyValue('--to-decor-unit').trim()) {
+      throw new Error('--to-decor-unit is not declared');
+    }
+    const probe = document.createElement('div');
+    probe.style.cssText =
+      'position:absolute;visibility:hidden;height:0;width:var(--to-decor-unit);';
+    document.body.appendChild(probe);
     const width = probe.getBoundingClientRect().width;
     probe.remove();
     return +width.toFixed(2);

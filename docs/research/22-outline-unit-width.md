@@ -55,6 +55,17 @@ So the work was not to build the adjustment but to hold it:
 - **An e2e spec applies an override the way a snippet does** — a `<style>` element at the scope
   the plugin declares at — and asserts both surfaces land every row at `depth × unit + gutter`
   at two different units, plus that the mark-to-text distance does not move with it.
+
+  It measures each layer that positions itself, not just the visible one: a block line's
+  padding, an atom's margin, a list item's supplemental margin, its stated hanging indent, the
+  guide gradient's period and stripe positions, and the `--list-indent` bridge. Review found
+  the first version watching only row text and marker centres, where pinning any of the others
+  would have passed. Each was then pinned in turn to confirm the current one catches it.
+
+  Two of them are not where they look. An atom's margin and a list item's supplemental margin
+  are written INLINE from JS, so the stylesheet rules that appear to position them are
+  overridden and editing those changes nothing — which is why the first attempt at controlling
+  them reported a pass.
 - **Two unused JS copies were deleted.** `DECOR_UNIT_REM` and `DECOR_UNIT_CSS` held the unit as
   a number and a string for a caller that never arrived. A number cannot follow an override, so
   the first caller to position something from one would have left that piece on the old grid
