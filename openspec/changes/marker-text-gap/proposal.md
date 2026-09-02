@@ -73,14 +73,42 @@ So this change is less about picking a smaller number than about deriving the nu
 
 ## Impact
 
-- **Modified**: one constant in `src/plugin/chrome-tokens.ts`; eleven derivations in
-  `styles.css` follow automatically, on both surfaces, for every kind.
-- **Tests**: three e2e specs hard-code the resolved 20px and will need the new value —
+- **Modified**: `src/plugin/chrome-tokens.ts` — the gutter stops being a number. It becomes a
+  stated gap, a floor for the marks this layer draws itself, and a CSS expression that reads
+  the theme's own `--checkbox-size` at render time. Eleven derivations in `styles.css` follow
+  with no edits, on both surfaces, for every kind.
+- **Fixed, as defects the derivation exposed**: Obsidian's own trailing margin on a task
+  checkbox (a second answer to the question the gutter answers, inert only while the old gutter
+  dominated it); the footer's own chrome reading the gutter through a stale literal, so its
+  heading laid out on the old value while its rows took the new one; and a footer ordinal with
+  no trailing space running flush into its own text once the slot narrowed.
+- **Tests**: three e2e specs hard-coded the resolved 20px and now read the published property —
   `e2e/specs/50-decorations.e2e.ts`, `e2e/specs/51-guides-gradient.e2e.ts`,
-  `e2e/specs/56-list-grid.e2e.ts`. A new spec covers the derivation itself.
+  `e2e/specs/56-list-grid.e2e.ts`. A new spec, `e2e/specs/57-marker-gap.e2e.ts`, covers the
+  derivation itself, and two cases in `e2e/specs/74-footer-chrome-pass.e2e.ts` cover the footer
+  half.
 - **Regenerated**: the screenshot corpus. The footer's structural baseline is unaffected — it
   records no pixels.
-- **Risk**: an ordered list's single-digit markers are the binding constraint, so the derived
-  gutter is likely close to what a `1. ` needs. If the measurement puts that above today's
-  value, the honest outcome is that the gap cannot tighten much on ordered lists, and the
-  proposal should be re-read rather than the number forced.
+
+## Outcome
+
+The proposal expected a single-digit ordered marker to be the binding constraint. The
+measurement said otherwise, and the correction is worth recording because it changed the shape
+of the answer rather than only its value.
+
+**No mark is the binding one.** Two of the four vary, in different ways, and the derivation
+had to be split accordingly:
+
+- A **checkbox** is sized by the theme, and Obsidian resolves `--checkbox-size` per platform
+  (16px desktop, 18.4px mobile). It is the widest mark on both, and knowable at render time —
+  so it is a live term, not a recorded one. Frozen at the desktop value it left a mobile task's
+  text off the shared column, which is exactly the quiet failure this change was written to
+  prevent.
+- A single-digit **ordered number** is drawn by the reader's font — about 2px wider on CI's
+  Linux font than on macOS — and is not knowable before layout. It cannot be a term at all.
+  What it gets instead is the floor its own box mechanism already imposed, which is what keeps
+  it on the shared column.
+
+So the gap did tighten on ordered lists, and the honest statement is narrower than the one this
+proposal asked for: the stated gap is guaranteed for the marks this layer sizes, and the shared
+column — not the distance — is what every other kind is promised.

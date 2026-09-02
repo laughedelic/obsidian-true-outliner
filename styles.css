@@ -65,9 +65,12 @@ body {
 
 /*
  * `--to-marker-gutter` (Experiment 5a, see
- * docs/research/10-experiment-5-block-markers.md): a fixed, additive
- * reservation for a per-kind block marker icon, on top of the existing
- * depth-based indentation. Applies to every non-list-item line (block and
+ * docs/research/10-experiment-5-block-markers.md): an additive reservation for
+ * a per-kind block marker icon, on top of the existing depth-based
+ * indentation. Its VALUE is derived from the marks it has to hold rather than
+ * chosen (chrome-tokens.ts, docs/research/21-marker-text-gap.md), so no rule
+ * here may restate it — a literal copy goes stale the first time that
+ * derivation is re-run. Applies to every non-list-item line (block and
  * atom alike) — list items reserve nothing, since they keep their fully
  * native marker untouched. `rem`, never `em`, same reasoning as
  * `--to-decor-unit` above. Explicitly set per-line by `lineDecoration()`
@@ -495,6 +498,22 @@ body {
   .task-list-item-checkbox {
   /* Half its own width back from the column, so its centre lands on it. */
   margin-inline-start: calc(var(--checkbox-size) / -2);
+  /*
+   * Obsidian's own trailing margin here is a second answer to the question the
+   * gutter already answers — how far a mark's text sits from it.
+   *
+   * Left in place it is inert only while the label's `min-width` above
+   * (`gutter - one space`) exceeds the label's NATURAL width, which that margin
+   * is part of. Below that the label stops being sized by the gutter at all, and
+   * a task's text leaves the column every other kind's text sits on, with
+   * nothing in the rendering to attribute the drift to. The gutter is derived
+   * from the marks it holds (chrome-tokens.ts), so it is free to land either
+   * side of that threshold.
+   *
+   * Zeroing it puts the whole distance back under `min-width`, where the
+   * derivation can reach it.
+   */
+  margin-inline-end: 0;
 }
 
 .markdown-source-view.mod-cm6
@@ -866,7 +885,7 @@ body {
     calc(
       -1 *
         (
-          var(--to-marker-gutter, 1.25rem) + var(--to-marker-icon-size, 0.85rem) / 2 + 3px -
+          var(--to-marker-gutter) + var(--to-marker-icon-size, 0.85rem) / 2 + 3px -
             var(--to-chevron-dead-right, 6px)
         )
     ),
@@ -1308,7 +1327,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding-left: var(--to-marker-gutter, 1.25rem);
+  padding-left: var(--to-marker-gutter);
   color: var(--text-muted);
   margin-bottom: 0.75rem;
   cursor: pointer;
@@ -1461,7 +1480,7 @@ body {
 .to-backlinks-resolving {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
-  padding: 0.2rem 0 0.2rem var(--to-marker-gutter, 1.25rem);
+  padding: 0.2rem 0 0.2rem var(--to-marker-gutter);
 }
 
 /*
@@ -1552,11 +1571,21 @@ body {
  */
 .to-backlinks-ordinal {
   --to-ordinal-slot: calc(
-    var(--to-marker-gutter, 1.25rem) + var(--to-marker-icon-size, 0.85rem) / 2
+    var(--to-marker-gutter) + var(--to-marker-icon-size, 0.85rem) / 2
   );
   display: inline-block;
   margin-inline-start: calc(-1 * var(--to-ordinal-slot));
   min-width: var(--to-ordinal-slot);
+  /*
+   * The clearance a number too wide for the slot keeps from its own text.
+   *
+   * The editor's ordered marker gets this for free: its trailing space is part
+   * of the line and renders whether or not the digits fit. A footer ordinal is
+   * drawn from the item's number alone, with no space after it, so an
+   * overflowing one ran straight into its text. Inert while the number fits,
+   * `min-width` covering both it and the digits (`box-sizing: border-box`).
+   */
+  padding-inline-end: var(--to-marker-gap);
   color: var(--to-backlinks-mark);
   font-variant-numeric: tabular-nums;
   pointer-events: none;

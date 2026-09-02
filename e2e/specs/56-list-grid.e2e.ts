@@ -12,9 +12,10 @@
  * viewport, so a fixture longer than the window silently drops its tail.
  *
  * Assert the RULE, never a position a glyph's width decides. Four assertions
- * here have already had to be rewritten for it: `1. ` measures 18.4px in the
- * bundled theme on macOS and 20.36px on CI's Linux font, so anything sized by
- * `min-width` against the 20px gutter lands differently on the two.
+ * here have already had to be rewritten for it: `1. ` measures a little under
+ * 18.4px in the bundled theme on macOS and about 2px more on CI's Linux font,
+ * so anything sized by `min-width` against the gutter lands differently on the
+ * two.
  *
  * The specific trap, all four times: an ORDERED item's own text column is not a
  * fixed offset from anything. Its marker is `min-width: gutter`, so where the
@@ -233,7 +234,12 @@ const at = (rows: LineGeometry[], n: number): LineGeometry => {
 };
 
 const UNIT = 24; // 1.5rem at a 16px root
-const GUTTER = 20; // 1.25rem
+/**
+ * The gutter this run's build publishes, resolved in `before`. Not a literal:
+ * it is derived from the marks it has to hold, so a spelled value asserts the
+ * number this file was written against rather than that the layout followed it.
+ */
+let GUTTER = 0;
 
 const TABS = ['# H', '', '- one', '\t- two', '\t\t- three', ''].join('\n');
 
@@ -242,6 +248,10 @@ describe('lists on the outline grid', function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
     await h.pinPositionIndicatorsOff();
+    // A rendered, decorated document has to exist before the gutter can be read
+    // off one of its lines.
+    await open(TABS);
+    GUTTER = await h.publishedGutter();
   });
 
   afterEach(async function () {

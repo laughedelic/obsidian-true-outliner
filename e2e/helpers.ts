@@ -772,6 +772,47 @@ export async function toggleOutlineMode(): Promise<void> {
 
 // ---- Decorations (rendered layout) ----------------------------------------
 
+/**
+ * The marker gutter as the RENDERED document publishes it, in px.
+ *
+ * Read rather than restated, and RESOLVED rather than parsed. The gutter is
+ * derived (`MARKER_GUTTER_CSS`, docs/research/21-marker-text-gap.md) and its
+ * checkbox term reads a live theme value, so its published form is a `calc()`
+ * expression rather than a length — parsing the token gives the first number in
+ * it, which is not the gutter and is not even close.
+ *
+ * A probe element resolves it the way the layout does. It is attached beside the
+ * editor rather than inside `.cm-content`, so the theme's own scoped values are
+ * in the cascade without CodeMirror's managed DOM being touched.
+ */
+export function publishedGutter(): Promise<number> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cm = (view.editor as any).cm;
+    let raw = '';
+    for (const child of Array.from(cm.contentDOM.children) as HTMLElement[]) {
+      const value = child.style.getPropertyValue('--to-marker-gutter').trim();
+      if (value) {
+        raw = value;
+        break;
+      }
+    }
+    if (!raw) throw new Error('no rendered line published --to-marker-gutter');
+
+    const host = (cm.dom.parentElement ?? document.body) as HTMLElement;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;height:0;';
+    probe.style.setProperty('--to-marker-gutter', raw);
+    probe.style.width = 'var(--to-marker-gutter)';
+    host.appendChild(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return +width.toFixed(2);
+  });
+}
+
 /** Set the app-wide color scheme by toggling the body theme classes. */
 export async function setTheme(dark: boolean): Promise<void> {
   await browser.execute((dark) => {

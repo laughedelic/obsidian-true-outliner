@@ -48,6 +48,7 @@ import {
   applyLineChrome,
   lineChrome,
 } from './chrome-line';
+import { CHROME_VARS, MARKER_GAP_CSS, MARKER_GUTTER_CSS } from './chrome-tokens';
 import { buildRows, splitPath, type FooterRow, type LineageSegment } from './footer-model';
 import type { BacklinkIndex } from './backlink-index';
 import type { NodeKind, OutlineNode } from '../model';
@@ -130,6 +131,17 @@ class FooterController {
     private readonly targetPath: string,
   ) {
     this.el = createDiv({ cls: FOOTER_CLASS });
+    // The section's own chrome — its heading, its "resolving…" placeholder, a
+    // wide ordinal's clearance — lays out against the gutter and the gap, and
+    // is not a row, so `chrome-line.ts` never reaches it. Published here rather
+    // than left to a literal fallback in the stylesheet: the gutter is derived
+    // (chrome-tokens.ts), so a fallback is a copy that goes stale the first time
+    // the derivation is re-run, and the heading then sits off the column of the
+    // very rows it heads.
+    this.el.setCssProps({
+      [CHROME_VARS.markerGutter]: MARKER_GUTTER_CSS,
+      [CHROME_VARS.markerGap]: MARKER_GAP_CSS,
+    });
     // Reading the footer is not editing the note.
     //
     // The footer is a block widget inside a contenteditable, so a click in it

@@ -23,13 +23,60 @@
  * only for callers that need the NUMBER rather than the CSS expression. Prefer
  * `UNIT_EXPR` — a literal in JS is a second copy of a value CSS owns. */
 export const DECOR_UNIT_REM = 1.5;
-/** Horizontal room reserved for a block marker, left of a node's content. */
-export const MARKER_GUTTER_REM = 1.25;
+/**
+ * The visual gap between a mark's ink and the text that mark names.
+ *
+ * The one value in the gutter's derivation that is chosen rather than measured.
+ * Its floor is not free: every mark whose row is written with a single space
+ * after it is sized as "the gutter, less one space", so a gap under a space's
+ * own advance drives that sizing negative and the mark overflows into the column
+ * its text was to begin on. A space's advance varies with the reader's font,
+ * which is why this sits clear of it rather than on it.
+ *
+ * Argued once, in docs/research/21-marker-text-gap.md.
+ */
+export const MARKER_GAP_REM = 0.375;
+
+/**
+ * The ink the gutter reserves whatever the theme does — a floor, not the answer.
+ *
+ * It covers the marks this layer draws for itself, which are much narrower than
+ * this (an icon's glyph, a bullet's dot), and it is set well above them for a
+ * second reason: a single-digit ordered number's own box is sized "gutter less
+ * one space", so a gutter that collapsed to the icon's width would push an
+ * ordered item's text off the column its siblings share.
+ *
+ * A checkbox is not covered here, because it is not ours to predict — see the
+ * expression below.
+ */
+export const MIN_MARK_INK_REM = 0.5;
+
 /** The marker glyph's own box. */
 export const MARKER_ICON_REM = 0.85;
 
+/**
+ * Horizontal room reserved for a block marker, left of a node's content.
+ *
+ * DERIVED, and derived AT RENDER TIME rather than frozen into a number here.
+ *
+ * The widest mark this layer positions is a task's checkbox, and its size is the
+ * theme's — `--checkbox-size`, which Obsidian resolves differently per platform
+ * (measured: 16px on desktop, 18.4px on mobile). A constant taken from one of
+ * them is wrong on the other, and wrong in the quiet way this whole derivation
+ * exists to prevent: the checkbox does not clip, its own text simply leaves the
+ * column every other kind's text sits on. So the checkbox term reads the live
+ * value and the arithmetic happens in CSS.
+ *
+ * What is NOT in the max is any mark drawn by the reader's FONT — a single-digit
+ * ordered number. Its ink is a glyph's width, unknowable before layout, so it
+ * cannot be a term here; the guarantee it gets instead is the floor its own box
+ * mechanism sets (one space's advance), which is what keeps it on the shared
+ * column. docs/research/21-marker-text-gap.md records both halves.
+ */
 export const DECOR_UNIT_CSS = `${DECOR_UNIT_REM}rem`;
-export const MARKER_GUTTER_CSS = `${MARKER_GUTTER_REM}rem`;
+export const MARKER_GUTTER_CSS =
+  `calc(max(${MIN_MARK_INK_REM}rem, var(--checkbox-size, 1rem) / 2) + ${MARKER_GAP_REM}rem)`;
+export const MARKER_GAP_CSS = `${MARKER_GAP_REM}rem`;
 export const MARKER_ICON_CSS = `${MARKER_ICON_REM}rem`;
 
 /**
@@ -41,6 +88,7 @@ export const MARKER_ICON_CSS = `${MARKER_ICON_REM}rem`;
 export const CHROME_VARS = {
   unit: '--to-decor-unit',
   markerGutter: '--to-marker-gutter',
+  markerGap: '--to-marker-gap',
   markerIcon: '--to-marker-icon-size',
   guideColor: '--to-guide-color',
   accent: '--to-decor-accent',

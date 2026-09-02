@@ -591,6 +591,8 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // code fence sits exactly one marker-gutter further right than the
     // list item at the same nominal depth.
     expect(info.codeLeft).toBeGreaterThan(info.listLeft);
-    expect(info.codeLeft - info.listLeft).toBeCloseTo(20, 0); // --to-marker-gutter default (1.25rem)
+    // Exactly one gutter, read from the published property rather than spelled:
+    // it is derived from the marks it holds (docs/research/21-marker-text-gap.md).
+    expect(info.codeLeft - info.listLeft).toBeCloseTo(await h.publishedGutter(), 0);
   });
 });
