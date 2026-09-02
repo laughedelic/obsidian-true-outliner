@@ -392,6 +392,70 @@ describe('backlinks footer: behaviour', function () {
     }
   });
 
+/**
+   * The promise, not the mechanism: rename a source and the footer says so,
+   * without being touched.
+   *
+   * `72-backlink-index` covers the same rename by asking the INDEX, which is a
+   * different question and the one that already had the right answer — the gap
+   * that once let a deleted source keep its card on a green suite.
+   *
+   * NOT a negative control for the `repaintFooters()` call in the rename
+   * handler: this passes with that line removed, because a rename re-resolves
+   * every other note's links and the `resolved` handler repaints. Review
+   * believed otherwise and it was worth measuring. What the test does pin is the
+   * user-visible promise, which would survive only one of those two paths
+   * disappearing.
+   */
+  it('repaints a mounted footer when a source is renamed', async function () {
+    const from = 'Backlinks/Family tree.md';
+    const to = 'Backlinks/Family tree renamed.md';
+    const nameOf = (path: string): string => path.split('/').pop()!.replace(/\.md$/, '');
+
+    await openFooter(TARGET);
+
+    const groupNames = (): Promise<string[]> =>
+      browser.executeObsidian(() =>
+        Array.from(
+          document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group-name'),
+        ).map((el) => el.textContent ?? ''),
+      );
+
+    expect(await groupNames()).toContain(nameOf(from));
+
+    const renamed = await browser.executeObsidian(
+      async ({ app }, [a, b]: [string, string]) => {
+        const file = app.vault.getAbstractFileByPath(a);
+        if (!file) return false;
+        await app.fileManager.renameFile(file, b);
+        return true;
+      },
+      [from, to] as [string, string],
+    );
+    expect(renamed).toBe(true);
+
+    try {
+      // No scroll, no click, no toggle — the footer has to repaint on its own.
+      // A `waitUntil` rather than a fixed pause: the repaint is a render, and
+      // what is asserted is that it happens at all, not how fast.
+      await browser.waitUntil(async () => (await groupNames()).includes(nameOf(to)), {
+        timeout: 8000,
+        timeoutMsg: 'the footer kept naming the source by its old path',
+      });
+      expect(await groupNames()).not.toContain(nameOf(from));
+    } finally {
+      // Put the fixture back, so no later test depends on this one passing.
+      await browser.executeObsidian(
+        async ({ app }, [a, b]: [string, string]) => {
+          const file = app.vault.getAbstractFileByPath(a);
+          if (file) await app.fileManager.renameFile(file, b);
+        },
+        [to, from] as [string, string],
+      );
+      await browser.pause(500);
+    }
+  });
+
   it('shows no footer chrome for a note nothing links to, beyond its own header', async function () {
     await openFooter(DORMANT);
     const shape = await browser.executeObsidian(() => {

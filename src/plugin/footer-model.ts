@@ -35,7 +35,8 @@ interface FooterRowBase {
    * one row at one depth. `collapseLineage` emits a strict preorder in which
    * every row at depth d has exactly one ancestor row at each shallower depth
    * (its `below = depth + 1` step is unconditional), so the ancestors' depths
-   * are exactly `0 … d-1`. `tests/lineage.test.ts` holds that invariant.
+   * are exactly `0 … d-1`. `tests/project.test.ts` holds that invariant
+   * ("lineage: collapsing").
    */
   readonly guideDepths: readonly number[];
   /** What the shared chrome contract reads. Synthetic for rows that are not a

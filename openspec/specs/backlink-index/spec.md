@@ -110,8 +110,9 @@ reported for that target.
 **Covered by**: `e2e/specs/72-backlink-index.e2e.ts` ("picks up a newly added link without a
 reload", "drops a reference when the link is removed", "evicts a deleted source note",
 "re-keys a renamed source note to its new path") and `e2e/specs/75-footer-behaviour.e2e.ts`
-("drops a source’s group when that source stops referencing" — the index updating is not the
-same as the footer repainting, and the second was a real defect found on a green first).
+("drops a source’s group when that source stops referencing" and "repaints a mounted footer when
+a source is renamed" — the index updating is not the same as the footer repainting, and the
+first of those was a real defect found on a green index test).
 
 ### Requirement: Reference context comes from the plugin's own parse of the source
 

@@ -192,6 +192,22 @@ export default class TrueOutlinerPlugin extends Plugin {
         // leaving the old key would report references from a file that is gone.
         this.backlinks.removeSource(oldPath);
         if (file instanceof TFile) this.backlinks.reindex(file);
+        // Defence in depth, not a fix for an observed defect — said plainly
+        // because the difference matters to whoever reads this next.
+        //
+        // Review argued a rename left mounted footers naming a path that no
+        // longer exists, since this handler updated the index and stopped.
+        // Measured, it does not: a rename changes what every OTHER note's links
+        // resolve to, so `metadataCache` re-resolves and the `resolved` handler
+        // below rebuilds and repaints. Confirmed by deleting this line and
+        // watching the footer still update, through both `fileManager.renameFile`
+        // and the raw `vault.rename` that rewrites no links.
+        //
+        // Kept anyway: that chain runs through an Obsidian event ordering we do
+        // not control and do not document, and `changed` and `deleted` both
+        // repaint from their own handlers rather than relying on it. One call on
+        // a rare event buys this one the same independence.
+        repaintFooters();
       }),
     );
     this.registerEvent(

@@ -86,7 +86,7 @@ absorbs.
 ### Method
 
 Apparatus: `src/plugin/spike-footer-widget.ts`, a content-free widget behind the
-`debugFooterWidget` setting; measured by `e2e/specs/70-spike-footer-widget.e2e.ts` against
+`debugFooterWidget` setting; measured by `e2e/specs/70-footer-enforcement.e2e.ts` against
 `Backlinks/Deep chain.md`.
 
 The measurement is **differential**. "Where does the caret land with a widget present" means
@@ -175,7 +175,7 @@ orphaned-container sweeper (see [16](18-structured-backlinks.md), "Prior art").
 **Verdict: proceed.** No leaks, no orphans, no duplicates. One real defect found and fixed: a
 `StateField` needs an invalidation signal the existing decoration layers never needed.
 
-Covered by `e2e/specs/71-spike-footer-lifecycle.e2e.ts`. The invariant asserted throughout is
+Covered by `e2e/specs/71-footer-lifecycle.e2e.ts`. The invariant asserted throughout is
 **one widget per outline-mode editor, and none anywhere else**, counted over the whole document
 rather than the workspace container — an orphan in a detached container would not show up in a
 workspace-scoped query, and orphans are the thing most worth catching.
@@ -559,11 +559,11 @@ note, same build, both bundled themes, and screenshotted side by side with the c
 ### Method
 
 Apparatus: `src/plugin/footer-render-modes.ts` behind a `footerRenderMode` plugin-data key,
-switched in `FooterController.fillGroup`; `e2e/specs/79-render-mode-comparison.e2e.ts` renders
+switched in `FooterController.fillGroup`; `e2e/specs/79-render-mode-comparison.e2e.ts` rendered
 `People/Priya Nair.md` in all three modes across both themes into
-`.obsidian-cache/footer-render-modes/`. Both were removed once this was recorded — the
-apparatus existed to answer one question, and a switch nobody will ever flip again is a
-liability, not a feature.
+`.obsidian-cache/footer-render-modes/`. Both were deleted once this verdict was recorded (task
+9b.3), so neither path exists today — the apparatus existed to answer one question, and a switch
+nobody will ever flip again is a liability, not a feature.
 
 Both alternatives need the group as markdown text first, which is itself informative: neither
 can show anything our own renderer cannot. They differ only in who draws it.
