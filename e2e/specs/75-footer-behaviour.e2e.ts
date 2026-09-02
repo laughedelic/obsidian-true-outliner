@@ -55,7 +55,7 @@ async function openFooter(notePath: string): Promise<void> {
         ?.classList.contains('is-collapsed') ?? false,
   );
   if (collapsed) {
-    await (await $(`${FOOTER} .to-backlinks-title`)).click();
+    await h.clickClear(`${FOOTER} .to-backlinks-title`);
     await browser.pause(300);
   }
 }
@@ -168,9 +168,9 @@ describe('backlinks footer: behaviour', function () {
 
       // Now read the footer: scroll it, click its header, fold and unfold it.
       await scrollToEnd();
-      await (await $(`${FOOTER} .to-backlinks-title`)).click();
+      await h.clickClear(`${FOOTER} .to-backlinks-title`);
       await browser.pause(300);
-      await (await $(`${FOOTER} .to-backlinks-title`)).click();
+      await h.clickClear(`${FOOTER} .to-backlinks-title`);
       await browser.pause(300);
       expect(await h.getBuffer()).toBe(edited);
 
@@ -311,11 +311,11 @@ describe('backlinks footer: behaviour', function () {
    */
   it('follows a link inside a mention to the link’s own target', async function () {
     await openFooter(TARGET);
-    const link = await $(`${FOOTER} .to-backlinks-row.is-reference a.internal-link`);
-    const href = await link.getAttribute('data-href');
+    const linkSel = `${FOOTER} .to-backlinks-row.is-reference a.internal-link`;
+    const href = await (await $(linkSel)).getAttribute('data-href');
     expect(href).toBeTruthy();
 
-    await link.click();
+    await h.clickClear(linkSel);
     await browser.pause(600);
 
     const opened = await browser.executeObsidian(
@@ -334,11 +334,10 @@ describe('backlinks footer: behaviour', function () {
    */
   it('reveals hidden descendants when a row’s fold is used', async function () {
     await openFooter(TARGET);
-    const fold = await $(`${FOOTER} .to-backlinks-fold`);
-    expect(await fold.isExisting()).toBe(true);
+    expect(await (await $(`${FOOTER} .to-backlinks-fold`)).isExisting()).toBe(true);
 
     const before = (await rows()).length;
-    await fold.click();
+    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
     await browser.pause(400);
     const after = (await rows()).length;
 
@@ -478,7 +477,7 @@ describe('backlinks footer: behaviour', function () {
     // Resolved at click time rather than stamped earlier: measuring the cap
     // rebuilds the footer, so an attribute set before the measurement is gone by
     // the time the control exists.
-    await (await $(`${FOOTER} .to-backlinks-more`)).click();
+    await h.clickClear(`${FOOTER} .to-backlinks-more`);
     await browser.pause(400);
 
     const after = await capState();
@@ -492,7 +491,7 @@ describe('backlinks footer: behaviour', function () {
     expect(after!.label).toBe('Show less');
 
     // Put it back, so a later test does not inherit an expanded group.
-    await (await $(`${FOOTER} .to-backlinks-more`)).click();
+    await h.clickClear(`${FOOTER} .to-backlinks-more`);
     await browser.pause(300);
   });
 
@@ -710,37 +709,84 @@ describe('backlinks footer: behaviour', function () {
     }, name);
   }
 
-  /** Clicks the nth row (or the nth lineage segment of it) inside a named group.
-   *  Driven through a real element click so the handler sees a real event. */
-  async function clickInGroup(
+  /**
+   * A viewport point inside the nth row of a named group — or inside the nth
+   * lineage segment of that row — that lies on text no link or button owns.
+   *
+   * Not the element's centre. A reference row wraps on a narrow viewport and its
+   * centre then lands on the `[[link]]` its text ends with, where `open`
+   * correctly declines to act because a nested link owns its own click. The
+   * row-level handler is what these tests are about.
+   *
+   * The point comes from the FIRST client rect of that text, never its bounding
+   * rect: a text node that wraps has a union rect whose centre sits between its
+   * lines and outside its own glyphs, which clicked the neighbouring segment and
+   * opened the wrong ancestor.
+   *
+   * Computed AFTER scrolling, so the coordinates are the ones the pointer will
+   * actually use. Diagnosed from a mobile failure screenshot rather than reasoned
+   * about — the numbers said only that nothing had navigated.
+   */
+  async function pointInGroup(
     name: string,
     rowIndex: number,
     segmentIndex?: number,
-  ): Promise<void> {
-    const selector = await browser.executeObsidian(
+  ): Promise<{ x: number; y: number }> {
+    // Cleared first, not only on the way out: a test that fails before its own
+    // cleanup leaves this attribute behind, and the next `querySelector` matches
+    // THAT element — detached, zero-sized, and failing for a reason belonging to
+    // another test. One real failure looked like three.
+    await clearTargets();
+
+    const stamped = await browser.executeObsidian(
       (_ctx, args: { groupName: string; row: number; seg: number }) => {
         const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
         for (const card of Array.from(cards)) {
           if (card.querySelector('.to-backlinks-group-name')?.textContent !== args.groupName)
             continue;
           const row = card.querySelectorAll<HTMLElement>('.to-backlinks-row')[args.row];
-          if (!row) return null;
+          if (!row) return false;
           const el =
             args.seg >= 0
               ? row.querySelectorAll<HTMLElement>('.to-backlinks-seg')[args.seg]
               : row;
-          if (!el) return null;
-          // A stable handle for WebdriverIO, since these rows carry no id.
+          if (!el) return false;
           el.setAttribute('data-e2e-target', 'yes');
-          return '[data-e2e-target="yes"]';
+          return true;
         }
-        return null;
+        return false;
       },
       { groupName: name, row: rowIndex, seg: segmentIndex ?? -1 },
     );
-    expect(selector).not.toBeNull();
-    await (await $(selector!)).click();
-    await browser.pause(700);
+    expect(stamped).toBe(true);
+
+    await (await $('[data-e2e-target="yes"]')).scrollIntoView({ block: 'center' });
+    await browser.pause(150);
+
+    const point = await browser.executeObsidian(() => {
+      const el = document.querySelector<HTMLElement>('[data-e2e-target="yes"]');
+      if (!el) return null;
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const parent = node.parentElement;
+        if (!node.textContent?.trim() || !parent || parent.closest('a, button')) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const r = range.getClientRects()[0];
+        if (!r || r.width <= 0 || r.height <= 0) continue;
+        // Near the start of the run, so a long one that wraps around a link
+        // cannot put the point past it.
+        const x = r.left + Math.min(r.width / 2, 20);
+        const y = r.top + r.height / 2;
+        // Only if the pointer would actually reach this element.
+        const at = document.elementFromPoint(x, y);
+        if (at && (at === el || el.contains(at))) return { x, y };
+      }
+      return null;
+    });
+
+    expect(point).not.toBeNull();
+    return point!;
   }
 
   async function clearTargets(): Promise<void> {
@@ -759,7 +805,9 @@ describe('backlinks footer: behaviour', function () {
     // The LAST row of the group is the reference; the rows above it are its
     // lineage. Taken by position rather than by class so the assertion does not
     // depend on how the reference row happens to be marked.
-    await clickInGroup(DEEP_GROUP, count - 1);
+    const spot = await pointInGroup(DEEP_GROUP, count - 1);
+    await h.clickAtPoint(spot.x, spot.y);
+    await browser.pause(700);
 
     const opened = await browser.executeObsidian(
       ({ app }) => app.workspace.getActiveFile()?.path ?? '',
@@ -789,7 +837,9 @@ describe('backlinks footer: behaviour', function () {
     }, DEEP_GROUP);
     expect(segments).toBeGreaterThan(1);
 
-    await clickInGroup(DEEP_GROUP, 0, segments - 1);
+    const last = await pointInGroup(DEEP_GROUP, 0, segments - 1);
+    await h.clickAtPoint(last.x, last.y);
+    await browser.pause(700);
     expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
       DEEP_SOURCE,
     );
@@ -801,7 +851,9 @@ describe('backlinks footer: behaviour', function () {
     // And the FIRST segment lands somewhere else, so the previous assertion is
     // about the segment clicked rather than about the row.
     await openFooter(HUB);
-    await clickInGroup(DEEP_GROUP, 0, 0);
+    const first = await pointInGroup(DEEP_GROUP, 0, 0);
+    await h.clickAtPoint(first.x, first.y);
+    await browser.pause(700);
     expect((await h.getCursor()).line).toBe(0);
     await clearTargets();
   });
@@ -813,20 +865,9 @@ describe('backlinks footer: behaviour', function () {
     );
     const count = await groupRowCount(DEEP_GROUP);
 
-    const selector = await browser.executeObsidian((_ctx, args: { groupName: string; row: number }) => {
-      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
-      for (const card of Array.from(cards)) {
-        if (card.querySelector('.to-backlinks-group-name')?.textContent !== args.groupName) continue;
-        const row = card.querySelectorAll<HTMLElement>('.to-backlinks-row')[args.row];
-        if (!row) return null;
-        row.setAttribute('data-e2e-target', 'yes');
-        return '[data-e2e-target="yes"]';
-      }
-      return null;
-    }, { groupName: DEEP_GROUP, row: count - 1 });
-    expect(selector).not.toBeNull();
-
-    await h.modClick(selector!);
+    // The same targeting as a plain click — a row's centre lands on its link.
+    const spot = await pointInGroup(DEEP_GROUP, count - 1);
+    await h.modClickAt(spot.x, spot.y);
     await browser.pause(800);
 
     const after = await browser.executeObsidian(
