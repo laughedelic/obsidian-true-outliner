@@ -91,6 +91,16 @@ on the column on both.
   derives a smaller gutter from them
 - **THEN** every mark's visible centre still coincides with its own depth's column
 
+**Covered by**: `e2e/specs/57-marker-gap.e2e.ts` ("starts all four qualifying marks' text on
+one column"; "leaves the widest layer-sized mark exactly the stated gap from its text" — the
+widest is MEASURED rather than named, so the assertion follows a theme that resizes one;
+"gives a font-drawn mark the floor rather than the stated gap"; "keeps every mark clear of its
+own text by at least one space's advance"; "pushes only its own text right when an ordered
+number is too wide"), `e2e/specs/74-footer-chrome-pass.e2e.ts` ("lays the section's own chrome
+out on the same gutter as its rows"; "keeps every ordinal clear of its own text, however wide
+the number").
+
+
 ## MODIFIED Requirements
 
 ### Requirement: Markers are fixed-size and coexist with native and guide chrome
@@ -122,3 +132,14 @@ a heading.
 - **WHEN** a heading has a foldable child, so Obsidian renders its native fold chevron
 - **THEN** the chevron does not overlap the heading's own marker or an ancestor's guide
   line passing through the same row
+
+**Covered by**: `e2e/specs/52-block-markers-icons.e2e.ts` ("blockquote: native colored bar
+and the marker widget coexist (DOM widget, not a pseudo-element — no clobber by
+construction)", "marker size is fixed (rem), NOT font-size-dependent — identical
+width/height on a heading vs. a paragraph line", "no !important/specificity or
+contain:paint regression: a depth-0 table (no ancestor guide) still shows its marker
+unclipped", "code fence and blockquote markers align horizontally with a same-depth
+paragraph's (native padding/text-indent compensation)", "heading marker vertical offset
+from the line's own center is small and doesn't grow with heading level (H1 vs H3)",
+"native fold chevron glyph sits between the marker and an ancestor's guide line, clear of
+both").
