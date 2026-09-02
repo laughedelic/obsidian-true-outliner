@@ -1,0 +1,363 @@
+# backlinks-footer Specification
+
+## Purpose
+Defines the in-document backlinks surface: a read-only section below a note's own content that
+shows every reference to it in the tree of the note it came from — the lineage that leads to
+the referencing node, the node itself, and what hangs off it. It is the outward-facing use of
+the plugin's block tree, and it is strictly a rendering: it never changes the note it sits under
+or the notes it displays.
+## Requirements
+### Requirement: The footer is scoped to outline mode and to the editing view
+
+The footer SHALL render only when the open file has outline mode enabled, resolved through the
+same mode source the rest of the plugin uses, and only in the editing view. In the
+reading/preview view, or with outline mode off, the document SHALL render exactly as it does
+without this feature.
+
+#### Scenario: No footer off-mode
+
+- **WHEN** a note without outline mode enabled is open
+- **THEN** no backlinks footer renders and the document ends exactly as stock Obsidian renders it
+
+#### Scenario: Toggle applies without reload
+
+- **WHEN** outline mode is toggled on for the open note
+- **THEN** the footer appears without reopening the file
+
+**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("renders in outline mode, and not
+off-mode or in reading view", "leaves a note with no outline mode alone entirely") and
+`e2e/specs/70-footer-enforcement.e2e.ts` ("mounts exactly one widget in outline mode, and none
+off-mode"). The reading-view half needed the question restating: Obsidian keeps the source
+view's DOM alive but hidden, so what is asserted is that the reading renderer produces none of
+its own and that nothing of it is on screen.
+
+### Requirement: The footer is read-only and never mutates the document
+
+The footer SHALL be a pure rendering projection. It SHALL NOT dispatch any document-changing
+transaction against the note it sits under, SHALL NOT write to any note it displays, SHALL NOT
+create undo history entries, and SHALL NOT alter the note's on-disk bytes, however often it
+recomputes or however the user interacts with it.
+
+The note's own content SHALL occupy the same document positions with the footer present as
+without it, so that a caret position, a selection, or a structural operation behaves identically
+either way.
+
+#### Scenario: Rendering mutates nothing
+
+- **WHEN** a note with many references is opened, scrolled, and closed in outline mode
+- **THEN** the file's bytes are unchanged and the undo stack contains no entry attributable to
+  the footer
+
+#### Scenario: Document positions are unaffected
+
+- **WHEN** the same note is opened with the footer present and with the feature disabled
+- **THEN** every document position, the end-of-document position, and the result of selecting
+  the whole document are identical in both cases
+
+#### Scenario: Interacting with the footer leaves the note alone
+
+- **WHEN** the user expands, collapses, and clicks within the footer
+- **THEN** the note's text and undo stack are unchanged
+
+**Covered by**: `e2e/specs/70-footer-enforcement.e2e.ts` ("leaves the document byte-identical
+after mounting and unmounting", "does not change caret placement, selection escalation, or
+structural ops", "does not move the caret when the footer is clicked") and
+`e2e/specs/75-footer-behaviour.e2e.ts` ("leaves the note's bytes and undo stack untouched while
+being read" — the undo half asserted after a real edit, so there is something on the stack to
+lose).
+
+### Requirement: References are grouped by source note
+
+The footer SHALL group references by the note they come from, one group per source note, each
+labelled with that note's name, its containing folder, and the number of references it
+contributes. A group SHALL be collapsible, and collapsing it SHALL hide its references while
+leaving its label and count visible.
+
+The footer SHALL state the total number of references and the number of contributing notes.
+
+#### Scenario: One group per source note
+
+- **WHEN** a target is referenced twice from one note and once from another
+- **THEN** two groups render, the first reporting two references and the second one
+
+#### Scenario: A group collapses
+
+- **WHEN** a group is collapsed
+- **THEN** its references are hidden and its name and count remain visible
+
+**Covered by**: `e2e/specs/73-footer-render.e2e.ts` ("renders groups and rows for a referenced
+note"), `e2e/specs/72-backlink-index.e2e.ts` ("reports totals that match the per-source
+counts") and `e2e/specs/75-footer-behaviour.e2e.ts` ("drops a source’s group when that source
+stops referencing").
+
+### Requirement: A reference renders in its lineage, with the outline's own notation
+
+Within a group, each reference SHALL render as the referencing node preceded by the lineage
+that leads to it, where lineage is the collapsed ancestor chain defined by `tree-projection`.
+Two references sharing ancestors SHALL share the lineage that leads to their common branch
+point rather than each repeating it.
+
+Node kind notation — the marker drawn beside a node — SHALL be identical between a lineage
+element and a referencing node: same glyph for the same kind, same size, same colour. Emphasis
+SHALL be carried by text treatment alone, with lineage rendered dimmer than the referencing node
+it leads to.
+
+Every element of a collapsed chain SHALL carry its own kind's marker: the first element's is the
+row's own marker, and each subsequent element's is drawn immediately before that element's text.
+No mark SHALL be drawn between two elements — they are separated by space alone.
+
+#### Scenario: Shared ancestors are not repeated
+
+- **WHEN** two references in one note sit under the same heading
+- **THEN** that heading renders once, with both references below it
+
+#### Scenario: An unbranching chain renders as one lineage line
+
+- **WHEN** a reference sits four levels deep with no other reference in that note
+- **THEN** its four ancestors render as a single lineage line rather than four rows
+
+#### Scenario: Markers do not encode emphasis
+
+- **WHEN** a lineage element and a referencing node are of the same kind
+- **THEN** their markers are drawn identically, and only the text differs in colour
+
+#### Scenario: Every ancestor on a collapsed line is named
+
+- **WHEN** a lineage row carries three ancestors of two different kinds
+- **THEN** each is preceded by its own kind's marker — the first in the row's marker position,
+  the other two inline — and no separator glyph is drawn between them
+
+**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("collapses an unbranching chain to one
+lineage row above its reference", "renders a shared ancestor once, with both references below
+it") and `e2e/specs/74-footer-chrome-pass.e2e.ts` ("names every ancestor on a lineage row, the
+first in the gutter", "draws every footer mark at one size, on its column", "says a row’s kind
+once, in its marker", "draws every row through the editor’s own class-and-property contract").
+
+### Requirement: A row renders node text, not a node document
+
+A row's content SHALL be inline content only: links, emphasis, code spans, tags and math — what
+lives inside a line. A row SHALL NOT contain block-level elements. A node's block syntax SHALL be
+removed before its content is rendered, so no heading, list, blockquote, table, callout or code
+block is produced.
+
+Kind SHALL be expressed once, by the row's marker. A row SHALL NOT additionally carry the
+typography of its kind: no heading sizes, no callout box, no quote bar, no table frame.
+
+Two properties SHALL move from content into the marker, because they are state rather than
+presentation: a task's checkbox SHALL replace its bullet, and an ordered item's number SHALL
+replace its bullet, both drawn on the same column every other marker uses.
+
+A multi-line node SHALL render according to whether its lines are continuations or records.
+Paragraph, heading, quote and callout lines SHALL join into one flowing row. Code and table lines
+SHALL NOT join: a code row SHALL show the line the reference sits on, and a table row SHALL show
+only the cell the reference sits in.
+
+#### Scenario: No block elements reach a row
+
+- **WHEN** a source note references the target from a heading, a quote, a callout, a table and a
+  fenced code block
+- **THEN** no row in the footer contains a heading, blockquote, list, table or code-block element
+
+#### Scenario: Kind is said once
+
+- **WHEN** a reference sits in a level-one heading
+- **THEN** the row carries the heading marker, and its text is rendered at the same size as a
+  paragraph row's
+
+#### Scenario: A task's checkbox is its marker
+
+- **WHEN** a reference sits in a checked task item
+- **THEN** the row's marker is a checked checkbox, drawn where a bullet would be, and no checkbox
+  appears inside the row's text
+
+#### Scenario: An ordered item's number is its marker
+
+- **WHEN** a reference sits in the tenth item of an ordered list
+- **THEN** the row's marker is `10.`, aligned on the same column a bullet would occupy, and the
+  row's text begins where every other row's text begins
+
+#### Scenario: A callout shows its title without its type token
+
+- **WHEN** a reference sits in the title of a `[!note]` callout
+- **THEN** the row shows the callout's title, the `[!note]` token does not appear, and the row
+  carries the callout marker
+
+#### Scenario: A table shows the cell the reference is in
+
+- **WHEN** a reference sits in a cell of a table's third row
+- **THEN** the row shows that cell and nothing else of the table — not its header, not its
+  sibling cells, not the rows the reference is not on
+
+#### Scenario: Prose lines join, record lines do not
+
+- **WHEN** a reference sits in a paragraph hard-wrapped across three lines
+- **THEN** the row shows all three lines joined into one
+- **WHEN** a reference sits in one line of a fenced code block
+- **THEN** the row shows only that line
+
+**Covered by**: `e2e/specs/74-footer-chrome-pass.e2e.ts` ("never puts a block-level element in
+a row", "gives every kind the treatment its own rule promises", "gives every single-line row
+the same height", "makes every row a whole number of text lines tall", "matches the committed
+structural baseline for every fixture") and `tests/footer-model.test.ts` for the per-kind
+content table itself.
+
+### Requirement: A reference shows one level of children, deeper subtrees folded
+
+The children of a referencing node SHALL render. A child that has children of its own SHALL
+render collapsed, with the same fold affordance the outline uses in the editor, positioned
+beside its marker. Expanding it SHALL reveal its own children under the same rule.
+
+#### Scenario: Immediate children are shown
+
+- **WHEN** a referencing node has three children, none of which has children
+- **THEN** all three render
+
+#### Scenario: A grandchild-bearing child is folded
+
+- **WHEN** a referencing node has a child that itself has two children
+- **THEN** that child renders with a fold affordance and its own children are hidden until it is
+  expanded
+
+**Covered by**: `tests/footer-model.test.ts` ("shows a reference's own children, and folds a
+child that has its own", "keeps a reference’s children in source order, referenced or not",
+"drops the fold count once a row is expanded", "renders a reference nested inside another
+reference exactly once") and `e2e/specs/75-footer-behaviour.e2e.ts` ("reveals hidden descendants
+when a row’s fold is used" — reported in review, where expansion was keyed on a synthetic fact's
+line number and so marked nothing).
+
+### Requirement: A property reference renders without lineage
+
+A reference of kind Property SHALL render as a single row carrying the property name and the
+link, without lineage and without tree indentation, because it has no position in the block
+tree. It SHALL be visually distinguishable from a reference that does have a position.
+
+#### Scenario: A frontmatter reference claims no place in the tree
+
+- **WHEN** a source note references the target from a frontmatter property
+- **THEN** the reference renders as one row showing the property name, with no lineage and no
+  indentation
+
+**Covered by**: `tests/footer-model.test.ts` ("renders a frontmatter reference as a property
+row with no lineage") and `e2e/specs/74-footer-chrome-pass.e2e.ts` (the property row in the
+per-kind matrix and the structural baseline).
+
+### Requirement: An embed reference is distinguishable from a link
+
+A reference of kind Embed SHALL render in its lineage like any positioned reference, and SHALL
+additionally carry an indication that it is an embed, so a transclusion is not read as a
+mention.
+
+#### Scenario: An embed is marked
+
+- **WHEN** a source note embeds the target
+- **THEN** the reference renders in tree context and is marked as an embed
+
+**Covered by**: `e2e/specs/72-backlink-index.e2e.ts` ("distinguishes an embed from a link, and
+a property from both") for the classification, and `e2e/specs/75-footer-behaviour.e2e.ts`
+("marks an embed reference as one, and leaves a plain reference unmarked") for the rendering.
+The second was written by this audit: the classification was covered and nothing asserted that
+it reached the row, so a tag applied to every row or to none would have passed.
+
+### Requirement: A long group is truncated, and says so
+
+A group whose rows exceed a height threshold SHALL be truncated with a visible fade and a control
+that reveals the rest and puts it back. Truncation SHALL be visual only: every reference SHALL
+remain present, in source order, so the group's own count and the footer's totals continue to
+describe the whole set rather than the visible part.
+
+The threshold SHALL be expressed so that a setting can drive it without the rendering knowing
+about settings. Choosing its default is `backlinks-controls`' work, informed by S5.
+
+#### Scenario: A long group is truncated rather than dropped
+
+- **WHEN** a source note contributes more rows than the threshold allows
+- **THEN** the group is clipped with a fade and offers a control to reveal the rest
+- **AND** its count still reports every reference, not the visible ones
+
+#### Scenario: A short group is untouched
+
+- **WHEN** a source note's rows fit within the threshold
+- **THEN** the group shows no fade and offers no control
+
+**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("offers a cap control on a group too
+long to fit, and honours it" — the control appears only on a body that overflows, using it
+reveals what was hidden, and it survives being used, which is what the `truncatable` set exists
+for). Written by this audit, which found this requirement with no test at all. It runs on
+`Reference target`, not the hub: the hub fixture is broad rather than deep, so every one of its
+groups fits and the control correctly never appears there.
+
+**Manual**: the FADE. It is a gradient over a card's bottom edge, and nothing available to this
+harness distinguishes it from its absence; read on screen in both bundled themes during the 9.5
+real-vault pass.
+
+### Requirement: The footer paints known information first and fills in context as it resolves
+
+The footer SHALL render the reference total, the contributing notes and their per-note counts as
+soon as they are known, without waiting for any source note to be read. Each group SHALL fill in
+its references and lineage when that source note has been read and placed, independently of
+other groups.
+
+A group whose context has not yet resolved SHALL indicate that it is still resolving, and SHALL
+NOT display placeholder content standing in for structure that is not yet known.
+
+#### Scenario: Counts appear before context
+
+- **WHEN** a note with several referencing notes is opened
+- **THEN** the total, the note names and their counts are visible before any reference's lineage
+  is
+
+#### Scenario: Groups resolve independently
+
+- **WHEN** one source note is slow to read
+- **THEN** the other groups render their references without waiting for it
+
+#### Scenario: No fabricated structure while loading
+
+- **WHEN** a group has not yet resolved
+- **THEN** it shows that it is resolving and shows no rows standing in for references
+
+**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("paints counts before context, and
+never fabricates rows while resolving") and `e2e/specs/76-footer-cost.e2e.ts` ("measures first
+paint — mount to header on screen"). Note S5's correction to D11: at the measured cost the
+header and the bodies arrive in the same frame, so what this requirement buys is the guarantee
+that a count is never shown without the rows behind it — a correctness property, not a speed
+one.
+
+### Requirement: Clicking a reference opens its source at that node
+
+Clicking a referencing node SHALL open its source note and reveal the referenced node.
+Clicking a lineage element SHALL open its source note and reveal that ancestor. Navigation
+SHALL follow Obsidian's own conventions for opening a link, including the modifiers that open
+in a new pane.
+
+#### Scenario: A reference navigates to its source
+
+- **WHEN** a referencing node is clicked
+- **THEN** its source note opens with that node revealed
+
+#### Scenario: A lineage element navigates to that ancestor
+
+- **WHEN** an element of a lineage line is clicked
+- **THEN** the source note opens with that ancestor revealed
+
+**Covered by**: `e2e/specs/75-footer-behaviour.e2e.ts` ("opens a reference at its own node, not
+at the top of its note", "opens a lineage segment at THAT ancestor, not at the chain’s first",
+"opens a new pane on Mod-click, leaving the current one alone", "follows a link inside a
+mention to the link’s own target"). Asserted on `Backlinks/Deep chain.md`, the one fixture
+where "opened the note", "opened at the reference" and "opened at this ancestor" are three
+different lines.
+
+### Requirement: A note with no references shows a dormant footer
+
+A note with no references SHALL render a single quiet line stating that there are none, in the
+position the populated header would occupy, rather than rendering nothing at all.
+
+#### Scenario: An unreferenced note still ends predictably
+
+- **WHEN** a note that nothing links to is open in outline mode
+- **THEN** one line reports that there are no linked references, and no groups render
+
+**Covered by**: `e2e/specs/73-footer-render.e2e.ts` ("shows one header line, counted, for a
+note nothing links to") and `e2e/specs/75-footer-behaviour.e2e.ts` ("shows no footer chrome for
+a note nothing links to, beyond its own header").
+
