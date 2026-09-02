@@ -55,7 +55,15 @@ next begins; green unit tests are never the gate for anything visual.
 - [x] 4.1 Write a throwaway harness that decorates each corpus note twice: once as the open
       document, once as a projection of that note parsed from disk
 - [x] 4.2 Assert per-node equality of depth, kind, `isFirstLine`, `isAtom`, `isListItem`,
-      `hasNativeMarker`, `supplementalDepth` and `hasChildren` for every surviving node
+      `hasNativeMarker`, `supplementalDepth` and `hasChildren` for every surviving node.
+      *As written this task was wrong, and S3 is what found it — kept rather than rewritten,
+      because the correction is the result. Equality holds for the facts describing what a node
+      IS (kind, atom, list-item, native marker); it does NOT hold, and must not, for the facts
+      describing where a node SITS. Depth, supplemental depth and `hasChildren` describe the
+      tree actually passed in, so a node whose children were pruned away correctly reports none.
+      The task asked for equality across both groups and would have failed a correct
+      implementation. See S3's verdict below and the `outline-decorations` requirement it
+      sharpened.*
 - [x] 4.3 Record the S3 verdict. Any divergence means D-A is wrong and `decorate()` needs an
       explicit seam before reuse — resolve before group 5 hardens the projection
 

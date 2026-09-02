@@ -369,11 +369,10 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         });
         leaf.querySelectorAll<HTMLElement>('.to-backlinks-row').forEach((row, i) => {
           const icon = row.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
-          // An atom's marker is centred on its BOX, not on a text run — that is
-          // a different contract, asserted in the per-kind test below.
-          if (icon && !icon.classList.contains('to-decor-marker-icon--widget')) {
-            measure(row, icon, `footer:${i}`);
-          }
+          // Every footer marker takes the plain-line contract, including an
+          // atom's: D18 gives a row no box to centre against, and 8b.6 deleted
+          // the widget-marker branch that once needed excluding here.
+          if (icon) measure(row, icon, `footer:${i}`);
         });
         return out;
       });
