@@ -248,6 +248,47 @@ describe('footer model', () => {
     expect(folded.foldedCount).toBe(1);
   });
 
+  /**
+   * Review found this: the count stopped at anything VISIBLE, but only the
+   * descendant pass creates folds. A path node the lineage pass puts on screen
+   * between two matches controls nothing, so a branch hanging off one was
+   * counted by nobody and revealed by nothing.
+   */
+  it('counts through a visible node that owns no fold', () => {
+    const doc = parse(`- [[Aurora Dashboard]] outer
+	- B
+		- C
+			- [[Aurora Dashboard]] nested
+			- unrelated under C
+`);
+    const rows = buildRows(doc, referencesTarget, [], noRef, noneExpanded);
+    // `C` is on screen as a path node between the two matches, and has no fold
+    // of its own — so `unrelated under C` is `B`'s to report.
+    const c = rows.find((r) => r.type === 'node' && r.markdown.includes('C'));
+    if (c?.type !== 'node') throw new Error('expected the path row');
+    expect(c.foldedCount).toBe(0);
+
+    const b = rows.find((r) => r.type === 'node' && r.markdown.trim().endsWith('B'));
+    if (b?.type !== 'node') throw new Error('expected the fold row');
+    expect(b.foldedCount).toBe(1);
+    expect(rows.some((r) => r.type === 'node' && r.markdown.includes('unrelated'))).toBe(false);
+  });
+
+  it('reveals that branch when the fold reporting it is expanded', () => {
+    const doc = parse(`- [[Aurora Dashboard]] outer
+	- B
+		- C
+			- [[Aurora Dashboard]] nested
+			- unrelated under C
+`);
+    // Expanding `B` hands `C` to the descendant pass, which gives it a fold of
+    // its own; expanding that reveals the branch. The point is that a route
+    // exists — before the fix there was none at any expansion.
+    const openAll = () => true;
+    const rows = buildRows(doc, referencesTarget, [], noRef, openAll);
+    expect(rows.some((r) => r.type === 'node' && r.markdown.includes('unrelated'))).toBe(true);
+  });
+
   it('drops the fold count once a row is expanded', () => {
     const doc = parse(`- [[Aurora Dashboard]] hit
 \t- child with kids
@@ -394,6 +435,44 @@ describe('row content is notation, not reproduction (D18)', () => {
     const row = rowStartingWith('whose body mentions');
     expect(row.markdown).toBe('whose body mentions [[Reference target]] rather than its title.');
     expect(row.markdown).not.toContain('[!tip]');
+  });
+
+  /**
+   * Review found this: the optional checkbox required trailing whitespace, so
+   * `- [ ]` with nothing after it was not a task at all — no checkbox marker,
+   * and `[ ]` left sitting in the row's own text. It is the state a just-created
+   * todo is in, so it is the common one rather than an edge.
+   */
+  it('keeps an empty task a task, with nothing left in its text', () => {
+    const doc = parse(`- [[Reference target]] anchor
+	- [ ]
+	- [x]
+	-
+`);
+    const rows = buildRows(doc, mentionsTarget, [], refAt, noneExpanded)
+      .filter((r) => r.type === 'node' && !r.isReference);
+    const [open, done, bare] = rows as Array<Extract<FooterRow, { type: 'node' }>>;
+    expect(open!.task).toBe(false);
+    expect(done!.task).toBe(true);
+    expect(open!.markdown).toBe('');
+    expect(done!.markdown).toBe('');
+    // An empty bullet is the same shape one token earlier: its marker is not
+    // its content either.
+    expect(bare!.markdown).toBe('');
+  });
+
+  /**
+   * Review found this: tags were matched to the first `>`, which is not where a
+   * tag ends when one sits inside a quoted attribute — the rest of the attribute
+   * leaked into the row as text.
+   */
+  it('keeps a tag’s own angle bracket out of the row', () => {
+    const doc = parse(`<div title="1 > 0">Visible [[Reference target]]</div>`);
+    const row = buildRows(doc, mentionsTarget, [], refAt, noneExpanded).find(
+      (r) => r.type === 'node' && r.fact.kind === 'html',
+    );
+    if (row?.type !== 'node') throw new Error('no html row');
+    expect(row.markdown).toBe('Visible Reference target');
   });
 
   it('shows an HTML block’s text, not its markup', () => {

@@ -311,8 +311,11 @@ export default class TrueOutlinerPlugin extends Plugin {
   }
 
   /** See `SpikeFooterSource.footerRevision` — bumped whenever outline mode or
-   * the debug flag changes, so the footer's StateField gets a real transaction
-   * to recompute on (docs/research/19, S2). */
+   * the backlinks-footer setting changes, so the footer's StateField gets a real
+   * transaction to recompute on (docs/research/19, S2). Those are the two
+   * inputs the footer's own rendering reads; a setting added later that the
+   * footer depends on has to bump this too, or its change is invisible until
+   * some unrelated transaction arrives. */
   private footerRev = 0;
 
   get footerRevision(): number {

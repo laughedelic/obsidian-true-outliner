@@ -247,21 +247,28 @@ function stripBlockPrefix(line: string): string {
     .trim()
     .replace(/^(?:>\s?)+/, '')
     .replace(/^#{1,6}\s+/, '')
-    .replace(/^(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?/, '')
+    .replace(/^(?:[-*+]|\d{1,9}[.)])(?:\s+|$)(?:\[[ xX]\](?:\s+|$))?/, '')
     .trim();
 }
 
-/** `- [x] ` — a task's state, or absent when the item is not a task. */
+/**
+ * `- [x]` — a task's state, or absent when the item is not a task.
+ *
+ * The trailing whitespace is optional because `- [ ]` with nothing after it is a
+ * valid task, and the common one: it is what a just-created todo looks like.
+ * Requiring it classified an empty task as a plain list item, which dropped its
+ * checkbox and left `[ ]` in the row's own text.
+ */
 function taskStateOf(node: OutlineNode): boolean | undefined {
   if (node.kind !== 'list-item') return undefined;
-  const m = /^\s*[-*+]\s+\[([ xX])\]\s/.exec(node.lines[0] ?? '');
+  const m = /^\s*[-*+]\s+\[([ xX])\](?:\s|$)/.exec(node.lines[0] ?? '');
   return m ? m[1] !== ' ' : undefined;
 }
 
 /** `10.` — an ordered item's own label, as written. */
 function ordinalOf(node: OutlineNode): string | undefined {
   if (node.kind !== 'list-item') return undefined;
-  return /^\s*(\d{1,9}[.)])\s/.exec(node.lines[0] ?? '')?.[1];
+  return /^\s*(\d{1,9}[.)])(?:\s|$)/.exec(node.lines[0] ?? '')?.[1];
 }
 
 /** A fence's lines are statements, not a sentence: show the one the reference
@@ -274,6 +281,20 @@ function codeLineOf(node: OutlineNode, refLine: number | undefined): string {
 }
 
 /**
+ * One tag, or one comment.
+ *
+ * The quoted-string alternatives are what keep a tag's own `>` from ending it:
+ * `<div title="1 > 0">` is one tag, and matching to the first `>` left the rest
+ * of the attribute in the row as text. Requiring a letter after `<` leaves a
+ * stray `<` in prose alone, which matching `<[^>]*>` did not.
+ *
+ * A tokenizer would be the thorough answer and is not available here: this
+ * module is pure so it can be tested without a DOM, and a dependency is a large
+ * price for the preview line of a footer row.
+ */
+const HTML_TAG = /<!--[\s\S]*?-->|<\/?[a-zA-Z][^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/g;
+
+/**
  * An HTML block's visible text: tags removed, entities left to the DOM.
  *
  * A wikilink inside one is reduced to the text it would have shown. Obsidian
@@ -284,7 +305,7 @@ function codeLineOf(node: OutlineNode, refLine: number | undefined): string {
 function htmlTextOf(node: OutlineNode): string {
   return node.lines
     .join(' ')
-    .replace(/<[^>]*>/g, ' ')
+    .replace(HTML_TAG, ' ')
     .replace(/!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, target: string, alias?: string) =>
       (alias ?? target).trim(),
     )
@@ -491,14 +512,18 @@ export function buildRows(
    * of the two already on screen beneath it, and expanding it revealed less than
    * it promised or nothing at all.
    *
-   * Descending stops at anything visible, because a visible node reports its own
-   * subtree through its own fold. Counting through it would attribute the same
-   * hidden rows to two different controls.
+   * Descending stops at a node that owns a FOLD, because such a node reports its
+   * own subtree through it and counting past it would attribute the same hidden
+   * rows to two different controls. Being visible is not enough: only the
+   * descendant pass creates folds, so a node the lineage pass put on screen — a
+   * path node between two matches, or a segment of a collapsed chain — is seen
+   * but controls nothing.
    */
+  const foldOwners = new Set(folds.map((f) => f.node.id));
   for (const { index, node } of folds) {
     const row = rows[index];
     if (row?.type !== 'node') continue;
-    rows[index] = { ...row, foldedCount: hiddenBelow(node, visible) };
+    rows[index] = { ...row, foldedCount: hiddenBelow(node, visible, foldOwners) };
   }
 
   return rows;
@@ -607,15 +632,27 @@ function syntheticFact(node: OutlineNode, depth: number): LineDecorationFact {
   };
 }
 
-/** How many nodes beneath `node` this fold actually withholds: everything not
- * already on screen by another route, not descending past one. */
-function hiddenBelow(node: OutlineNode, visible: ReadonlySet<number>): number {
+/**
+ * How many nodes beneath `node` this fold actually withholds: everything not
+ * already on screen by another route, not descending past another fold.
+ *
+ * The distinction between the two ways of being on screen is what makes a deep
+ * branch reachable at all. A node that owns a fold is skipped whole — it counts
+ * and reveals its own subtree. A node that is merely VISIBLE is not counted, but
+ * IS descended through: it has no control of its own, so whatever is hidden
+ * beneath it belongs to the nearest fold above it. Stopping at it instead left
+ * that branch counted by nobody and revealed by nothing.
+ */
+function hiddenBelow(
+  node: OutlineNode,
+  visible: ReadonlySet<number>,
+  foldOwners: ReadonlySet<number>,
+): number {
   let total = 0;
   const walk = (nodes: readonly OutlineNode[]): void => {
     for (const child of nodes) {
-      // On screen by some other route, and the owner of its own subtree's count.
-      if (visible.has(child.id)) continue;
-      total += 1;
+      if (foldOwners.has(child.id)) continue;
+      if (!visible.has(child.id)) total += 1;
       walk(child.children);
     }
   };
