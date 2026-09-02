@@ -30,6 +30,7 @@ Research date: July 2026.
 | [18-structured-backlinks.md](18-structured-backlinks.md) | The structured-backlinks layer (README vision, Q10): prior art across Roam/Logseq/Tana/Orca and the three Obsidian attempts, what the public API does and does not permit (core backlinks have **no** public surface at all), and the seventeen design decisions taken against the interactive prototype — plus what is still open |
 | [19-backlinks-footer-spikes.md](19-backlinks-footer-spikes.md) | **Hub** for the backlinks-footer spike series: ground rules (inherited from 07), the shared fixture corpus and what each fixture is diagnostic for, and the results table — including S1, which may veto the footer surface outright |
 | [20-surfaces-and-embedding.md](20-surfaces-and-embedding.md) | Where the outline can be drawn and what each way costs: why the editor's chrome was not readily reusable, the seam between the two renderers, the public `getSectionInfo` route to reading mode, and the embedded-real-editor technique — **recorded, not proposed** — with the eight non-public touchpoints it needs and the README promise that decides it |
+| [21-marker-text-gap.md](21-marker-text-gap.md) | The one measurement pass behind `--to-marker-gutter`: what each qualifying mark's ink actually reaches, why a multi-digit ordered number is excluded, the floor the one-space sizing rules already imposed on the stated gap, the argument for the gap that was chosen, and the three stale-value defects the derivation exposed |
 
 ## TL;DR
 

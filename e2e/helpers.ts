@@ -772,6 +772,34 @@ export async function toggleOutlineMode(): Promise<void> {
 
 // ---- Decorations (rendered layout) ----------------------------------------
 
+/**
+ * The marker gutter as the RENDERED document publishes it, in px.
+ *
+ * Read rather than restated. The gutter is DERIVED from the marks it has to
+ * hold (`MARKER_GUTTER_REM`, docs/research/21-marker-text-gap.md), so a spec
+ * that spells its value asserts the literal it was written against instead of
+ * asserting that the layout followed the property — and it fails on a change to
+ * the derivation that the layout handled correctly.
+ *
+ * `lineDecoration()` publishes the property per LINE, not on the content DOM, so
+ * it is read off the first line carrying one.
+ */
+export function publishedGutter(): Promise<number> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cm = (view.editor as any).cm;
+    const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    for (const child of Array.from(cm.contentDOM.children) as HTMLElement[]) {
+      const raw = getComputedStyle(child).getPropertyValue('--to-marker-gutter').trim();
+      if (!raw || parseFloat(raw) === 0) continue;
+      return raw.endsWith('rem') ? parseFloat(raw) * remPx : parseFloat(raw);
+    }
+    throw new Error('no rendered line published --to-marker-gutter');
+  });
+}
+
 /** Set the app-wide color scheme by toggling the body theme classes. */
 export async function setTheme(dark: boolean): Promise<void> {
   await browser.execute((dark) => {

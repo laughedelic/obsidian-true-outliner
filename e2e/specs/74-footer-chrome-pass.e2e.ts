@@ -456,6 +456,104 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
    * (D18), so this holds by construction rather than by cleanup — which is
    * exactly why it is worth asserting: a stripping miss is silent otherwise.
    */
+  /**
+   * The section's own chrome is not a row, so nothing in `chrome-line.ts`
+   * reaches it — it reads the gutter from the property the section publishes.
+   *
+   * Asserted as an equality between two computed paddings rather than against a
+   * value, because what breaks here is DIVERGENCE: the gutter is derived
+   * (chrome-tokens.ts), so any copy of it that the section reads instead goes
+   * stale the first time the derivation is re-run, and the heading then sits
+   * off the column of the rows it heads while its icon stays on it. The
+   * icon-column assertion above passes throughout that, the icon being placed
+   * from the column rather than from the gutter.
+   */
+  it('lays the section’s own chrome out on the same gutter as its rows', async function () {
+    await h.openNote(KINDS);
+    await ensureOutlineMode(KINDS);
+    await scrollToEnd();
+
+    const paddings = await browser.executeObsidian(() => {
+      const footer = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks');
+      if (!footer) return null;
+      const head = footer.querySelector<HTMLElement>('.to-backlinks-head');
+      const row = Array.from(footer.querySelectorAll<HTMLElement>('.to-backlinks-row')).find(
+        (el) => el.style.getPropertyValue('--to-depth').trim() === '0',
+      );
+      if (!head || !row) return null;
+      return {
+        head: getComputedStyle(head).paddingLeft,
+        row: getComputedStyle(row).paddingLeft,
+      };
+    });
+    expect(paddings).not.toBeNull();
+    expect(paddings!.head).toBe(paddings!.row);
+  });
+
+  /**
+   * A footer ordinal is drawn from the item's number alone. The editor's
+   * equivalent carries the marker's trailing space, which renders whether or not
+   * the digits fit their slot; this one has no such space, so a number too wide
+   * for the slot has nothing between it and its own text but what the rule gives
+   * it.
+   *
+   * Read from the published gap rather than spelled: it is one half of the
+   * gutter's derivation (docs/research/21-marker-text-gap.md).
+   */
+  it('keeps every ordinal clear of its own text, however wide the number', async function () {
+    await h.openNote(KINDS);
+    await ensureOutlineMode(KINDS);
+    await scrollToEnd();
+
+    const readings = await browser.executeObsidian(() => {
+      const footer = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks');
+      if (!footer) return null;
+      const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const rawGap = getComputedStyle(footer).getPropertyValue('--to-marker-gap').trim();
+      const gap = rawGap.endsWith('rem') ? parseFloat(rawGap) * remPx : parseFloat(rawGap);
+
+      /** Glyph ink, so the box's own padding is not counted as clearance. */
+      const inkRight = (el: Element): number | null => {
+        const range = document.createRange();
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let right: number | null = null;
+        let node: Node | null = walker.nextNode();
+        while (node) {
+          const raw = node.textContent ?? '';
+          if (raw.trim() !== '') {
+            range.setStart(node, raw.length - raw.trimStart().length);
+            range.setEnd(node, raw.trimEnd().length);
+            for (const r of Array.from(range.getClientRects())) {
+              if (r.width > 0 && (right === null || r.right > right)) right = r.right;
+            }
+          }
+          node = walker.nextNode();
+        }
+        return right;
+      };
+
+      const gaps: Array<{ label: string; clearance: number }> = [];
+      for (const el of Array.from(footer.querySelectorAll<HTMLElement>('.to-backlinks-row'))) {
+        const ordinal = el.querySelector(':scope > .to-backlinks-ordinal');
+        const content = el.querySelector(':scope > .to-backlinks-content');
+        if (!ordinal || !content) continue;
+        const digits = inkRight(ordinal);
+        const text = content.getBoundingClientRect().left;
+        if (digits === null) continue;
+        gaps.push({ label: (ordinal.textContent ?? '').trim(), clearance: text - digits });
+      }
+      return { gap, gaps };
+    });
+
+    expect(readings).not.toBeNull();
+    expect(readings!.gap).toBeGreaterThan(0);
+    // The corpus carries a two-digit number, which is the case that overflows.
+    expect(readings!.gaps.some((g) => g.label.length >= 3)).toBe(true);
+    for (const g of readings!.gaps) {
+      expect(g.clearance).toBeGreaterThanOrEqual(readings!.gap - 0.5);
+    }
+  });
+
   it('never puts a block-level element in a row', async function () {
     for (const target of [KINDS, SMALL, HUB]) {
       await h.openNote(target);

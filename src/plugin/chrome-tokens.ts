@@ -23,13 +23,52 @@
  * only for callers that need the NUMBER rather than the CSS expression. Prefer
  * `UNIT_EXPR` — a literal in JS is a second copy of a value CSS owns. */
 export const DECOR_UNIT_REM = 1.5;
-/** Horizontal room reserved for a block marker, left of a node's content. */
-export const MARKER_GUTTER_REM = 1.25;
+/**
+ * The visual gap between a mark's ink and the text that mark names.
+ *
+ * The one value in the gutter's derivation that is chosen rather than measured.
+ * Its floor is not free: every mark whose row is written with a single space
+ * after it is sized as "the gutter, less one space", so a gap under a space's
+ * own advance drives that sizing negative and the mark overflows into the column
+ * its text was to begin on. A space's advance varies with the reader's font,
+ * which is why this sits clear of it rather than on it.
+ *
+ * Argued once, in docs/research/21-marker-text-gap.md.
+ */
+export const MARKER_GAP_REM = 0.375;
+
+/**
+ * How far the widest QUALIFYING mark's ink reaches right of its own column.
+ *
+ * Measured, and only true with respect to a measurement — the marks are drawn by
+ * the reader's font and theme. A mark qualifies when this layer positions it on
+ * the column and its width does not depend on its own content: the synthetic
+ * block icon, a native bullet, a task checkbox, and a single-digit ordered
+ * number. On the bundled themes the widest is the checkbox, at half its own
+ * `--checkbox-size`.
+ *
+ * A multi-digit ordered number is deliberately not among them; it is permitted
+ * to lean right into its own text's space instead. See the research doc, which
+ * records what each mark measured and why that exclusion is the cheaper trade.
+ */
+export const WIDEST_MARK_INK_REM = 0.5;
+
+/**
+ * Horizontal room reserved for a block marker, left of a node's content.
+ *
+ * DERIVED, not chosen — that is what the two constants above are for. Lowering
+ * it past what the widest mark needs does not clip that mark: it pushes that one
+ * kind's text off the column every other kind shares, which reads as a rendering
+ * bug rather than as a value set too small. The derivation's e2e spec is what
+ * holds it.
+ */
+export const MARKER_GUTTER_REM = WIDEST_MARK_INK_REM + MARKER_GAP_REM;
 /** The marker glyph's own box. */
 export const MARKER_ICON_REM = 0.85;
 
 export const DECOR_UNIT_CSS = `${DECOR_UNIT_REM}rem`;
 export const MARKER_GUTTER_CSS = `${MARKER_GUTTER_REM}rem`;
+export const MARKER_GAP_CSS = `${MARKER_GAP_REM}rem`;
 export const MARKER_ICON_CSS = `${MARKER_ICON_REM}rem`;
 
 /**
@@ -41,6 +80,7 @@ export const MARKER_ICON_CSS = `${MARKER_ICON_REM}rem`;
 export const CHROME_VARS = {
   unit: '--to-decor-unit',
   markerGutter: '--to-marker-gutter',
+  markerGap: '--to-marker-gap',
   markerIcon: '--to-marker-icon-size',
   guideColor: '--to-guide-color',
   accent: '--to-decor-accent',

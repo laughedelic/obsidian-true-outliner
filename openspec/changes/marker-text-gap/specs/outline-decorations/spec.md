@@ -10,8 +10,23 @@ The derivation SHALL be: **the greatest distance any qualifying mark's ink reach
 column, plus one stated visual gap.** A mark qualifies when this layer positions it on the
 column and its width does not depend on its own content — the synthetic block marker, an
 unordered list item's bullet, a task item's checkbox, and a **single-digit** ordered number.
-The stated gap SHALL be one value for every kind, so that what varies between kinds is the
-width of the mark and never the space after it.
+
+The stated gap SHALL be one value, applied to the widest qualifying mark. What therefore varies
+between kinds is the room left beside a mark narrower than that one, and never the column its
+text begins on: one gutter and marks of differing widths cannot deliver both a constant gap and
+a shared column, and the shared column is the one this layer is for.
+
+The stated gap SHALL NOT be smaller than the advance of one space in the reader's font. This is
+a floor the existing mechanism sets rather than a preference: every mark whose row is written
+with a single space after it is sized as "the gutter, less one space", with that space
+completing the run, so a gap below a space's own advance drives the sizing negative and the
+mark overflows into the column its text was to begin on.
+
+Where the native rendering of a mark states its own distance between that mark and its text,
+that distance SHALL be neutralised rather than left to compete with the derived gap. A native
+value left in place is inert only while the derived gutter happens to exceed it, and the kind
+carrying it then leaves the shared column at whatever gutter stops exceeding it — a failure
+visible as a few pixels of drift, with nothing in the rendering to attribute it to.
 
 An ordered number of two or more digits SHALL NOT participate in the derivation. Such a number
 is permitted to exceed the gutter and lean right into the space its own text reserves, as the
@@ -32,12 +47,12 @@ every expression that positions a mark relative to the column SHALL read the gut
 shared custom property rather than restating its value, so that the mark's visible centre stays
 on the column on both.
 
-#### Scenario: Text sits one stated gap from every ordinary mark
+#### Scenario: Text sits at least one stated gap from every ordinary mark
 
 - **WHEN** a paragraph, a bulleted item, a task and a single-digit ordered item render at the
   same depth
-- **THEN** each one's text begins the same stated gap after the right edge of its own mark's
-  ink, and all four texts begin on the same column
+- **THEN** all four texts begin on the same column, and no mark's ink comes closer to its own
+  text than the stated gap — the widest of the four sitting exactly that distance from it
 
 #### Scenario: A wide ordered number pushes only its own text
 

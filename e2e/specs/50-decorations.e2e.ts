@@ -110,7 +110,10 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     // additively reserve a fixed marker gutter on every non-list-item line,
     // even at depth 0 (the marker is the whole point of the reservation).
     // See docs/research/10-experiment-5-block-markers.md (Experiment 5a).
-    expect(headingPadding).toBe('20px'); // depth 0 + --to-marker-gutter default (1.25rem)
+    // Depth 0 contributes nothing, so the whole padding is the gutter. Read
+    // from the published property rather than spelled: the gutter is derived
+    // from the marks it holds (docs/research/21-marker-text-gap.md).
+    expect(parseFloat(headingPadding)).toBeCloseTo(await h.publishedGutter(), 1);
 
     const topRect = await h.getLineRect(2);
     const nestedRect = await h.getLineRect(3);

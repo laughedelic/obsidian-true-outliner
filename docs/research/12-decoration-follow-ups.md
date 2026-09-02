@@ -424,6 +424,40 @@ defect.
   duplicated or vanished marker on an embed is ever reported, this is the first thing to
   reproduce.
 
+### A done task's strikethrough starts on the marker's own trailing space
+
+Found while deriving the marker gutter ([21](21-marker-text-gap.md)). Obsidian tokenises
+`- [ ] ` so that the space between `]` and the text is the first character of the CONTENT
+span, not of the marker — which is why the task label carries a `min-width` of "the gutter,
+less one space" to put the text on the column at all. A completed task's `line-through`
+decorates that whole content span, the leading space included, so the rule begins one space
+before the first letter.
+
+That was always true and read as slack while the gutter was wide. Tightening it left the
+strikethrough starting close enough to the checkbox to read as a line coming out of it,
+rather than as a line through the text. Nothing is misaligned — the text column is exactly
+where the derivation puts it — and no assertion covers strikethrough geometry.
+
+Closing it means keeping the marker's own trailing space out of the decorated run, which is
+a decoration that splits the content span rather than a CSS adjustment: sizing the label
+differently would move the text column, which is the one thing the gutter's derivation
+fixes.
+
+### A tab-separated list marker's text does not follow the gutter
+
+Also from [21](21-marker-text-gap.md). The one-space sizing rules are gated on
+`to-decor-marker-1sp`, deliberately: on `-\tfoo` or `-  foo` the padding they add lands on
+top of whitespace that is already there and pushes the item's own text off its column. So a
+tab-separated item's text sits where its literal whitespace puts it, and does not move with
+the gutter.
+
+The two kinds of row therefore start their text on different columns, and the derivation
+widened that difference rather than causing it. Sizing the whitespace to "the hang, less
+whatever the marker occupies" is the shape that already works for the indentation wrapper
+(`.cm-hmd-list-indent`), so the same treatment applied to a non-one-space marker's own run
+is the obvious candidate — measured against the several ways Obsidian tokenises that
+whitespace, which is what makes it more than a one-line change.
+
 ## Deferred mechanisms (working today, better shapes known)
 
 - **`forceRedraw` → a real refresh API.** The off/on mode-toggle hack for
