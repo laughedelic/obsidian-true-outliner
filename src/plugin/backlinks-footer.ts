@@ -272,8 +272,15 @@ class FooterController {
     if (generation !== this.generation || !body.isConnected) return;
 
     // A whole line of hidden content, not a stray pixel. An overflow smaller
-    // than that is a margin rounding out, and offering to reveal it is a
-    // promise the control cannot keep.
+    // than that is not worth a control — but it is not worth HIDING either, and
+    // for a while this drew the right conclusion about the control and left the
+    // clip in place: no control, no fade, and a row cut horizontally through its
+    // glyphs, which reads as a rendering bug because it is one. Measured on the
+    // hub fixture, where 16px of a 24px line was being clipped off eleven groups
+    // at once.
+    //
+    // So the cap comes OFF instead. The card grows by less than a line, shows
+    // everything, and there is nothing left to reveal.
     const state2 = viewStateFor(this.targetPath);
     const expanded = state2.expandedGroups.has(sourcePath);
     if (!expanded) {
@@ -281,6 +288,7 @@ class FooterController {
       const hidden = body.scrollHeight - body.clientHeight;
       if (hidden < line) {
         state2.truncatable.delete(sourcePath);
+        body.removeClass('is-capped');
         return;
       }
       state2.truncatable.add(sourcePath);

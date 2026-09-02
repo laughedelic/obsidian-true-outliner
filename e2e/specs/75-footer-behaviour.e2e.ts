@@ -497,6 +497,52 @@ describe('backlinks footer: behaviour', function () {
   });
 
   /**
+   * Reported from real use: the last row of a group cut horizontally through its
+   * glyphs, with no fade and no control — which reads as a rendering bug because
+   * it is one.
+   *
+   * The cause was the cap's own threshold. Below one line of overflow it
+   * correctly declined to offer a control ("an overflow that small is a margin
+   * rounding out") and then left the CLIP in place, so 16px of a 24px line was
+   * sliced off eleven groups of the hub fixture at once. The conclusion about the
+   * control was right; the conclusion about hiding was not.
+   *
+   * Stated as the invariant rather than as the arithmetic: a row is never cut
+   * through unless the group is visibly offering the rest. That holds however the
+   * threshold is later tuned, and it is what a reader actually sees.
+   */
+  it('never cuts a row in half without offering the rest', async function () {
+    await openFooter(HUB);
+
+    const groups = await browser.executeObsidian(() => {
+      const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
+      return Array.from(cards).map((card) => {
+        const body = card.querySelector('.to-backlinks-rows');
+        const name = card.querySelector('.to-backlinks-group-name')?.textContent ?? '';
+        if (!body) return { name, sliced: 0, truncated: false, hasControl: false };
+        const edge = body.getBoundingClientRect().bottom;
+        return {
+          name,
+          // Rows the body's own bottom edge passes THROUGH: starting above it and
+          // ending below. Half a pixel of tolerance, since a row that merely ends
+          // flush with the edge is not cut.
+          sliced: Array.from(body.querySelectorAll('.to-backlinks-row')).filter((r) => {
+            const rb = r.getBoundingClientRect();
+            return rb.top < edge - 0.5 && rb.bottom > edge + 0.5;
+          }).length,
+          truncated: body.classList.contains('is-truncated'),
+          hasControl: card.querySelector('.to-backlinks-more') !== null,
+        };
+      });
+    });
+
+    expect(groups.length).toBeGreaterThan(0);
+    const bad = groups.filter((g) => g.sliced > 0 && !(g.truncated && g.hasControl));
+    // Named, so a failure says which group rather than only how many.
+    expect(bad.map((g) => g.name)).toEqual([]);
+  });
+
+  /**
    * The second gap the 10.2 audit found: the embed TAG had no rendering
    * coverage anywhere — `72-backlink-index` asserts the classification, and
    * nothing asserted that the classification reaches the row.
