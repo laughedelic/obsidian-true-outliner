@@ -1,0 +1,34 @@
+# Family tree
+[lineage is-lineage] References that carry a subtree, so the footer's descendant rows, its depth bound and its fold affordance all have something to show.
+  [lineage is-lineage] planning
+    [list-item is-reference] the Reference target rollout, week one
+      [list-item] severity column leads
+      [list-item] alarm colour stays as it is
+      [list-item] ship behind the flag
+  [lineage is-lineage] retro
+    [list-item is-reference] what worked on Reference target
+      [list-item] the paired review
+      [list-item] shipping behind a flag
+[paragraph is-reference] A reference whose children are all different kinds, mentioning Reference target:
+  [list-item] a bullet child
+  [list-item] a task child
+[lineage is-lineage] Deep on purpose, so the collapsed lineage has something to collapse:onetwothree
+  [list-item is-reference] four mentions Reference target
+    [list-item] a child of a deep mention
+# Kinds gallery
+[heading is-reference] A heading mentions Reference target
+  [paragraph is-reference] A paragraph mentions Reference target and runs on for long enough that the row has an ordinary amount of text beside its marker.
+    [list-item is-reference] a bullet item mentions Reference target
+    [list-item] a second bullet, mentioning nothing
+    [list-item is-reference] 1. an ordered item mentions Reference target
+    [list-item] 2. a second ordered item, mentioning nothing
+    [list-item is-reference] 10. a two-digit ordered item mentions Reference target
+    [list-item is-reference] an open task mentions Reference target
+    [list-item is-reference] a done task mentions Reference target
+  [quote is-reference] A quote mentions Reference target, and carries on far enough to wrap onto a second line so the marker can be checked against a multi-line row.
+  [callout is-reference] A callout mentions Reference target.
+  [table is-reference] A table cell mentions Reference target
+  [html] An HTML block mentions Aurora Dashboard & entities, and a real link too: Reference target
+  [paragraph is-reference] A hard-wrapped paragraph, whose lines are continuations of one thought rather than separate records, and whose reference to Reference target falls on its second line on purpose.
+  [table is-reference] Mobile triage mentions Reference target
+  [callout is-reference] whose body mentions Reference target rather than its title.

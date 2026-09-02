@@ -28,9 +28,35 @@ const LABELS = {
   4: 'shell',
   5: 'decorations',
   6: 'selection',
+  7: 'backlinks',
   // Its own group: the longest spec in the suite, and its own feature.
   55: 'position-indicators',
+  // Lifted out of `selection` and run one-at-a-time: see EXCLUSIVE_GROUPS.
+  61: 'clipboard',
+  62: 'clipboard',
+  67: 'clipboard',
 };
+
+/**
+ * Groups whose specs contend for a resource the MACHINE owns, and so cannot run
+ * beside each other however many instances the runner is given.
+ *
+ * `clipboard` is the only one. `pasteText` writes the system clipboard and then
+ * presses Mod+V, and 61 and 67 press Mod+C into that same system clipboard —
+ * one clipboard per machine, three specs, and workers interleaving freely.
+ * Observed twice on CI, in both directions: a paste receiving another spec's
+ * copied fixture, and a copy losing its content before the spec could read it.
+ *
+ * Serialising them is the fix that keeps the tests honest. The tempting
+ * alternative — synthesising a `paste` ClipboardEvent so no OS clipboard is
+ * involved — would stop exercising a real paste, and the copy side cannot be
+ * faked that way at all.
+ *
+ * Only these three are serialised, so the rest of `selection` keeps its
+ * parallelism, and the new group is a CI job of its own (the matrix is built
+ * from `--list-groups`) which runs alongside the others anyway.
+ */
+export const EXCLUSIVE_GROUPS = new Set(['clipboard']);
 
 /**
  * Every spec as `{ [groupName]: absolutePath[] }`, ordered by prefix. A spec

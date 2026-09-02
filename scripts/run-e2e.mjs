@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 import { binPath } from './bin-path.mjs';
-import { specGroups } from './spec-groups.mjs';
+import { EXCLUSIVE_GROUPS, specGroups } from './spec-groups.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -55,6 +55,14 @@ if (argv.includes('--group')) {
   }
   specArgs.push(...specs.flatMap((spec) => ['--spec', spec]));
 }
+
+/**
+ * Whether this run will execute any spec from an exclusive group — true for the
+ * group itself, and true for the whole suite, which contains it.
+ */
+const runsExclusiveSpecs = argv.includes('--group')
+  ? EXCLUSIVE_GROUPS.has(group)
+  : Object.keys(specGroups()).some((g) => EXCLUSIVE_GROUPS.has(g));
 // Resolved before the build, so a missing install fails loudly and changes nothing.
 const wdio = binPath('wdio');
 
@@ -65,6 +73,18 @@ const run = (cmd, args, env) =>
 const build = run(process.execPath, ['esbuild.config.mjs', 'production', '--dev']);
 if (build !== 0) process.exit(build);
 
+// The hub fixture is generated, not tracked: several hundred near-identical
+// notes whose only property is bulk would be noise in every diff. Generating it
+// here is what makes that trade safe — it is deterministic (fixed seed), so the
+// corpus is the same on every machine, and without this step CI simply had no
+// hub. S5 then measured a note with eight backlinks and would have reported it
+// as a hub's cost, which is worse than failing.
+//
+// Before the drift snapshot, so the generated files are part of the baseline
+// rather than showing up as changes the run has to explain.
+const hub = run(process.execPath, ['scripts/gen-backlink-hub.mjs']);
+if (hub !== 0) process.exit(hub);
+
 const drift = (...args) => run(process.execPath, ['scripts/check-vault-drift.mjs', ...args]);
 if (drift('--snapshot') !== 0) process.exit(1);
 
@@ -73,7 +93,23 @@ try {
   suite = run(
     wdio,
     ['run', mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts', ...specArgs],
-    mobile ? { OBSIDIAN_E2E_MOBILE: '1' } : undefined,
+    {
+      ...(mobile ? { OBSIDIAN_E2E_MOBILE: '1' } : {}),
+      // A run that includes specs contending for a machine-global resource goes
+      // one instance at a time, whatever the caller asked for. The constraint
+      // belongs to the specs, not to whoever happens to be invoking them.
+      //
+      // "Includes" rather than "is": with no `--group` the run is the whole
+      // suite, which contains the exclusive specs and had the same race — the
+      // guard only fired on the `--group` path, so the documented full-suite
+      // invocation was exactly the one it did not cover. CI never took that path
+      // (its matrix passes a group per job), which is why the hole survived.
+      //
+      // This does serialise a full local run. That is the honest cost: the
+      // alternative is two wdio invocations per run, and nothing's throughput
+      // depends on a path CI does not use.
+      ...(runsExclusiveSpecs ? { E2E_MAX_INSTANCES: '1' } : {}),
+    },
   );
 } finally {
   // Keep the suite's status; if it passed but cleanup failed, fail with 1 so a

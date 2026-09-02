@@ -15,6 +15,55 @@
  */
 
 /*
+ * ===========================================================================
+ * Chrome tokens — the outline's visual vocabulary, surface-neutral
+ * ===========================================================================
+ *
+ * Defined on `body` rather than on any one surface, because there are now two:
+ * the editor's `.cm-line` chrome and the backlinks footer, which is not made of
+ * `.cm-line`s. A token defined inside one surface's selector is not a shared
+ * vocabulary, it is that surface's private value that the other one has to
+ * duplicate — and duplicated constants agree only until someone edits one.
+ *
+ * Moving them UP the tree also keeps the snippet story intact: a theme that
+ * retuned these at `.cm-content` level still wins on specificity, and can now
+ * retune both surfaces at once from `body` instead.
+ *
+ * The matching JS constants live in `src/plugin/chrome-tokens.ts`; the names
+ * here and there are the contract between them.
+ */
+body {
+  /* The outline unit: one tree level's worth of horizontal distance, and the
+   * only number any layer may derive a column from. Declared rather than left
+   * to `var(--to-decor-unit)` fallbacks scattered through the rules and the JS,
+   * because it also feeds Obsidian's own `--list-indent`
+   * (lists-on-the-outline-grid) — two literals that must agree is exactly the
+   * shape this layer has been bitten by before. A snippet can retune it, and
+   * every kind moves together.
+   *
+   * `rem`, never `em`: a custom property resolves where it is USED, so an `em`
+   * unit would inflate on a heading's larger font — the Experiment 1 bug. That
+   * matters doubly here, since Obsidian's own `--list-indent` IS `em` based and
+   * this value replaces it inside outline mode.
+   *
+   * Declared on `body` rather than on `.cm-content` so the backlinks footer,
+   * which is not made of `.cm-line`s, reads the same one. The `--list-indent`
+   * bridge that consumes it stays gated on `.to-decor-list`, so outline mode
+   * off is still untouched. */
+  --to-decor-unit: 1.5rem;
+
+  --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
+  --to-decor-accent: var(--text-accent);
+
+  /* Same width as an unaccented guide, so an accent is purely a change of
+   * colour: the line does not thicken as the caret moves into a subtree, and an
+   * accented guide sits on exactly the columns and weight the unaccented one
+   * did. A heavier value reads as emphasis-by-weight and makes the accented
+   * column visibly jump; retune with a snippet if that is wanted. */
+  --to-trail-width: 1px;
+}
+
+/*
  * `--to-marker-gutter` (Experiment 5a, see
  * docs/research/10-experiment-5-block-markers.md): a fixed, additive
  * reservation for a per-kind block marker icon, on top of the existing
@@ -30,7 +79,12 @@
  * `::after` with the guide or blockquote's native bar) a containing block
  * matching this line's own box.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block {
+/* Two surfaces, one rule. The backlinks footer's rows are not `.cm-line`s and
+ * are not children of `.cm-content`, but they carry the same class and the same
+ * custom properties (`chrome-line.ts`), so they take the same layout from the
+ * same declarations rather than from a parallel set that drifts. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-block,
+.to-backlinks-row.to-decor-block {
   position: relative;
   padding-left: calc(
     var(--to-depth, 0) * var(--to-decor-unit) + var(--to-marker-gutter, 0px)
@@ -545,11 +599,13 @@
  * unused (`content: none`) by every kind this rule targets, including all
  * four widget kinds, before switching to it.
  */
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides,
+.to-backlinks-row.to-decor-guides {
   position: relative;
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides::after {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-guides::after,
+.to-backlinks-row.to-decor-guides::after {
   content: '';
   position: absolute;
   top: 0;
@@ -595,31 +651,10 @@
  * Both accent variables resolve from the active theme, so a snippet can
  * retune color and weight with no plugin setting and no geometry change —
  * the theming pattern docs/research/12 recommends, and the same pair
- * Logseq's own bullet_threading.css exposes.
+ * Logseq's own bullet_threading.css exposes. They are declared in the chrome
+ * token layer at the top of this file, not here, because the footer draws the
+ * same accents and a token scoped to one surface is not a shared vocabulary.
  */
-.markdown-source-view.mod-cm6 .cm-content {
-  /* The outline unit: one tree level's worth of horizontal distance, and the
-   * only number any layer may derive a column from. Declared here rather than
-   * left to `var(--to-decor-unit)` fallbacks scattered through the
-   * rules and the JS, because it now also feeds Obsidian's own `--list-indent`
-   * (lists-on-the-outline-grid) — two literals that must agree is exactly the
-   * shape this layer has been bitten by before. A snippet can retune it, and
-   * every kind moves together.
-   *
-   * `rem`, never `em`: a custom property resolves where it is USED, so an
-   * `em` unit would inflate on a heading's larger font — the Experiment 1 bug.
-   * That matters doubly here, since Obsidian's own `--list-indent` IS `em`
-   * based and this value replaces it inside outline mode. */
-  --to-decor-unit: 1.5rem;
-  --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
-  --to-decor-accent: var(--text-accent);
-  /* Same width as an unaccented guide (`guideLayer`'s own 1px), so an accent is
-   * purely a change of color: the line does not thicken as the caret moves into
-   * a subtree, and an accented guide sits on exactly the columns and weight the
-   * unaccented one did. A heavier value reads as emphasis-by-weight and makes
-   * the accented column visibly jump; retune with a snippet if that is wanted. */
-  --to-trail-width: 1px;
-}
 
 /*
  * Accented markers: the current node's, and — in the `path` trail style —
@@ -739,8 +774,18 @@
  * a widget nested several levels deep can be well outside the widget's own
  * box — exactly the kind of escape `contain: paint` would otherwise clip.
  */
+/*
+ * The backlinks footer needs the same override, for the same root cause found
+ * on a new element. It is a block widget, so it IS
+ * `.cm-content > [contenteditable="false"]`, and once its header started
+ * placing the link icon on the depth-0 column — half an icon left of the
+ * widget's own box, exactly where every depth-0 marker sits — paint containment
+ * clipped it to a half-icon and swallowed the fold chevron whole. Same
+ * specificity requirement: the override has to match Obsidian's own chain.
+ */
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides,
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-marker,
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-backlinks,
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-node-selected {
   position: relative;
   contain: none !important;
@@ -865,7 +910,37 @@
   display: inline-block;
   position: relative;
   left: var(--to-marker-left, 0px);
+  /*
+   * `baseline` puts the icon's whole box ABOVE the baseline, so its centre lands
+   * `iconSize / 2` up — while the text it sits beside is optically centred on its
+   * x-height midline, `0.5ex` up. Measured against the bundled themes, that left
+   * every marker ~2.6px high on a 16px line: small, and legible as wrong.
+   *
+   * `top` corrects the difference without touching layout (the box is already
+   * `position: relative` for the horizontal shift). Expressed in `ex`, which IS
+   * the font's x-height, so it stays right at any text size and in any theme —
+   * a fitted pixel would encode this machine's font.
+   *
+   * `vertical-align: middle` is the alignment that claims to do this, and does
+   * not: it centres the MARGIN box on `baseline + x-height/2`, which is the same
+   * answer only when the box's height happens to match the x-height. Ours is a
+   * fixed constant, so it overshot — recorded here because the earlier attempt
+   * is otherwise inviting to repeat.
+   */
   vertical-align: baseline;
+  /*
+   * Zero, so the span's own baseline IS its bottom edge.
+   *
+   * An inline-block's baseline is the baseline of its last LINE BOX, and this
+   * span inherits the line's `line-height` — so it carried a 24px internal
+   * strut whose baseline sat ~17.5px below the box top, on a box only 13.6px
+   * tall. Aligning THAT to the text's baseline lifted the whole icon ~4.4px
+   * above where a reading of the box would put it. With no line box left, the
+   * spec's fallback applies and the baseline is the bottom margin edge, which
+   * is what the placement arithmetic above and in chrome-line.ts assumes.
+   */
+  line-height: 0;
+  top: calc(var(--to-marker-icon-size, 0.85rem) / 2 - 0.5ex);
   /* --to-marker-icon-size is set on the content DOM from its JS source of
    * truth (MARKER_ICON_CSS, decorations.ts); the fallback matches it. */
   width: var(--to-marker-icon-size, 0.85rem);
@@ -873,6 +948,15 @@
   margin-left: calc(-1 * var(--to-marker-icon-size, 0.85rem));
   pointer-events: none;
   color: var(--text-faint);
+}
+
+/* Block, so no inline formatting context is created inside the span at all —
+ * the same conclusion as `line-height: 0` above, reached a second way, and the
+ * one that also holds inside the flex variant below. */
+.to-decor-marker-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .to-decor-marker-icon--widget {
@@ -1122,4 +1206,646 @@
    else, whether it has one range or five. */
 .markdown-source-view.mod-cm6 .cm-editor.to-decor-block-selecting .cm-selectionLayer .cm-selectionBackground {
   background: transparent;
+}
+
+
+/*
+ * ===========================================================================
+ * BACKLINKS FOOTER — the outline vocabulary on a DOM that is not `.cm-line`
+ * ===========================================================================
+ *
+ * The second surface the chrome token layer at the top of this file exists for.
+ * Geometry and colour come from those tokens; nothing here restates a number
+ * the editor also uses, which is the whole point of having them.
+ *
+ * Rows deliberately mirror the editor's own structure — a marker gutter, then
+ * content, with depth applied to the row's own box — so the two scopes stay
+ * legible against each other. What is NOT shared is the DOM: the footer's rows
+ * are ordinary divs, and trying to make them `.cm-line`s in order to reuse the
+ * selectors above was considered and rejected (design.md D-C).
+ *
+ * Carded, not flowing: at full note width the identical chrome would otherwise
+ * make another note's tree read as part of this one (docs/research/18, D6).
+ */
+/*
+ * Rendered content, not source text.
+ *
+ * The footer is a block widget inside `.cm-content`, so it inherits CodeMirror's
+ * `white-space: pre-wrap` — correct for an editor, where every space and newline
+ * in the document is a character the reader typed. It is wrong here: these rows
+ * hold markdown Obsidian has already rendered, and the newlines Obsidian's own
+ * HTML carries between an `<li>` and its text became HARD LINE BREAKS, putting
+ * every list-derived row's text on the line below its own marker (measured: a
+ * depth-1 row was 37.6px tall against a depth-0 row's 20.7px, with the content
+ * box 18px below the icon).
+ */
+.to-backlinks {
+  white-space: normal;
+  /* The section is a different thing from the note above it, and the rule that
+   * says so needs air on both sides or it reads as the note's own underline. */
+  margin-top: 4rem;
+  padding-top: 1.75rem;
+  /*
+   * The footer draws its markers smaller than the editor's, because a lineage
+   * row now carries one per ancestor rather than one for the whole chain: at the
+   * editor's 0.85rem a four-deep trail reads as a row of buttons.
+   *
+   * `em`, so it resolves against each row's own font (0.92em) and lands on the
+   * same size as the segment icons inline beside it — one size for every mark in
+   * the footer, by construction rather than by two numbers kept in step.
+   *
+   * The column does not move: a marker's centre is anchored at
+   * `content-left - gutter` independently of its size, which holds only because
+   * the placement arithmetic reads this same property (MARKER_ICON_VAR).
+   */
+  --to-marker-icon-size: 0.8em;
+  /*
+   * The colour of every mark in the footer — row markers, the icons inline on a
+   * lineage row, and the fold chevrons that are notation about the same outline.
+   *
+   * One property rather than the constant repeated in each rule, because they
+   * had already drifted once: the markers moved from faint to muted and the fold
+   * stayed behind, which is the state this footer was explicitly fixed out of
+   * (a chevron reading as an accent beside bullets that were not accented).
+   * Muted rather than faint because a 0.8em mark at faint is below reading.
+   */
+  --to-backlinks-mark: var(--text-muted);
+}
+
+/*
+ * The footer's own chrome — its heading, its group headers — is UI, and reads at
+ * UI size. A ROW is not: it holds a node of a note, and it reads at the size
+ * that note's text reads at.
+ *
+ * The whole footer used to be UI-small. That is what put every marker high
+ * against its text: the chrome's geometry is in `rem`, tuned against the
+ * editor's text size, so shrinking only the text left a marker whose box no
+ * longer matched the line it sat on — measured, the marker's centre was 1.8px
+ * above the text's against the editor's own 0.8px.
+ */
+.to-backlinks-head,
+.to-backlinks-group-head,
+.to-backlinks-resolving {
+  font-size: var(--font-ui-small);
+}
+
+/*
+ * EXPERIMENT: the header as a node of the outline.
+ *
+ * The section's link icon is placed by the same arithmetic that places a
+ * depth-0 marker — centred on `column 0`, which for a child of `.cm-content` is
+ * the content origin — so it lands on the same x as every top-level marker in
+ * the note above, and the text beside it starts one gutter right, exactly as a
+ * depth-0 line's does. Nothing here is fitted: both offsets are the shared
+ * expressions, so the two surfaces cannot drift apart.
+ *
+ * The fold chevron takes the editor's own placement for a foldable line: right
+ * edge one visual gap clear of the marker's left edge. At depth 0 that overhangs
+ * the content area, which is what the editor's depth-0 chevrons do too.
+ */
+.to-backlinks-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-left: var(--to-marker-gutter, 1.25rem);
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+}
+
+/* Folded, or empty: the header IS the section, so it owes nothing below it. */
+.to-backlinks-head.is-collapsed,
+.to-backlinks.is-dormant .to-backlinks-head {
+  margin-bottom: 0;
+}
+
+.to-backlinks.is-dormant .to-backlinks-head {
+  cursor: default;
+  /* Nothing to read here, so nothing should ask to be read. Fading the whole
+   * head takes the icon with it — an icon at full strength beside faded text
+   * reads as a thing that failed to load rather than as an empty section. */
+  color: var(--text-faint);
+  opacity: 0.55;
+}
+
+/* An accent is a claim on attention, and an empty section has nothing to claim
+ * it for. The icon takes the head's own colour so the line reads as one quiet
+ * thing rather than as a bright mark beside grey text. */
+.to-backlinks.is-dormant .to-backlinks-icon {
+  color: inherit;
+}
+
+/* The count sits at the far end of the line rather than beside the title, so
+ * the eye finds it in the same place whatever the title's length. */
+.to-backlinks-totals {
+  margin-inline-start: auto;
+}
+
+.to-backlinks-icon {
+  position: absolute;
+  left: calc(-1 * var(--to-marker-icon-size, 0.85rem) / 2);
+  width: var(--to-marker-icon-size, 0.85rem);
+  height: var(--to-marker-icon-size, 0.85rem);
+  flex-shrink: 0;
+  /* A marker's colour, because on the depth-0 column that is what it now reads
+   * as. It brightens only when the section is folded, where it stops being
+   * notation and becomes the one thing saying there is more below. */
+  color: var(--text-faint);
+}
+
+.to-backlinks-head.is-collapsed .to-backlinks-icon {
+  color: var(--to-decor-accent);
+}
+
+.to-backlinks-title {
+  font-weight: var(--font-semibold);
+}
+
+.to-backlinks-totals {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* A note nothing links to still ends predictably: one quiet line where the
+ * populated header would be, rather than the section appearing and vanishing as
+ * a note gains its first reference (docs/research/18, D9). */
+/*
+ * Inset so the card's own contents land on the outline's SECOND column.
+ *
+ * The section's link icon sits on column 0 (`.to-backlinks-head`), so a group
+ * is one level under it — its fold chevron and its depth-0 markers belong at
+ * `1 × unit`, exactly where a note's second-level markers sit. The padding is
+ * that column minus the half-icon the rows already inset by, so the two add up
+ * to it rather than one of them guessing.
+ */
+.to-backlinks-group {
+  position: relative;
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: 0.5rem var(--to-group-inset) 0.6rem;
+  --to-group-inset: calc(var(--to-decor-unit) - var(--to-marker-icon-size, 0.85rem) / 2);
+  margin-bottom: 0.6rem;
+}
+
+.to-backlinks-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.to-backlinks-group-head:hover {
+  color: var(--text-normal);
+}
+
+/*
+ * The SECTION's fold appears when it has something to say: unfolded it waits
+ * for the pointer, the way the editor's own chevrons do; folded it stays,
+ * because it is then the only sign anything is there.
+ *
+ * A GROUP's chevron does not follow this rule, and that is deliberate. A group
+ * head is a row of its own — filename, folder, count — and hiding its chevron
+ * leaves a hole at the start of that row rather than a clean line. The
+ * consistency worth having here is with the other group heads beside it, not
+ * with the section above them.
+ */
+.to-backlinks-head:not(.is-collapsed) > .to-backlinks-chevron {
+  opacity: 0;
+}
+
+.to-backlinks-head:hover > .to-backlinks-chevron {
+  opacity: 1;
+}
+
+/* The SECTION's fold, placed where the editor places a foldable line's: clear of
+ * the marker's left edge by the same 3px gap. */
+.to-backlinks-head > .to-backlinks-chevron {
+  position: absolute;
+  left: calc(
+    -1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px + var(--to-fold-size, 0.7rem))
+  );
+}
+
+/* One box wide with a marker icon, so the chevron's centre and every depth-0
+ * marker's centre are the same column — the group's own control sits directly
+ * above the rows it opens. */
+.to-backlinks-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--to-marker-icon-size, 0.85rem);
+  height: 0.7rem;
+  flex-shrink: 0;
+  /* A group's disclosure is the same kind of mark as a row's fold, and sits in
+   * the same column — it takes the same colour for the same reason. */
+  color: var(--to-backlinks-mark);
+}
+
+.to-backlinks-group-name {
+  font-weight: var(--font-semibold);
+}
+
+.to-backlinks-group-folder,
+.to-backlinks-group-count {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.to-backlinks-group-count {
+  margin-inline-start: auto;
+}
+
+.to-backlinks-resolving {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  padding: 0.2rem 0 0.2rem var(--to-marker-gutter, 1.25rem);
+}
+
+/*
+ * A row IS an outline line. Its depth, its marker column and its guides all
+ * come from the shared contract above (`.to-decor-block` / `.to-decor-atom` /
+ * `.to-decor-guides`), so nothing here positions anything — this rule only says
+ * how a footer row differs from an editor line: it is clickable, and it is a
+ * little tighter vertically.
+ *
+ * It used to be a flex container with a fixed-width marker cell and its own
+ * `margin-inline-start`. That is what put its bullets off the editor's column
+ * and left it with no guides at all: a second layout answering the same
+ * question differently (docs/research/19, S4).
+ */
+.to-backlinks-row {
+  padding: 0.1rem 0;
+  cursor: pointer;
+  /* Set on the ROW, so the marker's `0.5ex` correction resolves against the
+   * same font as the text beside it. The depth grid stays in `rem` — it is
+   * chrome, and it must line up with the editor's. */
+  font-size: 0.92em;
+  /*
+   * The guide overlay is a `z-index: -1` pseudo-element, and negative-z children
+   * paint before the in-flow block backgrounds of their stacking context — so
+   * the group card's own background covered every guide. The editor never hits
+   * this because a `.cm-line` has no opaque box between it and its stacking
+   * context. Making the row a stacking context of its own scopes the overlay to
+   * it: still behind the row's text, no longer behind the card.
+   *
+   * Kept although the footer currently draws no guides: this is the condition
+   * under which drawing them WORKS, and `backlinks-controls` turns them back on
+   * behind a setting. Removed, that setting would ship painting stripes behind
+   * an opaque card and looking like it does nothing. */
+  isolation: isolate;
+}
+
+/* No per-row background: a hover block per line broke the outline into rows the
+ * editor does not have, and the guide overlay paints behind the row's own
+ * background (`z-index: -1`), so a filled row would hide the guides it sits on.
+ * The affordance is on the text instead. */
+.to-backlinks-row:hover .to-backlinks-content {
+  color: var(--text-normal);
+}
+
+/* Markers are NOTATION, not emphasis: a node's marker says what kind of node it
+ * is and nothing else, so a lineage segment and a reference of the same kind
+ * are drawn identically. Only the text separates them (docs/research/18, D4).
+ * The icon itself is `.to-decor-marker-icon`, shared with the editor — sized,
+ * shifted and coloured by that rule, not by this one. */
+.to-backlinks-content {
+  overflow-wrap: break-word;
+}
+
+/*
+ * Muted, not faint — footer-wide, and that scope is the requirement rather than
+ * an implementation detail.
+ *
+ * A marker at `--text-faint` was already the quietest mark on a card; shrinking
+ * it to 0.8em took it below reading. Muted restores it at the smaller size.
+ *
+ * Applied to every footer marker, never to lineage markers alone: notation
+ * carries kind and nothing else, so a lineage element and a reference of the
+ * same kind must stay identically drawn (D4). Dimming just the lineage would
+ * make the marker encode emphasis, which is exactly what that rule forbids —
+ * the text already carries it.
+ */
+.to-backlinks .to-decor-marker-icon {
+  color: var(--to-backlinks-mark);
+}
+
+/* Context, not substance: dimmer and a little smaller. Relative to the row, not
+ * to the UI scale — an absolute size here would decouple the text from the
+ * marker beside it, which is the mistake the rule above records. */
+/*
+ * An ordered item's number, in the marker's place.
+ *
+ * Its LEFT EDGE lands on the block icon's — `column - iconSize / 2` — which is
+ * the rule the editor's own ordered markers follow, for the reason recorded
+ * there: a shared left edge reads as a column, where centring each number on
+ * its own width leaves `10.` and `100.` ragged and eats the room the fold
+ * chevron needs.
+ *
+ * Inline, not absolute. The negative margin pulls the box back over the row's
+ * reserved gutter and the `min-width` fills it, so a narrow number leaves the
+ * text exactly where every other row's text starts — and a number too wide for
+ * the slot grows rightward and pushes its own text out, which is what the
+ * editor does too rather than letting the digits cross their own text.
+ */
+.to-backlinks-ordinal {
+  --to-ordinal-slot: calc(
+    var(--to-marker-gutter, 1.25rem) + var(--to-marker-icon-size, 0.85rem) / 2
+  );
+  display: inline-block;
+  margin-inline-start: calc(-1 * var(--to-ordinal-slot));
+  min-width: var(--to-ordinal-slot);
+  color: var(--to-backlinks-mark);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* A code row is one line of a fence, shown as what it is. No block, no frame:
+ * the marker already says code. */
+.to-backlinks-code {
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+}
+
+/* Context, not substance — and the only thing that says so is COLOUR.
+ *
+ * Lineage used to be smaller as well, and after the row took a size of its own
+ * the two compounded: 0.92 of 0.92, visibly smaller than the mention it leads
+ * to rather than level with it. One size across every row reads as one outline,
+ * which is what it is. */
+.to-backlinks-row.is-lineage .to-backlinks-content {
+  color: var(--text-faint);
+}
+
+/*
+ * The step between two ancestors in a collapsed chain — an icon naming the next
+ * ancestor's kind, and no separator at all.
+ *
+ * There was a chevron here, chosen by rendering ten candidates and looking. It
+ * went when every segment gained its own icon: two marks between each pair of
+ * names is one more than the eye needs, and the icon is the one that carries
+ * information. Space alone divides them now — 0.7em, the width the chevron's own
+ * margins used to hold, so the rhythm of a chain is unchanged.
+ */
+.to-backlinks-seg-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  width: 0.8em;
+  height: 0.8em;
+  margin-inline-end: 0.3em;
+  color: var(--to-backlinks-mark);
+}
+
+.to-backlinks-seg-icon > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.to-backlinks-seg + .to-backlinks-seg {
+  margin-inline-start: 0.7em;
+}
+
+/* An ordered ancestor's number, inline, where every other kind gets an icon.
+ * Not the gutter's `.to-backlinks-ordinal` treatment: that one is a fixed slot
+ * with a negative margin, which belongs to a marker column this mark is not in.
+ * Here the number simply takes the width it needs, ahead of the name it labels. */
+.to-backlinks-seg-ord {
+  margin-inline-end: 0.3em;
+  color: var(--to-backlinks-mark);
+  font-variant-numeric: tabular-nums;
+}
+
+.to-backlinks-row.is-reference .to-backlinks-content {
+  color: var(--text-normal);
+}
+
+.to-backlinks-prop-name {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  background: var(--background-modifier-form-field);
+  border-radius: var(--radius-s);
+  padding: 0 0.35em;
+  margin-inline-end: 0.4em;
+}
+
+/* An embed is a transclusion, not a mention, and should not be read as one. */
+.to-backlinks-tag {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 0.3em;
+  margin-inline-start: 0.4em;
+  white-space: nowrap;
+}
+
+/* Each ancestor in a chain is its own link, so it needs its own hover — one
+ * underline under the whole row would claim the row goes somewhere it does
+ * not. */
+.to-backlinks-seg {
+  cursor: pointer;
+}
+
+.to-backlinks-seg:hover {
+  color: var(--text-normal);
+  text-decoration: underline;
+}
+
+/* The icon belongs to its own segment, so it answers that segment's hover —
+ * left at the muted constant it would stay dim under the name it names. */
+.to-backlinks-seg:hover .to-backlinks-seg-icon {
+  color: var(--text-normal);
+}
+
+/*
+ * The outline's own fold affordance, beside the marker, rather than a bespoke
+ * badge: the reader already knows this control from the editor.
+ *
+ * Placed where the editor places its own — right edge at
+ * `column - icon/2 - 3px`, clear of the marker's left edge by the same 3px
+ * visual gap (see the `.cm-fold-indicator` rules above, whose gutter term is a
+ * block chevron's anchor at the TEXT origin; this one is anchored on the row
+ * box, so the column is spelled out instead). Absolutely positioned inside the
+ * row, which `.to-decor-block` has already made a containing block, so it takes
+ * no width in the inline flow and cannot push the text off its column. */
+/*
+ * Centred in the gap between the guide it hangs off and the marker it belongs
+ * to: the guide runs at `(depth - 1) × unit`, the marker at `depth × unit`, so
+ * the midpoint is half a unit left of the marker. Previously it was pinned to
+ * the marker's left edge with a fixed 3px gap, which put it hard against the
+ * bullet and left the whole gap open on the other side.
+ */
+.to-backlinks-fold {
+  position: absolute;
+  left: calc(
+    (var(--to-depth, 0) - 0.5) * var(--to-decor-unit) - var(--to-fold-size) / 2
+  );
+  --to-fold-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--to-fold-size);
+  /* One line tall, pinned below the row's own padding, so it centres on the
+   * FIRST line of a row that wraps rather than on the row's whole box. */
+  top: 0.1rem;
+  height: 1.5em;
+  cursor: pointer;
+}
+
+.to-backlinks-fold:hover {
+  color: var(--text-normal);
+}
+
+/* A row whose markdown holds more than one block keeps them (`unwrapBlocks`
+ * only strips a LONE wrapper), and those still arrive with document margins. */
+.to-backlinks-row :is(p, ul, ol) {
+  margin: 0;
+  padding: 0;
+}
+
+/* ── PROTOTYPE (uncommitted): volume caps ──────────────────────────────────
+ *
+ * Two caps, because the two things being capped are measured differently. A run
+ * of children is capped by COUNT, and the count is worth telling the reader —
+ * "4 more" is information. A section is capped by HEIGHT, because a count means
+ * nothing there: one group of ten short rows is shorter than another of three
+ * long ones.
+ *
+ * Both fade with `mask-image` rather than an overlaid gradient. A gradient has
+ * to know the background colour it is fading into, which is a theme's business
+ * and not ours; a mask fades the content itself and is right in every theme by
+ * construction.
+ */
+
+/* One long note's mentions, truncated. Per GROUP, because that is the unit a
+ * reader skims — a footer capped as a whole hides whole notes behind a single
+ * control, and which notes depends on how long the ones above them happened to
+ * be. `--to-backlinks-group-max` is the threshold, on the footer so a setting
+ * can drive it later. */
+.to-backlinks {
+  --to-backlinks-group-max: 16rem;
+}
+
+/*
+ * A depth-0 marker is CENTRED on its column, so half its ink sits left of the
+ * row's own box. Unindented, that ink lands on the card's edge — and once the
+ * body clips (`is-capped`), it is cut off outright, which read as the fade
+ * spilling onto the left edge. Half an icon of inset puts the column clear of
+ * the frame, and lands it on the same x as the group head's chevron.
+ */
+.to-backlinks-rows {
+  padding-left: calc(var(--to-marker-icon-size, 0.85rem) / 2);
+}
+
+/* The cap itself: height only, no visual effect on a group that fits under it.
+ * Applying the fade here as well is what put an edge-fade on short groups that
+ * had nothing to hide. */
+.to-backlinks-rows.is-capped {
+  max-height: var(--to-backlinks-group-max);
+  overflow: hidden;
+}
+
+/* The fade, and only once the cap is actually hiding something — measured, not
+ * assumed. */
+.to-backlinks-rows.is-truncated {
+  mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+}
+
+/* Centred on the card's bottom edge, straddling it: the control belongs to the
+ * whole group rather than to its last row, and it sits on the edge it moves.
+ * The card's own background behind it keeps the border from running through. */
+/*
+ * Real `button`s have to put down the platform's own chrome, and doing that
+ * takes more specificity than one class.
+ *
+ * Obsidian styles buttons as `.markdown-source-view button` and friends — one
+ * class plus one element, which beats a bare `.to-backlinks-fold`. Measured:
+ * the resting button carried a solid background and an 8px radius while its
+ * `:hover` was correctly transparent, because the hover selector had two
+ * classes and won while the resting one had one and lost. Descendant-scoping
+ * every rule under `.to-backlinks` clears both, and the states are still listed
+ * because Obsidian styles those separately.
+ */
+.to-backlinks .to-backlinks-more,
+.to-backlinks .to-backlinks-fold,
+.to-backlinks .to-backlinks-more:hover,
+.to-backlinks .to-backlinks-fold:hover,
+.to-backlinks .to-backlinks-more:focus,
+.to-backlinks .to-backlinks-fold:focus,
+.to-backlinks .to-backlinks-more:focus-visible,
+.to-backlinks .to-backlinks-fold:focus-visible {
+  appearance: none;
+  box-shadow: none;
+  font: inherit;
+}
+
+/* No chrome at all: the glyph is the control, and it is drawn in a marker's own
+ * colour — a fold is notation about the outline, not a thing to notice.
+ *
+ * `color` belongs in THIS block and not with the geometry below for the same
+ * reason the background does: Obsidian sets a button's colour at one class plus
+ * one element, so a bare `.to-backlinks-fold` loses. Measured when it did — the
+ * chevron came out at `rgb(218,218,218)` beside markers at `rgb(102,102,102)`,
+ * which reads as an accent even though nothing accented it. */
+.to-backlinks .to-backlinks-fold,
+.to-backlinks .to-backlinks-fold:hover,
+.to-backlinks .to-backlinks-fold:focus,
+.to-backlinks .to-backlinks-fold:focus-visible {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--to-backlinks-mark);
+}
+
+.to-backlinks .to-backlinks-fold:hover {
+  color: var(--text-normal);
+}
+
+/* The cap's pill, restated at the same specificity — its border and background
+ * are deliberate, and were losing to Obsidian's button chrome just as silently. */
+.to-backlinks .to-backlinks-more,
+.to-backlinks .to-backlinks-more:hover,
+.to-backlinks .to-backlinks-more:focus,
+.to-backlinks .to-backlinks-more:focus-visible {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+}
+
+.to-backlinks-more {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1rem;
+  padding: 0 0.25rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.to-backlinks-more > svg {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.to-backlinks-more:hover {
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border-hover);
 }

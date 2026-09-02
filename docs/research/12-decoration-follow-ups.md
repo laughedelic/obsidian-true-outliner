@@ -636,8 +636,82 @@ whole embedded block's height — visibly further from its first text row than a
 since an embed is usually taller. Confirmed in that change's own screenshot pass. Same
 fix, one more kind to cover.
 
+- **The backlinks footer's fold affordance is not the outline's.** Two defects, one
+  cause: the footer draws its own chevron rather than reusing the editor's fold chrome.
+  It is permanently visible, where the editor's appears on hover; and a folded row's own
+  appearance does not change, where the outline's marker is supposed to say that
+  something is hidden beneath it. Deliberately left out of `backlinks-footer`, which is
+  about the rendering model — this one is interaction, and fixing it properly means
+  touching fold chrome the editor already owns, so it belongs with that chrome rather
+  than beside it. `docs/research/18` D7 is the design decision it has to satisfy; the
+  footer's current implementation is `to-backlinks-fold` in `backlinks-footer.ts` and the
+  rule of the same name in `styles.css`, both of which should end up deleted rather than
+  fixed in place.
+
+- **A node holding several references renders one row.** `place()` keeps the FIRST
+  reference per node, so a table with mentions in two different cells, or a code
+  fence with two, contributes 2 to the count and one row to the footer. The count
+  and the rows then disagree, and the second reference has no place a reader can
+  reach. Two honest resolutions: emit one row per reference (which means a row
+  key that is not the node id, and a decision about how two rows of the same node
+  order against its siblings), or define node-level deduplication explicitly and
+  count nodes rather than references. Found in review; deferred because it is a
+  model change rather than a rendering one, and the count/row contract should be
+  decided with `backlinks-controls`' counting rules rather than ahead of them.
+
+- **A footer row's fold only goes one way.** Expanding a row that hides
+  grandchildren works; there is no way back. Same shape as the group cap's
+  problem and the same fix: once expanded, the row's `foldedCount` is 0, so the
+  branch that draws the chevron no longer runs and there is nothing left to
+  click. The cap solved it by remembering that a group WAS truncatable
+  (`ViewState.truncatable`); a row needs the equivalent, keyed by node id
+  alongside `expandedRows`. Small, and deliberately left for its own pass rather
+  than folded into a visual round.
+
 ## Verification-infrastructure ideas
 
+- **The footer's default sort has no test, and the obvious place for one was the
+  wrong place.** Groups are ordered by source mtime (D15). The structural
+  baseline captured that order implicitly and went red on CI for it — a fresh
+  checkout stamps every fixture with the same time, so CI ordered the groups
+  differently from a working copy while every row was identical. The baseline
+  now snapshots groups in NAME order, which is right for what it tests but
+  leaves the sort itself unverified. Testing it needs fixtures with controlled
+  mtimes, which the e2e harness cannot set from inside the app: it would have to
+  happen in `run-e2e.mjs` while staging the sandbox vault, before Obsidian
+  launches. Worth doing when the sort becomes configurable — `backlinks-controls`
+  owns sort options — rather than building the fixture machinery for one case.
+
+- **Parallel e2e workers shared one OS clipboard — fixed by serialising them.**
+  `pasteText` writes the system clipboard and presses Mod+V; `61` and `67` press
+  Mod+C into that same clipboard. All three were in `selection`, whose specs run
+  in parallel Electron instances, and one clipboard belongs to the machine — so
+  no per-instance isolation could help. Seen twice on CI, in both directions: a
+  paste receiving another spec's copied fixture (`c2 / t1 / t2` where
+  `New block one.` was expected), and a copy losing its content before its own
+  spec could read it.
+
+  The three specs are now a `clipboard` group that `run-e2e.mjs` forces to one
+  instance, whatever the caller asks for, because the constraint belongs to the
+  specs rather than to whoever invokes them. The rest of `selection` keeps its
+  parallelism, and the new group is its own CI job since the matrix is built
+  from `--list-groups`.
+
+  The tempting alternative was rejected: synthesising a `paste` ClipboardEvent
+  would remove the shared resource but stop exercising a real paste — the same
+  trap as asserting a caret with a dispatched MouseEvent — and the copy side
+  cannot be faked that way at all.
+- **The verdict-timing p95 budget flaked at its boundary on CI — acted on.**
+  `62-outline-edit-enforcement`'s "verdict computation stays within budget"
+  asserts `p95 <= 8`ms and went red twice: 8.20ms on desktop, 8.10ms on mobile,
+  with the medians (`<= 3`ms) nowhere near their own limit both times. `p95` is a
+  plain quantile over collected samples, and at two measured rounds it sat close
+  enough to the maximum that one GC pause on a shared runner became the
+  statistic. Fixed by taking four measured rounds instead of two, which moves
+  the 95th percentile away from the worst sample; the threshold is unchanged,
+  because the bar was never the problem. Noted here in case the tail returns at
+  four rounds — the next honest step would be reporting the distribution rather
+  than widening the bar.
 - **Community-theme sweep as repeatable infrastructure.** The hardening pass probed
   Minimal/Catppuccin/Things via a throwaway spec (install theme into the sandboxed vault,
   screenshot fixtures, review by eye) — clean results, but the probe wasn't kept. If

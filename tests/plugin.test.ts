@@ -88,6 +88,9 @@ describe('persisted plugin data', () => {
       outlinePaths: ['a.md'],
       coexistenceWarned: true,
       debugCrossCheck: true,
+      // Non-default on purpose: the assertion is that a stored value survives
+      // normalisation, which a field left at its default would not prove.
+      backlinksFooter: false,
       markerVisibility: 'with-children' as const,
       guideHighlight: 'lineage' as const,
       markerHighlight: 'lineage' as const,

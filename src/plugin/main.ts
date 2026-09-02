@@ -32,6 +32,13 @@ import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
 import { grammarExtension, setMotionProbe } from './keymap';
 import { nestedEditorExtension } from './nested-editor';
+import {
+  backlinksFooterExtension,
+  nudgeFooters,
+  pruneFooterViewState,
+  repaintFooters,
+} from './backlinks-footer';
+import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
@@ -118,6 +125,8 @@ const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
 export default class TrueOutlinerPlugin extends Plugin {
   private data: PluginData = { ...DEFAULT_DATA };
+  /** Which notes reference which — see backlink-index.ts. */
+  readonly backlinks = new BacklinkIndex(this.app);
   private registry!: OutlineModeRegistry;
   /** Public so the e2e harness can read classification evidence the same
    * way it already reads `isOutline` (design.md D8). */
@@ -179,6 +188,53 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {
         if (file instanceof TFile) void this.registry.handleRename(oldPath, file.path);
+        // The index keys sources by path, so a rename is a removal plus an add;
+        // leaving the old key would report references from a file that is gone.
+        this.backlinks.removeSource(oldPath);
+        if (file instanceof TFile) this.backlinks.reindex(file);
+        // Defence in depth, not a fix for an observed defect — said plainly
+        // because the difference matters to whoever reads this next.
+        //
+        // Review argued a rename left mounted footers naming a path that no
+        // longer exists, since this handler updated the index and stopped.
+        // Measured, it does not: a rename changes what every OTHER note's links
+        // resolve to, so `metadataCache` re-resolves and the `resolved` handler
+        // below rebuilds and repaints. Confirmed by deleting this line and
+        // watching the footer still update, through both `fileManager.renameFile`
+        // and the raw `vault.rename` that rewrites no links.
+        //
+        // Kept anyway: that chain runs through an Obsidian event ordering we do
+        // not control and do not document, and `changed` and `deleted` both
+        // repaint from their own handlers rather than relying on it. One call on
+        // a rare event buys this one the same independence.
+        repaintFooters();
+      }),
+    );
+    this.registerEvent(
+      this.app.metadataCache.on('changed', (file) => {
+        this.backlinks.reindex(file);
+        repaintFooters();
+      }),
+    );
+    this.registerEvent(
+      this.app.metadataCache.on('deleted', (file) => {
+        this.backlinks.removeSource(file.path);
+        repaintFooters();
+      }),
+    );
+    // Everything the incremental paths cannot see.
+    //
+    // `changed` fires for a SOURCE whose text changed, which misses two real
+    // cases: a link that was unresolved becomes resolvable when its target is
+    // finally created, and a TARGET is renamed or moved — in both, no source's
+    // text need change, so no source is ever reindexed and the reference stays
+    // missing or stays filed under a path that no longer exists. `resolved`
+    // fires once the cache has finished settling after any of that, which is
+    // the one event that covers them all.
+    this.registerEvent(
+      this.app.metadataCache.on('resolved', () => {
+        this.backlinks.rebuild();
+        repaintFooters();
       }),
     );
     this.registerEvent(
@@ -207,6 +263,23 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
+    // Registered LAST among the decoration producers: it is the only block
+    // decoration here, and keeping it last means any interaction with the
+    // established layers is attributable to it rather than to ordering.
+    this.registerEditorExtension(backlinksFooterExtension(this));
+    // A footer's unfolded state belongs to the reading, not to the note: when
+    // its tab closes, the state goes with it. `layout-change` is the event that
+    // fires for a closed tab; the leaves still open name what to keep.
+    this.registerEvent(
+      this.app.workspace.on('layout-change', () => {
+        const open = new Set<string>();
+        this.app.workspace.getLeavesOfType('markdown').forEach((leaf) => {
+          const path = (leaf.view as MarkdownView).file?.path;
+          if (path) open.add(path);
+        });
+        pruneFooterViewState(open);
+      }),
+    );
     // Re-asserts the cursor of operations that CHOOSE one (move, split, merge,
     // paste, structural delete) so redo restores it — history recomputes a
     // cursor by mapping, which cannot reproduce a choice (history-caret.ts).
@@ -223,7 +296,17 @@ export default class TrueOutlinerPlugin extends Plugin {
 
     this.addSettingTab(new TrueOutlinerSettingTab(this.app, this));
 
-    this.app.workspace.onLayoutReady(() => void this.warnAboutConflicts());
+    this.app.workspace.onLayoutReady(() => {
+      void this.warnAboutConflicts();
+      // Deferred to layout-ready: before it, the metadata cache may still be
+      // filling, and an index built from a half-populated cache would be wrong
+      // in a way nothing later corrects.
+      this.backlinks.rebuild();
+      // A footer mounted before this painted its first frame from an empty
+      // index, and nothing about building one is a transaction, so without this
+      // an already-open note reads "0 references" until an unrelated edit.
+      repaintFooters();
+    });
   }
 
   isOutline(path: string): boolean {
@@ -237,6 +320,34 @@ export default class TrueOutlinerPlugin extends Plugin {
   async setDebugCrossCheck(value: boolean): Promise<void> {
     this.data.debugCrossCheck = value;
     await this.saveData(this.data);
+  }
+
+  get backlinksFooter(): boolean {
+    return this.data.backlinksFooter;
+  }
+
+  /** See `SpikeFooterSource.footerRevision` — bumped whenever outline mode or
+   * the backlinks-footer setting changes, so the footer's StateField gets a real
+   * transaction to recompute on (docs/research/19, S2). Those are the two
+   * inputs the footer's own rendering reads; a setting added later that the
+   * footer depends on has to bump this too, or its change is invisible until
+   * some unrelated transaction arrives. */
+  private footerRev = 0;
+
+  get footerRevision(): number {
+    return this.footerRev;
+  }
+
+  async setBacklinksFooter(value: boolean): Promise<void> {
+    this.data.backlinksFooter = value;
+    this.footerRev++;
+    await this.saveData(this.data);
+    // EVERY open editor, not just the active one. The revision is observed by a
+    // per-view ViewPlugin, so a view that receives no transaction never notices
+    // it — which left a second split's footer showing a setting that had been
+    // turned off.
+    nudgeFooters(this.app);
+    await this.forceRedraw();
   }
 
   get markerVisibility(): MarkerVisibility {
@@ -323,7 +434,11 @@ export default class TrueOutlinerPlugin extends Plugin {
 
   private async toggleMode(path: string): Promise<void> {
     const on = await this.registry.toggle(path);
+    this.footerRev++;
     new Notice(on ? 'Outline mode on' : 'Outline mode off', 1500);
+    // The same note can be open in more than one split, and `refreshDecorations`
+    // reaches one of them. Every footer for this path has just become wrong.
+    nudgeFooters(this.app);
     this.refreshDecorations(path);
   }
 
@@ -566,6 +681,11 @@ const SETTING_DEBUG_CROSSCHECK = {
   desc: 'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
 } as const;
 
+const SETTING_BACKLINKS_FOOTER = {
+  name: 'Show structured backlinks below notes',
+  desc: 'Renders every reference to the open note beneath it, each in the tree of the note it came from. Outline mode only.',
+} as const;
+
 const SETTING_MARKER_VISIBILITY = {
   name: 'Debug: block marker visibility (experiment 5a)',
   desc: 'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
@@ -602,6 +722,10 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
       {
         ...SETTING_DEBUG_CROSSCHECK,
         control: { type: 'toggle', key: 'debugCrossCheck', defaultValue: false },
+      },
+      {
+        ...SETTING_BACKLINKS_FOOTER,
+        control: { type: 'toggle', key: 'backlinksFooter', defaultValue: true },
       },
       {
         ...SETTING_MARKER_VISIBILITY,
@@ -641,6 +765,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     switch (key) {
       case 'debugCrossCheck':
         return this.plugin.debugCrossCheck;
+      case 'backlinksFooter':
+        return this.plugin.backlinksFooter;
       case 'markerVisibility':
         return this.plugin.markerVisibility;
       case 'guideHighlight':
@@ -656,6 +782,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     switch (key) {
       case 'debugCrossCheck':
         await this.plugin.setDebugCrossCheck(Boolean(value));
+        break;
+      case 'backlinksFooter':
+        await this.plugin.setBacklinksFooter(Boolean(value));
         break;
       case 'markerVisibility':
         await this.plugin.setMarkerVisibility(value as MarkerVisibility);
@@ -679,6 +808,14 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         toggle
           .setValue(this.plugin.debugCrossCheck)
           .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_BACKLINKS_FOOTER.name)
+      .setDesc(SETTING_BACKLINKS_FOOTER.desc)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.backlinksFooter)
+          .onChange((value) => void this.plugin.setBacklinksFooter(value)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_MARKER_VISIBILITY.name)

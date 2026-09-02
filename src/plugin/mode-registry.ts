@@ -56,6 +56,11 @@ export interface PluginData {
   guideHighlight: GuideHighlight;
   /** See `MarkerHighlight`. */
   markerHighlight: MarkerHighlight;
+  /** Whether the backlinks footer renders below an outline note. A real
+   * setting rather than a debug flag: a reader who does not want the section
+   * needs a way to say so, and the footer's own e2e coverage needs a way to
+   * measure the editor with and without it. */
+  backlinksFooter: boolean;
 }
 
 export const DEFAULT_DATA: PluginData = {
@@ -65,6 +70,7 @@ export const DEFAULT_DATA: PluginData = {
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
   guideHighlight: DEFAULT_GUIDE_HIGHLIGHT,
   markerHighlight: DEFAULT_MARKER_HIGHLIGHT,
+  backlinksFooter: true,
 };
 
 /**
@@ -141,6 +147,7 @@ export function normalizePluginData(raw: unknown): PluginData {
       DEFAULT_DATA.coexistenceWarned,
     ),
     debugCrossCheck: bool(stored.debugCrossCheck, DEFAULT_DATA.debugCrossCheck),
+    backlinksFooter: bool(stored.backlinksFooter, DEFAULT_DATA.backlinksFooter),
     markerVisibility: oneOf(
       KNOWN_MARKER_VISIBILITY,
       stored.markerVisibility,

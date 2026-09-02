@@ -486,6 +486,73 @@ export async function dispatchSelectOnlyRanges(
 }
 
 /**
+ * Scrolls `selector` clear of the app's fixed chrome and clicks it.
+ *
+ * `element.click()` scrolls too, but to the nearest edge — which on the mobile
+ * viewport puts the target at y≈9, under Obsidian's `view-header`. WebDriver
+ * then refuses with "element click intercepted ... other element would receive
+ * the click", retries for several seconds, and fails. Centring is what keeps the
+ * target out from under both the header and the status bar; the short viewport
+ * is why mobile sees this and desktop does not.
+ *
+ * The element is re-queried AFTER the scroll. The footer rebuilds its DOM on
+ * every render, and an async group fill landing between the scroll and the click
+ * left the first handle pointing at a node no longer in the document — a "stale
+ * element reference" that reads like a test bug and is really a race. Observed
+ * on CI, on a commit whose only changes were documentation.
+ */
+export async function clickClear(selector: string): Promise<void> {
+  await (await $(selector)).scrollIntoView({ block: 'center' });
+  await browser.pause(150);
+  await (await $(selector)).click();
+}
+
+/**
+ * The platform's Mod key held across a REAL click, for a Mod-click gesture.
+ *
+ * Two input sources in ONE `browser.actions([...])` call, which WebDriver
+ * tick-aligns, so the key is genuinely down while the pointer goes down and up.
+ * A modifier held across SEPARATE `performActions` calls does not survive to the
+ * next one in this harness — see `dispatchSelectOnlyRanges` above, whose
+ * workaround exists for that reason. The single-chain form does work, and
+ * `75-footer-behaviour` uses it for Mod-click.
+ *
+ * The caller scrolls first and passes an absolute viewport point: `performActions`
+ * does not scroll the way `element.click()` does, and a pointer moved to a point
+ * outside the viewport lands on whatever is there instead — silently, since a
+ * click that hits nothing throws nothing.
+ */
+export async function modClickAt(x: number, y: number): Promise<void> {
+  await browser.actions([
+    browser.action('key').down(PRIMARY_MOD),
+    browser
+      .action('pointer', { parameters: { pointerType: 'mouse' } })
+      .move({ x: Math.round(x), y: Math.round(y), origin: 'viewport' })
+      .down({ button: 0 })
+      .up({ button: 0 }),
+  ]);
+  await browser.action('key').up(PRIMARY_MOD).perform();
+}
+
+/**
+ * A plain click at an absolute VIEWPORT point — distinct from `clickAt`, which
+ * takes a document position and is about placing the caret.
+ *
+ * Absolute rather than `element.click({x, y})`, whose offsets are relative to
+ * the element's centre in some versions and its top-left in others — an
+ * ambiguity that silently clicked a neighbouring element rather than failing.
+ * A point the caller computed from a real glyph rect has no such question.
+ */
+export async function clickAtPoint(x: number, y: number): Promise<void> {
+  await browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x: Math.round(x), y: Math.round(y), origin: 'viewport' })
+    .down({ button: 0 })
+    .up({ button: 0 })
+    .perform();
+}
+
+/**
  * Force-save the active view. Obsidian autosave is debounced (~2s); every
  * disk assertion must sit behind this boundary or it races.
  */
@@ -1172,7 +1239,9 @@ export async function dismissNotices(): Promise<void> {
 
 // ---- Keys -----------------------------------------------------------------
 
-const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
+/** The platform's Mod key. Exported because a spec driving a Mod-CLICK needs
+ * the same key the Mod-keystroke helpers below use. */
+export const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 
 export const keys = {
   tab: () => browser.keys(Key.Tab),
