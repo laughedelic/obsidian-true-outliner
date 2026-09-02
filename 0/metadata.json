@@ -1,0 +1,77 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M1G49DMF7JRHSQRAQRX7D0PY",
+  "session_id": "6b3d2807-c24d-479b-a9f0-852255beaca4",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-02T03:58:34.185332Z",
+  "branch": "feat/marker-text-gap",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/21-marker-text-gap.md",
+    "e2e/specs/57-marker-gap.e2e.ts",
+    "openspec/changes/marker-text-gap/specs/outline-decorations/spec.md",
+    "src/plugin/backlinks-footer.ts",
+    "src/plugin/chrome-tokens.ts",
+    "styles.css"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "c074c3093b2e",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 280,
+    "cache_creation_tokens": 260904,
+    "cache_read_tokens": 26862155,
+    "output_tokens": 115696,
+    "api_call_count": 140
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-openspec-apply-change-2026-09-02T02:49:04.377909Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "c074c3093b2e",
+      "timestamp": "2026-09-02T02:49:04.377909Z",
+      "native": {
+        "command": "/openspec-apply-change"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/openspec-apply-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "initial_attribution": {
+    "calculated_at": "2026-09-02T03:58:33.867346Z",
+    "agent_lines": 652,
+    "agent_removed": 14,
+    "human_added": 197,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 849,
+    "total_lines_changed": 885,
+    "agent_percentage": 75.2542372881356,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    }
+  ]
+}
