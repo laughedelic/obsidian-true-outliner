@@ -3,9 +3,10 @@
   "checkpoint_id": "01M1G49DMF7JRHSQRAQRX7D0PY",
   "strategy": "manual-commit",
   "branch": "feat/marker-text-gap",
-  "checkpoints_count": 1,
+  "checkpoints_count": 3,
   "files_touched": [
     "docs/research/21-marker-text-gap.md",
+    "docs/research/README.md",
     "e2e/specs/57-marker-gap.e2e.ts",
     "openspec/changes/marker-text-gap/specs/outline-decorations/spec.md",
     "src/plugin/backlinks-footer.ts",
@@ -19,13 +20,20 @@
       "compact_transcript": "/0/transcript.jsonl",
       "content_hash": "/0/content_hash.txt",
       "prompt": "/0/prompt.txt"
+    },
+    {
+      "metadata": "/1/metadata.json",
+      "transcript": "/1/full.jsonl",
+      "compact_transcript": "/1/transcript.jsonl",
+      "content_hash": "/1/content_hash.txt",
+      "prompt": "/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 280,
-    "cache_creation_tokens": 260904,
-    "cache_read_tokens": 26862155,
-    "output_tokens": 115696,
-    "api_call_count": 140
+    "input_tokens": 1706,
+    "cache_creation_tokens": 6158542,
+    "cache_read_tokens": 333418912,
+    "output_tokens": 839612,
+    "api_call_count": 853
   }
 }
