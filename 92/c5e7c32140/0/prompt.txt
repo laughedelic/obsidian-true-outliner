@@ -1,0 +1,27 @@
+<ci-monitor-event>"Autofix pull requests" is watching laughedelic/obsidian-true-outliner PR #50 and detected the following. Do not run `/babysit-pr` or offer to poll CI — Autofix will send another <ci-monitor-event> when something else needs attention.
+
+laughedelic/obsidian-true-outliner PR #50 has 3 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ## Pull request overview
+
+Adds the spec/planning artifacts for “selection-aware structural operations”, defining how indent/outdent/move operations should treat block selections (multi-root covers) and how both keyboard and command entry points must resolve operands and after-state consistently.
+
+**Changes:**
+- Introduces new capability specs for selection-based operands and group forms of structural ops (including subject-span reporting and atomic rejection).
+- Updates related capability specs (keyboard grammar, structural commands, caret-placement policy) to state the new selection-aware boundary and parity requirements.
+- Adds implementation task plan + design/proposal documents under `openspec/changes/selection-aware-structural-ops/`.
+
+### Reviewed changes
+
+Copilot reviewed 9 out of 9 changed files in this pull request and generated 2 comments.
+
+<details>
+<summary>Show a summary per file</summary>
+
+| File | Description |
+| ---- | ----------- |
+| openspec/changes/selection-aware-structural-ops/tasks.md | Task breakdown for validating contiguity, implementing group ops, wiring operand/after-state, and testing. |
+| openspec/changes/selection-aware-structural-ops/specs/structura… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/50/reviews/4978176582`]
+- Copilot on openspec/changes/selection-aware-structural-ops/specs/structural-operations/spec.md:65 [comment_id=3817934847]: This scenario’s THEN clause is truncated, leaving the sentence incomplete.
+- Copilot on openspec/changes/selection-aware-structural-ops/design.md:58 [comment_id=3817934866]: The destination explanation for sequential indent is slightly incorrect: after indenting `b`, `c`’s previous sibling at that level becomes `a` (since `b` has moved under `a`). Updating this wording avoids implying that `c`’s previous sibling is `b` (or `b`’s former position), which doesn’t match the actual `indent` algorithm in `src/ops.ts`.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
