@@ -1,0 +1,9 @@
+here are some issues I noticed:
+
+* in a multiline node, now, pressing shift-down immediately escalates to the whole node block-selection instead of just going to the next line within the node in the character-selection mode. I think the original implementation switched to block-selection only on the node boundary crossing. when has it changed?
+* cmd-C in block-selection mode introduces a caret at the selection edge, while preserving the block chrome. that breaks the blur-mode and shows raw markdown. I don't think it's supposed to happen.
+
+
+---
+
+about 5.3.b intuition. I don't think I'm still fully on-board. my example wasn't clear enough. let's say with have a parent node P with three children c1, c2, c3. we start from c2 and go up to P. if we were handling character-level selection, we could have a range c2+c1+P, c2 being the anchor with the offset till P. but in the block-selection mode we do some extra chrome to show visual block of selection that cover whole nodes and subtrees. my understanding is that this visual block-selection chrome is separate from the underlying CodeMirror selection. if so, why can't we keep the underlying selection being c2+c1+P (i.e. as a contiguous list of nodes being selected), preserving the anchor and allowing reversal, while painting the chrome over the whole P subtree (which also covers c3, even though it wasn't explicitly selected)? I'm probably missing here that it's not just the visual chrome because we want to operate on the selection that we see, but I'd still like to understand exactly why my naive understanding can't work. my basic idea is that selection could be a list of nodes, regardless of their hierarchy, which is visualized as a whole-subtree cover block selection for each of the selected nodes, and that cover being used for any operations on the selection. does this make sense or should I explain it better?
