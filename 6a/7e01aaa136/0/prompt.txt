@@ -1,0 +1,7 @@
+<task-notification>
+<task-id>bg8l5sine</task-id>
+<tool-use-id>toolu_0179RTqbQ4VvCT6S9jj9CKWt</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/33f3a6fb-210a-45e2-97a3-ae1012e52b38/tasks/bg8l5sine.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch CI for the tip commit" completed (exit code 0)</summary>
+</task-notification>
