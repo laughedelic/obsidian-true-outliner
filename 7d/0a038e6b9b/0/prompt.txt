@@ -1,0 +1,24 @@
+Read OpenSpec docs, starting with https://github.com/Fission-AI/OpenSpec/blob/main/docs/customization.md and anything else related to customization. Then use recall and entire to understand how changes are managed in this project in practice.
+
+My general workflow is:
+
+* start a new session, create a branch for the new change (usually on a worktree)
+* start with explore or propose skills for a new change (usually, even pure proposal starts with some measurements and validation to ground the proposed design)
+* once proposal is ready, create a draft PR with that proposal
+* run code review on github to weed out any issues in the proposal
+* once it's good, continue with implementation (apply skill), in the same PR
+* use unit tests and targeted e2e suites during implementation, create commit "checkpoints" and push to run full e2e tests in CI
+* at every "ready" checkpoint, run code review, validate and address findings
+* iterate until everything is good and passed manual testing
+* use validate skill (I usually forget about it, but maybe it runs as part of archival)
+* sync the specs and archive the change on the same branch (before merging)
+* bump the version for the release
+* squash-merge the PR
+* CI on main will automatically release the new version
+
+
+Such change PRs are often stacked one on top of the other. I'd like every new session to check if there is an existing stack and suggest to open the new PR on top of that stack. this makes work more predictable and prevents major conflicts between branches.
+
+I want to encode the relevant bits of this workflow via AGENTS.md (and the symlinked CLAUDE.md) and the openspec configuration for concrete commands/phases of the workflow.
+
+start with researching both the capabilities of openspec customization, and the practices in this repo. then propose a concise approach for this.
