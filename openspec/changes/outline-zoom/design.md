@@ -168,10 +168,22 @@ dispatches.
 
 *Why not `(editor as any).cm`:* the project's own public-API rule, and the scorecard target.
 
-*Why not bind zoom only in the CM6 keymap, where the view is already in hand:* zoom needs a
+*Why not bind zoom in the CM6 keymap, where the view is already in hand:* zoom needs a
 command-palette entry, user-rebindable hotkeys, and a context-menu item — all of which come from
-`addCommand`, and none of which a keymap binding provides. Both entry points dispatch the same
-effect, the way the keyboard and palette paths already share `caret-policy.ts`.
+`addCommand`, and none of which a keymap binding provides.
+
+*And, on implementation, that argument turned out to remove the keymap binding entirely rather
+than merely rank it second.* An earlier version of this decision assumed two keyboard paths, the
+way `caret-policy.ts` is shared by the grammar and the palette. The analogy does not hold: the
+grammar binds Tab and Enter in CM6 because it must INTERCEPT keys the platform would otherwise
+handle, and zoom has no such key. A CM6 binding for it would be strictly worse than the command's
+own hotkey — invisible in Obsidian's hotkey UI and impossible for a user to rebind. So the
+keyboard path IS `addCommand`'s hotkey, and there is one dispatch route rather than two.
+
+No DEFAULT hotkey ships with it, unlike the move commands. Those inherit a dominant convention
+(`addStructuralCommand`'s comment records why a default is justified there despite the guideline);
+zoom has none, and every plausible binding is already spoken for by Obsidian core or a common
+community plugin.
 
 *Side note, not in scope:* the same registry would close the `indentUnit` gap for the four
 structural commands. Not done here — it is a separate defect with its own tests.

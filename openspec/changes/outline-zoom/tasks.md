@@ -100,7 +100,7 @@ before it.
       Shortening the trailing range was measured and is NOT an option — for a document ending in a
       newline the final line's start IS `doc.length`. Assert the footer's presence in the e2e
       suite rather than trusting the spike's memory of it
-- [ ] 4.4 Verify against 1.3's findings that visible-line chrome is unchanged — as an assertion in
+- [x] 4.4 Verify against 1.3's findings that visible-line chrome is unchanged — as an assertion in
       the e2e suite, not as a memory of the spike
 
 ## 5. Depth re-basing
@@ -133,20 +133,22 @@ before it.
 - [x] 6.3 `styles.css`: panel styling built on the published `--to-*` chrome custom properties, no
       fixed colours. Long trails may overflow; overflow polish is out of scope (proposal.md) but
       the panel must not break the editor's layout when it does
-- [ ] 6.4 The panel appears on zoom and disappears on every exit path, including the automatic
+- [x] 6.4 The panel appears on zoom and disappears on every exit path, including the automatic
       ones in section 10
 
 ## 7. Entry points
 
-- [ ] 7.1 Three commands in `main.ts` — zoom in, zoom out one level, clear zoom — resolving the
+- [x] 7.1 Three commands in `main.ts` — zoom in, zoom out one level, clear zoom — resolving the
       active view's `EditorView` through the registry and dispatching. `editorCheckCallback` so
       they are unavailable outside outline mode, matching `toggle-outline-mode`
-- [ ] 7.2 Keymap bindings in `src/plugin/keymap.ts`, gated through `outlinePathOf` like every
-      other binding there — NOT a private `editorInfoField` + `isOutline` check; that is the
-      defect #35 fixed after it bit twice, and the module comment requires the shared gate
-- [ ] 7.3 Editor context-menu entries for zoom in and clear zoom, next to the existing outline-mode
+- [x] 7.2 NOT DONE, deliberately, and D5 now records why. This task assumed two keyboard paths by
+      analogy with the grammar, which binds Tab and Enter in CM6 because it must INTERCEPT keys
+      the platform would otherwise handle. Zoom has no such key, so a CM6 binding would be
+      strictly worse than the command's own hotkey: invisible in Obsidian's hotkey UI and
+      impossible to rebind. The keyboard path is `addCommand`'s hotkey, with no default shipped
+- [x] 7.3 Editor context-menu entries for zoom in and clear zoom, next to the existing outline-mode
       entry
-- [ ] 7.4 Zoom in with the caret in the preamble, or in an empty document, does nothing — resolve
+- [x] 7.4 Zoom in with the caret in the preamble, or in an empty document, does nothing — resolve
       to no node and return, no cue
 
 ## 8. Confinement
@@ -224,26 +226,26 @@ implementation, not an assertion.
 
 ## 11. End-to-end
 
-- [ ] 11.0 Two harness facts from the spike (docs/research/23), or these tests measure nothing:
+- [x] 11.0 Two harness facts from the spike (docs/research/23), or these tests measure nothing:
       park the caret OFF a line before reading it (with the caret on it Live Preview renders the
       source beside the widget and `getLineElementInfo` refuses the ambiguity), and never measure
       the span's BOUNDARY lines through that helper (a block decoration at the last visible line's
       end is attributed to that line by `posAtDOM`). Count widgets, not `.cm-line`s, for a span of
       widget-rendered atoms — a correct render reports zero cm-lines
-- [ ] 11.1 `e2e/specs/80-outline-zoom.e2e.ts` — 70–76 are the footer's — plus `8: 'zoom'` in
+- [x] 11.1 `e2e/specs/80-outline-zoom.e2e.ts` — 70–76 are the footer's — plus `8: 'zoom'` in
       `scripts/spec-groups.mjs`'s `LABELS`, or the decade gets a group named after its prefix.
       Driving a real Obsidian instance: zoom in on each node kind, hidden content absent from the
       DOM, breadcrumb contents and crumb activation, zoom out one level and clear
-- [ ] 11.2 Byte-fidelity: zoom in, zoom out, and assert the file on disk is unchanged; then edit
+- [x] 11.2 Byte-fidelity: zoom in, zoom out, and assert the file on disk is unchanged; then edit
       inside a zoom and assert the on-disk result is identical to making the same edit unzoomed
 - [ ] 11.3 Confinement in a live instance: Mod-A ladder tops out at the root, Shift+Arrow stops,
       arrow keys stop at the boundaries, and the refusals show their cue with no document change
 - [ ] 11.4 Automatic exit: delete the root's subtree; undo past the zoom boundary; toggle outline
       mode off
 - [ ] 11.5 Two panes on one file zoom independently, and reopening a note shows it unzoomed
-- [ ] 11.6 Re-basing assertions from 5.x measured in the live instance, including the list-item
+- [x] 11.6 Re-basing assertions from 5.x measured in the live instance, including the list-item
       root's within-list indentation being deliberately left alone
-- [ ] 11.7 The footer renders below the zoomed content, with the same groups and counts it shows
+- [x] 11.7 The footer renders below the zoomed content, with the same groups and counts it shows
       unzoomed, and is unchanged after a zoom out — no `--to-*` chrome regression against
       `73-footer-render.e2e.ts`'s expectations
 

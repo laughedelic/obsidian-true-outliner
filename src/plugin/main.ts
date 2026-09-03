@@ -62,6 +62,13 @@ import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
 import { zoomDecorationsExtension } from './zoom-decorations';
 import { zoomPanelExtension } from './zoom-panel';
+import { viewFor } from './view-registry';
+import { zoomScope } from './zoom-scope';
+import { zoomCleared, zoomTo } from './zoom-state';
+import { parentOf, resolveZoom } from '../zoom';
+import { nodeStartLine } from '../locate';
+import { parsedDoc } from './parsed-doc';
+import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 
@@ -230,6 +237,19 @@ export default class TrueOutlinerPlugin extends Plugin {
       { modifiers: ['Mod', 'Shift'], key: 'ArrowDown' },
     ]);
 
+    // Zoom's three gestures. No default hotkeys: unlike the move commands there
+    // is no dominant convention to inherit, and every plausible binding
+    // (Mod+Alt+Arrow, Mod+.) is already spoken for by Obsidian core or by a
+    // common community plugin. The palette and the context menu are the entry
+    // points; a user who wants a key assigns one.
+    this.addZoomCommand('zoom-in', 'Zoom in to node', (view) => this.zoomInFrom(view));
+    this.addZoomCommand('zoom-out', 'Zoom out one level', (view) => this.zoomOutFrom(view));
+    this.addZoomCommand('zoom-clear', 'Zoom out fully', (view) => {
+      if (zoomScope(view.state, this) === null) return false;
+      view.dispatch({ effects: zoomCleared.of(null) });
+      return true;
+    });
+
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {
         if (file instanceof TFile) void this.registry.handleRename(oldPath, file.path);
@@ -297,6 +317,24 @@ export default class TrueOutlinerPlugin extends Plugin {
             .setTitle(on ? 'Disable outline mode' : 'Enable outline mode')
             .setIcon('list-tree')
             .onClick(() => void this.toggleMode(path)),
+        );
+        if (!on) return;
+        const view = viewFor(info);
+        if (!view) return;
+        menu.addItem((item) =>
+          item
+            .setTitle('Zoom in to node')
+            .setIcon('search')
+            .onClick(() => {
+              this.zoomInFrom(view);
+            }),
+        );
+        if (zoomScope(view.state, this) === null) return;
+        menu.addItem((item) =>
+          item
+            .setTitle('Zoom out fully')
+            .setIcon('search')
+            .onClick(() => view.dispatch({ effects: zoomCleared.of(null) })),
         );
       }),
     );
@@ -657,6 +695,74 @@ export default class TrueOutlinerPlugin extends Plugin {
    * being invisible in Settings > Hotkeys and impossible for a user to rebind or
    * remove. A default hotkey is the version of this the user can actually undo.
    */
+  /**
+   * A zoom command: outline-mode-gated, and routed to the live `EditorView`
+   * through the registry (design D5).
+   *
+   * `editorCheckCallback` rather than `editorCallback`, so the command is
+   * absent from the palette outside outline mode instead of present and inert —
+   * matching `toggle-outline-mode` and the structural commands. The action
+   * reports whether it did anything, and a gesture with nothing to do reports
+   * `false` while CHECKING so the palette hides it, but never surfaces a cue:
+   * "zoom out when not zoomed" is a no-op, not a rejection.
+   */
+  private addZoomCommand(id: string, name: string, act: (view: EditorView) => boolean): void {
+    this.addCommand({
+      id,
+      name,
+      editorCheckCallback: (checking, _editor, ctx) => {
+        const path = ctx.file?.path;
+        if (!path || !this.registry.isOutline(path)) return false;
+        const view = viewFor(ctx);
+        if (!view) return false;
+        if (checking) return true;
+        act(view);
+        return true;
+      },
+    });
+  }
+
+  /**
+   * Zoom to the node the selection's ANCHOR resolves to, collapsing a non-empty
+   * selection onto that anchor.
+   *
+   * The anchor and not the head, for the reason `selection-structural-ops` gives
+   * for operands: a cover's head is whichever end the gesture grew from, so
+   * reading it would zoom somewhere different depending on which direction the
+   * user selected in. Collapsing rather than clamping, because a range spanning
+   * siblings has ends outside the new scope and pulling them inward produces a
+   * selection the user never made while a zoom gesture was all they asked for.
+   */
+  private zoomInFrom(view: EditorView): boolean {
+    const { doc } = parsedDoc(view.state.doc);
+    const anchor = view.state.selection.main.anchor;
+    const line = view.state.doc.lineAt(anchor).number - 1;
+    const scope = resolveZoom(doc, line);
+    if (!scope) return false; // the preamble, or a document with no nodes
+    view.dispatch({
+      effects: zoomTo.of(view.state.doc.line(scope.startLine + 1).from),
+      selection: { anchor },
+    });
+    return true;
+  }
+
+  /** One level out: the root's parent becomes the root, and a top-level root
+   * clears the zoom — so the gesture always has an effect while zoomed. */
+  private zoomOutFrom(view: EditorView): boolean {
+    const scope = zoomScope(view.state, this);
+    if (!scope) return false;
+    const parent = parentOf(scope);
+    if (!parent) {
+      view.dispatch({ effects: zoomCleared.of(null) });
+      return true;
+    }
+    const { doc } = parsedDoc(view.state.doc);
+    const line = nodeStartLine(doc, parent.id);
+    if (line < 0) return false;
+    view.dispatch({ effects: zoomTo.of(view.state.doc.line(line + 1).from) });
+    return true;
+  }
+
   private addStructuralCommand(
     id: string,
     name: string,
