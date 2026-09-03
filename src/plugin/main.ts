@@ -462,7 +462,15 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.data[key] = value;
     this.footerRev++;
     await this.saveData(this.data);
+    // Both, because they do different things and a control setting needs the
+    // second. `nudgeFooters` wakes the StateField, which decides whether a
+    // footer exists at all; but the widget's identity is the NOTE, so an
+    // existing footer is `eq` to its replacement and CM6 keeps the mounted DOM
+    // without ever calling `toDOM` again. `repaintFooters` is what re-runs
+    // `render()` on that DOM, and without it a setting that changes only what
+    // the footer draws lands on the next repaint from some other cause.
     nudgeFooters(this.app);
+    repaintFooters();
   }
 
   get backlinksSort(): SortOrder {

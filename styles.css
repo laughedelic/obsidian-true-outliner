@@ -2121,3 +2121,31 @@ body {
   margin-right: 0.4em;
   color: var(--text-faint);
 }
+
+/* ---- Coexistence with Obsidian's own in-document backlinks --------------- *
+ *
+ * Obsidian renders its own "Linked mentions" section INSIDE the editor —
+ * measured, not assumed: it is a child of `.cm-sizer`, a sibling of the
+ * `.cm-content` our footer's widget lives in. So the condition "a view where
+ * our footer is rendering" is expressible on the nearest shared ancestor,
+ * which is tighter than reaching up to the workspace leaf.
+ *
+ * Presentational only, and nothing has to undo it. The rule lives in the
+ * stylesheet Obsidian unloads with the plugin, so `plugin-shell`'s no-residue
+ * requirement holds by construction rather than by a lifecycle hook that has
+ * to run. `:has()` has been in Chromium since 105, well below the Electron
+ * that ships with our `minAppVersion`.
+ *
+ * The setting is carried as a class on the footer itself, so the whole
+ * condition — the plugin is decorating this note, its footer is mounted, and
+ * the reader wants one list rather than two — is one selector.
+ */
+.cm-sizer:has(.to-backlinks.is-suppressing-core) > .embedded-backlinks {
+  /* `!important` because Obsidian drives this element's visibility with an
+   * INLINE style — measured: an unpopulated section carries
+   * `style="display: none"` of its own, and a populated one is shown the same
+   * way. A stylesheet declaration loses to an inline one whatever its
+   * specificity, so without this the rule would apply in exactly the case it
+   * does not matter and lose in the one it does. */
+  display: none !important;
+}

@@ -106,14 +106,20 @@ count. The rung comes out of the measurement pass that already runs.
 Specs: `plugin-shell` — "Coexistence warning". Design D6. Presentational only: no other plugin's
 configuration is read or written, and the whole thing unloads with the stylesheet.
 
-- [ ] 5.1 Verify the selector against a running Obsidian before building on it: confirm the
-      in-document section is `.embedded-backlinks` inside the leaf content, and record what it is
-      if it is not. The design says the rule fails open if this is ever renamed, and that is only
-      true if the rule is written against the real name now
-- [ ] 5.2 The single stylesheet rule from D6, keyed on our own footer carrying
+- [x] 5.1 Verified against Obsidian 1.13.7, and it corrected the design twice. The class is
+      `.embedded-backlinks`, but it sits INSIDE the editor as a direct child of `.cm-sizer`,
+      sibling to the `.cm-content` our widget lives in — so the scope is `.cm-sizer`, not the
+      workspace leaf. And Obsidian drives that element's visibility with an INLINE style, so the
+      declaration needs `!important` or it loses in exactly the case it exists for. Both folded
+      into design D6
+- [x] 5.2 The single stylesheet rule from D6, keyed on our own footer carrying
       `is-suppressing-core`. No container class, no lifecycle hook, nothing to reverse on unload
-- [ ] 5.3 The footer applies that class from the setting. Verify turning the setting off restores
-      Obsidian's section without a reload, which is the spec's scenario
+- [x] 5.3 The footer applies that class from the setting, verified by
+      `e2e/specs/42-backlinks-coexistence.e2e.ts`. This found a real bug: the footer widget's
+      identity is its NOTE, so CM6 keeps the mounted DOM and never calls `toDOM` again — a
+      settings change needed `repaintFooters()` beside `nudgeFooters()`, without which NONE of
+      the six settings reached a mounted footer. Negative control: remove the repaint and the
+      second toggle fails while the first still passes
 - [ ] 5.4 Verify the three containment guarantees the spec states: a note the plugin is not
       decorating renders as it does without the plugin; every other plugin's configuration is
       byte-identical after enabling and disabling suppression; disabling our plugin leaves no

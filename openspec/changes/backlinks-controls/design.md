@@ -125,8 +125,8 @@ already rendered is removed or reordered — is met by the model's stability, no
 ### D6. Core-backlinks suppression is one stylesheet rule keyed on our own footer
 
 ```css
-.workspace-leaf-content:has(.to-backlinks.is-suppressing-core) .embedded-backlinks {
-  display: none;
+.cm-sizer:has(.to-backlinks.is-suppressing-core) > .embedded-backlinks {
+  display: none !important;
 }
 ```
 
@@ -134,6 +134,14 @@ The condition this needs to express is "a view where our footer is rendering", a
 exactly that, with the setting carried as a class on the footer element itself. Nothing is added to
 a container and nothing has to be removed later: the rule lives in the stylesheet Obsidian unloads
 with the plugin, which satisfies `plugin-shell`'s no-residue requirement by construction.
+
+*Two corrections from measuring it (task 5.1) rather than assuming.* The scope is `.cm-sizer`, not
+the workspace leaf: Obsidian renders its section INSIDE the editor, as a direct child of
+`.cm-sizer` and a sibling of the `.cm-content` our own widget lives in — so the nearest shared
+ancestor is tighter than anything reached from outside. And the declaration needs `!important`,
+because Obsidian drives that element's visibility with an inline style; a stylesheet rule loses to
+an inline one whatever its specificity, so the plain form would have applied in exactly the case
+where it changes nothing and lost in the case it exists for.
 
 *Why not a class on the view container,* set when outline mode activates: it needs per-view
 lifecycle management, it has to be reversed on unload for the residue requirement, and it would
