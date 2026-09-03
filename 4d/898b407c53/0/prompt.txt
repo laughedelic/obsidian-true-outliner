@@ -1,0 +1,23 @@
+<ci-monitor-event>laughedelic/obsidian-true-outliner PR #38 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ## Pull request overview
+
+Copilot reviewed 22 out of 29 changed files in this pull request and generated no new comments.
+
+
+
+
+<details>
+<summary>Suppressed comments (6)</summary>
+
+**src/plugin/decorations.ts:1014**
+* Returning here leaves `inBlockMode` stale when outline mode is disabled. Disabling mode while a cover is active is a mode exit, but the refresh transaction then neither clears the transition state nor restores focus; subsequent off-mode keystrokes can be stranded because the document key handler correctly declines outside outline mode. Treat “not an outline note” as `covered = false` so the normal exit edge runs.
+```
+      if (!this.isOutlineNote()) return;
+      const covered = allRangesCovered(this.view.state);
+      const wasCovered = this.inBlockMode;
+      this.inBlockMode = covered;
+```
+**src/plugin/keymap.ts:157**
+* An exact cover is not always excluded by the content-line bounds. For a leaf with no trailing gap (for example a final multiline code fence), its subtree cover is exactly `from..to`; the opposite Shift+Arrow is therefore classified as text motion and falls through to native extension, which shrinks the cover inside the node instead of stepping the co… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/38/reviews/4860862422`]
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
