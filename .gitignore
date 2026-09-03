@@ -1,11 +1,8 @@
+# `.agents/skills/` is the one real copy of the OpenSpec skills, and the per-tool
+# directories hold symlinks into it; all three are tracked. Only the generated
+# slash-command files are not — `openspec update` rewrites them.
 /.claude/commands/
-/.claude/skills/
-
 /.github/prompts/
-/.github/skills/
-
-/.opencode/commands/
-/.opencode/skills/
 
 node_modules/
 dist/
