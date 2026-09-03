@@ -2068,4 +2068,56 @@ body {
  * know the theme's background colour, and a mask fades the content itself. */
 .to-backlinks-group.is-fading {
   mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+/*
+ * Zoom's breadcrumb trail (`outline-zoom` D10).
+ *
+ * A CM6 panel, so CodeMirror owns its placement above the content and this only
+ * has to say what it looks like. Colours and spacing come from the theme's own
+ * variables rather than literals, for the reason the chrome contract states: a
+ * snippet that retunes the editor should retune this with it, not leave it
+ * behind at a hard-coded grey.
+ */
+.to-zoom-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.35rem var(--size-4-4, 1rem);
+  font-size: var(--font-ui-small, 0.8rem);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+}
+
+/*
+ * Crumbs are buttons, so the reset is against the theme's button chrome rather
+ * than the browser's: without it each crumb arrives with a background, a border
+ * and a padding box, and the trail reads as a toolbar instead of a path.
+ */
+.to-zoom-crumb {
+  all: unset;
+  cursor: pointer;
+  padding: 0.1em 0.25em;
+  border-radius: var(--radius-s, 4px);
+  color: inherit;
+  /* A long ancestor title must not push the trail into its own scrollbar; the
+   * overflow treatment itself is deliberately out of scope for this change. */
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.to-zoom-crumb:hover,
+.to-zoom-crumb:focus-visible {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+/* The separator is drawn rather than inserted as a crumb, so the trail's
+ * children stay exactly the things that can be activated. */
+.to-zoom-crumb + .to-zoom-crumb::before {
+  content: '›';
+  margin-right: 0.4em;
+  color: var(--text-faint);
 }

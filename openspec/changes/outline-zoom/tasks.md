@@ -126,11 +126,11 @@ before it.
 
 ## 6. Breadcrumb panel
 
-- [ ] 6.1 A CM6 panel via `showPanel`, present only while zoomed (D10). File crumb first, then
+- [x] 6.1 A CM6 panel via `showPanel`, present only while zoomed (D10). File crumb first, then
       ancestors outermost-in; the zoom root is NOT a crumb
-- [ ] 6.2 Crumb activation dispatches the same `zoomTo` / `zoomCleared` effects the commands use —
+- [x] 6.2 Crumb activation dispatches the same `zoomTo` / `zoomCleared` effects the commands use —
       one dispatch path, not a parallel one
-- [ ] 6.3 `styles.css`: panel styling built on the published `--to-*` chrome custom properties, no
+- [x] 6.3 `styles.css`: panel styling built on the published `--to-*` chrome custom properties, no
       fixed colours. Long trails may overflow; overflow polish is out of scope (proposal.md) but
       the panel must not break the editor's layout when it does
 - [ ] 6.4 The panel appears on zoom and disappears on every exit path, including the automatic
