@@ -42,8 +42,8 @@ The note's own content SHALL occupy the same document positions with the footer 
 without it, so that a caret position, a selection, or a structural operation behaves identically
 either way.
 
-Filtering, sorting, changing a cap, requesting further results, and toggling the suppression of
-Obsidian's own in-document backlinks SHALL all preserve these guarantees: they change what the
+Filtering, searching, sorting, changing a cap, requesting further results, and toggling the
+suppression of Obsidian's own in-document backlinks SHALL all preserve these guarantees: they change what the
 footer renders and nothing else.
 
 #### Scenario: Rendering mutates nothing
@@ -65,7 +65,8 @@ footer renders and nothing else.
 
 #### Scenario: Filtering and sorting are inert
 
-- **WHEN** the reader applies filters, changes the sort order, and requests further results
+- **WHEN** the reader applies filters, types a search term, changes the sort order, and requests
+  further results
 - **THEN** the note's text, positions, caret, selection and undo stack are unchanged throughout
 
 ## ADDED Requirements

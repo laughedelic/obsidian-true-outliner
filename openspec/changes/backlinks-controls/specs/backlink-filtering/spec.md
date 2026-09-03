@@ -3,8 +3,8 @@
 Defines how a reader narrows, orders and bounds a note's backlinks: which references are shown
 when a filter is active, what order groups appear in, how many are rendered before the reader is
 asked, and what the reported totals mean when the body is incomplete. It exists because a hub
-note's full reference set is both unreadable and expensive, and a reader needs to be able to ask
-for less without being lied to about how much there is.
+note's full reference set is unreadable, and a reader needs to be able to ask for less without
+being lied to about how much there is.
 
 ## ADDED Requirements
 
@@ -57,6 +57,30 @@ another so a reader can tell which dimension a control belongs to without readin
 - **WHEN** both axes are shown together
 - **THEN** their controls differ in form, not only in wording
 
+### Requirement: Source notes are searchable by name
+
+The filter controls SHALL include a free-text field that narrows results to source notes whose
+name matches the entered text. Matching SHALL be over the source note's name only, and SHALL NOT
+reach the content of the references themselves.
+
+The search term SHALL combine conjunctively with the filter axes, and an empty term SHALL admit
+everything.
+
+#### Scenario: Typing narrows to matching notes
+
+- **WHEN** text matching some source note names is entered
+- **THEN** only groups whose source note name matches are shown
+
+#### Scenario: Search does not reach reference content
+
+- **WHEN** the entered text occurs in a reference's content but in no source note name
+- **THEN** no group is shown for it
+
+#### Scenario: Search combines with an axis
+
+- **WHEN** a reference-kind filter and a search term are both active
+- **THEN** only references of that kind, from notes matching the term, are shown
+
 ### Requirement: Filters are dismissible and resettable
 
 The filter controls SHALL be hidden by default behind a single affordance, so an unfiltered
@@ -102,9 +126,16 @@ independently of the group order.
 
 ### Requirement: Volume is capped, with the caps under the reader's control
 
-The footer SHALL bound how much it renders by two caps: a maximum number of references shown
-across the whole footer, and a maximum number shown per source note. Both SHALL be
+The footer SHALL bound how much it renders by two caps: a maximum number of references admitted
+across the whole footer, and a bound on how much any one source note shows. Both SHALL be
 configurable, and both SHALL have defaults.
+
+The overall cap SHALL be applied before a source note's content is read, so a note the cap
+excludes costs nothing to exclude.
+
+The per-note bound SHALL be expressed as an extent of the rendered group rather than a count of
+its references, because a reference's rendered height depends on how its content wraps and a
+count of references does not predict it.
 
 Caps SHALL be applied after filtering, so narrowing the results makes more of the narrowed set
 visible rather than leaving it hidden behind a cap consumed by excluded references.
@@ -112,15 +143,20 @@ visible rather than leaving it hidden behind a cap consumed by excluded referenc
 The reader SHALL be able to request the next tranche of results without losing what is already
 rendered.
 
-#### Scenario: The per-note cap bounds a single group
+#### Scenario: The per-note bound limits a single group
 
-- **WHEN** one source note contributes more references than the per-note cap
-- **THEN** that group renders no more than the cap, and reports that it has more
+- **WHEN** one source note contributes more than its bound shows
+- **THEN** that group shows no more than the bound, and reports that it has more
 
 #### Scenario: The overall cap bounds the footer
 
 - **WHEN** the sum of references across groups exceeds the overall cap
 - **THEN** rendering stops at the cap, and the footer reports how much is not shown
+
+#### Scenario: A note beyond the overall cap is never read
+
+- **WHEN** the overall cap excludes a source note
+- **THEN** that note's content is not read or parsed
 
 #### Scenario: Filtering frees cap budget
 

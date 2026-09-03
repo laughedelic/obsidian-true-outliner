@@ -2,9 +2,11 @@
 
 `backlinks-footer` puts every reference to a note under it, in tree context. That is the right
 default for a note with six references and the wrong one for a hub note with four hundred: the
-note ends up buried under its own backlinks, and every reference costs a file read and a parse
-to place. It is also indiscriminate — a reader who wants only what the daily notes said, or
-only the places that pointed at a specific heading, has no way to ask.
+note ends up buried under its own backlinks. Cost is not the reason — S5 measured placement at
+about 2ms for 42 sources and 150 references, and named this change as the one that should size
+its caps on legibility instead (`docs/research/19`). It is also indiscriminate — a reader who
+wants only what the daily notes said, or only the places that pointed at a specific heading, has
+no way to ask.
 
 This change makes the footer answer to its reader: what to show, in what order, and how much
 before it asks. It also settles the one place the plugin collides with Obsidian itself — the
@@ -21,13 +23,22 @@ D14, D15).
   Both are **focus-on**: nothing selected means no filter, selecting one narrows to it. A reset
   clears filters and search together. The row stays behind a Filter toggle in the header, which
   carries a dot while any filter is active (D8, D14).
+- **A search field beside them**, narrowing by source note name, in the same revealed row and
+  cleared by the same reset. Name only, never reference content: the pills, the chips and this
+  field are all answered from the summary layer without reading a file, which is what D8 means by
+  "no search engine behind them".
 - **Sorting** as a dropdown — recently modified (default), oldest, note name, most references
   (D15).
-- **Volume caps**, one overall and one per note, both configurable with defaults. The header
-  always reports the true total; the body says what it is not showing (D10).
-- **An incompleteness cue that is spatial, not just numeric**: an ellipsis rung at the depth
-  the missing nodes would occupy, plus a fade dissolving the last card, so a truncated list is
-  visibly running off rather than ending (D10).
+- **Volume caps**, one overall and one per note, both configurable with defaults, and each
+  measured the way its own question is asked. The overall cap is a reference count applied before
+  any source note is placed, so it bounds how many notes the footer reads at all. The per-note cap
+  stays the group-height bound `backlinks-footer` shipped, because a row's rendered height depends
+  on how its content wraps and a row count does not predict it. The header always reports the true
+  total; the body says what it is not showing (D10).
+- **An incompleteness cue that is spatial, not just numeric**: an ellipsis rung at the depth the
+  missing nodes would occupy — counted by the overflow pass the group cap already runs — plus a
+  fade dissolving the last card, so a truncated list is visibly running off rather than ending
+  (D10).
 - **Coexistence with core backlinks**: a setting, defaulting on, that hides Obsidian's own
   in-document backlinks section from our stylesheet. Turning it off restores both. There is no
   public API to read or change the core setting, so this is a deliberate one-way suppression
@@ -49,8 +60,9 @@ D14, D15).
 ### New Capabilities
 
 - `backlink-filtering`: the filter and sort model — focus-on semantics, the two filter axes and
-  what each admits, reset behaviour, sort orders, and how filtering interacts with the caps
-  (whether a cap applies before or after a filter, and what the reported total means).
+  the search term, what each admits, reset behaviour, sort orders, and how filtering interacts
+  with the caps (whether a cap applies before or after a filter, and what the reported total
+  means).
 
 ### Modified Capabilities
 
@@ -85,8 +97,8 @@ D14, D15).
 - **Their `backlinks-footer` deltas do not collide.** Zoom's delta adds one requirement — the
   footer survives an active zoom scope — while this change's modifies two others and adds a
   third. No requirement appears in both, so either can sync into the main spec first.
-- **Three files both touch, mechanically.** `src/plugin/backlinks-footer.ts` — zoom re-anchors the
-  footer widget to the end of the visible range while a zoom is active. That is settled by
+- **Three files both touch, mechanically.** `src/plugin/backlinks-footer.ts` — zoom re-anchors
+  the footer widget to the end of the visible range while a zoom is active. That is settled by
   measurement (`docs/research/23`, zoom's D12): the alternative, shortening the hidden range, is
   impossible for any document ending in a newline, because such a document's empty final line
   starts at `doc.length`. So the widget's mount position becomes zoom-conditional in the same file
