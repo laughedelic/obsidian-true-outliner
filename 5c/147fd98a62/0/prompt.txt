@@ -1,0 +1,7 @@
+<task-notification>
+<task-id>b2viv3ilj</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/9802894c-2a81-4f6e-b031-179a9a6ca2d0/tasks/b2viv3ilj.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for the CI re-run to finish" completed (exit code 0)</summary>
+</task-notification>
