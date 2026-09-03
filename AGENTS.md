@@ -11,7 +11,7 @@ keeps changes from conflicting and lands them in a predictable order. Offer that
 decide.
 
 ```bash
-gh pr list --state open --author "@me" --json number,headRefName,baseRefName,isDraft
+gh pr list --state open --json number,headRefName,baseRefName,isDraft
 ```
 
 Stacks are GitHub's native stacked PRs, driven by the `gh stack` extension
@@ -25,13 +25,15 @@ maintained by hand.
 | `gh stack checkout <pr>` | fetch an existing stack and switch into it |
 | `gh stack init <branch>` | start a stack off the trunk |
 | `gh stack add <branch>` | add a layer on top of the current stack |
-| `gh stack submit` | push every layer, open or update its PRs (new ones are drafts) |
+| `gh stack submit --auto` | push every layer and open or update its PRs, as drafts |
 | `gh stack rebase` | cascading rebase after the trunk or a lower layer moves |
 | `gh stack merge` | atomic merge of the stack up to a chosen PR |
 
-Rebase a stacked branch with `gh stack rebase`, never plain `git rebase`: rebasing one layer by
-hand leaves every layer above it on commits that no longer exist. `gh stack view` reports a
-branch that needs one.
+Two things bite. Rebase a stacked branch with `gh stack rebase`, never plain `git rebase`:
+rebasing one layer by hand leaves every layer above it on commits that no longer exist —
+`gh stack view` reports a branch needing one. And only `gh stack submit --auto` opens drafts;
+its interactive editor defaults to ready for review. `--auto` also auto-generates titles, so
+write the real title and description afterwards with `gh pr edit`.
 
 ## Change lifecycle
 
