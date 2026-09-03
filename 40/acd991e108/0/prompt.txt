@@ -1,0 +1,2 @@
+okay, let's go with option 1. one thing I want to note here: currently, it's not possible to move a  child node from parent to the parent's sibling (same level). it should be possible for a single child or a group of siblings. is this in scope of this change? 
+/openspec-update-change , then we'll get a review before going into the implementation.
