@@ -1,0 +1,3 @@
+ok. the multiline is fixed now. the initial flicker is still there. if we are in a dead end on that one, I'd prefer to just record it as a known issue and potentially remove the attempted fix, unless it's a general improvement anyway.
+
+next, let's open a PR to go through a round of code reviews
