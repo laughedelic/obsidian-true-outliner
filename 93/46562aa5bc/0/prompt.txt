@@ -1,0 +1,9 @@
+research and question (no code edits):
+in the outline-decorations experiments (see @docs/research/07-decoration-experiments-plan.md and related docs), we have researched and discarded the approach with per-block editor tree approach. but then in experiment 5a we have discovered that
+> Obsidian renders an actively-edited table cell in Live Preview as its own separate, independent CM6 EditorView, mounted inside the outer table widget’s own DOM
+
+aren't these two things related? I don't quite understand the internals and maybe these are completely different things, but it sounds to me that the way Obsidian provides tables WYSIWIG live-preview editing experience is by "drawing" the actual table cells and making each of them an independent editor view. why can't we do the same thing with the outline nodes tree? have a structural tree that looks like a tree and behaves like one, and only when user clicks into one of the nodes, they interact with the embedded editor view for that node's content. 
+
+please explain it in simple terms. 
+
+also, I think one of the assumptions about the researched obsidian-continuous-journal plugin (that I've experimented with in parallel) was that it would require usage of some private APIs and it disqualifies the whole approach. but I actually submitted a draft of the plugin to the registry to run a scan and it hasn't flagged any major issues, so maybe the assumption about that approach wasn't correct and could be revisited (if relevant)
