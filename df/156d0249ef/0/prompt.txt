@@ -1,0 +1,9 @@
+okay, great. the paste bug is fixed now. good work. I think we should be recording the work so far, so prepare a branch for the change and make commits (no need for the full history reproduction, but if you can split up the changeset in sensible separate commits, good).
+
+---
+
+about the redo cursor placement bug, I think it's more convoluted. I see it in different forms, with the cursor landing after the current subtree on redo, not only on the next line. so I think it's more interesting and probably deserves a separate investigation. let's record it somewhere and work on it separately.
+
+---
+
+let's start wrapping up the change. let's defer tasks 8.2 and 8.3 for now. what else is left?
