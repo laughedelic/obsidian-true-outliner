@@ -1,0 +1,1 @@
+ok. we can move ahead with this plan. but I wonder if we can make the keyboard-driven selection more like the purely block-level mouse-driven selection, i.e. without the underlying character-level selection happening on every keypress.
