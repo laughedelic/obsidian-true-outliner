@@ -1,0 +1,53 @@
+ok, first, about branching. I feel like those examples don't capture the important quality of squaching multiple lineages. here's a quick example of what I have in mind: (this is the tree structure, not necessarily the underlying markdown)
+
+
+```
+- a
+  - b
+    - [[x]] first mention
+    - c
+      - d
+        - [[x]] second mention
+    - e
+      - f
+        - g
+          - [[x]] third mention
+```
+
+
+I expect the backlinks view to squash both the common lineage, as well as the sub-branches:
+
+
+```
+a > b
+  - [[x]] first mention
+  - c > d
+    - [[x]] second mention
+  - e > f > g
+    - [[x]] third mention
+```
+
+
+or something like that. do you see my idea? 
+
+---
+
+one correction I forgot to make about the grandchildred folding: let's not invent a new indication of a folded subtree (the [+2] on the right), and use the normal folding indicator next to the node marker, same as in a normal outline. the node is highlighted, so it's clear that it's folded and the user can click on the chevron to unfold it.
+
+---
+
+Now the questions:
+
+1. yes, absorb. I think this is consistent with the example I gave above.
+2. agree, let's render lineage consistently.
+3. I don't see a good reason to treat H1 in any special way. example C looks correct.
+4. Incompleteness cue: rung + fade looks good.
+5. Frontmatter links: good edge case. let's try a simple row kind, with just the note title and some indication of the property that mentioned the target.
+6. I think we want all of those, but it might be good to add filter toggles for those different type of mentions.
+7. default sort is "Recently modified".
+   1. I was also thinking about a "chronological" filter (daily notes only) + sort (by the note name as a date, regardless of creation or modification date). but we can leave this for later.
+8. regarding "Is pruned tree projection a shared primitive with zoom and filtered search, or a one-off for backlinks?": I didn't understand this phrasing, please elaborate.
+9. we'll make tasks for spikes and pause during implementation based on those. if the change scope is too big, we can also propose several changes to be worked on sequentially.
+
+
+With these answers, let's update the canvas and realign, then continue clarifying and iterating on the decisions.
