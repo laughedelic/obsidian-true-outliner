@@ -1,0 +1,5 @@
+okay. I understand it now, I think. and yes, we want the Live-Preview in lines. but my concern here is not about just rendering the tree structure. sure, we achieved that by patching every line with our decorations. this seems to work well for _showing_ the outline. but what about interactions like editing and selection. the first point of our TLDR "manifest" is
+
+> A **true outliner** is defined by one invariant: *the document is a tree of nodes, and every operation — typing, selecting, deleting, moving, pasting — respects node boundaries*. Existing Obsidian plugins (obsidian-outliner et al.) bolt keyboard tricks onto flat text; the invariant is never enforced, so the structure is always one careless selection away from breaking
+
+So I'm curious, how can we achieve the goal of respecting those _structural boundaries_ in every interaction, while our underlying CM model is still flat and split into lines? Aren't we going to end up with the same keyboard tricks? Maybe I'm missing something from our initial feasibility research, so I'd appreciate it if you could clarify this and explain it in simple terms
