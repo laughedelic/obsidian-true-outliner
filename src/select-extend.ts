@@ -66,7 +66,7 @@ import {
   type Cover,
   type ForestCover,
 } from './escalate';
-import { isBackward, isEmptyRange, type LineRange } from './line-pos';
+import { isBackward, isEmptyRange, posBefore, type LineRange } from './line-pos';
 
 /** Which way a press extends. Not CodeMirror's `Direction` (that one is
  * bidi text direction) — this is document order. */
@@ -213,12 +213,25 @@ export function extendSelection(
   doc: OutlineDoc,
   range: LineRange,
   direction: ExtendDirection,
+  bound?: Cover,
 ): LineRange | null {
   const start = normalize(doc, range);
   if (!start) return null;
 
+  /**
+   * `outline-zoom` D7: an active scope bounds the SEQUENCE, so its last element
+   * is the zoom root's own subtree and every element remains an exact cover.
+   * A press with nowhere left to go inside the bound reports `null`, exactly as
+   * an exhausted unbounded sequence does — the caller already leaves such a
+   * range alone.
+   */
+  const within = (cover: Cover): boolean =>
+    !bound || (!posBefore(cover.start, bound.start) && !posBefore(bound.end, cover.end));
+
   // Arriving on the sequence is this press's step (D6).
-  if (start.normalized) return orient(start.forest.cover, direction);
+  if (start.normalized) {
+    return within(start.forest.cover) ? orient(start.forest.cover, direction) : null;
+  }
 
   const { forest } = start;
   const backward = isBackward(range);
@@ -242,6 +255,10 @@ export function extendSelection(
   // only which candidate differs. A shrink keeps the current orientation —
   // it does not change which way the selection is growing.
   const cover = forestCoverOf(doc, anchorNode, candidate).cover;
+  // The bound is checked on the RESULT, not by trimming it: a step that would
+  // leave the scope has no element to move to, which is the same answer an
+  // exhausted sequence gives.
+  if (!within(cover)) return null;
   return orient(cover, growing ? direction : backward ? 'up' : 'down');
 }
 
@@ -263,6 +280,7 @@ export function extendSelections(
   doc: OutlineDoc,
   ranges: readonly LineRange[],
   direction: ExtendDirection,
+  bound?: Cover,
 ): readonly (LineRange | null)[] {
-  return ranges.map((range) => extendSelection(doc, range, direction));
+  return ranges.map((range) => extendSelection(doc, range, direction, bound));
 }

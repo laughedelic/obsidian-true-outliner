@@ -21,6 +21,7 @@
 import {
   StateEffect,
   StateField,
+  type EditorState,
   type Extension,
   type Transaction,
 } from '@codemirror/state';
@@ -39,6 +40,17 @@ export const zoomAnchorField = StateField.define<number | null>({
       if (effect.is(zoomTo)) return effect.value;
     }
     if (value === null) return null;
+    // Trigger 2 (design D4): a change touching any position OUTSIDE the visible
+    // range as it stood before the transaction clears the zoom.
+    //
+    // This is the catch-all for changes that never passed the clamps — history
+    // transactions, which `@codemirror/commands` dispatches with `filter:
+    // false` and which therefore never see the enforcement funnel at all; a
+    // sync or external write; an edit dispatched from another pane onto the
+    // same file. An in-scope edit cannot trip it, which is what makes the
+    // anchor safe from silently retargeting: the node above the root is outside
+    // the range, so an edit that would merge the root into it trips this first.
+    if (tr.docChanged && touchesOutside(value, tr)) return null;
     return mapAnchor(value, tr);
   },
 });
@@ -62,6 +74,41 @@ export const zoomAnchorField = StateField.define<number | null>({
  * on the grounds that the anchor is only ever consumed as "which line is this".
  * That was wrong; the negative control for it is in `tests/zoom-state.test.ts`.
  */
+/**
+ * Did any of this transaction's changes reach outside the visible range?
+ *
+ * Measured against `tr.startState` — the range as it stood BEFORE the change,
+ * which is the only frame in which "outside" is still well defined. The scope
+ * cannot be recomputed here (that needs `editorInfoField`, see the module
+ * note), so the bounds come from re-deriving them in the old state via the
+ * caller-supplied resolver.
+ */
+function touchesOutside(anchor: number, tr: Transaction): boolean {
+  const bounds = visibleBounds?.(tr.startState, anchor);
+  if (!bounds) return false;
+  let outside = false;
+  tr.changes.iterChangedRanges((fromA, toA) => {
+    if (fromA < bounds.from || toA > bounds.to) outside = true;
+  });
+  return outside;
+}
+
+/**
+ * How to find the visible range's offsets in a given state.
+ *
+ * Injected rather than imported, because resolving it needs `editorInfoField`
+ * and this module must stay free of `obsidian` to remain reachable from the unit
+ * suite. `zoom-scope.ts` installs the real one at load; without it the field
+ * simply never clears on trigger 2, which is the safe direction to fail.
+ */
+let visibleBounds: ((state: EditorState, anchor: number) => { from: number; to: number } | null) | undefined;
+
+export function setVisibleBoundsResolver(
+  resolve: (state: EditorState, anchor: number) => { from: number; to: number } | null,
+): void {
+  visibleBounds = resolve;
+}
+
 function mapAnchor(anchor: number, tr: Transaction): number | null {
   if (!tr.docChanged) return anchor;
   return tr.changes.mapPos(anchor, 1);

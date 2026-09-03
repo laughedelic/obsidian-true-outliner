@@ -158,21 +158,21 @@ before it.
 directions and three Mod-A presses select the whole document. Every task below is an
 implementation, not an assertion.
 
-- [ ] 8.1 Escalation clamp in `src/plugin/transaction-filter.ts`: intersect the escalated range
+- [x] 8.1 Escalation clamp in `src/plugin/transaction-filter.ts`: intersect the escalated range
       with the scope (D7 — this is the ONE site that truncates, and it is safe because the scope
       is a cover). Property test that the clamped result is still an exact cover, and a negative
       control: remove the clamp and confirm the test fails
-- [ ] 8.2 `src/select-all-ladder.ts` takes the scope as a bound: rungs stop at the zoom root's own
+- [x] 8.2 `src/select-all-ladder.ts` takes the scope as a bound: rungs stop at the zoom root's own
       subtree, ancestors above it contribute none, and the native-Select-All fall-through is
       suppressed while zoomed. Bound the ENUMERATION, not its output (D7)
-- [ ] 8.3 `src/select-extend.ts` takes the same bound, with the same rule — every dispatched
+- [x] 8.3 `src/select-extend.ts` takes the same bound, with the same rule — every dispatched
       selection stays an exact cover. Test the anchor-is-the-zoom-root case: the sequence is one
       element and every press is a no-op
 - [ ] 8.3a Zoom-in collapses a non-empty selection to its anchor, and resolves its target from
       that anchor rather than the head — so the gesture zooms to the same node whichever direction
       the selection was grown in, and no zoom transition can leave a selection end in content it
       just hid. Test both directions and the multi-range case
-- [ ] 8.4 Motion handlers in `keymap.ts` return without moving when their computed target lies
+- [x] 8.4 Motion handlers in `keymap.ts` return without moving when their computed target lies
       outside the scope — not "move to the boundary and get corrected", which would put a second
       caret authority beside `caret-placement-policy`
 - [ ] 8.5 Assert the MECHANISM, not the outcome: a motion that does not move looks identical
@@ -182,17 +182,17 @@ implementation, not an assertion.
 
 ## 9. Refusing escaping operations
 
-- [ ] 9.1 `would-leave-zoom-scope` in `src/result.ts` and its cue in `src/plugin/messages.ts`
-- [ ] 9.2 The precondition on the RESOLVED OPERAND (D8), at the single site
+- [x] 9.1 `would-leave-zoom-scope` in `src/result.ts` and its cue in `src/plugin/messages.ts`
+- [x] 9.2 The precondition on the RESOLVED OPERAND (D8), at the single site
       `selection-structural-ops` resolves the operand and the after-state — not once per entry
       point. Refuse when any covered root is the zoom root, and when an outdent's operand contains
       any direct child of the zoom root. `src/ops.ts` stays zoom-unaware; do not add a scope
       parameter to the algebra
-- [ ] 9.3 The multi-root test, which a single-subject formulation passes wrongly: an operand whose
+- [x] 9.3 The multi-root test, which a single-subject formulation passes wrongly: an operand whose
       FIRST root is safe and whose LAST root escapes is refused as a whole, with nothing moved.
       Negative control — write the check over the operand's first root only and confirm this test
       fails
-- [ ] 9.4 The split refusal in the grammar (`outline-keyboard-grammar` delta), judged by
+- [x] 9.4 The split refusal in the grammar (`outline-keyboard-grammar` delta), judged by
       DESTINATION SCOPE and not by node identity: refuse the cases the grammar sends to the zoom
       root's SIBLING scope (content start; content end on a childless root; an interior split of a
       childless non-heading root; Enter on an empty list-item root, which outdents or unwraps).
@@ -204,21 +204,21 @@ implementation, not an assertion.
 - [ ] 9.4a Negative control for 9.4: implement the blanket `node === zoomRoot` refusal and confirm
       the "Enter at the end of a zoom root with children creates a first child" test fails. A
       refusal test that passes under both rules is testing nothing
-- [ ] 9.5 An operation the algebra rejects for its own reason keeps that reason while zoomed —
+- [x] 9.5 An operation the algebra rejects for its own reason keeps that reason while zoomed —
       the scope check must not shadow `no-previous-sibling` and friends
-- [ ] 9.6 Assert the two entry points agree by exercising both, even though
+- [x] 9.6 Assert the two entry points agree by exercising both, even though
       `selection-structural-ops` makes them agree by construction: the palette missing a guard the
       keyboard had is a defect this codebase has already shipped once (`resultCursor`'s
       addressability guard)
 
 ## 10. Automatic exit
 
-- [ ] 10.1 Trigger 1: the anchor's line no longer resolves to a node → clear
-- [ ] 10.2 Trigger 2: a change touches any position outside the visible range as it stood in
+- [x] 10.1 Trigger 1: the anchor's line no longer resolves to a node → clear
+- [x] 10.2 Trigger 2: a change touches any position outside the visible range as it stood in
       `tr.startState` → clear. This is what catches history transactions (dispatched with
       `filter: false`, so they never see the clamps), sync writes, and another pane's edits
-- [ ] 10.3 Trigger 3: outline mode off → clear, on the existing refresh path
-- [ ] 10.4 No other trigger. Explicitly test that editing the zoom root's own text — including
+- [x] 10.3 Trigger 3: outline mode off → clear, on the existing refresh path
+- [x] 10.4 No other trigger. Explicitly test that editing the zoom root's own text — including
       emptying it — does NOT exit, and that an exit changes neither the document nor the caret
 - [ ] 10.5 The retarget property (D4): for generated documents and every in-scope edit, the
       resolved root after the edit is the same node it was before, or the zoom has exited. This
@@ -238,9 +238,9 @@ implementation, not an assertion.
       DOM, breadcrumb contents and crumb activation, zoom out one level and clear
 - [x] 11.2 Byte-fidelity: zoom in, zoom out, and assert the file on disk is unchanged; then edit
       inside a zoom and assert the on-disk result is identical to making the same edit unzoomed
-- [ ] 11.3 Confinement in a live instance: Mod-A ladder tops out at the root, Shift+Arrow stops,
+- [x] 11.3 Confinement in a live instance: Mod-A ladder tops out at the root, Shift+Arrow stops,
       arrow keys stop at the boundaries, and the refusals show their cue with no document change
-- [ ] 11.4 Automatic exit: delete the root's subtree; undo past the zoom boundary; toggle outline
+- [x] 11.4 Automatic exit: delete the root's subtree; undo past the zoom boundary; toggle outline
       mode off
 - [ ] 11.5 Two panes on one file zoom independently, and reopening a note shows it unzoomed
 - [x] 11.6 Re-basing assertions from 5.x measured in the live instance, including the list-item

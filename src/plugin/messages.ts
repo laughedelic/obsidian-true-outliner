@@ -22,4 +22,5 @@ export const REJECTION_MESSAGES: Record<RejectionReason, string> = {
   'merge-not-expressible': "These blocks can't be joined into one.",
   'insertion-not-expressible': "Markdown can't express that content here.",
   'cannot-unwrap': 'Only an empty list item can be unwrapped.',
+  'would-leave-zoom-scope': "That would move it outside the zoomed view.",
 };

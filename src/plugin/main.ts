@@ -65,7 +65,7 @@ import { zoomPanelExtension } from './zoom-panel';
 import { viewFor } from './view-registry';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
-import { parentOf, resolveZoom } from '../zoom';
+import { operandEscapes, parentOf, resolveZoom } from '../zoom';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
 import type { EditorView } from '@codemirror/view';
@@ -224,7 +224,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     });
 
     this.addStructuralCommand('indent-node', 'Indent node', indentGroups, true);
-    this.addStructuralCommand('outdent-node', 'Outdent node', outdentGroups, true);
+    this.addStructuralCommand('outdent-node', 'Outdent node', outdentGroups, true, undefined, true);
     // Mod+Shift+Arrow is the dominant move-node convention: obsidian-outliner
     // and obsidian-bullet ship exactly these as command defaults, and Logseq
     // binds mod+shift+up/down on macOS. It collides with no Obsidian core
@@ -769,6 +769,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     op: StructuralOp,
     useMappedCursor = false,
     hotkeys?: Hotkey[],
+    /** Outdent is the one operation whose result can leave a zoom scope from a
+     * node that is not the root itself, so the guard has to be told. */
+    isOutdent = false,
   ): void {
     this.addCommand({
       id,
@@ -781,7 +784,7 @@ export default class TrueOutlinerPlugin extends Plugin {
         // (`selection-structural-ops`). Acting would silently discard every
         // range but one, and the two entry points must answer alike.
         if (editor.listSelections().length !== 1) return false;
-        if (!checking) this.runOp(editor, ctx, op, useMappedCursor);
+        if (!checking) this.runOp(editor, ctx, op, useMappedCursor, isOutdent);
         return true;
       },
     });
@@ -799,6 +802,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     ctx: MarkdownView | MarkdownFileInfo,
     op: StructuralOp,
     useMappedCursor = false,
+    isOutdent = false,
   ): void {
     // Fresh-tree guarantee: always parse the current buffer at invocation.
     const text = editor.getValue();
@@ -822,6 +826,16 @@ export default class TrueOutlinerPlugin extends Plugin {
     const operand = resolveOperand(doc, range);
     if (!operand) {
       new Notice(REJECTION_MESSAGES['node-not-found'], 1500);
+      return;
+    }
+    // `outline-zoom` D8: refuse an operand that would leave the scope, before the
+    // algebra runs. Checked here and in `grammar.ts` against the SAME predicate,
+    // so the two entry points cannot disagree about it — the divergence
+    // `selection-structural-ops` exists to prevent.
+    const view = viewFor(ctx);
+    const scope = view ? zoomScope(view.state, this) : null;
+    if (scope && operandEscapes(scope, operand.groups, isOutdent)) {
+      new Notice(REJECTION_MESSAGES['would-leave-zoom-scope'], 1500);
       return;
     }
     const result = op(doc, operand.groups);

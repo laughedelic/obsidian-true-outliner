@@ -170,3 +170,33 @@ export function containsNode(scope: ZoomScope, node: OutlineNode): boolean {
 export function isDirectChild(scope: ZoomScope, node: OutlineNode): boolean {
   return scope.root.children.some((child) => child.id === node.id);
 }
+
+/**
+ * Would this operand's operation place a node outside the scope? (design D8)
+ *
+ * Judged over the whole operand — every covered root, not a single subject —
+ * because a multi-root selection whose FIRST root is safe and whose last one
+ * escapes must be refused as a whole rather than applied to the roots that
+ * happen to be safe. `selection-structural-ops` made the operand a forest; a
+ * check written over one node would pass exactly that case wrongly.
+ *
+ * Two shapes escape, and only two. An operation ON the zoom root moves the root
+ * itself, which is the view's own anchor. An OUTDENT of a direct child makes it
+ * a sibling of the root, which is outside the visible range. Everything else —
+ * indent, moves among siblings, and any operation deeper in the subtree — lands
+ * inside the scope by construction.
+ */
+export function operandEscapes(
+  scope: ZoomScope,
+  groups: readonly (readonly number[])[],
+  isOutdent: boolean,
+): boolean {
+  const directChildren = new Set(scope.root.children.map((child) => child.id));
+  for (const group of groups) {
+    for (const id of group) {
+      if (id === scope.root.id) return true;
+      if (isOutdent && directChildren.has(id)) return true;
+    }
+  }
+  return false;
+}

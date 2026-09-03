@@ -62,6 +62,7 @@ import type { LinePos } from "../line-pos";
 import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
+import { zoomScope } from "./zoom-scope";
 import { isNestedEditor } from "./nested-editor";
 import type { EditorChange } from "./dispatch";
 import {
@@ -130,6 +131,7 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
       startLine === undefined
         ? undefined
         : { line: startLine.number - 1, ch: sel.from - startLine.from },
+      zoomScope(view.state, modes),
     );
 
     if (outcome === null) {
@@ -345,7 +347,10 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     if (stock.every((yes) => yes)) return false;
 
     const before = sel.ranges.map((range) => toLineRange(doc, range));
-    const next = extendSelections(outlineDoc, before, direction);
+    // `outline-zoom` D7: the scope bounds the SEQUENCE. A press with nowhere
+    // left to go inside it reports null, which this adapter already handles by
+    // leaving that range alone.
+    const next = extendSelections(outlineDoc, before, direction, zoomScope(view.state, modes)?.cover);
 
     // Every range is ours and every one has run out of sequence. CONSUME the
     // key: the selection must stay unchanged, and falling through would let
@@ -415,8 +420,12 @@ function makeSelectAllHandler(modes: ModeSource) {
     const before = view.state.selection.ranges.map((range) =>
       toLineRange(doc, range),
     );
-    const next = nextRungs(outlineDoc, before);
-    if (next.every((range) => range === null)) return false;
+    const scope = zoomScope(view.state, modes);
+    const next = nextRungs(outlineDoc, before, scope?.cover);
+    // Falling through to native Select All would select the hidden content the
+    // scope exists to keep out of reach, so while zoomed the ladder consumes the
+    // press and leaves the selection at its top rung instead (D7).
+    if (next.every((range) => range === null)) return scope !== null;
 
     const ranges = before.map((original, i) => {
       const escalated = next[i];
@@ -480,10 +489,27 @@ function outlinePathOf(
  */
 function dispatchCursor(
   view: EditorView,
+  modes: ModeSource,
   offset: number,
   scrollIntoView = true,
-): void {
+): boolean {
+  // `outline-zoom` D7: a motion whose computed target lies outside the scope
+  // leaves the caret where it is. Not "move to the boundary and let the filter
+  // correct it" — that would put a second caret authority beside
+  // `caret-placement-policy`, and a corrected landing is indistinguishable from
+  // an intended one.
+  //
+  // Here rather than in each handler because this is the single point every
+  // motion lands through, and a confinement rule copied per key is a rule with
+  // five chances to be forgotten.
+  const scope = zoomScope(view.state, modes);
+  if (scope) {
+    const cover = scope.cover;
+    const line = view.state.doc.lineAt(offset).number - 1;
+    if (line < cover.start.line || line > cover.end.line) return false;
+  }
   view.dispatch({ selection: EditorSelection.cursor(offset), scrollIntoView });
+  return true;
 }
 
 /**
@@ -599,14 +625,14 @@ function makeHorizontalHandler(modes: ModeSource, direction: "left" | "right") {
         // Never let a visual step land inside chrome; `max` is safe rightward too,
         // since native motion cannot go below the boundary in that direction.
         const ch = Math.max(nativePos.ch, boundary);
-        dispatchCursor(view, linePosToOffset(doc, { line: pos.line, ch }));
+        return dispatchCursor(view, modes, linePosToOffset(doc, { line: pos.line, ch }));
         return true;
       }
       // Native motion left the line although the planner did not expect it to:
       // fall through and trust the planner.
     }
 
-    dispatchCursor(view, linePosToOffset(doc, target));
+    return dispatchCursor(view, modes, linePosToOffset(doc, target));
     return true;
   };
 }
@@ -719,9 +745,12 @@ function makeVerticalHandler(modes: ModeSource, forward: boolean) {
     if (moved.head === sel.head) return false; // no further row in this direction
     const goalColumn = moved.goalColumn ?? 0;
 
-    const dispatchAt = (pos: LinePos): void => {
+    const dispatchAt = (pos: LinePos): boolean => {
       const offset = linePosToOffset(doc, pos);
-      dispatchCursor(view, offset);
+      // A refused move (outside the zoom scope) must NOT record a goal column:
+      // the caret has not moved, so the column it would carry to the next press
+      // is the one it already has.
+      if (!dispatchCursor(view, modes, offset)) return false;
       // Read the tick AFTER dispatching: `view.dispatch` applies synchronously,
       // so the listener has already counted our own change by now.
       verticalGoalColumn.set(view, {
@@ -730,6 +759,7 @@ function makeVerticalHandler(modes: ModeSource, forward: boolean) {
         pixelX,
         tick: tickOf(view),
       });
+      return true;
     };
 
     const startLine = doc.lineAt(sel.head).number - 1;
@@ -748,6 +778,9 @@ function makeVerticalHandler(modes: ModeSource, forward: boolean) {
         movedPos.line - nodeStartLine(outlineDoc, movedNode.id);
       const lineText = movedNode.lines[movedLineIndex] ?? "";
       const boundary = contentBoundaryCh(movedNode, lineText);
+      // A refused move still CONSUMES the key: the caret intentionally stays
+      // put at the scope's edge, and letting stock motion run instead would
+      // walk it straight into the hidden content.
       dispatchAt(
         movedPos.ch < boundary
           ? { line: movedPos.line, ch: boundary }
@@ -895,7 +928,7 @@ function makeHomeEndHandler(modes: ModeSource, forward: boolean) {
     // A non-empty range must always be dispatched, even when the computed target
     // equals the head: the dispatch is what collapses it.
     if (!sel.empty || target.line !== raw.line || target.ch !== raw.ch) {
-      dispatchCursor(view, linePosToOffset(doc, target));
+      return dispatchCursor(view, modes, linePosToOffset(doc, target));
     }
     return true; // consume either way — a further press at the outer rung does nothing
   };

@@ -31,6 +31,7 @@ import { afterState, groupRootsByParent, resolveOperand } from '../operand';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
+import { operandEscapes, type ZoomScope } from '../zoom';
 
 export type GrammarKey =
   | 'indent'
@@ -102,6 +103,13 @@ export interface TxPlan {
 type AbandonForm = 'reverse' | 'drop-line' | 'none';
 
 export type GrammarOutcome = { plan: TxPlan } | { notice: string } | null;
+
+/** The keys whose operand is a forest of subtrees, and so whose result can land
+ * outside a zoom scope. Splitting and continuing are judged differently — by
+ * DESTINATION scope — and are not covered here. */
+function isStructuralKey(key: GrammarKey): boolean {
+  return key === 'indent' || key === 'outdent' || key === 'move-up' || key === 'move-down';
+}
 
 /** The caret offset a plan states — the HEAD, for a plan stating a block
  * cover. One narrowing, rather than one per consumer. */
@@ -455,6 +463,14 @@ export function planKey(
    * parameter and defaults away.
    */
   selectionStart?: EditorPos,
+  /**
+   * The active zoom scope, when there is one. Here rather than in `ops.ts`
+   * because this is a DISPATCH precondition, not part of the algebra: the tree
+   * operations stay zoom-unaware, and their closure and round-trip properties
+   * keep the parameter-free signatures those properties are stated over
+   * (`outline-zoom` D8).
+   */
+  scope?: ZoomScope | null,
 ): GrammarOutcome {
   if (
     selectionEnd !== undefined &&
@@ -539,6 +555,12 @@ export function planKey(
   // than none.
   if (!operand) return null;
   const groups = operand.groups;
+  // Refused over the WHOLE operand, before the algebra runs: a multi-root
+  // selection with one escaping root is refused entirely rather than applied to
+  // the roots that happen to be safe. The same predicate guards the palette.
+  if (scope && isStructuralKey(key) && operandEscapes(scope, groups, key === 'outdent')) {
+    return { notice: REJECTION_MESSAGES['would-leave-zoom-scope'] };
+  }
   // The after-state: a selection that WAS a block cover stays one (design D4).
   const span = operand.wasCover;
 

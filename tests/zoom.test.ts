@@ -7,6 +7,7 @@ import {
   containsPos,
   containsRange,
   isDirectChild,
+  operandEscapes,
   parentOf,
   resolveZoom,
 } from '../src/zoom';
@@ -416,5 +417,63 @@ describe('re-basing: the sub-document is the whole mechanism', () => {
     expect(rebased.map((f) => ({ ...f, lineNumber: f.lineNumber + scope.startLine }))).toEqual(
       full,
     );
+  });
+});
+
+describe('operandEscapes: the refusal, over the whole operand', () => {
+  const DOC2 = `# Top
+
+## Mid
+
+- one
+- two
+  - deep
+- three
+`;
+
+  function scopeAt(needle: string) {
+    const doc = parse(DOC2);
+    return { doc, scope: resolveZoom(doc, lineOf(DOC2, needle))! };
+  }
+  function idOf(doc: ReturnType<typeof parse>, needle: string): number {
+    return walk(doc.children).find((n) => head(n).includes(needle))!.id;
+  }
+
+  it('refuses any operation whose operand is the zoom root itself', () => {
+    const { doc, scope } = scopeAt('## Mid');
+    const root = [[idOf(doc, '## Mid')]];
+    expect(operandEscapes(scope, root, false)).toBe(true);
+    expect(operandEscapes(scope, root, true)).toBe(true);
+  });
+
+  it('refuses an outdent of a direct child, and allows every other operation on it', () => {
+    const { doc, scope } = scopeAt('## Mid');
+    const child = [[idOf(doc, '- one')]];
+    expect(operandEscapes(scope, child, true)).toBe(true);
+    expect(operandEscapes(scope, child, false)).toBe(false);
+  });
+
+  it('allows an outdent deeper in the subtree — it lands inside the scope', () => {
+    const { doc, scope } = scopeAt('## Mid');
+    expect(operandEscapes(scope, [[idOf(doc, '  - deep')]], true)).toBe(false);
+  });
+
+  it('refuses a multi-root operand whose LAST root escapes', () => {
+    // The case a single-subject check passes wrongly, and the reason D8 is
+    // stated over the operand: the first root here is safe.
+    const { doc, scope } = scopeAt('## Mid');
+    const groups = [[idOf(doc, '  - deep')], [idOf(doc, '- one')]];
+    expect(operandEscapes(scope, groups, true)).toBe(true);
+  });
+
+  it('refuses a multi-root operand whose FIRST root escapes', () => {
+    const { doc, scope } = scopeAt('## Mid');
+    const groups = [[idOf(doc, '- one')], [idOf(doc, '  - deep')]];
+    expect(operandEscapes(scope, groups, true)).toBe(true);
+  });
+
+  it('allows an operand entirely inside the subtree', () => {
+    const { doc, scope } = scopeAt('## Mid');
+    expect(operandEscapes(scope, [[idOf(doc, '  - deep')]], false)).toBe(false);
   });
 });

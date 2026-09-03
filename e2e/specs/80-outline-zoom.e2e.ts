@@ -239,6 +239,37 @@ describe('outline zoom', function () {
     expect(await footerPresent()).toBe(true);
   });
 
+  it('exits when the zoom root is deleted', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '- one');
+    expect(await trail()).not.toEqual([]);
+    await h.setBuffer(DOC.replace('- one\n  - nested\n', ''));
+    await browser.pause(300);
+    expect(await trail()).toEqual([]);
+  });
+
+  it('exits when a change reaches outside the visible range', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '- one');
+    expect(await trail()).not.toEqual([]);
+    // Rewriting the whole buffer touches positions above and below the scope —
+    // the shape a history transaction, a sync write or another pane produces,
+    // none of which pass through the clamps.
+    await h.setBuffer(DOC.replace('# Top', '# Renamed'));
+    await browser.pause(300);
+    expect(await trail()).toEqual([]);
+  });
+
+  it('keeps the zoom while the root own text is edited', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '## Mid');
+    const before = await trail();
+    await h.setCursorSettled(2, 6);
+    await browser.keys(['!']);
+    await browser.pause(250);
+    expect(await trail()).toEqual(before);
+  });
+
   it('exits when outline mode is switched off', async function () {
     await openZoomable();
     await zoomAt(DOC, '## Mid');

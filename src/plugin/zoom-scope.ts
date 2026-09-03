@@ -11,7 +11,7 @@
 import type { EditorState } from '@codemirror/state';
 import { editorInfoField } from 'obsidian';
 import { resolveZoom, type ZoomScope } from '../zoom';
-import { zoomAnchorField } from './zoom-state';
+import { setVisibleBoundsResolver, zoomAnchorField } from './zoom-state';
 import { hiddenOffsetRanges } from './zoom-offsets';
 import { parsedDoc } from './parsed-doc';
 import { nestedEditorField } from './nested-editor';
@@ -82,3 +82,30 @@ export function contentEndAnchor(state: EditorState, modes: ModeSource): number 
   const tail = hiddenOffsetRanges(state.doc, scope).find((r) => r.to === state.doc.length);
   return tail ? tail.from : state.doc.length;
 }
+
+/**
+ * Installs the resolver `zoom-state.ts` needs for its outside-change exit
+ * trigger (D4, trigger 2).
+ *
+ * The bounds have to be derived where `editorInfoField` is reachable, and the
+ * field that consumes them has to stay free of `obsidian`. Rather than duplicate
+ * the derivation on either side of that line, the state module declares the
+ * shape and this one supplies it — once, at load.
+ *
+ * Deliberately NOT routed through `zoomScope`: that reads the anchor from the
+ * state it is given, and this is asked about the anchor as it stood BEFORE the
+ * transaction, which is the only frame where "outside" is well defined.
+ */
+setVisibleBoundsResolver((state, anchor) => {
+  if (state.field(nestedEditorField, false)) return null;
+  const path = state.field(editorInfoField, false)?.file?.path;
+  if (!path) return null;
+  if (anchor < 0 || anchor > state.doc.length) return null;
+  const { doc } = parsedDoc(state.doc);
+  const scope = resolveZoom(doc, state.doc.lineAt(anchor).number - 1);
+  if (!scope) return null;
+  return {
+    from: state.doc.line(scope.cover.start.line + 1).from,
+    to: state.doc.line(Math.min(scope.cover.end.line + 1, state.doc.lines)).to,
+  };
+});
