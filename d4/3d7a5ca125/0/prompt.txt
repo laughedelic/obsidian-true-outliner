@@ -1,0 +1,21 @@
+<ci-monitor-event>laughedelic/obsidian-true-outliner PR #38 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ## Pull request overview
+
+Copilot reviewed 22 out of 29 changed files in this pull request and generated no new comments.
+
+
+
+
+<details>
+<summary>Suppressed comments (7)</summary>
+
+**src/plugin/keymap.ts:259**
+* Out-of-jurisdiction ranges are not handled independently here. With one cursor in frontmatter and another range that advances, the frontmatter entry gets `next[i] === null` and is returned unchanged instead of receiving native Shift+Arrow motion. If the other range is merely exhausted, the `some(...)` branch above consumes the entire key, again suppressing native motion for the frontmatter cursor. Classify preamble ranges separately and apply the same anchor-preserving `moveVertically` path used for mixed text ranges; reserve the unchanged result for exhausted in-jurisdiction ranges.
+```
+      const target = next[i];
+      if (!target) return range;
+```
+**src/plugin/keymap.ts:183**
+* This says every-all-null case falls through, but the implementation immediately below deliberately consumes an exhausted in-jurisdiction sequence. Only an all-preamble/out-of-jurisdiction selection falls through. Update this comment so it does not document the exact behavior that the following p… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/38/reviews/4860968328`]
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
