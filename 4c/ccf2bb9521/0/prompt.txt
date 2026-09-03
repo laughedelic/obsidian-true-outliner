@@ -1,0 +1,2 @@
+feels good. I think it's ready to go. first, let's update the branch because some stuff go t merged into main. 
+then make sure to update the docs, sync the specs, archive the change. and at the end, give me the list of handoff "propose" prompts for the follow-up bugfixes that you mentioned before.
