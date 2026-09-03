@@ -1,0 +1,3 @@
+the naming and the new change split proposal sound good.
+
+let's tart the proposal process for both. regarding implementation design, I'd like to rely on existing constructs we've built for the normal outline decorations instead of inventing all-new rendering machinery. some things are novel here, but whatever can be reused should be reused. don't take shortcuts. plan the research spikes thouroughly, adjust based on the measured results, make experiments part of the process, make things the proper way, not the fast way. if you need to split it into even more changes, I don't have a problem with that.
