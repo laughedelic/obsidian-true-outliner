@@ -1,0 +1,9 @@
+good. here are a couple of clarifications:
+
+> Should extension have any relationship to the Mod-A ladder?
+
+yes, in the sense that both should work independently of how we arrived at the current state. so if we did mod-A several times, then decided to go sideways, it should be the same as if we started from that that whole subtree as the first selection. and vice versa: if we have a multi-subtree selection from expanding sideways, pressing mod-A should do the predictable thing, i.e. expand to the nearest sibling-list that covers the whole current selection or go to the parent. see if this interplay between the features is worth specifying explicitly. since we are changing how selection works, we need to keep in mind how that change interacts with the existing functionality. this is not out of scope.
+
+> which repaint you see inside the focused window — whether the native command's intermediate selection is briefly a non-cover, or it's the Live Preview raw-markdown reveal
+
+both. I can see both the character-level selection in the blink and the raw-markdown toggle as well. it's a quick blink, but noticeable enough. it's not about making it less noticeable, but about adjusting how block-selection works as a different mode instead of some sort of cover-up.
