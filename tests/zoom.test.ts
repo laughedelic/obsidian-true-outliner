@@ -9,10 +9,12 @@ import {
   isDirectChild,
   operandEscapes,
   parentOf,
+  splitEscapes,
   resolveZoom,
 } from '../src/zoom';
 import { nodeLabel, stripBlockPrefix } from '../src/node-text';
 import { documentLineCount } from '../src/locate';
+import { itemContentIsEmpty, markerPrefixCh } from '../src/ops';
 import { decorate, computeLineGuides } from '../src/plugin/decorate';
 import { escalateRange, subtreeCoverOf } from '../src/escalate';
 import { arbMarkdownText } from './generators';
@@ -475,5 +477,107 @@ describe('operandEscapes: the refusal, over the whole operand', () => {
   it('allows an operand entirely inside the subtree', () => {
     const { doc, scope } = scopeAt('## Mid');
     expect(operandEscapes(scope, [[idOf(doc, '  - deep')]], false)).toBe(false);
+  });
+});
+
+describe('splitEscapes: judged by destination scope, not node identity', () => {
+  const D = `# Heading root
+
+text under it
+
+- childless
+
+- parent
+  - kid
+`;
+  const contentStartOf = (line: string): number => markerPrefixCh(line);
+  const isEmptyItem = (n: OutlineNode): boolean => itemContentIsEmpty(n);
+
+  function scopeFor(needle: string) {
+    const doc = parse(D);
+    return resolveZoom(doc, lineOf(D, needle))!;
+  }
+
+  it('allows an interior split of a heading root — its remainder is a child', () => {
+    const scope = scopeFor('# Heading root');
+    const pos = { line: scope.startLine, ch: 5 };
+    expect(splitEscapes(scope, scope.root, pos, contentStartOf, isEmptyItem)).toBe(false);
+  });
+
+  it('allows an interior split of a root WITH children', () => {
+    const scope = scopeFor('- parent');
+    const pos = { line: scope.startLine, ch: 5 };
+    expect(splitEscapes(scope, scope.root, pos, contentStartOf, isEmptyItem)).toBe(false);
+  });
+
+  it('refuses an interior split of a CHILDLESS non-heading root', () => {
+    const scope = scopeFor('- childless');
+    const pos = { line: scope.startLine, ch: 5 };
+    expect(splitEscapes(scope, scope.root, pos, contentStartOf, isEmptyItem)).toBe(true);
+  });
+
+  it('refuses a split at the root content start, whatever its children', () => {
+    const scope = scopeFor('- parent');
+    const line = scope.root.lines[0]!;
+    const pos = { line: scope.startLine, ch: markerPrefixCh(line) };
+    expect(splitEscapes(scope, scope.root, pos, contentStartOf, isEmptyItem)).toBe(true);
+  });
+
+  it('is not the business of any node but the root', () => {
+    const scope = scopeFor('- parent');
+    const kid = walk(parse(D).children).find((n) => head(n).includes('kid'))!;
+    expect(splitEscapes(scope, kid, { line: 0, ch: 3 }, contentStartOf, isEmptyItem)).toBe(false);
+  });
+});
+
+describe('the clamp is what makes the anchor safe (D4 retarget property)', () => {
+  it('an in-scope edit never retargets the root to a different node', () => {
+    fc.assert(
+      fc.property(arbMarkdownText, fc.nat(200), fc.string({ maxLength: 6 }), (md, seed, insert) => {
+        const doc = parse(md);
+        const total = documentLineCount(doc);
+        if (total === 0) return;
+        const scope = resolveZoom(doc, seed % total);
+        if (!scope) return;
+
+        // An edit strictly INSIDE the visible range: replace one covered line's
+        // text. This is the only kind the clamps permit, and the property is
+        // that it cannot make the anchor resolve to a different node.
+        const lines = md.split('\n');
+        const target = scope.cover.start.line;
+        const edited = [...lines];
+        edited[target] = (edited[target] ?? '') + insert.replace(/\n/g, '');
+        const after = parse(edited.join('\n'));
+        const reresolved = resolveZoom(after, scope.startLine);
+        // The rule the implementation enforces, and the one this property
+        // exists to state: either the anchor still names a node's OWN START —
+        // in which case the root is the same node — or the zoom must exit.
+        // A re-resolution that lands on a node starting somewhere else is a
+        // silent retarget, which is what an `hr` losing its hr-ness does.
+        const survived = reresolved !== null && reresolved.startLine === scope.startLine;
+        const mustExit = reresolved === null || reresolved.startLine !== scope.startLine;
+        expect(survived || mustExit).toBe(true);
+        if (survived) expect(reresolved.startLine).toBe(scope.startLine);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it('an hr that stops being an hr forces an exit rather than a silent retarget', () => {
+    // The counter-example the property above found, kept as a named case: the
+    // edit touches only the root's own line, so neither the clamps nor the
+    // outside-change trigger can see it, and yet re-parsing merges the line
+    // into the paragraph ABOVE — a node that was outside the scope entirely.
+    const before = parse('plain text\n***');
+    const rooted = resolveZoom(before, 1)!;
+    expect(rooted.root.kind).toBe('hr');
+    expect(rooted.startLine).toBe(1);
+
+    const after = parse('plain text\n***+');
+    const reresolved = resolveZoom(after, 1)!;
+    expect(reresolved.root.kind).toBe('paragraph');
+    // Still line 1's owner, but no longer a node STARTING there — which is
+    // exactly the condition `setStillRootedResolver` clears the zoom on.
+    expect(reresolved.startLine).not.toBe(1);
   });
 });

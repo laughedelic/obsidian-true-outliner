@@ -51,7 +51,23 @@ export const zoomAnchorField = StateField.define<number | null>({
     // anchor safe from silently retargeting: the node above the root is outside
     // the range, so an edit that would merge the root into it trips this first.
     if (tr.docChanged && touchesOutside(value, tr)) return null;
-    return mapAnchor(value, tr);
+    const mapped = mapAnchor(value, tr);
+    if (mapped === null) return null;
+    // Trigger 1, in its real form. The anchor IS "the start of the zoom root's
+    // own first line", so if it stops naming a node's start, the node it named
+    // is gone.
+    //
+    // Not the same thing as the line being deleted, which is what an earlier
+    // draft of D4 assumed trigger 1 covered. Zoom into an `hr` (`***`), type a
+    // character, and the line stops parsing as an hr: it becomes a continuation
+    // of the paragraph ABOVE, and the anchor now resolves to a node starting
+    // outside the old scope. The edit touched only the root's own line, so
+    // neither the clamps nor `touchesOutside` can see it — the merge is a
+    // consequence of re-parsing, not of where the change landed. Found by the
+    // retarget property, which is why that property is stated over generated
+    // documents rather than argued.
+    if (tr.docChanged && stillRooted && !stillRooted(tr.state, mapped)) return null;
+    return mapped;
   },
 });
 
@@ -107,6 +123,15 @@ export function setVisibleBoundsResolver(
   resolve: (state: EditorState, anchor: number) => { from: number; to: number } | null,
 ): void {
   visibleBounds = resolve;
+}
+
+/** Does this anchor still name the START of a node? See the trigger-1 note. */
+let stillRooted: ((state: EditorState, anchor: number) => boolean) | undefined;
+
+export function setStillRootedResolver(
+  resolve: (state: EditorState, anchor: number) => boolean,
+): void {
+  stillRooted = resolve;
 }
 
 function mapAnchor(anchor: number, tr: Transaction): number | null {

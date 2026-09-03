@@ -137,8 +137,9 @@ the zoomed view; the benefit is that scope and cover are the same kind of object
 
 ### D4. Zoom exits automatically on three triggers, and no others
 
-1. **The anchor no longer resolves to a node.** `nodeAtLine` returns undefined — the root's lines
-   were deleted, or the document has no nodes left.
+1. **The anchor no longer names a node's own START line.** Its line was deleted, the document has
+   no nodes left, or — the case the retarget property found — the line stopped being its own node
+   and was absorbed into the one above it. All three are the same question asked once.
 2. **A change touches a position outside the visible range as it stood before the transaction.**
    This is the catch-all for changes that never passed the clamps: undo and redo, which bypass the
    enforcement filter entirely because `@codemirror/commands` dispatches history transactions with
@@ -149,13 +150,28 @@ the zoomed view; the benefit is that scope and cover are the same kind of object
 *Why not a content or kind signature on the root:* it would exit on ordinary typing inside the
 root's own text, which is the one edit that must not disturb the zoom.
 
-*The retarget hazard, and why it is closed rather than mitigated.* The feared failure is an edit
-that merges the root's first line into the node above, after which the anchor resolves to a
-different node and the zoom silently retargets. That edit is impossible from inside the scope:
-the node above is outside the visible range, so the clamp (D7) forbids a selection or change
-reaching it, and any change that does reach it trips trigger 2 and exits first. The property is
-therefore *the clamp makes the anchor safe*, and it is worth a property test rather than a
-comment.
+*The retarget hazard, and why the clamp is NOT what closes it.* The feared failure is an edit that
+merges the root's first line into the node above, after which the anchor resolves to a different
+node and the zoom silently retargets.
+
+An earlier version of this decision argued that the clamp made this impossible: the node above is
+outside the visible range, so no change can reach it. **That argument is wrong, and the property
+test written to confirm it found the counter-example instead.** Zoom into an `hr` (`***`) and type
+a character. The line stops parsing as an hr and becomes a continuation of the paragraph above, so
+the anchor now resolves to a node starting outside the old scope — and the edit touched nothing
+but the root's own line. The merge is a consequence of RE-PARSING, not of where the change landed,
+which is precisely the class of failure a positional guard cannot see.
+
+What actually closes it is trigger 1, stated properly. The anchor is defined as "the start of the
+zoom root's own first line", so the invariant to check is that it still names a node's OWN START —
+not merely that its line still belongs to some node. When it stops doing so, the node the user
+zoomed into is gone, whether its line was deleted or merely absorbed. `resolveZoom` deliberately
+answers the other question ("which node owns this line"), which is right for zooming in from a
+caret anywhere in a node and wrong for deciding whether an existing zoom survived.
+
+The property is therefore *an in-scope edit either leaves the anchor naming the same node's start,
+or the zoom exits* — and it is a property test rather than a comment for exactly the reason this
+paragraph had to be rewritten.
 
 ### D5. Commands dispatch through a view registry, because the public `Editor` exposes no `EditorState`
 

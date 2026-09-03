@@ -14,6 +14,7 @@ import {
   indentGroups,
   insertSiblingHeading,
   itemContentIsEmpty,
+  markerPrefixCh,
   moveGroupsDown,
   moveGroupsUp,
   outdent,
@@ -31,7 +32,7 @@ import { afterState, groupRootsByParent, resolveOperand } from '../operand';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
-import { operandEscapes, type ZoomScope } from '../zoom';
+import { operandEscapes, splitEscapes, type ZoomScope } from '../zoom';
 
 export type GrammarKey =
   | 'indent'
@@ -559,6 +560,16 @@ export function planKey(
   // selection with one escaping root is refused entirely rather than applied to
   // the roots that happen to be safe. The same predicate guards the palette.
   if (scope && isStructuralKey(key) && operandEscapes(scope, groups, key === 'outdent')) {
+    return { notice: REJECTION_MESSAGES['would-leave-zoom-scope'] };
+  }
+  // A split is judged by DESTINATION scope instead: splitting the zoom root is
+  // fine when the remainder becomes its child, which is what happens for a node
+  // with children and always for a heading.
+  if (
+    scope &&
+    key === 'split' &&
+    splitEscapes(scope, node, cursor, markerPrefixCh, itemContentIsEmpty)
+  ) {
     return { notice: REJECTION_MESSAGES['would-leave-zoom-scope'] };
   }
   // The after-state: a selection that WAS a block cover stays one (design D4).

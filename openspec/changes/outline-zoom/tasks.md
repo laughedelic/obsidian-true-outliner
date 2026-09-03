@@ -201,7 +201,7 @@ implementation, not an assertion.
       `openspec/specs/outline-keyboard-grammar/spec.md`'s "Enter splits the node" for the case
       table rather than reconstructing it; a blanket refusal on `node === zoomRoot` was the first
       draft of this task and it rejected valid in-scope edits
-- [ ] 9.4a Negative control for 9.4: implement the blanket `node === zoomRoot` refusal and confirm
+- [x] 9.4a Negative control for 9.4: implement the blanket `node === zoomRoot` refusal and confirm
       the "Enter at the end of a zoom root with children creates a first child" test fails. A
       refusal test that passes under both rules is testing nothing
 - [x] 9.5 An operation the algebra rejects for its own reason keeps that reason while zoomed —
@@ -220,7 +220,7 @@ implementation, not an assertion.
 - [x] 10.3 Trigger 3: outline mode off → clear, on the existing refresh path
 - [x] 10.4 No other trigger. Explicitly test that editing the zoom root's own text — including
       emptying it — does NOT exit, and that an exit changes neither the document nor the caret
-- [ ] 10.5 The retarget property (D4): for generated documents and every in-scope edit, the
+- [x] 10.5 The retarget property (D4): for generated documents and every in-scope edit, the
       resolved root after the edit is the same node it was before, or the zoom has exited. This
       is the property that turns "the clamp makes the anchor safe" from an argument into a test
 

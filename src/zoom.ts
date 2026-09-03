@@ -200,3 +200,46 @@ export function operandEscapes(
   }
   return false;
 }
+
+/**
+ * Would a SPLIT of `node` at `position` place its result outside the scope?
+ * (design D8, and the `outline-keyboard-grammar` delta)
+ *
+ * Judged by DESTINATION SCOPE, not by node identity. Splitting the zoom root is
+ * not by itself out of scope: `structural-operations` sends the remainder to the
+ * root's CHILD scope whenever the node has children, and always for a heading —
+ * a plain-text split has no heading-sibling encoding to produce. Those
+ * destinations are inside the subtree and must be allowed. A blanket
+ * `node === zoomRoot` refusal was this rule's first draft and rejected every one
+ * of them.
+ *
+ * The three shapes that DO resolve to the root's sibling scope:
+ *
+ * - a split at the node's content START, which inserts an empty node before it;
+ * - a split of a childless non-heading node, whose remainder becomes its next
+ *   sibling;
+ * - Enter on an empty list item, which this grammar outdents or unwraps rather
+ *   than splitting — either way moving the root itself.
+ *
+ * The conditions are read through `ops.ts`'s own exported predicates rather than
+ * restated, so the two cannot drift: a rule about where a split lands that
+ * disagrees with the code that lands it is worse than no rule.
+ */
+export function splitEscapes(
+  scope: ZoomScope,
+  node: OutlineNode,
+  position: { line: number; ch: number },
+  contentStartOf: (line: string) => number,
+  isEmptyItem: (node: OutlineNode) => boolean,
+): boolean {
+  if (node.id !== scope.root.id) return false;
+  if (node.kind === 'list-item' && isEmptyItem(node)) return true;
+
+  const lineIndex = position.line - scope.startLine;
+  const line = node.lines[lineIndex] ?? '';
+  const contentStart = contentStartOf(line);
+  const ch = Math.min(Math.max(position.ch, contentStart), line.length);
+  if (lineIndex === 0 && ch === contentStart) return true;
+
+  return node.children.length === 0 && node.kind !== 'heading';
+}

@@ -11,7 +11,11 @@
 import type { EditorState } from '@codemirror/state';
 import { editorInfoField } from 'obsidian';
 import { resolveZoom, type ZoomScope } from '../zoom';
-import { setVisibleBoundsResolver, zoomAnchorField } from './zoom-state';
+import {
+  setStillRootedResolver,
+  setVisibleBoundsResolver,
+  zoomAnchorField,
+} from './zoom-state';
 import { hiddenOffsetRanges } from './zoom-offsets';
 import { parsedDoc } from './parsed-doc';
 import { nestedEditorField } from './nested-editor';
@@ -108,4 +112,21 @@ setVisibleBoundsResolver((state, anchor) => {
     from: state.doc.line(scope.cover.start.line + 1).from,
     to: state.doc.line(Math.min(scope.cover.end.line + 1, state.doc.lines)).to,
   };
+});
+
+/**
+ * The anchor still names a node's own first line.
+ *
+ * `resolveZoom` answers "which node owns this line", which is the right
+ * question for zooming IN from a caret anywhere in a node and the wrong one for
+ * deciding whether an existing zoom survived an edit. A line that stops being
+ * its own node — an `hr` that a typed character turns back into paragraph text,
+ * say — is still OWNED by a node, just no longer the one the user zoomed into.
+ */
+setStillRootedResolver((state, anchor) => {
+  if (anchor < 0 || anchor > state.doc.length) return false;
+  const line = state.doc.lineAt(anchor).number - 1;
+  const { doc } = parsedDoc(state.doc);
+  const scope = resolveZoom(doc, line);
+  return scope !== null && scope.startLine === line;
 });
