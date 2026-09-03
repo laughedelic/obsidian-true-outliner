@@ -4,28 +4,28 @@ Design D1. This section reads no files and touches no DOM, so it is finished and
 anything renders. Everything the axes need is already in the reverse map — that is what makes the
 order possible.
 
-- [ ] 1.1 `src/plugin/footer-filter.ts`: the controls state (selected folders, selected kinds,
+- [x] 1.1 `src/plugin/footer-filter.ts`: the controls state (selected folders, selected kinds,
       search term, sort order, cap overrides) and the pure function from
       (summaries, references-by-source, controls) to admitted groups, true totals and shortfall.
       No `App`, no `TFile`, no `place()` — verified by the module importing nothing from
       `obsidian`
-- [ ] 1.2 Axis derivation: the folder values from `splitPath(path).folder` and the kind values
+- [x] 1.2 Axis derivation: the folder values from `splitPath(path).folder` and the kind values
       from `referencesFrom()`, each with the count of contributing notes, and each offering only
       values actually present. Verify a note whose references are all of one kind offers exactly
       one kind value
-- [ ] 1.3 Focus-on semantics: an empty axis admits everything, a non-empty axis admits only its
+- [x] 1.3 Focus-on semantics: an empty axis admits everything, a non-empty axis admits only its
       values, axes combine conjunctively, and the search term matches source note NAMES only.
       Verify the last one by a term that occurs in a reference's text and in no note name
       returning nothing
-- [ ] 1.4 The overall cap admits whole groups in sort order (D2): the first group that would
+- [x] 1.4 The overall cap admits whole groups in sort order (D2): the first group that would
       cross the cap is not admitted, nor anything after it, except that a single group exceeding
       the cap on its own is still admitted. Verify the reported totals stay the true filtered
       totals across all three cases
-- [ ] 1.5 The four sort orders, with recency the default and path the tie-break only.
+- [x] 1.5 The four sort orders, with recency the default and path the tie-break only.
       `backlinks-footer` shipped a comparator whose tie-break used to be the whole comparison; do
       not reintroduce that — verify two notes with equal mtime order by path, and that changing
       sort never changes a group's internal row order
-- [ ] 1.6 `tests/footer-filter.test.ts` covering 1.2–1.5, including the empty-controls case that
+- [x] 1.6 `tests/footer-filter.test.ts` covering 1.2–1.5, including the empty-controls case that
       must reproduce today's unfiltered footer exactly. Negative control: make an empty axis
       admit nothing instead of everything and confirm the focus-on cases fail; make the overall
       cap cut mid-group and confirm 1.4 fails
