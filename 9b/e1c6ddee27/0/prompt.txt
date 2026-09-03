@@ -1,0 +1,7 @@
+<task-notification>
+<task-id>b1zi3lpsn</task-id>
+<tool-use-id>toolu_01EuEfsrEtLWijYt6giFsdbD</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/33f3a6fb-210a-45e2-97a3-ae1012e52b38/tasks/b1zi3lpsn.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch CI on the rebased tip" completed (exit code 0)</summary>
+</task-notification>
