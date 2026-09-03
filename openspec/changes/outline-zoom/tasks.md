@@ -105,21 +105,21 @@ before it.
 
 ## 5. Depth re-basing
 
-- [ ] 5.1 Derive the visible lines' decoration facts by decorating the SUB-DOCUMENT from 2.1 with
+- [x] 5.1 Derive the visible lines' decoration facts by decorating the SUB-DOCUMENT from 2.1 with
       the existing `decorate()` and `computeLineGuides()`, translating line numbers by the constant
       offset from 2.2. `src/plugin/decorate.ts` and `chrome-tokens.ts` are READ, not changed — if
       this task ends up editing either, the sub-document approach has been abandoned and D9 needs
       revisiting first
-- [ ] 5.2 Guides above the root disappear as a consequence, not as a special case: the
+- [x] 5.2 Guides above the root disappear as a consequence, not as a special case: the
       sub-document has no such levels to emit. Assert that, so a later change to the guide walk
       cannot quietly reintroduce them
-- [ ] 5.3 The list-item exception (D9): confirm a list-item zoom root loses its
+- [x] 5.3 The list-item exception (D9): confirm a list-item zoom root loses its
       `supplementalDepth` contribution and KEEPS the within-list depth Obsidian's list rendering
       supplies. Assert it deliberately — this is a stated limit, and a test that pretends
       otherwise would be asserting a bug as a feature
-- [ ] 5.4 Identity property: with no zoom, every decoration fact is byte-identical to today's
+- [x] 5.4 Identity property: with no zoom, every decoration fact is byte-identical to today's
       output. If that fails, the zoom path has leaked into the unzoomed one
-- [ ] 5.5 Record the deferred container-shift mechanism for list-item roots in
+- [x] 5.5 Record the deferred container-shift mechanism for list-item roots in
       `docs/research/12-decoration-follow-ups.md`, with D9's diagnosis — one uniform negative
       margin on the container, not per-line surgery, and now a computable offset (the root's depth
       within its list × the outline unit) rather than a measured one

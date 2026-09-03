@@ -474,6 +474,29 @@ whitespace, which is what makes it more than a one-line change.
   classification with no separate reparse — though not our tree *depths* (tasks.md 5.4's
   closing note).
 
+### A zoomed list-item root keeps its within-list indentation
+
+`outline-zoom` re-bases indentation by decorating the zoom root's subtree AS a document, so the
+root renders at depth 0 and everything below it counts outward from there (its design D9). That
+removes the contribution THIS plugin makes. For a list item it cannot remove the other half: the
+within-list depth comes from Obsidian's own list rendering, driven by the raw markdown nesting,
+which "One indentation grid for every kind" retargets by supplying the unit but never repositions
+line by line. So zooming into a twice-nested list item still renders it two levels in.
+
+The fix, for whoever picks it up: **one** negative `margin-left` on the content container, not
+per-line surgery. Every visible line shares the identical offset while zoomed — precisely because
+they are all inside one subtree — so a single uniform shift is correct where a per-line adjustment
+would be fighting native rendering once per line, which Experiment 1's rule forbids.
+
+What changed since this was first written down: the offset is now COMPUTABLE rather than measured.
+It is the root's own depth within its list times the outline unit, and the plugin already states
+both. Before the outline grid landed, the same shift would have had to measure whatever Obsidian
+resolved from the leading whitespace, which is the part that made it unattractive.
+
+Deferred on purpose until the plain case has been used against a real vault: a zoom into a heading
+or a paragraph — the common case — is already correct, and this is visible only when the root is
+itself a nested list item.
+
 ## Design ideas (not started, deliberately)
 
 ### Layer configurability: everything optional except indentation

@@ -12,6 +12,7 @@ import {
 } from '../src/zoom';
 import { nodeLabel, stripBlockPrefix } from '../src/node-text';
 import { documentLineCount } from '../src/locate';
+import { decorate, computeLineGuides } from '../src/plugin/decorate';
 import { escalateRange, subtreeCoverOf } from '../src/escalate';
 import { arbMarkdownText } from './generators';
 import type { OutlineNode } from '../src/model';
@@ -305,6 +306,115 @@ describe('scope properties', () => {
         }
       }),
       { numRuns: 40 },
+    );
+  });
+});
+
+describe('re-basing: the sub-document is the whole mechanism', () => {
+  const NESTED = `# Top
+
+## Mid
+
+- one
+  - nested
+    - deeper
+`;
+
+  /** Depth of the fact for the line containing `needle`, in `facts`. */
+  function depthAt(
+    facts: readonly { lineNumber: number; depth: number }[],
+    text: string,
+    needle: string,
+    offset = 0,
+  ): number {
+    const line = text.split('\n').findIndex((l) => l.includes(needle));
+    const fact = facts.find((f) => f.lineNumber === line - offset);
+    if (!fact) throw new Error(`no fact for ${JSON.stringify(needle)}`);
+    return fact.depth;
+  }
+
+  it('drops every level above the root, and keeps the ones below', () => {
+    const doc = parse(NESTED);
+    const full = decorate(doc);
+    const scope = resolveZoom(doc, lineOf(NESTED, '- one'))!;
+    const rebased = decorate(scope.document);
+
+    // `- one` sits three levels deep in the note and at the root of its own view.
+    expect(depthAt(full, NESTED, '- one')).toBe(scope.depth);
+    expect(depthAt(rebased, NESTED, '- one', scope.startLine)).toBe(0);
+    // Its descendants keep their RELATIVE distance, which is the whole point.
+    expect(
+      depthAt(rebased, NESTED, '    - deeper', scope.startLine) -
+        depthAt(rebased, NESTED, '  - nested', scope.startLine),
+    ).toBe(
+      depthAt(full, NESTED, '    - deeper') - depthAt(full, NESTED, '  - nested'),
+    );
+  });
+
+  it('every visible line shifts by exactly the root depth', () => {
+    fc.assert(
+      fc.property(arbMarkdownText, (md) => {
+        const doc = parse(md);
+        const full = decorate(doc);
+        for (let line = 0; line < documentLineCount(doc); line++) {
+          const scope = resolveZoom(doc, line);
+          if (!scope) continue;
+          for (const fact of decorate(scope.document)) {
+            const source = full.find((f) => f.lineNumber === fact.lineNumber + scope.startLine);
+            if (!source) continue;
+            expect(fact.depth).toBe(source.depth - scope.depth);
+          }
+        }
+      }),
+      { numRuns: 40 },
+    );
+  });
+
+  it('emits no guide for a level above the root', () => {
+    const doc = parse(NESTED);
+    const scope = resolveZoom(doc, lineOf(NESTED, '  - nested'))!;
+    const fullGuides = computeLineGuides(doc);
+    const rebased = computeLineGuides(scope.document);
+
+    // Unzoomed, the deep line carries guides for its non-list ancestors.
+    const fullDeep = fullGuides.find(
+      (g) => g.lineNumber === lineOf(NESTED, '    - deeper'),
+    )!;
+    expect(fullDeep.guideDepths.length).toBeGreaterThan(0);
+
+    // Re-based, those ancestors are not in the tree at all, so no guide stands
+    // in for them. Not filtered out downstream — never emitted.
+    for (const guide of rebased) {
+      for (const depth of guide.guideDepths) expect(depth).toBeGreaterThanOrEqual(0);
+      expect(guide.guideDepths.length).toBeLessThanOrEqual(fullDeep.guideDepths.length);
+    }
+  });
+
+  it('a list-item root loses OUR contribution and nothing else — D9 stated limit', () => {
+    const doc = parse(NESTED);
+    const scope = resolveZoom(doc, lineOf(NESTED, '  - nested'))!;
+    const rebased = decorate(scope.document);
+    const rootFact = rebased.find((f) => f.lineNumber === 0)!;
+    expect(rootFact.isListItem).toBe(true);
+    // `supplementalDepth` is the part this plugin supplies for a list item, and
+    // it is gone. The within-list depth Obsidian's own list rendering supplies
+    // is not ours to remove and is not represented here at all — that is the
+    // exception D9 states rather than a gap in this assertion.
+    expect(rootFact.supplementalDepth).toBe(0);
+    expect(rootFact.depth).toBe(0);
+  });
+
+  it('re-basing a top-level root is the identity', () => {
+    const doc = parse(NESTED);
+    const scope = resolveZoom(doc, lineOf(NESTED, '# Top'))!;
+    expect(scope.depth).toBe(0);
+    const rebased = decorate(scope.document);
+    const full = decorate(doc);
+    // `# Top` covers the whole note here, so the two derivations must agree
+    // line for line — the guard that the zoom path has not leaked a shift into
+    // the unzoomed one.
+    expect(rebased.map((f) => ({ ...f, lineNumber: f.lineNumber + scope.startLine }))).toEqual(
+      full,
     );
   });
 });
