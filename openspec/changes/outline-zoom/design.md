@@ -78,10 +78,19 @@ decision log allows block ids only on demand for real references.
 disagree with the content the way obsidian-zoom's mapped decorations can. There is one piece of
 mapped state and it is a single integer.
 
-*Association:* the anchor is only ever consumed as "which line is this", so the `assoc` argument
-cannot change which node resolves — an insertion at the anchor's own offset leaves the line start
-at that offset either way. The one case where it would matter is the line being deleted outright,
-which is D4's first exit trigger.
+*Association: FORWARD (`assoc: 1`), and it is observable.* An earlier draft claimed the argument
+could not change which node resolves, on the grounds that the anchor is only consumed as "which
+line is this". That is false, and the counter-example is an ordinary in-scope edit: insert text
+CONTAINING A NEWLINE at the root's own line start — a paste, or typing followed by Enter. With
+`assoc: -1` (CM6's default) the anchor stays before the insertion and now sits on the inserted
+line; with `assoc: 1` it follows the insertion and stays on the root's own line. The two resolve
+to different nodes, and only the forward one resolves to the node the user zoomed into.
+
+Forward association is therefore part of the design, not an incidental argument. An insertion at
+the anchor with no newline in it moves the anchor along its own line, which resolves identically
+either way — so forward is never worse and is sometimes the only correct answer. The remaining
+case, the anchor's line being deleted outright, is D4's first exit trigger and is not an
+association question.
 
 ### D2. Hiding is two block-level replace decorations, and the mechanism is a gate, not an assumption
 
@@ -196,10 +205,21 @@ the enumeration preserves that invariant; truncating its output does not.
 
 `src/ops.ts` stays zoom-unaware. The guard is a precondition on the resolved operand: the
 operation is refused when ANY covered root of the operand is the zoom root itself, or when the
-operation is an outdent and any covered root is a direct child of the zoom root. Node-splitting
-keys are refused on the same ground when the node being split is the zoom root. New typed reason
+operation is an outdent and any covered root is a direct child of the zoom root. New typed reason
 `would-leave-zoom-scope`, surfaced through the existing rejection Notice, with no document
 change.
+
+*The splitting keys are judged by DESTINATION SCOPE, not by node identity.* An earlier draft
+refused every Enter that would split the zoom root, which is wrong and would have rejected valid
+in-scope edits. `outline-keyboard-grammar` already states where each split lands: at a node's
+content END the new position is in its CHILD scope when it has children and its SIBLING scope when
+it does not; at a content START it is always the sibling scope; an interior split makes the
+remainder a FIRST CHILD for a node with children and a next sibling for a node without; and an
+interior Enter on a heading always produces a child, because a plain-text split has no
+heading-sibling encoding. So the rule is: an Enter on the zoom root whose destination is the
+root's SIBLING scope is refused; one whose destination is its CHILD scope is allowed, because a
+child is inside the scope. Enter on an EMPTY list item is refused when the root is that item,
+since it outdents or unwraps rather than splitting — both of which move the root itself.
 
 *Over the operand, not a subject.* `selection-structural-ops` shipped after this change was first
 drafted and replaced "the node at the caret" with "the selection's covered roots, one contiguous
@@ -222,10 +242,14 @@ parameter it does not care about. Zoom is a property of a view, not of a tree.
 scope, and undo would restore the document without restoring the scope — a state the history
 integration has no way to express.
 
-*Cost, stated plainly:* Enter at the end of the zoom root's own line is refused. It is a common
-keystroke and the refusal will be felt. It is preferred to creating a sibling the user cannot
-see, and the Workflowy alternative (Enter on the root creates a first child) is filed rather than
-guessed at — see proposal.md — Out of scope.
+*Cost, stated plainly — and smaller than the earlier draft claimed.* Enter at the end of the zoom
+root's own line is refused only when the root has NO children, since that is the case the grammar
+sends to the sibling scope. A zoom root WITH children — the ordinary case for zooming — already
+gets a first child from that keystroke, which is the Workflowy behaviour a previous version of
+this design filed as a follow-up before checking what the grammar already did. What remains
+refused is Enter at a content start, an interior Enter on a childless root, and Enter on an empty
+list-item root; making those land somewhere useful instead of being refused is the part still
+deferred (proposal.md — Out of scope).
 
 ### D9. Re-basing decorates a SUB-DOCUMENT; the pure decoration layer is not modified at all
 

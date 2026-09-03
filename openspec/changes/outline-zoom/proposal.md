@@ -18,7 +18,8 @@ Every layer already built answers questions relative to "the document": the sele
 tops out at the whole outline body, extension grows until the document is exhausted, decoration
 depth is measured from the document root, motion runs to the document's ends. Introducing a
 temporary root means each of those has to say what it does relative to the scope instead — which
-is why this change modifies seven capabilities rather than sitting beside them. Deferring the
+is why eight capabilities acquire a zoom clause here, and a ninth — `tree-projection` — gains
+the supporting operation they lean on, rather than any of this sitting beside them. Deferring the
 scope half and shipping the hiding half would produce a view that lies: content is invisible but
 still selectable, still deletable, still reachable by Mod-A.
 
@@ -66,7 +67,7 @@ still selectable, still deletable, still reachable by Mod-A.
 
 Each of these has a requirement that today says "the document" where zoom needs "the scope". They
 are listed because the existing wording would otherwise directly contradict `outline-zoom`'s
-confinement requirement — not to restate it seven times.
+confinement requirement — not to restate it once per capability.
 
 - `progressive-select-all`: the ladder's top rung becomes the zoom root's whole subtree, and the
   documented fall-through to native Select All is suppressed while zoomed (native Select All
@@ -156,9 +157,12 @@ confinement requirement — not to restate it seven times.
 - **Click-to-zoom on a marker or a guide.** Filed in docs/research/12 and gated there on work
   this change does not do: `MarkerWidget` is `pointer-events: none` with `ignoreEvent() → true`,
   and guides are pseudo-elements with no hit area.
-- **Workflowy's Enter-on-the-root-creates-a-first-child rule.** The uniform rejection is what
-  ships; the nicer feel needs a zoom-conditional case in an Enter grammar that is currently
-  zoom-unaware, and it should be judged against real use of the plain rule first.
+- **Changing what Enter does on the zoom root.** The refusal is scoped to the splits whose
+  destination is the root's SIBLING scope; the ones landing in its child scope already work, so
+  the Workflowy feel this was originally filed as a follow-up for is mostly what the existing
+  grammar already produces. What is still deferred is making the sibling-scope cases land
+  somewhere useful instead of being refused — a zoom-conditional rule in a grammar that is
+  otherwise zoom-unaware, worth judging against real use first.
 - **Re-basing a list-item zoom root's within-list indentation.** Diagnosed in design D9 with the
   mechanism that would do it (one container-level shift, not per-line surgery); deliberately not
   built until the plain case has been used. The outline grid landing makes the residual offset

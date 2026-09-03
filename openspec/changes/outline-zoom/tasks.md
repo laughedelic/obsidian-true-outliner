@@ -73,8 +73,10 @@ before it.
       it is a separate defect with its own tests
 - [ ] 3.2 `src/plugin/zoom-state.ts`: a `StateField<number | null>` holding the anchor position,
       with `zoomTo` / `zoomCleared` effects. Map the anchor through `tr.changes` on every
-      transaction (D1). Assert in a comment — and pin with a test — that the anchor is consumed
-      only as "which line", so the `assoc` argument cannot change which node resolves
+      transaction (D1) with FORWARD association (`assoc: 1`), not CM6's default of -1. Pin it with
+      a test: insert text containing a newline at the root's own line start and assert the anchor
+      still resolves to the root. Under `assoc: -1` it resolves to the inserted node instead —
+      run that as the negative control, since this is exactly the claim an earlier draft got wrong
 - [ ] 3.3 Derive-on-demand accessor: given a state, return the resolved root, cover, hidden
       ranges, trail and sub-document, or null. Cache per `EditorState` the way `decorations.ts`'s
       `factsFor`, `parsed-doc.ts` and `source-tree-cache.ts` already do — this is read by
@@ -159,6 +161,10 @@ assertion, not an implementation.
 - [ ] 8.3 `src/select-extend.ts` takes the same bound, with the same rule — every dispatched
       selection stays an exact cover. Test the anchor-is-the-zoom-root case: the sequence is one
       element and every press is a no-op
+- [ ] 8.3a Zoom-in collapses a non-empty selection to its anchor, and resolves its target from
+      that anchor rather than the head — so the gesture zooms to the same node whichever direction
+      the selection was grown in, and no zoom transition can leave a selection end in content it
+      just hid. Test both directions and the multi-range case
 - [ ] 8.4 Motion handlers in `keymap.ts` return without moving when their computed target lies
       outside the scope — not "move to the boundary and get corrected", which would put a second
       caret authority beside `caret-placement-policy`
@@ -179,9 +185,18 @@ assertion, not an implementation.
       FIRST root is safe and whose LAST root escapes is refused as a whole, with nothing moved.
       Negative control — write the check over the operand's first root only and confirm this test
       fails
-- [ ] 9.4 The split refusal in the grammar (`outline-keyboard-grammar` delta): Enter that would
-      split the zoom root's own node is refused; Shift+Enter, which continues rather than splits,
-      is not
+- [ ] 9.4 The split refusal in the grammar (`outline-keyboard-grammar` delta), judged by
+      DESTINATION SCOPE and not by node identity: refuse the cases the grammar sends to the zoom
+      root's SIBLING scope (content start; content end on a childless root; an interior split of a
+      childless non-heading root; Enter on an empty list-item root, which outdents or unwraps).
+      ALLOW the ones it sends to the child scope — content end on a root with children, an
+      interior split of a root with children, and any interior Enter on a heading root. Read
+      `openspec/specs/outline-keyboard-grammar/spec.md`'s "Enter splits the node" for the case
+      table rather than reconstructing it; a blanket refusal on `node === zoomRoot` was the first
+      draft of this task and it rejected valid in-scope edits
+- [ ] 9.4a Negative control for 9.4: implement the blanket `node === zoomRoot` refusal and confirm
+      the "Enter at the end of a zoom root with children creates a first child" test fails. A
+      refusal test that passes under both rules is testing nothing
 - [ ] 9.5 An operation the algebra rejects for its own reason keeps that reason while zoomed —
       the scope check must not shadow `no-previous-sibling` and friends
 - [ ] 9.6 Assert the two entry points agree by exercising both, even though

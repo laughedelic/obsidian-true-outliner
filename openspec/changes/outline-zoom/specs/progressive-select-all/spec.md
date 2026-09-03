@@ -74,4 +74,4 @@ content. A press at the top of a bounded ladder SHALL leave the selection unchan
 **Covered by**: `tests/select-all-ladder.test.ts` (unit and property tests,
 mirroring `tests/escalate.test.ts`'s style, including the scope-bounded ladder);
 `e2e/specs/64-progressive-select-all.e2e.ts` (real Obsidian instance, keyboard-driven);
-`e2e/specs/70-outline-zoom.e2e.ts` (the bounded ladder in a live instance).
+`e2e/specs/80-outline-zoom.e2e.ts` (the bounded ladder in a live instance).
