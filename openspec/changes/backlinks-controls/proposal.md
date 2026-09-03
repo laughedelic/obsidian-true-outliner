@@ -41,7 +41,8 @@ D14, D15).
   Colour and spacing are deliberately NOT settings: the chrome contract publishes the `--to-*`
   custom properties, so a CSS snippet already covers them without new surface to maintain.
 - Not in this change: chronological mode (daily-notes filter with date-parsed sort), which is
-  recorded as wanted and deferred (D15).
+  recorded as wanted and deferred (D15); and narrowing the footer to a zoomed node, which needs
+  `outline-zoom` as well as this filter model (see Sequencing).
 
 ## Capabilities
 
@@ -65,10 +66,37 @@ D14, D15).
 - **New**: filter/sort/cap module under `src/plugin/`; settings-tab section.
 - **Modified**: the footer view from `backlinks-footer`; `styles.css` (the suppression rule and
   the fade mask); plugin data shape for the new settings.
-- **Depends on** `backlinks-footer` — this change assumes the index, the projection and the
-  footer surface exist. It should not begin until that change's spike series has returned a
-  verdict, because a negative verdict there moves the surface and invalidates the header
-  design here.
+- **Builds on** `backlinks-footer` — the index, the projection and the footer surface. See
+  Sequencing.
 - **Interop caution**: hiding another plugin's UI is impolite by default in the wrong
   direction. The setting exists so the choice is the user's; the default is argued in D12 and
   should be revisited if community-directory review objects.
+
+## Sequencing
+
+- **Builds on shipped code.** `backlinks-footer`, `backlink-index` and `tree-projection` landed
+  in #64, and their spike series returned its verdicts (`docs/research/19`; every open question
+  in `docs/research/18` now carries an answer). The surface this change adds controls to exists,
+  so there is no gate left to wait on.
+- **`outline-zoom` (#69) and this change are independent, in both directions.** Zoom leaves the
+  footer unfiltered while zoomed and deliberately adds no zoom-shaped hook for a filter model to
+  use; this change's axes are properties of the *referencing* side — a source note's folder, a
+  reference's kind — and read nothing about the view's scope.
+- **Their `backlinks-footer` deltas do not collide.** Zoom ADDs one requirement, that the footer
+  survives an active zoom scope; this change MODIFIES two others and ADDs a third. Either can
+  sync into the main spec first.
+- **Three files both touch, mechanically.** `src/plugin/backlinks-footer.ts` — zoom excludes the
+  widget's `state.doc.length` anchor from its hidden trailing range, and its D12 leaves open
+  whether that fix shortens the range or moves the anchor. `src/plugin/footer-model.ts` — zoom
+  lifts `stripBlockPrefix` out to a shared home (its D13) while this change grows the same file's
+  model. And `styles.css`. Whichever lands second rebases; none of it is a design conflict.
+- **e2e numbering is already disjoint**: the footer holds 70–76 in the `backlinks` group and this
+  change continues there; zoom takes 80.
+- **This one goes first if either does.** Zoom's task 1 is a mechanism spike that can stop that
+  change outright, and this change has no comparable gate. Running it first also means zoom
+  rebases onto a settled footer rather than the reverse.
+- **`paste-heading-section-reencoding` is unrelated** — it touches the re-encoding algebra, which
+  a read-only footer never reads.
+- **What belongs to neither change**: scoping the footer to a zoomed node — `docs/research/18`
+  D13's "zoom carries the footer" — needs zoom's scope *and* this filter model, so it lands after
+  whichever of the two is second. Neither change should build half of it.
