@@ -2097,3 +2097,30 @@ body {
    * does not matter and lose in the one it does. */
   display: none !important;
 }
+
+/* ---- The lineage separator, when the setting asks for one ---------------- *
+ *
+ * Off by default: the icons already divide the names, and a mark between two
+ * names is one more than the eye needs. When it IS on, it holds the same
+ * 0.7em a chain of plain names divides by — the chevron's own margins, split
+ * either side of it — so turning it on changes what stands between two
+ * ancestors and not the rhythm of the chain.
+ *
+ * `.to-backlinks-seg + .to-backlinks-seg` no longer matches once a separator
+ * sits between them, so that rule stops applying exactly where this one starts.
+ */
+.to-backlinks-seg-sep {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  width: 0.65em;
+  height: 0.65em;
+  margin-inline: 0.35em;
+  color: var(--to-backlinks-mark);
+  opacity: 0.7;
+}
+
+.to-backlinks-seg-sep > svg {
+  width: 100%;
+  height: 100%;
+}
