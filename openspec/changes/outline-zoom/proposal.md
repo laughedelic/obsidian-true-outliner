@@ -161,6 +161,20 @@ confinement requirement — not to restate it once per capability.
   first candidate fix. Both are recorded in `docs/research/23-zoom-hiding-mechanism.md` and folded
   back into the decisions they belong to.
 
+## Follow-ups this change records rather than builds
+
+Each is written where the work would be picked up, not only here.
+
+- **Re-basing a list-item root's within-list indentation** —
+  `docs/research/12-decoration-follow-ups.md`, with the mechanism and the offset the outline grid
+  made computable.
+- **Click-to-zoom on a marker or a guide** — already filed in the same parking lot, still gated on
+  the `pointer-events` work named there.
+- **Zoom persistence, and the Workflowy rule for the splits that stay refused** — below, and in
+  design D8's cost note.
+- **Focusing the footer on the zoomed block** — `backlinks-controls` carries it in its own
+  sequencing, which is where the filter model it needs is being designed.
+
 ## Out of scope
 
 - **Persistence.** Zoom does not survive a file switch, a pane close, or a restart. Q11 of the

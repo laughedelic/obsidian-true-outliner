@@ -9,13 +9,17 @@ and the operands of structural operations are all confined to it.
 ## ADDED Requirements
 
 ### Requirement: Zoom in makes the node at the caret the temporary root of the view
-In outline mode, a zoom-in gesture SHALL resolve its target from the selection's ANCHOR — the node
-that anchor's line resolves to, by the same line-to-node resolution structural commands already
-use, so an anchor on a node's trailing gap resolves to that node — and make it the ZOOM ROOT of
-that editor view. For an empty selection the anchor is the caret, so this is "the node at the
-caret". The anchor rather than the head, for the reason `selection-structural-ops` gives for
-operands: a cover's head is whichever end the gesture grew from, so reading it would zoom
-somewhere different depending on which direction the user selected in.
+In outline mode, a zoom-in gesture SHALL resolve its target as follows, and the target SHALL NOT
+depend on the direction the selection was drawn in.
+
+For an EMPTY selection, the target is the node at the caret, by the same line-to-node resolution
+structural commands already use — so a caret on a node's trailing gap resolves to that node.
+
+For a NON-EMPTY selection, the target is the FIRST covered root in document order, resolved
+through the same operand geometry `selection-structural-ops` defines. Neither the anchor nor the
+head: both are properties of how the selection was drawn rather than of what it covers, so either
+would zoom somewhere different for the same two nodes selected upward versus downward — the
+defect that capability exists to remove.
 
 Zoom SHALL be available on every node kind: heading, paragraph, list item, and every atom kind.
 A node with no children SHALL be a valid zoom root; availability SHALL NOT depend on whether the
@@ -24,9 +28,11 @@ target has children, since that is not visible to the user before the gesture.
 Zooming SHALL NOT modify the document. The file's bytes SHALL be identical before and after a
 zoom in, a zoom out, and any sequence of the two.
 
-The caret SHALL NOT move as a result of zooming, in either direction. A NON-EMPTY selection SHALL
-collapse to its anchor, which lies inside the new scope by construction because the anchor's own
-node is the zoom root. A multi-range selection SHALL collapse to its main range's anchor.
+For an empty selection the caret SHALL NOT move as a result of zooming, in either direction.
+
+A NON-EMPTY selection SHALL collapse to the new zoom root's own start — the one position
+guaranteed to lie inside the new scope however the selection was drawn, and for the same reason
+the target is not read from either end.
 
 Collapsing rather than clamping, because the alternative leaves ends the user did not place: a
 range spanning siblings has ends outside the new scope, and pulling them inward produces a
@@ -57,8 +63,8 @@ gesture SHALL do nothing and leave the view unzoomed.
 
 #### Scenario: A selection spanning siblings collapses on zoom in
 - **WHEN** the selection covers two sibling subtrees and the user zooms in
-- **THEN** the view zooms to the node the selection's anchor resolves to, and the selection
-  collapses to that anchor — no selection end is left in hidden content
+- **THEN** the view zooms to the first of them in document order, and the selection collapses to
+  that node's own start — no selection end is left in hidden content
 
 #### Scenario: Zoom target does not depend on selection direction
 - **WHEN** the same two nodes are selected upward and downward and the user zooms in

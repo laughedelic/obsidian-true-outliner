@@ -229,6 +229,73 @@ describe('outline zoom', function () {
     expect(await trail()).toEqual([]);
   });
 
+  it('collapses a selection, and zooms the same way whichever direction it was drawn', async function () {
+    await openZoomable();
+    // Two sibling subtrees. The ends lie outside the scope the gesture is about
+    // to create, so preserving the selection would break confinement on the
+    // transition itself.
+    await h.setSelection({ line: 4, ch: 0 }, { line: 6, ch: 5 }); // '- one' → '- two'
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+    const forward = await renderedLines();
+    const sel = await h.getSelection();
+    expect(sel.anchor).toEqual(sel.head);
+    expect(forward).toEqual(['- one', '  - nested']);
+
+    await h.runCommand('zoom-clear');
+    await browser.pause(150);
+    // The SAME two nodes selected the other way round. Reading either the
+    // anchor or the head would zoom to `- two` here; the first covered root in
+    // document order is direction-independent, which is the point.
+    await h.setSelection({ line: 6, ch: 5 }, { line: 4, ch: 0 });
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+    expect(await renderedLines()).toEqual(forward);
+  });
+
+  it('confines arrow motion, and its own handler is what declines', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '- one');
+    await h.resetMotionCounts();
+    // The last visible line of the `- one` subtree.
+    await h.setCursorSettled(5, 10);
+    await browser.keys(['ArrowDown']);
+    await browser.pause(200);
+    const after = await h.getCursor();
+    expect(after.line).toBeLessThanOrEqual(5);
+
+    // MECHANISM, not outcome: a caret that does not move looks identical
+    // whether our handler declined or never ran at all. That blind spot hid a
+    // real defect through three rewrites of the Home/End logic.
+    const counts = await h.getMotionCounts();
+    expect(counts['Down']?.invoked ?? 0).toBeGreaterThan(0);
+  });
+
+  it('zooms two panes on one file independently', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '- one');
+    expect(await trail()).not.toEqual([]);
+
+    // A second leaf on the SAME file. The scope lives in that view's own state,
+    // so the new pane must open unzoomed — which is also why the registry keys
+    // views by their MarkdownFileInfo rather than by file path.
+    await browser.executeObsidian(async ({ app }) => {
+      const leaf = app.workspace.getLeaf('split');
+      const file = app.vault.getAbstractFileByPath('Scratch/zoom.md');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await leaf.openFile(file as any);
+      app.workspace.setActiveLeaf(leaf, { focus: true });
+    });
+    await browser.pause(500);
+    expect(await trail()).toEqual([]);
+    expect((await renderedLines()).length).toBeGreaterThan(2);
+
+    await browser.executeObsidian(({ app }) => {
+      app.workspace.detachLeavesOfType('markdown');
+    });
+    await browser.pause(200);
+  });
+
   it('re-bases indentation so the root sits at the left margin', async function () {
     await openZoomable();
     // Park the caret off the line being measured, and off the span's edges.

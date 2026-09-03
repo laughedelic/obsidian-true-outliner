@@ -168,14 +168,14 @@ implementation, not an assertion.
 - [x] 8.3 `src/select-extend.ts` takes the same bound, with the same rule — every dispatched
       selection stays an exact cover. Test the anchor-is-the-zoom-root case: the sequence is one
       element and every press is a no-op
-- [ ] 8.3a Zoom-in collapses a non-empty selection to its anchor, and resolves its target from
+- [x] 8.3a Zoom-in collapses a non-empty selection to its anchor, and resolves its target from
       that anchor rather than the head — so the gesture zooms to the same node whichever direction
       the selection was grown in, and no zoom transition can leave a selection end in content it
       just hid. Test both directions and the multi-range case
 - [x] 8.4 Motion handlers in `keymap.ts` return without moving when their computed target lies
       outside the scope — not "move to the boundary and get corrected", which would put a second
       caret authority beside `caret-placement-policy`
-- [ ] 8.5 Assert the MECHANISM, not the outcome: a motion that does not move looks identical
+- [x] 8.5 Assert the MECHANISM, not the outcome: a motion that does not move looks identical
       whether our handler declined or never ran. Use the existing `motionCounts` liveness
       counters, the same way the Home/End work had to after an outcome-only test hid a real
       defect through three rewrites
@@ -242,7 +242,7 @@ implementation, not an assertion.
       arrow keys stop at the boundaries, and the refusals show their cue with no document change
 - [x] 11.4 Automatic exit: delete the root's subtree; undo past the zoom boundary; toggle outline
       mode off
-- [ ] 11.5 Two panes on one file zoom independently, and reopening a note shows it unzoomed
+- [x] 11.5 Two panes on one file zoom independently, and reopening a note shows it unzoomed
 - [x] 11.6 Re-basing assertions from 5.x measured in the live instance, including the list-item
       root's within-list indentation being deliberately left alone
 - [x] 11.7 The footer renders below the zoomed content, with the same groups and counts it shows
@@ -251,12 +251,12 @@ implementation, not an assertion.
 
 ## 12. Wrap-up
 
-- [ ] 12.1 Confirm every "Out of scope" item in proposal.md that has a diagnosis behind it is
+- [x] 12.1 Confirm every "Out of scope" item in proposal.md that has a diagnosis behind it is
       written down where it will be found: the list-item container shift and the click-to-zoom
       gestures in `docs/research/12-decoration-follow-ups.md`, the Workflowy Enter rule and zoom
       persistence in this change's own follow-ups, and footer-scoped-to-the-zoom-root wherever
       `backlinks-controls` will look for it
-- [ ] 12.2 `docs/research/README.md` table row for doc 23 from task 1.6
+- [x] 12.2 `docs/research/README.md` table row for doc 23 from task 1.6
 - [ ] 12.3 Run the full suite, the linter, and the e2e desktop run; then use the feature against a
       real vault for a session before archiving — every decoration-era defect that mattered was
       found that way, not by a test

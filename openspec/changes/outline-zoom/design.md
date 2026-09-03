@@ -206,8 +206,17 @@ structural commands. Not done here — it is a separate defect with its own test
 
 ### D6. Zoom in targets the node at the caret; the caret is untouched by zoom
 
-Resolution is `nodeAtLine` on the caret's line — the same resolution `addStructuralCommand` uses,
-gap ownership included, so a caret on a node's trailing gap zooms into that node.
+Resolution is `nodeAtLine` on the caret's line for an EMPTY selection — the same resolution
+`addStructuralCommand` uses, gap ownership included, so a caret on a node's trailing gap zooms
+into that node.
+
+For a non-empty selection it is the first covered root in document order, read through
+`selection-structural-ops`' own operand resolution. An earlier draft read the ANCHOR, on the
+grounds that the head is whichever end the gesture grew from. That is true of the head and just as
+true of the anchor — they are the same fact from the other side — so anchor-reading reintroduced
+the direction-dependence one gesture later, and the e2e written to assert direction-independence
+is what caught it. Document order is a property of what the selection COVERS rather than of how it
+was drawn, which is the only formulation that satisfies the requirement.
 
 Zooming into a childless node, or into an atom, is **allowed**. A "must have children"
 precondition would make the command's availability depend on a fact the user cannot see before

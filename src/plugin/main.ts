@@ -66,6 +66,7 @@ import { viewFor } from './view-registry';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
 import { operandEscapes, parentOf, resolveZoom } from '../zoom';
+import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
 import type { EditorView } from '@codemirror/view';
@@ -735,13 +736,37 @@ export default class TrueOutlinerPlugin extends Plugin {
    */
   private zoomInFrom(view: EditorView): boolean {
     const { doc } = parsedDoc(view.state.doc);
-    const anchor = view.state.selection.main.anchor;
-    const line = view.state.doc.lineAt(anchor).number - 1;
+    const main = view.state.selection.main;
+    const anchorLine = view.state.doc.lineAt(main.anchor).number - 1;
+
+    // For a non-empty selection the target is the FIRST covered root in
+    // document order, read through `selection-structural-ops`' own operand
+    // resolution. Not the anchor and not the head: both are direction-dependent,
+    // so the same two nodes selected upward and downward would zoom to
+    // different places — the exact defect that capability exists to remove,
+    // reintroduced one gesture later. An empty selection resolves to the
+    // caret's own node, unchanged.
+    let line = anchorLine;
+    if (!main.empty) {
+      const operand = resolveOperand(doc, toLineRange(view.state.doc, main));
+      const firstRoot = operand?.groups[0]?.[0];
+      if (firstRoot !== undefined) {
+        const at = nodeStartLine(doc, firstRoot);
+        if (at >= 0) line = at;
+      }
+    }
+
     const scope = resolveZoom(doc, line);
     if (!scope) return false; // the preamble, or a document with no nodes
+    const rootStart = view.state.doc.line(scope.startLine + 1).from;
     view.dispatch({
-      effects: zoomTo.of(view.state.doc.line(scope.startLine + 1).from),
-      selection: { anchor },
+      effects: zoomTo.of(rootStart),
+      // A non-empty selection collapses, because its ends lie outside the scope
+      // the gesture is creating. Onto the new root's own start rather than onto
+      // either end of the old selection — the only position guaranteed to be
+      // inside the new scope whichever way the selection was drawn. An empty
+      // selection is left exactly where it was.
+      ...(main.empty ? {} : { selection: { anchor: rootStart } }),
     });
     return true;
   }
