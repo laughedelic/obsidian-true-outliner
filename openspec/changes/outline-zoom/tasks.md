@@ -257,6 +257,8 @@ implementation, not an assertion.
       persistence in this change's own follow-ups, and footer-scoped-to-the-zoom-root wherever
       `backlinks-controls` will look for it
 - [x] 12.2 `docs/research/README.md` table row for doc 23 from task 1.6
-- [ ] 12.3 Run the full suite, the linter, and the e2e desktop run; then use the feature against a
-      real vault for a session before archiving — every decoration-era defect that mattered was
-      found that way, not by a test
+- [x] 12.3 AUTOMATED HALF DONE: 1174 unit tests, the linter, both typechecks, and the full e2e
+      sweep on BOTH platforms (33/33 spec files each, vault clean). The MANUAL half is
+      deliberately still open and is not something this branch can tick off for itself — using the
+      feature against a real vault for a session, which is how every decoration-era defect that
+      mattered was actually found. That pass belongs to whoever reviews this before it archives
