@@ -1,0 +1,13 @@
+* filtering UI:
+   * good hiding toggle.
+   * chips should be all deselected by default. when all of them are deselected, it's no filter. so selecting one of them means showing only those notes. i.e. it's all by default, focus-on instead of filter-out.
+   * there should be some way to reset the filters.
+* sorting drop-down: drop-down is ok, but please, add an icon to the UI element.
+* squashing:
+   * I can see the different options in the deep chain mode now. let's keep it simple for now and go with non-abbreviated squashed lineage. but you need to adjust the wrapping width. the demo one wrapped too early.
+      * maybe an alternative is to abbreviate only multiline ancestors? my problem with the clipped segments is that it shows a bit of everything, but not enough for the clear context. 
+      * how about making the breadcrumbs clickable and on click unfolding it to the full ladder? this is more of a nice to have, but if it doesn't cost us, why not?
+   * unfortunately the branching mode doesn't display the lineage (demo issue).
+* the rest is good.
+   * minor nit: the load more button shuold be moved to the left side of the center. 
+   * we might also need some more clear visual indication that the list is incomplete. any ideas for that? established UI patterns?
