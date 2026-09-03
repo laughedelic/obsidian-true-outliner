@@ -821,12 +821,15 @@ export function publishedGutter(): Promise<number> {
  * rather than that a level steps by whatever unit is in force.
  *
  * RESOLVED rather than parsed, for the reason `publishedGutter` records and one
- * more that belongs to this value in particular. What a reader may write in a
- * snippet is any CSS length — `2rem`, `28px`, `1in`, `calc(2rem + 1px)` — and
- * `getPropertyValue` hands back the token they wrote, not a length. Parsing it
- * would read `1in` as one pixel and `calc(...)` as `NaN`, so a spec meant to
- * hold the adjustment would mis-evaluate the very inputs the adjustment exists
- * to support.
+ * more that belongs to this value in particular. A snippet may write any CSS
+ * length that does NOT resolve against the consuming line’s own font size —
+ * `2rem`, `28px`, `1in`, `calc(2rem + 1px)` are all valid, but `em`/`ex` are
+ * not: the spec requires the unit to be font-size-independent, so those are
+ * excluded by the contract itself, not merely unsupported by this helper.
+ * `getPropertyValue` hands back the token a reader wrote, not a length, so
+ * parsing it would read `1in` as one pixel and `calc(...)` as `NaN` — a spec
+ * meant to hold the adjustment would mis-evaluate the very inputs the
+ * adjustment exists to support.
  *
  * A probe INHERITS the property rather than copying it, the unit being declared
  * on `body` and inherited by everything — so this reads whatever is in force,

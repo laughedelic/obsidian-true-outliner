@@ -17,16 +17,27 @@
  * EVERY INDEPENDENTLY POSITIONED LAYER is measured, not just the one that is
  * easiest to see. A block line's padding, an atom's margin, a list's
  * supplemental margin, its stated hanging indent, the guide gradient's period
- * and stripe positions, and the `--list-indent` bridge into Obsidian's own list
- * geometry each derive from the unit through a rule of their own. An earlier
- * version of this spec watched only row text and marker centres; pinning any of
- * the others to a literal left it green, which is the failure it exists to
- * catch. Each was pinned in turn to confirm this one does not.
+ * and stripe positions, the `--list-indent` bridge into Obsidian's own list
+ * geometry, the guide overlay's OWN cross-kind alignment, and the footer's
+ * group inset each derive from the unit through a rule of their own. An
+ * earlier version of this spec watched only row text and marker centres;
+ * pinning any of the others to a literal left it green, which is the failure
+ * it exists to catch. Each was pinned in turn to confirm this one does not.
  *
  * They are not all in the stylesheet, which is worth knowing before trying to
  * pin one: an atom's margin and a list item's supplemental margin are written
  * INLINE from JS, so the CSS rules that look like their source are overridden
  * and editing those changes nothing.
+ *
+ * The gradient's own period and stripe positions are LOCAL to a row's box —
+ * they hold even if the row's box itself is painted in the wrong place. What
+ * puts the box right is a SEPARATE compensation, `--to-own-shift`, read by the
+ * guide overlay's `left` to counter the row's own margin/padding shift back to
+ * the true column origin. A row whose own-shift diverges from its kind's
+ * margin/padding paints a perfectly period-correct guide in the wrong spot, so
+ * this is checked as its own thing: every row's guide layers, once that
+ * compensation is applied, agree with every OTHER row's on where a shared
+ * ancestor guide paints — regardless of kind.
  *
  * Every assertion is stated against the value the document PUBLISHES, never
  * against a pixel: the point is that the grid follows whatever unit is in force,
@@ -69,6 +80,16 @@ interface Row {
   /** Per background layer: the gradient's period, and where its stripe starts. */
   guideSizes: number[];
   guideStarts: number[];
+  /**
+   * Where each guide layer actually PAINTS, in the content frame — the local
+   * stripe start plus the row's own rendered position plus the compensation
+   * `--to-own-shift` applies to counter that row's own margin/padding shift.
+   * Unlike `guideStarts`, this is what a reader sees: two rows of different
+   * kinds sharing an ancestor guide must agree here even though their own
+   * `guideStarts` (measured within each row's own, differently-shifted box)
+   * need not.
+   */
+  guideAbs: number[];
 }
 
 function editorRows(): Promise<Row[]> {
@@ -138,6 +159,16 @@ function editorRows(): Promise<Row[]> {
       const sizes = firstLength(guide.backgroundSize);
       const starts = firstLength(guide.backgroundPosition);
 
+      // `left` is a real CSS property (not a custom one), so the browser
+      // resolves it to px even though the rule authors it as
+      // `calc(-1 * var(--to-own-shift, 0px) - var(--to-stripe-bleed))` — no
+      // probe needed here, unlike the raw custom-property reads elsewhere.
+      // Each stripe's start is centred half its own (fixed 1px) width left of
+      // its column, so `+ 0.5` recovers the column the stripe is centred on.
+      const leftAfter = parseFloat(guide.left) || 0;
+      const rowLeft = el.getBoundingClientRect().left - cb.left;
+      const abs = starts.map((s) => +(rowLeft + leftAfter + s + 0.5).toFixed(2));
+
       out.push({
         kind,
         depth: Number(cs.getPropertyValue('--to-depth').trim() || '0'),
@@ -150,6 +181,7 @@ function editorRows(): Promise<Row[]> {
         tabSize: cs.tabSize,
         guideSizes: sizes,
         guideStarts: starts,
+        guideAbs: abs,
       });
     }
     return out;
@@ -165,6 +197,40 @@ function footerRows(): Promise<Array<{ depth: number; paddingLeft: number }>> {
       depth: Number(el.style.getPropertyValue('--to-depth').trim() || '0'),
       paddingLeft: parseFloat(getComputedStyle(el).paddingLeft),
     }));
+  });
+}
+
+/**
+ * A group card's own inline-start padding — `--to-group-inset`, a SECOND rule
+ * deriving from the unit (`styles.css`), independent of the row padding above.
+ * A group's fold chevron and its depth-0 rows' markers have to land on the same
+ * column a note's own second-level marker would, so the card's padding is
+ * stated from the unit rather than copied from a row.
+ */
+function footerGroupInsets(): Promise<{ insets: number[]; iconSize: number }> {
+  return browser.executeObsidian(() => {
+    const root = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks');
+    if (!root) throw new Error('no footer rendered');
+    const groups = Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-group'));
+    const insets = groups.map((el) => parseFloat(getComputedStyle(el).paddingLeft) || 0);
+    // `--to-marker-icon-size` is `0.8em`, an UNREGISTERED custom property: `em`
+    // in its value resolves at each point of USE, against that consumer's own
+    // font-size — not at declaration. `--to-group-inset` consumes it from the
+    // GROUP's own font-size context, which differs from a ROW's (the row text
+    // reads at note size, the group card's chrome at UI size), so a probe born
+    // inside a row would resolve the wrong pixel value. Born inside the group
+    // itself, it inherits the same context `--to-group-inset` does.
+    const first = groups[0];
+    let iconSize = 0;
+    if (first) {
+      const probe = document.createElement('div');
+      probe.style.cssText =
+        'position:absolute;visibility:hidden;height:0;width:var(--to-marker-icon-size, 0.85rem);';
+      first.appendChild(probe);
+      iconSize = probe.getBoundingClientRect().width;
+      probe.remove();
+    }
+    return { insets, iconSize };
   });
 }
 
@@ -264,7 +330,9 @@ describe('the outline unit is one declaration the whole grid follows', function 
 
         // Each guide layer repeats at the unit, and each stripe starts half its
         // own width left of some depth's column — so the start plus that half is
-        // a whole number of units.
+        // a whole number of units. LOCAL to the row's own box: holds even if the
+        // box itself is painted in the wrong place, which is why it is not
+        // enough on its own — see the cross-row check below.
         for (const size of row.guideSizes) at(row, 'guide-period', size, unit);
         for (const start of row.guideStarts) {
           const levels = (start + 0.5) / unit;
@@ -273,6 +341,34 @@ describe('the outline unit is one declaration the whole grid follows', function 
           }
         }
       }
+
+      // Cross-kind: `--to-own-shift` counters each row's OWN margin/padding
+      // shift so a guide painted on it lands at the TRUE column rather than at
+      // "row's own left edge, plus its local stripe start" — a quantity that
+      // varies by kind (block uses padding, atom and list use margin) even
+      // though the guide it paints is the SAME logical ancestor line. The
+      // fixture nests everything under one heading, so guide layer 0 is that
+      // heading's guide on every row that carries one — block, atom and list
+      // alike — and it must paint at the identical x on all of them. Checked as
+      // agreement between rows rather than against a computed pixel, so the
+      // assertion carries no opinion of its own about the stripe's bleed
+      // allowance.
+      //
+      // Filtered on `guideSizes`, not `guideAbs`: a row's `background-position`
+      // computes to a default single layer (`0% 0%`) even with no active
+      // `--to-guides` at all, so `guideAbs.length` alone does not mean the row
+      // carries a real guide. An inactive background's `background-size`
+      // computes to `auto` instead (unparseable as a length, filtered out), so
+      // `guideSizes` is the reliable signal — and it correctly excludes depth 0,
+      // which has no ancestor and so no guide.
+      const shallow = rows.filter((r) => r.guideSizes.length > 0).map((r) => r.guideAbs[0]!);
+      expect(shallow.length).toBeGreaterThan(1);
+      for (let i = 1; i < shallow.length; i++) {
+        if (!near(shallow[i]!, shallow[0]!)) {
+          off.push(`${label} guide[0] painted at ${shallow[i]} != ${shallow[0]} (own-shift diverged)`);
+        }
+      }
+
       expect(off).toEqual([]);
       return unit;
     };
@@ -311,6 +407,20 @@ describe('the outline unit is one declaration the whole grid follows', function 
       const off = rows
         .filter((r) => !near(r.paddingLeft, r.depth * unit + gutter))
         .map((r) => `${label} d${r.depth} pad ${r.paddingLeft} != ${r.depth * unit + gutter}`);
+
+      // A group card derives its own inline padding from the unit
+      // (`--to-group-inset`, `unit - iconSize / 2`) independently of any row's
+      // padding — a rule of its own that pinning a literal to would leave every
+      // row check above green while every group's fold chevron and depth-0
+      // markers sat off the column a note's own second-level marker occupies.
+      const { insets, iconSize } = await footerGroupInsets();
+      expect(insets.length).toBeGreaterThan(0);
+      for (const inset of insets) {
+        if (!near(inset, unit - iconSize / 2)) {
+          off.push(`${label} group-inset ${inset} != ${unit - iconSize / 2}`);
+        }
+      }
+
       expect(off).toEqual([]);
       return unit;
     };
