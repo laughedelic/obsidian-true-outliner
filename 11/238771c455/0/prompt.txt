@@ -1,0 +1,1 @@
+Check `gh pr checks 19` in /Users/laughedelic/Code/obsidian-true-outliner. If all green, tell the user CI is passing now. If e2e-test/e2e-test-mobile still fail, fetch the failure logs (gh run view <run-id> --job <job-id> --log-failed) and diagnose before reporting back.
