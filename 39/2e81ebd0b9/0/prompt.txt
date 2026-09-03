@@ -1,0 +1,1 @@
+I did not intend to commit entire skills, only the relevant openspec ones. fix that. I'm not even sure it's worth keeping all of the entire skills. remove them and I'll install them separately later
