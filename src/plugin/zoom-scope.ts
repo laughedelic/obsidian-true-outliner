@@ -12,6 +12,7 @@ import type { EditorState } from '@codemirror/state';
 import { editorInfoField } from 'obsidian';
 import { resolveZoom, type ZoomScope } from '../zoom';
 import { zoomAnchorField } from './zoom-state';
+import { hiddenOffsetRanges } from './zoom-offsets';
 import { parsedDoc } from './parsed-doc';
 import { nestedEditorField } from './nested-editor';
 import type { ModeSource } from './keymap';
@@ -58,4 +59,26 @@ export function zoomScope(state: EditorState, modes: ModeSource): ZoomScope | nu
   const scope = computeScope(state, modes);
   scopeCache.set(state, { scope });
   return scope;
+}
+
+// ---- Offsets ------------------------------------------------------------
+
+/**
+ * Where a block widget that belongs after the document's content should mount.
+ *
+ * `state.doc.length` normally — and the END OF THE VISIBLE RANGE while a zoom is
+ * active, because the trailing hidden range ends at `doc.length` and a block
+ * replacement swallows a `side: -1` widget anchored there.
+ *
+ * Re-anchoring is the only available fix, and that is a measurement rather than
+ * a preference (docs/research/23): shortening the hidden range cannot work,
+ * because a document ending in a newline has an empty final line whose start IS
+ * `doc.length`, so the two candidate endpoints are the same position and no
+ * position strictly inside the range leaves the anchor outside it.
+ */
+export function contentEndAnchor(state: EditorState, modes: ModeSource): number {
+  const scope = zoomScope(state, modes);
+  if (!scope) return state.doc.length;
+  const tail = hiddenOffsetRanges(state.doc, scope).find((r) => r.to === state.doc.length);
+  return tail ? tail.from : state.doc.length;
 }

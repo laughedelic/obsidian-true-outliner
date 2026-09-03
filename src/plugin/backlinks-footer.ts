@@ -42,6 +42,7 @@ import {
 } from 'obsidian';
 import type { ModeSource } from './keymap';
 import { nestedEditorField } from './nested-editor';
+import { contentEndAnchor } from './zoom-scope';
 import { buildMarkerIcon } from './decorations';
 import {
   MARKER_LEFT_SHIFT_EXPR,
@@ -1246,7 +1247,13 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
       widget: new BacklinksFooterWidget(source, path),
       side: -1,
       block: true,
-    }).range(state.doc.length),
+    // `state.doc.length` normally, and the end of the visible range while a
+    // zoom scope is active: zoom's trailing hidden range ends AT `doc.length`,
+    // and a block replacement swallows a `side: -1` widget anchored there, so
+    // the footer would silently vanish on zoom. Re-anchoring is the only
+    // available fix — measured in docs/research/23, which also rules out
+    // shortening that range.
+    }).range(contentEndAnchor(state, source)),
   ]);
 }
 

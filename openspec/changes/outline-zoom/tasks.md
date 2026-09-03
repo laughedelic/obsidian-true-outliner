@@ -89,13 +89,13 @@ before it.
 
 ## 4. Hiding
 
-- [ ] 4.1 Hiding decorations from the field's derived ranges, exposed through
+- [x] 4.1 Hiding decorations from the field's derived ranges, exposed through
       `EditorView.decorations` alongside the existing sources (D11). Ranges are DERIVED per state,
       never stored and never mapped — that is D1's whole point and the thing obsidian-zoom does
       differently
-- [ ] 4.2 Both boundary cases: a root that is the document's first node (no range above) and one
+- [x] 4.2 Both boundary cases: a root that is the document's first node (no range above) and one
       that is its last (no range below). 1.1's newline correction applies to whichever ranges exist
-- [ ] 4.3 Apply 1.4's verdict (docs/research/23): `backlinks-footer.ts` anchors its widget at the
+- [x] 4.3 Apply 1.4's verdict (docs/research/23): `backlinks-footer.ts` anchors its widget at the
       END OF THE VISIBLE RANGE while a zoom is active, rather than at `state.doc.length`.
       Shortening the trailing range was measured and is NOT an option — for a document ending in a
       newline the final line's start IS `doc.length`. Assert the footer's presence in the e2e
