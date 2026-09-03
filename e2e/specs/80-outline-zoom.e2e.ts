@@ -39,26 +39,54 @@ const DOC = [
 ].join('\n');
 
 /**
- * Everything `## Mid` owns, as Live Preview renders it.
+ * Every SOURCE line `## Mid` owns.
  *
  * Longer than it first looks, and the tests were written wrong twice before
- * this constant existed. A list item keeps its own marker in the rendered text
- * while a heading loses its `##`. And the trailing paragraph is INSIDE this
- * section — a paragraph after a list is still the heading's descendant — so
- * zooming to `## Mid` keeps it. The final empty string is the cover's own
- * trailing gap, which D3 includes on purpose.
+ * this constant existed. The trailing paragraph is INSIDE this section — a
+ * paragraph after a list is still the heading's descendant — so zooming to
+ * `## Mid` keeps it, and that paragraph is not a top-level node. The final
+ * empty string is the cover's own trailing gap, which D3 includes on purpose.
  */
-const MID_SUBTREE = ['Mid', '', '- one', '- nested', '- two', '', 'Trailing para.', ''];
+const MID_SUBTREE = ['## Mid', '', '- one', '  - nested', '- two', '', 'Trailing para.', ''];
 
-/** Every rendered line's text, in order. Hidden lines are absent. */
+/**
+ * The SOURCE text of every line the editor currently renders, in order.
+ *
+ * Read by mapping each rendered element back to its document position rather
+ * than by taking its `innerText`, because rendered text is not caret-independent
+ * and this assertion must be. Live Preview reveals a line's raw markdown while
+ * the caret is on it — `## Mid` instead of `Mid` — so an innerText comparison
+ * silently depends on where the caret happened to land. It passed locally and
+ * failed on CI for exactly that reason, which is the harness rule this spec's
+ * own header states and the first version of this helper ignored.
+ *
+ * Which LINES are visible is what zoom controls; how Obsidian renders each one
+ * is Obsidian's business and is asserted elsewhere.
+ */
 function renderedLines(): Promise<string[]> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-    const content = view?.containerEl.querySelector('.cm-content');
-    if (!content) throw new Error('no .cm-content');
-    return Array.from(content.querySelectorAll('.cm-line')).map((el) =>
-      (el as HTMLElement).innerText.replace(/​/g, '').trim(),
-    );
+    if (!view) throw new Error('no active markdown view');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cm = (view.editor as any).cm;
+    const content: HTMLElement = cm.contentDOM;
+    const lines = new Set<number>();
+    // `.cm-line` only. A block replacement is a child of `.cm-content` too and
+    // `posAtDOM` happily resolves it — to the first position of the range it
+    // HIDES, which put `# Top` in this list on the first attempt. Filtering to
+    // real lines is also why this spec's fixtures carry no widget-rendered
+    // atoms: a span of those reports zero cm-lines (docs/research/23), and the
+    // assertion for that case counts widgets instead.
+    for (const child of Array.from(content.querySelectorAll('.cm-line'))) {
+      try {
+        lines.add(cm.state.doc.lineAt(cm.posAtDOM(child as HTMLElement)).number);
+      } catch {
+        // Scaffolding (a viewport gap placeholder) has no document position.
+      }
+    }
+    return [...lines]
+      .sort((a, b) => a - b)
+      .map((n) => cm.state.doc.line(n).text as string);
   });
 }
 
@@ -132,7 +160,7 @@ describe('outline zoom', function () {
   it('zooms into a list item, keeping only its own subtree', async function () {
     await openZoomable();
     await zoomAt(DOC, '- one');
-    expect(await renderedLines()).toEqual(['- one', '- nested']);
+    expect(await renderedLines()).toEqual(['- one', '  - nested']);
   });
 
   it('leaves the file untouched across a zoom in and out', async function () {
