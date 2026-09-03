@@ -66,24 +66,24 @@ before it.
 
 ## 3. Zoom state and the dispatch route
 
-- [ ] 3.1 `src/plugin/view-registry.ts`: a `ViewPlugin` recording its `EditorView` against the
+- [x] 3.1 `src/plugin/view-registry.ts`: a `ViewPlugin` recording its `EditorView` against the
       `MarkdownFileInfo` from the public `editorInfoField`, dropped on destroy (D5). Public API
       only — this exists precisely because `(editor as any).cm` is off the table and Obsidian's
       `Editor` exposes no `EditorState`. Do NOT also fix the `indentUnit` gap `main.ts` documents;
       it is a separate defect with its own tests
-- [ ] 3.2 `src/plugin/zoom-state.ts`: a `StateField<number | null>` holding the anchor position,
+- [x] 3.2 `src/plugin/zoom-state.ts`: a `StateField<number | null>` holding the anchor position,
       with `zoomTo` / `zoomCleared` effects. Map the anchor through `tr.changes` on every
       transaction (D1) with FORWARD association (`assoc: 1`), not CM6's default of -1. Pin it with
       a test: insert text containing a newline at the root's own line start and assert the anchor
       still resolves to the root. Under `assoc: -1` it resolves to the inserted node instead —
       run that as the negative control, since this is exactly the claim an earlier draft got wrong
-- [ ] 3.3 Derive-on-demand accessor: given a state, return the resolved root, cover, hidden
+- [x] 3.3 Derive-on-demand accessor: given a state, return the resolved root, cover, hidden
       ranges, trail and sub-document, or null. Cache per `EditorState` the way `decorations.ts`'s
       `factsFor`, `parsed-doc.ts` and `source-tree-cache.ts` already do — this is read by
       decorations, the panel, the keymap and the filter on every transaction
-- [ ] 3.4 Gate on outline mode and `isNestedEditor`, through the same helpers every other
+- [x] 3.4 Gate on outline mode and `isNestedEditor`, through the same helpers every other
       extension uses. A zoom must be unreachable in a nested per-cell editor
-- [ ] 3.5 Unit tests for the state field driven by real `EditorState.update` calls (the way
+- [x] 3.5 Unit tests for the state field driven by real `EditorState.update` calls (the way
       `tests/plugin.test.ts` drives its subjects), including anchor mapping across an insertion
       above, below, and inside the root
 

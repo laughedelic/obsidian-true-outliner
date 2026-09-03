@@ -58,6 +58,8 @@ import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
+import { viewRegistryExtension } from './view-registry';
+import { zoomStateExtension } from './zoom-state';
 import { zoomSpikeExtension, type ZoomSpikeSpan } from './zoom-spike';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
@@ -316,6 +318,14 @@ export default class TrueOutlinerPlugin extends Plugin {
     // running inside a nested per-cell editor, and only a view-level plugin can
     // answer that from the DOM.
     this.registerEditorExtension(nestedEditorExtension());
+    // Immediately after the nested-editor gate it consults, and before anything
+    // that dispatches: a command needs the view registered before it can reach
+    // it (design D5). Holds no state of its own beyond the view it publishes.
+    this.registerEditorExtension(viewRegistryExtension());
+    // The zoom anchor. A bare StateField, so it can sit anywhere; here, so the
+    // extensions that READ the scope are registered after the state that holds
+    // it and the reading order matches the dependency.
+    this.registerEditorExtension(zoomStateExtension());
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
