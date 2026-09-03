@@ -1,0 +1,7 @@
+<task-notification>
+<task-id>b2ddx90m4</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/33f3a6fb-210a-45e2-97a3-ae1012e52b38/tasks/b2ddx90m4.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch CI for the e2e fix" completed (exit code 0)</summary>
+</task-notification>
