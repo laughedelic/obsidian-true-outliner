@@ -1,0 +1,15 @@
+* first demo: good stuff. let's make the whole panel more compact:
+   * we'll go with some form of squashed lineage and the 1-level children display. so I don't think we need the persistent UI toggles for those. this is good for the demo, but we probably don't need to keep them.
+   * sorting toggle should be a drop-down, so it's easy to choose a particular option.
+   * let's put the folder chips, and the the filter on the same line, but also hide under a filter button. 
+   * so we can maybe have a single heading line: refs count, filter panel toggle, sorting drop-down. once the filter toggle is clicked on, we see the second line with the search/filter bar and the chips.
+* second demo: lineage squashing. overall squashed options look good.
+   * I'm having trouble seeing any difference between three squashed alternatives, they look the same and nothing happens on hover or click. I suspect that the demo is a bit broken there.
+* last demo:
+   * volume: we might want a config option for this. limiting the number of references shown with some reasonable default. footer is good, but let's make the text more concise: something like "X references across Y notes not shown [Load next Z more]"
+   * nothing links: let's go with the first option. "No linked references"
+   * first paint: I'm not a fan of the placeholder blocks with fake something inside. if we have the references, can't we show at least minimal info (note names, what else?), then load the rest as we get it? let's keep it simple. make a demo of this with a toggle for the loading state shown immediately and the state when parts of it finish loading, to visualize how it looks as it progresses.
+   * two footers: let's try to hide it by default, but keep it under a plugin setting, so if user wants to have both, they still can.
+
+
+good progress. let's record the decisions so far, get the next iteration of the demo and the next round of decisions.
