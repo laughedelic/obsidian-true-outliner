@@ -142,10 +142,11 @@ confinement requirement — not to restate it once per capability.
   mechanically rather than by design. Stacking makes "whichever lands second rebases" an order
   rather than a race. This change still must NOT assume the filter model exists, and deliberately
   leaves the footer answering for the note while zoomed.
-- **One thing #71 records as open is now closed.** Its sequencing notes that this change's D12
-  leaves open whether the footer fix shortens the hidden range or moves the widget's anchor. Task
-  1 settled it by measurement (docs/research/23): shortening cannot work for any document ending
-  in a newline, so the anchor moves.
+- **The shared touch point is settled, on both sides.** Task 1 measured that the footer fix can
+  only be a re-anchoring, never a shortened hidden range (docs/research/23), and #71 now carries
+  that in its own sequencing rather than the open question it started with. The two changes agree
+  on what `backlinks-footer.ts` gets: a zoom-conditional mount position, which is a rebase for
+  whichever lands second and not a design conflict.
 - **`paste-heading-section-reencoding` is unrelated** — it touches the re-encoding algebra, which
   zoom does not read.
 - **Fold does not exist yet, and zoom does not need it.** Unlike obsidian-zoom, which requires
