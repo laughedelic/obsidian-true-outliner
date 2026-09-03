@@ -1884,3 +1884,130 @@ body {
   color: var(--text-normal);
   border-color: var(--background-modifier-border-hover);
 }
+
+/* ---- The footer's controls ---------------------------------------------- *
+ *
+ * Two rows: the header always carries the totals, the filter affordance and
+ * the sort selector, and a second row appears only when the affordance is
+ * used. Both control rows stop their own clicks in JS, so operating one never
+ * also folds the section the header click would.
+ */
+
+.to-backlinks-filter-toggle,
+.to-backlinks-sort,
+.to-backlinks-reset {
+  flex-shrink: 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.to-backlinks-filter-toggle:hover,
+.to-backlinks-sort:hover,
+.to-backlinks-reset:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks-filter-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  padding: 0.2em;
+  box-shadow: none;
+}
+
+/* The dot is the only thing saying a hidden control row is narrowing what the
+ * body shows. Drawn rather than swapped into the glyph, so the affordance
+ * keeps one shape and gains a mark. */
+.to-backlinks-filter-toggle.is-active::after {
+  content: '';
+  position: absolute;
+  top: 0.1em;
+  inset-inline-end: 0.1em;
+  width: 0.35em;
+  height: 0.35em;
+  border-radius: 50%;
+  background: var(--to-decor-accent, var(--text-accent));
+}
+
+.to-backlinks-sort {
+  max-width: 10em;
+  padding: 0.1em 0.3em;
+  height: auto;
+}
+
+.to-backlinks-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding-left: var(--to-marker-gutter);
+  margin-bottom: 0.75rem;
+}
+
+/* Round for a WHERE, square for a WHAT. The two axes are told apart by shape
+ * rather than by wording, so which dimension a control belongs to is readable
+ * without reading it (docs/research/18, D8/D14). */
+.to-backlinks-pill,
+.to-backlinks-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.1em 0.6em;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+  border: 1px solid transparent;
+  cursor: pointer;
+  box-shadow: none;
+  height: auto;
+}
+
+.to-backlinks-pill {
+  border-radius: 999px;
+}
+
+.to-backlinks-chip {
+  border-radius: var(--radius-s);
+}
+
+.to-backlinks-pill:hover,
+.to-backlinks-chip:hover {
+  color: var(--text-normal);
+}
+
+/* Focus-on: an unselected control is not excluding anything, so only the
+ * selected state is marked. */
+.to-backlinks-pill.is-selected,
+.to-backlinks-chip.is-selected {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+.to-backlinks-chip-count {
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+
+.to-backlinks-search {
+  flex: 1 1 8em;
+  min-width: 6em;
+  max-width: 14em;
+  padding: 0.1em 0.5em;
+  font-size: var(--font-ui-smaller);
+  height: auto;
+}
+
+.to-backlinks-reset {
+  padding: 0.1em 0.5em;
+  text-decoration: underline;
+}

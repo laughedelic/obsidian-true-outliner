@@ -56,20 +56,20 @@ and not the other.
 Specs: `backlinks-footer` — "The footer carries a single header control row". Design D4 for where
 the state lives.
 
-- [ ] 3.1 `ViewState` gains the per-note controls — selected folders, selected kinds, search term,
+- [x] 3.1 `ViewState` gains the per-note controls — selected folders, selected kinds, search term,
       cap override — pruned with the tab like the collapse state beside them (D4). Sort order does
       NOT go here: it is plugin data, because its values are note-independent
-- [ ] 3.2 Header row: totals, the filter affordance, the sort dropdown. The affordance carries a
+- [x] 3.2 Header row: totals, the filter affordance, the sort dropdown. The affordance carries a
       dot while any filter or search is active, and the row stays one line while the controls are
       hidden. Verify the dormant and unfiltered footers are visually unchanged from what
       `73-footer-render.e2e.ts` expects
-- [ ] 3.3 The revealed second row: round pills for folders, square icon chips for kinds, the
+- [x] 3.3 The revealed second row: round pills for folders, square icon chips for kinds, the
       search field, and reset. Two shapes so the axes are told apart without reading labels — the
       spec requires the distinction be in form, not wording
-- [ ] 3.4 Reset clears both axes and the search term together and is offered only while something
+- [x] 3.4 Reset clears both axes and the search term together and is offered only while something
       is active. Verify from the spec's scenario: all three active, one reset, everything eligible
       again
-- [ ] 3.5 A selected value that stops existing is dropped, returning its axis to admitting
+- [x] 3.5 A selected value that stops existing is dropped, returning its axis to admitting
       everything (design Risks). Verify by editing a source note so its folder no longer
       contributes, with that folder selected, and confirming the footer does not go empty
 - [ ] 3.6 Every control routes through the existing `render()` and changes nothing else. Verify

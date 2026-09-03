@@ -50,6 +50,23 @@ import {
 } from './chrome-line';
 import { CHROME_VARS, MARKER_GAP_CSS, MARKER_GUTTER_CSS } from './chrome-tokens';
 import { buildRows, splitPath, type FooterRow, type LineageSegment } from './footer-model';
+import {
+  applyControls,
+  axesOf,
+  type ControlsState,
+  type FilterAxes,
+  type SortOrder,
+  type SourceRefs,
+} from './footer-filter';
+import {
+  GROUP_HEIGHT_CSS,
+  OVERALL_CAP_REFERENCES,
+  type GroupHeight,
+  type LineageSeparator,
+  type OverallCap,
+  type SegmentIcons,
+} from './mode-registry';
+import type { ReferenceKind } from './backlink-index';
 import type { BacklinkIndex } from './backlink-index';
 import type { NodeKind, OutlineNode } from '../model';
 import { nodeStartLine } from '../locate';
@@ -64,6 +81,17 @@ export interface FooterSource extends ModeSource {
   /** Bumped when something outside editor state changes what the footer would
    * show — outline mode, the setting, or the index. See `refreshBridge`. */
   readonly footerRevision: number;
+  /** Group order. Plugin data rather than per-note view state: its values are
+   * note-independent, so a reader who wants source-name order wants it in
+   * every footer (backlinks-controls design D4). */
+  readonly backlinksSort: SortOrder;
+  setBacklinksSort(value: SortOrder): Promise<void>;
+  readonly backlinksOverallCap: OverallCap;
+  readonly backlinksGroupHeight: GroupHeight;
+  readonly backlinksSuppressCore: boolean;
+  readonly backlinksSegmentIcons: SegmentIcons;
+  readonly backlinksSeparator: LineageSeparator;
+  readonly backlinksGuides: boolean;
 }
 
 const refreshFooter = StateEffect.define<void>();
@@ -82,6 +110,15 @@ interface ViewState {
   readonly truncatable: Set<string>;
   readonly collapsedGroups: Set<string>;
   readonly expandedRows: Set<string>;
+  /** Whether the filter controls are revealed. */
+  filtersOpen: boolean;
+  /** Focus-on selections. Per note, because the values on offer are the
+   * current note's — a folder selected here means nothing in another note. */
+  readonly folders: Set<string>;
+  readonly kinds: Set<ReferenceKind>;
+  search: string;
+  /** Tranches the reader has asked for, added to the overall cap. */
+  capBonus: number;
 }
 
 const viewStates = new Map<string, ViewState>();
@@ -113,6 +150,11 @@ function viewStateFor(path: string): ViewState {
       truncatable: new Set(),
       collapsedGroups: new Set(),
       expandedRows: new Set(),
+      filtersOpen: false,
+      folders: new Set(),
+      kinds: new Set(),
+      search: '',
+      capBonus: 0,
     };
     viewStates.set(path, state);
   }
@@ -191,30 +233,36 @@ class FooterController {
     // not that case, but building off-tree and swapping once keeps the number
     // of mounted-DOM mutations at one either way, which is cheap insurance.
     const root = createDiv();
-    const summaries = this.source.backlinks.summaries(this.targetPath);
-    const totals = this.source.backlinks.totals(this.targetPath);
-
     const state = viewStateFor(this.targetPath);
-    this.renderHeader(root, totals, state.collapsed, summaries.length > 0);
-    this.el.toggleClass('is-dormant', summaries.length === 0);
-    if (summaries.length === 0 || state.collapsed) {
+
+    // The controls decide everything BEFORE a source note is read: the folder
+    // is part of the path and the kind is on the reference, so `place()` is
+    // never called for a group the cap did not admit (design D1, D2).
+    const sources = this.sourceRefs();
+    const axes = axesOf(sources);
+    const result = applyControls(sources, this.controls(state));
+
+    this.el.toggleClass('is-suppressing-core', this.source.backlinksSuppressCore);
+    this.el.style.setProperty(
+      '--to-backlinks-group-max',
+      GROUP_HEIGHT_CSS[this.source.backlinksGroupHeight],
+    );
+
+    this.renderHeader(root, result.totals, state, sources.length > 0);
+    if (state.filtersOpen && sources.length > 0) this.renderFilterRow(root, axes, state);
+    this.el.toggleClass('is-dormant', sources.length === 0);
+    if (sources.length === 0 || state.collapsed) {
       this.swap(root);
       return;
     }
 
-    // Most recently modified first — the default sort (docs/research/18, D15).
-    // Path is the tie-break only: it used to be the whole comparison, which
-    // sorted by filename backwards and called it recency.
-    const ordered = [...summaries].sort(
-      (a, b) => b.mtime - a.mtime || a.path.localeCompare(b.path),
-    );
     const bodies: { path: string; body: HTMLElement; card: HTMLElement }[] = [];
 
-    for (const summary of ordered) {
-      const { name, folder } = splitPath(summary.path);
+    for (const group of result.groups) {
+      const { name, folder } = splitPath(group.path);
       const card = root.createDiv({ cls: 'to-backlinks-group' });
-      const collapsed = state.collapsedGroups.has(summary.path);
-      this.renderGroupHead(card, summary.path, name, folder, summary.count, collapsed);
+      const collapsed = state.collapsedGroups.has(group.path);
+      this.renderGroupHead(card, group.path, name, folder, group.count, collapsed);
       if (collapsed) continue;
 
       const body = card.createDiv({ cls: 'to-backlinks-rows' });
@@ -222,9 +270,9 @@ class FooterController {
       // skim is how much of the screen it takes, and ten short rows take less
       // than three long ones. The threshold is a custom property so a setting
       // can drive it without this code knowing (docs/research/18, D10).
-      body.toggleClass('is-capped', !state.expandedGroups.has(summary.path));
+      body.toggleClass('is-capped', !state.expandedGroups.has(group.path));
       body.createDiv({ cls: 'to-backlinks-resolving', text: 'resolving…' });
-      bodies.push({ path: summary.path, body, card });
+      bodies.push({ path: group.path, body, card });
     }
 
     this.swap(root);
@@ -331,6 +379,35 @@ class FooterController {
   }
 
   /**
+   * Everything the controls read about this note's references, from the index's
+   * cheap half only. No file is read here, which is what lets the cap be
+   * applied before `place()`.
+   */
+  private sourceRefs(): SourceRefs[] {
+    return this.source.backlinks.summaries(this.targetPath).map((summary) => ({
+      path: summary.path,
+      mtime: summary.mtime,
+      refs: this.source.backlinks.referencesFrom(this.targetPath, summary.path),
+    }));
+  }
+
+  /** The reader's per-note selections, plus the two note-independent settings. */
+  private controls(state: ViewState): ControlsState {
+    return {
+      folders: state.folders,
+      kinds: state.kinds,
+      search: state.search,
+      sort: this.source.backlinksSort,
+      cap: OVERALL_CAP_REFERENCES[this.source.backlinksOverallCap] + state.capBonus,
+    };
+  }
+
+  /** Whether anything is narrowing the footer right now. */
+  private isFiltering(state: ViewState): boolean {
+    return state.folders.size > 0 || state.kinds.size > 0 || state.search.trim().length > 0;
+  }
+
+  /**
    * The section's own header: what this is, how much of it there is, and a way
    * to fold the whole thing away.
    *
@@ -342,9 +419,10 @@ class FooterController {
   private renderHeader(
     root: HTMLElement,
     totals: { references: number; notes: number },
-    collapsed: boolean,
+    state: ViewState,
     foldable: boolean,
   ): void {
+    const collapsed = state.collapsed;
     const head = root.createDiv({ cls: 'to-backlinks-head' });
     head.toggleClass('is-collapsed', collapsed);
     if (foldable) makeDisclosure(head, !collapsed, 'Structured backlinks');
@@ -367,11 +445,141 @@ class FooterController {
     head.createSpan({ cls: 'to-backlinks-totals', text: counts });
 
     if (!foldable) return;
+    // The controls go AFTER the totals and stop the click that folds the
+    // section, so operating one never also collapses what it just changed.
+    this.renderHeaderControls(head, state);
+
     head.addEventListener('click', () => {
-      const state = viewStateFor(this.targetPath);
-      state.collapsed = !state.collapsed;
+      const current = viewStateFor(this.targetPath);
+      current.collapsed = !current.collapsed;
       void this.render();
     });
+  }
+
+  /**
+   * The filter affordance and the sort selector, the two controls that stay on
+   * the header row. Neither is offered while the section is folded away: they
+   * would change something nobody can see.
+   *
+   * How lineage is collapsed and how deep descendants go are decided (D4, D7)
+   * and so are deliberately not here.
+   */
+  private renderHeaderControls(head: HTMLElement, state: ViewState): void {
+    if (state.collapsed) return;
+
+    const filters = head.createEl('button', { cls: 'to-backlinks-filter-toggle' });
+    filters.type = 'button';
+    // The dot is the whole point of the affordance while the row is hidden: a
+    // narrowed footer that looks unfiltered is a footer lying about its counts.
+    filters.toggleClass('is-active', this.isFiltering(state));
+    filters.setAttribute('aria-expanded', String(state.filtersOpen));
+    filters.setAttribute('aria-label', state.filtersOpen ? 'Hide filters' : 'Show filters');
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+    filters.appendChild(filterGlyph());
+    filters.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const current = viewStateFor(this.targetPath);
+      current.filtersOpen = !current.filtersOpen;
+      void this.render();
+    });
+
+    const sort = head.createEl('select', { cls: 'to-backlinks-sort' });
+    sort.setAttribute('aria-label', 'Sort backlinks');
+    for (const [value, label] of Object.entries(SORT_LABELS)) {
+      sort.createEl('option', { value, text: label });
+    }
+    sort.value = this.source.backlinksSort;
+    sort.addEventListener('click', (event) => event.stopPropagation());
+    sort.addEventListener('change', () => {
+      void this.source.setBacklinksSort(sort.value as SortOrder);
+    });
+  }
+
+  /**
+   * The revealed row: the two axes, the search field, and reset.
+   *
+   * Two shapes rather than two labels — round pills for a WHERE, square chips
+   * for a WHAT — so which dimension a control belongs to is readable without
+   * reading it (docs/research/18, D8/D14).
+   */
+  private renderFilterRow(root: HTMLElement, axes: FilterAxes, state: ViewState): void {
+    if (state.collapsed) return;
+    const row = root.createDiv({ cls: 'to-backlinks-filters' });
+
+    for (const { value, notes } of axes.folders) {
+      const label = value === '' ? '/' : value;
+      this.renderChip(row, 'to-backlinks-pill', label, notes, state.folders.has(value), () => {
+        toggleMember(viewStateFor(this.targetPath).folders, value);
+      });
+    }
+
+    for (const { value, notes } of axes.kinds) {
+      const chip = this.renderChip(
+        row,
+        'to-backlinks-chip',
+        KIND_LABELS[value],
+        notes,
+        state.kinds.has(value),
+        () => {
+          toggleMember(viewStateFor(this.targetPath).kinds, value);
+        },
+      );
+      chip.dataset.kind = value;
+    }
+
+    const search = row.createEl('input', { cls: 'to-backlinks-search' });
+    search.type = 'search';
+    search.placeholder = 'Note name…';
+    search.value = state.search;
+    search.setAttribute('aria-label', 'Filter by source note name');
+    search.addEventListener('click', (event) => event.stopPropagation());
+    // `input`, not `change`: a filter that waits for blur is a filter the
+    // reader has to commit to before seeing what it does.
+    search.addEventListener('input', () => {
+      const current = viewStateFor(this.targetPath);
+      current.search = search.value;
+      current.capBonus = 0;
+      void this.render();
+    });
+
+    if (!this.isFiltering(state)) return;
+    const reset = row.createEl('button', { cls: 'to-backlinks-reset', text: 'Reset' });
+    reset.type = 'button';
+    reset.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const current = viewStateFor(this.targetPath);
+      current.folders.clear();
+      current.kinds.clear();
+      current.search = '';
+      current.capBonus = 0;
+      void this.render();
+    });
+  }
+
+  /** One focus-on control. Selected state is `aria-pressed`, because that is
+   * what the control's meaning is — not whether it is focused. */
+  private renderChip(
+    row: HTMLElement,
+    cls: string,
+    label: string,
+    notes: number,
+    selected: boolean,
+    toggle: () => void,
+  ): HTMLElement {
+    const chip = row.createEl('button', { cls });
+    chip.type = 'button';
+    chip.toggleClass('is-selected', selected);
+    chip.setAttribute('aria-pressed', String(selected));
+    chip.createSpan({ cls: 'to-backlinks-chip-label', text: label });
+    chip.createSpan({ cls: 'to-backlinks-chip-count', text: String(notes) });
+    chip.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggle();
+      // A narrowed set should not stay behind a cap the wider set consumed.
+      viewStateFor(this.targetPath).capBonus = 0;
+      void this.render();
+    });
+    return chip;
   }
 
   private renderGroupHead(
@@ -962,6 +1170,40 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
       block: true,
     }).range(state.doc.length),
   ]);
+}
+
+const SORT_LABELS: Record<SortOrder, string> = {
+  recent: 'Recently modified',
+  oldest: 'Oldest first',
+  name: 'Note name',
+  references: 'Most references',
+};
+
+/** Kind names as a reader would say them (docs/research/18, D14). */
+const KIND_LABELS: Record<ReferenceKind, string> = {
+  note: 'Note',
+  anchor: 'Anchor',
+  embed: 'Embed',
+  property: 'Property',
+};
+
+/** Focus-on in one line: absent means the axis is not filtering. */
+function toggleMember<T>(set: Set<T>, value: T): void {
+  if (!set.delete(value)) set.add(value);
+}
+
+/** The filter affordance's glyph — a funnel. The active dot is drawn by CSS,
+ * so the glyph itself says nothing about state. */
+function filterGlyph(): SVGSVGElement {
+  // Deliberately NOT `to-backlinks-icon`: that class is absolutely positioned
+  // into the marker gutter, which is the section icon's place and not a
+  // control's.
+  return glyph(24, ['M3 5h18l-7 8v6l-4 2v-8z'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '1.8',
+    'stroke-linejoin': 'round',
+  });
 }
 
 /** See the module note: a `ViewPlugin` observes the mode-toggle nudge that a

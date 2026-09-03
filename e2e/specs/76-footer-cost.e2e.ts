@@ -44,6 +44,8 @@ describe('spike S5: what a hub note costs', function () {
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
+    // Not a volume spec: see `pinBacklinksCapOff`.
+    await h.pinBacklinksCapOff();
   });
 
   it('measures index build, summaries and per-source placement', async function () {

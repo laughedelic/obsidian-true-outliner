@@ -618,6 +618,23 @@ export async function pinPositionIndicatorsOff(): Promise<void> {
   });
 }
 
+/**
+ * Lift the footer's OVERALL cap for a spec that is not about volume.
+ *
+ * The cap defaults to 50 references, and the hub fixture carries roughly 400,
+ * so a spec looking for a particular source note's rows in that footer finds
+ * whatever the cap admitted rather than what it asked for. A spec that means to
+ * exercise the cap sets it itself; every other spec says here that it does not.
+ *
+ * The same argument as `pinPositionIndicatorsOff`: a default that changes what
+ * an assertion measures should be stated by the spec, not inherited from it.
+ */
+export async function pinBacklinksCapOff(): Promise<void> {
+  await browser.executeObsidian(async ({ plugins }) => {
+    await (plugins.trueOutliner as any).setBacklinksOverallCap('none');
+  });
+}
+
 /** Reset plugin data to defaults and reload the plugin so it re-reads it. */
 export async function resetPluginState(): Promise<void> {
   await browser.executeObsidian(async ({ plugins }) => {
