@@ -1,0 +1,7 @@
+* most corrections in the design look good. a couple of adjustments:
+   * mention type filters are good, but we need to distinguish it visually from the folder-focus chips. I'm not sure what the best shape it for this.
+   * let's split "Links" into "Mentions" (note name), and "Blocks" (deeper links). I'm not sure about terminology yet. suggest if you have better options. otherwise we'll refine it later.
+   * squashed lineage greyed out smaller text is good. but let's not make such notable distinction between the lineage and mention line node markers. let's also not highlight the mention node markers. so the bullets (or other node markers) should look same between the two types. 
+   * property mention display looks good.
+* agree on Q8. there is a common part, it's good to design an abstraction. but let's not overcomplicate it until we actually need it.
+* changes split is okay. but I'm concerned that the first change might not produce a tangible enough outcome to make it reviewable. but if it's more about spikes and making decisions based on that research, it's fine.
