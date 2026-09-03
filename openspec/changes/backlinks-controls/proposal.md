@@ -82,18 +82,23 @@ D14, D15).
   footer unfiltered while zoomed and deliberately adds no zoom-shaped hook for a filter model to
   use; this change's axes are properties of the *referencing* side — a source note's folder, a
   reference's kind — and read nothing about the view's scope.
-- **Their `backlinks-footer` deltas do not collide.** Zoom ADDs one requirement, that the footer
-  survives an active zoom scope; this change MODIFIES two others and ADDs a third. Either can
-  sync into the main spec first.
-- **Three files both touch, mechanically.** `src/plugin/backlinks-footer.ts` — zoom excludes the
-  widget's `state.doc.length` anchor from its hidden trailing range, and its D12 leaves open
-  whether that fix shortens the range or moves the anchor. `src/plugin/footer-model.ts` — zoom
-  lifts `stripBlockPrefix` out to a shared home (its D13) while this change grows the same file's
-  model. And `styles.css`. Whichever lands second rebases; none of it is a design conflict.
+- **Their `backlinks-footer` deltas do not collide.** Zoom's delta adds one requirement — the
+  footer survives an active zoom scope — while this change's modifies two others and adds a
+  third. No requirement appears in both, so either can sync into the main spec first.
+- **Three files both touch, mechanically.** `src/plugin/backlinks-footer.ts` — zoom re-anchors the
+  footer widget to the end of the visible range while a zoom is active. That is settled by
+  measurement (`docs/research/23`, zoom's D12): the alternative, shortening the hidden range, is
+  impossible for any document ending in a newline, because such a document's empty final line
+  starts at `doc.length`. So the widget's mount position becomes zoom-conditional in the same file
+  this change rewrites the header and body render in. `src/plugin/footer-model.ts` — zoom lifts
+  `stripBlockPrefix` out to a shared home (its D13) while this change grows the same file's model.
+  And `styles.css`. Whichever lands second rebases; none of it is a design conflict.
 - **e2e numbering is already disjoint**: the footer holds 70–76 in the `backlinks` group and this
   change continues there; zoom takes 80.
-- **This one goes first if either does.** Zoom's task 1 is a mechanism spike that can stop that
-  change outright, and this change has no comparable gate. Running it first also means zoom
+- **This one goes first if either does.** Zoom's task 1 gate has passed — the block-replace
+  mechanism holds (`docs/research/23`) — but the same measurement struck its design's claim that
+  confinement came mostly for free, so every confinement site there is real work and that change
+  grew rather than shrank. This one has no comparable gate, and running it first means zoom
   rebases onto a settled footer rather than the reverse.
 - **`paste-heading-section-reencoding` is unrelated** — it touches the re-encoding algebra, which
   a read-only footer never reads.
