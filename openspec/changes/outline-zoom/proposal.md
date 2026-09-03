@@ -135,19 +135,30 @@ confinement requirement — not to restate it once per capability.
   `backlink-index` / `tree-projection`, #50 `selection-structural-ops`, and the outline-grid
   decoration series #54/#61/#65/#67). Those are what this change now builds on rather than works
   around; each is credited where it is used.
-- **Neither open change blocks this one.** `paste-heading-section-reencoding` touches the
-  re-encoding algebra, which zoom does not read. `backlinks-controls` builds the footer's filter
-  model — this change must NOT assume it exists, and deliberately leaves the footer answering for
-  the note while zoomed.
+- **Stacked on `backlinks-controls` (#71), which carries the shared sequencing.** That change
+  states the relationship from its side and this one does not restate it: the two are
+  independent in both directions, their `backlinks-footer` deltas do not collide, and the three
+  files both touch — `backlinks-footer.ts`, `footer-model.ts`, `styles.css` — collide
+  mechanically rather than by design. Stacking makes "whichever lands second rebases" an order
+  rather than a race. This change still must NOT assume the filter model exists, and deliberately
+  leaves the footer answering for the note while zoomed.
+- **One thing #71 records as open is now closed.** Its sequencing notes that this change's D12
+  leaves open whether the footer fix shortens the hidden range or moves the widget's anchor. Task
+  1 settled it by measurement (docs/research/23): shortening cannot work for any document ending
+  in a newline, so the anchor moves.
+- **`paste-heading-section-reencoding` is unrelated** — it touches the re-encoding algebra, which
+  zoom does not read.
 - **Fold does not exist yet, and zoom does not need it.** Unlike obsidian-zoom, which requires
   Obsidian's "Fold heading"/"Fold indent" settings because it derives its ranges from native
   folding, this change computes the visible range from our own parse. Their composition is a
   question for whenever fold lands, not a prerequisite here.
-- **Task 1 is a mechanism spike and a real gate.** Block-level replace decorations under Live
-  Preview, over widget-rendered atoms, alongside three existing decoration sources, is exactly
-  the shape of bet the `outline-decorations` postmortem was written about (docs/research/06). If
-  the spike fails, the change stops there with a findings doc rather than proceeding on a design
-  whose foundation does not hold. Design D2 records the fallback.
+- **Task 1 was a mechanism spike and a real gate, and it has returned its verdict.** Block-level
+  replace decorations under Live Preview, over widget-rendered atoms, alongside three existing
+  decoration sources and the footer, is exactly the shape of bet the `outline-decorations`
+  postmortem was written about (docs/research/06). The verdict is PROCEED, with two of this
+  change's own claims struck by measurement — D2's "confinement comes mostly for free" and D12's
+  first candidate fix. Both are recorded in `docs/research/23-zoom-hiding-mechanism.md` and folded
+  back into the decisions they belong to.
 
 ## Out of scope
 
