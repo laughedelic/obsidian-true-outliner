@@ -1,0 +1,5 @@
+okay. good arguments. let's go ahead with the recommendation. the work on hiding/_visually_-normalizing gaps and the related vertical cursor navigation could go in a separate change and potentially combine with the selection UX work that's been already set for later.
+
+but before you jump into the implementation, make sure that the SDD documentation is updated and record the ideas for the follow up work somewhere as well (potentially make the @docs/research/12-decoration-follow-ups.md or broaden @docs/research/13-selection-follow-ups.md, or a new doc, your call). 
+
+docs first, then implementation of what we agreed on here, then the status on the completion of the change. I will give it another pass and we'll continue from there.
