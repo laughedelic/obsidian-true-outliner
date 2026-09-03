@@ -1,0 +1,1 @@
+research existing documentation and analyze open questions, planned follow up work, known issues, and the specs. give me an overview, and advise on potential directions for the next most impactful change to work on
