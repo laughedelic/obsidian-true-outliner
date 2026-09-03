@@ -1,0 +1,1 @@
+<ci-monitor-event>CI check "e2e-test (latest)" failed on laughedelic/obsidian-true-outliner PR #36. Run `gh pr checks 36 --repo laughedelic/obsidian-true-outliner` to see details, then fix the failing check.</ci-monitor-event>
