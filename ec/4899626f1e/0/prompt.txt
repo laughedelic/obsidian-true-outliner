@@ -1,0 +1,4 @@
+let's go with C, update the design and specs. 
+
+but I also want to clarify the observation because the interpretation you gave in "1. Your symptom, measured" doesn't match what I meant. first of all, you are talking about lists, while I was actually trying it with P heading. 
+from c1 shift-up expands to whole P chapter, then shift-down does not shrink back, it does not not go to c1+c2, it get's stuck for the downward expansion, but it can still expand upward. my interpretation is that after expansion to P the cursor is placed inside selection in the heading (after the `#`s), so then if it goes down into the gap line after the heading, it jumps back to the same place, it never reacher the end of the range. to go further down. that's just my interpretation. it's also based on the observation that when selection is expanded via keyboard, there's always blinking of the character-level selection under the block-level selection. this does not happen with mouse selection.
