@@ -1,0 +1,3 @@
+ok. the first fix is merged. let's focus on respect-tab-space-indent-setting here.
+
+I don't think it's complete yet. see `tab indent merge bug repro` in the test-vault for an example where we still mess up the indentation
