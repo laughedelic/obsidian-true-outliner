@@ -49,8 +49,14 @@ body {
    * Declared on `body` rather than on `.cm-content` so the backlinks footer,
    * which is not made of `.cm-line`s, reads the same one. The `--list-indent`
    * bridge that consumes it stays gated on `.to-decor-list`, so outline mode
-   * off is still untouched. */
-  --to-decor-unit: 1.5rem;
+   * off is still untouched.
+   *
+   * Overriding THIS declaration is the supported way to retune the outline's
+   * width: every column on every surface is derived from it, so a snippet
+   * setting it on `body` moves the whole grid and nothing is left behind. That
+   * only holds while nothing restates the value — no rule's `var()` fallback,
+   * and nothing in JS (see `UNIT_EXPR`). */
+  --to-decor-unit: 1.75rem;
 
   --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
   --to-decor-accent: var(--text-accent);

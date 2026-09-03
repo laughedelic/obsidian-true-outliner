@@ -31,6 +31,7 @@ Research date: July 2026.
 | [19-backlinks-footer-spikes.md](19-backlinks-footer-spikes.md) | **Hub** for the backlinks-footer spike series: ground rules (inherited from 07), the shared fixture corpus and what each fixture is diagnostic for, and the results table — including S1, which may veto the footer surface outright |
 | [20-surfaces-and-embedding.md](20-surfaces-and-embedding.md) | Where the outline can be drawn and what each way costs: why the editor's chrome was not readily reusable, the seam between the two renderers, the public `getSectionInfo` route to reading mode, and the embedded-real-editor technique — **recorded, not proposed** — with the eight non-public touchpoints it needs and the README promise that decides it |
 | [21-marker-text-gap.md](21-marker-text-gap.md) | The one measurement pass behind `--to-marker-gutter`: what each qualifying mark's ink actually reaches, why a multi-digit ordered number is excluded, the floor the one-space sizing rules already imposed on the stated gap, the argument for the gap that was chosen, and the three stale-value defects the derivation exposed |
+| [22-outline-unit-width.md](22-outline-unit-width.md) | The level-to-level unit: why it widened once the gutter tightened, the four candidates measured and read, and how an override of its single declaration went from an incidental property to a stated contract with a test — plus the spelled unit the widening flushed out of an e2e spec |
 
 ## TL;DR
 

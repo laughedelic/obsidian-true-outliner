@@ -1,6 +1,6 @@
 {
   "name": "obsidian-true-outliner",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A true outliner for Obsidian \u2014 mapping core library",
   "main": "src/index.ts",
   "directories": {
@@ -18,7 +18,8 @@
     "obsidian:fetch": "node scripts/obsidian-fetch.mjs",
     "test:e2e": "node scripts/run-e2e.mjs desktop",
     "test:e2e:mobile": "node scripts/run-e2e.mjs mobile",
-    "build:e2e": "tsc --noEmit -p e2e"
+    "build:e2e": "tsc --noEmit -p e2e",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "license": "MIT",
   "type": "module",
