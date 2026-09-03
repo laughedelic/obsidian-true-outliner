@@ -95,8 +95,8 @@ D14, D15).
   use; this change's axes are properties of the *referencing* side — a source note's folder, a
   reference's kind — and read nothing about the view's scope.
 - **Their `backlinks-footer` deltas do not collide.** Zoom's delta adds one requirement — the
-  footer survives an active zoom scope — while this change's modifies two others and adds a
-  third. No requirement appears in both, so either can sync into the main spec first.
+  footer survives an active zoom scope — while this change's delta modifies two others and adds
+  a third. No requirement appears in both, so either can sync into the main spec first.
 - **Three files both touch, mechanically.** `src/plugin/backlinks-footer.ts` — zoom re-anchors
   the footer widget to the end of the visible range while a zoom is active. That is settled by
   measurement (`docs/research/23`, zoom's D12): the alternative, shortening the hidden range, is

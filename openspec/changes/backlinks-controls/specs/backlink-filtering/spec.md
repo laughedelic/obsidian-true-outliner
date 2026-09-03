@@ -151,7 +151,8 @@ rendered.
 #### Scenario: The overall cap bounds the footer
 
 - **WHEN** the sum of references across groups exceeds the overall cap
-- **THEN** rendering stops at the cap, and the footer reports how much is not shown
+- **THEN** rendering stops at the last source note that fits within it, without exceeding it, and
+  the footer reports how much is not shown
 
 #### Scenario: A note beyond the overall cap is never read
 
@@ -182,7 +183,7 @@ references from how many notes are not shown.
 
 #### Scenario: The shortfall is stated explicitly
 
-- **WHEN** rendering stops at a cap
+- **WHEN** rendering is bounded by a cap
 - **THEN** the footer states the number of references and the number of notes it is not showing
 
 #### Scenario: Totals follow the filter
@@ -208,7 +209,7 @@ so a reader scrolling past can tell that the list continues.
 
 #### Scenario: A truncated list does not look finished
 
-- **WHEN** rendering stops at a cap
+- **WHEN** rendering is bounded by a cap
 - **THEN** the end of the rendered list is presented differently from the end of a list that is
   complete
 

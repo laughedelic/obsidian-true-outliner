@@ -7,6 +7,11 @@ import {
   type SourceRefs,
 } from '../src/plugin/footer-filter';
 import type { BacklinkReference, ReferenceKind } from '../src/plugin/backlink-index';
+import {
+  DEFAULT_GROUP_HEIGHT,
+  GROUP_HEIGHT_CSS,
+  OVERALL_CAP_REFERENCES,
+} from '../src/plugin/mode-registry';
 
 const ref = (kind: ReferenceKind, original = '[[Target]]'): BacklinkReference => ({
   kind,
@@ -237,5 +242,27 @@ describe('the empty-controls case', () => {
     const result = applyControls([], NO_FILTER);
     expect(result.groups).toEqual([]);
     expect(result.totals).toEqual({ references: 0, notes: 0 });
+  });
+});
+
+describe('the cap settings', () => {
+  it('gives every overall-cap option a reference count', () => {
+    expect(Object.values(OVERALL_CAP_REFERENCES).every((n) => n > 0)).toBe(true);
+    expect(OVERALL_CAP_REFERENCES.none).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('gives every group-height option a value the stylesheet accepts', () => {
+    for (const value of Object.values(GROUP_HEIGHT_CSS)) {
+      expect(value).toMatch(/^(?:\d+(?:\.\d+)?rem|none)$/);
+    }
+  });
+
+  it('leaves the shipped group height as the default', () => {
+    expect(GROUP_HEIGHT_CSS[DEFAULT_GROUP_HEIGHT]).toBe('16rem');
+  });
+
+  it('caps nothing at the no-limit setting', () => {
+    const result = applyControls(VAULT, controls({ cap: OVERALL_CAP_REFERENCES.none }));
+    expect(result.shortfall).toEqual({ references: 0, notes: 0 });
   });
 });

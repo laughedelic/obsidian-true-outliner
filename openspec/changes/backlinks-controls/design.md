@@ -167,9 +167,10 @@ inside it.
 
 ## Risks / Trade-offs
 
-- **`.embedded-backlinks` is Obsidian's internal class name** → verified by e2e rather than
-  assumed (task 5.1), and a rename fails open — both sections render, which is the state the
-  setting exists to allow anyway.
+- **`.embedded-backlinks` is Obsidian's internal class name** → checked against a running
+  Obsidian before the rule is written (task 5.1) and pinned by e2e afterwards (task 7.3), rather
+  than assumed. A rename fails open — both sections render, which is the state the setting exists
+  to allow anyway.
 - **A selected filter value can stop existing** when the note's references change under an open
   footer → a selection whose value is absent from the current axis is dropped, which returns that
   axis to admitting everything; this is the spec's deselect rule reaching the same state.

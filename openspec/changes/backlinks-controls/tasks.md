@@ -37,11 +37,11 @@ Design D8. Six keys, and the settings tab declares each twice — `getSettingDef
 The duplication is accepted (design D8's trade-off), so the risk is a key declared in one place
 and not the other.
 
-- [ ] 2.1 `mode-registry.ts`: the six keys in `DEFAULT_DATA` with their defaults — overall cap 50,
+- [x] 2.1 `mode-registry.ts`: the six keys in `DEFAULT_DATA` with their defaults — overall cap 50,
       per-note bound `standard`, core-backlinks suppression on, segment icons `all`, separator
       `none`, footer guides off — and each coerced the way the existing keys are, so an unknown
       stored enum falls back rather than reaching a dropdown with no matching option
-- [ ] 2.2 The two caps as dropdowns of named values, not free numeric or length input (D8):
+- [x] 2.2 The two caps as dropdowns of named values, not free numeric or length input (D8):
       25 / 50 / 100 / no limit, and compact / standard / tall / unlimited mapping to
       `--to-backlinks-group-max`. Verify every option maps to a value the stylesheet accepts
 - [ ] 2.3 Register all six in both declaration sites and their setters. Verify by toggling each in

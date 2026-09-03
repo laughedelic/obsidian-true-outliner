@@ -43,8 +43,8 @@ without it, so that a caret position, a selection, or a structural operation beh
 either way.
 
 Filtering, searching, sorting, changing a cap, requesting further results, and toggling the
-suppression of Obsidian's own in-document backlinks SHALL all preserve these guarantees: they change what the
-footer renders and nothing else.
+suppression of Obsidian's own in-document backlinks SHALL all preserve these guarantees: they
+change what the footer renders and nothing else.
 
 #### Scenario: Rendering mutates nothing
 
