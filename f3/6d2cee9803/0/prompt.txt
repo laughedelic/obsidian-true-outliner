@@ -1,0 +1,5 @@
+<task-notification>
+<task-type>artifact-watch-lifecycle</task-type>
+<summary>Stopped watching Artifact: "Structured Backlinks" (connection lost)</summary>
+<event>Watch on https://claude.ai/code/artifact/5263fe48-af48-43eb-a2b1-8f4666dacdbc ended — the live connection kept failing and reconnecting has stopped. This session will no longer hear when it is republished; watch it again if you still need that.</event>
+</task-notification>
