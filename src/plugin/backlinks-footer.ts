@@ -49,7 +49,13 @@ import {
   lineChrome,
 } from './chrome-line';
 import { CHROME_VARS, MARKER_GAP_CSS, MARKER_GUTTER_CSS } from './chrome-tokens';
-import { buildRows, splitPath, type FooterRow, type LineageSegment } from './footer-model';
+import {
+  buildRows,
+  rowFact,
+  splitPath,
+  type FooterRow,
+  type LineageSegment,
+} from './footer-model';
 import {
   applyControls,
   axesOf,
@@ -275,11 +281,60 @@ class FooterController {
       bodies.push({ path: group.path, body, card });
     }
 
+    this.renderTail(root, result.shortfall);
+
     this.swap(root);
     // Started only after the swap, so a fast read cannot fill a body that is
     // still detached and about to be replaced. Per source, so a slow read holds
     // up only its own group (D-G).
     for (const { path, body, card } of bodies) void this.fillGroup(generation, path, body, card);
+  }
+
+  /**
+   * What the overall cap held back, said twice: as a rung where the missing
+   * notes would have been, and as a sentence.
+   *
+   * A count alone is too quiet for a section a reader scrolls past
+   * (docs/research/18, D10) — so the last card fades as well, and a list that
+   * is complete gets none of the three.
+   */
+  private renderTail(root: HTMLElement, shortfall: { references: number; notes: number }): void {
+    if (shortfall.notes <= 0) return;
+
+    const cards = root.querySelectorAll('.to-backlinks-group');
+    cards.item(cards.length - 1)?.addClass('is-fading');
+
+    const tail = root.createDiv({ cls: 'to-backlinks-tail' });
+    // Depth 0, because a source note is a top-level thing in this footer and
+    // that is the rung the missing ones would have stood on.
+    const more = tail.createEl('button', { cls: 'to-backlinks-rung to-backlinks-load-more' });
+    more.type = 'button';
+    applyLineChrome(more, lineChrome(rowFact('paragraph', 0), { nativeBlocks: false }));
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+    more.appendChild(markerSlot(ellipsisGlyph()));
+    // The action, not the count. D10 draws both a rung reading "93 more notes"
+    // and a "Load next Z" beside the sentence, but the sentence to its right
+    // already states the notes — two elements a hand-span apart saying "112"
+    // read as two different numbers until they are compared.
+    const tranche = OVERALL_CAP_REFERENCES[this.source.backlinksOverallCap];
+    const next = Number.isFinite(tranche) ? `Load ${tranche} more` : 'Load more';
+    more.createSpan({ cls: 'to-backlinks-more-count', text: next });
+    more.setAttribute('aria-label', next);
+    more.addEventListener('click', (event) => {
+      event.stopPropagation();
+      // Additive: the model is a pure function of the controls and its order is
+      // stable, so a larger cap yields a superset in the same order and nothing
+      // already on screen moves (design D5).
+      viewStateFor(this.targetPath).capBonus += Number.isFinite(tranche) ? tranche : 0;
+      void this.render();
+    });
+
+    const refs = `${shortfall.references} ${shortfall.references === 1 ? 'reference' : 'references'}`;
+    const notes = `${shortfall.notes} ${shortfall.notes === 1 ? 'note' : 'notes'}`;
+    tail.createSpan({
+      cls: 'to-backlinks-shortfall',
+      text: `${refs} across ${notes} not shown`,
+    });
   }
 
   private swap(root: HTMLElement): void {
@@ -343,6 +398,7 @@ class FooterController {
     // everything, and there is nothing left to reveal.
     const state2 = viewStateFor(this.targetPath);
     const expanded = state2.expandedGroups.has(sourcePath);
+    let omitted: Omission | null = null;
     if (!expanded) {
       const line = parseFloat(getComputedStyle(body).lineHeight) || 16;
       const hidden = body.scrollHeight - body.clientHeight;
@@ -353,6 +409,10 @@ class FooterController {
       }
       state2.truncatable.add(sourcePath);
       body.addClass('is-truncated');
+      // The same pass, one step further. The cap is a HEIGHT, so how much it
+      // hid is only knowable once the content has settled — which is the
+      // measurement that just ran (design D3).
+      omitted = omissionBelow(body, rows);
     } else if (!state2.truncatable.has(sourcePath)) {
       return;
     }
@@ -363,12 +423,30 @@ class FooterController {
     // not make it operable — a div is not in the tab order and does not answer
     // Enter or Space. `aria-expanded` is the part a label cannot carry at all,
     // since the control's meaning is which way it will move.
+    //
+    // Rendered AFTER the body rather than inside it: the body is what clips, so
+    // a cue placed among the rows it hid would be hidden with them.
     const toggle = card.createEl('button', { cls: 'to-backlinks-more' });
     toggle.type = 'button';
-    // eslint-disable-next-line no-restricted-syntax -- detached DOM: the card is still off-tree
-    toggle.appendChild(capChevron(expanded));
-    toggle.setAttribute('aria-label', expanded ? 'Show less' : 'Show more');
     toggle.setAttribute('aria-expanded', String(expanded));
+
+    if (omitted) {
+      // A rung in the tree's own vocabulary, at the depth the hidden rows would
+      // have occupied, saying how many there are (docs/research/18, D10).
+      toggle.addClass('to-backlinks-rung');
+      applyLineChrome(toggle, lineChrome(rowFact('paragraph', omitted.depth), {
+        nativeBlocks: false,
+      }));
+      // eslint-disable-next-line no-restricted-syntax -- detached DOM: the card is still off-tree
+      toggle.appendChild(markerSlot(ellipsisGlyph()));
+      toggle.createSpan({ cls: 'to-backlinks-more-count', text: `${omitted.count} more` });
+      toggle.setAttribute('aria-label', `Show ${omitted.count} more`);
+    } else {
+      // eslint-disable-next-line no-restricted-syntax -- detached DOM: the card is still off-tree
+      toggle.appendChild(capChevron(expanded));
+      toggle.setAttribute('aria-label', expanded ? 'Show less' : 'Show more');
+    }
+
     toggle.addEventListener('click', (event) => {
       event.stopPropagation();
       const s = viewStateFor(this.targetPath);
@@ -1170,6 +1248,57 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
       block: true,
     }).range(state.doc.length),
   ]);
+}
+
+/** What a group's height cap is holding back, once it is measurable. */
+interface Omission {
+  /** References hidden, which is what a reader is counting. */
+  readonly count: number;
+  /** The depth of the first hidden row, so the rung sits where they would. */
+  readonly depth: number;
+}
+
+/**
+ * What the cap clipped, read off the settled layout.
+ *
+ * The rows were appended in `rows` order and each produced exactly one element,
+ * so the two are index-aligned and a clipped element names its own row's depth.
+ * Measured against the body's own top rather than `offsetTop`, which is
+ * relative to whichever ancestor happens to be positioned.
+ *
+ * References are counted rather than rows: a lineage row is context for the
+ * reference under it, and "3 more" means three more mentions. A clip that
+ * caught only context still reports the rows it caught, so the rung never
+ * reads "0 more".
+ */
+function omissionBelow(body: HTMLElement, rows: readonly FooterRow[]): Omission | null {
+  const kids = Array.from(body.children) as HTMLElement[];
+  if (kids.length !== rows.length) return null;
+  const limit = body.getBoundingClientRect().top + body.clientHeight;
+
+  let first = -1;
+  let references = 0;
+  let clipped = 0;
+  kids.forEach((el, i) => {
+    if (el.getBoundingClientRect().bottom <= limit) return;
+    if (first === -1) first = i;
+    clipped++;
+    const row = rows[i];
+    if (row?.type === 'node' && row.isReference) references++;
+  });
+
+  if (first === -1) return null;
+  return { count: references > 0 ? references : clipped, depth: rows[first]?.depth ?? 0 };
+}
+
+/** The rung's own mark: an omission, in the place a marker would be. */
+function ellipsisGlyph(): SVGSVGElement {
+  return glyph(24, ['M6 12h.01', 'M12 12h.01', 'M18 12h.01'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '3',
+    'stroke-linecap': 'round',
+  });
 }
 
 const SORT_LABELS: Record<SortOrder, string> = {

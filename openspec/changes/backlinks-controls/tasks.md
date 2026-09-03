@@ -84,21 +84,21 @@ count. The rung comes out of the measurement pass that already runs.
 - [ ] 4.1 The overall cap is applied by the model (1.4), so only admitted groups reach
       `place()`. Verify by counting `place()` calls for a note with far more sources than the cap
       — a note beyond the cap must not be read at all, which is the spec's own scenario
-- [ ] 4.2 Drive `--to-backlinks-group-max` from the per-note setting. This is a value change, not
+- [x] 4.2 Drive `--to-backlinks-group-max` from the per-note setting. This is a value change, not
       a mechanism change: the measurement in `fillGroup()` stays exactly as it is, including the
       sub-line-height case that removes the cap rather than clipping a row through its glyphs
-- [ ] 4.3 The ellipsis rung (D3): in the same pass that compares `scrollHeight` to `clientHeight`,
+- [x] 4.3 The ellipsis rung (D3): in the same pass that compares `scrollHeight` to `clientHeight`,
       count the rows past `clientHeight` and take the depth of the first of them. Render the rung
       after the capped body — inside it, the clip would hide it — at that depth, reading the
       count, and folding the group open when activated. It replaces the bare chevron rather than
       joining it
-- [ ] 4.4 The footer-level cue: a rung after the last group naming the notes not shown, and the
+- [x] 4.4 The footer-level cue: a rung after the last group naming the notes not shown, and the
       fade dissolving the last card so an incomplete list does not look finished. A complete list
       gets neither — verify the spec's "A complete list is not marked" scenario
-- [ ] 4.5 "Load more" adds a tranche to the per-note cap override and repaints (D5). Verify
+- [x] 4.5 "Load more" adds a tranche to the per-note cap override and repaints (D5). Verify
       nothing already rendered is removed or reordered, which follows from the model's stability
       rather than from preserving DOM
-- [ ] 4.6 The header's totals stay the true filtered totals under every cap. Verify against a
+- [x] 4.6 The header's totals stay the true filtered totals under every cap. Verify against a
       fixture whose reference count is several times the cap
 
 ## 5. Coexistence with Obsidian's own backlinks

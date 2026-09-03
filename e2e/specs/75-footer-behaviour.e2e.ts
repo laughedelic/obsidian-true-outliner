@@ -538,7 +538,10 @@ describe('backlinks footer: behaviour', function () {
     expect(before).not.toBeNull();
     expect(before!.hidden).toBeGreaterThan(0);
     expect(before!.expanded).toBe('false');
-    expect(before!.label).toBe('Show more');
+    // The control is the omission rung: it says HOW MANY it is hiding, counted
+    // off the same measurement that decided the cap was hiding anything at all
+    // (backlinks-controls design D3). A bare "Show more" is the regression.
+    expect(before!.label).toMatch(/^Show \d+ more$/);
 
     // Resolved at click time rather than stamped earlier: measuring the cap
     // rebuilds the footer, so an attribute set before the measurement is gone by

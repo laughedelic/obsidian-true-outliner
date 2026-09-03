@@ -2011,3 +2011,61 @@ body {
   padding: 0.1em 0.5em;
   text-decoration: underline;
 }
+
+/* ---- Incompleteness, said spatially as well as numerically --------------- *
+ *
+ * A count sentence alone is too quiet for a section a reader scrolls past, so
+ * an omission is marked three ways: a rung where the missing rows would have
+ * stood, the sentence, and a fade on the last card so the list is visibly
+ * running off rather than ending (docs/research/18, D10).
+ */
+
+/* The rung IS the cap's control — it says how much is hidden and reveals it,
+ * rather than a bare chevron beside a number somewhere else. */
+.to-backlinks .to-backlinks-rung {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  color: var(--text-faint);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  text-align: start;
+  cursor: pointer;
+  height: auto;
+}
+
+.to-backlinks .to-backlinks-rung:hover {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.to-backlinks-more-count {
+  font-size: var(--font-ui-smaller);
+}
+
+.to-backlinks-tail {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-left: calc(var(--to-marker-icon-size, 0.85rem) / 2);
+}
+
+/* The action to the left of the sentence, which is where D10 puts it. */
+.to-backlinks-tail > .to-backlinks-rung {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.to-backlinks-shortfall {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* The last card dissolves when the list continues past it. Masked rather than
+ * overlaid, for the same reason the group fade is: a gradient would have to
+ * know the theme's background colour, and a mask fades the content itself. */
+.to-backlinks-group.is-fading {
+  mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+}
