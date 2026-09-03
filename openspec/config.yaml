@@ -16,13 +16,41 @@ context: |
   fold persistence, zoom/breadcrumbs, structured backlinks, refs/mirrors are later layers.
   Background research: docs/research/ (landscape, plugin gap analysis, API feasibility,
   open questions/decision log).
+githubCopilot:
+  cloudAgent: true
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+# Injected into the matching artifact's generation prompt. Repo-wide conventions live
+# in AGENTS.md; these cover only what OpenSpec itself writes.
+rules:
+  proposal:
+    - Include a Non-goals section naming what this change deliberately leaves
+      alone.
+    - Cite the measurement or research note a claim rests on; never assert a
+      figure inline.
+  design:
+    - Point at the relevant docs/research/ note instead of restating its
+      findings.
+  specs:
+    - Capabilities are flat under specs/; preserve an existing capability's path
+      exactly.
+  tasks:
+    - A task that adds a test also states its negative control - the change that
+      must make it fail.
+    - The final task is `openspec validate <change> --strict`.
+
+# Advisory guidance returned by `openspec instructions apply|archive --json`.
+operations:
+  apply:
+    guidance:
+      - Run the unit suite and the e2e group covering the touched area; the full
+        sweep is CI's job.
+      - Confirm a new test fails with the fix disabled before trusting that it
+        passes with it.
+      - Assert relationships in e2e, never absolute glyph widths - CI's fonts
+        differ from macOS.
+      - Re-measure after widening a predicate; a relaxed condition admits inputs
+        nobody considered.
+  archive:
+    guidance:
+      - Archive on the change's own branch, before the PR merges.
+      - Bump the version in the same PR, and check the test vault for drift.

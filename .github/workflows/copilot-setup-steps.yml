@@ -1,0 +1,46 @@
+# Adapted from OpenSpec's generated file: the project's own dependencies are
+# installed too, so a cloud-agent session can run lint, typecheck and the unit
+# suite without repairing its environment first. Diverging from the generated
+# content is what keeps `openspec update` from overwriting this file.
+
+name: "Copilot Setup Steps"
+
+# Runs automatically when changed (for validation) and can be triggered manually.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` for Copilot coding agent to pick it up.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Node version tracks ci.yml. The e2e suites are out of scope here: they
+      # download an Obsidian build and need a display, which this job has neither
+      # the budget nor the setup for.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install OpenSpec CLI
+        run: npm install -g @fission-ai/openspec
+
+      - name: Verify OpenSpec CLI
+        run: openspec --version
