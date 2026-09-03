@@ -1,0 +1,5 @@
+I tried restarting the app, reloading the plugin, etc. same result, the cursor placement bug is reproducible every time. try to figure out why the testing harness is not detecting this behavior. and try to figure the reason for this behavior from the current implementation, even if you can't reproduce it. if you need any more debug information I can provide through manual testing, let's do it.
+
+----
+
+for the paste bug, see `Paste bug repro` in the test-vault. let me know if that is enough to understand the problematic behavior
