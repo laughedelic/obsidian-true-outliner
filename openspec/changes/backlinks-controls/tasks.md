@@ -44,9 +44,12 @@ and not the other.
 - [x] 2.2 The two caps as dropdowns of named values, not free numeric or length input (D8):
       25 / 50 / 100 / no limit, and compact / standard / tall / unlimited mapping to
       `--to-backlinks-group-max`. Verify every option maps to a value the stylesheet accepts
-- [ ] 2.3 Register all six in both declaration sites and their setters. Verify by toggling each in
-      a running Obsidian on 1.13+ and again through the fallback path, and by searching Obsidian's
-      settings search for each name
+- [x] 2.3 Register all six in both declaration sites and their setters, verified by
+      `e2e/specs/41-backlinks-settings.e2e.ts` in the `shell` group: both declaration paths offer
+      every key, each carries the name and description Obsidian's settings search reads, each
+      round-trips through the value hooks into plugin data and survives a reload, and an unknown
+      stored enum falls back to its default. Negative control: remove one setting from `display()`
+      only and confirm the fallback case fails while the 1.13+ case still passes
 
 ## 3. The header control row
 
