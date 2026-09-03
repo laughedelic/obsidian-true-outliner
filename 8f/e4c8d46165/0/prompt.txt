@@ -1,0 +1,3 @@
+I appreciate the effort, but nothing has changed. let's not get stuck with this. give me a quick text-based example of how you intend to show branching breadcrumbs. I think we already align on the vision, but want to confirm the structural alignment (more than visual at this point).
+
+then let's see what is next. which decisions do we need to hash out and which details do we dive in?
