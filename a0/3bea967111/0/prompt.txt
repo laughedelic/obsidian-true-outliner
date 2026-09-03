@@ -1,0 +1,38 @@
+<ci-monitor-event>laughedelic/obsidian-true-outliner PR #36 has 8 new review comments:
+- copilot-pull-request-reviewer[bot] (commented): ## Pull request overview
+
+Replaces sibling-run selection escalation with downward-closed forest spans across outline depths.
+
+**Changes:**
+- Adds shared forest-cover geometry and per-root selection chrome.
+- Supports grouped structural deletion and mixed-depth paste normalization.
+- Expands unit, property, E2E, specification, and research coverage.
+
+### Reviewed changes
+
+Copilot reviewed 16 out of 16 changed files in this pull request and generated 7 comments.
+
+<details>
+<summary>Show a summary per file</summary>
+
+| File | Description |
+| ---- | ----------- |
+| `src/escalate.ts` | Implements forest-cover geometry. |
+| `src/enforce.ts` | Groups forest roots for deletion. |
+| `src/plugin/decorations.ts` | Renders chrome per forest root. |
+| `tests/escalate.test.ts` | Tests geometry and closure invariants. |
+| `tests/enforce.test.ts` | Tests mixed-depth deletion. |
+| `tests/edit-ops.test.ts` | Tests payload normalization. |
+| `tests/classify.test.ts` | Measures classification-gate behavior. |
+| `tests/select-all-ladder.test.ts` | Verifies ladder fixpoints. |
+| `e2e/specs/61-selection-enforcement.e2e.ts` | Adds forest-selection scenarios. |
+| `openspec/changes/selection-as-s… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/36/reviews/4835542988`]
+- Copilot on tests/enforce.test.ts:739 [comment_id=3696434152]: This does not exercise `computeMultiRangeDeletionVerdict`: passing one edit delegates directly to `computeVerdict` at `src/enforce.ts:611`. Add a second mixed-depth forest edit so this test reaches the multi-range branch and exposes whether each forest is decomposed into parent-local groups.
+- Copilot on src/enforce.ts:138 [comment_id=3696434165]: The multi-range deletion path is still incompatible with mixed-depth forests. `computeMultiRangeDeletionVerdict` appends `roots.map(...)` as one `deleteSubtreeGroups` group, but a forest such as `[c2, S]` contains roots with different parents, so `resolveContiguousGroup` rejects it and the whole multi-range edit is vetoed. Reuse this parent-grouping logic for every range and append all resulting groups instead of one flat group per range.
+- Copilot on e2e/specs/61-selection-enforcement.e2e.ts:340 [comment_id=3696434171]: This test is vacuous: it writes a hard-coded clipboard payload without first copying the mixed-depth selection, and every assertion already passes against the original document (`c2`, `S`, and the indented `t1` all exist before the paste). Place the caret at `DEST`, perform the actual selection/copy/paste flow, and assert the complete resulting buffer so regressions in copying or root normalization fail the test.
+- Copilot on src/plugin/decorations.ts:717 [comment_id=3696434182]: `nodeStartLine` performs a full document traversal for every root, and line 736 then calls `subtreeCoverOf`, which performs another full traversal. A selection containing n top-level roots (for example, a whole-document ladder rung) therefore makes every decoration recomputation Θ(n²), despite the forest geometry being optimized for this limiting case. Build one start-line index for the selection or return per-root covers from the geometry so the loop remains linear.
+- Copilot on src/enforce.ts:154 [comment_id=3696434185]: This repeats a full-tree `findPath` search for every covered root. Deleting a forest of n top-level nodes consequently spends Θ(n²) time just deriving parent keys before the structural operation starts. Build an id-to-parent/path index in one traversal (or have `forestCoverOf` expose the root paths) and group from that index.
+- Copilot on openspec/changes/selection-as-subtree-set/proposal.md:114 [comment_id=3696434186]: This impact entry says root-level normalization is being added, but this PR deliberately makes no `src/ops.ts` change because `reencodeBlocksForDestination` already normalizes each root independently. Update the proposal to match the measured implementation.
+- Copilot on openspec/changes/selection-as-subtree-set/proposal.md:63 [comment_id=3696434193]: This newly added proposal text contradicts the implementation findings and `design.md` D4: the classification gate does not widen because it is only consulted for spans whose touched lines resolve to one node. Keeping the proposal's impact statement as a widening misstates the delivered behavior.
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
