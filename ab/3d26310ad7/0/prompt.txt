@@ -1,0 +1,21 @@
+there is an improvement. but the re-indentation math must be still partially broken. pasting a subtree at lower depth, same as original, or +1 works. but at the +2 depth or more, it resets back to the original. check  that please,
+
+---
+
+redo-cursor: still broken and reliably reproducible in real UI. example:
+
+
+```
+paragraph A
+
+paragraph B
+```
+
+
+1. cursor at the start of paragraph B. 
+2. press backspace. paragraphs merged, cursor between the merged paragraphs (atfer `A`)
+3. undo (cmd-Z), initial state. cursor at the start of paragraph B, same as at the start.
+4. redo (cmd-shift-Z), same merge. but the cursor is on the next (gap) line. this is the problem!
+
+
+nothing else happening between the steps. macOS, desktop Obsidian, using keyboard.
