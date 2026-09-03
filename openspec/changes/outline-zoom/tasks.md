@@ -36,29 +36,29 @@ before it.
 
 ## 2. Pure zoom module
 
-- [ ] 2.1 `src/project.ts`: the subtree-as-document operation beside `project` (D9) — a node and
+- [x] 2.1 `src/project.ts`: the subtree-as-document operation beside `project` (D9) — a node and
       its descendants, re-rooted at depth 0, no ancestors and no preamble. NOT in `src/zoom.ts`:
       the two detached-tree constructions carry one consumer contract and state it in one place
-- [ ] 2.2 `src/zoom.ts`: resolve a zoom root from an anchor LINE and a parsed doc (`nodeAtLine`,
+- [x] 2.2 `src/zoom.ts`: resolve a zoom root from an anchor LINE and a parsed doc (`nodeAtLine`,
       so gap ownership is inherited rather than re-implemented), the visible cover
       (`subtreeCoverOf` verbatim — D3: the cover INCLUDING the root's trailing gap, so scope and
       cover are the same kind of object), the two hidden line ranges, the ancestor trail, and the
       line offset that maps sub-document lines back to document lines. No new tree geometry
-- [ ] 2.3 The scope predicates the clamps consume: is a `LinePos` inside the cover, is a
+- [x] 2.3 The scope predicates the clamps consume: is a `LinePos` inside the cover, is a
       `LineRange` inside it, and the intersection of a cover with the scope. Keep them here, not
       at the four call sites — the same predicate copied four times is how `LinePos` ended up
       declared in three modules (see `line-pos.ts`'s own module comment)
-- [ ] 2.4 Lift `footer-model.ts`'s private `stripBlockPrefix` to a shared home and use it for the
+- [x] 2.4 Lift `footer-model.ts`'s private `stripBlockPrefix` to a shared home and use it for the
       crumb labels (D13). Do NOT write a third marker-stripping function; do NOT change what the
       footer gets out of it — this is a move plus an export, pinned by the footer's existing tests
       passing unchanged. Empty label falls back to the kind name
-- [ ] 2.5 `tests/project.test.ts`: subtree-as-document cases — the subject at depth 0 whatever its
+- [x] 2.5 `tests/project.test.ts`: subtree-as-document cases — the subject at depth 0 whatever its
       source depth, nothing outside the subtree surviving, content carried through unmodified, a
       leaf yielding a single-node document, and the constant line offset
-- [ ] 2.6 `tests/zoom.test.ts`: unit cases per node kind for root resolution, cover, hidden
+- [x] 2.6 `tests/zoom.test.ts`: unit cases per node kind for root resolution, cover, hidden
       ranges, trail and labels, including a top-level root (one hidden range, not two), a root
       that is the document's last node, a root with frontmatter above it, and a childless root
-- [ ] 2.7 Property tests over generated trees (`tests/generators.ts`): the two hidden ranges plus
+- [x] 2.7 Property tests over generated trees (`tests/generators.ts`): the two hidden ranges plus
       the visible cover partition every line of the document exactly once; the visible cover is
       always an exact cover, so escalating it is the identity; the trail's length equals the
       root's depth; and clamping any cover to the scope yields a cover (design D7's claim — the

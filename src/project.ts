@@ -97,6 +97,32 @@ export function project(
   return { preamble: [], children };
 }
 
+/**
+ * A node's own subtree AS a document, re-rooted: the node becomes the only root,
+ * at depth 0, with no ancestors and no preamble.
+ *
+ * The sibling of `project`, not a special case of it, and the difference is the
+ * point. A projection deliberately KEEPS every ancestor of a match precisely so
+ * that a match's depth in the projection equals its depth in the source; this
+ * keeps none, precisely so the subject sits at depth 0 whatever its source depth
+ * was. Both are right for their own consumer — backlinks needs the context rows,
+ * zoom needs the re-basing — and neither can be expressed as the other with a
+ * cleverer predicate.
+ *
+ * What they share is the contract that makes either useful, and it is stated
+ * once for both: a detached tree every pure consumer of a parsed document
+ * accepts unchanged, `decorate()` included. Nothing is synthesised, merged,
+ * split or rewritten — the subject and its descendants are the source nodes.
+ *
+ * Because a node's subtree occupies a CONTIGUOUS run of source lines and the
+ * result has no preamble, line K of the result is line N + K of the source,
+ * where N is the subject's own start line. That constant offset is the whole of
+ * the coordinate translation its consumers need.
+ */
+export function subtreeDocument(node: OutlineNode): OutlineDoc {
+  return { preamble: [], children: [node] };
+}
+
 /** True when the projection kept nothing — a normal answer, not an error. */
 export function isEmptyProjection(doc: OutlineDoc): boolean {
   return doc.children.length === 0;
