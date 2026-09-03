@@ -1,0 +1,21 @@
+<ci-monitor-event>laughedelic/obsidian-true-outliner PR #36 has 1 new review comment:
+- copilot-pull-request-reviewer[bot] (commented): ## Pull request overview
+
+Copilot reviewed 17 out of 17 changed files in this pull request and generated no new comments.
+
+
+
+
+<details>
+<summary>Suppressed comments (4)</summary>
+
+**tests/enforce.test.ts:719**
+* This property does not verify the promised "no orphans" behavior. `finalize` already emits a parsed/encoded document, so `encode(parse(applied)) === applied` remains true if deletion is a no-op or removes a parent while leaving its indented descendants to be re-parsed as new roots. Compare the result with an independently constructed tree that removes exactly the escalated forest roots (and preserves every node outside their subtrees) so partial or incorrect deletion fails.
+```
+        const applied = applyVerdict(text, verdict);
+        return encode(parse(applied)) === applied;
+```
+**src/plugin/decorations.ts:710**
+* The new per-root chrome behavior has no automated coverage, although `e2e/specs/63-selection-visual-treatment.e2e.ts` comprehensively tests chrome coordinates for single-root covers. Add a mixed-depth heading/atom cover there and assert that each root and its descendants share that root's X coordinate while the two roots use different coordinates; otherwise t… [truncated — full text: `gh api repos/laughedelic/obsidian-true-outliner/pulls/36/reviews/4835626992`]
+
+Please address the feedback and push a fix. Then, for each inline comment you addressed (those with a comment_id), post a one-line reply on the thread via `gh api` saying what you changed (or why you didn't). End each reply with the line "_🤖 Addressed by [Claude Code](https://claude.com/claude-code)_" so reviewers can see it was automated. Then resolve the thread. Skip replies for comments you didn't act on.</ci-monitor-event>
