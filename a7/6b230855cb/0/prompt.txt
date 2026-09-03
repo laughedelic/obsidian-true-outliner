@@ -1,0 +1,7 @@
+<task-notification>
+<task-id>bq91sl4n7</task-id>
+<tool-use-id>toolu_01K7moQUswQ4Hnx6MQKF3Ap4</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/d8716b60-47ff-480a-bbfa-8a87b7e46875/tasks/bq91sl4n7.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 400 npx wdio run e2e/wdio.conf.mts &gt; /tmp/e2e-d15-run1.log 2&gt;&amp;1; echo "EXIT:$?"" completed (exit code 0)</summary>
+</task-notification>
