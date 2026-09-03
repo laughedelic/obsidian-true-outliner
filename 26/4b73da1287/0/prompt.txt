@@ -1,0 +1,19 @@
+okay. this is a big change. I need to verify it carefully.
+
+* first, I noticed a bug (might be pre-existing): a paragraph with 1-3 preceeding spaces gets very misaligned, outdented to the leftmost guide line. 
+   * the block marker is at the correct relative distance (increases with more spaces), even further to the left. 
+   * at 4 spaces it jumps back in place with the 4 spaces shown correctly in the indented block before the text.
+   * it can be reproduced by adding a space before any paragraph text line.
+* selecting a heading with its subtree, then pressing backspace/delete does nothing and shows a toast "Nothing to act on". also looks like a bug.
+   * but strangely selecting two or more sibling headings with their subtrees gets deleted as expected. 
+   * I think it goes for any node with children (e.g. paragraph + list, or even list item with a child).
+* gap lines are getting in a way of the expected behavior. this has already come up in the selection enforcement implementation, and I feel like it's going to keep coming up until we figure out a better way to deal with the gap lines.
+   * right now gap lines are just trailing whitespace owned by the preceeding parsed node/block. but in an outliner there is a difference between the trailing space that is part of a block (in text it would normally be actual indentation whitespace on a separate line, part of the block at the same indentation level), and the empty lines with only a newline character between the blocks (that normally isn't part of the tree).
+   * so when I see two sibling nodes and place cursor at the beginning of the second node, and press backspace, I expect that node to get merged with the first one and the text to be appended to the end of it. but because of the gap lines, it doesn't happen like that, nodes get merged, but the text gets appended in place of that gap line. or the gap line gets deleted (e.g. between a heading and a paragraph), but the nodes are not merged. etc.
+   * my intuition is that we need to skip over the gap lines and treat them as if they weren't part of the text. they are an implementation detail of the markdown representation which requires or allows to separate blocks with empty lines, but in an outline tree structure, they are not structurally functional and the ownership of those lines is not clear to the user.
+   * think about it and let's decide how to deal with this.
+* lists are not handled well: if I place cursor at the beginning of any list item and press backspace, I expect it to get merged with the previous list item or its parent paragraph. but instead, it deletes the space after the `-` dash-bullet. turning it into a strange paragraph. 
+   * this might be out of scope here, but list markers should not be directly editable in the outline mode. this is what obsidian-outliner tries to do with its "Stick the cursor to the content" functionality. 
+* if a list item has a child and I decide to split the parent node by pressing enter in the middle of the text, I expect that to create a new first child (new preceeding sibling to the existing child). but right now it creates a sibling of the parent and it feels very unnatural because it jumps over the child.
+   * if the node doesn't have a child, splitting it should create a sibling.
+* it seems like there are more quirks and strange behaviors, but I think that we've got enough to work with for now. think about these things as a whole, not just a list of cases to test and fix, but as indicators of the current system not behaving well. consider whether the spec itself needs an adjustment, whether the undelying system needs to change, or whether there is still a gap in our fundamental functionality that prevents us from getting the natural feel of working with an outline. it's probably a combination of all the factors.
