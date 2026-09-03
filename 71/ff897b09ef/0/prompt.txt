@@ -1,0 +1,3 @@
+qq: why should I care about selection in a hidden window at all? selection is an interactive feature, if the window is hidden, it can't be used, so it doesn't matter, right?
+
+otherwise it's fine. let's sync and archive
