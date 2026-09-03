@@ -1,0 +1,17 @@
+first, I don't think that empty anchor paste is fixed. sometime it works as expected, but sometimes it doesn't. I copy a list subtree with some children at a >1 depth, then try to paste it somewhere else.
+
+* sometimes it pastes with the first items' literal `\t\t-` prefix. this seems to happen when the copied subtree has a single parent/top-level node. when there are siblings, it works fine. 
+* when I paste at a different depth, the whole subtree should be inserted at that depth. but it looks like if the paste-depth is deeper than the original, it still pastes at the original depth. lower depth seems to work fine.
+   * this seems to work differently for the multi-sibling pasting (like the previous point), but at some depth it still breaks.
+
+
+---
+
+* Undo then redo of a rewritten edit:
+   * good call on checking redo. it has a cursor placing problem: merge two nodes via delete/backspace, undo (cursor on the merging poing), redo, cursor is misplaced to the line under the merged node instead of being at the merge point again.
+
+* Compound delete→undo→redo: 
+   * fine, except cursor is placed in a strange place (e.g. behind the list's chrome). it's not clear what the right place is, since the sequence starts with a selection, but it must be placed on some content, not the chrome or gap/whitespace.
+
+
+the rest of the things seem okay so far.
