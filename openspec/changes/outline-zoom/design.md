@@ -101,9 +101,18 @@ the replacement ends — the same correction obsidian-zoom expresses as `from - 
 Either range is omitted when empty (a top-level first node has nothing above it).
 
 *Why replace rather than a `display: none` line class:* a hidden-but-present line keeps its line
-box, keeps accepting the caret, and keeps participating in native Select All and CM6's own
-vertical motion. Block replacement takes the lines out of the layout and out of cursor motion,
-which is most of the confinement guarantee for free rather than as a pile of corrections.
+box and keeps accepting the caret. Block replacement takes the lines out of the layout entirely —
+measured, docs/research/23: content height fell from 770px to 589px for a four-line span, with no
+leftover box.
+
+*Struck by measurement (docs/research/23).* An earlier version of this decision added that
+block replacement therefore delivers "most of the confinement guarantee for free rather than as a
+pile of corrections". It does not. With only lines 4–5 visible, `ArrowDown` on the last visible
+line put the caret on line 7, `ArrowUp` on the first put it on line 2, and three `Mod-A` presses
+selected the whole document. Outline mode's own motion handlers and ladder are what moved the
+caret — they know nothing about a scope, and the spike cannot separate them from CM6 because both
+gate on outline mode — but the conclusion for this change is the same either way: **every site in
+D7 and section 8 is real work, and none of it is free.**
 
 *The gate.* This is a visual-layer bet of exactly the kind docs/research/06 was written about,
 and this one is placed under three existing decoration sources plus Obsidian's own Live Preview
@@ -329,13 +338,14 @@ that same position, so the naive construction hides the footer along with the co
 after. The footer stays visible while zoomed, rendered after the zoomed content and still
 answering for the note.
 
-*Which of the two moves is the fix — shortening the hidden range, or re-anchoring the widget — is
-a task 1 question, not a decision to guess at here.* Both are single-line changes with different
-failure modes: a hidden range that stops one position short may leave a rendered blank line
-(exactly the artefact D2's newline correction exists for), and a re-anchored widget changes a
-position `backlinks-footer` states in its own spec. Task 1 already has the editor open with block
-replacements composing against Obsidian's widgets; this is the same question about one more
-widget, and it is answered by measurement.
+*Settled by measurement (docs/research/23): the widget is re-anchored, because shortening the
+range is not a fix.* Both moves were tried. The footer does disappear under a trailing range that
+runs to `doc.length`, as predicted. Stopping that range at the final line's start does NOT bring
+it back — and cannot, for any document ending in a newline: such a document's empty final line
+STARTS at `doc.length`, so the two candidate endpoints are the same position, and no position
+strictly inside the trailing range leaves an anchor at `doc.length` outside it. A stand-in block
+widget anchored at the end of the visible range, just outside the trailing range, renders
+normally. So the fix is that the footer anchors at the visible end while a zoom is active.
 
 *Why not simply suppress the footer while zoomed:* it removes a shipped feature from the zoomed
 view to avoid a mechanical interaction, and the zoomed reader is exactly the reader most likely to

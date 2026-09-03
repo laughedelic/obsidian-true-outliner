@@ -5,31 +5,31 @@ that this is the shape of bet docs/research/06 was written about, and the postmo
 that the visual layer gave false confidence when it was verified after the design rather than
 before it.
 
-- [ ] 1.1 Throwaway extension in the dev vault: two `Decoration.replace({block: true})` ranges
+- [x] 1.1 Throwaway extension in the dev vault: two `Decoration.replace({block: true})` ranges
       over a hard-coded line span, registered alongside the existing decoration extensions (NOT
       instead of them — the question is composition, not whether the primitive works in
       isolation). Include the newline-consumption correction from D2; a stray empty line where a
       replacement ends is the first thing to look for
-- [ ] 1.2 Run it against `test-vault/` fixtures covering: a heading section, a nested list, a
+- [x] 1.2 Run it against `test-vault/` fixtures covering: a heading section, a nested list, a
       note with frontmatter, and — the case most likely to break — widget-rendered atoms (table,
       callout, `hr`, raw html) both INSIDE and OUTSIDE the hidden ranges. Record what each does
       with a screenshot, the way the decoration experiments did
-- [ ] 1.3 Check the visible lines' chrome is intact: the existing line decorations, block
+- [x] 1.3 Check the visible lines' chrome is intact: the existing line decorations, block
       markers, guide gradients, the shared column definition from `chrome-tokens.ts`, and
       `MarginCompensation` all still apply. A hidden line's own decorations being inert is
       expected (D11); a VISIBLE line losing its marker is a stop
-- [ ] 1.4 **The footer (D12).** `backlinks-footer` mounts a block widget at `state.doc.length`,
+- [x] 1.4 **The footer (D12).** `backlinks-footer` mounts a block widget at `state.doc.length`,
       inside the trailing hidden range. Establish that it does disappear, then settle which fix
       holds: shortening the hidden range, or re-anchoring the widget to the visible end. Both are
       one-line changes with different failure modes — a range stopping one position short may
       leave a rendered blank line, and a re-anchored widget changes a position `backlinks-footer`
       states in its own spec. Decide by measurement, and record which and why
-- [ ] 1.5 Check confinement comes for free where D2 claims it does: caret at either boundary,
+- [x] 1.5 Check confinement comes for free where D2 claims it does: caret at either boundary,
       arrow keys, Mod-A, and find-in-page. Write down which of these CM6 already prevents and
       which need explicit work — section 8's size depends on the answer. Also measure the scroll
       position question from design.md's Open Questions, and whether `showPanel` from
       `@codemirror/view` renders in the markdown view
-- [ ] 1.6 Verdict in `docs/research/23-zoom-hiding-mechanism.md` (16–22 are taken), in the
+- [x] 1.6 Verdict in `docs/research/23-zoom-hiding-mechanism.md` (16–22 are taken), in the
       experiment docs' format: what was tried, what held, what didn't, screenshots. If it did not
       hold, STOP — the change does not continue on the fallback (D2 says why the fallback is a
       different design), and this doc plus a revised proposal is the deliverable
@@ -95,8 +95,11 @@ before it.
       differently
 - [ ] 4.2 Both boundary cases: a root that is the document's first node (no range above) and one
       that is its last (no range below). 1.1's newline correction applies to whichever ranges exist
-- [ ] 4.3 Apply 1.4's verdict so the footer keeps rendering, and assert it in the e2e suite rather
-      than trusting the spike's memory of it
+- [ ] 4.3 Apply 1.4's verdict (docs/research/23): `backlinks-footer.ts` anchors its widget at the
+      END OF THE VISIBLE RANGE while a zoom is active, rather than at `state.doc.length`.
+      Shortening the trailing range was measured and is NOT an option — for a document ending in a
+      newline the final line's start IS `doc.length`. Assert the footer's presence in the e2e
+      suite rather than trusting the spike's memory of it
 - [ ] 4.4 Verify against 1.3's findings that visible-line chrome is unchanged — as an assertion in
       the e2e suite, not as a memory of the spike
 
@@ -148,8 +151,10 @@ before it.
 
 ## 8. Confinement
 
-Size this section against 1.5's findings: whichever of these CM6 already prevents needs an
-assertion, not an implementation.
+1.5 answered this section's sizing question, and the answer is the expensive one
+(docs/research/23): NOTHING is prevented for free. Arrow keys walk into hidden lines in both
+directions and three Mod-A presses select the whole document. Every task below is an
+implementation, not an assertion.
 
 - [ ] 8.1 Escalation clamp in `src/plugin/transaction-filter.ts`: intersect the escalated range
       with the scope (D7 — this is the ONE site that truncates, and it is safe because the scope
@@ -219,6 +224,12 @@ assertion, not an implementation.
 
 ## 11. End-to-end
 
+- [ ] 11.0 Two harness facts from the spike (docs/research/23), or these tests measure nothing:
+      park the caret OFF a line before reading it (with the caret on it Live Preview renders the
+      source beside the widget and `getLineElementInfo` refuses the ambiguity), and never measure
+      the span's BOUNDARY lines through that helper (a block decoration at the last visible line's
+      end is attributed to that line by `posAtDOM`). Count widgets, not `.cm-line`s, for a span of
+      widget-rendered atoms — a correct render reports zero cm-lines
 - [ ] 11.1 `e2e/specs/80-outline-zoom.e2e.ts` — 70–76 are the footer's — plus `8: 'zoom'` in
       `scripts/spec-groups.mjs`'s `LABELS`, or the decade gets a group named after its prefix.
       Driving a real Obsidian instance: zoom in on each node kind, hidden content absent from the

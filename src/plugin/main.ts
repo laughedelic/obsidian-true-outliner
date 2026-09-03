@@ -58,6 +58,7 @@ import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
+import { zoomSpikeExtension, type ZoomSpikeSpan } from './zoom-spike';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 
@@ -192,6 +193,20 @@ export default class TrueOutlinerPlugin extends Plugin {
    * version. */
   readonly buildStamp = BUILD_STAMP;
 
+  /** THROWAWAY — the span `zoom-spike.ts` keeps visible, or null for no
+   * hiding. Public for the same reason `stats` and `motionCounts` are: the
+   * spike's e2e spec is the only thing that sets it. Remove with the spike. */
+  zoomSpike: ZoomSpikeSpan | null = null;
+
+  /** THROWAWAY — set the spike span and force the decoration field to
+   * recompute. A no-op dispatch is enough: the field reads this plugin on
+   * every transaction. Remove with the spike. */
+  setZoomSpike(span: ZoomSpikeSpan | null): void {
+    this.zoomSpike = span;
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (view) view.editor.setCursor(view.editor.getCursor());
+  }
+
   override async onload(): Promise<void> {
     this.showDevBuildStamp();
     this.data = normalizePluginData(await this.loadData());
@@ -308,6 +323,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     // decoration here, and keeping it last means any interaction with the
     // established layers is attributable to it rather than to ordering.
     this.registerEditorExtension(backlinksFooterExtension(this));
+    // THROWAWAY — `outline-zoom` task 1's mechanism spike (design D2). Last of
+    // all, so anything it disturbs is attributable to it. Remove with
+    // `zoom-spike.ts` once doc 23 records the verdict.
+    this.registerEditorExtension(zoomSpikeExtension(this));
     // A footer's unfolded state belongs to the reading, not to the note: when
     // its tab closes, the state goes with it. `layout-change` is the event that
     // fires for a closed tab; the leaves still open name what to keep.
