@@ -502,9 +502,27 @@ export async function dispatchSelectOnlyRanges(
  * on CI, on a commit whose only changes were documentation.
  */
 export async function clickClear(selector: string): Promise<void> {
-  await (await $(selector)).scrollIntoView({ block: 'center' });
-  await browser.pause(150);
-  await (await $(selector)).click();
+  // Retried, because re-querying after the scroll narrows the window and does
+  // not close it. The footer rebuilds its whole subtree on every render, and a
+  // render can start between the second query and the click as easily as
+  // between the first and the scroll — a scroll is itself one of the things
+  // that starts one, since CodeMirror rebuilding its viewport recreates the
+  // widget the footer lives in. Observed on CI on both platforms, and more
+  // often once the footer had controls that re-render it.
+  //
+  // Four attempts rather than one, and only for staleness: any other failure is
+  // a real one and is thrown on the spot.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await (await $(selector)).scrollIntoView({ block: 'center' });
+      await browser.pause(150);
+      await (await $(selector)).click();
+      return;
+    } catch (error) {
+      if (attempt >= 3 || !String(error).includes('stale')) throw error;
+      await browser.pause(250);
+    }
+  }
 }
 
 /**
