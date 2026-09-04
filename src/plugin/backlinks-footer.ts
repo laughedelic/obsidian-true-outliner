@@ -49,7 +49,12 @@ import {
   lineChrome,
   plainGuideBackground,
 } from './chrome-line';
-import { CHROME_VARS, MARKER_GAP_CSS, MARKER_GUTTER_CSS } from './chrome-tokens';
+import {
+  CHROME_VARS,
+  MARKER_GAP_CSS,
+  MARKER_GUTTER_CSS,
+  MARKER_ICON_CSS,
+} from './chrome-tokens';
 import {
   buildRows,
   rowFact,
@@ -174,6 +179,17 @@ class FooterController {
   /** Bumped on every render pass; an async group fill from an earlier pass
    * checks it and gives up rather than writing into a rebuilt DOM. */
   private generation = 0;
+  /**
+   * The control that had focus when a repaint started, and where its caret was.
+   *
+   * The footer rebuilds its whole subtree on every render, so any control the
+   * reader is using is replaced mid-use. For a button that costs a keyboard
+   * user their place; for the search field it cost every character after the
+   * first, because the `input` handler renders and the element the next
+   * keystroke would have gone to no longer existed. Controls carry a stable
+   * `data-focus-key`, and focus follows the key rather than the element.
+   */
+  private focused: { key: string; caret: number | null } | null = null;
 
   constructor(
     private readonly source: FooterSource,
@@ -190,6 +206,15 @@ class FooterController {
     this.el.setCssProps({
       [CHROME_VARS.markerGutter]: MARKER_GUTTER_CSS,
       [CHROME_VARS.markerGap]: MARKER_GAP_CSS,
+      // The section's own icon is not a row mark. Footer rows deliberately draw
+      // their marks smaller than the editor does (`--to-marker-icon-size` on
+      // `.to-backlinks`, 0.8em, so a four-deep trail does not read as a row of
+      // buttons), but the head's icon sits on the depth-0 column beside the
+      // editor's own top-level markers and should be the size of one. Published
+      // from the token rather than written into the stylesheet, for the reason
+      // the gutter is: a literal here is a copy that goes stale when the
+      // derivation moves.
+      '--to-backlinks-head-icon': MARKER_ICON_CSS,
     });
     // Reading the footer is not editing the note.
     //
@@ -212,7 +237,15 @@ class FooterController {
     // too late to stop the browser giving focus to whatever was tapped — so on
     // touch the section head, which is deliberately tabbable for the keyboard,
     // took focus away from the editor and the reader's next undo went nowhere.
-    const keepFocus = (event: Event): void => event.preventDefault();
+    const keepFocus = (event: Event): void => {
+      // Every control EXCEPT a form field: focusing an input and opening a
+      // select are the browser's default action on pointerdown, so preventing
+      // it here left the search field impossible to type in and the sort
+      // dropdown impossible to open. A button needs no default to work, and
+      // still wants the editor to keep its caret.
+      if ((event.target as HTMLElement | null)?.closest('input, select, textarea')) return;
+      event.preventDefault();
+    };
     this.el.addEventListener('pointerdown', keepFocus);
     this.el.addEventListener('mousedown', keepFocus);
     this.component.load();
@@ -246,7 +279,7 @@ class FooterController {
     // is part of the path and the kind is on the reference, so `place()` is
     // never called for a group the cap did not admit (design D1, D2).
     const sources = this.sourceRefs();
-    const axes = axesOf(sources);
+    const axes = axesOf(sources, this.controls(state));
     const result = applyControls(sources, this.controls(state));
 
     this.el.toggleClass('is-suppressing-core', this.source.backlinksSuppressCore);
@@ -339,12 +372,39 @@ class FooterController {
   }
 
   private swap(root: HTMLElement): void {
+    this.rememberFocus();
     this.el.empty();
     // `root` is detached DOM built entirely by this controller, moved into the
     // widget's OWN subtree — never a plain `.cm-line`, which is what the guard
     // is about.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     while (root.firstChild) this.el.appendChild(root.firstChild);
+    this.restoreFocus();
+  }
+
+  /** Which control the reader was in, before its element is thrown away. */
+  private rememberFocus(): void {
+    const active = this.el.doc.activeElement as HTMLElement | null;
+    const key = active?.dataset?.focusKey;
+    if (!active || !key || !this.el.contains(active)) {
+      this.focused = null;
+      return;
+    }
+    const caret = active.instanceOf(HTMLInputElement) ? active.selectionStart : null;
+    this.focused = { key, caret };
+  }
+
+  /** Put it back, by key rather than by element. */
+  private restoreFocus(): void {
+    const wanted = this.focused;
+    this.focused = null;
+    if (!wanted) return;
+    const el = this.el.querySelector<HTMLElement>(`[data-focus-key="${wanted.key}"]`);
+    if (!el) return;
+    el.focus();
+    if (el.instanceOf(HTMLInputElement) && wanted.caret !== null) {
+      el.setSelectionRange(wanted.caret, wanted.caret);
+    }
   }
 
   private async fillGroup(
@@ -552,6 +612,7 @@ class FooterController {
     // narrowed footer that looks unfiltered is a footer lying about its counts.
     filters.toggleClass('is-active', this.isFiltering(state));
     filters.setAttribute('aria-expanded', String(state.filtersOpen));
+    filters.dataset.focusKey = 'filters';
     filters.setAttribute('aria-label', state.filtersOpen ? 'Hide filters' : 'Show filters');
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     filters.appendChild(filterGlyph());
@@ -562,8 +623,19 @@ class FooterController {
       void this.render();
     });
 
-    const sort = head.createEl('select', { cls: 'to-backlinks-sort' });
+    // A native `select` rather than a menu: four options should be directly
+    // selectable (D8), and the platform control is the one that already works
+    // with a keyboard and on a phone. The icon cannot go INSIDE it — a select
+    // renders its own contents — so it sits over the control's leading edge and
+    // the select carries padding for it.
+    const sortWrap = head.createDiv({ cls: 'to-backlinks-sort-wrap' });
+    const sortIcon = sortWrap.createSpan({ cls: 'to-backlinks-sort-icon' });
+    sortIcon.setAttribute('aria-hidden', 'true');
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+    sortIcon.appendChild(sortGlyph());
+    const sort = sortWrap.createEl('select', { cls: 'to-backlinks-sort' });
     sort.setAttribute('aria-label', 'Sort backlinks');
+    sort.dataset.focusKey = 'sort';
     for (const [value, label] of Object.entries(SORT_LABELS)) {
       sort.createEl('option', { value, text: label });
     }
@@ -585,32 +657,45 @@ class FooterController {
     if (state.collapsed) return;
     const row = root.createDiv({ cls: 'to-backlinks-filters' });
 
-    for (const { value, notes } of axes.folders) {
-      const label = value === '' ? '/' : value;
-      this.renderChip(row, 'to-backlinks-pill', label, notes, state.folders.has(value), () => {
-        toggleMember(viewStateFor(this.targetPath).folders, value);
-      });
+    // Each axis in its own group, named. Shape alone told them apart in
+    // principle and not in practice: side by side in one flow, pills and chips
+    // read as one heap of controls with a rounding difference. The group is
+    // what separates them; the shape then says which is which at a glance.
+    if (axes.folders.length > 0) {
+      const group = this.renderAxis(row, 'folder', 'Folder');
+      for (const { value, notes } of axes.folders) {
+        this.renderChip(group, 'to-backlinks-pill', value === '' ? '/' : value, notes, state.folders.has(value), () => {
+          toggleMember(viewStateFor(this.targetPath).folders, value);
+        });
+      }
     }
 
-    for (const { value, notes } of axes.kinds) {
-      const chip = this.renderChip(
-        row,
-        'to-backlinks-chip',
-        KIND_LABELS[value],
-        notes,
-        state.kinds.has(value),
-        () => {
-          toggleMember(viewStateFor(this.targetPath).kinds, value);
-        },
-      );
-      chip.dataset.kind = value;
+    if (axes.kinds.length > 0) {
+      const group = this.renderAxis(row, 'kind', 'Kind');
+      for (const { value, notes } of axes.kinds) {
+        const chip = this.renderChip(
+          group,
+          'to-backlinks-chip',
+          KIND_LABELS[value],
+          notes,
+          state.kinds.has(value),
+          () => {
+            toggleMember(viewStateFor(this.targetPath).kinds, value);
+          },
+        );
+        chip.dataset.kind = value;
+      }
     }
 
-    const search = row.createEl('input', { cls: 'to-backlinks-search' });
+    // Search and reset are not an axis: they end the row rather than joining
+    // the groups, and the reset sits last because it undoes all of them.
+    const end = row.createDiv({ cls: 'to-backlinks-filters-end' });
+    const search = end.createEl('input', { cls: 'to-backlinks-search' });
     search.type = 'search';
     search.placeholder = 'Note name…';
     search.value = state.search;
     search.setAttribute('aria-label', 'Filter by source note name');
+    search.dataset.focusKey = 'search';
     search.addEventListener('click', (event) => event.stopPropagation());
     // `input`, not `change`: a filter that waits for blur is a filter the
     // reader has to commit to before seeing what it does.
@@ -622,8 +707,15 @@ class FooterController {
     });
 
     if (!this.isFiltering(state)) return;
-    const reset = row.createEl('button', { cls: 'to-backlinks-reset', text: 'Reset' });
+    // An icon button, not a labelled rectangle: a third chip-shaped control
+    // beside two rows of chips reads as another filter value rather than as the
+    // thing that clears them.
+    const reset = end.createEl('button', { cls: 'to-backlinks-reset' });
     reset.type = 'button';
+    reset.setAttribute('aria-label', 'Clear filters and search');
+    reset.dataset.focusKey = 'reset';
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+    reset.appendChild(clearGlyph());
     reset.addEventListener('click', (event) => {
       event.stopPropagation();
       const current = viewStateFor(this.targetPath);
@@ -633,6 +725,16 @@ class FooterController {
       current.capBonus = 0;
       void this.render();
     });
+  }
+
+  /** One named axis group, so two kinds of control are two things. */
+  private renderAxis(row: HTMLElement, axis: string, label: string): HTMLElement {
+    const group = row.createDiv({ cls: 'to-backlinks-axis' });
+    group.dataset.axis = axis;
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', label);
+    group.createSpan({ cls: 'to-backlinks-axis-label', text: label });
+    return group;
   }
 
   /** One focus-on control. Selected state is `aria-pressed`, because that is
@@ -648,7 +750,15 @@ class FooterController {
     const chip = row.createEl('button', { cls });
     chip.type = 'button';
     chip.toggleClass('is-selected', selected);
+    // Nothing left under the other axes' selections. Still offered and still
+    // operable — the way out of an empty result is often to add this value and
+    // drop the one that emptied it — but it says so rather than showing a count
+    // that stopped being true.
+    chip.toggleClass('is-empty', notes === 0 && !selected);
     chip.setAttribute('aria-pressed', String(selected));
+    // Keyed by what it selects, not by position: a chip can move when the
+    // counts change, and focus should follow the value the reader was on.
+    chip.dataset.focusKey = `${cls}:${label}`;
     chip.createSpan({ cls: 'to-backlinks-chip-label', text: label });
     chip.createSpan({ cls: 'to-backlinks-chip-count', text: String(notes) });
     chip.addEventListener('click', (event) => {
@@ -1314,6 +1424,26 @@ function omissionBelow(body: HTMLElement, rows: readonly FooterRow[]): Omission 
 
   if (first === -1) return null;
   return { count: references > 0 ? references : clipped, depth: rows[first]?.depth ?? 0 };
+}
+
+/** The sort control's mark: lines shortening downward, the usual sort figure. */
+function sortGlyph(): SVGSVGElement {
+  return glyph(24, ['M4 7h13', 'M4 12h9', 'M4 17h5'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+  });
+}
+
+/** Reset's mark: a cross, which is what clearing looks like everywhere else. */
+function clearGlyph(): SVGSVGElement {
+  return glyph(24, ['M6 6l12 12', 'M18 6L6 18'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+  });
 }
 
 /** What stands between two ancestors when the separator setting asks for one. */

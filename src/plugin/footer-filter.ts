@@ -53,6 +53,11 @@ export const NO_FILTER: ControlsState = {
 /** One offerable filter value and how many notes contribute to it. */
 export interface AxisValue<T> {
   readonly value: T;
+  /**
+   * Notes this value would show GIVEN the other axes' selections — so picking a
+   * folder re-counts the kinds against that folder, and a kind absent from it
+   * reads 0 rather than the number it had before the folder was picked.
+   */
   readonly notes: number;
 }
 
@@ -78,31 +83,58 @@ export interface ControlsResult {
 }
 
 /**
- * The values each axis can offer, over the note's WHOLE reference set.
+ * What each axis can offer, and how much each value would show.
  *
- * Not over the filtered set: an axis narrowed to what the current selection
- * admits would drop every value the reader has not picked, and a second value
- * could never be added to a selection.
+ * The two halves are computed over different sets, on purpose.
+ *
+ * WHICH values appear comes from the note's whole reference set. An axis
+ * narrowed to what the current selection admits would drop every value the
+ * reader has not picked, and a second value could never be added to a
+ * selection — picking `Daily` would remove `Notes` and strand the reader in it.
+ *
+ * HOW MANY each would show comes from the set the OTHER axes admit, its own
+ * excluded. That is what makes the counts answer the question a reader is
+ * actually asking — "if I add this, what do I get" — so choosing a folder
+ * re-counts the kinds against that folder, and a kind that folder does not
+ * contain reads 0 instead of the number it had a moment ago. Excluding the
+ * axis's own selection is what keeps its other values live: counting a kind
+ * against the kind filter would show 0 for every kind not already picked.
  */
-export function axesOf(sources: readonly SourceRefs[]): FilterAxes {
-  const folders = new Map<string, number>();
-  const kinds = new Map<ReferenceKind, number>();
-
+export function axesOf(
+  sources: readonly SourceRefs[],
+  controls: ControlsState = NO_FILTER,
+): FilterAxes {
+  const present = { folders: new Set<string>(), kinds: new Set<ReferenceKind>() };
   for (const source of sources) {
-    const { folder } = splitPath(source.path);
-    folders.set(folder, (folders.get(folder) ?? 0) + 1);
-    for (const kind of new Set(source.refs.map((r) => r.kind))) {
-      kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+    present.folders.add(splitPath(source.path).folder);
+    for (const ref of source.refs) present.kinds.add(ref.kind);
+  }
+
+  // Each axis counted against everything EXCEPT itself.
+  const forFolders = filterSources(sources, controls, { folders: false });
+  const forKinds = filterSources(sources, controls, { kinds: false });
+
+  const folderNotes = new Map<string, number>();
+  for (const group of forFolders) {
+    const { folder } = splitPath(group.path);
+    folderNotes.set(folder, (folderNotes.get(folder) ?? 0) + 1);
+  }
+
+  const kindNotes = new Map<ReferenceKind, number>();
+  for (const group of forKinds) {
+    const source = sources.find((s) => s.path === group.path);
+    for (const kind of new Set(source?.refs.map((r) => r.kind) ?? [])) {
+      kindNotes.set(kind, (kindNotes.get(kind) ?? 0) + 1);
     }
   }
 
   return {
-    folders: [...folders.entries()]
-      .map(([value, notes]) => ({ value, notes }))
-      .sort((a, b) => a.value.localeCompare(b.value)),
-    kinds: KIND_ORDER.filter((k) => kinds.has(k)).map((value) => ({
+    folders: [...present.folders]
+      .sort((a, b) => a.localeCompare(b))
+      .map((value) => ({ value, notes: folderNotes.get(value) ?? 0 })),
+    kinds: KIND_ORDER.filter((k) => present.kinds.has(k)).map((value) => ({
       value,
-      notes: kinds.get(value) ?? 0,
+      notes: kindNotes.get(value) ?? 0,
     })),
   };
 }
@@ -116,7 +148,7 @@ export function applyControls(
   sources: readonly SourceRefs[],
   controls: ControlsState,
 ): ControlsResult {
-  const filtered = filterSources(sources, controls);
+  const filtered = filterSources(sources, controls, {});
   const ordered = sortGroups(filtered, controls.sort);
   const groups = admit(ordered, controls.cap);
 
@@ -146,16 +178,11 @@ export function applyControls(
 function filterSources(
   sources: readonly SourceRefs[],
   controls: ControlsState,
+  { folders: useFolders = true, kinds: useKinds = true }: AxisSwitches,
 ): AdmittedGroup[] {
-  const axes = axesOf(sources);
-  const folders = live(
-    controls.folders,
-    axes.folders.map((v) => v.value),
-  );
-  const kinds = live(
-    controls.kinds,
-    axes.kinds.map((v) => v.value),
-  );
+  const present = presentValues(sources);
+  const folders = useFolders ? live(controls.folders, present.folders) : new Set<string>();
+  const kinds = useKinds ? live(controls.kinds, present.kinds) : new Set<ReferenceKind>();
   const search = controls.search.trim().toLowerCase();
 
   const out: AdmittedGroup[] = [];
@@ -171,6 +198,27 @@ function filterSources(
     out.push({ path: source.path, count, mtime: source.mtime });
   }
   return out;
+}
+
+/** Which axes take part in a pass. An axis switched off admits everything,
+ * which is how each axis's own counts are computed without itself. */
+interface AxisSwitches {
+  readonly folders?: boolean;
+  readonly kinds?: boolean;
+}
+
+/** Every value each axis holds across the unfiltered set. */
+function presentValues(sources: readonly SourceRefs[]): {
+  folders: string[];
+  kinds: ReferenceKind[];
+} {
+  const folders = new Set<string>();
+  const kinds = new Set<ReferenceKind>();
+  for (const source of sources) {
+    folders.add(splitPath(source.path).folder);
+    for (const ref of source.refs) kinds.add(ref.kind);
+  }
+  return { folders: [...folders], kinds: [...kinds] };
 }
 
 /** A selection narrowed to the values still on offer. */

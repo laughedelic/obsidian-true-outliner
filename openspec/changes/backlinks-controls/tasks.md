@@ -152,12 +152,12 @@ D19). The model keeps one shape; the renderer is the single site that declines.
 New specs in the `backlinks` group (70–76 are the footer's; zoom takes 80). Assert relationships,
 never glyph-width pixels — CI's font is not macOS's.
 
-- [ ] 7.1 `e2e/specs/77-footer-controls.e2e.ts`: the header is one row until the filter affordance
-      is used; the second row carries both axis shapes, the search field and reset; a folder
-      selection narrows and its deselection restores; kind and folder combine conjunctively;
-      search matches names and not reference content; reset clears all three. Negative control:
-      make deselection clear the whole controls state and confirm the restore case still passes
-      while the conjunctive case fails
+- [x] 7.1 `e2e/specs/77-footer-controls.e2e.ts`: the header is one row until the filter
+      affordance is used; the second row carries both named axis groups, the search field and
+      reset; the axes are separated by more than the space inside either; the caret lands in the
+      search field and every character reaches it; the sort control opens and reorders; one axis
+      re-counts against the other's selection and marks what fell to zero; reset clears all three
+      and withdraws itself; the section icon matches the editor's own marker size
 - [ ] 7.2 `e2e/specs/78-footer-caps.e2e.ts`: a note beyond the overall cap is never placed; the
       header reports true totals under a cap; the rung appears at the right depth with the right
       count and folds the group open; the footer-level rung and fade appear only when something is

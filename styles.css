@@ -1367,11 +1367,21 @@ body {
   margin-inline-start: auto;
 }
 
+/*
+ * The section's own icon is NOT a row mark, and does not take the footer's
+ * smaller mark size. It sits on the depth-0 column beside the editor's own
+ * top-level markers, so it is the size of one — published from the token by the
+ * controller (`--to-backlinks-head-icon`) rather than written here, where a
+ * literal would be a copy of a derived value.
+ *
+ * Both the width and the left shift read the same property, so the centre stays
+ * anchored on the column whatever the size is.
+ */
 .to-backlinks-icon {
   position: absolute;
-  left: calc(-1 * var(--to-marker-icon-size, 0.85rem) / 2);
-  width: var(--to-marker-icon-size, 0.85rem);
-  height: var(--to-marker-icon-size, 0.85rem);
+  left: calc(-1 * var(--to-backlinks-head-icon, 0.85rem) / 2);
+  width: var(--to-backlinks-head-icon, 0.85rem);
+  height: var(--to-backlinks-head-icon, 0.85rem);
   flex-shrink: 0;
   /* A marker's colour, because on the depth-0 column that is what it now reads
    * as. It brightens only when the section is folded, where it stops being
@@ -1937,19 +1947,89 @@ body {
   background: var(--to-decor-accent, var(--text-accent));
 }
 
+/* The icon cannot live inside a `select` — it renders its own contents — so it
+ * sits over the control's leading edge and the select reserves room for it. */
+.to-backlinks-sort-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.to-backlinks-sort-icon {
+  position: absolute;
+  inset-inline-start: 0.35em;
+  display: inline-flex;
+  width: 0.85em;
+  height: 0.85em;
+  color: var(--text-muted);
+  /* The select owns the clicks; the icon is notation lying on top of it. */
+  pointer-events: none;
+}
+
+.to-backlinks-sort-icon > svg {
+  width: 100%;
+  height: 100%;
+}
+
 .to-backlinks-sort {
-  max-width: 10em;
-  padding: 0.1em 0.3em;
+  max-width: 11em;
+  padding-block: 0.1em;
+  padding-inline: 1.5em 0.3em;
   height: auto;
 }
 
+/*
+ * Two axes, two groups, and the groups are what separate them.
+ *
+ * Shape alone was the first attempt and it did not carry: side by side in one
+ * flow, round pills and square chips read as one heap of controls with a
+ * rounding difference rather than as two questions. So each axis is a named
+ * group with a rule between them, and the shape becomes the thing that says
+ * WHICH group a stray control belongs to rather than the only thing dividing
+ * them.
+ */
 .to-backlinks-filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  /* Between GROUPS. Controls inside a group sit closer, which is what makes a
+   * group read as one. */
+  gap: 0.9rem;
   padding-left: var(--to-marker-gutter);
   margin-bottom: 0.75rem;
+}
+
+.to-backlinks-axis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* A rule between the groups, drawn by the second one so there is never a
+ * leading edge on the first. */
+.to-backlinks-axis + .to-backlinks-axis::before {
+  content: '';
+  align-self: stretch;
+  width: 1px;
+  margin-inline-end: 0.6rem;
+  background: var(--background-modifier-border);
+}
+
+.to-backlinks-axis-label {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+/* Search and reset end the row rather than joining the groups. */
+.to-backlinks-filters-end {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-inline-start: auto;
 }
 
 /* Round for a WHERE, square for a WHAT. The two axes are told apart by shape
@@ -1998,6 +2078,25 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Nothing left under the OTHER axes' selections. The count is the thing that
+ * changed, so the count is what is marked — faint, where a live one is only
+ * dimmed — and the control recedes without leaving the row, because adding it
+ * and dropping whatever emptied it is a normal way out.
+ */
+.to-backlinks-pill.is-empty,
+.to-backlinks-chip.is-empty {
+  opacity: 0.45;
+  background: transparent;
+  border-color: var(--background-modifier-border);
+}
+
+.to-backlinks-pill.is-empty .to-backlinks-chip-count,
+.to-backlinks-chip.is-empty .to-backlinks-chip-count {
+  color: var(--text-faint);
+  opacity: 1;
+}
+
 .to-backlinks-search {
   flex: 1 1 8em;
   min-width: 6em;
@@ -2007,9 +2106,32 @@ body {
   height: auto;
 }
 
+/*
+ * A round icon button, deliberately unlike a chip. Labelled and rectangular, it
+ * was a third control of the same shape sitting beside two rows of them, and it
+ * read as another value to select rather than as the thing that clears them.
+ */
 .to-backlinks-reset {
-  padding: 0.1em 0.5em;
-  text-decoration: underline;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  padding: 0.25em;
+  border-radius: 50%;
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.to-backlinks-reset:hover {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+.to-backlinks-reset > svg {
+  width: 100%;
+  height: 100%;
 }
 
 /* ---- Incompleteness, said spatially as well as numerically --------------- *
