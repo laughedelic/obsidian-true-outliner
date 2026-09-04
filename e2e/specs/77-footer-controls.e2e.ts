@@ -41,12 +41,16 @@ async function openFooter(): Promise<void> {
 async function clickIn(selector: string): Promise<void> {
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
-      const el = await browser.$(selector);
-      await el.waitForClickable({ timeout: 4000 });
-      await el.click();
+      // `clickClear`, NOT `waitForClickable` + `click`. The latter reaches
+      // `scrollIntoView` through the WebDriver Actions API, which Obsidian's
+      // Electron does not implement — locally it degrades to a warning, and on
+      // CI it retried until the case timed out at sixty seconds. `clickClear`
+      // scrolls through the element API, which is the path that works here.
+      await h.clickClear(selector);
       return;
     } catch (error) {
-      if (!String(error).includes('stale')) throw error;
+      const message = String(error);
+      if (!message.includes('stale') && !message.includes('no such element')) throw error;
       await browser.pause(250);
     }
   }
