@@ -61,7 +61,7 @@ import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
 import { zoomDecorationsExtension } from './zoom-decorations';
-import { zoomPanelExtension } from './zoom-panel';
+import { zoomTrailExtension } from './zoom-trail';
 import { viewFor } from './view-registry';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
@@ -364,7 +364,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // sources, and keeping them adjacent and last makes any interaction with
     // the established layers attributable to them.
     this.registerEditorExtension(zoomDecorationsExtension(this));
-    this.registerEditorExtension(zoomPanelExtension(this));
+    this.registerEditorExtension(zoomTrailExtension(this));
     // A footer's unfolded state belongs to the reading, not to the note: when
     // its tab closes, the state goes with it. `layout-change` is the event that
     // fires for a closed tab; the leaves still open name what to keep.

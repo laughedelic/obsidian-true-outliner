@@ -339,10 +339,30 @@ measured from the leading whitespace. The deferred fix is therefore computable: 
 identical offset while zoomed. Deferred until the plain case has been used against a real vault
 (docs/research/12's parking-lot standard).
 
-### D10. Breadcrumbs are a CM6 panel
+### D10. The trail is a footer lineage row, in a block widget at the visible range's start
 
-`showPanel` from `@codemirror/view` — externalized in the build and provided by Obsidian, and
-used by obsidian-zoom in this exact context. The panel exists only while zoomed.
+A block widget mounted at the START of the visible range, mirroring the footer's widget at the
+document's end, and rendering ONE lineage row through the same primitive the footer uses.
+
+*Not a CM6 panel, and this was measured rather than reasoned.* `showPanel` mounts into
+`.cm-panels-top`, which the live DOM shows is a sibling of `.cm-scroller` — structurally above the
+note's inline title and properties, and fixed there. A panel can therefore only ever read as a
+toolbar bolted to the top of the editor, which is exactly how the first version read in review. It
+also cannot be placed where the layout wants it, under the title where the properties block sits,
+because that is inside the scroller and a panel never is.
+
+*And not a look of its own.* The first version styled pill buttons — a new visual primitive for a
+squashed ancestor chain, which this plugin had already designed once for the backlinks footer.
+The row is now `.to-backlinks-row.is-lineage` built by a shared `lineage-row.ts`: same marker
+gutter, same per-segment icons and ordinals, same separator, same hover, and the same two
+appearance settings governing both surfaces. What each surface keeps is what activating a segment
+MEANS — the footer opens the source note at that ancestor, zoom re-roots the view on it — because
+pretending those are one action would be a worse abstraction than two call sites.
+
+*Side, and why the sign is not a preference.* The head hidden range ends AT the cover's start, so
+a `side: -1` widget anchored there sorts inside the replaced range and is swallowed — the same
+boundary D12 found at `doc.length`, mirrored. At the end of the document the widget had to move
+inward; at the start it has to sort outward.
 
 Contents, in order: the file's basename, then each ancestor of the zoom root from the outermost
 in. The zoom root itself is not a crumb — it is the first visible line (proposal.md — What
@@ -406,6 +426,31 @@ paid for once and fixed deliberately — `line-pos.ts` exists because `LinePos` 
 three modules, and `29bf257` collapsed the line-position helpers to one definition each for the
 same reason. The earlier draft of D10 specified a fresh `nodeTitle` built on `contentColumnCh`,
 which would have been the third such function and the one that handles the fewest shapes.
+
+### D14. The title and properties are hidden by a class on the editor, not by the replacements
+
+A zoomed view is the lineage, the subtree, and the footer. Obsidian's inline title and its
+properties block are neither.
+
+They cannot be hidden the way everything else outside the scope is. The live DOM puts
+`.inline-title` and `.metadata-container` in `.cm-sizer`, as SIBLINGS of `.cm-contentContainer` —
+they are not document lines, so no block replacement over a line range can reach them. The
+frontmatter's SOURCE lines are hidden like any other out-of-scope line; what remains is the UI
+Obsidian renders from them.
+
+So the editor carries a class while zoomed and the stylesheet hides both. The class goes through
+CM6's own `editorAttributes` facet rather than `view.dom.classList`, for the reason
+`decorationsExtension` already records for the block-selection class: `EditorView.updateAttrs`
+recomputes the editor's whole class string and writes the attribute wholesale, so an imperative
+class is clobbered by the next focus change and flickers once per gesture.
+
+*`!important`, and it was measured rather than reached for.* With a plain declaration the inline
+title hid and `.metadata-container` did not — Obsidian's own rule wins, and the container stayed
+at `display: block`, 117px tall. Both declarations take it now, so neither reads as the special
+case.
+
+*What this costs:* the note is no longer named above the content, which is why the trail carries
+the file as its first segment (D10). The two decisions are one decision seen from both ends.
 
 ## Risks / Trade-offs
 

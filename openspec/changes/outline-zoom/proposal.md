@@ -31,8 +31,13 @@ still selectable, still deletable, still reachable by Mod-A.
 - **Everything outside the zoom root's subtree stops rendering**, via block-level replace
   decorations over the two line ranges that bracket it. The file on disk is untouched; zoom is
   view state and never a document mutation.
-- **A breadcrumb panel above the editor shows the ancestor path**, ending at the file itself.
-  Clicking a crumb zooms to it; clicking the file zooms out fully.
+- **A breadcrumb trail directly above the zoomed content shows the ancestor path**, starting at
+  the file. Activating a segment zooms to it; activating the file clears the zoom. It is rendered
+  as the SAME lineage row the backlinks footer already defines — one visual language for a
+  squashed ancestor chain, rather than a second presentation of the same idea.
+- **A zoomed view is the trail, the subtree and the footer.** The note's title and properties block
+  are hidden too. They are not document lines, so the hidden line ranges cannot reach them; the
+  editor carries a class while zoomed and the stylesheet does it (design D14).
 - **The zoom root renders at depth 0.** Indentation and guides are measured from the zoom root
   while zoomed, so a deep node does not stay pushed halfway across the screen. The re-basing needs
   no change to the pure decoration layer: `tree-projection` already established that a detached

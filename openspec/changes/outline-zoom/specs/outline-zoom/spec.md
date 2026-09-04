@@ -88,6 +88,12 @@ Chrome this plugin renders at the document's end SHALL NOT be hidden by the rang
 content around the scope. The backlinks footer in particular SHALL keep rendering after the zoomed
 content; `backlinks-footer` states what it shows while zoomed.
 
+The note's own title and its properties block SHALL also be hidden while zoomed, so the zoomed
+view is the trail, the subtree, and the footer and nothing else. These are not document lines —
+they are rendered beside the content rather than in it — so hiding them is stated here as a
+requirement on the VIEW rather than as a consequence of the hidden line ranges. Clearing the zoom
+SHALL restore both.
+
 #### Scenario: Content above and below is gone from the layout
 - **WHEN** the user zooms into a node in the middle of a long note
 - **THEN** no line above or below the node's subtree is rendered, and the zoomed content sits at
@@ -106,17 +112,33 @@ content; `backlinks-footer` states what it shows while zoomed.
 - **WHEN** a note with references is zoomed into a node in the middle of it
 - **THEN** the footer still renders below the zoomed content
 
+#### Scenario: The note title and properties are hidden while zoomed
+- **WHEN** a note with frontmatter is zoomed into a node
+- **THEN** neither the inline title nor the properties block is rendered, and both return when the
+  zoom is cleared
+
 ### Requirement: The ancestor path renders as a navigable breadcrumb trail
-While zoomed, a breadcrumb trail SHALL be shown above the editor content, listing — in order —
-the file, then each ancestor of the zoom root from the outermost inward. The zoom root itself
-SHALL NOT appear in the trail, because it is the first visible line of the content.
+While zoomed, a breadcrumb trail SHALL be shown directly above the zoomed content, listing — in
+order — the file, then each ancestor of the zoom root from the outermost inward. The zoom root
+itself SHALL NOT appear in the trail, because it is the first visible line of the content.
+
+The trail SHALL be rendered with the SAME visual treatment this plugin gives a squashed ancestor
+chain anywhere else — the lineage row the backlinks footer already defines, with its marker
+gutter, per-segment icons and ordinals, and its separator — and SHALL honour the same appearance
+settings. It SHALL NOT introduce a presentation of its own for the same idea.
 
 Each crumb SHALL be activatable: activating an ancestor crumb SHALL make that ancestor the zoom
 root; activating the file crumb SHALL clear the zoom entirely.
 
-A crumb's label SHALL be its node's first line with its encoding chrome removed — the heading's
+A segment's label SHALL be its node's first line with its encoding chrome removed — the heading's
 `#` markers, or the list item's marker — so the label reads as the node's text. A node whose
-label would be empty SHALL fall back to a label naming its kind, so no crumb is ever blank.
+label would be empty SHALL fall back to a label naming its kind, so no segment is ever blank.
+
+The file SHALL be a segment of the trail rather than a heading above it, because the note's title
+is hidden while zoomed and naming the note twice is what hiding it avoids. This also means the
+trail is never empty: a top-level zoom root has no ancestors, and without the file segment that
+case would show no trail at all — no indication of being zoomed, and nothing to activate to leave
+it.
 
 The trail SHALL be present only while zoomed, and SHALL disappear when the zoom is cleared.
 

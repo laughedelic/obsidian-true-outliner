@@ -90,22 +90,51 @@ function renderedLines(): Promise<string[]> {
   });
 }
 
-/** The breadcrumb trail's crumb labels, in order. */
+/**
+ * The trail's segment labels, in order.
+ *
+ * Read through the FOOTER's own classes, because the trail is a footer lineage
+ * row: same markup, same marker gutter, same separators. If this selector ever
+ * has to change to something zoom-specific, the shared visual language has been
+ * broken and that is the thing to fix.
+ */
 function trail(): Promise<string[]> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-    const panel = view?.containerEl.querySelector('.to-zoom-trail');
-    if (!panel) return [];
-    return Array.from(panel.querySelectorAll('.to-zoom-crumb')).map(
-      (el) => (el as HTMLElement).innerText.trim(),
+    const el = view?.containerEl.querySelector('.to-zoom-trail');
+    if (!el) return [];
+    return Array.from(el.querySelectorAll('.to-backlinks-seg')).map(
+      (seg) => (seg as HTMLElement).innerText.trim(),
     );
+  });
+}
+
+/** Is the trail rendered as a footer-style lineage row? */
+function trailIsLineageRow(): Promise<boolean> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const row = view?.containerEl.querySelector('.to-zoom-trail .to-backlinks-row');
+    return !!row && row.classList.contains('is-lineage');
+  });
+}
+
+/** Are the note title and properties visible? */
+function chromeVisible(): Promise<{ title: boolean; properties: boolean }> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const root = view?.containerEl;
+    const shown = (sel: string): boolean => {
+      const el = root?.querySelector(sel) as HTMLElement | null;
+      return !!el && el.getBoundingClientRect().height > 0;
+    };
+    return { title: shown('.inline-title'), properties: shown('.metadata-container') };
   });
 }
 
 function clickCrumb(index: number): Promise<void> {
   return browser.executeObsidian(({ app, obsidian }, i) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-    const crumbs = view?.containerEl.querySelectorAll('.to-zoom-crumb');
+    const crumbs = view?.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg');
     const el = crumbs?.[i] as HTMLElement | undefined;
     if (!el) throw new Error(`no crumb at ${i}`);
     el.click();
@@ -294,6 +323,52 @@ describe('outline zoom', function () {
       app.workspace.detachLeavesOfType('markdown');
     });
     await browser.pause(200);
+  });
+
+  it('renders the trail as a footer lineage row, not a primitive of its own', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '  - nested');
+    // The row IS `.to-backlinks-row.is-lineage` — the same markup the footer's
+    // squashed ancestor chains use, so the two surfaces cannot drift apart
+    // visually. A zoom-specific class here would mean the shared language broke.
+    expect(await trailIsLineageRow()).toBe(true);
+    const marks = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const el = view?.containerEl.querySelector('.to-zoom-trail');
+      return {
+        gutterMarker: !!el?.querySelector('.to-backlinks-marker, .to-backlinks-ord'),
+        content: !!el?.querySelector('.to-backlinks-content'),
+        segments: el?.querySelectorAll('.to-backlinks-seg').length ?? 0,
+      };
+    });
+    expect(marks.content).toBe(true);
+    expect(marks.segments).toBe(4); // the file plus three ancestors
+  });
+
+  it('shows only the lineage, the subtree and the footer', async function () {
+    await h.createNote(SOURCE, `See [[zoom]] for the thing.\n`);
+    const withFrontmatter = `---\ntag: x\n---\n\n${DOC}`;
+    await openZoomable(withFrontmatter);
+    await browser.pause(600);
+    const before = await chromeVisible();
+    expect(before.title).toBe(true);
+    expect(before.properties).toBe(true);
+
+    await zoomAt(withFrontmatter, '## Mid');
+    await browser.pause(250);
+    // The title and the properties block are siblings of the content inside
+    // `.cm-sizer`, not document lines, so the block replacements cannot reach
+    // them — they are hidden by the editor's own zoomed class instead.
+    const after = await chromeVisible();
+    expect(after.title).toBe(false);
+    expect(after.properties).toBe(false);
+    expect(await footerPresent()).toBe(true);
+
+    await h.runCommand('zoom-clear');
+    await browser.pause(250);
+    const restored = await chromeVisible();
+    expect(restored.title).toBe(true);
+    expect(restored.properties).toBe(true);
   });
 
   it('re-bases indentation so the root sits at the left margin', async function () {

@@ -43,10 +43,30 @@ function compute(state: EditorState, modes: ModeSource): DecorationSet {
   return builder.finish();
 }
 
+/**
+ * The class a zoomed editor carries, so the stylesheet can hide the chrome that
+ * is not part of the zoomed subtree — Obsidian's inline title and its properties
+ * block, which are siblings of the content inside `.cm-sizer` and therefore not
+ * document lines our block replacements could reach.
+ *
+ * Declared through CM6's own `editorAttributes` facet rather than written onto
+ * `view.dom` with `classList`, for the reason `decorationsExtension` records for
+ * the block-selection class: `EditorView.updateAttrs` recomputes the editor's
+ * whole class string and writes the attribute wholesale, so an imperative class
+ * is clobbered by the next focus change and flickers once per gesture.
+ */
+export const ZOOMED_CLASS = 'to-zoomed';
+
 export function zoomDecorationsExtension(modes: ModeSource): Extension {
-  return StateField.define<DecorationSet>({
+  const field = StateField.define<DecorationSet>({
     create: (state) => compute(state, modes),
     update: (_value, tr) => compute(tr.state, modes),
     provide: (f) => EditorView.decorations.from(f),
   });
+  return [
+    field,
+    EditorView.editorAttributes.of((view) =>
+      zoomScope(view.state, modes) ? { class: ZOOMED_CLASS } : null,
+    ),
+  ];
 }
