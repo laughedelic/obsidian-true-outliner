@@ -313,21 +313,49 @@ describe('the footer’s controls', function () {
 
   it('opens the sort control and reorders by it', async function () {
     await openFilters();
-    const before = await browser.executeObsidian(
-      () =>
-        document.querySelector<HTMLSelectElement>('.workspace-leaf.mod-active .to-backlinks-sort')
-          ?.value ?? '',
-    );
-    expect(before).toBe('recent');
+    const options = await browser.executeObsidian(() => {
+      const select = document.querySelector<HTMLSelectElement>(
+        '.workspace-leaf.mod-active .to-backlinks-sort',
+      );
+      if (!select) return null;
+      return { value: select.value, all: Array.from(select.options).map((o) => o.value) };
+    });
+    expect(options).not.toBeNull();
+    expect(options!.value).toBe('recent');
+    expect(options!.all.length).toBeGreaterThan(1);
 
-    // Driven as a real control: `selectByAttribute` goes through the element's
-    // own interaction path, which a `preventDefault` on pointerdown breaks.
-    const select = await browser.$(`${FOOTER} .to-backlinks-sort`);
-    await select.selectByAttribute('value', 'name');
+    // Driven as a real control rather than through WebdriverIO's select
+    // handling, which reaches `scrollIntoView` and the Actions API this
+    // runtime does not implement. A pointer press and then the keyboard is
+    // also the closer test: what was broken was the browser's own default on
+    // pointerdown, so the thing worth asserting is that a press FOCUSES it and
+    // that the keyboard then moves it.
+    await clickIn(`${FOOTER} .to-backlinks-sort`);
+    const focused = await browser.executeObsidian(
+      () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+    );
+    expect(focused).toBe('sort');
+
+    // The two halves are asserted separately because only one of them can be
+    // driven portably. Focus is the half that REGRESSED — a prevented default
+    // on pointerdown stops a select opening at all — and a real press proves
+    // it. Moving the selection from the keyboard is not portable: on macOS
+    // ArrowDown opens the closed control rather than changing its value, and on
+    // other platforms it changes it. So the value is set the way the control
+    // itself would, and the assertion is that the change reaches plugin data.
+    await browser.executeObsidian((_ctx, next: string) => {
+      const select = document.querySelector<HTMLSelectElement>(
+        '.workspace-leaf.mod-active .to-backlinks-sort',
+      );
+      if (!select) return;
+      select.value = next;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }, options!.all[1]!);
     await browser.pause(900);
 
     const stored = (await h.readPluginData()) as unknown as Record<string, unknown> | null;
-    expect(stored?.backlinksSort).toBe('name');
+    expect(stored?.backlinksSort).toBe(options!.all[1]);
+
     // And it carries its own mark, which the first cut left out entirely.
     const hasIcon = await browser.executeObsidian(
       () =>
