@@ -359,6 +359,31 @@ appearance settings governing both surfaces. What each surface keeps is what act
 MEANS — the footer opens the source note at that ancestor, zoom re-roots the view on it — because
 pretending those are one action would be a worse abstraction than two call sites.
 
+*What stands in the marker gutter, and why it is not a kind glyph.* The row's first mark is the
+zoom-OUT control: activating it clears the scope, and it arms whenever the pointer is anywhere on
+the trail, so the way out is discoverable from wherever the reader is already looking. Outward
+arrows rather than a frame or a page, because the mark names an ACTION and the other two name a
+state — and a kind glyph there would be calling the file a paragraph, which is what it did.
+
+The mark is therefore NOT drawn by the shared lineage row's own marker function. That function
+answers "what kind is this segment", which is the wrong question here; the trail supplies its own
+through the same `marker` hook, so the row stays one implementation and only its gutter differs.
+
+*Separators, and a deliberate divergence from the footer.* The trail always separates its
+segments, whatever `backlinksSeparator` says. The two surfaces are not doing the same job with it:
+a footer lineage row sits inside a card whose structure already groups it, while the trail is a
+single horizontal path where the join between two ancestors is the only thing telling them apart.
+The chevron is drawn a step fainter than the names, so the eye reads name-name-name and takes the
+joins peripherally. The per-segment kind icons stay — dropping them would make the row an ordinary
+breadcrumb and throw away the one thing the outline's own notation was carrying.
+
+*The subtree is NOT re-indented under the trail.* The zoom root keeps depth 0, which is what
+`outline-decorations` already specifies for re-basing, so the outline reads exactly as it will
+after zooming out and nothing has to be re-explained. The trail is a header for the view rather
+than a node above it, and a rule carries that boundary. An earlier draft had the trail at depth 0
+with the subtree one level in and a guide dropping from it; that reads as containment, at the cost
+of a permanent unit of indentation and of depth 0 meaning two different things.
+
 *Side, and why the sign is not a preference.* The head hidden range ends AT the cover's start, so
 a `side: -1` widget anchored there sorts inside the replaced range and is swallowed — the same
 boundary D12 found at `doc.length`, mirrored. At the end of the document the widget had to move

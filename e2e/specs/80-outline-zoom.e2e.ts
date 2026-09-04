@@ -345,6 +345,79 @@ describe('outline zoom', function () {
     expect(marks.segments).toBe(4); // the file plus three ancestors
   });
 
+  it('puts a zoom-out control in the trail marker gutter, not a kind glyph', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '  - nested');
+    const mark = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const el = view?.containerEl.querySelector('.to-zoom-trail .to-zoom-out') as HTMLElement | null;
+      return {
+        present: !!el,
+        role: el?.getAttribute('role') ?? null,
+        label: el?.getAttribute('aria-label') ?? null,
+        focusable: el?.tabIndex ?? -1,
+        arms: !!el?.querySelector('.to-zoom-out-tl') && !!el.querySelector('.to-zoom-out-br'),
+      };
+    });
+    expect(mark.present).toBe(true);
+    expect(mark.role).toBe('button');
+    expect(mark.focusable).toBe(0);
+    expect(mark.arms).toBe(true);
+  });
+
+  it('clears the zoom when the trail marker is activated', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '  - nested');
+    expect(await trail()).not.toEqual([]);
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      (view?.containerEl.querySelector('.to-zoom-trail .to-zoom-out') as HTMLElement).click();
+    });
+    await browser.pause(250);
+    expect(await trail()).toEqual([]);
+  });
+
+  it('separates its segments whatever the footer setting says', async function () {
+    // The footer's own separator defaults to none; the trail is separated
+    // regardless, because the join is the only thing telling two ancestors
+    // apart on a single horizontal path.
+    await openZoomable();
+    await zoomAt(DOC, '  - nested');
+    const seps = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const el = view?.containerEl.querySelector('.to-zoom-trail');
+      return el?.querySelectorAll('.to-backlinks-seg-sep').length ?? 0;
+    });
+    // Four segments (file plus three ancestors) means three joins.
+    expect(seps).toBe(3);
+  });
+
+  it('keeps the zoomed node on column 0 — the subtree is not pushed right for the trail', async function () {
+    await openZoomable();
+    const unit = await h.publishedUnit();
+
+    // A NON-boundary line: the trail widget is attributed to the zoom root's
+    // own line by `posAtDOM` (docs/research/23), so the root itself cannot be
+    // measured through this helper. `- one` is the root's first child.
+    await zoomAt(DOC, '## Mid');
+    await h.setCursorSettled(6, 0);
+    await browser.pause(150);
+    const zoomed = await h.getLineElementInfo(4);
+
+    await h.runCommand('zoom-clear');
+    await browser.pause(200);
+    await h.setCursorSettled(6, 0);
+    await browser.pause(150);
+    const unzoomed = await h.getLineElementInfo(4);
+
+    // Unzoomed `- one` is two levels in (Top > Mid > one); zoomed it is ONE,
+    // because the root holds column 0. Were the trail the root instead, the
+    // subtree would sit a level further right and this delta would be zero.
+    // Asserted as a relationship, never as a pixel count — CI's font is not
+    // this machine's.
+    expect(unzoomed.alignedLeft - zoomed.alignedLeft).toBeCloseTo(unit, 0);
+  });
+
   it('shows only the lineage, the subtree and the footer', async function () {
     await h.createNote(SOURCE, `See [[zoom]] for the thing.\n`);
     const withFrontmatter = `---\ntag: x\n---\n\n${DOC}`;

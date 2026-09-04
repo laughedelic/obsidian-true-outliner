@@ -123,12 +123,23 @@ order — the file, then each ancestor of the zoom root from the outermost inwar
 itself SHALL NOT appear in the trail, because it is the first visible line of the content.
 
 The trail SHALL be rendered with the SAME visual treatment this plugin gives a squashed ancestor
-chain anywhere else — the lineage row the backlinks footer already defines, with its marker
-gutter, per-segment icons and ordinals, and its separator — and SHALL honour the same appearance
-settings. It SHALL NOT introduce a presentation of its own for the same idea.
+chain anywhere else — the lineage row the backlinks footer already defines, with its per-segment
+icons and ordinals — and SHALL NOT introduce a presentation of its own for the same idea. Two
+deliberate departures are stated below: what stands in its marker gutter, and that its segments
+are always separated.
 
-Each crumb SHALL be activatable: activating an ancestor crumb SHALL make that ancestor the zoom
-root; activating the file crumb SHALL clear the zoom entirely.
+The trail's own MARKER SHALL NOT name a node kind. It is a control: activating it SHALL clear the
+zoom entirely, and it SHALL show that it is armed whenever the pointer is anywhere on the trail,
+so the row advertises the way out rather than only the ancestors. A kind glyph there would be
+naming the file as a paragraph, which is what it currently does and what it says wrongly.
+
+The trail's segments SHALL be separated from one another, whatever the footer's own separator
+setting says. The two surfaces differ in what the separator is for: a footer lineage row sits in a
+card whose structure already groups it, while the trail is a single horizontal path in which the
+join between one ancestor and the next is the only thing distinguishing them.
+
+Each segment SHALL be activatable: activating an ancestor segment SHALL make that ancestor the
+zoom root; activating the file segment SHALL clear the zoom entirely, as the marker does.
 
 A segment's label SHALL be its node's first line with its encoding chrome removed — the heading's
 `#` markers, or the list item's marker — so the label reads as the node's text. A node whose
@@ -155,6 +166,19 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 #### Scenario: Activating the file crumb clears the zoom
 - **WHEN** the user activates the file crumb
 - **THEN** the whole document is visible again and the trail disappears
+
+#### Scenario: The trail's marker clears the zoom too
+- **WHEN** the user activates the marker at the head of the trail
+- **THEN** the whole document is visible again, exactly as activating the file segment does
+
+#### Scenario: The marker arms from anywhere on the trail
+- **WHEN** the pointer rests on any segment of the trail
+- **THEN** the marker shows itself as armed, so the control is discoverable from wherever the
+  reader's attention already is
+
+#### Scenario: Segments are separated whatever the footer setting is
+- **WHEN** the footer's own lineage separator is set to none
+- **THEN** the trail still separates its segments
 
 #### Scenario: A top-level zoom root has a file-only trail
 - **WHEN** the user zooms into a top-level node

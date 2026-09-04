@@ -2261,9 +2261,104 @@ body {
  * beneath it, and a rule that says the subtree begins here.
  */
 .to-zoom-trail {
-  padding-bottom: 0.35rem;
-  margin-bottom: 0.5rem;
+  /* Half the MARK's own width of inset. A marker is centred on its column, so
+   * at depth 0 half its ink lands at negative x and is clipped — the same rule
+   * the footer's rows container carries, sized here for the larger mark. */
+  padding-left: calc(var(--to-zoom-mark-size) / 2);
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.7rem;
   border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Level with the note it heads, and muted rather than faint: the trail is
+ * context, not chrome, and the footer's 0.92em left it smaller than the outline
+ * it belongs to. Set on the ROW so the mark's own `ex` correction resolves
+ * against the same font as the text beside it. */
+.to-zoom-trail .to-backlinks-row {
+  font-size: 1em;
+  cursor: default;
+}
+
+/*
+ * The mark at the head of the trail is the zoom-OUT control (design D10).
+ *
+ * It reuses `.to-decor-marker-icon`'s placement — the arithmetic that puts a
+ * mark's centre on its column — and overrides only what a control needs: its
+ * own size, and the pointer events that class turns off for decorative chrome.
+ * Every placement term is restated because they all follow the size; changing
+ * one alone takes the mark off its column.
+ */
+.to-zoom-trail {
+  --to-zoom-mark-size: 1.0625rem;
+}
+
+.to-zoom-trail .to-zoom-out {
+  width: var(--to-zoom-mark-size);
+  height: var(--to-zoom-mark-size);
+  margin-left: calc(-1 * var(--to-zoom-mark-size));
+  left: calc(var(--to-zoom-mark-size) * 0.5 - var(--to-marker-gutter, 0px));
+  top: calc(var(--to-zoom-mark-size) / 2 - 0.5ex);
+  color: var(--text-muted);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.to-zoom-trail .to-zoom-out:hover,
+.to-zoom-trail .to-zoom-out:focus-visible {
+  color: var(--text-normal);
+}
+
+/* Armed from anywhere on the trail: the arrows push apart along their own
+ * diagonal, so the way out is discoverable from wherever the reader is already
+ * looking. A transform on a `<g>`, so nothing reflows and the mark stays on its
+ * column. */
+.to-zoom-out-tl,
+.to-zoom-out-br {
+  transition: transform 120ms ease-out;
+}
+
+.to-zoom-trail .to-backlinks-row:hover .to-zoom-out-tl,
+.to-zoom-trail .to-zoom-out:focus-visible .to-zoom-out-tl {
+  transform: translate(-1.1px, -1.1px);
+}
+
+.to-zoom-trail .to-backlinks-row:hover .to-zoom-out-br,
+.to-zoom-trail .to-zoom-out:focus-visible .to-zoom-out-br {
+  transform: translate(1.1px, 1.1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .to-zoom-out-tl,
+  .to-zoom-out-br {
+    transition: none;
+  }
+}
+
+/*
+ * A step fainter than the names, so the eye reads name-name-name and takes the
+ * joins peripherally. Scoped to the trail: the footer's own separator is off by
+ * default and is that surface's decision.
+ */
+.to-zoom-trail .to-backlinks-seg-sep {
+  color: var(--text-faint);
+}
+
+/*
+ * The segment icons, aligned the way the block markers are.
+ *
+ * `vertical-align: middle` is what the shared rule uses, and on an inline-FLEX
+ * box it does not land where it claims to — the flex container contributes its
+ * own baseline and the mark ends up sitting low, which is what was reported.
+ * The fix is the one `.to-decor-marker-icon` already documents: align on the
+ * baseline, kill the line box so the span's baseline IS its bottom edge, then
+ * put the box's centre on the text's x-height midline. Written in `em` and
+ * `ex`, so it holds at any row size and in any theme.
+ */
+.to-zoom-trail .to-backlinks-seg-icon {
+  vertical-align: baseline;
+  line-height: 0;
+  position: relative;
+  top: calc(0.4em - 0.5ex);
 }
 
 /*
