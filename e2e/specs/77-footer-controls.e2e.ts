@@ -15,6 +15,69 @@ import * as h from '../helpers.js';
 const TARGET = 'Projects/Aurora Dashboard.md';
 const FOOTER = '.workspace-leaf.mod-active .to-backlinks';
 
+/**
+ * Wait until the footer stops changing shape.
+ *
+ * Groups resolve one per source, asynchronously, and each fill mutates the DOM
+ * and can add a control. Clicking while that is still happening races it: on CI
+ * the filter toggle was replaced faster than four attempts could land on it.
+ * Two identical samples in a row is the signal that the fills are done.
+ */
+async function settle(): Promise<void> {
+  let previous = '';
+  await browser.waitUntil(
+    async () => {
+      const now = await browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        if (!root) return null;
+        return {
+          shape: [
+            root.querySelectorAll('.to-backlinks-group').length,
+            root.querySelectorAll('.to-backlinks-row').length,
+            root.querySelectorAll('.to-backlinks-more').length,
+          ].join('/'),
+          // A group still showing its placeholder has not resolved.
+          resolving: root.querySelectorAll('.to-backlinks-resolving').length,
+        };
+      });
+      if (!now || now.resolving > 0) {
+        previous = '';
+        return false;
+      }
+      const stable = now.shape === previous;
+      previous = now.shape;
+      return stable;
+    },
+    {
+      timeout: h.waitBudget(20000),
+      interval: 400,
+      timeoutMsg: 'the footer never settled',
+    },
+  );
+}
+
+/**
+ * A structural read that agrees with itself twice.
+ *
+ * `swap` empties the footer and appends its new children one at a time, and a
+ * scroll or a click can start another render at any moment, so a single read
+ * can catch a footer mid-rebuild — seeing one axis group where there are two.
+ * Reading until two consecutive samples match costs a few hundred milliseconds
+ * and removes a whole class of flake that has nothing to do with what these
+ * cases assert.
+ */
+async function readStable<T>(read: () => Promise<T>): Promise<T> {
+  let previous = '';
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const value = await read();
+    const serialised = JSON.stringify(value);
+    if (serialised === previous) return value;
+    previous = serialised;
+    await browser.pause(200);
+  }
+  throw new Error('the footer never held one shape long enough to read');
+}
+
 async function openFooter(): Promise<void> {
   await h.openNote(TARGET);
   if (!(await h.isOutlineMode(TARGET))) {
@@ -26,35 +89,47 @@ async function openFooter(): Promise<void> {
     const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
     if (s) s.scrollTop = s.scrollHeight;
   });
-  await browser.pause(1400);
+  await settle();
+  // The footer's own header, centred — `scrollTop = scrollHeight` puts the END
+  // of the document on screen, which is the footer's last card rather than the
+  // controls at its top.
+  await browser.executeObsidian(() => {
+    document
+      .querySelector('.workspace-leaf.mod-active .to-backlinks-head')
+      ?.scrollIntoView({ block: 'center' });
+  });
+  await settle();
 }
 
 /**
- * A real click, retried past a repaint.
+ * A real click at a POINT, rather than through an element handle.
  *
- * The footer rebuilds its whole subtree on every render — deliberately, and by
- * a decision `backlinks-footer` argued — so an element handle can be detached
- * between finding it and clicking it. Re-finding is the fix; a synthetic
- * `el.click()` from inside the page would dodge the staleness and also dodge
- * the pointer sequence these cases exist to exercise.
+ * Two things bite here and a point avoids both.
+ *
+ * `element.click()` scrolls first, and scrolling the editor makes CodeMirror
+ * rebuild its viewport — which replaces the footer widget and restarts its
+ * group fills, so the handle the click was about to use is already gone. That
+ * is a race no amount of retrying wins, because every retry scrolls again.
+ *
+ * And WebdriverIO's own `scrollIntoView` reaches for the WebDriver Actions API,
+ * which Obsidian's Electron does not implement. On macOS that degrades to a
+ * warning; on CI it retried the unimplemented command until the case timed out.
+ *
+ * `openFooter` has already brought the controls on screen, so nothing here
+ * needs to scroll. A rect read and a pointer press at its centre survive a
+ * rebuild, because a rebuilt header puts its controls back in the same place.
  */
 async function clickIn(selector: string): Promise<void> {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      // `clickClear`, NOT `waitForClickable` + `click`. The latter reaches
-      // `scrollIntoView` through the WebDriver Actions API, which Obsidian's
-      // Electron does not implement — locally it degrades to a warning, and on
-      // CI it retried until the case timed out at sixty seconds. `clickClear`
-      // scrolls through the element API, which is the path that works here.
-      await h.clickClear(selector);
-      return;
-    } catch (error) {
-      const message = String(error);
-      if (!message.includes('stale') && !message.includes('no such element')) throw error;
-      await browser.pause(250);
-    }
-  }
-  throw new Error(`could not click ${selector} without it being replaced`);
+  const centre = await browser.executeObsidian((_ctx, sel: string) => {
+    const el = document.querySelector<HTMLElement>(sel);
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }, selector);
+  if (!centre) throw new Error(`no visible element for ${selector}`);
+  await h.clickAtPoint(centre.x, centre.y);
+  await browser.pause(250);
 }
 
 /** Reveal the filter row if it is not already open. */
@@ -67,16 +142,27 @@ async function openFilters(): Promise<void> {
   );
   if (!open) {
     await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
+    await settle();
   }
-  // Waited for rather than paused past: the row is built by a render the click
-  // schedules, and a fixed pause is a guess that fails on a slow machine.
+  // Waited on the row's LAST element, not its first.
+  //
+  // `swap` empties the footer and then appends the new children one at a time,
+  // so a read can land on a partially attached footer and see one axis group
+  // where there are two. The whole filter row is a single child of that root —
+  // both axis groups and the trailing search/reset group inside it — so the
+  // trailing group being present proves the entire row is.
   await browser.waitUntil(
     async () =>
-      (await browser.executeObsidian(
+      await browser.executeObsidian(
         () =>
-          document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-axis').length,
-      )) > 0,
-    { timeout: h.waitBudget(5000), timeoutMsg: 'the filter row never appeared' },
+          document.querySelector(
+            '.workspace-leaf.mod-active .to-backlinks-filters .to-backlinks-filters-end',
+          ) !== null,
+      ),
+    {
+      timeout: h.waitBudget(5000),
+      timeoutMsg: 'the filter row never appeared',
+    },
   );
 }
 
@@ -94,8 +180,11 @@ describe('the footer’s controls', function () {
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
-    // Not a volume spec.
-    await h.pinBacklinksCapOff();
+    // The cap stays at its DEFAULT here, unlike the other footer specs. Lifting
+    // it renders every one of the hub's ~128 sources, and each is an async fill
+    // that mutates the DOM — a footer that is still building when a case clicks
+    // one of its controls. This spec needs a footer with both axes, not a large
+    // one, and the capped footer has both.
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });
@@ -124,16 +213,16 @@ describe('the footer’s controls', function () {
 
   it('reveals a second row carrying both axes, each named', async function () {
     await openFilters();
-    const axes = await browser.executeObsidian(() =>
-      Array.from(
-        document.querySelectorAll<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-axis',
-        ),
-      ).map((g) => ({
-        axis: g.dataset.axis ?? '',
-        label: g.querySelector('.to-backlinks-axis-label')?.textContent ?? '',
-        controls: g.querySelectorAll('button').length,
-      })),
+    const axes = await readStable(() =>
+      browser.executeObsidian(() =>
+        Array.from(
+          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-axis'),
+        ).map((g) => ({
+          axis: g.dataset.axis ?? '',
+          label: g.querySelector('.to-backlinks-axis-label')?.textContent ?? '',
+          controls: g.querySelectorAll('button').length,
+        })),
+      ),
     );
     expect(axes.map((a) => a.axis)).toEqual(['folder', 'kind']);
     for (const a of axes) {
@@ -144,25 +233,25 @@ describe('the footer’s controls', function () {
 
   it('separates the two axes by more than their corner radius', async function () {
     await openFilters();
-    const gaps = await browser.executeObsidian(() => {
-      const groups = Array.from(
-        document.querySelectorAll<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-axis',
-        ),
-      );
-      const within = Array.from(
-        groups[0]?.querySelectorAll<HTMLElement>('button') ?? [],
-      ).map((b) => b.getBoundingClientRect());
-      if (groups.length < 2 || within.length < 2) return null;
-      const a = groups[0]!.getBoundingClientRect();
-      const b = groups[1]!.getBoundingClientRect();
-      return {
-        sameRow: Math.abs(a.top - b.top) < 2,
-        betweenGroups: Math.round(b.left - a.right),
-        rowGap: Math.round(b.top - a.bottom),
-        withinGroup: Math.round(within[1]!.left - within[0]!.right),
-      };
-    });
+    const gaps = await readStable(() =>
+      browser.executeObsidian(() => {
+        const groups = Array.from(
+          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-axis'),
+        );
+        const within = Array.from(groups[0]?.querySelectorAll<HTMLElement>('button') ?? []).map(
+          (b) => b.getBoundingClientRect(),
+        );
+        if (groups.length < 2 || within.length < 2) return null;
+        const a = groups[0]!.getBoundingClientRect();
+        const b = groups[1]!.getBoundingClientRect();
+        return {
+          sameRow: Math.abs(a.top - b.top) < 2,
+          betweenGroups: Math.round(b.left - a.right),
+          rowGap: Math.round(b.top - a.bottom),
+          withinGroup: Math.round(within[1]!.left - within[0]!.right),
+        };
+      }),
+    );
     expect(gaps).not.toBeNull();
     // A relationship, not a pixel count. Two groups read as two when the space
     // between them beats the space inside one — or when they are on separate
@@ -206,8 +295,7 @@ describe('the footer’s controls', function () {
       const input = root?.querySelector<HTMLInputElement>('.to-backlinks-search');
       return {
         value: input?.value ?? '',
-        stillFocused:
-          (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+        stillFocused: (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
         groups: root?.querySelectorAll('.to-backlinks-group').length ?? -1,
         names: Array.from(
           root?.querySelectorAll<HTMLElement>('.to-backlinks-group-name') ?? [],
@@ -227,9 +315,8 @@ describe('the footer’s controls', function () {
     await openFilters();
     const before = await browser.executeObsidian(
       () =>
-        document.querySelector<HTMLSelectElement>(
-          '.workspace-leaf.mod-active .to-backlinks-sort',
-        )?.value ?? '',
+        document.querySelector<HTMLSelectElement>('.workspace-leaf.mod-active .to-backlinks-sort')
+          ?.value ?? '',
     );
     expect(before).toBe('recent');
 
@@ -300,8 +387,7 @@ describe('the footer’s controls', function () {
     await browser.pause(600);
 
     const resetVisible = await browser.executeObsidian(
-      () =>
-        document.querySelector('.workspace-leaf.mod-active .to-backlinks-reset') !== null,
+      () => document.querySelector('.workspace-leaf.mod-active .to-backlinks-reset') !== null,
     );
     expect(resetVisible).toBe(true);
 
