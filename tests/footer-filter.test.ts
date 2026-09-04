@@ -63,6 +63,54 @@ describe('axes', () => {
   });
 });
 
+describe('axis counts answer "if I add this, what do I get"', () => {
+  it('re-counts the other axis against a selected folder', () => {
+    // `Daily` holds two notes: one of kind `note`, one of kind `anchor`. The
+    // `embed` references all live under `Notes`, so within `Daily` there are
+    // none — and the chip has to say so rather than keep the count it had.
+    const axes = axesOf(VAULT, controls({ folders: new Set(['Daily']) }));
+    expect(axes.kinds).toEqual([
+      { value: 'note', notes: 1 },
+      { value: 'anchor', notes: 1 },
+      { value: 'embed', notes: 0 },
+    ]);
+  });
+
+  it('keeps a zeroed value on offer rather than removing it', () => {
+    const axes = axesOf(VAULT, controls({ folders: new Set(['Daily']) }));
+    expect(axes.kinds.map((k) => k.value)).toEqual(['note', 'anchor', 'embed']);
+  });
+
+  it('does not count an axis against its own selection', () => {
+    // Picking `embed` must not zero `note` and `anchor`, or no second kind
+    // could ever be added to the selection.
+    const axes = axesOf(VAULT, controls({ kinds: new Set<ReferenceKind>(['embed']) }));
+    expect(axes.kinds.find((k) => k.value === 'note')?.notes).toBe(2);
+    expect(axes.kinds.find((k) => k.value === 'anchor')?.notes).toBe(1);
+  });
+
+  it('re-counts folders against a selected kind', () => {
+    const axes = axesOf(VAULT, controls({ kinds: new Set<ReferenceKind>(['embed']) }));
+    expect(axes.folders).toEqual([
+      { value: 'Daily', notes: 0 },
+      { value: 'Notes', notes: 1 },
+    ]);
+  });
+
+  it('re-counts both axes against the search term', () => {
+    const axes = axesOf(VAULT, controls({ search: 'brief' }));
+    expect(axes.folders).toEqual([
+      { value: 'Daily', notes: 0 },
+      { value: 'Notes', notes: 1 },
+    ]);
+    expect(axes.kinds.find((k) => k.value === 'anchor')?.notes).toBe(0);
+  });
+
+  it('is the unfiltered count when nothing is selected', () => {
+    expect(axesOf(VAULT, NO_FILTER)).toEqual(axesOf(VAULT));
+  });
+});
+
 describe('focus-on semantics', () => {
   it('admits everything when no axis has a selection', () => {
     const result = applyControls(VAULT, controls());
