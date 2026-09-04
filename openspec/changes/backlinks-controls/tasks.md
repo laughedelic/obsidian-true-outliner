@@ -130,13 +130,22 @@ configuration is read or written, and the whole thing unloads with the styleshee
 Design D7. Three renderings `backlinks-footer` chose between and shipped one of (research 18,
 D19). The model keeps one shape; the renderer is the single site that declines.
 
-- [ ] 6.1 Segment icons on a lineage row — every ancestor named (default), only the row's own
+- [x] 6.1 Segment icons on a lineage row — every ancestor named (default), only the row's own
       marker, or none — as a renderer-side decline. `buildRows` keeps emitting every segment
-      whatever the setting says
-- [ ] 6.2 Ancestor separator — none (default) or a chevron
-- [ ] 6.3 Footer guide lines, off by default. The model keeps reporting `guideDepths`; the
-      renderer declines to draw them. Verify by asserting the model output is identical with the
-      setting on and off — if it is not, the decline has leaked into the model
+      whatever the setting says. An ordered ancestor's number is drawn at every rung: it is
+      CONTENT the model took out of the text, not notation added to it, and dropping it makes a
+      row read "Item" where the note reads "10. Item". Verified by
+      `e2e/specs/79-footer-appearance.e2e.ts`; negative control: make the renderer ignore the
+      setting and both decline cases fail while the default still passes
+- [x] 6.2 Ancestor separator — none (default) or a chevron, drawn BETWEEN two ancestors rather
+      than inside either, so it never shares an ancestor's link target. It holds the same 0.7em
+      a chain of plain names divides by, so turning it on changes what stands between two
+      ancestors and not the rhythm of the chain
+- [x] 6.3 Footer guide lines, off by default, drawn through `plainGuideBackground(guideDepths)`
+      — the same builder the editor uses. The model keeps reporting `guideDepths`, pinned in
+      `tests/footer-model.test.ts`: every row's depths are exactly `0 … depth-1` whatever is
+      drawn, and `buildRows` has no parameter a setting could be threaded through, which is the
+      structural form of the same guarantee
 
 ## 7. End-to-end
 

@@ -48,6 +48,7 @@ import {
   MARKER_LEFT_SHIFT_EXPR,
   applyLineChrome,
   lineChrome,
+  plainGuideBackground,
 } from './chrome-line';
 import { CHROME_VARS, MARKER_GAP_CSS, MARKER_GUTTER_CSS } from './chrome-tokens';
 import {
@@ -717,12 +718,21 @@ class FooterController {
     // conformance matrix, which has to check that each kind got the treatment
     // its own rule promises.
     el.dataset.kind = row.type === 'node' ? row.fact.kind : row.type;
-    // No `guides`. The footer is a quotation of a tree, not the tree itself, and
-    // at a card's scale the stripes crowded a body that is only ever a few rows
-    // deep — indentation alone carries the depth here. The model still reports
-    // `guideDepths`, so the decision is this one call site's to reverse when
-    // `backlinks-controls` makes it a setting.
-    applyLineChrome(el, lineChrome(row.fact, { nativeBlocks: false }));
+    // Guides are off by default. The footer is a quotation of a tree, not the
+    // tree itself, and at a card's scale the stripes crowded a body that is only
+    // ever a few rows deep — indentation alone carries the depth here. The model
+    // reports `guideDepths` either way; this is the one site that declines to
+    // draw them, so the model has one shape under test rather than one per
+    // setting combination (design D7).
+    applyLineChrome(
+      el,
+      lineChrome(row.fact, {
+        nativeBlocks: false,
+        ...(this.source.backlinksGuides
+          ? { guides: plainGuideBackground(row.guideDepths) }
+          : {}),
+      }),
+    );
 
     if (row.type === 'property') {
       el.addClass('is-property');
@@ -736,14 +746,25 @@ class FooterController {
 
     if (row.type === 'lineage') {
       el.addClass('is-lineage');
+      const icons = this.source.backlinksSegmentIcons;
       // The gutter marker IS the first segment's, so it takes that segment's own
       // state — a task ancestor gets its checkbox and an ordered one its number,
       // the same rule a node row follows. `row.kind` alone gave both of them the
       // generic bullet.
-      // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-      el.appendChild(segmentMarker(row.segments[0], row.kind));
+      if (icons !== 'none') {
+        // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
+        el.appendChild(segmentMarker(row.segments[0], row.kind));
+      }
       const content = el.createSpan({ cls: 'to-backlinks-content' });
       row.segments.forEach((segment, i) => {
+        // Between two ancestors, so outside both — a separator that sat inside a
+        // segment would share that ancestor's link target and open it.
+        if (i > 0 && this.source.backlinksSeparator === 'chevron') {
+          const sep = content.createSpan({ cls: 'to-backlinks-seg-sep' });
+          sep.setAttribute('aria-hidden', 'true');
+          // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
+          sep.appendChild(separatorGlyph());
+        }
         // Each ancestor is its own target. One handler on the row could only
         // open the note, which is not what "a lineage element navigates to that
         // ancestor" promises — a chain is several ancestors on one line.
@@ -756,10 +777,14 @@ class FooterController {
         if (i > 0) {
           if (segment.ordinal) {
             // Its number IS its mark, and the model has taken it out of the
-            // text — a bullet here would drop it entirely. No gutter slot: this
-            // one sits in the text run, where the number needs its own width.
+            // text — a bullet here would drop it entirely. Drawn whatever the
+            // icon setting says, because it is CONTENT the model removed from
+            // the text rather than notation added to it: without it the row
+            // reads "Item" where the note reads "10. Item". No gutter slot:
+            // this one sits in the text run, where the number needs its own
+            // width.
             seg.createSpan({ cls: 'to-backlinks-seg-ord', text: segment.ordinal });
-          } else {
+          } else if (icons === 'all') {
             const icon = seg.createSpan({ cls: 'to-backlinks-seg-icon' });
             // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
             icon.appendChild(segmentGlyph(segment));
@@ -1296,6 +1321,17 @@ function omissionBelow(body: HTMLElement, rows: readonly FooterRow[]): Omission 
 
   if (first === -1) return null;
   return { count: references > 0 ? references : clipped, depth: rows[first]?.depth ?? 0 };
+}
+
+/** What stands between two ancestors when the separator setting asks for one. */
+function separatorGlyph(): SVGSVGElement {
+  return glyph(24, ['M9 5l7 7-7 7'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  });
 }
 
 /** The rung's own mark: an omission, in the place a marker would be. */
