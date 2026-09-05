@@ -210,34 +210,97 @@ function trailMarkCentre(): Promise<number> {
 }
 
 /**
- * Viewport centre of the Nth mark matching `selector`, for a real click.
+ * Presses the Nth mark matching `selector`, the way a pointer would.
  *
- * A real pointer press rather than a synthesised event, because half of what
- * this gesture needed was hit-testing: the marker carried `pointer-events: none`
- * until this change, and a dispatched event would have reached the handler
- * regardless and proved nothing.
+ * Hit-tested, then dispatched — two instruments, because half of what this
+ * gesture needed was hit-testing and the other half is what the handler does
+ * with the press.
+ *
+ * The press goes to whatever `elementFromPoint` returns at the mark's own
+ * centre, NOT to the mark itself. That is what makes it a real test of the half
+ * this change had to fix: with `pointer-events: none` still in force the topmost
+ * element there is the line behind the mark, and the press lands on the line and
+ * zooms nothing. It is also how the fold indicator's invisible box was caught
+ * covering a list bullet outright.
+ *
+ * Driven in the page rather than through WebDriver's own pointer, whose viewport
+ * coordinates do not survive mobile emulation — measured: a press aimed at a
+ * marker's centre landed on the line behind it, and every click test failed on
+ * mobile while every command test passed. `element.click()` is no better: it
+ * demands the element be "interactable", which a mark inside a widget atom and a
+ * zero-width bullet span both fail while being perfectly clickable by a person.
+ *
+ * Waited for, too. Marks arrive with the decoration pass rather than with the
+ * note, and a mark read before it is either absent or, worse, present at the
+ * wrong INDEX — so the press lands on a different node and the assertion fails
+ * somewhere else entirely.
  */
-function markCentre(selector: string, index = 0): Promise<{ x: number; y: number }> {
-  return browser.executeObsidian(
-    ({ app, obsidian }, selector, index) => {
+async function clickMark(selector: string, index = 0, modifier = false): Promise<string> {
+  const all = `.cm-content ${selector}`;
+  await browser.waitUntil(
+    async () =>
+      (await browser.executeObsidian(
+        ({ app, obsidian }, all) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+          if (!view) return 0;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cm = (view.editor as any).cm;
+          return (cm.dom as HTMLElement).querySelectorAll(all).length as number;
+        },
+        all,
+      )) > index,
+    { timeout: 5000, interval: 100, timeoutMsg: `no ${all}[${index}] rendered` },
+  );
+  const hit = await browser.executeObsidian(
+    ({ app, obsidian }, all, index, modifier, MARKS) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
       if (!view) throw new Error('no active markdown view');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cm = (view.editor as any).cm;
-      const el = cm.contentDOM.querySelectorAll(selector)[index] as HTMLElement | undefined;
-      if (!el) throw new Error(`no element ${selector}[${index}]`);
-      const r = el.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      const mark = (cm.dom as HTMLElement).querySelectorAll(all)[index] as HTMLElement | undefined;
+      if (!mark) throw new Error(`no element ${all}[${index}]`);
+      const r = mark.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const y = r.top + r.height / 2;
+      const target = mark.ownerDocument.elementFromPoint(x, y) as HTMLElement | null;
+      if (!target) throw new Error('nothing at the mark');
+      // Read BEFORE dispatching. The press re-roots the view synchronously, so
+      // `target` is detached by the time the handler returns and no longer has
+      // the ancestors a selector could match against.
+      const reached = target.closest(MARKS)
+        ? 'mark'
+        : typeof target.className === 'string'
+          ? target.className
+          : target.tagName;
+      const opts = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clientX: x,
+        clientY: y,
+        button: 0,
+        buttons: 1,
+        metaKey: modifier,
+        ctrlKey: modifier,
+      };
+      target.dispatchEvent(new PointerEvent('pointerdown', opts));
+      target.dispatchEvent(new MouseEvent('mousedown', opts));
+      target.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
+      target.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 }));
+      // What the pointer would actually have reached, for a caller that wants
+      // to assert the hit-testing rather than only its consequence.
+      return reached;
     },
-    selector,
+    all,
     index,
+    modifier,
+    // The handler's own set, not the queried selector: two marks can overlap —
+    // an ordered item's digits sit under Obsidian's own `.list-number` — and the
+    // question this answers is whether a pointer reaches A mark, not which.
+    '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits',
   );
-}
-
-async function clickMark(selector: string, index = 0): Promise<void> {
-  const at = await markCentre(selector, index);
-  await h.clickAtPoint(at.x, at.y);
   await browser.pause(250);
+  return hit;
 }
 
 async function openZoomable(md = DOC): Promise<void> {
@@ -688,13 +751,17 @@ describe('outline zoom', function () {
     await openZoomable();
     // `## Mid` is the second block marker in the document — `# Top` has the
     // first, and the list items below carry Obsidian's bullets instead.
-    await clickMark('.cm-line > .to-decor-marker-icon', 1);
+    // `'mark'` is the hit test: a pointer aimed at the mark's own centre
+    // actually reaches it, which `pointer-events: none` used to prevent.
+    expect(await clickMark('.cm-line > .to-decor-marker-icon', 1)).toBe('mark');
     expect(await trail()).toEqual(['zoom', 'Top']);
   });
 
   it('zooms from a list item bullet, which is the mark Obsidian draws', async function () {
     await openZoomable();
-    await clickMark('.to-decor-list .list-bullet', 0);
+    // The fold indicator's own box covers the bullet outright, so this reaching
+    // the bullet is the whole of what the stacking order buys.
+    expect(await clickMark('.to-decor-list .list-bullet', 0)).toBe('mark');
     expect(await trail()).toEqual(['zoom', 'Top', 'Mid']);
   });
 
@@ -705,7 +772,7 @@ describe('outline zoom', function () {
     const md = ['# T', '', '| a | b |', '| --- | --- |', '| 1 | 2 |', '', '- after', ''].join('\n');
     await openZoomable(md);
     await browser.pause(250);
-    await clickMark('.cm-table-widget > .to-decor-marker-icon', 0);
+    expect(await clickMark('.cm-table-widget > .to-decor-marker-icon', 0)).toBe('mark');
     expect(await trail()).toEqual(['zoom', 'T']);
     // Counted, not read as lines: a widget-rendered span reports no `.cm-line`s
     // at all (this spec's header), and Obsidian rewrites a table's own source
@@ -725,10 +792,13 @@ describe('outline zoom', function () {
 
   it('leaves a modified click to whoever else owns it', async function () {
     await openZoomable();
-    const at = await markCentre('.cm-line > .to-decor-marker-icon', 1);
-    await h.modClickAt(at.x, at.y);
-    await browser.pause(250);
+    expect(await clickMark('.cm-line > .to-decor-marker-icon', 1, true)).toBe('mark');
     expect(await trail()).toEqual([]);
+    // The same mark, unmodified, DOES zoom — otherwise this passes whenever the
+    // press misses, which is how a version of it driven by viewport coordinates
+    // hid a real mobile failure.
+    await clickMark('.cm-line > .to-decor-marker-icon', 1);
+    expect(await trail()).toEqual(['zoom', 'Top']);
   });
 
   it('zooms into a table from the command, and the note still zooms afterwards', async function () {
@@ -802,18 +872,28 @@ describe('outline zoom', function () {
     await openZoomable(md);
     await zoomAt(md, '## Target');
     await browser.pause(300);
-    const view = await browser.executeObsidian(({ app, obsidian }) => {
-      const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cm = (v.editor as any).cm;
-      const scroller = cm.scrollDOM as HTMLElement;
-      const trail = v.containerEl.querySelector('.to-zoom-trail') as HTMLElement | null;
-      return {
-        scrollTop: Math.round(scroller.scrollTop),
-        trailVisible: !!trail && trail.getBoundingClientRect().top >= scroller.getBoundingClientRect().top,
-        focused: cm.hasFocus as boolean,
-      };
+    const read = (): Promise<{ scrollTop: number; trailVisible: boolean; focused: boolean }> =>
+      browser.executeObsidian(({ app, obsidian }) => {
+        const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (v.editor as any).cm;
+        const scroller = cm.scrollDOM as HTMLElement;
+        const trail = v.containerEl.querySelector('.to-zoom-trail') as HTMLElement | null;
+        return {
+          scrollTop: Math.round(scroller.scrollTop),
+          trailVisible:
+            !!trail && trail.getBoundingClientRect().top >= scroller.getBoundingClientRect().top,
+          focused: cm.hasFocus as boolean,
+        };
+      });
+    // Settled, not sampled: both halves land a frame after the scope change, and
+    // focus lands after whatever ran the gesture has finished with it.
+    await browser.waitUntil(async () => (await read()).focused, {
+      timeout: 3000,
+      interval: 100,
+      timeoutMsg: 'the editor never took focus after the zoom',
     });
+    const view = await read();
     // The zoomed subtree starts at the top whatever its length, so there is no
     // other position the view could sensibly be left at — and the trail is the
     // first thing in it.
@@ -877,7 +957,7 @@ describe('outline zoom', function () {
     const md = ['# Top', '', '1. first', '2. second', '   1. nested one', '   2. nested two', ''].join('\n');
     await openZoomable(md);
     await browser.pause(250);
-    await clickMark('.to-decor-list .to-decor-ol-digits', 2);
+    expect(await clickMark('.to-decor-list .to-decor-ol-digits', 2)).toBe('mark');
     expect(await trail()).toEqual(['zoom', 'Top', 'second']);
   });
 

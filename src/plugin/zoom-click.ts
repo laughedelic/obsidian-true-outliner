@@ -22,6 +22,17 @@
  * common: a CM6 widget decoration on a plain line, an imperative injection on a
  * widget-replaced atom (`decorations.ts`), and Obsidian's own `.list-bullet` on
  * a list item — the mark for the commonest node of all, and not ours to build.
+ *
+ * `pointerdown` and not `mousedown`, which is what this listened for first: on a
+ * touch device there is no mouse event to hear, and the gesture simply did not
+ * exist there. Caught by the mobile e2e run, where every click test failed while
+ * every command test passed.
+ *
+ * A pointer gesture still produces the mouse events afterwards, and
+ * `preventDefault` on `pointerdown` does not suppress them for a mouse — so a
+ * handled press is remembered until its own gesture ends, and the `mousedown`,
+ * `mouseup` and `click` that follow it are swallowed rather than allowed to
+ * place a caret from coordinates that now mean something else entirely.
  */
 
 import { ViewPlugin, type EditorView, type PluginValue } from '@codemirror/view';
@@ -50,19 +61,44 @@ import type { ModeSource } from './keymap';
 const MARK_SELECTOR =
   '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
 
+/** The events a handled press has to swallow, in the order they arrive. */
+const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
+
 class ZoomClickPlugin implements PluginValue {
-  private readonly onMouseDown: (event: MouseEvent) => void;
+  private readonly onPointerDown: (event: Event) => void;
+  private readonly onTrailing: (event: Event) => void;
+  /** A press this gesture took, until its own trailing events are spent. */
+  private consuming = false;
 
   constructor(
     private readonly view: EditorView,
     private readonly modes: ModeSource,
   ) {
-    this.onMouseDown = (event) => this.handle(event);
-    this.view.dom.addEventListener('mousedown', this.onMouseDown, true);
+    this.onPointerDown = (event) => {
+      if (event instanceof MouseEvent) this.handle(event);
+    };
+    this.onTrailing = (event) => this.swallow(event);
+    this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
+    for (const type of TRAILING_EVENTS) {
+      this.view.dom.addEventListener(type, this.onTrailing, true);
+    }
   }
 
   destroy(): void {
-    this.view.dom.removeEventListener('mousedown', this.onMouseDown, true);
+    this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
+    for (const type of TRAILING_EVENTS) {
+      this.view.dom.removeEventListener(type, this.onTrailing, true);
+    }
+  }
+
+  /** The rest of a press this gesture already took. `click` ends it: it is the
+   * last of the three, and a gesture that never produces one — a drag off the
+   * mark — is ended by the `mouseup` before it. */
+  private swallow(event: Event): void {
+    if (!this.consuming) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.type !== 'mousedown') this.consuming = false;
   }
 
   private handle(event: MouseEvent): void {
@@ -100,11 +136,12 @@ class ZoomClickPlugin implements PluginValue {
     if (!scope) return;
 
     // Both, and in the capture phase: `preventDefault` alone leaves CM6's own
-    // `mousedown` on `contentDOM` to run and start a selection drag from the
-    // mark, and `stopPropagation` alone leaves the browser to focus and place a
-    // caret. The press is entirely this gesture's.
+    // handler on `contentDOM` to run and start a selection drag from the mark,
+    // and `stopPropagation` alone leaves the browser to focus and place a
+    // caret. The press is entirely this gesture's, trailing events included.
     event.preventDefault();
     event.stopPropagation();
+    this.consuming = true;
     const rootStart = this.view.state.doc.line(scope.startLine + 1).from;
     this.view.dispatch({
       effects: zoomTo.of(rootStart),

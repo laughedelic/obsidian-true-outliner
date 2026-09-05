@@ -315,3 +315,6 @@ implementation, not an assertion.
       contradicted the segment under the pointer, which promises zooming to that ancestor
 - [x] 14.8 Marker/guide alignment reported at a reduced font size: reproduced on `main`, so not
       this change's, and left alone here
+- [x] 14.9 The click gesture listens on `pointerdown`, and swallows the mouse events behind a
+      handled press. A `mousedown` listener does not exist on a touch device at all — the mobile
+      e2e run is what said so, with every click test failing and every command test passing

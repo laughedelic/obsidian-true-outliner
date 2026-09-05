@@ -538,6 +538,13 @@ a CM6 widget decoration on a plain line, an imperative injection on a widget-rep
 Obsidian's own `.list-bullet`, which is the mark for the commonest node in an outline and is not
 ours to build.
 
+*`pointerdown`, not `mousedown`.* On a touch device there is no mouse event to hear and the
+gesture simply did not exist there — caught by the mobile e2e run, where every click test failed
+while every command test passed. A pointer gesture still produces the mouse events afterwards and
+`preventDefault` on `pointerdown` does not suppress them for a mouse, so a handled press is
+remembered until its own gesture ends and the `mousedown`, `mouseup` and `click` behind it are
+swallowed rather than left to place a caret from coordinates that now mean something else.
+
 *What counts as a mark:* our marker icon, a list item's native bullet or number, and the digits
 span the decoration layer supplies for an ordered item — Obsidian does not always emit
 `.list-number`, and without that span the first items of a nested ordered list had no reachable

@@ -602,11 +602,23 @@ Concrete interaction ideas on top of the existing "marker as a click target" dir
     invisible remainder covers the bullet outright, so `elementFromPoint` at the bullet's centre
     returns the indicator and a real click folds. Fixed with a stacking order, since CSS cannot
     make part of a box transparent to the pointer.
-  - And one for whoever writes the test: a synthesised event dispatched ON the mark proves
-    nothing here. It bypasses hit-testing, so it passes with `pointer-events: none` still in
-    force, and it targets the mark's own element where a real click targets the `<rect>` inside
-    its SVG — which is an `SVGElement`, not an `HTMLElement`, and a narrow `instanceof` guard
-    silently drops every real click.
+  - The listener has to be on `pointerdown`. On a touch device there is no mouse event at all, so
+    a `mousedown` listener makes the gesture simply not exist there; the mobile e2e run is what
+    said so. A pointer gesture still produces the mouse events afterwards, and `preventDefault`
+    on `pointerdown` does not suppress them for a mouse, so a handled press has to swallow the
+    `mousedown`/`mouseup`/`click` behind it.
+  - And three for whoever writes the test, each of which cost a run:
+    - A synthesised event dispatched ON the mark proves nothing. It bypasses hit-testing, so it
+      passes with `pointer-events: none` still in force. Dispatch on whatever
+      `elementFromPoint` returns at the mark's centre instead — that fails exactly when a real
+      click would, and it is the instrument that found both the `pointer-events` and the
+      fold-indicator defects.
+    - A real click targets the `<rect>` inside a mark's SVG, which is an `SVGElement` and not an
+      `HTMLElement`; a narrow `instanceof` guard silently drops every real click.
+    - WebDriver's own pointer does not survive mobile emulation: a press aimed at a marker's
+      centre in viewport coordinates lands on the line behind it. `element.click()` is no better
+      — it demands the element be "interactable", which a mark inside a widget atom and a
+      zero-width bullet span both fail while being perfectly clickable by a person.
 - **Click on a guide → zoom into, or fold, the whole subtree** — which of the two should
   be configurable. Still open, and still gated on the one caveat the marker work could not
   dissolve: a guide is a `pointer-events: none` pseudo-element with no hit area, so a click
