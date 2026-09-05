@@ -26,6 +26,10 @@ export interface SourceRefs {
   readonly path: string;
   readonly mtime: number;
   readonly refs: readonly BacklinkReference[];
+  /** The note's own tags, `#` stripped. From the metadata cache, like the rest
+   * of this shape — a tag on the referencing BLOCK would need the parsed tree,
+   * which is the half this module exists to stay upstream of (design D9). */
+  readonly tags: readonly string[];
 }
 
 /**
@@ -35,6 +39,13 @@ export interface SourceRefs {
 export interface ControlsState {
   readonly folders: ReadonlySet<string>;
   readonly kinds: ReadonlySet<ReferenceKind>;
+  /**
+   * Tags on the source note. The only axis whose values are many-to-one: a note
+   * has one folder and a reference has one kind, but a note carries any number
+   * of tags — so selecting two tags WIDENS, admitting a note carrying either,
+   * while the axes still combine with AND (design D9).
+   */
+  readonly tags: ReadonlySet<string>;
   /** Matched against source note NAMES only. Empty admits everything. */
   readonly search: string;
   readonly sort: SortOrder;
@@ -45,6 +56,7 @@ export interface ControlsState {
 export const NO_FILTER: ControlsState = {
   folders: new Set(),
   kinds: new Set(),
+  tags: new Set(),
   search: '',
   sort: 'recent',
   cap: Number.POSITIVE_INFINITY,
@@ -62,8 +74,9 @@ export interface AxisValue<T> {
 }
 
 export interface FilterAxes {
-  readonly folders: readonly AxisValue<string>[];
   readonly kinds: readonly AxisValue<ReferenceKind>[];
+  readonly folders: readonly AxisValue<string>[];
+  readonly tags: readonly AxisValue<string>[];
 }
 
 /** A group that survived the filters, with its FILTERED reference count. */
@@ -104,15 +117,18 @@ export function axesOf(
   sources: readonly SourceRefs[],
   controls: ControlsState = NO_FILTER,
 ): FilterAxes {
-  const present = { folders: new Set<string>(), kinds: new Set<ReferenceKind>() };
-  for (const source of sources) {
-    present.folders.add(splitPath(source.path).folder);
-    for (const ref of source.refs) present.kinds.add(ref.kind);
-  }
+  // One walk for every axis's value set, shared with the filter — two copies of
+  // "what values exist" is how an axis quietly stops offering one.
+  const present = presentValues(sources);
+  const presentKinds = new Set(present.kinds);
 
-  // Each axis counted against everything EXCEPT itself.
+  // Each axis counted against everything EXCEPT itself. The tag axis needs no
+  // special case here: its count is the notes carrying it that the others
+  // admit, exactly as a folder's is.
+  const byPath = new Map(sources.map((s) => [s.path, s]));
   const forFolders = filterSources(sources, controls, { folders: false });
   const forKinds = filterSources(sources, controls, { kinds: false });
+  const forTags = filterSources(sources, controls, { tags: false });
 
   const folderNotes = new Map<string, number>();
   for (const group of forFolders) {
@@ -122,20 +138,29 @@ export function axesOf(
 
   const kindNotes = new Map<ReferenceKind, number>();
   for (const group of forKinds) {
-    const source = sources.find((s) => s.path === group.path);
-    for (const kind of new Set(source?.refs.map((r) => r.kind) ?? [])) {
+    for (const kind of new Set(byPath.get(group.path)?.refs.map((r) => r.kind) ?? [])) {
       kindNotes.set(kind, (kindNotes.get(kind) ?? 0) + 1);
     }
   }
 
+  const tagNotes = new Map<string, number>();
+  for (const group of forTags) {
+    for (const tag of new Set(byPath.get(group.path)?.tags ?? [])) {
+      tagNotes.set(tag, (tagNotes.get(tag) ?? 0) + 1);
+    }
+  }
+
   return {
-    folders: [...present.folders]
-      .sort((a, b) => a.localeCompare(b))
-      .map((value) => ({ value, notes: folderNotes.get(value) ?? 0 })),
-    kinds: KIND_ORDER.filter((k) => present.kinds.has(k)).map((value) => ({
+    kinds: KIND_ORDER.filter((k) => presentKinds.has(k)).map((value) => ({
       value,
       notes: kindNotes.get(value) ?? 0,
     })),
+    folders: [...present.folders]
+      .sort((a, b) => a.localeCompare(b))
+      .map((value) => ({ value, notes: folderNotes.get(value) ?? 0 })),
+    tags: [...present.tags]
+      .sort((a, b) => a.localeCompare(b))
+      .map((value) => ({ value, notes: tagNotes.get(value) ?? 0 })),
   };
 }
 
@@ -162,12 +187,13 @@ export function applyControls(
 }
 
 /**
- * The two axes and the search term, combined conjunctively.
+ * The three axes and the search term, combined conjunctively — but each axis's
+ * own values disjunctively, which only shows on the tag axis (D9).
  *
- * The axes filter at different levels: a folder and a name are properties of
- * the source, so they admit or reject a whole group, while a kind is a property
- * of a reference, so it decides a group's COUNT and removes the group only when
- * it leaves nothing.
+ * The axes filter at different levels: a folder, a name and a tag are
+ * properties of the source, so they admit or reject a whole group, while a kind
+ * is a property of a reference, so it decides a group's COUNT and removes the
+ * group only when it leaves nothing.
  *
  * A selection is intersected with the values actually present first. A value
  * can stop existing while the footer is open — the reference that carried it is
@@ -178,17 +204,21 @@ export function applyControls(
 function filterSources(
   sources: readonly SourceRefs[],
   controls: ControlsState,
-  { folders: useFolders = true, kinds: useKinds = true }: AxisSwitches,
+  { folders: useFolders = true, kinds: useKinds = true, tags: useTags = true }: AxisSwitches,
 ): AdmittedGroup[] {
   const present = presentValues(sources);
   const folders = useFolders ? live(controls.folders, present.folders) : new Set<string>();
   const kinds = useKinds ? live(controls.kinds, present.kinds) : new Set<ReferenceKind>();
+  const tags = useTags ? live(controls.tags, present.tags) : new Set<string>();
   const search = controls.search.trim().toLowerCase();
 
   const out: AdmittedGroup[] = [];
   for (const source of sources) {
     const { name, folder } = splitPath(source.path);
     if (folders.size > 0 && !folders.has(folder)) continue;
+    // ANY of the selected tags, not all of them: a note carries several, so a
+    // second tag widens where a second folder could only ever narrow (D9).
+    if (tags.size > 0 && !source.tags.some((tag) => tags.has(tag))) continue;
     if (search.length > 0 && !name.toLowerCase().includes(search)) continue;
 
     const count =
@@ -205,20 +235,24 @@ function filterSources(
 interface AxisSwitches {
   readonly folders?: boolean;
   readonly kinds?: boolean;
+  readonly tags?: boolean;
 }
 
 /** Every value each axis holds across the unfiltered set. */
 function presentValues(sources: readonly SourceRefs[]): {
   folders: string[];
   kinds: ReferenceKind[];
+  tags: string[];
 } {
   const folders = new Set<string>();
   const kinds = new Set<ReferenceKind>();
+  const tags = new Set<string>();
   for (const source of sources) {
     folders.add(splitPath(source.path).folder);
     for (const ref of source.refs) kinds.add(ref.kind);
+    for (const tag of source.tags) tags.add(tag);
   }
-  return { folders: [...folders], kinds: [...kinds] };
+  return { folders: [...folders], kinds: [...kinds], tags: [...tags] };
 }
 
 /** A selection narrowed to the values still on offer. */

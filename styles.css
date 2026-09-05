@@ -1979,159 +1979,346 @@ body {
   height: auto;
 }
 
-/*
- * Two axes, two groups, and the groups are what separate them.
+/* ---- The filter row ------------------------------------------------------ *
  *
- * Shape alone was the first attempt and it did not carry: side by side in one
- * flow, round pills and square chips read as one heap of controls with a
- * rounding difference rather than as two questions. So each axis is a named
- * group with a rule between them, and the shape becomes the thing that says
- * WHICH group a stray control belongs to rather than the only thing dividing
- * them.
+ * Flush with the CARDS, not with the header. The header's leading gutter is the
+ * marker column, which exists to hold the section icon; nothing in this row
+ * sits in it, so inheriting that indent was borrowed alignment.
+ *
+ * The row's shape does not change with width: the search field takes what is
+ * left over and the facets are fixed. That is what lets a facet shed its word
+ * on a narrow footer without anything reflowing — only a button's CONTENT
+ * changes, and nothing here is competing for space.
  */
 .to-backlinks-filters {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  /* Between GROUPS. Controls inside a group sit closer, which is what makes a
-   * group read as one. */
-  gap: 0.9rem;
-  padding-left: var(--to-marker-gutter);
-  margin-bottom: 0.75rem;
-}
-
-.to-backlinks-axis {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-/* A rule between the groups, drawn by the second one so there is never a
- * leading edge on the first. */
-.to-backlinks-axis + .to-backlinks-axis::before {
-  content: '';
-  align-self: stretch;
-  width: 1px;
-  margin-inline-end: 0.6rem;
-  background: var(--background-modifier-border);
-}
-
-.to-backlinks-axis-label {
-  color: var(--text-faint);
-  font-size: var(--font-ui-smaller);
-  text-transform: lowercase;
-  letter-spacing: 0.02em;
-}
-
-/* Search and reset end the row rather than joining the groups. */
-.to-backlinks-filters-end {
-  display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-inline-start: auto;
+  margin-bottom: 0.75rem;
+  flex-wrap: nowrap;
 }
 
-/* Round for a WHERE, square for a WHAT. The two axes are told apart by shape
- * rather than by wording, so which dimension a control belongs to is readable
- * without reading it (docs/research/18, D8/D14). */
-.to-backlinks-pill,
-.to-backlinks-chip {
-  display: inline-flex;
+.to-backlinks-search-field {
+  display: flex;
   align-items: center;
-  gap: 0.3em;
-  padding: 0.1em 0.6em;
-  font-size: var(--font-ui-smaller);
-  line-height: 1.6;
-  color: var(--text-muted);
-  background: var(--background-modifier-hover);
-  border: 1px solid transparent;
-  cursor: pointer;
-  box-shadow: none;
-  height: auto;
-}
-
-.to-backlinks-pill {
-  border-radius: 999px;
-}
-
-.to-backlinks-chip {
+  gap: 0.35rem;
+  /* The one control that grows. `min-width: 0` is what allows it to SHRINK
+   * below its content, without which a long placeholder would push the facets
+   * off the end. */
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 0.3em 0 0.5em;
+  min-height: 1.9em;
+  background: var(--background-modifier-form-field, var(--background-primary));
+  border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
 }
 
-.to-backlinks-pill:hover,
-.to-backlinks-chip:hover {
-  color: var(--text-normal);
+.to-backlinks-search-field:focus-within {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px hsla(var(--interactive-accent-hsl), 0.28);
 }
 
-/* Focus-on: an unselected control is not excluding anything, so only the
- * selected state is marked. */
-.to-backlinks-pill.is-selected,
-.to-backlinks-chip.is-selected {
+.to-backlinks-search-icon {
+  display: inline-flex;
+  flex: none;
+  width: 0.85em;
+  height: 0.85em;
+  color: var(--text-faint);
+}
+
+.to-backlinks-search-icon > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.to-backlinks .to-backlinks-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  height: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-normal);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.to-backlinks .to-backlinks-search:focus {
+  box-shadow: none;
+}
+
+.to-backlinks .to-backlinks-search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  padding: 0.15em;
+  color: var(--text-faint);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-search-clear:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* ---- One facet per axis -------------------------------------------------- */
+
+.to-backlinks-facet-anchor {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.to-backlinks .to-backlinks-facet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  flex: none;
+  padding: 0.1em 0.45em;
+  min-height: 1.9em;
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-facet:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks .to-backlinks-facet.is-active {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  border-color: var(--to-decor-accent, var(--text-accent));
+}
+
+.to-backlinks-facet-mark {
+  display: inline-flex;
+  flex: none;
+  width: 0.85em;
+  height: 0.85em;
+}
+
+/* The wikilink mark is lighter ink than the other two — brackets against a
+ * filled outline — so it is drawn a shade larger to look the same size. */
+.to-backlinks-facet[data-axis='kind'] .to-backlinks-facet-mark {
+  width: 0.98em;
+  height: 0.98em;
+}
+
+.to-backlinks-facet-mark > svg {
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Narrow: the word goes, the mark stays.
+ *
+ * A CONTAINER query, not a media query — the footer measures itself, so a
+ * narrow split pane on a wide screen behaves like a phone, which is the case a
+ * viewport query gets wrong.
+ */
+.to-backlinks {
+  container-type: inline-size;
+}
+
+@container (max-width: 32rem) {
+  .to-backlinks-facet-word {
+    display: none;
+  }
+
+  .to-backlinks .to-backlinks-facet {
+    padding-inline: 0.35em;
+  }
+}
+
+/* ---- A facet's values ---------------------------------------------------- */
+
+.to-backlinks-facet-menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  inset-inline-end: 0;
+  z-index: var(--layer-popover, 30);
+  min-width: 12rem;
+  max-width: 18rem;
+  padding: 0.35rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s, 0 10px 30px rgba(0, 0, 0, 0.45));
+}
+
+.to-backlinks-facet-cap {
+  display: flex;
+  align-items: center;
+  padding: 0.15rem 0.4rem 0.3rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+.to-backlinks .to-backlinks-facet-clear {
+  margin-inline-start: auto;
+  padding: 0 0.2em;
+  height: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--to-decor-accent, var(--text-accent));
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+/* Only the axes whose value sets are unbounded get one (design D10). */
+.to-backlinks-facet-find {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0.1rem 0.3rem;
+  padding: 0 0.4em;
+  min-height: 1.8em;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.to-backlinks-facet-find:focus-within {
+  border-color: var(--interactive-accent);
+}
+
+.to-backlinks .to-backlinks-facet-find input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  height: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-normal);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.to-backlinks-facet-list {
+  max-height: 13rem;
+  overflow-y: auto;
+}
+
+.to-backlinks .to-backlinks-facet-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.25rem 0.4rem;
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+  color: var(--text-normal);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  height: auto;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-facet-option:hover {
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks-facet-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 0.95em;
+  height: 0.95em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+}
+
+.to-backlinks-facet-option.is-selected .to-backlinks-facet-box {
   color: var(--text-on-accent);
   background: var(--interactive-accent);
   border-color: var(--interactive-accent);
 }
 
+.to-backlinks-facet-box > svg {
+  width: 80%;
+  height: 80%;
+}
+
+.to-backlinks-facet-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Nothing left under the OTHER axes' selections. The count is what changed, so
+ * the count is what is marked; the row recedes without leaving the list,
+ * because adding it and dropping whatever emptied it is a normal way out.
+ */
+.to-backlinks-facet-option.is-empty {
+  color: var(--text-faint);
+}
+
 .to-backlinks-chip-count {
+  margin-inline-start: auto;
   opacity: 0.65;
   font-variant-numeric: tabular-nums;
 }
 
 /*
- * Nothing left under the OTHER axes' selections. The count is the thing that
- * changed, so the count is what is marked — faint, where a live one is only
- * dimmed — and the control recedes without leaving the row, because adding it
- * and dropping whatever emptied it is a normal way out.
+ * The one control that clears every axis at once. Round and icon-only,
+ * deliberately unlike a facet: a fourth rectangle at the end of three of them
+ * reads as another facet rather than as the thing that undoes them.
  */
-.to-backlinks-pill.is-empty,
-.to-backlinks-chip.is-empty {
-  opacity: 0.45;
-  background: transparent;
-  border-color: var(--background-modifier-border);
-}
-
-.to-backlinks-pill.is-empty .to-backlinks-chip-count,
-.to-backlinks-chip.is-empty .to-backlinks-chip-count {
-  color: var(--text-faint);
-  opacity: 1;
-}
-
-.to-backlinks-search {
-  flex: 1 1 8em;
-  min-width: 6em;
-  max-width: 14em;
-  padding: 0.1em 0.5em;
-  font-size: var(--font-ui-smaller);
-  height: auto;
-}
-
-/*
- * A round icon button, deliberately unlike a chip. Labelled and rectangular, it
- * was a third control of the same shape sitting beside two rows of them, and it
- * read as another value to select rather than as the thing that clears them.
- */
-.to-backlinks-reset {
+.to-backlinks .to-backlinks-reset {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5em;
-  height: 1.5em;
-  padding: 0.25em;
-  border-radius: 50%;
-  border: 1px solid var(--background-modifier-border);
+  flex: none;
+  width: 1.75em;
+  height: 1.75em;
+  padding: 0.4em;
   color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 50%;
+  box-shadow: none;
+  cursor: pointer;
 }
 
-.to-backlinks-reset:hover {
+.to-backlinks .to-backlinks-reset:hover {
   color: var(--text-on-accent);
   background: var(--interactive-accent);
   border-color: var(--interactive-accent);
 }
 
-.to-backlinks-reset > svg {
+.to-backlinks .to-backlinks-reset > svg {
   width: 100%;
   height: 100%;
+}
+
+.to-backlinks-facet-none {
+  padding: 0.2rem 0.4rem 0.35rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
 }
 
 /* ---- Incompleteness, said spatially as well as numerically --------------- *

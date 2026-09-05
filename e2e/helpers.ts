@@ -653,6 +653,27 @@ export async function pinBacklinksCapOff(): Promise<void> {
   });
 }
 
+/**
+ * Squeeze the active leaf's editor so the FOOTER becomes narrow, or let it go.
+ *
+ * The footer's controls answer to a container query on the footer itself, not
+ * to the viewport — a narrow split pane on a wide screen is exactly the case a
+ * media query gets wrong, so the test has to narrow the container rather than
+ * the window. Applied as an inline max-width on the editor's own sizer, which
+ * is what the footer's width comes from.
+ */
+export async function resizeLeafForFooter(width: number | null): Promise<void> {
+  await browser.executeObsidian((_ctx, px: number | null) => {
+    const sizer = document.querySelector<HTMLElement>(
+      '.workspace-leaf.mod-active .cm-content',
+    );
+    if (!sizer) return;
+    if (px === null) sizer.style.removeProperty('max-width');
+    else sizer.style.maxWidth = `${px}px`;
+  }, width);
+  await browser.pause(500);
+}
+
 /** Reset plugin data to defaults and reload the plugin so it re-reads it. */
 export async function resetPluginState(): Promise<void> {
   await browser.executeObsidian(async ({ plugins }) => {
