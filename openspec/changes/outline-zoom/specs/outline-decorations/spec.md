@@ -85,11 +85,14 @@ the CSS containment/specificity rules widget atoms carry, or Obsidian's native f
 a heading.
 
 A marker in the EDITOR is also a control: it SHALL accept pointer events, show a pointer cursor,
-and zoom into its node when clicked (`outline-zoom`). Where a node's mark is Obsidian's own — a
-list item's bullet or number — that element SHALL be the control instead, and SHALL be reachable:
-a native affordance whose invisible hit area covers it SHALL NOT take the click, while every pixel
-that affordance actually PAINTS SHALL keep it. A marker a surface draws as pure chrome, in a
-lineage row or a trail, is not a node mark and SHALL keep that surface's own behaviour.
+brighten to the accent while the pointer is on it, and zoom into its node when clicked
+(`outline-zoom`). The accent is what names the node the gesture would act on, which a cursor alone
+does not. Where a node's mark is Obsidian's own — a list item's bullet or number — that element
+SHALL be the control instead, and SHALL be reachable: a native affordance whose invisible hit area
+covers it SHALL NOT take the click, while every pixel that affordance actually PAINTS SHALL keep
+it. This SHALL hold for every list item, whether or not it is foldable. A marker a surface draws as
+pure chrome, in a lineage row or a trail, is not a node mark and SHALL keep that surface's own
+behaviour.
 
 #### Scenario: Marker size is font-size-independent
 - **WHEN** a marker renders on a heading line and on a paragraph line
@@ -110,10 +113,14 @@ lineage row or a trail, is not a node mark and SHALL keep that surface's own beh
 - **THEN** the chevron does not overlap the heading's own marker or an ancestor's guide
   line passing through the same row
 
-#### Scenario: A list item's bullet is reachable past the fold indicator
-- **WHEN** the user clicks a list item's bullet, whose native collapse indicator's hit area
-  covers it
-- **THEN** the click reaches the bullet
+#### Scenario: A list item's mark is reachable past the fold indicator
+- **WHEN** the user clicks the bullet or number of a FOLDABLE list item, whose native collapse
+  indicator's hit area covers it
+- **THEN** the click reaches the mark
+
+#### Scenario: A mark under the pointer says which node it would act on
+- **WHEN** the pointer rests on a marker
+- **THEN** the marker shows the accent, as the node in play does elsewhere
 
 **Covered by**: `e2e/specs/52-block-markers-icons.e2e.ts` (as before, for size, coexistence,
 containment and the chevron); `e2e/specs/80-outline-zoom.e2e.ts` for the marks as controls.

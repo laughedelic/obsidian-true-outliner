@@ -318,3 +318,19 @@ implementation, not an assertion.
 - [x] 14.9 The click gesture listens on `pointerdown`, and swallows the mouse events behind a
       handled press. A `mousedown` listener does not exist on a touch device at all — the mobile
       e2e run is what said so, with every click test failing and every command test passing
+
+## 15. Review round four
+
+- [x] 15.1 A list item's mark is lifted on the RUN, not on the mark. An ordered run carries a
+      transform, and a transform makes a stacking context — so the previous z-index was scoped
+      inside it and could never outrank the indicator. Only FOLDABLE items were affected, which
+      is why some numbers zoomed and their childless siblings all did
+- [x] 15.2 A mark under the pointer brightens to the accent, so the gesture names the node it
+      would act on rather than only announcing that a control is there
+- [x] 15.3 Zooming into a folded subtree opens it. Obsidian's folds are `@codemirror/language`'s
+      — verified, so no private API — and only folds the scope contains are touched
+- [x] 15.4 The footer's own fixes moved down to `backlinks-controls`, where the defects are:
+      both are visible without a zoom
+- [ ] 15.5 Affordance budget for a node's mark — zoom, fold, drag, and a task's checkbox all
+      want the same 14px. Explored in `docs/research/12-decoration-follow-ups.md`; nothing
+      settled, and nothing in this change

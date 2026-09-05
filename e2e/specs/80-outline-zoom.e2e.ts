@@ -970,6 +970,39 @@ describe('outline zoom', function () {
     expect(await trail()).toEqual(['zoom', 'an item…']);
   });
 
+  it('reaches an ordered item mark past the fold indicator that covers it', async function () {
+    // The indicator's box swallows the whole marker run, and its z-index beats a
+    // mark's own — an ordered run carries a transform, which makes its own
+    // stacking context, so a z-index INSIDE it can never outrank a sibling of
+    // the run. Only the FOLDABLE items were affected, which is why some numbers
+    // in a nested ordered list worked and others did not.
+    const md = ['# Top', '', '1. first', '\t1. nested first', '\t\t1. nested deeper', '9. ninth', ''].join('\n');
+    await openZoomable(md);
+    await browser.pause(300);
+    // `1. first` has a child, so it has an indicator; index 0 is its own mark.
+    expect(await clickMark('.to-decor-list .to-decor-ol-digits', 0)).toBe('mark');
+    expect(await trail()).toEqual(['zoom', 'Top']);
+  });
+
+  it('opens a folded root, so the focus view is not of a collapsed node', async function () {
+    const md = ['# Top', '', '- parent', '\t- child', '\t- second child', ''].join('\n');
+    await openZoomable(md);
+    await h.setCursorSettled(2, 3);
+    await browser.pause(200);
+    await browser.executeObsidian(({ app }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (app as any).commands.executeCommandById('editor:toggle-fold');
+    });
+    await browser.pause(400);
+    const foldedLines = await renderedLines();
+    expect(foldedLines).not.toContain('\t- child');
+
+    await zoomAt(md, '- parent');
+    await browser.pause(300);
+    // The whole subtree, not the one line a fold left of it.
+    expect(await renderedLines()).toEqual(['- parent', '\t- child', '\t- second child', '']);
+  });
+
   it('offers its commands only in outline mode', async function () {
     await openZoomable();
     expect(await h.commandAvailable('zoom-in')).toBe(true);

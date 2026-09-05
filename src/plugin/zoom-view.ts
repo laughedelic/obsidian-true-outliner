@@ -16,6 +16,10 @@
  * own mousedown left a caret nothing had focused. Two signals for one state,
  * disagreeing.
  *
+ * A folded subtree opens, too. A zoomed view of a collapsed node shows its first
+ * line and nothing else, with the only control left on screen being the fold
+ * chevron that got it there — a focus view that hides what it focused on.
+ *
  * And the view opens at the TOP while zoomed. The zoomed subtree begins there,
  * whatever its length, so there is no other position the view could sensibly be
  * left at — and being left mid-scroll from before the zoom hid the trail
@@ -27,7 +31,8 @@
  */
 
 import { ViewPlugin, EditorView, type PluginValue, type ViewUpdate } from '@codemirror/view';
-import type { Extension } from '@codemirror/state';
+import { foldedRanges, unfoldEffect } from '@codemirror/language';
+import { StateEffect, type Extension } from '@codemirror/state';
 import { containsPos } from '../zoom';
 import { offsetToLinePos } from './cm-pos';
 import { zoomAnchorField } from './zoom-state';
@@ -59,7 +64,13 @@ class ZoomViewPlugin implements PluginValue {
   private settle(previous: number | null): void {
     const scope = zoomScope(this.view.state, this.modes);
     const caret = this.caretTarget(scope);
-    if (caret !== null) this.view.dispatch({ selection: { anchor: caret } });
+    const unfold = scope ? this.unfoldInside(scope) : [];
+    if (caret !== null || unfold.length > 0) {
+      this.view.dispatch({
+        ...(caret !== null ? { selection: { anchor: caret } } : {}),
+        effects: unfold,
+      });
+    }
     if (!scope && previous !== null && previous <= this.view.state.doc.length) {
       // Zoom cleared: the node just left is the reader's place in the document
       // that came back, and the only thing on screen they were looking at.
@@ -77,6 +88,28 @@ class ZoomViewPlugin implements PluginValue {
       if (scope) this.view.scrollDOM.scrollTop = 0;
       this.view.focus();
     });
+  }
+
+  /**
+   * Every fold inside the new scope, as the effects that open them.
+   *
+   * A zoomed view of a folded subtree shows a heading and nothing else, which is
+   * the opposite of what the gesture asked for — and there is no way out of it
+   * from inside, since the fold chevron of a collapsed root is the only control
+   * left on screen. Opening them is what makes the view a focus view.
+   *
+   * Only what the scope CONTAINS. A fold elsewhere in the note is none of zoom's
+   * business, and clearing the zoom leaves it exactly as it was.
+   */
+  private unfoldInside(scope: NonNullable<ReturnType<typeof zoomScope>>): StateEffect<unknown>[] {
+    const { doc } = this.view.state;
+    const from = doc.line(scope.cover.start.line + 1).from;
+    const to = doc.line(Math.min(scope.cover.end.line + 1, doc.lines)).to;
+    const effects: StateEffect<unknown>[] = [];
+    foldedRanges(this.view.state).between(from, to, (a, b) => {
+      effects.push(unfoldEffect.of({ from: a, to: b }));
+    });
+    return effects;
   }
 
   /**

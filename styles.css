@@ -1009,23 +1009,52 @@ body {
 }
 
 /*
- * ...and above the fold indicator, or the bullet is a control nothing can
- * click. Measured: the native `.collapse-indicator` is a 30.8px box whose
- * painted chevron is only about 10px wide, and the invisible remainder covers
- * the bullet completely — `elementFromPoint` at the bullet's own centre
- * returned the indicator. Its wrapper carries `z-index: 1`, so a bullet at
- * `auto` loses whatever its own box says.
+ * A mark under the pointer brightens to the accent — the colour this plugin
+ * already uses for "the node in play", on the caret's own trail. A cursor alone
+ * says a control is here; the accent says WHICH node it acts on, which is the
+ * part a reader cannot infer from a 13px glyph hanging in a gutter next to
+ * several others.
+ *
+ * A bullet's dot is a background on its `::after`, and an ordered number is
+ * text, so the same state is three declarations rather than one — the same
+ * split the current-node accent already makes for the same two elements.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon:hover,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number:hover,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .to-decor-ol-digits:hover {
+  color: var(--to-decor-accent);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet:hover::after {
+  background-color: var(--to-decor-accent);
+}
+
+/*
+ * ...and above the fold indicator, or a list item's mark is a control nothing
+ * can click.
+ *
+ * Measured: the native `.collapse-indicator` is a 30.8px box whose painted
+ * chevron is only 10px wide, and the invisible remainder covers the whole
+ * marker run — `elementFromPoint` at a bullet's or a number's own centre
+ * returned the indicator. The wrapper carries `z-index: 1`, so a mark at `auto`
+ * loses whatever its own box says.
  *
  * A stacking order, not a smaller hit area: CSS cannot make part of a box
  * transparent to the pointer, and shrinking the indicator would move the fold
- * affordance rather than share the space. Raising the bullet gives each
- * gesture the ground its own glyph is painted on — the chevron keeps every
- * pixel it draws, and the bullet keeps its own. The element is already
- * `position: relative`, so this adds no layout of its own.
+ * affordance rather than share the space. This gives each gesture the ground its
+ * own glyph is painted on — the chevron's ink stops 3px short of the marker
+ * column by the rule above, so it keeps every pixel it draws, and the mark keeps
+ * its own.
+ *
+ * On the RUN, not on the mark inside it, and that is not tidiness. An ordered
+ * marker's run carries a `transform` (the rule above, which puts a number's left
+ * edge on a block icon's), and a transform makes a stacking context — so a
+ * `z-index` on the digits inside it is scoped to that context and can never
+ * outrank a sibling of the run itself. Lifting the mark alone measured as no
+ * change at all: the numbers of every FOLDABLE ordered item stayed unreachable
+ * while their childless siblings, which have no indicator, were fine.
  */
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .to-decor-ol-digits {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .cm-formatting-list {
   position: relative;
   z-index: 2;
 }

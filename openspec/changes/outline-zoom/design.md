@@ -554,13 +554,26 @@ would take a position the reader was aiming the caret at. Not a mark drawn by th
 footer either: both declare themselves as view chrome (`to-decor-own-chrome`), which is exactly
 the question this listener asks, and both answer their own clicks already.
 
-*The bullet had to be raised above the fold indicator.* Measured: the native `.collapse-indicator`
-is a 30.8px box whose painted chevron is about 10px wide, and the invisible remainder covers the
-bullet outright — `elementFromPoint` at the bullet's own centre returned the indicator, and a real
-click folded instead of zooming. A stacking order rather than a shifted glyph, because CSS cannot
-make part of a box transparent to the pointer and moving the indicator would relocate a native
-affordance rather than share the space. Each gesture now owns the ground its own glyph is painted
-on.
+*A list item's mark had to be raised above the fold indicator.* Measured: the native
+`.collapse-indicator` is a 30.8px box whose painted chevron is about 10px wide, and the invisible
+remainder covers the whole marker run — `elementFromPoint` at a bullet's or a number's own centre
+returned the indicator, and a real click folded instead of zooming. A stacking order rather than a
+shifted glyph, because CSS cannot make part of a box transparent to the pointer and moving the
+indicator would relocate a native affordance rather than share the space. Each gesture now owns the
+ground its own glyph is painted on: the chevron's ink stops 3px short of the marker column by a
+rule that predates this change, so it keeps every pixel it draws.
+
+The lift goes on the RUN, not on the mark inside it, and that took a second measurement to find.
+An ordered marker's run carries a `transform` — the rule that puts a number's left edge on a block
+icon's — and a transform makes a stacking context, so a `z-index` on the digits inside it is scoped
+there and can never outrank a sibling of the run. Lifting the mark alone changed nothing for
+exactly the FOLDABLE ordered items, which is how the report read: some numbers in a nested ordered
+list zoomed and others folded, and the ones that worked were the childless ones with no indicator
+at all.
+
+*A mark under the pointer brightens to the accent.* A cursor says a control is there; the accent
+says WHICH node it acts on, which is not inferable from a 13px glyph hanging in a gutter beside
+several others. It is the colour this plugin already uses for the node in play.
 
 *Why the caret always moves, where the command leaves an empty selection alone:* the command zooms
 to the node the caret is already in, so it is inside the new scope by construction. A click can
@@ -599,6 +612,16 @@ Focus is the half that was invisible. The current-node accent is drawn from the 
 or not the editor is focused, so a command run from the palette left the node lit with no caret in
 it, and a click that consumed its own `mousedown` left a caret nothing had focused. Two signals for
 one state, disagreeing — and each of the three reported symptoms is one side of that.
+
+*A folded subtree opens with the zoom.* A focus view of a collapsed node shows one line and
+nothing else, and the only control left on screen is the fold chevron that got it there — so the
+gesture would have to be undone before it could be used. Only folds the scope CONTAINS: one
+elsewhere in the note is none of zoom's business, and clearing the zoom does not put back the ones
+it opened, because a fold is a reading state the reader has since moved past.
+
+Obsidian's folds are `@codemirror/language`'s — verified rather than assumed: `foldedRanges` sees
+them and `unfoldEffect` opens them, which is what the e2e asserts. So this needs no private API,
+where `MarkdownView.currentMode.getFoldInfo()` would have been the alternative.
 
 *And the view opens at the top while zoomed.* The zoomed subtree begins there whatever its length,
 so there is no other position the view could sensibly be left at; left where it was, the trail

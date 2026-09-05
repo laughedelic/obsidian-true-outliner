@@ -284,6 +284,11 @@ inside the visible range: where it already was when that position is still insid
 the new zoom root otherwise. This holds for every entry point — the commands, a crumb, and a click
 on a mark — so the caret and the current-node highlight never disagree about which node is active.
 
+A subtree that is FOLDED SHALL be opened when it becomes the zoom scope. A focus view of a
+collapsed node shows its first line and nothing else, and the only control left on screen is the
+fold chevron that got it there. Folds outside the scope SHALL be left alone, and clearing the zoom
+SHALL NOT restore the ones it opened.
+
 While zoomed, the view SHALL be scrolled to the TOP, so the trail and the zoom root are the first
 things in it whatever the subtree's length. Clearing the zoom SHALL bring the node just left back
 into view, rather than leaving the reader wherever the collapsed layout happened to put them.
@@ -294,6 +299,10 @@ content belongs to no line, and a click there SHALL leave the caret inside the s
 #### Scenario: Zooming into a node far down a note opens at the top
 - **WHEN** the user zooms into a node that was scrolled well down the note
 - **THEN** the view is at the top, with the trail visible, and the editor is focused
+
+#### Scenario: Zooming into a folded node opens it
+- **WHEN** the user zooms into a node whose subtree is folded
+- **THEN** the whole subtree renders
 
 #### Scenario: The caret keeps its place when the scope still contains it
 - **WHEN** the user zooms in with the caret inside the node being zoomed to
