@@ -40,6 +40,65 @@ export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = "all";
  * renderings can never double up on the same level.
  */
 export type { GuideHighlight, MarkerHighlight } from "./decorate";
+
+/**
+ * The backlinks footer's controls, and the two caps that bound it.
+ *
+ * Named values rather than a free number or a CSS length: the settings tab is
+ * toggles and dropdowns, and a typed-in figure would be the first control
+ * offering a value whose layout nothing has looked at.
+ *
+ * The two caps are measured differently because they answer different
+ * questions. The overall cap counts references, and bounds how many notes the
+ * footer reads at all. The per-note bound is an EXTENT, because a row's
+ * rendered height depends on how its content wraps and a count of rows does
+ * not predict it (backlinks-controls design D2, D3).
+ */
+export type OverallCap = "25" | "50" | "100" | "none";
+export const DEFAULT_OVERALL_CAP: OverallCap = "50";
+
+/** Maps onto `--to-backlinks-group-max`, whose measurement is unchanged. */
+export type GroupHeight = "compact" | "standard" | "tall" | "unlimited";
+export const DEFAULT_GROUP_HEIGHT: GroupHeight = "standard";
+
+/** References admitted across the whole footer. */
+export const OVERALL_CAP_REFERENCES: Record<OverallCap, number> = {
+  "25": 25,
+  "50": 50,
+  "100": 100,
+  none: Number.POSITIVE_INFINITY,
+};
+
+/**
+ * The `max-height` each named bound sets. `standard` is the value the footer
+ * shipped with, so the default changes nothing. `none` is a real `max-height`
+ * keyword, which is what makes "uncapped" one value in this map rather than a
+ * branch at the point of use.
+ */
+export const GROUP_HEIGHT_CSS: Record<GroupHeight, string> = {
+  compact: "10rem",
+  standard: "16rem",
+  tall: "28rem",
+  unlimited: "none",
+};
+
+/** How much of a lineage row names itself (docs/research/18, D19). */
+export type SegmentIcons = "all" | "own" | "none";
+export const DEFAULT_SEGMENT_ICONS: SegmentIcons = "all";
+
+/** What stands between two ancestors on a lineage row. */
+export type LineageSeparator = "none" | "chevron";
+export const DEFAULT_LINEAGE_SEPARATOR: LineageSeparator = "none";
+
+/**
+ * The group order. Persisted like the rest, but deliberately NOT a settings-tab
+ * row: it is set from the footer's own dropdown, where the reader is looking
+ * when they want it. Its values are note-independent, which is why it lives
+ * here at all rather than in the per-note view state the filters use.
+ */
+export type { SortOrder } from "./footer-filter";
+import type { SortOrder } from "./footer-filter";
+export const DEFAULT_SORT_ORDER: SortOrder = "recent";
 import type { GuideHighlight, MarkerHighlight } from "./decorate";
 export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = "full";
 export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = "current";
@@ -61,6 +120,22 @@ export interface PluginData {
    * needs a way to say so, and the footer's own e2e coverage needs a way to
    * measure the editor with and without it. */
   backlinksFooter: boolean;
+  /** Group order, set from the footer's dropdown rather than the settings tab. */
+  backlinksSort: SortOrder;
+  /** Overall reference cap; `none` for no limit. */
+  backlinksOverallCap: OverallCap;
+  /** How tall one source note's group may be before it is capped. */
+  backlinksGroupHeight: GroupHeight;
+  /** Whether to hide Obsidian's own in-document backlinks section where our
+   * footer renders. Presentational only, and reversible at any time. */
+  backlinksSuppressCore: boolean;
+  /** See `SegmentIcons`. */
+  backlinksSegmentIcons: SegmentIcons;
+  /** See `LineageSeparator`. */
+  backlinksSeparator: LineageSeparator;
+  /** Whether the footer body draws guide lines. The model reports
+   * `guideDepths` either way; the renderer is the one site that declines. */
+  backlinksGuides: boolean;
 }
 
 export const DEFAULT_DATA: PluginData = {
@@ -71,6 +146,13 @@ export const DEFAULT_DATA: PluginData = {
   guideHighlight: DEFAULT_GUIDE_HIGHLIGHT,
   markerHighlight: DEFAULT_MARKER_HIGHLIGHT,
   backlinksFooter: true,
+  backlinksSort: DEFAULT_SORT_ORDER,
+  backlinksOverallCap: DEFAULT_OVERALL_CAP,
+  backlinksGroupHeight: DEFAULT_GROUP_HEIGHT,
+  backlinksSuppressCore: true,
+  backlinksSegmentIcons: DEFAULT_SEGMENT_ICONS,
+  backlinksSeparator: DEFAULT_LINEAGE_SEPARATOR,
+  backlinksGuides: false,
 };
 
 /**
@@ -87,6 +169,33 @@ const KNOWN_GUIDE_HIGHLIGHT: Record<GuideHighlight, true> = {
   off: true,
   full: true,
   lineage: true,
+};
+const KNOWN_SORT_ORDER: Record<SortOrder, true> = {
+  recent: true,
+  oldest: true,
+  name: true,
+  references: true,
+};
+const KNOWN_OVERALL_CAP: Record<OverallCap, true> = {
+  "25": true,
+  "50": true,
+  "100": true,
+  none: true,
+};
+const KNOWN_GROUP_HEIGHT: Record<GroupHeight, true> = {
+  compact: true,
+  standard: true,
+  tall: true,
+  unlimited: true,
+};
+const KNOWN_SEGMENT_ICONS: Record<SegmentIcons, true> = {
+  all: true,
+  own: true,
+  none: true,
+};
+const KNOWN_LINEAGE_SEPARATOR: Record<LineageSeparator, true> = {
+  none: true,
+  chevron: true,
 };
 const KNOWN_MARKER_HIGHLIGHT: Record<MarkerHighlight, true> = {
   off: true,
@@ -162,6 +271,39 @@ export function normalizePluginData(raw: unknown): PluginData {
       KNOWN_MARKER_HIGHLIGHT,
       stored.markerHighlight,
       DEFAULT_DATA.markerHighlight,
+    ),
+    backlinksSort: oneOf(
+      KNOWN_SORT_ORDER,
+      stored.backlinksSort,
+      DEFAULT_DATA.backlinksSort,
+    ),
+    backlinksOverallCap: oneOf(
+      KNOWN_OVERALL_CAP,
+      stored.backlinksOverallCap,
+      DEFAULT_DATA.backlinksOverallCap,
+    ),
+    backlinksGroupHeight: oneOf(
+      KNOWN_GROUP_HEIGHT,
+      stored.backlinksGroupHeight,
+      DEFAULT_DATA.backlinksGroupHeight,
+    ),
+    backlinksSuppressCore: bool(
+      stored.backlinksSuppressCore,
+      DEFAULT_DATA.backlinksSuppressCore,
+    ),
+    backlinksSegmentIcons: oneOf(
+      KNOWN_SEGMENT_ICONS,
+      stored.backlinksSegmentIcons,
+      DEFAULT_DATA.backlinksSegmentIcons,
+    ),
+    backlinksSeparator: oneOf(
+      KNOWN_LINEAGE_SEPARATOR,
+      stored.backlinksSeparator,
+      DEFAULT_DATA.backlinksSeparator,
+    ),
+    backlinksGuides: bool(
+      stored.backlinksGuides,
+      DEFAULT_DATA.backlinksGuides,
     ),
   };
 }

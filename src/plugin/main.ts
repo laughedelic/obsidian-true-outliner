@@ -22,10 +22,26 @@ import {
   OutlineModeRegistry,
   DEFAULT_DATA,
   normalizePluginData,
+  type GroupHeight,
   type GuideHighlight,
+  type LineageSeparator,
   type MarkerHighlight,
+  type OverallCap,
   type PluginData,
+  type SegmentIcons,
+  type SortOrder,
 } from './mode-registry';
+
+/** The `PluginData` keys the footer reads, so `setFooterSetting` can only be
+ * pointed at one of them. */
+type FooterSettingKey =
+  | 'backlinksSort'
+  | 'backlinksOverallCap'
+  | 'backlinksGroupHeight'
+  | 'backlinksSuppressCore'
+  | 'backlinksSegmentIcons'
+  | 'backlinksSeparator'
+  | 'backlinksGuides';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
@@ -49,6 +65,31 @@ const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
   all: 'All eligible kinds (status quo)',
   'with-children': 'Only nodes that have children',
   'headings-and-paragraphs': 'Only headings and paragraphs',
+};
+
+const OVERALL_CAP_LABELS: Record<OverallCap, string> = {
+  '25': '25 references',
+  '50': '50 references',
+  '100': '100 references',
+  none: 'No limit',
+};
+
+const GROUP_HEIGHT_LABELS: Record<GroupHeight, string> = {
+  compact: 'Compact',
+  standard: 'Standard',
+  tall: 'Tall',
+  unlimited: 'Uncapped',
+};
+
+const SEGMENT_ICONS_LABELS: Record<SegmentIcons, string> = {
+  all: 'Every ancestor',
+  own: 'Only the row’s own marker',
+  none: 'No markers',
+};
+
+const LINEAGE_SEPARATOR_LABELS: Record<LineageSeparator, string> = {
+  none: 'Nothing',
+  chevron: 'A chevron',
 };
 
 const GUIDE_HIGHLIGHT_LABELS: Record<GuideHighlight, string> = {
@@ -348,6 +389,87 @@ export default class TrueOutlinerPlugin extends Plugin {
     // turned off.
     nudgeFooters(this.app);
     await this.forceRedraw();
+  }
+
+  /**
+   * One writer for every footer setting, because each of them has to bump the
+   * revision AND nudge the open footers. The footer's StateField never sees a
+   * transaction of its own, so a setting written without both is invisible
+   * until some unrelated edit arrives — which is exactly the failure
+   * `footerRevision` documents.
+   */
+  private async setFooterSetting<K extends FooterSettingKey>(
+    key: K,
+    value: PluginData[K],
+  ): Promise<void> {
+    this.data[key] = value;
+    this.footerRev++;
+    await this.saveData(this.data);
+    // Both, because they do different things and a control setting needs the
+    // second. `nudgeFooters` wakes the StateField, which decides whether a
+    // footer exists at all; but the widget's identity is the NOTE, so an
+    // existing footer is `eq` to its replacement and CM6 keeps the mounted DOM
+    // without ever calling `toDOM` again. `repaintFooters` is what re-runs
+    // `render()` on that DOM, and without it a setting that changes only what
+    // the footer draws lands on the next repaint from some other cause.
+    nudgeFooters(this.app);
+    repaintFooters();
+  }
+
+  get backlinksSort(): SortOrder {
+    return this.data.backlinksSort;
+  }
+
+  async setBacklinksSort(value: SortOrder): Promise<void> {
+    await this.setFooterSetting('backlinksSort', value);
+  }
+
+  get backlinksOverallCap(): OverallCap {
+    return this.data.backlinksOverallCap;
+  }
+
+  async setBacklinksOverallCap(value: OverallCap): Promise<void> {
+    await this.setFooterSetting('backlinksOverallCap', value);
+  }
+
+  get backlinksGroupHeight(): GroupHeight {
+    return this.data.backlinksGroupHeight;
+  }
+
+  async setBacklinksGroupHeight(value: GroupHeight): Promise<void> {
+    await this.setFooterSetting('backlinksGroupHeight', value);
+  }
+
+  get backlinksSuppressCore(): boolean {
+    return this.data.backlinksSuppressCore;
+  }
+
+  async setBacklinksSuppressCore(value: boolean): Promise<void> {
+    await this.setFooterSetting('backlinksSuppressCore', value);
+  }
+
+  get backlinksSegmentIcons(): SegmentIcons {
+    return this.data.backlinksSegmentIcons;
+  }
+
+  async setBacklinksSegmentIcons(value: SegmentIcons): Promise<void> {
+    await this.setFooterSetting('backlinksSegmentIcons', value);
+  }
+
+  get backlinksSeparator(): LineageSeparator {
+    return this.data.backlinksSeparator;
+  }
+
+  async setBacklinksSeparator(value: LineageSeparator): Promise<void> {
+    await this.setFooterSetting('backlinksSeparator', value);
+  }
+
+  get backlinksGuides(): boolean {
+    return this.data.backlinksGuides;
+  }
+
+  async setBacklinksGuides(value: boolean): Promise<void> {
+    await this.setFooterSetting('backlinksGuides', value);
   }
 
   get markerVisibility(): MarkerVisibility {
@@ -686,6 +808,36 @@ const SETTING_BACKLINKS_FOOTER = {
   desc: 'Renders every reference to the open note beneath it, each in the tree of the note it came from. Outline mode only.',
 } as const;
 
+const SETTING_BACKLINKS_OVERALL_CAP = {
+  name: 'Backlinks: how many references to show',
+  desc: 'An upper bound on the whole footer. Notes are added whole and in order until the next one would cross it, so a note past the bound is never read. The header always reports the true total.',
+} as const;
+
+const SETTING_BACKLINKS_GROUP_HEIGHT = {
+  name: 'Backlinks: how tall one note’s references may be',
+  desc: 'How much of the screen a single referencing note may take before the rest is folded away behind a control. A height rather than a number of references, because a reference’s height depends on how its content wraps.',
+} as const;
+
+const SETTING_BACKLINKS_SUPPRESS_CORE = {
+  name: 'Backlinks: hide Obsidian’s own linked mentions',
+  desc: 'Hides Obsidian’s in-document backlinks section in notes where this plugin renders its own, so the same references are not listed twice. Presentational only: no other plugin’s settings are read or changed, and turning this off restores the section immediately.',
+} as const;
+
+const SETTING_BACKLINKS_SEGMENT_ICONS = {
+  name: 'Backlinks: markers on a lineage row',
+  desc: 'A lineage row names every ancestor between the source note and the reference. This chooses how many of them carry their own marker icon.',
+} as const;
+
+const SETTING_BACKLINKS_SEPARATOR = {
+  name: 'Backlinks: what separates ancestors',
+  desc: 'What stands between two ancestors named on the same lineage row.',
+} as const;
+
+const SETTING_BACKLINKS_GUIDES = {
+  name: 'Backlinks: draw guide lines in the footer',
+  desc: 'Draws the same indentation guides the editor uses down the footer’s own rows.',
+} as const;
+
 const SETTING_MARKER_VISIBILITY = {
   name: 'Debug: block marker visibility (experiment 5a)',
   desc: 'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
@@ -728,6 +880,58 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         control: { type: 'toggle', key: 'backlinksFooter', defaultValue: true },
       },
       {
+        ...SETTING_BACKLINKS_OVERALL_CAP,
+        control: {
+          type: 'dropdown',
+          key: 'backlinksOverallCap',
+          options: OVERALL_CAP_LABELS,
+          defaultValue: DEFAULT_DATA.backlinksOverallCap,
+        },
+      },
+      {
+        ...SETTING_BACKLINKS_GROUP_HEIGHT,
+        control: {
+          type: 'dropdown',
+          key: 'backlinksGroupHeight',
+          options: GROUP_HEIGHT_LABELS,
+          defaultValue: DEFAULT_DATA.backlinksGroupHeight,
+        },
+      },
+      {
+        ...SETTING_BACKLINKS_SUPPRESS_CORE,
+        control: {
+          type: 'toggle',
+          key: 'backlinksSuppressCore',
+          defaultValue: DEFAULT_DATA.backlinksSuppressCore,
+        },
+      },
+      {
+        ...SETTING_BACKLINKS_SEGMENT_ICONS,
+        control: {
+          type: 'dropdown',
+          key: 'backlinksSegmentIcons',
+          options: SEGMENT_ICONS_LABELS,
+          defaultValue: DEFAULT_DATA.backlinksSegmentIcons,
+        },
+      },
+      {
+        ...SETTING_BACKLINKS_SEPARATOR,
+        control: {
+          type: 'dropdown',
+          key: 'backlinksSeparator',
+          options: LINEAGE_SEPARATOR_LABELS,
+          defaultValue: DEFAULT_DATA.backlinksSeparator,
+        },
+      },
+      {
+        ...SETTING_BACKLINKS_GUIDES,
+        control: {
+          type: 'toggle',
+          key: 'backlinksGuides',
+          defaultValue: DEFAULT_DATA.backlinksGuides,
+        },
+      },
+      {
         ...SETTING_MARKER_VISIBILITY,
         control: {
           type: 'dropdown',
@@ -767,6 +971,18 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         return this.plugin.debugCrossCheck;
       case 'backlinksFooter':
         return this.plugin.backlinksFooter;
+      case 'backlinksOverallCap':
+        return this.plugin.backlinksOverallCap;
+      case 'backlinksGroupHeight':
+        return this.plugin.backlinksGroupHeight;
+      case 'backlinksSuppressCore':
+        return this.plugin.backlinksSuppressCore;
+      case 'backlinksSegmentIcons':
+        return this.plugin.backlinksSegmentIcons;
+      case 'backlinksSeparator':
+        return this.plugin.backlinksSeparator;
+      case 'backlinksGuides':
+        return this.plugin.backlinksGuides;
       case 'markerVisibility':
         return this.plugin.markerVisibility;
       case 'guideHighlight':
@@ -785,6 +1001,24 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         break;
       case 'backlinksFooter':
         await this.plugin.setBacklinksFooter(Boolean(value));
+        break;
+      case 'backlinksOverallCap':
+        await this.plugin.setBacklinksOverallCap(value as OverallCap);
+        break;
+      case 'backlinksGroupHeight':
+        await this.plugin.setBacklinksGroupHeight(value as GroupHeight);
+        break;
+      case 'backlinksSuppressCore':
+        await this.plugin.setBacklinksSuppressCore(Boolean(value));
+        break;
+      case 'backlinksSegmentIcons':
+        await this.plugin.setBacklinksSegmentIcons(value as SegmentIcons);
+        break;
+      case 'backlinksSeparator':
+        await this.plugin.setBacklinksSeparator(value as LineageSeparator);
+        break;
+      case 'backlinksGuides':
+        await this.plugin.setBacklinksGuides(Boolean(value));
         break;
       case 'markerVisibility':
         await this.plugin.setMarkerVisibility(value as MarkerVisibility);
@@ -816,6 +1050,58 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         toggle
           .setValue(this.plugin.backlinksFooter)
           .onChange((value) => void this.plugin.setBacklinksFooter(value)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_BACKLINKS_OVERALL_CAP.name)
+      .setDesc(SETTING_BACKLINKS_OVERALL_CAP.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(OVERALL_CAP_LABELS)
+          .setValue(this.plugin.backlinksOverallCap)
+          .onChange((value) => void this.plugin.setBacklinksOverallCap(value as OverallCap)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_BACKLINKS_GROUP_HEIGHT.name)
+      .setDesc(SETTING_BACKLINKS_GROUP_HEIGHT.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(GROUP_HEIGHT_LABELS)
+          .setValue(this.plugin.backlinksGroupHeight)
+          .onChange((value) => void this.plugin.setBacklinksGroupHeight(value as GroupHeight)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_BACKLINKS_SUPPRESS_CORE.name)
+      .setDesc(SETTING_BACKLINKS_SUPPRESS_CORE.desc)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.backlinksSuppressCore)
+          .onChange((value) => void this.plugin.setBacklinksSuppressCore(value)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_BACKLINKS_SEGMENT_ICONS.name)
+      .setDesc(SETTING_BACKLINKS_SEGMENT_ICONS.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(SEGMENT_ICONS_LABELS)
+          .setValue(this.plugin.backlinksSegmentIcons)
+          .onChange((value) => void this.plugin.setBacklinksSegmentIcons(value as SegmentIcons)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_BACKLINKS_SEPARATOR.name)
+      .setDesc(SETTING_BACKLINKS_SEPARATOR.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(LINEAGE_SEPARATOR_LABELS)
+          .setValue(this.plugin.backlinksSeparator)
+          .onChange((value) => void this.plugin.setBacklinksSeparator(value as LineageSeparator)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_BACKLINKS_GUIDES.name)
+      .setDesc(SETTING_BACKLINKS_GUIDES.desc)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.backlinksGuides)
+          .onChange((value) => void this.plugin.setBacklinksGuides(value)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_MARKER_VISIBILITY.name)

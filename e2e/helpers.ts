@@ -502,9 +502,27 @@ export async function dispatchSelectOnlyRanges(
  * on CI, on a commit whose only changes were documentation.
  */
 export async function clickClear(selector: string): Promise<void> {
-  await (await $(selector)).scrollIntoView({ block: 'center' });
-  await browser.pause(150);
-  await (await $(selector)).click();
+  // Retried, because re-querying after the scroll narrows the window and does
+  // not close it. The footer rebuilds its whole subtree on every render, and a
+  // render can start between the second query and the click as easily as
+  // between the first and the scroll — a scroll is itself one of the things
+  // that starts one, since CodeMirror rebuilding its viewport recreates the
+  // widget the footer lives in. Observed on CI on both platforms, and more
+  // often once the footer had controls that re-render it.
+  //
+  // Four attempts rather than one, and only for staleness: any other failure is
+  // a real one and is thrown on the spot.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await (await $(selector)).scrollIntoView({ block: 'center' });
+      await browser.pause(150);
+      await (await $(selector)).click();
+      return;
+    } catch (error) {
+      if (attempt >= 3 || !String(error).includes('stale')) throw error;
+      await browser.pause(250);
+    }
+  }
 }
 
 /**
@@ -616,6 +634,44 @@ export async function pinPositionIndicatorsOff(): Promise<void> {
     await plugin.setGuideHighlight('off');
     await plugin.setMarkerHighlight('off');
   });
+}
+
+/**
+ * Lift the footer's OVERALL cap for a spec that is not about volume.
+ *
+ * The cap defaults to 50 references, and the hub fixture carries roughly 400,
+ * so a spec looking for a particular source note's rows in that footer finds
+ * whatever the cap admitted rather than what it asked for. A spec that means to
+ * exercise the cap sets it itself; every other spec says here that it does not.
+ *
+ * The same argument as `pinPositionIndicatorsOff`: a default that changes what
+ * an assertion measures should be stated by the spec, not inherited from it.
+ */
+export async function pinBacklinksCapOff(): Promise<void> {
+  await browser.executeObsidian(async ({ plugins }) => {
+    await (plugins.trueOutliner as any).setBacklinksOverallCap('none');
+  });
+}
+
+/**
+ * Squeeze the active leaf's editor so the FOOTER becomes narrow, or let it go.
+ *
+ * The footer's controls answer to a container query on the footer itself, not
+ * to the viewport — a narrow split pane on a wide screen is exactly the case a
+ * media query gets wrong, so the test has to narrow the container rather than
+ * the window. Applied as an inline max-width on the editor's own sizer, which
+ * is what the footer's width comes from.
+ */
+export async function resizeLeafForFooter(width: number | null): Promise<void> {
+  await browser.executeObsidian((_ctx, px: number | null) => {
+    const sizer = document.querySelector<HTMLElement>(
+      '.workspace-leaf.mod-active .cm-content',
+    );
+    if (!sizer) return;
+    if (px === null) sizer.style.removeProperty('max-width');
+    else sizer.style.maxWidth = `${px}px`;
+  }, width);
+  await browser.pause(500);
 }
 
 /** Reset plugin data to defaults and reload the plugin so it re-reads it. */

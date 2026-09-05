@@ -490,3 +490,51 @@ describe('row content is notation, not reproduction (D18)', () => {
   });
 });
 
+
+/**
+ * The appearance settings are RENDERER-side declines: the renderer chooses not
+ * to draw something the model always reports. These pin the model's half of
+ * that split, so a setting can never quietly become a model variant nothing
+ * else covers (backlinks-controls design D7).
+ */
+describe('what the model reports whatever the renderer draws', () => {
+  // A deep chain, so there are lineage rows to have an opinion about.
+  const CHAIN = 'Backlinks/Deep chain.md';
+
+  it('gives every row its guide depths, though the footer draws none by default', () => {
+    const rows = rowsFor(CHAIN);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      // One guide per ancestor row above it — the invariant `guideDepths`
+      // documents, and what the guides setting turns into a background.
+      expect(row.guideDepths).toEqual(Array.from({ length: row.depth }, (_, i) => i));
+    }
+  });
+
+  it('gives a lineage row every ancestor, though only some carry an icon', () => {
+    const lineage = rowsFor(CHAIN).filter((r) => r.type === 'lineage');
+    expect(lineage.length).toBeGreaterThan(0);
+    for (const row of lineage) {
+      if (row.type !== 'lineage') continue;
+      expect(row.segments.length).toBeGreaterThan(1);
+      // Each segment carries what a marker would be drawn FROM, so the renderer
+      // can decline per segment without the model knowing which it declined.
+      for (const segment of row.segments) {
+        expect(typeof segment.text).toBe('string');
+        expect(typeof segment.nodeId).toBe('number');
+        expect(segment.kind).toBeTruthy();
+      }
+    }
+  });
+
+  it('takes no rendering options at all', () => {
+    // `buildRows` has no parameter a setting could be threaded through, which is
+    // the structural form of the same guarantee: two calls over one tree cannot
+    // differ because of a setting. One parse, because node ids are assigned per
+    // parse and two parses differ for a reason that is not rendering.
+    const doc = parse(read(CHAIN));
+    const once = buildRows(doc, referencesTarget, [], noRef, noneExpanded);
+    const twice = buildRows(doc, referencesTarget, [], noRef, noneExpanded);
+    expect(JSON.stringify(twice)).toEqual(JSON.stringify(once));
+  });
+});

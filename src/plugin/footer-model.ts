@@ -594,7 +594,7 @@ export function buildRows(
  * Never an atom and never a list item, because both of those describe how a
  * node's own box is rendered and such a row has no node.
  */
-function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDecorationFact {
+export function rowFact(kind: LineDecorationFact['kind'], depth: number): LineDecorationFact {
   return {
     lineNumber: 0,
     depth,

@@ -91,6 +91,13 @@ describe('persisted plugin data', () => {
       // Non-default on purpose: the assertion is that a stored value survives
       // normalisation, which a field left at its default would not prove.
       backlinksFooter: false,
+      backlinksSort: 'name' as const,
+      backlinksOverallCap: '100' as const,
+      backlinksGroupHeight: 'tall' as const,
+      backlinksSuppressCore: false,
+      backlinksSegmentIcons: 'none' as const,
+      backlinksSeparator: 'chevron' as const,
+      backlinksGuides: true,
       markerVisibility: 'with-children' as const,
       guideHighlight: 'lineage' as const,
       markerHighlight: 'lineage' as const,
