@@ -81,6 +81,18 @@ describe('the overall cap and the per-note bound', function () {
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });
+    // Sorted by NAME for this whole spec, which is about the caps and never
+    // about the order. The default sort is by mtime, and a vault the harness
+    // has just copied is still having its mtimes written — so two renders can
+    // admit genuinely different sets, and a note the first one read is not one
+    // the second still shows. CI reported exactly that: six placed notes the
+    // final DOM had dropped, all adjacent in the order. It would bite the
+    // additive "Load more" case the same way, since a stable prefix is the
+    // whole of what that one asserts. Name is a total order over the fixture
+    // and does not move under the harness.
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksSort('name');
+    });
     await openFooter(HUB);
   });
 
@@ -90,6 +102,9 @@ describe('the overall cap and the per-note bound', function () {
 
   after(async function () {
     await setCap('50');
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksSort('recent');
+    });
   });
 
   /**
@@ -98,13 +113,12 @@ describe('the overall cap and the per-note bound', function () {
    * not shown.
    */
   it('never places a note the cap did not admit', async function () {
-    // The cap is already where it needs to be, and the footer has already
-    // settled at it, BEFORE the spy goes on. Measuring the repaint that
-    // narrows the cap looks tighter and is not: the wider render's own fills
-    // are still resolving as the narrower one starts, so the window catches
-    // both and reports the notes the wide cap read. Seen on CI as eighteen
-    // placements behind eight groups — eighteen being exactly the group count
-    // at the previous cap.
+    // The cap is already where it needs to be, with the footer settled at
+    // it, BEFORE the spy goes on. Measuring the repaint that narrows the cap
+    // looks tighter and is not: the wider render's own fills are still
+    // resolving as the narrower one starts, so the window catches both and
+    // reports the notes the wide cap read. Seen on CI as eighteen placements
+    // behind eight groups — eighteen being the group count at the previous cap.
     await setCap('25');
     await readStable(groupNames);
 
