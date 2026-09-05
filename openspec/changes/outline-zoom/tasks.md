@@ -232,6 +232,12 @@ implementation, not an assertion.
       the span's BOUNDARY lines through that helper (a block decoration at the last visible line's
       end is attributed to that line by `posAtDOM`). Count widgets, not `.cm-line`s, for a span of
       widget-rendered atoms — a correct render reports zero cm-lines
+- [x] 11.0b Corrected after review: "never measure the boundary lines" is right about the HELPER
+      and became a blind spot. Both boundary defects lived exactly there — the root stripped of
+      its line decorations, and the cover's trailing gap swallowed — and nothing measured them.
+      The spec carries a `rootLine()` helper that asks for the `.cm-line` specifically, and
+      assertions for the root's own chrome, a list root's bullet and column, the trailing gap, and
+      the trail mark's column
 - [x] 11.1 `e2e/specs/80-outline-zoom.e2e.ts` — 70–76 are the footer's — plus `8: 'zoom'` in
       `scripts/spec-groups.mjs`'s `LABELS`, or the decade gets a group named after its prefix.
       Driving a real Obsidian instance: zoom in on each node kind, hidden content absent from the
