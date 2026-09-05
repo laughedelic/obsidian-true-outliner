@@ -102,9 +102,9 @@ either edge. A range is omitted when that side has nothing to hide (a top-level 
 nothing above it); a range of ZERO length is NOT omitted, because that is the shape a single blank
 line takes and a zero-length block replacement does hide it.
 
-*Corrected by measurement, after the spike.* Both ranges originally reached one position further —
-to the first visible line's start, and from the last visible line's end — on the reasoning that
-each had to consume the newline separating it from the visible content. That position is where
+*Corrected by measurement, after the spike.* The head originally reached one position further, to
+the first visible line's start, on the reasoning that it had to consume the newline separating it
+from the visible content. That position is where
 every point decoration on the neighbouring visible line is anchored, and a line decoration sorts
 BEFORE the position it marks, so the replacement swallowed the lot. The zoom root rendered as a
 bare `.cm-line`: no marker, no depth variables, and none of Obsidian's own line classes either, so
@@ -114,6 +114,17 @@ NON-boundary line on purpose — the boundary lines are the ones `getLineElement
 the defect lived only there. `Decoration.replace`'s `inclusiveEnd: false` was measured as the
 alternative and is not one: it rescues our line decorations and not Obsidian's, and it lets the
 tail range's last line escape.
+
+*The two edges START differently, and that is the document's asymmetry rather than a preference.*
+The head begins at offset 0, a line's start, and must cover it. The tail begins at the last VISIBLE
+line's END, one position short of the first hidden line — because a block replacement beginning
+exactly where another one begins is a TIE, resolved by decoration precedence, and Obsidian's own
+table widget won it: zooming into a code fence rendered the sibling table below the footer, and it
+could be edited there. Starting one position earlier ties with nothing. That position is one the
+range KEEPS, so the tail's start is non-inclusive — otherwise an empty last visible line, which is
+what D3's trailing gap usually is, has its start, its end and all its decorations at that one
+position and goes with the range. Two specs, one per edge; `zoom-decorations.ts` carries both with
+what each was measured against.
 
 *Why replace rather than a `display: none` line class:* a hidden-but-present line keeps its line
 box and keeps accepting the caret. Block replacement takes the lines out of the layout entirely —
@@ -237,9 +248,14 @@ Zooming into a childless node, or into an atom, is **allowed**. A "must have chi
 precondition would make the command's availability depend on a fact the user cannot see before
 pressing, and it would be the feature's only kind-conditional rule. Workflowy allows it too.
 
-The caret does not move in either direction. Zoom in targets the caret's own node, so the caret is
-already inside the new scope; zoom out only widens it. There is no case where zoom must relocate
-a caret, and inventing one would put a second caret authority beside `caret-placement-policy`.
+The caret does not move in either direction *for this command*. Zoom in targets the caret's own
+node, so the caret is already inside the new scope; zoom out only widens it.
+
+*Amended by D17.* "There is no case where zoom must relocate a caret" was true of the COMMAND and
+false of the feature. A click names a node the caret is not in, and once the caret can end up
+outside the scope the rule has to be stated over the scope rather than over one gesture. D17 says
+it once, for every entry point, and still leaves the caret alone in exactly the cases this
+paragraph is about.
 
 ### D7. Confinement is one predicate applied at three kinds of site, and only one of them clamps
 
@@ -522,7 +538,10 @@ a CM6 widget decoration on a plain line, an imperative injection on a widget-rep
 Obsidian's own `.list-bullet`, which is the mark for the commonest node in an outline and is not
 ours to build.
 
-*What counts as a mark:* our marker icon, and a list item's native bullet or number. Not the
+*What counts as a mark:* our marker icon, a list item's native bullet or number, and the digits
+span the decoration layer supplies for an ordered item — Obsidian does not always emit
+`.list-number`, and without that span the first items of a nested ordered list had no reachable
+mark while their siblings did. Not the
 whitespace after a marker — `.cm-formatting-list` spans that too, and swallowing a click there
 would take a position the reader was aiming the caret at. Not a mark drawn by the trail or the
 footer either: both declare themselves as view chrome (`to-decor-own-chrome`), which is exactly
@@ -555,6 +574,50 @@ note. Reported as two symptoms; it was one.
 
 The registration now waits for `dom.isConnected`, which is the condition that makes an ancestry
 question answerable at all, and latches the answer once it is.
+
+### D17. One rule for where the view and the caret end up after a zoom
+
+Four gestures had four answers, and the report was "cursor placement on zoom in and out is not
+very clear" with three symptoms that were all the same missing rule: a caret placed with nothing
+focused, a node lit with no caret in it, and the caret vanishing on zoom out.
+
+*After any zoom gesture the editor has focus, and the caret is inside the visible range — where it
+already was when that position survives the change, and on the new root otherwise.* Leaving it
+alone is the common answer and the right one: the command zooms to the caret's own node and
+zooming out only widens the scope, so in both the caret is already where it belongs and moving it
+would discard a position the reader chose. What needed an answer is the caret a new scope does not
+contain, which is what a click on some other node's mark produces.
+
+Focus is the half that was invisible. The current-node accent is drawn from the SELECTION whether
+or not the editor is focused, so a command run from the palette left the node lit with no caret in
+it, and a click that consumed its own `mousedown` left a caret nothing had focused. Two signals for
+one state, disagreeing — and each of the three reported symptoms is one side of that.
+
+*And the view opens at the top while zoomed.* The zoomed subtree begins there whatever its length,
+so there is no other position the view could sensibly be left at; left where it was, the trail
+scrolled off and the reader could not see what they had zoomed into. Clearing the zoom scrolls the
+node just left back into view instead, which is the only position that keeps the reader's place in
+the document that came back.
+
+A ViewPlugin watching the anchor, not four call sites: this is a property of the scope changing,
+not of any particular way of changing it. It acts a frame later, because both halves are about the
+layout the change produced rather than the one it replaced — and because focus has to land after
+whatever ran the gesture has finished with it, which the closing command palette has not at the
+time of a microtask.
+
+### D18. The footer anchors with a POSITIVE side, or it splits the line it sits after
+
+`backlinks-footer` mounted its block widget at `side: -1`. At the END of a line that sorts INSIDE
+the line and splits it, leaving an empty second half rendered below the widget — a real line, which
+takes the caret. At the document's end that stray line sits where a blank line would have been
+anyway, which is why it shipped unnoticed. Under a zoom the anchor is the last VISIBLE line's end
+and the document is short, so the stray line is exactly the empty space below the footer that a
+reader clicks into: the reported "clicking around the node places the cursor under the subtree,
+overlapping with the footer".
+
+`side: 1` sorts the widget after the line instead, which is what a footer means. It changes the
+footer's own behaviour outside zoom too, and for the better: there was never a reason for that line
+to exist.
 
 ## Risks / Trade-offs
 

@@ -28,7 +28,7 @@ target has children, since that is not visible to the user before the gesture.
 Zooming SHALL NOT modify the document. The file's bytes SHALL be identical before and after a
 zoom in, a zoom out, and any sequence of the two.
 
-For an empty selection the caret SHALL NOT move as a result of zooming, in either direction.
+Where the caret ends up is stated once for every gesture, below.
 
 A NON-EMPTY selection SHALL collapse to the new zoom root's own start — the one position
 guaranteed to lie inside the new scope however the selection was drawn, and for the same reason
@@ -94,6 +94,10 @@ they are rendered beside the content rather than in it — so hiding them is sta
 requirement on the VIEW rather than as a consequence of the hidden line ranges. Clearing the zoom
 SHALL restore both.
 
+Nothing SHALL render below the footer. Chrome mounted after the content SHALL NOT split the line
+it is anchored to, since the empty remainder of a split line is a real line that takes the caret
+and occupies the space a reader clicks into.
+
 The visible range's own FIRST AND LAST lines SHALL render in full. The zoom root SHALL keep every
 piece of its own rendering — this plugin's marker, depth and guides, and Obsidian's own line
 classes and native list rendering with them — and the cover's trailing gap SHALL still be a line
@@ -118,6 +122,14 @@ decorations anchored there, or the line itself, with it.
 #### Scenario: The backlinks footer is not swallowed by the hidden range
 - **WHEN** a note with references is zoomed into a node in the middle of it
 - **THEN** the footer still renders below the zoomed content
+
+#### Scenario: Nothing renders below the footer
+- **WHEN** a note with references is zoomed into a node
+- **THEN** no line is rendered after the footer
+
+#### Scenario: A sibling widget atom on the far side of the range is hidden too
+- **WHEN** the user zooms into a code block whose next sibling is a table
+- **THEN** the table is not rendered
 
 #### Scenario: The zoom root renders like any other line of its kind
 - **WHEN** the user zooms into a list item
@@ -150,6 +162,11 @@ zoom entirely, and it SHALL show that it is armed whenever the pointer is anywhe
 so the row advertises the way out rather than only the ancestors. A kind glyph there would be
 naming the file as a paragraph, which is what it currently does and what it says wrongly.
 
+The marker SHALL show that it is armed when the pointer is on the NOTE's own crumb — the segment
+that means what the control does — and not on the rest of the row: a mid-chain ancestor under the
+pointer promises zooming to THAT ancestor, and the mark answering there is a second, contradictory
+signal for one gesture.
+
 That marker SHALL sit on the SAME column a top-level node's marker sits on, whatever kind the zoom
 root is. The trail is a header for the view, not a rendering of the root's line, so it SHALL NOT
 take that line's own indentation, marker gutter or depth guides.
@@ -163,8 +180,10 @@ Each segment SHALL be activatable: activating an ancestor segment SHALL make tha
 zoom root; activating the file segment SHALL clear the zoom entirely, as the marker does.
 
 A segment's label SHALL be its node's first line with its encoding chrome removed — the heading's
-`#` markers, or the list item's marker — so the label reads as the node's text. A node whose
-label would be empty SHALL fall back to a label naming its kind, so no segment is ever blank.
+`#` markers, or the list item's marker — so the label reads as the node's text. A node with MORE
+lines than the one shown SHALL be marked as shortened, so a label never claims to be the whole of
+what it names. A node whose label would be empty SHALL fall back to a label naming its kind, so no
+segment is ever blank; that fallback is a name rather than a quotation and takes no such mark.
 
 The file SHALL be a segment of the trail rather than a heading above it, because the note's title
 is hidden while zoomed and naming the note twice is what hiding it avoids. This also means the
@@ -192,10 +211,14 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 - **WHEN** the user activates the marker at the head of the trail
 - **THEN** the whole document is visible again, exactly as activating the file segment does
 
-#### Scenario: The marker arms from anywhere on the trail
-- **WHEN** the pointer rests on any segment of the trail
-- **THEN** the marker shows itself as armed, so the control is discoverable from wherever the
-  reader's attention already is
+#### Scenario: The marker arms from the note's own crumb
+- **WHEN** the pointer rests on the file segment of the trail
+- **THEN** the marker shows itself as armed, and it does not when the pointer is on an ancestor
+  segment instead
+
+#### Scenario: A crumb whose node has more to say says so
+- **WHEN** an ancestor's node has lines beyond the one its crumb shows
+- **THEN** the crumb is marked as shortened rather than reading as the node's whole text
 
 #### Scenario: The marker holds the top-level column under any root
 - **WHEN** the user zooms into a heading, and again into a list item
@@ -215,9 +238,10 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 - **THEN** its crumb shows a label naming that node's kind rather than rendering blank
 
 ### Requirement: Clicking a node's mark zooms into that node
-A plain left click on the mark that stands for a node — this plugin's marker icon, or the native
-bullet or number a list item shows in its place — SHALL zoom into that node, the same as invoking
-zoom in with the caret on it. The gesture SHALL work for every node kind, including one rendered
+A plain left click on the mark that stands for a node — this plugin's marker icon, or the bullet or
+number a list item shows in its place — SHALL zoom into that node, the same as invoking zoom in
+with the caret on it. An ordered item SHALL be reachable by its digits whether or not Obsidian
+emits a marker element of its own for that line. The gesture SHALL work for every node kind, including one rendered
 as an opaque widget, whose mark is injected rather than decorated.
 
 The click SHALL NOT also do what a click there would otherwise do: it SHALL NOT place the caret,
@@ -242,6 +266,10 @@ piece of work.
 - **WHEN** the user clicks a list item's bullet
 - **THEN** the view zooms to that item, and the item is not folded
 
+#### Scenario: An ordered item's number is its mark
+- **WHEN** the user clicks the number of a nested ordered item
+- **THEN** the view zooms to that item
+
 #### Scenario: A widget-rendered node's mark works the same
 - **WHEN** the user clicks the marker beside a table
 - **THEN** the view zooms to the table
@@ -249,6 +277,35 @@ piece of work.
 #### Scenario: A modified click is not this gesture
 - **WHEN** the user clicks a marker with the platform's primary modifier held
 - **THEN** no zoom happens
+
+### Requirement: A zoom leaves the view at the top and the caret visible inside the scope
+After any gesture that changes the zoom scope, the editor SHALL have focus, and the caret SHALL be
+inside the visible range: where it already was when that position is still inside the scope, and on
+the new zoom root otherwise. This holds for every entry point — the commands, a crumb, and a click
+on a mark — so the caret and the current-node highlight never disagree about which node is active.
+
+While zoomed, the view SHALL be scrolled to the TOP, so the trail and the zoom root are the first
+things in it whatever the subtree's length. Clearing the zoom SHALL bring the node just left back
+into view, rather than leaving the reader wherever the collapsed layout happened to put them.
+
+No position outside the visible range SHALL be reachable by clicking: the space below the zoomed
+content belongs to no line, and a click there SHALL leave the caret inside the scope.
+
+#### Scenario: Zooming into a node far down a note opens at the top
+- **WHEN** the user zooms into a node that was scrolled well down the note
+- **THEN** the view is at the top, with the trail visible, and the editor is focused
+
+#### Scenario: The caret keeps its place when the scope still contains it
+- **WHEN** the user zooms in with the caret inside the node being zoomed to
+- **THEN** the caret stays exactly where it was
+
+#### Scenario: A caret the new scope does not contain moves to the root
+- **WHEN** the user zooms by clicking the mark of a node the caret was not in
+- **THEN** the caret moves to that node
+
+#### Scenario: Clicking below the zoomed content does not put the caret outside it
+- **WHEN** the user clicks in the empty space below the zoomed subtree
+- **THEN** the caret is on a line of the visible range, not on a hidden one
 
 ### Requirement: Zoom out steps to the parent or clears the scope
 Two zoom-out gestures SHALL exist while zoomed: one that makes the zoom root's PARENT the new

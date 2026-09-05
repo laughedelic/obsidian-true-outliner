@@ -293,3 +293,25 @@ implementation, not an assertion.
       over its host and every command went into the cell for the rest of the session (D16)
 - [x] 13.7 Click a node's mark to zoom into it (D15), for our marker icons, a widget atom's
       injected marker, and a list item's native bullet or number
+
+## 14. Review round three
+
+- [x] 14.1 The tail range begins at the last VISIBLE line's end again, with a non-inclusive start
+      rather than the inclusive one the head keeps. Beginning where the next node's own block
+      replacement begins is a tie resolved by decoration precedence, and Obsidian's table widget
+      won it — zooming a code fence rendered the sibling table below the footer, editable (D2)
+- [x] 14.2 The footer anchors at `side: 1`. A negative side at a line's END splits that line and
+      leaves its empty remainder rendered below the widget — a real line, which is what "clicking
+      around the node places the cursor under the subtree" was landing on (D18)
+- [x] 14.3 One rule for the view and the caret after any zoom gesture: focus, a caret inside the
+      scope, the top of the view while zoomed, and the node just left back in view on clear (D17)
+- [x] 14.4 An ordered item's mark is the digits span too — Obsidian does not always emit
+      `.list-number`, which is why some items of a nested ordered list were unreachable while
+      their siblings were not
+- [x] 14.5 The trail's chevrons take the kind icons' own baseline construction, so a separator's
+      point sits on the line the marks it joins are centred on
+- [x] 14.6 A crumb whose node has more lines than the one it shows is marked with an ellipsis
+- [x] 14.7 The zoom-out mark arms from the NOTE's crumb alone. Armed from anywhere on the row it
+      contradicted the segment under the pointer, which promises zooming to that ancestor
+- [x] 14.8 Marker/guide alignment reported at a reduced font size: reproduced on `main`, so not
+      this change's, and left alone here

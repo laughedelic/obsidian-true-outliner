@@ -27,11 +27,30 @@ import { zoomScope } from './zoom-scope';
 import { hiddenOffsetRanges } from './zoom-offsets';
 
 /**
- * One shared decoration value. Block replacements with identical specs are
- * interchangeable, and re-creating one per range per transaction would allocate
- * inside the keystroke budget for no benefit.
+ * The two hiding decorations, and the pair is not redundant.
+ *
+ * `inclusiveEnd` stays true for both: a range ends on the last line it removes,
+ * and that line's own content has to go with it. `inclusiveStart` differs,
+ * because the two edges begin at different KINDS of position
+ * (`zoom-offsets.ts`).
+ *
+ * The head begins at offset 0, the start of a line it removes, so its start is
+ * inclusive — measured: made non-inclusive, the document's first line renders
+ * above the trail.
+ *
+ * The tail begins at the last VISIBLE line's END, which is a position that line
+ * keeps. On an ordinary line that is past everything anchored there; on an EMPTY
+ * one — the cover's own trailing gap, which D3 keeps — the line's start, end and
+ * every decoration on it are all that same position, and an inclusive start
+ * takes the line with them. Measured: a cover ending on a gap lost that gap, so
+ * the visible range was a line shorter than the scope said.
+ *
+ * `inclusiveEnd: false` was tried as one answer for both and is not one: it
+ * rescues our line decorations and not Obsidian's, and it lets the tail range's
+ * last line escape.
  */
-const hidden = Decoration.replace({ block: true });
+const hiddenHead = Decoration.replace({ block: true });
+const hiddenTail = Decoration.replace({ block: true, inclusiveStart: false });
 
 function compute(state: EditorState, modes: ModeSource): DecorationSet {
   const scope = zoomScope(state, modes);
@@ -39,7 +58,9 @@ function compute(state: EditorState, modes: ModeSource): DecorationSet {
   const ranges = hiddenOffsetRanges(state.doc, scope);
   if (ranges.length === 0) return Decoration.none;
   const builder = new RangeSetBuilder<Decoration>();
-  for (const { from, to } of ranges) builder.add(from, to, hidden);
+  // Which spec a range takes is decided by where it begins, which is the same
+  // thing that decides where it begins: only the head starts at offset 0.
+  for (const { from, to } of ranges) builder.add(from, to, from === 0 ? hiddenHead : hiddenTail);
   return builder.finish();
 }
 

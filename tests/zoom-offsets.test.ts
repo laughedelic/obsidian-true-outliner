@@ -28,19 +28,26 @@ function lineOf(text: string, needle: string): number {
  * The lines a set of block replacements leaves rendered.
  *
  * Stated over LINES, not characters, because a block replacement covers whole
- * lines: a line goes away when the range contains all of it, and the line break
- * beside the range is consumed as the block's own boundary rather than left
- * behind as an empty line. A character-level splice reports the head range
- * differently — it ends one position short of the first visible line, so the
- * break survives the splice — and would be describing the text, not the render.
- * `80-outline-zoom` measures the render this models.
+ * lines: the line break beside a range is consumed as the block's own boundary
+ * rather than left behind as an empty line. A character-level splice would be
+ * describing the text instead of the render — the ranges stop one position
+ * short of the line they keep at each end, so both breaks survive a splice.
+ *
+ * The two edges read differently because their decorations do
+ * (`zoom-decorations.ts`): the head's start is INCLUSIVE and sits on a line it
+ * removes, so containment is the whole test; the tail's is NON-inclusive and
+ * sits on a line it keeps, so a line goes only if it begins strictly after that
+ * position. `80-outline-zoom` measures the render this models, at both edges and
+ * with a widget atom on the far side of the tail.
  */
 function visibleLines(doc: Text, ranges: { from: number; to: number }[]): string[] {
   const out: string[] = [];
   for (let n = 1; n <= doc.lines; n++) {
     const line = doc.line(n);
-    if (ranges.some((r) => r.from <= line.from && line.to <= r.to)) continue;
-    out.push(line.text);
+    const hidden = ranges.some((r) =>
+      r.from === 0 ? line.to <= r.to : line.from > r.from && line.to <= r.to,
+    );
+    if (!hidden) out.push(line.text);
   }
   return out;
 }
@@ -81,26 +88,29 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     expect(visibleLines(doc, ranges)).toContain('## Mid');
   });
 
-  it('stops each range on the last line it removes, never on a visible one', () => {
-    // The positions it stops short of are where every point decoration on the
-    // neighbouring visible line is anchored — a line decoration sorts BEFORE
-    // the position it marks — so a replacement reaching them swallows the lot.
-    // At the head that cost the zoom root its whole rendering, ours and
-    // Obsidian's alike: no marker, no depth, and a list root drawn with an
-    // unstyled bullet at the wrong column. At the tail it cost the line itself:
-    // a cover ending on a trailing gap lost that gap. `80-outline-zoom` asserts
-    // both renderings; this pins the arithmetic underneath them.
+  it('stops each range one position short of the line it keeps', () => {
+    // Those positions are where every point decoration on the neighbouring
+    // visible line is anchored — a line decoration sorts BEFORE the position it
+    // marks — so a replacement reaching them swallows the lot. At the head that
+    // cost the zoom root its whole rendering, ours and Obsidian's alike: no
+    // marker, no depth, and a list root drawn with an unstyled bullet at the
+    // wrong column. At the tail, beginning exactly where the next node's own
+    // replacement begins is a TIE, resolved by decoration precedence, and
+    // Obsidian's table widget won it — zooming into a code fence rendered the
+    // sibling table below the footer. `80-outline-zoom` asserts both
+    // renderings; this pins the arithmetic underneath them.
     const doc = Text.of(DOC.split('\n'));
     const scope = resolveZoom(parse(DOC), lineOf(DOC, '- one'))!;
     const [head, tail] = hiddenOffsetRanges(doc, scope);
     const firstVisible = doc.line(scope.cover.start.line + 1);
     const lastVisible = doc.line(scope.cover.end.line + 1);
     expect(head!.to).toBe(firstVisible.from - 1);
-    expect(tail!.from).toBe(lastVisible.to + 1);
-    // And each still covers the whole of the line it stops on, so no part of a
-    // hidden line survives.
+    expect(tail!.from).toBe(lastVisible.to);
+    // The head covers the whole of the line it stops on; the tail stops on a
+    // line it KEEPS, and its non-inclusive start is what leaves that line alone
+    // (`zoom-decorations.ts`).
     expect(head!.to).toBe(doc.line(scope.cover.start.line).to);
-    expect(tail!.from).toBe(doc.line(scope.cover.end.line + 2).from);
+    expect(tail!.from).toBe(doc.line(scope.cover.end.line + 2).from - 1);
   });
 
   it('keeps a zero-length range, which is what a single blank line looks like', () => {

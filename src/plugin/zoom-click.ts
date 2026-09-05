@@ -37,12 +37,18 @@ import type { ModeSource } from './keymap';
 /**
  * What counts as a node's mark.
  *
- * The two native elements are here for the reason the module comment gives: a
- * list item's mark is Obsidian's, not ours. The whitespace after the marker is
- * NOT included — `.cm-formatting-list` spans that too, and swallowing a click
- * there would take a position the reader was aiming the caret at.
+ * The native elements are here for the reason the module comment gives: a list
+ * item's mark is Obsidian's, not ours. `.to-decor-ol-digits` is here because on
+ * an ordered item Obsidian's own `.list-number` is not always emitted — the
+ * decoration layer supplies a span around the digits precisely for the lines
+ * where it is missing (`ORDERED_DIGITS_CLASS`), and without it the first items
+ * of a nested ordered list had no reachable mark at all while their siblings
+ * did. The whitespace after a marker is NOT included: `.cm-formatting-list`
+ * spans that too, and swallowing a click there would take a position the reader
+ * was aiming the caret at.
  */
-const MARK_SELECTOR = '.to-decor-marker-icon, .list-bullet, .list-number';
+const MARK_SELECTOR =
+  '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
 
 class ZoomClickPlugin implements PluginValue {
   private readonly onMouseDown: (event: MouseEvent) => void;

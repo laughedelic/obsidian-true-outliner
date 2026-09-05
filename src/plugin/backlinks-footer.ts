@@ -1330,14 +1330,21 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
   return Decoration.set([
     Decoration.widget({
       widget: new BacklinksFooterWidget(source, path),
-      side: -1,
+      // `side: 1`. At the END of a line a block widget with a NEGATIVE side
+      // sorts inside that line and splits it, leaving an empty second half
+      // rendered BELOW the widget — measured, and it is a real line: it takes
+      // the caret, so a click anywhere under the footer put the cursor there.
+      // At the document's end that stray line sits where a blank line would
+      // have been anyway and nobody saw it; under a zoom, where the anchor is
+      // the last visible line's end and the document is short, it is the empty
+      // space the reader clicks into.
+      side: 1,
       block: true,
     // `state.doc.length` normally, and the end of the visible range while a
     // zoom scope is active: zoom's trailing hidden range ends AT `doc.length`,
-    // and a block replacement swallows a `side: -1` widget anchored there, so
-    // the footer would silently vanish on zoom. Re-anchoring is the only
-    // available fix — measured in docs/research/23, which also rules out
-    // shortening that range.
+    // and a block replacement swallows a widget anchored there, so the footer
+    // would silently vanish on zoom. Re-anchoring is the only available fix —
+    // measured in docs/research/23, which also rules out shortening that range.
     }).range(contentEndAnchor(state, source)),
   ]);
 }

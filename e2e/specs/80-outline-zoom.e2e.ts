@@ -769,6 +769,127 @@ describe('outline zoom', function () {
     expect(footer.guide).toBe('none');
   });
 
+  it('hides a sibling widget atom on the far side of the tail range', async function () {
+    // The tail range used to begin exactly where the next node's own block
+    // replacement begins. Two replacements starting at one position is a tie
+    // resolved by decoration precedence, and Obsidian's table widget won it:
+    // zooming into the fence rendered the table below the footer, editable.
+    const md = ['## Atoms', '', '```py', 'x = 1', '```', '', '| a | b |', '| --- | --- |', '| 1 | 2 |', '', '## After', ''].join('\n');
+    await openZoomable(md);
+    await browser.pause(250);
+    await zoomAt(md, '```py');
+    expect(
+      await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (view!.editor as any).cm;
+        return cm.contentDOM.querySelectorAll('.cm-table-widget').length;
+      }),
+    ).toBe(0);
+    expect(await renderedLines()).toEqual(['```py', 'x = 1', '```', '']);
+  });
+
+  it('opens at the top, however far down the note the root was', async function () {
+    const md = [
+      '# Top',
+      '',
+      ...Array.from({ length: 40 }, (_, i) => `filler ${i}`).flatMap((t) => [t, '']),
+      '## Target',
+      '',
+      '- one',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, '## Target');
+    await browser.pause(300);
+    const view = await browser.executeObsidian(({ app, obsidian }) => {
+      const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (v.editor as any).cm;
+      const scroller = cm.scrollDOM as HTMLElement;
+      const trail = v.containerEl.querySelector('.to-zoom-trail') as HTMLElement | null;
+      return {
+        scrollTop: Math.round(scroller.scrollTop),
+        trailVisible: !!trail && trail.getBoundingClientRect().top >= scroller.getBoundingClientRect().top,
+        focused: cm.hasFocus as boolean,
+      };
+    });
+    // The zoomed subtree starts at the top whatever its length, so there is no
+    // other position the view could sensibly be left at — and the trail is the
+    // first thing in it.
+    expect(view.scrollTop).toBe(0);
+    expect(view.trailVisible).toBe(true);
+    // Focus is the other half of the same rule: the node accent is drawn from
+    // the selection whether or not the editor is focused, so without this the
+    // node lit up with no caret in it.
+    expect(view.focused).toBe(true);
+  });
+
+  it('keeps the caret inside the scope, and out from under the footer', async function () {
+    await h.createNote(SOURCE, `See [[zoom]] for the thing.\n`);
+    await openZoomable();
+    await browser.pause(700);
+    await zoomAt(DOC, '- one');
+    await browser.pause(300);
+    // Click into the empty space below the zoomed content, where the footer is.
+    const below = await browser.executeObsidian(({ app, obsidian }) => {
+      const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (v.editor as any).cm;
+      const footer = cm.contentDOM.querySelector('.to-backlinks') as HTMLElement;
+      const r = footer.getBoundingClientRect();
+      return { x: r.left + 200, y: r.top + r.height / 2 };
+    });
+    await h.clickAtPoint(below.x, below.y);
+    await browser.pause(300);
+    const at = await h.getCursor();
+    // Lines 4 and 5 are the zoom root and its child — the whole visible range.
+    expect(at.line).toBeGreaterThanOrEqual(4);
+    expect(at.line).toBeLessThanOrEqual(5);
+  });
+
+  it('leaves no rendered line below the footer to catch a click', async function () {
+    await h.createNote(SOURCE, `See [[zoom]] for the thing.\n`);
+    await openZoomable();
+    await browser.pause(700);
+    await zoomAt(DOC, '- one');
+    await browser.pause(300);
+    // A block widget at a line's END with a NEGATIVE side sorts inside that
+    // line and splits it, leaving an empty second half rendered below itself.
+    // That half is a real line and takes the caret.
+    expect(
+      await browser.executeObsidian(({ app, obsidian }) => {
+        const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (v.editor as any).cm;
+        const kids = Array.from(cm.contentDOM.children) as HTMLElement[];
+        const footer = kids.findIndex((el) => el.classList.contains('to-backlinks'));
+        return kids.slice(footer + 1).filter((el) => el.classList.contains('cm-line')).length;
+      }),
+    ).toBe(0);
+  });
+
+  it('zooms from an ordered item mark, whose digits are ours to supply', async function () {
+    // Obsidian does not always emit `.list-number`; the decoration layer
+    // supplies a span around the digits for the lines where it is missing, and
+    // without that in the target set the first items of a nested ordered list
+    // had no reachable mark while their siblings did.
+    const md = ['# Top', '', '1. first', '2. second', '   1. nested one', '   2. nested two', ''].join('\n');
+    await openZoomable(md);
+    await browser.pause(250);
+    await clickMark('.to-decor-list .to-decor-ol-digits', 2);
+    expect(await trail()).toEqual(['zoom', 'Top', 'second']);
+  });
+
+  it('marks a crumb whose node has more lines than the one it shows', async function () {
+    const md = ['- an item', '  that wraps', '\t- child', ''].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, '- child');
+    // The label is the node's first line; the ellipsis is what stops it from
+    // claiming to BE the node's text.
+    expect(await trail()).toEqual(['zoom', 'an item…']);
+  });
+
   it('offers its commands only in outline mode', async function () {
     await openZoomable();
     expect(await h.commandAvailable('zoom-in')).toBe(true);

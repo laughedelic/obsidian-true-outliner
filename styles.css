@@ -1002,7 +1002,8 @@ body {
  */
 .markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon,
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .to-decor-ol-digits {
   pointer-events: auto;
   cursor: pointer;
 }
@@ -1023,7 +1024,9 @@ body {
  * `position: relative`, so this adds no layout of its own.
  */
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .to-decor-ol-digits {
+  position: relative;
   z-index: 2;
 }
 
@@ -2368,21 +2371,25 @@ body {
   cursor: pointer;
 }
 
-/* Armed from anywhere on the trail: the arrows push apart along their own
- * diagonal, so the way out is discoverable from wherever the reader is already
- * looking. A transform on a `<g>`, so nothing reflows and the mark stays on its
- * column. */
+/* Armed from the NOTE's own crumb, the segment that means the same thing this
+ * control does — leaving the zoom entirely. Armed from anywhere on the row it
+ * said the opposite of what it does: hovering a mid-chain ancestor promises
+ * zooming to THAT ancestor, and the mark answering was a second, contradictory
+ * signal for the same gesture. The arrows push apart along their own diagonal;
+ * a transform on a `<g>`, so nothing reflows and the mark stays on its column. */
 .to-zoom-out-tl,
 .to-zoom-out-br {
   transition: transform 120ms ease-out;
 }
 
-.to-zoom-trail .to-backlinks-row:hover .to-zoom-out-tl,
+.to-zoom-trail .to-backlinks-row:has(.to-backlinks-seg:first-child:hover) .to-zoom-out-tl,
+.to-zoom-trail .to-zoom-out:hover .to-zoom-out-tl,
 .to-zoom-trail .to-zoom-out:focus-visible .to-zoom-out-tl {
   transform: translate(-1.1px, -1.1px);
 }
 
-.to-zoom-trail .to-backlinks-row:hover .to-zoom-out-br,
+.to-zoom-trail .to-backlinks-row:has(.to-backlinks-seg:first-child:hover) .to-zoom-out-br,
+.to-zoom-trail .to-zoom-out:hover .to-zoom-out-br,
 .to-zoom-trail .to-zoom-out:focus-visible .to-zoom-out-br {
   transform: translate(1.1px, 1.1px);
 }
@@ -2411,6 +2418,16 @@ body {
   width: 0.8em;
   height: 0.8em;
   color: var(--text-faint);
+  /* On the SAME line as the kind icons, by the same construction. The shared
+   * rule centres a separator with `vertical-align: middle` on an inline-flex
+   * box, which lands it on neither the icons' centre nor the text's — and once
+   * the icons moved up to the cap midline, the chevron's point read as pointing
+   * between two marks rather than from one to the next. */
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 0;
+  position: relative;
+  top: calc(0.4em - 0.5ex);
 }
 
 .to-zoom-trail .to-backlinks-seg-sep svg * {
@@ -2447,7 +2464,8 @@ body {
 }
 
 @supports (top: 1cap) {
-  .to-zoom-trail .to-backlinks-seg-icon {
+  .to-zoom-trail .to-backlinks-seg-icon,
+  .to-zoom-trail .to-backlinks-seg-sep {
     top: calc(0.4em - 0.5cap);
   }
 
