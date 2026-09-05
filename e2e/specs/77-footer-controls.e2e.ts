@@ -6,174 +6,31 @@
  * default on pointerdown, and that default is exactly what focuses an input and
  * opens a select. So the two form controls are driven here by real clicks and
  * real keystrokes rather than by dispatching change events.
+ *
+ * The waits and the point-based click live in `../footer.js`, beside the two
+ * other specs that need them; the reasons they are shaped that way are recorded
+ * there.
  */
 
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import {
+  FOOTER,
+  clearFilters,
+  chooseFacetValue,
+  clickIn,
+  facetOptions,
+  groupNames,
+  openFilters,
+  openFooter,
+  readStable,
+  settle,
+} from '../footer.js';
 
 const TARGET = 'Projects/Aurora Dashboard.md';
-const FOOTER = '.workspace-leaf.mod-active .to-backlinks';
-
-/**
- * Wait until the footer stops changing shape.
- *
- * Groups resolve one per source, asynchronously, and each fill mutates the DOM
- * and can add a control. Clicking while that is still happening races it: on CI
- * the filter toggle was replaced faster than four attempts could land on it.
- * Two identical samples in a row is the signal that the fills are done.
- */
-async function settle(): Promise<void> {
-  let previous = '';
-  await browser.waitUntil(
-    async () => {
-      const now = await browser.executeObsidian(() => {
-        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
-        if (!root) return null;
-        return {
-          shape: [
-            root.querySelectorAll('.to-backlinks-group').length,
-            root.querySelectorAll('.to-backlinks-row').length,
-            root.querySelectorAll('.to-backlinks-more').length,
-          ].join('/'),
-          // A group still showing its placeholder has not resolved.
-          resolving: root.querySelectorAll('.to-backlinks-resolving').length,
-        };
-      });
-      if (!now || now.resolving > 0) {
-        previous = '';
-        return false;
-      }
-      const stable = now.shape === previous;
-      previous = now.shape;
-      return stable;
-    },
-    {
-      timeout: h.waitBudget(20000),
-      interval: 400,
-      timeoutMsg: 'the footer never settled',
-    },
-  );
-}
-
-/**
- * A structural read that agrees with itself twice.
- *
- * `swap` empties the footer and appends its new children one at a time, and a
- * scroll or a click can start another render at any moment, so a single read
- * can catch a footer mid-rebuild — seeing one axis group where there are two.
- * Reading until two consecutive samples match costs a few hundred milliseconds
- * and removes a whole class of flake that has nothing to do with what these
- * cases assert.
- */
-async function readStable<T>(read: () => Promise<T>): Promise<T> {
-  let previous = '';
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const value = await read();
-    const serialised = JSON.stringify(value);
-    if (serialised === previous) return value;
-    previous = serialised;
-    await browser.pause(200);
-  }
-  throw new Error('the footer never held one shape long enough to read');
-}
-
-async function openFooter(): Promise<void> {
-  await h.openNote(TARGET);
-  if (!(await h.isOutlineMode(TARGET))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
-  await browser.executeObsidian(() => {
-    const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
-    if (s) s.scrollTop = s.scrollHeight;
-  });
-  await settle();
-  // The footer's own header, centred — `scrollTop = scrollHeight` puts the END
-  // of the document on screen, which is the footer's last card rather than the
-  // controls at its top.
-  await browser.executeObsidian(() => {
-    document
-      .querySelector('.workspace-leaf.mod-active .to-backlinks-head')
-      ?.scrollIntoView({ block: 'center' });
-  });
-  await settle();
-}
-
-/**
- * A real click at a POINT, rather than through an element handle.
- *
- * Two things bite here and a point avoids both.
- *
- * `element.click()` scrolls first, and scrolling the editor makes CodeMirror
- * rebuild its viewport — which replaces the footer widget and restarts its
- * group fills, so the handle the click was about to use is already gone. That
- * is a race no amount of retrying wins, because every retry scrolls again.
- *
- * And WebdriverIO's own `scrollIntoView` reaches for the WebDriver Actions API,
- * which Obsidian's Electron does not implement. On macOS that degrades to a
- * warning; on CI it retried the unimplemented command until the case timed out.
- *
- * `openFooter` has already brought the controls on screen, so nothing here
- * needs to scroll. A rect read and a pointer press at its centre survive a
- * rebuild, because a rebuilt header puts its controls back in the same place.
- */
-async function clickIn(selector: string): Promise<void> {
-  const centre = await browser.executeObsidian((_ctx, sel: string) => {
-    const el = document.querySelector<HTMLElement>(sel);
-    if (!el) return null;
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return null;
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  }, selector);
-  if (!centre) throw new Error(`no visible element for ${selector}`);
-  await h.clickAtPoint(centre.x, centre.y);
-  await browser.pause(250);
-}
-
-/** Reveal the filter row if it is not already open. */
-async function openFilters(): Promise<void> {
-  const open = await browser.executeObsidian(
-    () =>
-      document
-        .querySelector('.workspace-leaf.mod-active .to-backlinks-filter-toggle')
-        ?.getAttribute('aria-expanded') === 'true',
-  );
-  if (!open) {
-    await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
-    await settle();
-  }
-  // Waited on the row's LAST facet, not its first.
-  //
-  // `swap` empties the footer and appends the new children one at a time, so a
-  // read can land on a partially attached footer. The whole filter row is a
-  // single child of that root, so its last facet being present proves the
-  // entire row is.
-  await browser.waitUntil(
-    async () =>
-      await browser.executeObsidian(
-        () =>
-          document.querySelector(
-            '.workspace-leaf.mod-active .to-backlinks-filters .to-backlinks-facet[data-axis="tag"]',
-          ) !== null,
-      ),
-    {
-      timeout: h.waitBudget(5000),
-      timeoutMsg: 'the filter row never appeared',
-    },
-  );
-}
-
-/** Clear every selection, so a case starts from a known filter state. */
-async function clearFilters(): Promise<void> {
-  await browser.executeObsidian(() => {
-    const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
-    const reset = root?.querySelector<HTMLElement>('.to-backlinks-reset');
-    reset?.click();
-  });
-  await browser.pause(600);
-}
+/** A target whose only source notes carry no tags at all. */
+const UNTAGGED = 'Backlinks/Reference target.md';
 
 describe('the footer’s controls', function () {
   before(async function () {
@@ -187,7 +44,7 @@ describe('the footer’s controls', function () {
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });
-    await openFooter();
+    await openFooter(TARGET);
   });
 
   afterEach(async function () {
@@ -218,9 +75,9 @@ describe('the footer’s controls', function () {
         if (!row) return null;
         return {
           search: row.querySelector('.to-backlinks-search') !== null,
-          facets: Array.from(
-            row.querySelectorAll<HTMLElement>('.to-backlinks-facet'),
-          ).map((f) => f.dataset.axis ?? ''),
+          facets: Array.from(row.querySelectorAll<HTMLElement>('.to-backlinks-facet')).map(
+            (f) => f.dataset.axis ?? '',
+          ),
         };
       }),
     );
@@ -428,29 +285,15 @@ describe('the footer’s controls', function () {
     await clearFilters();
     await openFilters();
 
-    const kinds = (): Promise<{ label: string; count: string; empty: boolean }[]> =>
-      browser.executeObsidian(() =>
-        Array.from(
-          document.querySelectorAll<HTMLElement>(
-            '.workspace-leaf.mod-active .to-backlinks-facet-option',
-          ),
-        ).map((o) => ({
-          label: o.querySelector('.to-backlinks-facet-label')?.textContent ?? '',
-          count: o.querySelector('.to-backlinks-chip-count')?.textContent ?? '',
-          empty: o.classList.contains('is-empty'),
-        })),
-      );
-
-    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
-    const before = await readStable(kinds);
+    const before = await facetOptions('kind');
     expect(before.length).toBeGreaterThan(1);
     expect(before.every((k) => k.count === '0')).toBe(false);
 
     // Close the kind menu, narrow by a folder, reopen it.
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
     await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
-    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
-    const after = await readStable(kinds);
+    const after = await facetOptions('kind');
 
     expect(after.length).toBe(before.length);
     // Some count moved: the values answer "if I add this", not "how many exist".
@@ -520,6 +363,89 @@ describe('the footer’s controls', function () {
     // Offered only while something is active.
     expect(cleared.reset).toBe(false);
     expect(cleared.dot).toBe(false);
+  });
+
+  /**
+   * The tag axis, which is the only one that is many-to-one (design D9).
+   *
+   * A note has one folder and a reference has one kind, so those two axes
+   * partition their values and a second selection can only narrow. A note
+   * carries any number of tags, so a second tag WIDENS — while the axes still
+   * combine with AND. These two cases are that asymmetry, end to end.
+   *
+   * The fixture facts they turn on: `#person` is Maya and Priya, who each link
+   * plainly; `#research` is the study write-up, which reaches the target only
+   * through a property and an embed. So the two tags are disjoint sets, and
+   * `Note` is a kind that one of them has and the other does not.
+   */
+  it('offers the tags its sources carry, and none they do not', async function () {
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    const tags = await facetOptions('tag');
+    const labels = tags.map((t) => t.label);
+    expect(labels).toEqual(expect.arrayContaining(['#person', '#reading', '#research', '#work']));
+    // A `#` on every one: the axis whose values are literal syntax is drawn as
+    // that syntax, in the popover as well as on the facet.
+    for (const label of labels) expect(label.startsWith('#')).toBe(true);
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="tag"]`);
+  });
+
+  it('widens on a second tag and narrows again on a kind', async function () {
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    await facetOptions('tag');
+    await chooseFacetValue('#person');
+    await settle();
+    const person = await readStable(groupNames);
+
+    await chooseFacetValue('#research');
+    await settle();
+    const both = await readStable(groupNames);
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="tag"]`);
+
+    // ANY of the selected tags, not all: the second selection admits notes the
+    // first excluded. Asserted as a superset relationship rather than as a
+    // count, so it survives the fixture gaining another tagged note.
+    expect(both.length).toBeGreaterThan(person.length);
+    for (const name of person) expect(both).toContain(name);
+
+    // And the axes still combine with AND. `Note` is a kind `#person`'s notes
+    // have and `#research`'s does not, so it takes the widened set back down.
+    await facetOptions('kind');
+    await chooseFacetValue('Note');
+    await settle();
+    const narrowed = await readStable(groupNames);
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+
+    expect(narrowed.length).toBeLessThan(both.length);
+    for (const name of narrowed) expect(both).toContain(name);
+
+    await clearFilters();
+  });
+
+  it('shows no tag facet at all where no source carries one', async function () {
+    await openFooter(UNTAGGED);
+    await openFilters();
+    const axes = await readStable(() =>
+      browser.executeObsidian(() => {
+        const row = document.querySelector('.workspace-leaf.mod-active .to-backlinks-filters');
+        if (!row) return null;
+        return Array.from(row.querySelectorAll<HTMLElement>('.to-backlinks-facet')).map(
+          (f) => f.dataset.axis ?? '',
+        );
+      }),
+    );
+    expect(axes).not.toBeNull();
+    // An axis with no values is not drawn — the same rule that keeps a vault
+    // using no tags from meeting a control that can do nothing.
+    expect(axes).not.toContain('tag');
+    expect(axes).toContain('kind');
+
+    await openFooter(TARGET);
   });
 
   it('gives the section’s icon the editor’s own marker size', async function () {
