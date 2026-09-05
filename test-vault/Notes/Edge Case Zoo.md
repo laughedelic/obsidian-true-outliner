@@ -19,8 +19,8 @@ def atom():
     return "opaque"
 ```
 
-| a table | is an atom |
-| --- | --- |
+| a table    | is an atom    |
+| ---------- | ------------- |
 | Tab inside | behaves stock |
 
 > [!note] Callouts too

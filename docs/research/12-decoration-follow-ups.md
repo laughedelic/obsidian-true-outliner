@@ -474,6 +474,29 @@ whitespace, which is what makes it more than a one-line change.
   classification with no separate reparse — though not our tree *depths* (tasks.md 5.4's
   closing note).
 
+### A zoomed list-item root keeps its within-list indentation
+
+`outline-zoom` re-bases indentation by decorating the zoom root's subtree AS a document, so the
+root renders at depth 0 and everything below it counts outward from there (its design D9). That
+removes the contribution THIS plugin makes. For a list item it cannot remove the other half: the
+within-list depth comes from Obsidian's own list rendering, driven by the raw markdown nesting,
+which "One indentation grid for every kind" retargets by supplying the unit but never repositions
+line by line. So zooming into a twice-nested list item still renders it two levels in.
+
+The fix, for whoever picks it up: **one** negative `margin-left` on the content container, not
+per-line surgery. Every visible line shares the identical offset while zoomed — precisely because
+they are all inside one subtree — so a single uniform shift is correct where a per-line adjustment
+would be fighting native rendering once per line, which Experiment 1's rule forbids.
+
+What changed since this was first written down: the offset is now COMPUTABLE rather than measured.
+It is the root's own depth within its list times the outline unit, and the plugin already states
+both. Before the outline grid landed, the same shift would have had to measure whatever Obsidian
+resolved from the leading whitespace, which is the part that made it unattractive.
+
+Deferred on purpose until the plain case has been used against a real vault: a zoom into a heading
+or a paragraph — the common case — is already correct, and this is visible only when the root is
+itself a nested list item.
+
 ## Design ideas (not started, deliberately)
 
 ### Layer configurability: everything optional except indentation
@@ -565,16 +588,108 @@ Concrete interaction ideas on top of the existing "marker as a click target" dir
   have is "where am I", not "what is under my mouse". See
   [14-experiment-position-indicators.md](14-experiment-position-indicators.md). A
   pointer-driven version is still unbuilt and still gated on the same caveats below.
-- **Click on a marker → zoom into that node** (depends on zoom functionality existing —
-  a separate feature, not a decoration change).
+- ~~**Click on a marker → zoom into that node**~~ — **done** (`outline-zoom`, D15). What the
+  caveats below turned out to be worth, measured 5 September 2026 against Obsidian 1.13.7:
+  - `pointer-events: none` was the real obstacle, and lifting it for marks that stand for a
+    document node is the whole of that half.
+  - `ignoreEvent() → true` was read backwards. It does not merely make CM6 ignore a widget's
+    events; through `eventBelongsToEditor` it makes CM6 skip its OWN registered handlers for
+    anything inside such a widget. So `EditorView.domEventHandlers` is not a route to a marker at
+    all — measured: a click on a list bullet reached it and a click on a marker icon did not. The
+    gesture needs a listener of its own, in the capture phase, above the editor.
+  - A third obstacle nobody had filed: a list item's mark is Obsidian's `.list-bullet`, and the
+    native `.collapse-indicator` is a 30.8px box whose painted chevron is ~10px wide — the
+    invisible remainder covers the bullet outright, so `elementFromPoint` at the bullet's centre
+    returns the indicator and a real click folds. Fixed with a stacking order, since CSS cannot
+    make part of a box transparent to the pointer.
+  - The listener has to be on `pointerdown`. On a touch device there is no mouse event at all, so
+    a `mousedown` listener makes the gesture simply not exist there; the mobile e2e run is what
+    said so. A pointer gesture still produces the mouse events afterwards, and `preventDefault`
+    on `pointerdown` does not suppress them for a mouse, so a handled press has to swallow the
+    `mousedown`/`mouseup`/`click` behind it.
+  - And three for whoever writes the test, each of which cost a run:
+    - A synthesised event dispatched ON the mark proves nothing. It bypasses hit-testing, so it
+      passes with `pointer-events: none` still in force. Dispatch on whatever
+      `elementFromPoint` returns at the mark's centre instead — that fails exactly when a real
+      click would, and it is the instrument that found both the `pointer-events` and the
+      fold-indicator defects.
+    - A real click targets the `<rect>` inside a mark's SVG, which is an `SVGElement` and not an
+      `HTMLElement`; a narrow `instanceof` guard silently drops every real click.
+    - WebDriver's own pointer does not survive mobile emulation: a press aimed at a marker's
+      centre in viewport coordinates lands on the line behind it. `element.click()` is no better
+      — it demands the element be "interactable", which a mark inside a widget atom and a
+      zero-width bullet span both fail while being perfectly clickable by a person.
 - **Click on a guide → zoom into, or fold, the whole subtree** — which of the two should
-  be configurable.
+  be configurable. Still open, and still gated on the one caveat the marker work could not
+  dissolve: a guide is a `pointer-events: none` pseudo-element with no hit area, so a click
+  target has to be invented before the gesture can exist.
 
-The standing caveats from doc 10's addendum still gate all of these: `MarkerWidget`
-currently sets `pointer-events: none` + `ignoreEvent() → true` (both need careful
-revisiting against CM6 focus/cursor handling), guides are `pointer-events: none`
-pseudo-elements today (a click target needs a real hit area), and lapel's menu
-positioning uses non-public API, so a public-API-only equivalent needs verifying first.
+Lapel's menu positioning uses non-public API, so a public-API-only equivalent needs verifying
+first.
+
+### The affordance budget: four gestures, one 14px gutter, and a task with no mark to spare
+
+Raised from real use once click-to-zoom shipped (`outline-zoom` D15), and open. Nothing is
+settled here; this records the constraint, what other outliners do about it, and the options,
+so the next person does not start from the beginning.
+
+**The constraint.** A node's row offers one marker gutter — 14px — and the gestures that want it
+keep arriving: zoom into the node, fold its subtree, drag it somewhere else, open a menu about it.
+Two of the four already fit, because they are two adjacent targets: the native fold chevron paints
+its ink 3px clear of the marker column (measured), and the mark itself takes the click. The other
+two have nowhere to go.
+
+And one node kind has already run out. A TASK's mark is Obsidian's checkbox, whose click is
+already spoken for by toggling the task — so a task is the one node that cannot be zoomed with the
+pointer at all. Today it is reachable by the command, the context menu, and a hotkey, which is a
+keyboard answer to a mouse question.
+
+**What other outliners do.** Every one of them puts zoom on the bullet and fold on a separate
+chevron beside it, and every one of them then runs out of room the same way:
+
+| | zoom | fold | drag | more |
+| --- | --- | --- | --- | --- |
+| Workflowy | click the bullet | chevron, revealed left of the bullet on hover | drag the bullet | `⋯` on hover |
+| Logseq | click the bullet | arrow left of the bullet; a folded bullet keeps a halo | drag the bullet | right-click the bullet |
+| Roam | click the bullet | arrow left of the bullet | drag the bullet | shift-click opens the sidebar |
+| Dynalist | click the bullet | arrow left of the bullet | drag the bullet | `⋯` on hover |
+| Notion | (no zoom; "open as page") | chevron on toggle blocks | drag the `⠿` handle | click the same handle |
+| Craft | via the row menu | chevron | drag the handle | click the handle |
+
+Two observations worth carrying. First, the bullet doing double duty as zoom target AND drag
+handle is universal — nobody splits those. Second, none of them has our problem, because in all of
+them a task's checkbox is inline CONTENT and the bullet still sits outside it. Obsidian instead
+replaces the marker with the checkbox, which is what closes the door here.
+
+**Options, none costed yet.**
+
+- *A hover-revealed node handle.* One small target per row, appearing on hover in the gutter, that
+  carries every node-level gesture: click to zoom, drag to move, right-click for a menu. This is
+  Notion's and Craft's answer, and it is the only option that solves the task case rather than
+  working around it, since it does not depend on which element a node's mark happens to be. It
+  costs a gutter column and a hover state on every row, and it is a second thing in the space the
+  fold chevron already appears in.
+- *A modifier on the checkbox.* Alt-click a task's checkbox to zoom. Cheap, and undiscoverable —
+  Roam's shift-click-for-sidebar is the precedent, and it is a power-user affordance in an app
+  whose ordinary one is already the bullet.
+- *The guide as a target,* which is where this question came from. A guide is a `pointer-events:
+  none` pseudo-element with no hit area, so this needs a real element invented before it can be
+  judged at all (see the marker/guide entry above). It also cannot be the ONLY route: guides are
+  optional, and an affordance that disappears with a display setting is not one.
+- *The hanging-indent strip.* The dead space between a list item's marker and its text is real
+  estate nothing uses. It is narrow, it varies with the marker's width, and clicking near text to
+  zoom rather than to place a caret is the opposite of what every other click there does.
+- *Our own mark beside the checkbox.* Restore the plugin's marker for task lines specifically, in
+  the gutter, with the checkbox left as content. Consistent with every other kind, and it puts a
+  third element into the same 14px the chevron is already borrowing.
+- *Leave it.* A task is zoomable by command, hotkey and context menu today. The gap is real but it
+  is one kind, and the keyboard answer is not nothing.
+
+**The question to answer first** is not which option but whether the gutter is the right place at
+all. Every option above except the handle is an attempt to fit a fourth gesture into a column that
+already holds two; the handle asks instead whether node-level gestures belong in their own space,
+outside the notation. That is a bigger change than any of the others and probably the one worth
+measuring.
 
 ### Outline decorations in reading mode
 

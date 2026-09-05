@@ -58,6 +58,20 @@ import { BacklinkIndex } from './backlink-index';
 import { BUILD_STAMP } from 'virtual:build-stamp';
 import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
+import { viewRegistryExtension } from './view-registry';
+import { zoomStateExtension } from './zoom-state';
+import { zoomClickExtension } from './zoom-click';
+import { zoomDecorationsExtension } from './zoom-decorations';
+import { zoomTrailExtension } from './zoom-trail';
+import { zoomViewExtension } from './zoom-view';
+import { viewFor } from './view-registry';
+import { zoomScope } from './zoom-scope';
+import { zoomCleared, zoomTo } from './zoom-state';
+import { operandEscapes, parentOf, resolveZoom } from '../zoom';
+import { toLineRange } from './cm-pos';
+import { nodeStartLine } from '../locate';
+import { parsedDoc } from './parsed-doc';
+import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
 
@@ -213,7 +227,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     });
 
     this.addStructuralCommand('indent-node', 'Indent node', indentGroups, true);
-    this.addStructuralCommand('outdent-node', 'Outdent node', outdentGroups, true);
+    this.addStructuralCommand('outdent-node', 'Outdent node', outdentGroups, true, undefined, true);
     // Mod+Shift+Arrow is the dominant move-node convention: obsidian-outliner
     // and obsidian-bullet ship exactly these as command defaults, and Logseq
     // binds mod+shift+up/down on macOS. It collides with no Obsidian core
@@ -225,6 +239,19 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.addStructuralCommand('move-node-down', 'Move node down', moveGroupsDown, false, [
       { modifiers: ['Mod', 'Shift'], key: 'ArrowDown' },
     ]);
+
+    // Zoom's three gestures. No default hotkeys: unlike the move commands there
+    // is no dominant convention to inherit, and every plausible binding
+    // (Mod+Alt+Arrow, Mod+.) is already spoken for by Obsidian core or by a
+    // common community plugin. The palette and the context menu are the entry
+    // points; a user who wants a key assigns one.
+    this.addZoomCommand('zoom-in', 'Zoom in to node', (view) => this.zoomInFrom(view));
+    this.addZoomCommand('zoom-out', 'Zoom out one level', (view) => this.zoomOutFrom(view));
+    this.addZoomCommand('zoom-clear', 'Zoom out fully', (view) => {
+      if (zoomScope(view.state, this) === null) return false;
+      view.dispatch({ effects: zoomCleared.of(null) });
+      return true;
+    });
 
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {
@@ -294,6 +321,24 @@ export default class TrueOutlinerPlugin extends Plugin {
             .setIcon('list-tree')
             .onClick(() => void this.toggleMode(path)),
         );
+        if (!on) return;
+        const view = viewFor(info);
+        if (!view) return;
+        menu.addItem((item) =>
+          item
+            .setTitle('Zoom in to node')
+            .setIcon('search')
+            .onClick(() => {
+              this.zoomInFrom(view);
+            }),
+        );
+        if (zoomScope(view.state, this) === null) return;
+        menu.addItem((item) =>
+          item
+            .setTitle('Zoom out fully')
+            .setIcon('search')
+            .onClick(() => view.dispatch({ effects: zoomCleared.of(null) })),
+        );
       }),
     );
 
@@ -301,6 +346,14 @@ export default class TrueOutlinerPlugin extends Plugin {
     // running inside a nested per-cell editor, and only a view-level plugin can
     // answer that from the DOM.
     this.registerEditorExtension(nestedEditorExtension());
+    // Immediately after the nested-editor gate it consults, and before anything
+    // that dispatches: a command needs the view registered before it can reach
+    // it (design D5). Holds no state of its own beyond the view it publishes.
+    this.registerEditorExtension(viewRegistryExtension());
+    // The zoom anchor. A bare StateField, so it can sit anywhere; here, so the
+    // extensions that READ the scope are registered after the state that holds
+    // it and the reading order matches the dependency.
+    this.registerEditorExtension(zoomStateExtension());
     this.registerEditorExtension(grammarExtension(this));
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
@@ -308,6 +361,14 @@ export default class TrueOutlinerPlugin extends Plugin {
     // decoration here, and keeping it last means any interaction with the
     // established layers is attributable to it rather than to ordering.
     this.registerEditorExtension(backlinksFooterExtension(this));
+    // Zoom's hiding, after the footer for the same reason the footer is last
+    // among the decoration producers: these are the two block-decoration
+    // sources, and keeping them adjacent and last makes any interaction with
+    // the established layers attributable to them.
+    this.registerEditorExtension(zoomDecorationsExtension(this));
+    this.registerEditorExtension(zoomTrailExtension(this));
+    this.registerEditorExtension(zoomClickExtension(this));
+    this.registerEditorExtension(zoomViewExtension(this));
     // A footer's unfolded state belongs to the reading, not to the note: when
     // its tab closes, the state goes with it. `layout-change` is the event that
     // fires for a closed tab; the leaves still open name what to keep.
@@ -647,12 +708,107 @@ export default class TrueOutlinerPlugin extends Plugin {
    * being invisible in Settings > Hotkeys and impossible for a user to rebind or
    * remove. A default hotkey is the version of this the user can actually undo.
    */
+  /**
+   * A zoom command: outline-mode-gated, and routed to the live `EditorView`
+   * through the registry (design D5).
+   *
+   * `editorCheckCallback` rather than `editorCallback`, so the command is
+   * absent from the palette outside outline mode instead of present and inert —
+   * matching `toggle-outline-mode` and the structural commands. The action
+   * reports whether it did anything, and a gesture with nothing to do reports
+   * `false` while CHECKING so the palette hides it, but never surfaces a cue:
+   * "zoom out when not zoomed" is a no-op, not a rejection.
+   */
+  private addZoomCommand(id: string, name: string, act: (view: EditorView) => boolean): void {
+    this.addCommand({
+      id,
+      name,
+      editorCheckCallback: (checking, _editor, ctx) => {
+        const path = ctx.file?.path;
+        if (!path || !this.registry.isOutline(path)) return false;
+        const view = viewFor(ctx);
+        if (!view) return false;
+        if (checking) return true;
+        act(view);
+        return true;
+      },
+    });
+  }
+
+  /**
+   * Zoom to the node the selection's ANCHOR resolves to, collapsing a non-empty
+   * selection onto that anchor.
+   *
+   * The anchor and not the head, for the reason `selection-structural-ops` gives
+   * for operands: a cover's head is whichever end the gesture grew from, so
+   * reading it would zoom somewhere different depending on which direction the
+   * user selected in. Collapsing rather than clamping, because a range spanning
+   * siblings has ends outside the new scope and pulling them inward produces a
+   * selection the user never made while a zoom gesture was all they asked for.
+   */
+  private zoomInFrom(view: EditorView): boolean {
+    const { doc } = parsedDoc(view.state.doc);
+    const main = view.state.selection.main;
+    const anchorLine = view.state.doc.lineAt(main.anchor).number - 1;
+
+    // For a non-empty selection the target is the FIRST covered root in
+    // document order, read through `selection-structural-ops`' own operand
+    // resolution. Not the anchor and not the head: both are direction-dependent,
+    // so the same two nodes selected upward and downward would zoom to
+    // different places — the exact defect that capability exists to remove,
+    // reintroduced one gesture later. An empty selection resolves to the
+    // caret's own node, unchanged.
+    let line = anchorLine;
+    if (!main.empty) {
+      const operand = resolveOperand(doc, toLineRange(view.state.doc, main));
+      const firstRoot = operand?.groups[0]?.[0];
+      if (firstRoot !== undefined) {
+        const at = nodeStartLine(doc, firstRoot);
+        if (at >= 0) line = at;
+      }
+    }
+
+    const scope = resolveZoom(doc, line);
+    if (!scope) return false; // the preamble, or a document with no nodes
+    const rootStart = view.state.doc.line(scope.startLine + 1).from;
+    view.dispatch({
+      effects: zoomTo.of(rootStart),
+      // A non-empty selection collapses, because its ends lie outside the scope
+      // the gesture is creating. Onto the new root's own start rather than onto
+      // either end of the old selection — the only position guaranteed to be
+      // inside the new scope whichever way the selection was drawn. An empty
+      // selection is left exactly where it was.
+      ...(main.empty ? {} : { selection: { anchor: rootStart } }),
+    });
+    return true;
+  }
+
+  /** One level out: the root's parent becomes the root, and a top-level root
+   * clears the zoom — so the gesture always has an effect while zoomed. */
+  private zoomOutFrom(view: EditorView): boolean {
+    const scope = zoomScope(view.state, this);
+    if (!scope) return false;
+    const parent = parentOf(scope);
+    if (!parent) {
+      view.dispatch({ effects: zoomCleared.of(null) });
+      return true;
+    }
+    const { doc } = parsedDoc(view.state.doc);
+    const line = nodeStartLine(doc, parent.id);
+    if (line < 0) return false;
+    view.dispatch({ effects: zoomTo.of(view.state.doc.line(line + 1).from) });
+    return true;
+  }
+
   private addStructuralCommand(
     id: string,
     name: string,
     op: StructuralOp,
     useMappedCursor = false,
     hotkeys?: Hotkey[],
+    /** Outdent is the one operation whose result can leave a zoom scope from a
+     * node that is not the root itself, so the guard has to be told. */
+    isOutdent = false,
   ): void {
     this.addCommand({
       id,
@@ -665,7 +821,7 @@ export default class TrueOutlinerPlugin extends Plugin {
         // (`selection-structural-ops`). Acting would silently discard every
         // range but one, and the two entry points must answer alike.
         if (editor.listSelections().length !== 1) return false;
-        if (!checking) this.runOp(editor, ctx, op, useMappedCursor);
+        if (!checking) this.runOp(editor, ctx, op, useMappedCursor, isOutdent);
         return true;
       },
     });
@@ -683,6 +839,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     ctx: MarkdownView | MarkdownFileInfo,
     op: StructuralOp,
     useMappedCursor = false,
+    isOutdent = false,
   ): void {
     // Fresh-tree guarantee: always parse the current buffer at invocation.
     const text = editor.getValue();
@@ -706,6 +863,16 @@ export default class TrueOutlinerPlugin extends Plugin {
     const operand = resolveOperand(doc, range);
     if (!operand) {
       new Notice(REJECTION_MESSAGES['node-not-found'], 1500);
+      return;
+    }
+    // `outline-zoom` D8: refuse an operand that would leave the scope, before the
+    // algebra runs. Checked here and in `grammar.ts` against the SAME predicate,
+    // so the two entry points cannot disagree about it — the divergence
+    // `selection-structural-ops` exists to prevent.
+    const view = viewFor(ctx);
+    const scope = view ? zoomScope(view.state, this) : null;
+    if (scope && operandEscapes(scope, operand.groups, isOutdent)) {
+      new Notice(REJECTION_MESSAGES['would-leave-zoom-scope'], 1500);
       return;
     }
     const result = op(doc, operand.groups);

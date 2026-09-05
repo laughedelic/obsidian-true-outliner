@@ -15,6 +15,7 @@ import { ATOM_KINDS, type OutlineDoc, type OutlineNode } from '../model';
 import { decorate, type LineDecorationFact } from './decorate';
 import { collapseLineage } from '../lineage';
 import { project, type NodePredicate } from '../project';
+import { stripBlockPrefix } from '../node-text';
 import type { BacklinkReference, PlacedReference } from './backlink-index';
 
 /** How many levels of a reference's own descendants the footer shows before
@@ -234,22 +235,6 @@ function contentOf(node: OutlineNode, ref: PlacedReference | undefined): RowCont
  * are one thought wrapped, not several records. */
 function proseOf(node: OutlineNode): string {
   return node.lines.map(stripBlockPrefix).filter((l) => l.length > 0).join(' ');
-}
-
-/**
- * One line's leading block syntax: quote carets, heading hashes, a list marker
- * with its optional checkbox, an ordered number. Whatever survives is inline.
- *
- * Order matters: a quoted heading is `> # Title`, and a task's checkbox sits
- * after its bullet.
- */
-function stripBlockPrefix(line: string): string {
-  return line
-    .trim()
-    .replace(/^(?:>\s?)+/, '')
-    .replace(/^#{1,6}\s+/, '')
-    .replace(/^(?:[-*+]|\d{1,9}[.)])(?:\s+|$)(?:\[[ xX]\](?:\s+|$))?/, '')
-    .trim();
 }
 
 /**

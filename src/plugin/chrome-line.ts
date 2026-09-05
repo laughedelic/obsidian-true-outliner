@@ -41,13 +41,15 @@ export const LIST_LINE_CLASS = 'to-decor-list';
 export const GUIDES_CLASS = 'to-decor-guides';
 /**
  * A block widget that is view chrome rather than a rendering of the line it is
- * anchored to — the backlinks footer.
+ * anchored to — the backlinks footer, and zoom's breadcrumb trail.
  *
  * The widget-line patch works from the document line a widget sits on, which is
  * right for a widget that RENDERS that line (a table, an embed) and wrong for
  * one that merely neighbours it: the footer would take the last line's kind
  * gutter, depth guide and marker, so a note ending in a nested list item drew
- * that item's ancestor guide straight down through the whole footer. An element
+ * that item's ancestor guide straight down through the whole footer, and the
+ * trail would take the zoom root's, shifting the same row by a marker gutter
+ * depending on whether that root was a heading or a list item. An element
  * carrying this class takes only what the theme gives every line's box — the
  * readable-line-width base margin — and draws the rest itself.
  */
