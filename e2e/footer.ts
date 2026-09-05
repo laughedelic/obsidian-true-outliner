@@ -71,14 +71,19 @@ export async function settle(budgetMs = 20000): Promise<void> {
  * asserts.
  */
 export async function readStable<T>(read: () => Promise<T>): Promise<T> {
+  // A deadline rather than a fixed attempt count, and one that scales with the
+  // rest of the suite's waits. Twelve samples 200ms apart is two and a half
+  // seconds of patience, which is enough on a developer machine and was not
+  // enough on a CI runner filling a hub note's groups.
+  const deadline = Date.now() + h.waitBudget(8000);
   let previous = '';
-  for (let attempt = 0; attempt < 12; attempt++) {
+  do {
     const value = await read();
     const serialised = JSON.stringify(value);
     if (serialised === previous) return value;
     previous = serialised;
-    await browser.pause(200);
-  }
+    await browser.pause(250);
+  } while (Date.now() < deadline);
   throw new Error('the footer never held one shape long enough to read');
 }
 
@@ -243,6 +248,11 @@ export interface FacetOption {
 /** Open an axis's popover and read what it offers. Leaves it open. */
 export async function facetOptions(axis: string): Promise<FacetOption[]> {
   await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="${axis}"]`);
+  // Opening a facet repaints the footer, which restarts every group fill. The
+  // counts are settled long before those are, but the read is of the whole
+  // option list and can land mid-swap, so it waits for the fills rather than
+  // sampling through them.
+  await settle();
   return readStable(() =>
     browser.executeObsidian(() =>
       Array.from(

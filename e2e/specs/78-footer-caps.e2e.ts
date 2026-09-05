@@ -98,7 +98,15 @@ describe('the overall cap and the per-note bound', function () {
    * not shown.
    */
   it('never places a note the cap did not admit', async function () {
-    await setCap('50');
+    // The cap is already where it needs to be, and the footer has already
+    // settled at it, BEFORE the spy goes on. Measuring the repaint that
+    // narrows the cap looks tighter and is not: the wider render's own fills
+    // are still resolving as the narrower one starts, so the window catches
+    // both and reports the notes the wide cap read. Seen on CI as eighteen
+    // placements behind eight groups — eighteen being exactly the group count
+    // at the previous cap.
+    await setCap('25');
+    await readStable(groupNames);
 
     const counted = await browser.executeObsidian(async ({ plugins }, target: string) => {
       const plugin = plugins.trueOutliner as any;
@@ -110,33 +118,42 @@ describe('the overall cap and the per-note bound', function () {
         return original(t, s);
       };
       try {
-        // A whole repaint, provoked through the setting rather than through the
-        // module function that performs it — which is not on the plugin, and
-        // reaching past what a caller can actually call would test a path the
-        // product does not have. Changing the cap repaints every footer, so the
-        // calls recorded here are exactly one render's worth.
-        await plugin.setBacklinksOverallCap('25');
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        // A whole repaint at the cap already in force, provoked through a
+        // setting rather than through the module function that performs it —
+        // which is not on the plugin, and reaching past what a caller can
+        // actually call would test a path the product does not have.
+        await plugin.setBacklinksGroupHeight('compact');
+        await new Promise((resolve) => setTimeout(resolve, 6000));
+        const shownPaths = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '.workspace-leaf.mod-active .to-backlinks-group-head',
+          ),
+        ).map((head) => {
+          const name = head.querySelector('.to-backlinks-group-name')?.textContent ?? '';
+          const folder = head.querySelector('.to-backlinks-group-folder')?.textContent ?? '';
+          return folder ? `${folder}/${name}.md` : `${name}.md`;
+        });
         return {
           placed: Array.from(new Set(placed)),
+          shownPaths,
           sources: index.summaries(target).length,
         };
       } finally {
         index.place = original;
+        await plugin.setBacklinksGroupHeight('standard');
       }
     }, HUB);
 
     // The fixture has to be several times the cap, or this case proves nothing.
     expect(counted.sources).toBeGreaterThan(40);
+    expect(counted.shownPaths.length).toBeGreaterThan(0);
+    expect(counted.shownPaths.length).toBeLessThan(counted.sources);
 
-    const shown = await readStable(groupNames);
-    expect(shown.length).toBeGreaterThan(0);
-    // Every note READ is a note SHOWN. The cap admits whole groups in sort
-    // order, so the two sets are the same set — and far smaller than the
-    // fixture. Without the model applying the cap before `place()`, this reads
-    // the full source count.
-    expect(counted.placed.length).toBe(shown.length);
-    expect(counted.placed.length).toBeLessThan(counted.sources);
+    // Every note READ is a note SHOWN, and nothing beyond the cap was touched.
+    // Without the model applying the cap before `place()`, every source in the
+    // fixture would appear here.
+    expect([...counted.placed].sort()).toEqual([...counted.shownPaths].sort());
+    await settle();
   });
 
   it('admits whole groups, so it is a bound rather than a quota', async function () {
