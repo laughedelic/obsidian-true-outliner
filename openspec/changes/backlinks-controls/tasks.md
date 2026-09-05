@@ -25,6 +25,15 @@ order possible.
       `backlinks-footer` shipped a comparator whose tie-break used to be the whole comparison; do
       not reintroduce that — verify two notes with equal mtime order by path, and that changing
       sort never changes a group's internal row order
+- [x] 1.7 The TAG axis (design D9): tags read from the metadata cache alongside the other axis
+      values, so the whole model stays upstream of `place()`. Selected tags combine
+      DISJUNCTIVELY — a note carrying any of them is admitted — while the axes still combine with
+      AND. Verify that selecting a second tag widens the result and that adding a kind to it
+      narrows again; negative control: make tags combine with AND and confirm the widening case
+      fails while the cross-axis case still passes
+- [x] 1.8 Tag counts through the same cross-axis rule as the others: a tag's count is the notes
+      carrying it that the OTHER axes admit. Verify a tag absent from a selected folder reads 0
+      while the other tags keep live counts
 - [x] 1.6 `tests/footer-filter.test.ts` covering 1.2–1.5, including the empty-controls case that
       must reproduce today's unfiltered footer exactly. Negative control: make an empty axis
       admit nothing instead of everything and confirm the focus-on cases fail; make the overall
@@ -72,6 +81,21 @@ the state lives.
 - [x] 3.5 A selected value that stops existing is dropped, returning its axis to admitting
       everything (design Risks). Verify by editing a source note so its folder no longer
       contributes, with that folder selected, and confirming the footer does not go empty
+- [x] 3.7 The filter row's settled shape (design canvas, round 4): the row is flush with the
+      CARDS rather than the header — the header's 14px is the marker gutter, which holds the
+      section icon and nothing in this row sits in it. Search takes the leftover width
+      (`flex: 1`), the three facets are `flex: none`, and the row never wraps
+- [x] 3.8 Facets shed their word below a container width and keep their icon, through a CSS
+      container query on the FOOTER rather than a media query on the window — a narrow split pane
+      on a wide screen is the case a media query gets wrong. The row's shape does not change with
+      it: only a button's content does, so nothing reflows and no measurement is needed
+- [x] 3.9 Marks: the two axes whose values are literal syntax are drawn as that syntax — `[[]]`
+      for kind, `#` for tag — and folder, which has none, keeps a picture. The wikilink mark is
+      four brackets closed to a 3-unit centre gap, drawn at 15px against the folder's 13 because
+      a bracket is lighter ink than a filled outline. Order is kind, folder, tag
+- [x] 3.10 A find box inside the folder and tag popovers (design D10), and NOT inside kind's. A
+      selected value stays listed however the box is narrowed; Escape closes the popover rather
+      than clearing the box. Verify from the spec's scenarios
 - [ ] 3.6 Every control routes through the existing `render()` and changes nothing else. Verify
       the read-only guarantee holds across filtering, searching, sorting and reset — file bytes,
       caret, selection and undo stack unchanged
@@ -152,6 +176,12 @@ D19). The model keeps one shape; the renderer is the single site that declines.
 New specs in the `backlinks` group (70–76 are the footer's; zoom takes 80). Assert relationships,
 never glyph-width pixels — CI's font is not macOS's.
 
+- [ ] 7.6 The tag axis end to end: a tagged fixture offers tag values, two tags widen, a tag plus
+      a kind narrows, and a vault with no tags shows no tag facet. Negative control: drop the
+      any-of rule and confirm the widening case fails
+- [ ] 7.7 The narrow case: below the container width the facets show icons only and the row still
+      does not wrap; above it the words return. Asserted as a relationship — the row's height is
+      unchanged across the threshold — never as a pixel width
 - [x] 7.1 `e2e/specs/77-footer-controls.e2e.ts`: the header is one row until the filter
       affordance is used; the second row carries both named axis groups, the search field and
       reset; the axes are separated by more than the space inside either; the caret lands in the

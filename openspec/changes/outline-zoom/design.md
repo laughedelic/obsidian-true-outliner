@@ -635,19 +635,21 @@ layout the change produced rather than the one it replaced — and because focus
 whatever ran the gesture has finished with it, which the closing command palette has not at the
 time of a microtask.
 
-### D18. The footer anchors with a POSITIVE side, or it splits the line it sits after
+### D18. The footer's own defects belong to the footer
 
-`backlinks-footer` mounted its block widget at `side: -1`. At the END of a line that sorts INSIDE
-the line and splits it, leaving an empty second half rendered below the widget — a real line, which
-takes the caret. At the document's end that stray line sits where a blank line would have been
-anyway, which is why it shipped unnoticed. Under a zoom the anchor is the last VISIBLE line's end
-and the document is short, so the stray line is exactly the empty space below the footer that a
-reader clicks into: the reported "clicking around the node places the cursor under the subtree,
-overlapping with the footer".
+Two things this change surfaced are not this change's: the footer's block widget was anchored at
+`side: -1`, which at a line's END sorts INSIDE the line and splits it, leaving an empty remainder
+rendered below the widget that takes the caret; and the footer inherited the chrome of the line it
+is anchored to, drawing that line's ancestor guide down through itself.
 
-`side: 1` sorts the widget after the line instead, which is what a footer means. It changes the
-footer's own behaviour outside zoom too, and for the better: there was never a reason for that line
-to exist.
+Both are visible without a zoom. A zoom is only where they show every time — the anchor is the last
+VISIBLE line's end, which for a zoomed list subtree is nested by construction, and the empty space
+below a short document is exactly what a reader clicks into. So both fixes live on
+`backlinks-controls`, with the general facility they needed: `to-decor-own-chrome`, which says that
+a block widget is chrome beside the content rather than a rendering of the line it neighbours.
+
+This change is the facility's second user. The trail asks the same question and gets the same
+answer.
 
 ## Risks / Trade-offs
 

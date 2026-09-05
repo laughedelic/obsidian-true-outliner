@@ -25,7 +25,12 @@ const src = (path: string, mtime: number, ...kinds: ReferenceKind[]): SourceRefs
   path,
   mtime,
   refs: kinds.map((k) => ref(k)),
+  tags: [],
 });
+
+/** The same, carrying tags — the axis where one note answers to several values. */
+const tagged = (path: string, mtime: number, tags: string[], ...kinds: ReferenceKind[]): SourceRefs =>
+  ({ ...src(path, mtime, ...kinds), tags });
 
 const controls = (over: Partial<ControlsState> = {}): ControlsState => ({ ...NO_FILTER, ...over });
 
@@ -152,6 +157,82 @@ describe('focus-on semantics', () => {
   });
 });
 
+describe('the tag axis', () => {
+  // Two folders, and tags that deliberately cut ACROSS them, so a tag result is
+  // not reachable by a folder selection.
+  const TAGGED: SourceRefs[] = [
+    tagged('Daily/mon.md', 400, ['standup', 'review'], 'note'),
+    tagged('Daily/tue.md', 300, ['standup'], 'anchor'),
+    tagged('Notes/spec.md', 200, ['review'], 'note'),
+    tagged('Notes/idle.md', 100, [], 'embed'),
+  ];
+
+  it('offers the tags actually present, with contributing note counts', () => {
+    expect(axesOf(TAGGED).tags).toEqual([
+      { value: 'review', notes: 2 },
+      { value: 'standup', notes: 2 },
+    ]);
+  });
+
+  it('offers nothing when no contributing note is tagged', () => {
+    expect(axesOf(VAULT).tags).toEqual([]);
+  });
+
+  it('narrows to a selected tag', () => {
+    const result = applyControls(TAGGED, controls({ tags: new Set(['review']) }));
+    expect(paths(result).sort()).toEqual(['Daily/mon.md', 'Notes/spec.md']);
+  });
+
+  it('WIDENS on a second tag, where a second folder could only narrow', () => {
+    const one = applyControls(TAGGED, controls({ tags: new Set(['review']) }));
+    const two = applyControls(TAGGED, controls({ tags: new Set(['review', 'standup']) }));
+    // A note carrying EITHER is admitted — the whole of D9's asymmetry.
+    expect(paths(one)).toHaveLength(2);
+    expect(paths(two).sort()).toEqual(['Daily/mon.md', 'Daily/tue.md', 'Notes/spec.md']);
+  });
+
+  it('still combines with the other axes conjunctively', () => {
+    const result = applyControls(
+      TAGGED,
+      controls({ tags: new Set(['review', 'standup']), kinds: new Set<ReferenceKind>(['anchor']) }),
+    );
+    expect(paths(result)).toEqual(['Daily/tue.md']);
+  });
+
+  it('drops an untagged note whenever any tag is selected', () => {
+    const result = applyControls(TAGGED, controls({ tags: new Set(['review', 'standup']) }));
+    expect(paths(result)).not.toContain('Notes/idle.md');
+  });
+
+  it('counts a tag against the OTHER axes, its own excluded', () => {
+    // Within `Notes`, `standup` has nothing — but `review` keeps its live count,
+    // and both stay on offer.
+    const axes = axesOf(TAGGED, controls({ folders: new Set(['Notes']) }));
+    expect(axes.tags).toEqual([
+      { value: 'review', notes: 1 },
+      { value: 'standup', notes: 0 },
+    ]);
+  });
+
+  it('does not count the tag axis against its own selection', () => {
+    const axes = axesOf(TAGGED, controls({ tags: new Set(['review']) }));
+    expect(axes.tags.find((t) => t.value === 'standup')?.notes).toBe(2);
+  });
+
+  it('re-counts the other axes against a selected tag', () => {
+    const axes = axesOf(TAGGED, controls({ tags: new Set(['standup']) }));
+    expect(axes.folders).toEqual([
+      { value: 'Daily', notes: 2 },
+      { value: 'Notes', notes: 0 },
+    ]);
+  });
+
+  it('drops a selected tag that stops existing', () => {
+    const result = applyControls(TAGGED, controls({ tags: new Set(['gone']) }));
+    expect(paths(result)).toHaveLength(4);
+  });
+});
+
 describe('search', () => {
   it('matches source note names, case-insensitively', () => {
     expect(paths(applyControls(VAULT, controls({ search: 'brief' })))).toEqual(['Notes/Brief.md']);
@@ -159,7 +240,7 @@ describe('search', () => {
 
   it('does not reach reference content', () => {
     const withText: SourceRefs[] = [
-      { path: 'A.md', mtime: 1, refs: [ref('note', '[[Target|quarterly review]]')] },
+      { path: 'A.md', mtime: 1, refs: [ref('note', '[[Target|quarterly review]]')], tags: [] },
     ];
     expect(paths(applyControls(withText, controls({ search: 'quarterly' })))).toEqual([]);
     expect(paths(applyControls(withText, controls({ search: 'A' })))).toEqual(['A.md']);

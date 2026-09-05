@@ -23,3 +23,8 @@ dist/
 
 # e2e harness
 .obsidian-cache/
+
+# Design canvases: working artboards and the seeded page, kept out of the repo.
+# The published canvas is the artifact; these are its source and are regenerated
+# from `gen.py` whenever a round changes.
+design/

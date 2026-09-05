@@ -18,15 +18,15 @@ D14, D15).
 
 ## What Changes
 
-- **Filtering, on two axes with two visual shapes.** Round pills for source folders (a
-  *where*), square icon chips for reference kinds (a *what*): Note, Anchor, Embed, Property.
-  Both are **focus-on**: nothing selected means no filter, selecting one narrows to it. A reset
-  clears filters and search together. The row stays behind a Filter toggle in the header, which
-  carries a dot while any filter is active (D8, D14).
+- **Filtering, on three axes.** A reference's KIND (Note, Anchor, Embed, Property), its source
+  note's FOLDER, and that note's TAGS. All three are **focus-on**: nothing selected means no
+  filter, selecting one narrows to it. A reset clears every axis and the search together. The
+  controls stay behind a Filter toggle in the header, which carries a dot while any filter is
+  active (D8, D14).
 - **A search field beside them**, narrowing by source note name, in the same revealed row and
-  cleared by the same reset. Name only, never reference content: the pills, the chips and this
-  field are all answered from the summary layer without reading a file, which is what D8 means by
-  "no search engine behind them".
+  cleared by the same reset. Name only, never reference content: every axis and this field are
+  answered from the summary layer without reading a file, which is what D8 means by "no search
+  engine behind them".
 - **Sorting** as a dropdown — recently modified (default), oldest, note name, most references
   (D15).
 - **Volume caps**, one overall and one per note, both configurable with defaults, and each
@@ -59,10 +59,10 @@ D14, D15).
 
 ### New Capabilities
 
-- `backlink-filtering`: the filter and sort model — focus-on semantics, the two filter axes and
-  the search term, what each admits, reset behaviour, sort orders, and how filtering interacts
-  with the caps (whether a cap applies before or after a filter, and what the reported total
-  means).
+- `backlink-filtering`: the filter and sort model — focus-on semantics, the three filter axes
+  and the search term, what each admits, reset behaviour, sort orders, and how filtering
+  interacts with the caps (whether a cap applies before or after a filter, and what the reported
+  total means).
 
 ### Modified Capabilities
 

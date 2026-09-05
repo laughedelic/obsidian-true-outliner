@@ -817,28 +817,6 @@ describe('outline zoom', function () {
     expect(await trail()).toEqual(['zoom', 'T']);
   });
 
-  it('does not run the last visible line guide down through the footer', async function () {
-    await h.createNote(SOURCE, `See [[zoom]] for the thing.\n`);
-    // A cover whose last visible line is NESTED, so it has an ancestor guide to
-    // inherit — the shape that made this visible every time under zoom.
-    const md = ['# Top', '', '- one', '  - nested', ''].join('\n');
-    await openZoomable(md);
-    await browser.pause(700);
-    await zoomAt(md, '- one');
-    await browser.pause(300);
-    const footer = await browser.executeObsidian(({ app, obsidian }) => {
-      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      const el = view?.containerEl.querySelector('.to-backlinks') as HTMLElement | null;
-      if (!el) throw new Error('no footer');
-      const after = getComputedStyle(el, '::after');
-      return { cls: el.className, guide: after.backgroundImage };
-    });
-    // The footer is chrome mounted after the content, not a rendering of the
-    // line it is anchored to — so it takes no guide from that line.
-    expect(footer.cls).toContain('to-decor-own-chrome');
-    expect(footer.guide).toBe('none');
-  });
-
   it('hides a sibling widget atom on the far side of the tail range', async function () {
     // The tail range used to begin exactly where the next node's own block
     // replacement begins. Two replacements starting at one position is a tie
@@ -934,9 +912,9 @@ describe('outline zoom', function () {
     await browser.pause(700);
     await zoomAt(DOC, '- one');
     await browser.pause(300);
-    // A block widget at a line's END with a NEGATIVE side sorts inside that
-    // line and splits it, leaving an empty second half rendered below itself.
-    // That half is a real line and takes the caret.
+    // The footer's own property (`73-footer-render`), asserted here against the
+    // moved anchor: while zoomed the footer sits after the last VISIBLE line
+    // rather than at the document's end, which is the case a zoom composes.
     expect(
       await browser.executeObsidian(({ app, obsidian }) => {
         const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;

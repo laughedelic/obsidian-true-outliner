@@ -173,6 +173,39 @@ them. Around fifty references is where a footer stops reading as a list and star
 document; 16rem is roughly eight to ten short rows, a card that can be taken in without scrolling
 inside it.
 
+### D9. Tags are a third axis, and the only one that is many-to-one
+
+A reference belongs to one folder and has one kind, so those two axes partition their values. A
+note carries any number of tags, which makes the tag axis the only one where a single note
+answers to several values at once.
+
+That settles two things the other axes never had to decide. Selecting two tags WIDENS — a note
+carrying either is admitted — while the axes still combine with AND, so the rule is "OR within an
+axis, AND across them", which is what every faceted filter does and what a reader expects without
+being told. And the cross-axis counts (see `axesOf`) stay correct without special-casing: a tag's
+count is the notes carrying it that the other axes admit, exactly as a folder's is.
+
+Tags come from the same place the other axes do — Obsidian's metadata cache, already in memory —
+so the axis costs no file read and the whole controls model stays upstream of `place()` (D1).
+
+*Why not filter on the tags of the referencing BLOCK* rather than the note: a block's tags are in
+the parsed tree, which is the expensive half. Filtering on them would mean reading every candidate
+note to decide whether to show it, which is exactly the ordering D1 exists to prevent.
+
+### D10. An unbounded axis carries its own find box; a fixed one does not
+
+Kind has four values, always. Folder and tag have as many as the vault has, so their menus need a
+way to reach a value without scrolling — a small text box at the top of the popover, narrowing the
+list as it is typed.
+
+A SELECTED value stays listed however the box is narrowed. The alternative hides a filter that is
+in effect behind a search term, leaving the reader looking at a narrowed footer with no visible
+cause and no way to switch it off from the control that set it. This is the same rule as the
+search field staying open while it holds a term.
+
+*Why not one find box over all three axes:* that is the omnibox this change already rejected
+(round 3, option C), and it would make the four fixed kinds searchable for no gain.
+
 ## Risks / Trade-offs
 
 - **`.embedded-backlinks` is Obsidian's internal class name** → checked against a running
@@ -185,6 +218,10 @@ inside it.
 - **Sort order changes which groups the overall cap admits** → correct, and potentially surprising
   when a reader changes sort and the set changes rather than just the order. The shortfall
   statement always names the true totals, so the footer never implies it is showing everything.
+- **The tag axis depends on Obsidian's tag extraction, not ours** → tags come from the metadata
+  cache, so a change in how Obsidian reports frontmatter versus inline tags changes what the axis
+  offers. It fails quiet rather than loud: an axis with no values is simply not shown, which is
+  already the behaviour for a vault that uses no tags.
 - **Six new settings, twelve declarations** → accepted rather than abstracted. An abstraction over
   a settings tab that Obsidian will itself replace once `minAppVersion` clears 1.13 would be
   written to be deleted.

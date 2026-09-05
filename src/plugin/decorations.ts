@@ -2434,10 +2434,11 @@ class MarginCompensation implements PluginValue {
         patched.add(el);
         continue;
       }
-      // View chrome that happens to be a block widget — the zoom trail — is
-      // not a rendering of the line it is anchored to, and everything below
-      // would hand it that line's node chrome. It keeps the one thing the
-      // theme gives every line's box, and draws the rest itself.
+      // View chrome that happens to be a block widget — the backlinks footer,
+      // and zoom's breadcrumb trail — is not a rendering of the line it is
+      // anchored to, and everything below would hand it that line's node
+      // chrome. It keeps the one thing the theme gives every line's box, and
+      // draws the rest itself.
       if (el.classList.contains(OWN_CHROME_CLASS)) {
         clearWidgetPatch(el);
         patched.add(el);

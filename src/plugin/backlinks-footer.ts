@@ -37,7 +37,9 @@ import {
   Keymap,
   MarkdownRenderer,
   MarkdownView,
+  TFile,
   editorInfoField,
+  getAllTags,
   type App,
 } from 'obsidian';
 import type { ModeSource } from './keymap';
@@ -131,7 +133,13 @@ interface ViewState {
    * current note's — a folder selected here means nothing in another note. */
   readonly folders: Set<string>;
   readonly kinds: Set<ReferenceKind>;
+  readonly tags: Set<string>;
   search: string;
+  /** Which facet's values are on screen, if any. One at a time. */
+  openFacet: FacetAxis | null;
+  /** What each unbounded axis's own find box holds (design D10). */
+  folderQuery: string;
+  tagQuery: string;
   /** Tranches the reader has asked for, added to the overall cap. */
   capBonus: number;
 }
@@ -168,7 +176,11 @@ function viewStateFor(path: string): ViewState {
       filtersOpen: false,
       folders: new Set(),
       kinds: new Set(),
+      tags: new Set(),
       search: '',
+      openFacet: null,
+      folderQuery: '',
+      tagQuery: '',
       capBonus: 0,
     };
     viewStates.set(path, state);
@@ -203,9 +215,7 @@ class FooterController {
     // the difference on its own — it works from the document line `posAtDOM`
     // attributes a block widget to. Without this the footer inherits that
     // line's node chrome, so a note whose last line is a nested list item drew
-    // that item's ancestor guide straight down through the whole footer. Zoom
-    // is where it shows every time, since the last VISIBLE line of a zoomed
-    // list subtree is nested by construction.
+    // that item's ancestor guide straight down through the whole footer.
     this.el = createDiv({ cls: `${FOOTER_CLASS} ${OWN_CHROME_CLASS}` });
     // The section's own chrome — its heading, its "resolving…" placeholder, a
     // wide ordinal's clearance — lays out against the gutter and the gap, and
@@ -538,7 +548,24 @@ class FooterController {
       path: summary.path,
       mtime: summary.mtime,
       refs: this.source.backlinks.referencesFrom(this.targetPath, summary.path),
+      tags: this.tagsOf(summary.path),
     }));
+  }
+
+  /**
+   * A source note's own tags, `#` stripped and deduplicated.
+   *
+   * `getAllTags` is Obsidian's own reader, so frontmatter tags and inline ones
+   * arrive the same way and this code never has to know which is which. It
+   * reads the metadata cache, so it costs no file access — which is what keeps
+   * the tag axis upstream of `place()` with the other two (design D9).
+   */
+  private tagsOf(path: string): string[] {
+    const file = this.source.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return [];
+    const cache = this.source.app.metadataCache.getFileCache(file);
+    if (!cache) return [];
+    return [...new Set((getAllTags(cache) ?? []).map((tag) => tag.replace(/^#/, '')))];
   }
 
   /** The reader's per-note selections, plus the two note-independent settings. */
@@ -546,6 +573,7 @@ class FooterController {
     return {
       folders: state.folders,
       kinds: state.kinds,
+      tags: state.tags,
       search: state.search,
       sort: this.source.backlinksSort,
       cap: OVERALL_CAP_REFERENCES[this.source.backlinksOverallCap] + state.capBonus,
@@ -554,7 +582,12 @@ class FooterController {
 
   /** Whether anything is narrowing the footer right now. */
   private isFiltering(state: ViewState): boolean {
-    return state.folders.size > 0 || state.kinds.size > 0 || state.search.trim().length > 0;
+    return (
+      state.folders.size > 0 ||
+      state.kinds.size > 0 ||
+      state.tags.size > 0 ||
+      state.search.trim().length > 0
+    );
   }
 
   /**
@@ -607,9 +640,9 @@ class FooterController {
   }
 
   /**
-   * The filter affordance and the sort selector, the two controls that stay on
-   * the header row. Neither is offered while the section is folded away: they
-   * would change something nobody can see.
+   * The filter affordance and the sort control, the two that stay on the header
+   * row. Neither is offered while the section is folded away: they would change
+   * something nobody can see.
    *
    * How lineage is collapsed and how deep descendants go are decided (D4, D7)
    * and so are deliberately not here.
@@ -623,8 +656,8 @@ class FooterController {
     // narrowed footer that looks unfiltered is a footer lying about its counts.
     filters.toggleClass('is-active', this.isFiltering(state));
     filters.setAttribute('aria-expanded', String(state.filtersOpen));
-    filters.dataset.focusKey = 'filters';
     filters.setAttribute('aria-label', state.filtersOpen ? 'Hide filters' : 'Show filters');
+    filters.dataset.focusKey = 'filters';
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     filters.appendChild(filterGlyph());
     filters.addEventListener('click', (event) => {
@@ -658,52 +691,29 @@ class FooterController {
   }
 
   /**
-   * The revealed row: the two axes, the search field, and reset.
+   * The revealed row: the search field, then one facet per axis.
    *
-   * Two shapes rather than two labels — round pills for a WHERE, square chips
-   * for a WHAT — so which dimension a control belongs to is readable without
-   * reading it (docs/research/18, D8/D14).
+   * The row is flush with the CARDS, not with the header. The header's leading
+   * gutter is the marker column, which exists to hold the section icon; nothing
+   * in this row sits in it.
+   *
+   * Its shape never changes with width. Search takes what is left over and the
+   * facets are fixed, so nothing here competes for space — which is what a
+   * facet shedding its word on a narrow footer relies on: only a button's
+   * CONTENT changes, and the row cannot reflow.
    */
   private renderFilterRow(root: HTMLElement, axes: FilterAxes, state: ViewState): void {
     if (state.collapsed) return;
     const row = root.createDiv({ cls: 'to-backlinks-filters' });
 
-    // Each axis in its own group, named. Shape alone told them apart in
-    // principle and not in practice: side by side in one flow, pills and chips
-    // read as one heap of controls with a rounding difference. The group is
-    // what separates them; the shape then says which is which at a glance.
-    if (axes.folders.length > 0) {
-      const group = this.renderAxis(row, 'folder', 'Folder');
-      for (const { value, notes } of axes.folders) {
-        this.renderChip(group, 'to-backlinks-pill', value === '' ? '/' : value, notes, state.folders.has(value), () => {
-          toggleMember(viewStateFor(this.targetPath).folders, value);
-        });
-      }
-    }
-
-    if (axes.kinds.length > 0) {
-      const group = this.renderAxis(row, 'kind', 'Kind');
-      for (const { value, notes } of axes.kinds) {
-        const chip = this.renderChip(
-          group,
-          'to-backlinks-chip',
-          KIND_LABELS[value],
-          notes,
-          state.kinds.has(value),
-          () => {
-            toggleMember(viewStateFor(this.targetPath).kinds, value);
-          },
-        );
-        chip.dataset.kind = value;
-      }
-    }
-
-    // Search and reset are not an axis: they end the row rather than joining
-    // the groups, and the reset sits last because it undoes all of them.
-    const end = row.createDiv({ cls: 'to-backlinks-filters-end' });
-    const search = end.createEl('input', { cls: 'to-backlinks-search' });
+    const field = row.createDiv({ cls: 'to-backlinks-search-field' });
+    const glass = field.createSpan({ cls: 'to-backlinks-search-icon' });
+    glass.setAttribute('aria-hidden', 'true');
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+    glass.appendChild(searchGlyph());
+    const search = field.createEl('input', { cls: 'to-backlinks-search' });
     search.type = 'search';
-    search.placeholder = 'Note name…';
+    search.placeholder = 'Filter by note name…';
     search.value = state.search;
     search.setAttribute('aria-label', 'Filter by source note name');
     search.dataset.focusKey = 'search';
@@ -716,15 +726,69 @@ class FooterController {
       current.capBonus = 0;
       void this.render();
     });
+    search.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      const current = viewStateFor(this.targetPath);
+      current.search = '';
+      void this.render();
+    });
+    if (state.search.length > 0) {
+      const clear = field.createEl('button', { cls: 'to-backlinks-search-clear' });
+      clear.type = 'button';
+      clear.setAttribute('aria-label', 'Clear the name filter');
+      // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+      clear.appendChild(clearGlyph());
+      // `mousedown`, not `click`: the field blurs first, and a repaint would
+      // take the button out from under the pointer.
+      clear.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const current = viewStateFor(this.targetPath);
+        current.search = '';
+        void this.render();
+      });
+    }
 
+    // Kind first: its four values never change, so it is the one facet whose
+    // position a reader can learn. Then folder, then tag.
+    this.renderFacet(row, state, {
+      axis: 'kind',
+      word: 'kind',
+      glyph: wikilinkGlyph(),
+      values: axes.kinds.map((v) => ({ ...v, label: KIND_LABELS[v.value] })),
+      selected: state.kinds,
+      // Four values, always — nothing to search (design D10).
+      findable: false,
+    });
+    this.renderFacet(row, state, {
+      axis: 'folder',
+      word: 'folder',
+      glyph: folderGlyph(),
+      values: axes.folders.map((v) => ({ ...v, label: v.value === '' ? '/' : v.value })),
+      selected: state.folders,
+      findable: true,
+    });
+    this.renderFacet(row, state, {
+      axis: 'tag',
+      word: 'tag',
+      glyph: tagGlyph(),
+      values: axes.tags.map((v) => ({ ...v, label: '#' + v.value })),
+      selected: state.tags,
+      findable: true,
+    });
+
+    // One control that undoes all of them, offered only while there is
+    // something to undo. Each facet can also clear its own axis, but a reader
+    // who has narrowed three ways should not have to visit three menus.
+    //
+    // An icon button rather than a labelled one: a fourth rectangle at the end
+    // of three facets reads as another facet.
     if (!this.isFiltering(state)) return;
-    // An icon button, not a labelled rectangle: a third chip-shaped control
-    // beside two rows of chips reads as another filter value rather than as the
-    // thing that clears them.
-    const reset = end.createEl('button', { cls: 'to-backlinks-reset' });
+    const reset = row.createEl('button', { cls: 'to-backlinks-reset' });
     reset.type = 'button';
-    reset.setAttribute('aria-label', 'Clear filters and search');
     reset.dataset.focusKey = 'reset';
+    reset.setAttribute('aria-label', 'Clear filters and search');
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     reset.appendChild(clearGlyph());
     reset.addEventListener('click', (event) => {
@@ -732,54 +796,159 @@ class FooterController {
       const current = viewStateFor(this.targetPath);
       current.folders.clear();
       current.kinds.clear();
+      current.tags.clear();
       current.search = '';
+      current.folderQuery = '';
+      current.tagQuery = '';
+      current.openFacet = null;
       current.capBonus = 0;
       void this.render();
     });
   }
 
-  /** One named axis group, so two kinds of control are two things. */
-  private renderAxis(row: HTMLElement, axis: string, label: string): HTMLElement {
-    const group = row.createDiv({ cls: 'to-backlinks-axis' });
-    group.dataset.axis = axis;
-    group.setAttribute('role', 'group');
-    group.setAttribute('aria-label', label);
-    group.createSpan({ cls: 'to-backlinks-axis-label', text: label });
-    return group;
-  }
+  /**
+   * One facet: a button carrying its mark, its word while there is room for it,
+   * and a popover of values.
+   *
+   * The popover is a sibling of the button inside a positioned wrapper rather
+   * than an element placed by measurement — the footer rebuilds itself often
+   * enough that a computed position would be one repaint behind.
+   */
+  private renderFacet(row: HTMLElement, state: ViewState, spec: FacetSpec): void {
+    if (spec.values.length === 0) return;
+    const anchor = row.createDiv({ cls: 'to-backlinks-facet-anchor' });
+    const open = state.openFacet === spec.axis;
+    const active = spec.selected.size > 0;
 
-  /** One focus-on control. Selected state is `aria-pressed`, because that is
-   * what the control's meaning is — not whether it is focused. */
-  private renderChip(
-    row: HTMLElement,
-    cls: string,
-    label: string,
-    notes: number,
-    selected: boolean,
-    toggle: () => void,
-  ): HTMLElement {
-    const chip = row.createEl('button', { cls });
-    chip.type = 'button';
-    chip.toggleClass('is-selected', selected);
-    // Nothing left under the other axes' selections. Still offered and still
-    // operable — the way out of an empty result is often to add this value and
-    // drop the one that emptied it — but it says so rather than showing a count
-    // that stopped being true.
-    chip.toggleClass('is-empty', notes === 0 && !selected);
-    chip.setAttribute('aria-pressed', String(selected));
-    // Keyed by what it selects, not by position: a chip can move when the
-    // counts change, and focus should follow the value the reader was on.
-    chip.dataset.focusKey = `${cls}:${label}`;
-    chip.createSpan({ cls: 'to-backlinks-chip-label', text: label });
-    chip.createSpan({ cls: 'to-backlinks-chip-count', text: String(notes) });
-    chip.addEventListener('click', (event) => {
+    const button = anchor.createEl('button', { cls: 'to-backlinks-facet' });
+    button.type = 'button';
+    button.dataset.axis = spec.axis;
+    button.dataset.focusKey = `facet:${spec.axis}`;
+    button.toggleClass('is-active', active || open);
+    button.setAttribute('aria-expanded', String(open));
+    button.setAttribute('aria-label', spec.word);
+    const mark = button.createSpan({ cls: 'to-backlinks-facet-mark' });
+    mark.setAttribute('aria-hidden', 'true');
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+    mark.appendChild(spec.glyph);
+    button.createSpan({ cls: 'to-backlinks-facet-word', text: this.facetWord(spec) });
+    button.addEventListener('click', (event) => {
       event.stopPropagation();
-      toggle();
-      // A narrowed set should not stay behind a cap the wider set consumed.
-      viewStateFor(this.targetPath).capBonus = 0;
+      const current = viewStateFor(this.targetPath);
+      current.openFacet = open ? null : spec.axis;
       void this.render();
     });
-    return chip;
+
+    if (!open) return;
+    this.renderFacetMenu(anchor, state, spec);
+  }
+
+  /** What a facet says about itself: its axis until something is chosen, then
+   * that choice — a count only once there are too many to name. */
+  private facetWord(spec: FacetSpec): string {
+    const chosen = spec.values.filter((v) => spec.selected.has(v.value));
+    if (chosen.length === 0) return spec.word;
+    if (chosen.length === 1) return chosen[0]?.label ?? spec.word;
+    return `${chosen.length} ${spec.word}s`;
+  }
+
+  private renderFacetMenu(anchor: HTMLElement, state: ViewState, spec: FacetSpec): void {
+    const menu = anchor.createDiv({ cls: 'to-backlinks-facet-menu' });
+    menu.setAttribute('role', 'group');
+    menu.setAttribute('aria-label', spec.word);
+
+    const cap = menu.createDiv({ cls: 'to-backlinks-facet-cap' });
+    cap.createSpan({ text: spec.word });
+    if (spec.selected.size > 0) {
+      const clear = cap.createEl('button', { cls: 'to-backlinks-facet-clear', text: 'Clear' });
+      clear.type = 'button';
+      clear.addEventListener('click', (event) => {
+        event.stopPropagation();
+        spec.selected.clear();
+        viewStateFor(this.targetPath).capBonus = 0;
+        void this.render();
+      });
+    }
+
+    const query = spec.findable ? this.facetQuery(state, spec.axis) : '';
+    if (spec.findable) {
+      const find = menu.createDiv({ cls: 'to-backlinks-facet-find' });
+      const glass = find.createSpan({ cls: 'to-backlinks-search-icon' });
+      glass.setAttribute('aria-hidden', 'true');
+      // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+      glass.appendChild(searchGlyph());
+      const input = find.createEl('input');
+      input.type = 'search';
+      input.placeholder = `Find ${spec.word}…`;
+      input.value = query;
+      input.setAttribute('aria-label', `Find a ${spec.word}`);
+      input.dataset.focusKey = `find:${spec.axis}`;
+      input.addEventListener('click', (event) => event.stopPropagation());
+      input.addEventListener('input', () => {
+        this.setFacetQuery(spec.axis, input.value);
+        void this.render();
+      });
+      // Escape leaves the MENU rather than clearing the box: the box is a way
+      // to reach a value, not a filter of its own.
+      input.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        const current = viewStateFor(this.targetPath);
+        current.openFacet = null;
+        void this.render();
+      });
+    }
+
+    // A SELECTED value stays listed however the box is narrowed. Hiding it
+    // would leave a filter in effect with no visible cause and no way to switch
+    // it off from the control that set it (design D10).
+    const needle = query.trim().toLowerCase();
+    const shown = spec.values.filter(
+      (v) => spec.selected.has(v.value) || needle === '' || v.label.toLowerCase().includes(needle),
+    );
+
+    if (shown.length === 0) {
+      menu.createDiv({ cls: 'to-backlinks-facet-none', text: `No ${spec.word} matches` });
+      return;
+    }
+
+    const list = menu.createDiv({ cls: 'to-backlinks-facet-list' });
+    for (const value of shown) {
+      const on = spec.selected.has(value.value);
+      const option = list.createEl('button', { cls: 'to-backlinks-facet-option' });
+      option.type = 'button';
+      option.setAttribute('aria-pressed', String(on));
+      option.toggleClass('is-selected', on);
+      // Nothing left under the other axes' selections. Still offered and still
+      // operable — adding it and dropping whatever emptied it is a normal way
+      // out — but it says so rather than showing a count that stopped being true.
+      option.toggleClass('is-empty', value.notes === 0 && !on);
+      const box = option.createSpan({ cls: 'to-backlinks-facet-box' });
+      box.setAttribute('aria-hidden', 'true');
+      if (on) {
+        // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
+        box.appendChild(checkGlyph());
+      }
+      option.createSpan({ cls: 'to-backlinks-facet-label', text: value.label });
+      option.createSpan({ cls: 'to-backlinks-chip-count', text: String(value.notes) });
+      option.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleMember(spec.selected, value.value);
+        // A narrowed set should not stay behind a cap the wider set consumed.
+        viewStateFor(this.targetPath).capBonus = 0;
+        void this.render();
+      });
+    }
+  }
+
+  private facetQuery(state: ViewState, axis: FacetAxis): string {
+    return axis === 'folder' ? state.folderQuery : state.tagQuery;
+  }
+
+  private setFacetQuery(axis: FacetAxis, value: string): void {
+    const current = viewStateFor(this.targetPath);
+    if (axis === 'folder') current.folderQuery = value;
+    else current.tagQuery = value;
   }
 
   private renderGroupHead(
@@ -1333,11 +1502,8 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
       // `side: 1`. At the END of a line a block widget with a NEGATIVE side
       // sorts inside that line and splits it, leaving an empty second half
       // rendered BELOW the widget — measured, and it is a real line: it takes
-      // the caret, so a click anywhere under the footer put the cursor there.
-      // At the document's end that stray line sits where a blank line would
-      // have been anyway and nobody saw it; under a zoom, where the anchor is
-      // the last visible line's end and the document is short, it is the empty
-      // space the reader clicks into.
+      // the caret, so a click anywhere under the footer put the cursor there,
+      // on a position after the content the footer sits after.
       side: 1,
       block: true,
     // `state.doc.length` normally, and the end of the visible range while a
@@ -1431,6 +1597,20 @@ function ellipsisGlyph(): SVGSVGElement {
   });
 }
 
+/** The three axes, in the order they sit in the row. */
+type FacetAxis = 'kind' | 'folder' | 'tag';
+
+/** Everything one facet needs; the axes differ only in these fields. */
+interface FacetSpec {
+  readonly axis: FacetAxis;
+  readonly word: string;
+  readonly glyph: SVGSVGElement;
+  readonly values: readonly { value: string; notes: number; label: string }[];
+  readonly selected: Set<string>;
+  /** Whether the axis's value set is unbounded, and so carries a find box. */
+  readonly findable: boolean;
+}
+
 const SORT_LABELS: Record<SortOrder, string> = {
   recent: 'Recently modified',
   oldest: 'Oldest first',
@@ -1449,6 +1629,68 @@ const KIND_LABELS: Record<ReferenceKind, string> = {
 /** Focus-on in one line: absent means the axis is not filtering. */
 function toggleMember<T>(set: Set<T>, value: T): void {
   if (!set.delete(value)) set.add(value);
+}
+
+function searchGlyph(): SVGSVGElement {
+  // The lens as arcs rather than a `circle`: `glyph` builds paths, and one
+  // element kind keeps every mark in this file made the same way.
+  return glyph(24, ['M16 11a5 5 0 1 1-10 0 5 5 0 0 1 10 0', 'M19.5 19.5l-4.9-4.9'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+  });
+}
+
+/** A tick, for a facet value that is selected. */
+function checkGlyph(): SVGSVGElement {
+  return glyph(24, ['M5 13l4 4L19 7'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2.6',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  });
+}
+
+function folderGlyph(): SVGSVGElement {
+  return glyph(24, ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linejoin': 'round',
+  });
+}
+
+function tagGlyph(): SVGSVGElement {
+  return glyph(24, ['M5 9h14', 'M5 15h14', 'M10 4L8 20', 'M17 4l-2 16'], {
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+  });
+}
+
+/**
+ * The kind axis's mark: `[[]]`, the syntax it filters.
+ *
+ * Four brackets closed to a THREE-unit centre gap — measured down against the
+ * rendered glyph until the inner pair stopped resolving, then back one step.
+ * Drawn a little larger than the other marks because a bracket is lighter ink
+ * than a filled outline, and matching their numbers makes it look smaller.
+ */
+function wikilinkGlyph(): SVGSVGElement {
+  return glyph(
+    24,
+    ['M6.7 5H4.1v14h2.6', 'M10.5 5H7.9v14h2.6', 'M13.5 5h2.6v14h-2.6', 'M17.3 5h2.6v14h-2.6'],
+    {
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': '1.7',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+    },
+  );
 }
 
 /** The filter affordance's glyph — a funnel. The active dot is drawn by CSS,

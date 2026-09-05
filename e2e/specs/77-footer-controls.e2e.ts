@@ -144,19 +144,18 @@ async function openFilters(): Promise<void> {
     await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
     await settle();
   }
-  // Waited on the row's LAST element, not its first.
+  // Waited on the row's LAST facet, not its first.
   //
-  // `swap` empties the footer and then appends the new children one at a time,
-  // so a read can land on a partially attached footer and see one axis group
-  // where there are two. The whole filter row is a single child of that root —
-  // both axis groups and the trailing search/reset group inside it — so the
-  // trailing group being present proves the entire row is.
+  // `swap` empties the footer and appends the new children one at a time, so a
+  // read can land on a partially attached footer. The whole filter row is a
+  // single child of that root, so its last facet being present proves the
+  // entire row is.
   await browser.waitUntil(
     async () =>
       await browser.executeObsidian(
         () =>
           document.querySelector(
-            '.workspace-leaf.mod-active .to-backlinks-filters .to-backlinks-filters-end',
+            '.workspace-leaf.mod-active .to-backlinks-filters .to-backlinks-facet[data-axis="tag"]',
           ) !== null,
       ),
     {
@@ -211,57 +210,112 @@ describe('the footer’s controls', function () {
     expect(shape.filters).toBe(false);
   });
 
-  it('reveals a second row carrying both axes, each named', async function () {
+  it('reveals a row carrying the search field and one facet per axis', async function () {
     await openFilters();
-    const axes = await readStable(() =>
-      browser.executeObsidian(() =>
-        Array.from(
-          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-axis'),
-        ).map((g) => ({
-          axis: g.dataset.axis ?? '',
-          label: g.querySelector('.to-backlinks-axis-label')?.textContent ?? '',
-          controls: g.querySelectorAll('button').length,
-        })),
-      ),
-    );
-    expect(axes.map((a) => a.axis)).toEqual(['folder', 'kind']);
-    for (const a of axes) {
-      expect(a.label.length).toBeGreaterThan(0);
-      expect(a.controls).toBeGreaterThan(0);
-    }
-  });
-
-  it('separates the two axes by more than their corner radius', async function () {
-    await openFilters();
-    const gaps = await readStable(() =>
+    const shape = await readStable(() =>
       browser.executeObsidian(() => {
-        const groups = Array.from(
-          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-axis'),
-        );
-        const within = Array.from(groups[0]?.querySelectorAll<HTMLElement>('button') ?? []).map(
-          (b) => b.getBoundingClientRect(),
-        );
-        if (groups.length < 2 || within.length < 2) return null;
-        const a = groups[0]!.getBoundingClientRect();
-        const b = groups[1]!.getBoundingClientRect();
+        const row = document.querySelector('.workspace-leaf.mod-active .to-backlinks-filters');
+        if (!row) return null;
         return {
-          sameRow: Math.abs(a.top - b.top) < 2,
-          betweenGroups: Math.round(b.left - a.right),
-          rowGap: Math.round(b.top - a.bottom),
-          withinGroup: Math.round(within[1]!.left - within[0]!.right),
+          search: row.querySelector('.to-backlinks-search') !== null,
+          facets: Array.from(
+            row.querySelectorAll<HTMLElement>('.to-backlinks-facet'),
+          ).map((f) => f.dataset.axis ?? ''),
         };
       }),
     );
-    expect(gaps).not.toBeNull();
-    // A relationship, not a pixel count. Two groups read as two when the space
-    // between them beats the space inside one — or when they are on separate
-    // rows outright, which the hub fixture's folder list produces and which is
-    // more separation rather than less.
-    if (gaps!.sameRow) {
-      expect(gaps!.betweenGroups).toBeGreaterThan(gaps!.withinGroup);
-    } else {
-      expect(gaps!.rowGap).toBeGreaterThan(0);
+    expect(shape).not.toBeNull();
+    expect(shape!.search).toBe(true);
+    // Kind first: its four values never change, so it is the one facet whose
+    // position a reader can learn.
+    expect(shape!.facets).toEqual(['kind', 'folder', 'tag']);
+  });
+
+  it('starts the row flush with the cards, not with the header', async function () {
+    await openFilters();
+    const edges = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        const row = root?.querySelector('.to-backlinks-filters');
+        const card = root?.querySelector('.to-backlinks-group');
+        // The head's own TEXT, not its box: the gutter is padding, so the
+        // element starts at the same edge and only its content is pushed in.
+        const title = root?.querySelector('.to-backlinks-title');
+        if (!row || !card || !title) return null;
+        return {
+          row: Math.round(row.getBoundingClientRect().left),
+          card: Math.round(card.getBoundingClientRect().left),
+          title: Math.round(title.getBoundingClientRect().left),
+        };
+      }),
+    );
+    expect(edges).not.toBeNull();
+    // A RELATIONSHIP, not a pixel: the row shares the cards' left edge, and the
+    // header's own text starts further in because its gutter holds the section
+    // icon.
+    expect(edges!.row).toBe(edges!.card);
+    expect(edges!.title).toBeGreaterThan(edges!.row);
+  });
+
+  it('sheds the facet words on a narrow footer without the row wrapping', async function () {
+    await openFilters();
+    const measure = (): Promise<{
+      words: number;
+      height: number;
+      wrapped: boolean;
+      overflows: boolean;
+    } | null> =>
+      browser.executeObsidian(() => {
+        const row = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-filters',
+        );
+        if (!row) return null;
+        const words = Array.from(
+          row.querySelectorAll<HTMLElement>('.to-backlinks-facet-word'),
+        ).filter((w) => w.offsetParent !== null).length;
+        // A wrapped row is TALLER than its tallest child. Comparing the
+        // children's top edges does not work: `align-items: center` gives a
+        // shorter control a different top on the very same line.
+        const kids = Array.from(row.children).map((c) => c.getBoundingClientRect());
+        const tallest = Math.max(0, ...kids.map((r) => r.height));
+        const height = row.getBoundingClientRect().height;
+        return {
+          words,
+          height: Math.round(height),
+          wrapped: height > tallest + 2,
+          // And nothing is pushed off the end, which is the other way a row of
+          // fixed controls beside a growing one can fail.
+          overflows: row.scrollWidth > row.clientWidth + 1,
+        };
+      });
+
+    const start = await readStable(measure);
+    expect(start).not.toBeNull();
+    // Whatever the width, the row is ONE row and nothing runs off its end.
+    // That half holds everywhere.
+    expect(start!.wrapped).toBe(false);
+    expect(start!.overflows).toBe(false);
+
+    if (start!.words === 0) {
+      // Already narrower than the threshold — the mobile run, where the words
+      // are meant to be absent. There is no way to force it wider than its
+      // viewport, so this is the whole of the assertion here.
+      return;
     }
+
+    await h.resizeLeafForFooter(340);
+    const narrow = await readStable(measure);
+    expect(narrow).not.toBeNull();
+    // The words go; the row neither grows nor wraps. A RELATIONSHIP — the
+    // height is unchanged across the threshold — never a pixel width.
+    expect(narrow!.words).toBe(0);
+    expect(narrow!.wrapped).toBe(false);
+    expect(narrow!.overflows).toBe(false);
+    expect(narrow!.height).toBe(start!.height);
+
+    await h.resizeLeafForFooter(null);
+    const back = await readStable(measure);
+    expect(back!.words).toBe(start!.words);
   });
 
   it('lets the caret land in the search field, and filters as it is typed', async function () {
@@ -373,65 +427,95 @@ describe('the footer’s controls', function () {
     await openFilters();
     await clearFilters();
     await openFilters();
-    const read = (): Promise<{ label: string; count: string; empty: boolean }[]> =>
+
+    const kinds = (): Promise<{ label: string; count: string; empty: boolean }[]> =>
       browser.executeObsidian(() =>
         Array.from(
           document.querySelectorAll<HTMLElement>(
-            '.workspace-leaf.mod-active [data-axis="kind"] button',
+            '.workspace-leaf.mod-active .to-backlinks-facet-option',
           ),
-        ).map((b) => ({
-          label: b.querySelector('.to-backlinks-chip-label')?.textContent ?? '',
-          count: b.querySelector('.to-backlinks-chip-count')?.textContent ?? '',
-          empty: b.classList.contains('is-empty'),
+        ).map((o) => ({
+          label: o.querySelector('.to-backlinks-facet-label')?.textContent ?? '',
+          count: o.querySelector('.to-backlinks-chip-count')?.textContent ?? '',
+          empty: o.classList.contains('is-empty'),
         })),
       );
 
-    const before = await read();
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    const before = await readStable(kinds);
     expect(before.length).toBeGreaterThan(1);
     expect(before.every((k) => k.count === '0')).toBe(false);
 
-    // Pick the narrowest folder, so at least one kind should fall away.
-    await clickIn(`${FOOTER} [data-axis="folder"] button`);
-    await browser.pause(800);
-    const after = await read();
+    // Close the kind menu, narrow by a folder, reopen it.
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    await clickIn(`${FOOTER} .to-backlinks-facet-option`);
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    const after = await readStable(kinds);
+
     expect(after.length).toBe(before.length);
-    // Some count moved: the chips answer "if I add this", not "how many exist".
+    // Some count moved: the values answer "if I add this", not "how many exist".
     expect(after.map((k) => k.count)).not.toEqual(before.map((k) => k.count));
-    // Anything that fell to zero says so, rather than showing a stale number.
     for (const kind of after) {
       if (kind.count === '0') expect(kind.empty).toBe(true);
     }
   });
 
+  it('offers a find box on the unbounded axes and not on the fixed one', async function () {
+    await openFilters();
+    const findable = async (axis: string): Promise<boolean> => {
+      await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="${axis}"]`);
+      return browser.executeObsidian(
+        () =>
+          document.querySelector(
+            '.workspace-leaf.mod-active .to-backlinks-facet-menu .to-backlinks-facet-find',
+          ) !== null,
+      );
+    };
+    // Kind has four values, always — nothing to search (design D10).
+    expect(await findable('kind')).toBe(false);
+    expect(await findable('folder')).toBe(true);
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+  });
+
   it('clears every axis and the term from one control', async function () {
     await openFilters();
-    // Make all three active, which is the spec's own scenario.
-    await clickIn(`${FOOTER} [data-axis="folder"] button`);
-    await browser.pause(500);
-    await clickIn(`${FOOTER} [data-axis="kind"] button`);
-    await browser.pause(500);
+    await clearFilters();
+    await openFilters();
+
+    // Narrow two ways and type, which is the spec's own scenario.
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    await clickIn(`${FOOTER} .to-backlinks-facet-option`);
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    await clickIn(`${FOOTER} .to-backlinks-facet-option`);
     await clickIn(`${FOOTER} .to-backlinks-search`);
     await browser.keys('a');
-    await browser.pause(600);
+    await browser.pause(700);
 
-    const resetVisible = await browser.executeObsidian(
-      () => document.querySelector('.workspace-leaf.mod-active .to-backlinks-reset') !== null,
+    const before = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        return {
+          reset: root?.querySelector('.to-backlinks-reset') !== null,
+          active: root?.querySelectorAll('.to-backlinks-facet.is-active').length ?? -1,
+        };
+      }),
     );
-    expect(resetVisible).toBe(true);
+    expect(before.reset).toBe(true);
+    expect(before.active).toBeGreaterThan(0);
 
     await clickIn(`${FOOTER} .to-backlinks-reset`);
-    await browser.pause(800);
-
-    const cleared = await browser.executeObsidian(() => {
-      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
-      return {
-        selected: root?.querySelectorAll('.is-selected').length ?? -1,
-        search: root?.querySelector<HTMLInputElement>('.to-backlinks-search')?.value ?? 'x',
-        reset: root?.querySelector('.to-backlinks-reset') !== null,
-        dot: root?.querySelector('.to-backlinks-filter-toggle.is-active') !== null,
-      };
-    });
-    expect(cleared.selected).toBe(0);
+    const cleared = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        return {
+          active: root?.querySelectorAll('.to-backlinks-facet.is-active').length ?? -1,
+          search: root?.querySelector<HTMLInputElement>('.to-backlinks-search')?.value ?? 'x',
+          reset: root?.querySelector('.to-backlinks-reset') !== null,
+          dot: root?.querySelector('.to-backlinks-filter-toggle.is-active') !== null,
+        };
+      }),
+    );
+    expect(cleared.active).toBe(0);
     expect(cleared.search).toBe('');
     // Offered only while something is active.
     expect(cleared.reset).toBe(false);
