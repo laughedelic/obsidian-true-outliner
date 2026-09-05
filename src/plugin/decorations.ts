@@ -81,6 +81,7 @@ import {
   lineChrome,
   markerAnchorLeftExpr,
   MARKER_LEFT_SHIFT_EXPR,
+  OWN_CHROME_CLASS,
   ownShiftExpr as plainOwnShiftExpr,
   plainGuideBackground,
   stripeStartExpr,
@@ -2379,6 +2380,17 @@ class MarginCompensation implements PluginValue {
         // way — whereas clearing on a transient failure would visibly strip
         // a live line's decoration.
         patched.add(el);
+        continue;
+      }
+      // View chrome that happens to be a block widget — the backlinks footer —
+      // is not a rendering of the line it is anchored to, and everything below
+      // would hand it that line's node chrome. It keeps the one thing the
+      // theme gives every line's box, and draws the rest itself.
+      if (el.classList.contains(OWN_CHROME_CLASS)) {
+        clearWidgetPatch(el);
+        patched.add(el);
+        el.classList.add(WIDGET_PATCHED_CLASS);
+        el.style.setProperty('margin-left', `${nativeBasePx}px`, 'important');
         continue;
       }
       patched.add(el);
