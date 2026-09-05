@@ -94,11 +94,26 @@ association question.
 
 ### D2. Hiding is two block-level replace decorations, and the mechanism is a gate, not an assumption
 
-Two `Decoration.replace({block: true})` ranges: document start through the start of the root's
-first line, and the end of the root's subtree cover through document end. Each range must consume
-the newline that separates it from the visible content, or CM6 leaves a stray empty line where
-the replacement ends — the same correction obsidian-zoom expresses as `from - 1` / `to + 1`.
-Either range is omitted when empty (a top-level first node has nothing above it).
+Two `Decoration.replace({block: true})` ranges, each spanning exactly the lines it removes: the
+first hidden line's START through the last hidden line's END. Neither reaches the neighbouring
+visible line's own boundary, and neither needs to — a block replacement covers whole lines, so the
+line break beside it is consumed as the block's own boundary and no stray empty line renders at
+either edge. A range is omitted when that side has nothing to hide (a top-level first node has
+nothing above it); a range of ZERO length is NOT omitted, because that is the shape a single blank
+line takes and a zero-length block replacement does hide it.
+
+*Corrected by measurement, after the spike.* Both ranges originally reached one position further —
+to the first visible line's start, and from the last visible line's end — on the reasoning that
+each had to consume the newline separating it from the visible content. That position is where
+every point decoration on the neighbouring visible line is anchored, and a line decoration sorts
+BEFORE the position it marks, so the replacement swallowed the lot. The zoom root rendered as a
+bare `.cm-line`: no marker, no depth variables, and none of Obsidian's own line classes either, so
+a list root came out drawn from raw `- ` text at the wrong column. At the other end a cover ending
+on a trailing gap lost that line outright. The spike missed both because it measured a
+NON-boundary line on purpose — the boundary lines are the ones `getLineElementInfo` refuses — and
+the defect lived only there. `Decoration.replace`'s `inclusiveEnd: false` was measured as the
+alternative and is not one: it rescues our line decorations and not Obsidian's, and it lets the
+tail range's last line escape.
 
 *Why replace rather than a `display: none` line class:* a hidden-but-present line keeps its line
 box and keeps accepting the caret. Block replacement takes the lines out of the layout entirely —
@@ -384,10 +399,11 @@ than a node above it, and a rule carries that boundary. An earlier draft had the
 with the subtree one level in and a guide dropping from it; that reads as containment, at the cost
 of a permanent unit of indentation and of depth 0 meaning two different things.
 
-*Side, and why the sign is not a preference.* The head hidden range ends AT the cover's start, so
-a `side: -1` widget anchored there sorts inside the replaced range and is swallowed — the same
-boundary D12 found at `doc.length`, mirrored. At the end of the document the widget had to move
-inward; at the start it has to sort outward.
+*Side, and why the sign is not a preference.* At a line's start a block widget sorts ABOVE the
+line with a negative side and INSIDE it with a positive one, which splits the root line in two and
+puts the trail between the halves. The head hidden range stops one position short of that position
+(D2), so a widget anchored there is outside the replacement either way, and `side: -1` is the one
+that renders as a header.
 
 Contents, in order: the file's basename, then each ancestor of the zoom root from the outermost
 in. The zoom root itself is not a crumb — it is the first visible line (proposal.md — What
@@ -408,6 +424,14 @@ alongside the three existing sources. Ordering against them does not need a rule
 never rendered, so a `Decoration.line` on it has nothing to apply to, and the widget-atom DOM
 patcher iterates mounted DOM only, so hidden widgets are simply absent from its walk. What must
 be verified rather than reasoned about is the *visible* lines' chrome, which is spike task 1.
+
+*The trail is not a line, and the widget-line patch has to be told.* `decorations.ts` patches
+every block-level child of `.cm-content` from the document line `posAtDOM` attributes it to, which
+is right for a widget that RENDERS that line and wrong for one that merely neighbours it. The
+trail took the zoom root's own kind gutter, depth guide and marker, so the same row shifted by the
+marker gutter and grew a stripe depending on whether the root was a heading or a list item. It
+carries `to-decor-own-chrome`; an element with that class takes only the base margin the theme
+gives every line's box and draws the rest itself.
 
 Zoom declines inside nested per-cell editors through the same `isNestedEditor` gate every other
 extension uses.

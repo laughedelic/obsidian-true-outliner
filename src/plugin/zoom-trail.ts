@@ -29,7 +29,7 @@ import { nodeStartLine } from '../locate';
 import { rowFact, splitPath, type LineageSegment } from './footer-model';
 import { renderLineageContent } from './lineage-row';
 import { segmentGlyph, separatorGlyph } from './backlinks-footer';
-import { lineChrome, applyLineChrome } from './chrome-line';
+import { lineChrome, applyLineChrome, OWN_CHROME_CLASS } from './chrome-line';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
@@ -150,7 +150,9 @@ class ZoomTrailWidget extends WidgetType {
   }
 
   override toDOM(view: EditorView): HTMLElement {
-    const el = createDiv({ cls: TRAIL_CLASS });
+    // Chrome, not a rendering of the zoom root's line: the widget-line patch
+    // reads this class and leaves everything but the theme's base margin alone.
+    const el = createDiv({ cls: `${TRAIL_CLASS} ${OWN_CHROME_CLASS}` });
     const scope = zoomScope(view.state, this.modes);
     if (!scope) return el;
 
@@ -210,15 +212,14 @@ function compute(state: EditorState, modes: ZoomTrailSource, view: () => EditorV
   const key = segmentsFor(name, scope.trail)
     .map((s) => s.text)
     .join(' ');
-  // `side: 1`, and the sign is not a preference. The head hidden range ends AT
-  // the cover's start, so a `side: -1` widget anchored there sorts BEFORE that
-  // position — inside the replaced range — and is swallowed exactly the way the
-  // footer's widget was at `doc.length` (D12, docs/research/23). This is that
-  // same boundary, mirrored: at the end of the document the widget had to move
-  // inward, and at the start it has to sort outward.
+  // `side: -1`, and the sign is not a preference. At a line's start a block
+  // widget sorts above the line with a negative side and INSIDE it with a
+  // positive one, which splits the root line in two and puts the trail between
+  // the halves. The head hidden range stops one position short of this
+  // position (`zoom-offsets`), so a widget here is outside it either way.
   const at = state.doc.line(scope.cover.start.line + 1).from;
   return Decoration.set([
-    Decoration.widget({ widget: new ZoomTrailWidget(view, modes, key), side: 1, block: true }).range(at),
+    Decoration.widget({ widget: new ZoomTrailWidget(view, modes, key), side: -1, block: true }).range(at),
   ]);
 }
 

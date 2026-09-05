@@ -24,15 +24,25 @@ function lineOf(text: string, needle: string): number {
   return idx;
 }
 
-/** The text a set of hidden ranges would remove, and what survives. */
-function visibleText(text: string, ranges: { from: number; to: number }[]): string {
-  let out = '';
-  let at = 0;
-  for (const r of [...ranges].sort((a, b) => a.from - b.from)) {
-    out += text.slice(at, r.from);
-    at = r.to;
+/**
+ * The lines a set of block replacements leaves rendered.
+ *
+ * Stated over LINES, not characters, because a block replacement covers whole
+ * lines: a line goes away when the range contains all of it, and the line break
+ * beside the range is consumed as the block's own boundary rather than left
+ * behind as an empty line. A character-level splice reports the head range
+ * differently — it ends one position short of the first visible line, so the
+ * break survives the splice — and would be describing the text, not the render.
+ * `80-outline-zoom` measures the render this models.
+ */
+function visibleLines(doc: Text, ranges: { from: number; to: number }[]): string[] {
+  const out: string[] = [];
+  for (let n = 1; n <= doc.lines; n++) {
+    const line = doc.line(n);
+    if (ranges.some((r) => r.from <= line.from && line.to <= r.to)) continue;
+    out.push(line.text);
   }
-  return out + text.slice(at);
+  return out;
 }
 
 describe('hiddenOffsetRanges: the boundary arithmetic', () => {
@@ -43,7 +53,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     expect(ranges).toHaveLength(2);
     // `- one` owns its nested child; `- two` and the trailing paragraph do not
     // belong to it, and neither does anything above.
-    expect(visibleText(DOC, ranges)).toBe('- one\n  - nested');
+    expect(visibleLines(doc, ranges)).toEqual(['- one', '  - nested']);
   });
 
   it('emits no head range for a root at the document start', () => {
@@ -52,7 +62,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     const scope = resolveZoom(parse(text), 0)!;
     const ranges = hiddenOffsetRanges(doc, scope);
     expect(ranges.every((r) => r.from > 0)).toBe(true);
-    expect(visibleText(text, ranges)).toBe('- one\n  - nested');
+    expect(visibleLines(doc, ranges)).toEqual(['- one', '  - nested']);
   });
 
   it('emits no tail range for a root reaching the document end', () => {
@@ -67,24 +77,41 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     const doc = Text.of(text.split('\n'));
     const scope = resolveZoom(parse(text), lineOf(text, '## Mid'))!;
     const ranges = hiddenOffsetRanges(doc, scope);
-    expect(visibleText(text, ranges)).not.toContain('tag: x');
-    expect(visibleText(text, ranges)).toContain('## Mid');
+    expect(visibleLines(doc, ranges)).not.toContain('tag: x');
+    expect(visibleLines(doc, ranges)).toContain('## Mid');
   });
 
-  it('never emits an empty range — a zero-length block replacement is a widget of nothing', () => {
-    fc.assert(
-      fc.property(arbMarkdownText, (md) => {
-        const doc = Text.of(md.split('\n'));
-        for (let line = 0; line < documentLineCount(parse(md)); line++) {
-          const scope = resolveZoom(parse(md), line);
-          if (!scope) continue;
-          for (const r of hiddenOffsetRanges(doc, scope)) {
-            expect(r.to).toBeGreaterThan(r.from);
-          }
-        }
-      }),
-      { numRuns: 60 },
-    );
+  it('stops each range on the last line it removes, never on a visible one', () => {
+    // The positions it stops short of are where every point decoration on the
+    // neighbouring visible line is anchored — a line decoration sorts BEFORE
+    // the position it marks — so a replacement reaching them swallows the lot.
+    // At the head that cost the zoom root its whole rendering, ours and
+    // Obsidian's alike: no marker, no depth, and a list root drawn with an
+    // unstyled bullet at the wrong column. At the tail it cost the line itself:
+    // a cover ending on a trailing gap lost that gap. `80-outline-zoom` asserts
+    // both renderings; this pins the arithmetic underneath them.
+    const doc = Text.of(DOC.split('\n'));
+    const scope = resolveZoom(parse(DOC), lineOf(DOC, '- one'))!;
+    const [head, tail] = hiddenOffsetRanges(doc, scope);
+    const firstVisible = doc.line(scope.cover.start.line + 1);
+    const lastVisible = doc.line(scope.cover.end.line + 1);
+    expect(head!.to).toBe(firstVisible.from - 1);
+    expect(tail!.from).toBe(lastVisible.to + 1);
+    // And each still covers the whole of the line it stops on, so no part of a
+    // hidden line survives.
+    expect(head!.to).toBe(doc.line(scope.cover.start.line).to);
+    expect(tail!.from).toBe(doc.line(scope.cover.end.line + 2).from);
+  });
+
+  it('keeps a zero-length range, which is what a single blank line looks like', () => {
+    // A blank line has no character to cover, only a line. A zero-length block
+    // replacement there does hide it — measured in `80-outline-zoom`, both
+    // ways: with the range dropped, the blank line renders.
+    const blankFirst = `\n# H1\n\nbody\n`;
+    const doc = Text.of(blankFirst.split('\n'));
+    const ranges = hiddenOffsetRanges(doc, resolveZoom(parse(blankFirst), 1)!);
+    expect(ranges).toEqual([{ from: 0, to: 0 }]);
+    expect(visibleLines(doc, ranges)).toEqual(['# H1', '', 'body', '']);
   });
 
   it('a trailing newline in the kept text is the cover own gap, not an artefact', () => {
@@ -98,7 +125,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     const doc = Text.of(text.split('\n'));
     const scope = resolveZoom(parse(text), lineOf(text, '- one'))!;
     expect(scope.cover.end.line).toBe(5); // the empty final line, owned as a gap
-    expect(visibleText(text, hiddenOffsetRanges(doc, scope))).toBe('- one\n');
+    expect(visibleLines(doc, hiddenOffsetRanges(doc, scope))).toEqual(['- one', '']);
   });
 
   it('keeps exactly the cover lines, for every root in every document', () => {
@@ -110,10 +137,8 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
         for (let line = 0; line < documentLineCount(parsed); line++) {
           const scope = resolveZoom(parsed, line);
           if (!scope) continue;
-          const expected = lines
-            .slice(scope.cover.start.line, scope.cover.end.line + 1)
-            .join('\n');
-          expect(visibleText(md, hiddenOffsetRanges(doc, scope))).toBe(expected);
+          const expected = lines.slice(scope.cover.start.line, scope.cover.end.line + 1);
+          expect(visibleLines(doc, hiddenOffsetRanges(doc, scope))).toEqual(expected);
         }
       }),
       { numRuns: 60 },

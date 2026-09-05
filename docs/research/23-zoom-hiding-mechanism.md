@@ -41,6 +41,11 @@ end. Each therefore swallows the newline that would otherwise be left behind. Ne
 emitted when empty — a zero-length block replacement is not a no-op, it is a block widget of
 nothing.
 
+> **Both sentences above are wrong, and the errors were found only after the feature shipped in a
+> branch.** See [The boundary arithmetic was not right](#the-boundary-arithmetic-was-not-right-what-this-section-missed-and-why)
+> at the end of this note. The stray-empty-line table stands; what it fails to catch is what the
+> boundary costs the neighbouring line, which this section explicitly did not measure.
+
 ### Widget-rendered atoms are fine, inside and outside
 
 A span containing only a callout rendered `callout: 1, cmLine: 0`; a span containing only a
@@ -141,3 +146,69 @@ polish.
 5. **D9: unchanged, and visibly necessary.**
 6. Two harness facts for the real spec: park the caret before measuring a line, and never measure
    the span's boundary lines through `getLineElementInfo`.
+
+## The boundary arithmetic was not right: what this section missed, and why
+
+**Measured 5 September 2026**, same Obsidian, driven from a throwaway `99-zoom-probe.e2e.ts`
+against the real feature rather than a spike. Reported as three symptoms — the zoom root had no
+marker, a list root was indented and its bullet drawn small, and the trail's own mark sat off the
+column every other top-level mark sits on.
+
+### What the ranges were doing to the lines beside them
+
+The zoom root rendered as a bare `.cm-line`. Not our chrome missing — *every* line decoration
+missing, Obsidian's own included:
+
+| | class list |
+| --- | --- |
+| unzoomed `- one` | `cm-line to-decor-list to-decor-marker-1sp to-decor-guides HyperMD-list-line HyperMD-list-line-1` |
+| zoomed to `- one`, before | `cm-line` |
+| zoomed to `- one`, after | `cm-line to-decor-list to-decor-marker-1sp HyperMD-list-line HyperMD-list-line-1` |
+
+With `HyperMD-list-line` gone, Obsidian's own list rendering goes with it: the bullet run measured
+23.4px of raw `- ` text instead of the styled 14px, and the line lost the `text-indent` /
+`padding-inline-start` pair that hangs a bullet off its own column. Both reported symptoms are that
+one class list.
+
+The cause is decoration sort order. `Decoration.line` sorts at `-2e8`, **before** the position it
+marks; `Decoration.replace({block: true})` defaults to an inclusive end, which sorts at `+2e8`.
+The head range ended exactly ON the first visible line's start, so every point decoration anchored
+there fell inside the replacement and was dropped.
+
+The tail edge had the mirror defect and a worse consequence — it swallowed the whole line, not just
+its chrome. Zooming to `# A` in `# A / (blank) / body / (blank) / # B` rendered three lines where
+the cover has four: the cover's trailing gap, which D3 includes on purpose, was inside the range.
+
+**The fix is one rule for both edges: a range spans exactly the lines it removes**, first hidden
+line's start through last hidden line's end. The line break beside it is consumed as the block's
+own boundary, so the no-stray-line results in the table above still hold.
+
+### Two candidate fixes that do not work
+
+- **`Decoration.replace({block: true, inclusiveEnd: false})`.** Sorts the end at `-6e8` instead, so
+  a line decoration at that position survives. Measured: it rescues OUR line decorations and not
+  Obsidian's — the root came back as `cm-line to-decor-list to-decor-marker-1sp` with no
+  `HyperMD-list-line` — and it lets the tail range's last line escape as a stray empty line.
+- **Filtering out zero-length ranges**, which this note recommended. A blank line has no character
+  to cover, only a line; the head range for a document whose first line is blank IS zero-length,
+  and a zero-length block replacement there **does** hide it. With the range filtered the blank
+  line renders. Negative control run both ways. The claim is right at the document's END, where the
+  same shape instead means there is nothing left to hide — but the reason is the position, not the
+  length.
+
+### The instrument, again
+
+This note already records that `getLineElementInfo` refuses a line rendered by two elements, and
+that a block decoration at a span's edge is attributed to that line by `posAtDOM` — so "measure a
+non-boundary line". That advice is sound for the helper and it is exactly why the defect survived:
+**the boundary lines are the ones the defect was on.** A helper that asks for the `.cm-line`
+specifically measures them fine, and `80-outline-zoom` now carries one.
+
+### The trail was being patched as if it were a line
+
+Separate defect, same probe. `decorations.ts` patches every block-level child of `.cm-content`
+from the document line `posAtDOM` attributes it to. That is right for a widget that RENDERS its
+line and wrong for one that merely neighbours it: the trail took the zoom root's kind gutter, depth
+guide and marker, so its row sat at 390 with its mark at 381.5 under a heading root and at 376/367.5
+under a list one, against a top-level marker centred on 376 in both. It now carries
+`to-decor-own-chrome` and takes only the theme's base line margin.

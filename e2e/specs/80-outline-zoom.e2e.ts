@@ -148,6 +148,67 @@ function footerPresent(): Promise<boolean> {
   });
 }
 
+/**
+ * The `.cm-line` rendering a document line, ignoring any widget attributed to
+ * the same position.
+ *
+ * `getLineElementInfo` refuses a line rendered by more than one element, which
+ * is the right refusal for it and the wrong question here: the trail widget is
+ * anchored at the zoom ROOT's own line start and `posAtDOM` attributes it to
+ * that line, so the root is permanently ambiguous through that helper. This
+ * asks for the rendering it means.
+ */
+function rootLine(lineIndex: number): Promise<{
+  cls: string;
+  /** Left edge plus padding — the column this line's text starts on. */
+  alignedLeft: number;
+  /** Centre of the marker icon, or null when the line has none. */
+  markerCentre: number | null;
+  /** Width of the native list marker run, or null when there is none. */
+  bulletWidth: number | null;
+}> {
+  return browser.executeObsidian(({ app, obsidian }, lineIndex) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cm = (view.editor as any).cm;
+    const content: HTMLElement = cm.contentDOM;
+    const found = Array.from(content.querySelectorAll<HTMLElement>(':scope > .cm-line')).find(
+      (el) => {
+        try {
+          return cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1 === lineIndex;
+        } catch {
+          return false;
+        }
+      },
+    );
+    if (!found) throw new Error(`no .cm-line renders document line ${lineIndex}`);
+    const cs = getComputedStyle(found);
+    const r = found.getBoundingClientRect();
+    const marker = found.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+    const mr = marker?.getBoundingClientRect();
+    const bullet = found.querySelector<HTMLElement>('.cm-formatting-list');
+    return {
+      cls: found.className,
+      alignedLeft: r.left + (parseFloat(cs.paddingLeft) || 0),
+      markerCentre: mr ? mr.left + mr.width / 2 : null,
+      bulletWidth: bullet ? bullet.getBoundingClientRect().width : null,
+    };
+  }, lineIndex);
+}
+
+/** Centre of the trail's zoom-out mark, the column it should share with a
+ * top-level marker. */
+function trailMarkCentre(): Promise<number> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const mark = view?.containerEl.querySelector('.to-zoom-trail .to-zoom-out') as HTMLElement | null;
+    if (!mark) throw new Error('no zoom-out mark');
+    const r = mark.getBoundingClientRect();
+    return r.left + r.width / 2;
+  });
+}
+
 async function openZoomable(md = DOC): Promise<void> {
   await h.createNote(NOTE, md);
   await h.openNote(NOTE);
@@ -468,6 +529,63 @@ describe('outline zoom', function () {
     const info = await h.getLineElementInfo(5);
     expect(info.cls).toContain('to-decor-list');
     expect(info.hasGuides).toBe(true);
+  });
+
+  it('keeps the zoom root own chrome — it is a visible line, not the replacement edge', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '## Mid');
+    await h.setCursorSettled(4, 0);
+    await browser.pause(150);
+    const root = await rootLine(2);
+    // Ours and Obsidian's alike, and both went missing together: the head
+    // hidden range used to end ON this line's start, and a line decoration
+    // sorts before the position it marks, so the replacement swallowed every
+    // one of them and the root rendered as a bare `.cm-line`.
+    expect(root.cls).toContain('to-decor-block');
+    expect(root.cls).toContain('HyperMD-header-2');
+    expect(root.markerCentre).not.toBeNull();
+  });
+
+  it('zooms into a list item without indenting it or shrinking its bullet', async function () {
+    await openZoomable();
+    const unit = await h.publishedUnit();
+    await zoomAt(DOC, '- one');
+    await h.setCursorSettled(5, 0);
+    await browser.pause(150);
+    const zoomed = await rootLine(4);
+    await h.runCommand('zoom-clear');
+    await browser.pause(200);
+    await h.setCursorSettled(5, 0);
+    await browser.pause(150);
+    const unzoomed = await rootLine(4);
+
+    expect(zoomed.cls).toContain('HyperMD-list-line');
+    // The SAME bullet, not a raw `- ` drawn as text: what sizes it is the
+    // native list rendering, which is one of the decorations the root lost.
+    expect(zoomed.bulletWidth).toBeCloseTo(unzoomed.bulletWidth!, 0);
+    // And exactly its own depth left of where it sits unzoomed — `# Top` >
+    // `## Mid` > `- one`, so two levels — with no extra indent of its own. A
+    // relationship, never a pixel count: CI's font is not this machine's.
+    expect(unzoomed.alignedLeft - zoomed.alignedLeft).toBeCloseTo(2 * unit, 0);
+  });
+
+  it('puts the trail mark on the column a top-level marker sits on', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '## Mid');
+    await h.setCursorSettled(4, 0);
+    await browser.pause(150);
+    const root = await rootLine(2);
+    expect(await trailMarkCentre()).toBeCloseTo(root.markerCentre!, 0);
+  });
+
+  it('keeps the cover trailing gap line inside the visible range', async function () {
+    // The only fixture here with a tail hidden range AND a cover that ends on a
+    // gap. `## Mid` reaches the end of `DOC`, so its zoom has no tail range at
+    // all — which is why the tail edge could swallow this line unnoticed.
+    const md = ['# A', '', 'body', '', '# B', ''].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, '# A');
+    expect(await renderedLines()).toEqual(['# A', '', 'body', '']);
   });
 
   it('keeps the backlinks footer rendering below the zoomed content', async function () {

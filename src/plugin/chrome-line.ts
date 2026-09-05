@@ -40,6 +40,20 @@ export const LIST_LINE_CLASS = 'to-decor-list';
  * kind class alongside: a gap line has a guide and no kind at all. */
 export const GUIDES_CLASS = 'to-decor-guides';
 /**
+ * A block widget that is view chrome rather than a rendering of the line it is
+ * anchored to — the zoom trail.
+ *
+ * The widget-line patch works from the document line a widget sits on, which is
+ * right for a widget that RENDERS that line (a table, an embed) and wrong for
+ * one that merely neighbours it: the trail would take the zoom root's kind
+ * gutter, depth guide and marker, so the same row shifted by a marker gutter and
+ * grew a stripe depending on whether the root was a heading or a list item. An
+ * element carrying this class takes only what the theme gives every line's box —
+ * the readable-line-width base margin — and draws the rest itself.
+ */
+export const OWN_CHROME_CLASS = 'to-decor-own-chrome';
+
+/**
  * A list item written with exactly one space after its marker, which changes
  * where its native text starts and therefore what the stated hang must be.
  */

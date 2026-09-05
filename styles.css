@@ -2259,14 +2259,24 @@ body {
  *
  * What remains is the trail's relationship to the content it heads: a little air
  * beneath it, and a rule that says the subtree begins here.
+ *
+ * No left inset. The footer's rows container insets by half a mark, because a
+ * depth-0 marker is centred on column 0 and its card CLIPS; the trail sits
+ * inside `.cm-content`, where a depth-0 marker overhangs into the content
+ * padding as a matter of course and nothing clips. The inset only pushed the
+ * trail's mark half an icon right of the column every top-level marker below it
+ * sits on.
+ *
+ * The air is PADDING, not margin: it has to survive being the first thing in a
+ * CM6 block widget, where a margin has a collapsing edge and a padding does not.
+ * The rule sits on the row, so the space below it is real space.
  */
 .to-zoom-trail {
-  /* Half the MARK's own width of inset. A marker is centred on its column, so
-   * at depth 0 half its ink lands at negative x and is clipped — the same rule
-   * the footer's rows container carries, sized here for the larger mark. */
-  padding-left: calc(var(--to-zoom-mark-size) / 2);
-  padding-bottom: 0.45rem;
-  margin-bottom: 0.7rem;
+  padding-bottom: 0.85rem;
+}
+
+.to-zoom-trail .to-backlinks-row.is-lineage {
+  padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
@@ -2298,14 +2308,12 @@ body {
   margin-left: calc(-1 * var(--to-zoom-mark-size));
   left: calc(var(--to-zoom-mark-size) * 0.5 - var(--to-marker-gutter, 0px));
   top: calc(var(--to-zoom-mark-size) / 2 - 0.5ex);
-  color: var(--text-muted);
+  /* The text's own colour, not a marker's faint one and not a hover highlight:
+   * the arms spreading is what says "armed", so a colour change on top of it is
+   * a second signal for one state. */
+  color: var(--text-normal);
   pointer-events: auto;
   cursor: pointer;
-}
-
-.to-zoom-trail .to-zoom-out:hover,
-.to-zoom-trail .to-zoom-out:focus-visible {
-  color: var(--text-normal);
 }
 
 /* Armed from anywhere on the trail: the arrows push apart along their own
@@ -2346,19 +2354,27 @@ body {
 /*
  * The segment icons, aligned the way the block markers are.
  *
- * `vertical-align: middle` is what the shared rule uses, and on an inline-FLEX
- * box it does not land where it claims to — the flex container contributes its
- * own baseline and the mark ends up sitting low, which is what was reported.
- * The fix is the one `.to-decor-marker-icon` already documents: align on the
- * baseline, kill the line box so the span's baseline IS its bottom edge, then
- * put the box's centre on the text's x-height midline. Written in `em` and
- * `ex`, so it holds at any row size and in any theme.
+ * `inline-block`, NOT the shared rule's `inline-flex`, and that is the whole
+ * correction: an inline-flex box derives its baseline from its flex item, so
+ * neither the shared rule's `vertical-align: middle` nor a baseline nudge on top
+ * of it lands where the arithmetic says, which is why these sat low through two
+ * attempts. What works is the construction `.to-decor-marker-icon` already
+ * documents — no line box, so the span's baseline IS its bottom edge, then put
+ * the box's centre on the text's x-height midline. Written in `em` and `ex`, so
+ * it holds at any row size and in any theme.
  */
 .to-zoom-trail .to-backlinks-seg-icon {
+  display: inline-block;
   vertical-align: baseline;
   line-height: 0;
   position: relative;
   top: calc(0.4em - 0.5ex);
+}
+
+/* Colour alone on hover. The underline reads as a link in a row that is already
+ * a path of them, and at four segments it made the whole trail look underlined. */
+.to-zoom-trail .to-backlinks-seg:hover {
+  text-decoration: none;
 }
 
 /*

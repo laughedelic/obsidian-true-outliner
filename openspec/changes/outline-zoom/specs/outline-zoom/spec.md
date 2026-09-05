@@ -94,6 +94,13 @@ they are rendered beside the content rather than in it — so hiding them is sta
 requirement on the VIEW rather than as a consequence of the hidden line ranges. Clearing the zoom
 SHALL restore both.
 
+The visible range's own FIRST AND LAST lines SHALL render in full. The zoom root SHALL keep every
+piece of its own rendering — this plugin's marker, depth and guides, and Obsidian's own line
+classes and native list rendering with them — and the cover's trailing gap SHALL still be a line
+of the visible range. Stated because both are lines the hiding mechanism reaches past: they
+neighbour a replacement, and a replacement that reaches one position too far takes the
+decorations anchored there, or the line itself, with it.
+
 #### Scenario: Content above and below is gone from the layout
 - **WHEN** the user zooms into a node in the middle of a long note
 - **THEN** no line above or below the node's subtree is rendered, and the zoomed content sits at
@@ -111,6 +118,16 @@ SHALL restore both.
 #### Scenario: The backlinks footer is not swallowed by the hidden range
 - **WHEN** a note with references is zoomed into a node in the middle of it
 - **THEN** the footer still renders below the zoomed content
+
+#### Scenario: The zoom root renders like any other line of its kind
+- **WHEN** the user zooms into a list item
+- **THEN** the root line carries its own list rendering — its native bullet at the same size it
+  has unzoomed, and its own indentation and no more
+
+#### Scenario: The cover's trailing gap stays in the visible range
+- **WHEN** the user zooms into a node whose subtree ends on a blank line and which is followed by
+  further content
+- **THEN** that blank line is still rendered, as the last line of the visible range
 
 #### Scenario: The note title and properties are hidden while zoomed
 - **WHEN** a note with frontmatter is zoomed into a node
@@ -132,6 +149,10 @@ The trail's own MARKER SHALL NOT name a node kind. It is a control: activating i
 zoom entirely, and it SHALL show that it is armed whenever the pointer is anywhere on the trail,
 so the row advertises the way out rather than only the ancestors. A kind glyph there would be
 naming the file as a paragraph, which is what it currently does and what it says wrongly.
+
+That marker SHALL sit on the SAME column a top-level node's marker sits on, whatever kind the zoom
+root is. The trail is a header for the view, not a rendering of the root's line, so it SHALL NOT
+take that line's own indentation, marker gutter or depth guides.
 
 The trail's segments SHALL be separated from one another, whatever the footer's own separator
 setting says. The two surfaces differ in what the separator is for: a footer lineage row sits in a
@@ -175,6 +196,11 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 - **WHEN** the pointer rests on any segment of the trail
 - **THEN** the marker shows itself as armed, so the control is discoverable from wherever the
   reader's attention already is
+
+#### Scenario: The marker holds the top-level column under any root
+- **WHEN** the user zooms into a heading, and again into a list item
+- **THEN** the trail's marker is centred on the same column in both, the one a top-level node's
+  marker occupies
 
 #### Scenario: Segments are separated whatever the footer setting is
 - **WHEN** the footer's own lineage separator is set to none

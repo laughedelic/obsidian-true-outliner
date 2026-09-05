@@ -16,7 +16,6 @@ import {
   setVisibleBoundsResolver,
   zoomAnchorField,
 } from './zoom-state';
-import { hiddenOffsetRanges } from './zoom-offsets';
 import { parsedDoc } from './parsed-doc';
 import { nestedEditorField } from './nested-editor';
 import type { ModeSource } from './keymap';
@@ -79,12 +78,17 @@ export function zoomScope(state: EditorState, modes: ModeSource): ZoomScope | nu
  * because a document ending in a newline has an empty final line whose start IS
  * `doc.length`, so the two candidate endpoints are the same position and no
  * position strictly inside the range leaves the anchor outside it.
+ *
+ * Read from the SCOPE, not from the tail range's own `from`. The two agreed
+ * while the tail began at the last visible line's end; it begins at the first
+ * hidden line's start instead (`zoom-offsets`), which is a position the
+ * replacement covers. Naming the visible range's end directly is what the
+ * anchor always meant, and it no longer depends on how the hidden side is cut.
  */
 export function contentEndAnchor(state: EditorState, modes: ModeSource): number {
   const scope = zoomScope(state, modes);
   if (!scope) return state.doc.length;
-  const tail = hiddenOffsetRanges(state.doc, scope).find((r) => r.to === state.doc.length);
-  return tail ? tail.from : state.doc.length;
+  return state.doc.line(Math.min(scope.cover.end.line + 1, state.doc.lines)).to;
 }
 
 /**
