@@ -96,7 +96,7 @@ the state lives.
 - [x] 3.10 A find box inside the folder and tag popovers (design D10), and NOT inside kind's. A
       selected value stays listed however the box is narrowed; Escape closes the popover rather
       than clearing the box. Verify from the spec's scenarios
-- [ ] 3.6 Every control routes through the existing `render()` and changes nothing else. Verify
+- [x] 3.6 Every control routes through the existing `render()` and changes nothing else. Verify
       the read-only guarantee holds across filtering, searching, sorting and reset — file bytes,
       caret, selection and undo stack unchanged
 
@@ -105,7 +105,7 @@ the state lives.
 Design D2, D3 and D5. The per-note bound stays the shipped height cap; only the overall cap is a
 count. The rung comes out of the measurement pass that already runs.
 
-- [ ] 4.1 The overall cap is applied by the model (1.4), so only admitted groups reach
+- [x] 4.1 The overall cap is applied by the model (1.4), so only admitted groups reach
       `place()`. Verify by counting `place()` calls for a note with far more sources than the cap
       — a note beyond the cap must not be read at all, which is the spec's own scenario
 - [x] 4.2 Drive `--to-backlinks-group-max` from the per-note setting. This is a value change, not
@@ -144,7 +144,7 @@ configuration is read or written, and the whole thing unloads with the styleshee
       settings change needed `repaintFooters()` beside `nudgeFooters()`, without which NONE of
       the six settings reached a mounted footer. Negative control: remove the repaint and the
       second toggle fails while the first still passes
-- [ ] 5.4 Verify the three containment guarantees the spec states: a note the plugin is not
+- [x] 5.4 Verify the three containment guarantees the spec states: a note the plugin is not
       decorating renders as it does without the plugin; every other plugin's configuration is
       byte-identical after enabling and disabling suppression; disabling our plugin leaves no
       residue
@@ -176,10 +176,10 @@ D19). The model keeps one shape; the renderer is the single site that declines.
 New specs in the `backlinks` group (70–76 are the footer's; zoom takes 80). Assert relationships,
 never glyph-width pixels — CI's font is not macOS's.
 
-- [ ] 7.6 The tag axis end to end: a tagged fixture offers tag values, two tags widen, a tag plus
+- [x] 7.6 The tag axis end to end: a tagged fixture offers tag values, two tags widen, a tag plus
       a kind narrows, and a vault with no tags shows no tag facet. Negative control: drop the
       any-of rule and confirm the widening case fails
-- [ ] 7.7 The narrow case: below the container width the facets show icons only and the row still
+- [x] 7.7 The narrow case: below the container width the facets show icons only and the row still
       does not wrap; above it the words return. Asserted as a relationship — the row's height is
       unchanged across the threshold — never as a pixel width
 - [x] 7.1 `e2e/specs/77-footer-controls.e2e.ts`: the header is one row until the filter
@@ -188,24 +188,24 @@ never glyph-width pixels — CI's font is not macOS's.
       search field and every character reaches it; the sort control opens and reorders; one axis
       re-counts against the other's selection and marks what fell to zero; reset clears all three
       and withdraws itself; the section icon matches the editor's own marker size
-- [ ] 7.2 `e2e/specs/78-footer-caps.e2e.ts`: a note beyond the overall cap is never placed; the
+- [x] 7.2 `e2e/specs/78-footer-caps.e2e.ts`: a note beyond the overall cap is never placed; the
       header reports true totals under a cap; the rung appears at the right depth with the right
       count and folds the group open; the footer-level rung and fade appear only when something is
       omitted; "Load more" is additive. Negative control: raise the cap above the fixture's
       reference count and confirm the rung and fade assertions fail rather than silently passing
-- [ ] 7.3 Suppression in a live instance: Obsidian's section is gone with the setting on, back
+- [x] 7.3 Suppression in a live instance: Obsidian's section is gone with the setting on, back
       with it off, present in an undecorated note, and present after the plugin is disabled
-- [ ] 7.4 The read-only guarantee under every control, extending `70-footer-enforcement.e2e.ts`'s
+- [x] 7.4 The read-only guarantee under every control, extending `70-footer-enforcement.e2e.ts`'s
       approach: filter, search, sort, change a cap, load more — then assert file bytes, document
       positions, caret, selection and undo stack are unchanged throughout
-- [ ] 7.5 Run the `backlinks` group locally; CI runs the full sweep on push
+- [x] 7.5 Run the `backlinks` group locally; CI runs the full sweep on push
 
 ## 8. Wrap-up
 
-- [ ] 8.1 Fill in `docs/research/18-structured-backlinks.md` where this change answers it: D8's
+- [x] 8.1 Fill in `docs/research/18-structured-backlinks.md` where this change answers it: D8's
       search field is source-note names only, D10's caps are two different mechanisms for two
       different questions, and the cap defaults chosen on S5's legibility footing
-- [ ] 8.2 Confirm the deferred items are written where they will be found: chronological mode
+- [x] 8.2 Confirm the deferred items are written where they will be found: chronological mode
       (D15) and the footer scoped to a zoomed node, which needs `outline-zoom` as well as this
       change and belongs to neither
 - [ ] 8.3 Full suite, linter, and the desktop e2e run; then use the controls against a real vault
