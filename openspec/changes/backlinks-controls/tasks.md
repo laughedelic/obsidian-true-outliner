@@ -202,10 +202,10 @@ never glyph-width pixels — CI's font is not macOS's.
 
 ## 8. Wrap-up
 
-- [ ] 8.1 Fill in `docs/research/18-structured-backlinks.md` where this change answers it: D8's
+- [x] 8.1 Fill in `docs/research/18-structured-backlinks.md` where this change answers it: D8's
       search field is source-note names only, D10's caps are two different mechanisms for two
       different questions, and the cap defaults chosen on S5's legibility footing
-- [ ] 8.2 Confirm the deferred items are written where they will be found: chronological mode
+- [x] 8.2 Confirm the deferred items are written where they will be found: chronological mode
       (D15) and the footer scoped to a zoomed node, which needs `outline-zoom` as well as this
       change and belongs to neither
 - [ ] 8.3 Full suite, linter, and the desktop e2e run; then use the controls against a real vault
