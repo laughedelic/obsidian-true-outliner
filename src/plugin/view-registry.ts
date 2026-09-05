@@ -40,16 +40,45 @@ export function viewFor(info: MarkdownFileInfo | null | undefined): EditorView |
 }
 
 class ViewRegistryPlugin implements PluginValue {
-  private readonly info: MarkdownFileInfo | undefined;
+  private info: MarkdownFileInfo | undefined;
+  private resolved = false;
 
   constructor(private readonly view: EditorView) {
     // A nested per-cell editor resolves to the SAME `MarkdownFileInfo` as its
-    // host note (see `nested-editor.ts`), so registering one would overwrite
-    // the real editor's entry and send every command into a table cell.
-    this.info = isNestedEditor(view)
-      ? undefined
-      : (view.state.field(editorInfoField, false) ?? undefined);
-    if (this.info) views.set(this.info, view);
+    // host note (see `nested-editor.ts`), so registering one overwrites the real
+    // editor's entry and sends every command into a table cell.
+    //
+    // The question cannot be answered here, which is the whole reason this is
+    // not one line in the constructor. `isNestedEditor` walks the DOM, and a
+    // nested editor's DOM is not yet inside `.cm-embed-block` when its
+    // ViewPlugins are built — `nested-editor.ts` records the same timing and
+    // defers for the same reason. Asked at construction the answer is always
+    // "not nested", so a table cell registered itself over its host and every
+    // later command in that note went into the cell: zoom did nothing, from any
+    // node, for the rest of the session. Found by probing a real Obsidian after
+    // a report that zooming into a table did nothing and then broke zoom
+    // everywhere else in the note.
+    this.sync();
+  }
+
+  /**
+   * Register once the ancestry is knowable, and not before.
+   *
+   * `isConnected` is the condition that makes `closest()` mean anything: while
+   * the view's DOM is detached it has no ancestors to find, so a "no" is an
+   * artefact of the timing rather than an answer. Once connected the answer is
+   * final, so it is taken once and latched.
+   */
+  private sync(): void {
+    if (this.resolved || !this.view.dom.isConnected) return;
+    this.resolved = true;
+    if (isNestedEditor(this.view)) return;
+    this.info = this.view.state.field(editorInfoField, false) ?? undefined;
+    if (this.info) views.set(this.info, this.view);
+  }
+
+  update(): void {
+    this.sync();
   }
 
   destroy(): void {

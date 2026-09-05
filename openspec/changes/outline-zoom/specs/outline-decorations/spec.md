@@ -73,6 +73,51 @@ guarantee `tests/projection-decorate.test.ts` already pins);
 `e2e/specs/80-outline-zoom.e2e.ts` for re-basing in a live instance, including the list-item
 root's retained within-list indentation.
 
+### Requirement: Markers are fixed-size and coexist with native and guide chrome
+A marker's size SHALL NOT vary with the kind, heading level, or font size of the line it sits
+on: every marker a surface draws SHALL render at one size. A surface MAY choose what that size
+is, including expressing it relative to its own text, provided the size is the same for every
+line that surface renders — the invariant is that a heading's marker is no larger than a
+paragraph's, not that any particular unit is used to say so.
+
+A marker SHALL NOT remove, replace, or visibly collide with Obsidian's native blockquote bar,
+the CSS containment/specificity rules widget atoms carry, or Obsidian's native fold chevron on
+a heading.
+
+A marker in the EDITOR is also a control: it SHALL accept pointer events, show a pointer cursor,
+and zoom into its node when clicked (`outline-zoom`). Where a node's mark is Obsidian's own — a
+list item's bullet or number — that element SHALL be the control instead, and SHALL be reachable:
+a native affordance whose invisible hit area covers it SHALL NOT take the click, while every pixel
+that affordance actually PAINTS SHALL keep it. A marker a surface draws as pure chrome, in a
+lineage row or a trail, is not a node mark and SHALL keep that surface's own behaviour.
+
+#### Scenario: Marker size is font-size-independent
+- **WHEN** a marker renders on a heading line and on a paragraph line
+- **THEN** its rendered width and height are identical despite the heading's larger font
+
+#### Scenario: Blockquote native bar and marker coexist
+- **WHEN** a blockquote line also carries a marker
+- **THEN** both Obsidian's native colored bar and the marker render, neither clobbering the
+  other
+
+#### Scenario: A depth-0 widget atom's marker is not clipped
+- **WHEN** a table with no ancestor (tree depth 0) renders a marker
+- **THEN** the marker is fully visible, not clipped by Obsidian's native `contain: paint`
+  containment
+
+#### Scenario: Fold chevron stays clear of the marker and any active guide
+- **WHEN** a heading has a foldable child, so Obsidian renders its native fold chevron
+- **THEN** the chevron does not overlap the heading's own marker or an ancestor's guide
+  line passing through the same row
+
+#### Scenario: A list item's bullet is reachable past the fold indicator
+- **WHEN** the user clicks a list item's bullet, whose native collapse indicator's hit area
+  covers it
+- **THEN** the click reaches the bullet
+
+**Covered by**: `e2e/specs/52-block-markers-icons.e2e.ts` (as before, for size, coexistence,
+containment and the chevron); `e2e/specs/80-outline-zoom.e2e.ts` for the marks as controls.
+
 ## ADDED Requirements
 
 ### Requirement: Indentation guides re-base with the zoom scope

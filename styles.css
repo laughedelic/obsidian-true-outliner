@@ -808,9 +808,18 @@ body {
  * clipped it to a half-icon and swallowed the fold chevron whole. Same
  * specificity requirement: the override has to match Obsidian's own chain.
  */
+/*
+ * The zoom trail needs it too, and needed it the moment it stopped being
+ * patched as a line. Its zoom-out mark hangs half an icon left of the widget's
+ * own box — where every depth-0 marker sits — so paint containment clipped the
+ * mark's top-left arm away and left a lone arrowhead. It used to be spared by
+ * accident: the widget-line patch gave it `.to-decor-guides`, which the first
+ * selector here already covers.
+ */
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-guides,
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-marker,
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-backlinks,
+.markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-zoom-trail,
 .markdown-source-view.mod-cm6 .cm-content > [contenteditable='false'].to-decor-node-selected {
   position: relative;
   contain: none !important;
@@ -973,6 +982,49 @@ body {
   margin-left: calc(-1 * var(--to-marker-icon-size, 0.85rem));
   pointer-events: none;
   color: var(--text-faint);
+}
+
+/*
+ * A mark in the editor is a control: clicking it zooms into its node
+ * (`zoom-click.ts`), the gesture an outliner is expected to have.
+ *
+ * The base rule above turns pointer events OFF, which is right for chrome that
+ * only names a kind and is what kept a click from ever reaching the mark. It
+ * stays the default; this re-enables it where a mark stands for a real document
+ * node, and shows the cursor so the gesture is discoverable rather than
+ * folklore.
+ *
+ * The two native elements are here for the same reason `zoom-click.ts` names
+ * them: a list item's mark is Obsidian's own bullet or number, and without them
+ * the gesture would skip the commonest node in an outline. They are scoped to a
+ * line WE decorated, so a note that is not in outline mode keeps stock bullets
+ * with stock behaviour.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/*
+ * ...and above the fold indicator, or the bullet is a control nothing can
+ * click. Measured: the native `.collapse-indicator` is a 30.8px box whose
+ * painted chevron is only about 10px wide, and the invisible remainder covers
+ * the bullet completely — `elementFromPoint` at the bullet's own centre
+ * returned the indicator. Its wrapper carries `z-index: 1`, so a bullet at
+ * `auto` loses whatever its own box says.
+ *
+ * A stacking order, not a smaller hit area: CSS cannot make part of a box
+ * transparent to the pointer, and shrinking the indicator would move the fold
+ * affordance rather than share the space. Raising the bullet gives each
+ * gesture the ground its own glyph is painted on — the chevron keeps every
+ * pixel it draws, and the bullet keeps its own. The element is already
+ * `position: relative`, so this adds no layout of its own.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number {
+  z-index: 2;
 }
 
 /* Block, so no inline formatting context is created inside the span at all —
@@ -2346,22 +2398,45 @@ body {
  * A step fainter than the names, so the eye reads name-name-name and takes the
  * joins peripherally. Scoped to the trail: the footer's own separator is off by
  * default and is that surface's decision.
+ *
+ * Restated against the kind icons rather than inherited from the footer, and in
+ * both dimensions, because the shared chevron is drawn on a 24-unit viewBox
+ * where every kind glyph uses 16. At the footer's 0.65em its ink stands 0.38em
+ * tall against a kind icon's 0.5em and its stroke lands a third lighter, so the
+ * same nominal size reads as a different, smaller family of mark. The box is
+ * sized for equal INK height and the stroke restated for equal weight; both
+ * numbers are the 16-unit ones scaled by 24/16.
  */
 .to-zoom-trail .to-backlinks-seg-sep {
+  width: 0.8em;
+  height: 0.8em;
   color: var(--text-faint);
 }
 
+.to-zoom-trail .to-backlinks-seg-sep svg * {
+  stroke-width: 2.75;
+}
+
 /*
- * The segment icons, aligned the way the block markers are.
+ * The trail's marks, aligned the way the block markers are — with one departure
+ * the trail earns and the editor does not.
  *
- * `inline-block`, NOT the shared rule's `inline-flex`, and that is the whole
- * correction: an inline-flex box derives its baseline from its flex item, so
- * neither the shared rule's `vertical-align: middle` nor a baseline nudge on top
- * of it lands where the arithmetic says, which is why these sat low through two
- * attempts. What works is the construction `.to-decor-marker-icon` already
- * documents — no line box, so the span's baseline IS its bottom edge, then put
- * the box's centre on the text's x-height midline. Written in `em` and `ex`, so
- * it holds at any row size and in any theme.
+ * `inline-block`, NOT the shared rule's `inline-flex`: an inline-flex box
+ * derives its baseline from its flex item, so neither the shared rule's
+ * `vertical-align: middle` nor a baseline nudge on top of it lands where the
+ * arithmetic says, which is why these sat low through two attempts. The working
+ * construction is the one `.to-decor-marker-icon` documents — no line box, so
+ * the span's baseline IS its bottom edge, then place the box's centre by `top`.
+ *
+ * On the CAP midline, where the editor's markers use the x-height one. A kind
+ * glyph's ink is about 0.64em tall and the x-height midline sits 0.26em above
+ * the baseline, so a mark centred there DIPS below the baseline of the text
+ * beside it — which is exactly what "the icons sit lower than the text" is. The
+ * editor never shows it, because a marker there hangs in its own gutter with no
+ * text on its line to be measured against; in the trail the mark and its name
+ * are adjacent words. `cap` is the font's own cap height, so this holds at any
+ * size and in any theme, with the x-height rule standing where `cap` is not
+ * supported.
  */
 .to-zoom-trail .to-backlinks-seg-icon {
   display: inline-block;
@@ -2369,6 +2444,16 @@ body {
   line-height: 0;
   position: relative;
   top: calc(0.4em - 0.5ex);
+}
+
+@supports (top: 1cap) {
+  .to-zoom-trail .to-backlinks-seg-icon {
+    top: calc(0.4em - 0.5cap);
+  }
+
+  .to-zoom-trail .to-zoom-out {
+    top: calc(var(--to-zoom-mark-size) / 2 - 0.5cap);
+  }
 }
 
 /* Colour alone on hover. The underline reads as a link in a row that is already

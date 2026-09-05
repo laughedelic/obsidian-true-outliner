@@ -214,6 +214,42 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 - **WHEN** an ancestor's own line carries no text beyond its marker
 - **THEN** its crumb shows a label naming that node's kind rather than rendering blank
 
+### Requirement: Clicking a node's mark zooms into that node
+A plain left click on the mark that stands for a node — this plugin's marker icon, or the native
+bullet or number a list item shows in its place — SHALL zoom into that node, the same as invoking
+zoom in with the caret on it. The gesture SHALL work for every node kind, including one rendered
+as an opaque widget, whose mark is injected rather than decorated.
+
+The click SHALL NOT also do what a click there would otherwise do: it SHALL NOT place the caret,
+begin a selection, or fold the node. The caret SHALL move to the new zoom root, since the node
+clicked is usually not the node the caret was in.
+
+A MODIFIED click SHALL be left alone. Obsidian's own follow-link and multi-caret gestures live
+there, and this one never claims them.
+
+Marks the trail and the footer draw are NOT node marks: they belong to chrome that answers its own
+clicks, and SHALL keep doing so — the trail's mark zooms out, and a footer row navigates.
+
+Only the mark is a target. The whitespace that follows a list marker SHALL stay a caret position,
+and a guide SHALL do nothing — it has no hit area of its own, and giving it one is a separate
+piece of work.
+
+#### Scenario: Clicking a marker icon zooms to its node
+- **WHEN** the user clicks the marker beside a heading
+- **THEN** the view zooms to that heading, exactly as the command would
+
+#### Scenario: A list item's bullet is its mark
+- **WHEN** the user clicks a list item's bullet
+- **THEN** the view zooms to that item, and the item is not folded
+
+#### Scenario: A widget-rendered node's mark works the same
+- **WHEN** the user clicks the marker beside a table
+- **THEN** the view zooms to the table
+
+#### Scenario: A modified click is not this gesture
+- **WHEN** the user clicks a marker with the platform's primary modifier held
+- **THEN** no zoom happens
+
 ### Requirement: Zoom out steps to the parent or clears the scope
 Two zoom-out gestures SHALL exist while zoomed: one that makes the zoom root's PARENT the new
 zoom root, and one that clears the zoom entirely.
@@ -403,6 +439,11 @@ Obsidian in behavior and rendering, with no zoom commands taking effect.
 Zoom SHALL take no effect inside a nested per-cell editor, through the same nested-editor gate
 the other editor extensions use.
 
+Declining inside a nested editor SHALL NOT mean declining while one is OPEN. A command invoked
+with the caret in a table cell SHALL act on the note the cell belongs to, and SHALL keep acting on
+it afterwards: the note's own editor is the one every gesture is routed to, whichever editor
+currently holds focus.
+
 #### Scenario: Zoom commands do nothing outside outline mode
 - **WHEN** the file is not in outline mode and the user invokes zoom in
 - **THEN** nothing is hidden, no trail appears, and the editor behaves as stock Obsidian
@@ -410,3 +451,7 @@ the other editor extensions use.
 #### Scenario: A nested editor is unaffected
 - **WHEN** the caret is inside a nested per-cell editor and a zoom gesture is invoked
 - **THEN** the nested editor is unchanged and shows no trail
+
+#### Scenario: A table is a node like any other
+- **WHEN** the user puts the caret in a table and invokes zoom in
+- **THEN** the view zooms to the table, and every other node in that note still zooms afterwards

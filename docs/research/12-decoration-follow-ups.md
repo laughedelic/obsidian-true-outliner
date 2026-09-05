@@ -588,16 +588,32 @@ Concrete interaction ideas on top of the existing "marker as a click target" dir
   have is "where am I", not "what is under my mouse". See
   [14-experiment-position-indicators.md](14-experiment-position-indicators.md). A
   pointer-driven version is still unbuilt and still gated on the same caveats below.
-- **Click on a marker → zoom into that node** (depends on zoom functionality existing —
-  a separate feature, not a decoration change).
+- ~~**Click on a marker → zoom into that node**~~ — **done** (`outline-zoom`, D15). What the
+  caveats below turned out to be worth, measured 5 September 2026 against Obsidian 1.13.7:
+  - `pointer-events: none` was the real obstacle, and lifting it for marks that stand for a
+    document node is the whole of that half.
+  - `ignoreEvent() → true` was read backwards. It does not merely make CM6 ignore a widget's
+    events; through `eventBelongsToEditor` it makes CM6 skip its OWN registered handlers for
+    anything inside such a widget. So `EditorView.domEventHandlers` is not a route to a marker at
+    all — measured: a click on a list bullet reached it and a click on a marker icon did not. The
+    gesture needs a listener of its own, in the capture phase, above the editor.
+  - A third obstacle nobody had filed: a list item's mark is Obsidian's `.list-bullet`, and the
+    native `.collapse-indicator` is a 30.8px box whose painted chevron is ~10px wide — the
+    invisible remainder covers the bullet outright, so `elementFromPoint` at the bullet's centre
+    returns the indicator and a real click folds. Fixed with a stacking order, since CSS cannot
+    make part of a box transparent to the pointer.
+  - And one for whoever writes the test: a synthesised event dispatched ON the mark proves
+    nothing here. It bypasses hit-testing, so it passes with `pointer-events: none` still in
+    force, and it targets the mark's own element where a real click targets the `<rect>` inside
+    its SVG — which is an `SVGElement`, not an `HTMLElement`, and a narrow `instanceof` guard
+    silently drops every real click.
 - **Click on a guide → zoom into, or fold, the whole subtree** — which of the two should
-  be configurable.
+  be configurable. Still open, and still gated on the one caveat the marker work could not
+  dissolve: a guide is a `pointer-events: none` pseudo-element with no hit area, so a click
+  target has to be invented before the gesture can exist.
 
-The standing caveats from doc 10's addendum still gate all of these: `MarkerWidget`
-currently sets `pointer-events: none` + `ignoreEvent() → true` (both need careful
-revisiting against CM6 focus/cursor handling), guides are `pointer-events: none`
-pseudo-elements today (a click target needs a real hit area), and lapel's menu
-positioning uses non-public API, so a public-API-only equivalent needs verifying first.
+Lapel's menu positioning uses non-public API, so a public-API-only equivalent needs verifying
+first.
 
 ### Outline decorations in reading mode
 

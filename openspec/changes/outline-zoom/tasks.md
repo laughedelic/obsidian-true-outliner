@@ -268,3 +268,28 @@ implementation, not an assertion.
       deliberately still open and is not something this branch can tick off for itself — using the
       feature against a real vault for a session, which is how every decoration-era defect that
       mattered was actually found. That pass belongs to whoever reviews this before it archives
+
+## 13. Review round two
+
+- [x] 13.1 The trail's mark was clipped again. `contain: paint` on
+      `.cm-content > [contenteditable="false"]` is Obsidian's, and the trail used to be spared by
+      accident — the widget-line patch gave it `.to-decor-guides`, which the override already
+      covered. It is named in the override now
+- [x] 13.2 Kind marks sit on the CAP midline in the trail, not the x-height one. A glyph centred
+      on x-height dips below the baseline of the name beside it, which is what "the icons sit
+      lower than the text" is; the editor never shows it because a marker there hangs in a gutter
+      with no text on its line
+- [x] 13.3 The separator restated in both dimensions against the kind icons. The shared chevron is
+      drawn on a 24-unit viewBox where every kind glyph uses 16, so the same nominal size reads as
+      a smaller, lighter mark
+- [x] 13.4 The footer no longer inherits the last visible line's guide. Same cause as the trail's,
+      and the same fix: it declares itself view chrome rather than a rendering of that line
+- [x] 13.5 Marker vs guide column MEASURED rather than adjusted: a block marker's centre and its
+      guide's painted centre agree to 0.01px. What is genuinely off is a list item's NATIVE
+      bullet, 4.9px right of its own column at every depth — the residual `lists-on-the-outline-
+      grid` already parks as "the bullet's own column", newly obvious when the root is at depth 0
+- [x] 13.6 Zoom on a table, and every node after it. The view registry asked `isNestedEditor` at
+      construction, where the answer is always "not nested" — so a table cell registered itself
+      over its host and every command went into the cell for the rest of the session (D16)
+- [x] 13.7 Click a node's mark to zoom into it (D15), for our marker icons, a widget atom's
+      injected marker, and a list item's native bullet or number

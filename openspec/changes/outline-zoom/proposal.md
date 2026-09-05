@@ -173,8 +173,9 @@ Each is written where the work would be picked up, not only here.
 - **Re-basing a list-item root's within-list indentation** —
   `docs/research/12-decoration-follow-ups.md`, with the mechanism and the offset the outline grid
   made computable.
-- **Click-to-zoom on a marker or a guide** — already filed in the same parking lot, still gated on
-  the `pointer-events` work named there.
+- **Click-to-zoom on a GUIDE** — still filed in the same parking lot, and still gated on the fact
+  that a guide is a pseudo-element with no hit area. Clicking a MARKER is in this change (see the
+  spec); the two were filed together and only one of them needed a hit target inventing.
 - **Zoom persistence, and the Workflowy rule for the splits that stay refused** — below, and in
   design D8's cost note.
 - **Focusing the footer on the zoomed block** — `backlinks-controls` carries it in its own
@@ -185,9 +186,14 @@ Each is written where the work would be picked up, not only here.
 - **Persistence.** Zoom does not survive a file switch, a pane close, or a restart. Q11 of the
   decision log already places view-state restoration in a later layer, and a path-keyed store
   (the shape `outlinePaths` uses) cannot represent two panes zoomed differently on the same file.
-- **Click-to-zoom on a marker or a guide.** Filed in docs/research/12 and gated there on work
-  this change does not do: `MarkerWidget` is `pointer-events: none` with `ignoreEvent() → true`,
-  and guides are pseudo-elements with no hit area.
+- **Click-to-zoom on a GUIDE.** Still filed in docs/research/12, and still gated on the half of
+  that entry this change cannot dissolve: a guide is a pseudo-element with no hit area at all, so
+  a click target has to be invented before the gesture can exist. Clicking a MARKER was filed
+  alongside it and is now IN this change — the caveats it was gated on turned out to be one real
+  obstacle (`pointer-events: none`, lifted for marks that stand for a node) and one that had been
+  read backwards (`ignoreEvent() → true`, which through `eventBelongsToEditor` makes CM6 skip its
+  own registered handlers inside a widget, so the gesture needs a listener of its own rather than
+  a change to the widget).
 - **Changing what Enter does on the zoom root.** The refusal is scoped to the splits whose
   destination is the root's SIBLING scope; the ones landing in its child scope already work, so
   the Workflowy feel this was originally filed as a follow-up for is mostly what the existing

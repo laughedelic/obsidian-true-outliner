@@ -209,6 +209,37 @@ function trailMarkCentre(): Promise<number> {
   });
 }
 
+/**
+ * Viewport centre of the Nth mark matching `selector`, for a real click.
+ *
+ * A real pointer press rather than a synthesised event, because half of what
+ * this gesture needed was hit-testing: the marker carried `pointer-events: none`
+ * until this change, and a dispatched event would have reached the handler
+ * regardless and proved nothing.
+ */
+function markCentre(selector: string, index = 0): Promise<{ x: number; y: number }> {
+  return browser.executeObsidian(
+    ({ app, obsidian }, selector, index) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const el = cm.contentDOM.querySelectorAll(selector)[index] as HTMLElement | undefined;
+      if (!el) throw new Error(`no element ${selector}[${index}]`);
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    },
+    selector,
+    index,
+  );
+}
+
+async function clickMark(selector: string, index = 0): Promise<void> {
+  const at = await markCentre(selector, index);
+  await h.clickAtPoint(at.x, at.y);
+  await browser.pause(250);
+}
+
 async function openZoomable(md = DOC): Promise<void> {
   await h.createNote(NOTE, md);
   await h.openNote(NOTE);
@@ -651,6 +682,91 @@ describe('outline zoom', function () {
     await h.runCommand('zoom-in');
     await browser.pause(200);
     expect(await trail()).toEqual([]);
+  });
+
+  it('zooms into the node whose mark is clicked', async function () {
+    await openZoomable();
+    // `## Mid` is the second block marker in the document — `# Top` has the
+    // first, and the list items below carry Obsidian's bullets instead.
+    await clickMark('.cm-line > .to-decor-marker-icon', 1);
+    expect(await trail()).toEqual(['zoom', 'Top']);
+  });
+
+  it('zooms from a list item bullet, which is the mark Obsidian draws', async function () {
+    await openZoomable();
+    await clickMark('.to-decor-list .list-bullet', 0);
+    expect(await trail()).toEqual(['zoom', 'Top', 'Mid']);
+  });
+
+  it('zooms from a widget atom mark, which is injected rather than decorated', async function () {
+    // A different code path from both of the above: this marker is prepended to
+    // Obsidian's own table widget by the DOM patch, and the widget's
+    // `ignoreEvent` is what made CM6's registered handlers unreachable there.
+    const md = ['# T', '', '| a | b |', '| --- | --- |', '| 1 | 2 |', '', '- after', ''].join('\n');
+    await openZoomable(md);
+    await browser.pause(250);
+    await clickMark('.cm-table-widget > .to-decor-marker-icon', 0);
+    expect(await trail()).toEqual(['zoom', 'T']);
+    // Counted, not read as lines: a widget-rendered span reports no `.cm-line`s
+    // at all (this spec's header), and Obsidian rewrites a table's own source
+    // when it loads the note, so the text is not ours to assert either.
+    expect(
+      await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (view!.editor as any).cm;
+        return {
+          tables: cm.contentDOM.querySelectorAll('.cm-table-widget').length,
+          headings: cm.contentDOM.querySelectorAll('.HyperMD-header').length,
+        };
+      }),
+    ).toEqual({ tables: 1, headings: 0 });
+  });
+
+  it('leaves a modified click to whoever else owns it', async function () {
+    await openZoomable();
+    const at = await markCentre('.cm-line > .to-decor-marker-icon', 1);
+    await h.modClickAt(at.x, at.y);
+    await browser.pause(250);
+    expect(await trail()).toEqual([]);
+  });
+
+  it('zooms into a table from the command, and the note still zooms afterwards', async function () {
+    // The regression underneath a report that zooming into a table did nothing
+    // AND broke zoom everywhere else in that note: putting the caret on a table
+    // line focuses a nested per-cell editor, which used to register itself over
+    // its host in the view registry, so every later command dispatched into the
+    // cell. Both halves are asserted, because only the second one persisted.
+    const md = ['# T', '', '| a | b |', '| --- | --- |', '| 1 | 2 |', '', '- after', ''].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, '| a | b |');
+    expect(await trail()).toEqual(['zoom', 'T']);
+    await h.runCommand('zoom-clear');
+    await browser.pause(200);
+    await zoomAt(md, '- after');
+    expect(await trail()).toEqual(['zoom', 'T']);
+  });
+
+  it('does not run the last visible line guide down through the footer', async function () {
+    await h.createNote(SOURCE, `See [[zoom]] for the thing.\n`);
+    // A cover whose last visible line is NESTED, so it has an ancestor guide to
+    // inherit — the shape that made this visible every time under zoom.
+    const md = ['# Top', '', '- one', '  - nested', ''].join('\n');
+    await openZoomable(md);
+    await browser.pause(700);
+    await zoomAt(md, '- one');
+    await browser.pause(300);
+    const footer = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const el = view?.containerEl.querySelector('.to-backlinks') as HTMLElement | null;
+      if (!el) throw new Error('no footer');
+      const after = getComputedStyle(el, '::after');
+      return { cls: el.className, guide: after.backgroundImage };
+    });
+    // The footer is chrome mounted after the content, not a rendering of the
+    // line it is anchored to — so it takes no guide from that line.
+    expect(footer.cls).toContain('to-decor-own-chrome');
+    expect(footer.guide).toBe('none');
   });
 
   it('offers its commands only in outline mode', async function () {

@@ -47,6 +47,7 @@ import { contentEndAnchor } from './zoom-scope';
 import { buildMarkerIcon } from './decorations';
 import {
   MARKER_LEFT_SHIFT_EXPR,
+  OWN_CHROME_CLASS,
   applyLineChrome,
   lineChrome,
   plainGuideBackground,
@@ -197,7 +198,15 @@ class FooterController {
     private readonly source: FooterSource,
     private readonly targetPath: string,
   ) {
-    this.el = createDiv({ cls: FOOTER_CLASS });
+    // `OWN_CHROME_CLASS`: the footer is view chrome mounted after the content,
+    // not a rendering of the last line, and the widget-line patch cannot tell
+    // the difference on its own — it works from the document line `posAtDOM`
+    // attributes a block widget to. Without this the footer inherits that
+    // line's node chrome, so a note whose last line is a nested list item drew
+    // that item's ancestor guide straight down through the whole footer. Zoom
+    // is where it shows every time, since the last VISIBLE line of a zoomed
+    // list subtree is nested by construction.
+    this.el = createDiv({ cls: `${FOOTER_CLASS} ${OWN_CHROME_CLASS}` });
     // The section's own chrome — its heading, its "resolving…" placeholder, a
     // wide ordinal's clearance — lays out against the gutter and the gap, and
     // is not a row, so `chrome-line.ts` never reaches it. Published here rather

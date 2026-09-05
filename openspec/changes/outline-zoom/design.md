@@ -501,6 +501,61 @@ case.
 *What this costs:* the note is no longer named above the content, which is why the trail carries
 the file as its first segment (D10). The two decisions are one decision seen from both ends.
 
+### D15. Clicking a node's mark zooms into it, through one capture-phase listener
+
+The command is the deliberate entry point; the mark is the one an outliner is expected to have.
+This was originally out of scope, gated on two caveats docs/research/12 had been carrying. Both
+were measured against a real Obsidian and only one survived.
+
+`pointer-events: none` on the marker is real, and is why a click never reached it. It stays the
+default for chrome that only names a kind; the stylesheet lifts it for marks that stand for a
+document node. `ignoreEvent() → true` read as an obstacle to be revisited, and is worse than that:
+through CM6's `eventBelongsToEditor` it makes the editor skip its OWN registered handlers for any
+event inside such a widget, so `EditorView.domEventHandlers` cannot reach a marker at all.
+Measured exactly that way — a click on a list bullet reached the handler and a click on a marker
+icon did not.
+
+So the gesture is a capture-phase `mousedown` listener on the editor's element. Capture, because
+it has to decide before CM6's own handler further down the tree turns the press into a selection
+drag; one listener rather than one per mark, because the marks come from three unrelated places —
+a CM6 widget decoration on a plain line, an imperative injection on a widget-replaced atom, and
+Obsidian's own `.list-bullet`, which is the mark for the commonest node in an outline and is not
+ours to build.
+
+*What counts as a mark:* our marker icon, and a list item's native bullet or number. Not the
+whitespace after a marker — `.cm-formatting-list` spans that too, and swallowing a click there
+would take a position the reader was aiming the caret at. Not a mark drawn by the trail or the
+footer either: both declare themselves as view chrome (`to-decor-own-chrome`), which is exactly
+the question this listener asks, and both answer their own clicks already.
+
+*The bullet had to be raised above the fold indicator.* Measured: the native `.collapse-indicator`
+is a 30.8px box whose painted chevron is about 10px wide, and the invisible remainder covers the
+bullet outright — `elementFromPoint` at the bullet's own centre returned the indicator, and a real
+click folded instead of zooming. A stacking order rather than a shifted glyph, because CSS cannot
+make part of a box transparent to the pointer and moving the indicator would relocate a native
+affordance rather than share the space. Each gesture now owns the ground its own glyph is painted
+on.
+
+*Why the caret always moves, where the command leaves an empty selection alone:* the command zooms
+to the node the caret is already in, so it is inside the new scope by construction. A click can
+name any node on screen, so the caret is usually outside it and has to come along.
+
+### D16. A nested per-cell editor must not be asked whether it is nested until it is mounted
+
+Not a decision so much as a correction to D5's, recorded because the timing is invisible and the
+failure was not.
+
+The view registry keyed itself on `editorInfoField` and skipped nested editors, which is right.
+It asked at construction, which cannot work: `isNestedEditor` walks the DOM, and a nested editor's
+DOM is not yet inside `.cm-embed-block` when its ViewPlugins are built. `nested-editor.ts` records
+the same timing and defers for the same reason; the registry did not. So a table cell registered
+itself over its host, and every command routed through `viewFor` dispatched into the cell for the
+rest of that note's session — zoom did nothing on the table, and then nothing on any node in the
+note. Reported as two symptoms; it was one.
+
+The registration now waits for `dom.isConnected`, which is the condition that makes an ancestry
+question answerable at all, and latches the answer once it is.
+
 ## Risks / Trade-offs
 
 - **Block replacement misbehaves under Live Preview** (the widget-atom interaction is the most
