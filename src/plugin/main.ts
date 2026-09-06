@@ -426,20 +426,35 @@ export default class TrueOutlinerPlugin extends Plugin {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     const path = view?.file?.path;
     if (!view || !path || !this.registry.isOutline(path)) return; // nothing rendered to refresh
-    await this.registry.toggle(path); // off
+    // Off and back on within one turn. `toggle` decides synchronously (see its
+    // own comment), so the note is never left rendering as a stock note while a
+    // write settles — the two passes are what this method needs, not a visible
+    // interval between them.
+    const off = this.registry.toggle(path); // off
     view.editor.setCursor(view.editor.getCursor());
-    await this.registry.toggle(path); // back on, now reading the new setting
+    const on = this.registry.toggle(path); // back on, now reading the new setting
     view.editor.setCursor(view.editor.getCursor());
+    await Promise.all([off.saved, on.saved]);
   }
 
+  /**
+   * Everything a reader sees happens before this function first yields: the
+   * mode is in force, the notice is up, the footers are nudged and the note is
+   * repainted, and only then is the write awaited. Awaiting the write first put
+   * the whole redraw behind disk latency, and `refreshDecorations` is the only
+   * thing that makes the decorations recompute at all.
+   */
   private async toggleMode(path: string): Promise<void> {
-    const on = await this.registry.toggle(path);
+    const { on, saved } = this.registry.toggle(path);
     this.footerRev++;
     new Notice(on ? 'Outline mode on' : 'Outline mode off', 1500);
     // The same note can be open in more than one split, and `refreshDecorations`
     // reaches one of them. Every footer for this path has just become wrong.
     nudgeFooters(this.app);
     this.refreshDecorations(path);
+    // Awaited last rather than dropped: the command site `void`s this promise,
+    // so a rejected write surfaces exactly as it did before.
+    await saved;
   }
 
   /**

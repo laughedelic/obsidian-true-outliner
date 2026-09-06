@@ -431,3 +431,39 @@ Findings from `lists-on-the-outline-grid` (measurements:
   earlier plan-time assumption: revising the design mid-experiment, based on what was
   actually seen, is the intended use of this project's whole "confirm rather than assume,
   and look at the real result" discipline — not a deviation from it.
+
+- **An intermittent e2e failure whose signature is "no decoration at all" points at the mode
+  toggle, not at the geometry the assertion is about.** `56-list-grid.e2e.ts`'s space-indent
+  case failed on CI with the depth-0 column expected and a marker ~15px right of it. That
+  number is not a geometry error: it is where Obsidian's own native bullet sits on an
+  undecorated list line, and the line's `--to-depth` was absent entirely, so `column` read 0
+  for a line whose real depth was 1. Measuring the undecorated note directly (mode off,
+  `markerX` 15.62px on macOS against the 14.88px CI reported) is what identified the state in
+  one step, and it is worth doing first whenever a decoration assertion reports a value near a
+  native one.
+
+  The cause was in the plugin, not the spec. A mode toggle dispatches no CM6 transaction of
+  its own, so the decorations recompute only when `refreshDecorations` nudges the cursor — and
+  `toggleMode` awaited `registry.toggle`, which awaited `saveData`, before reaching that nudge.
+  Every visible consequence of the toggle therefore sat behind a `data.json` write. Under load
+  a single `saveData` was measured at up to 754ms on a fast machine, against the ~500ms of
+  fixed pauses the spec's `open()` spends before measuring. Reproduced exactly by slowing the
+  write to 900ms: the first note came back with no `--to-depth` and the native marker column.
+  `OutlineModeRegistry.toggle` now decides synchronously and returns the write still in
+  flight, so the paint happens in the command's own turn; `10-outline-mode.e2e.ts` pins that by
+  reading the DOM in the same synchronous turn as `executeCommandById`, which no amount of
+  waiting can make pass on the old code.
+
+  Two things about it made the failure rare rather than deterministic. A pending toggle's
+  `nudgeFooters` dispatch lands on whatever note is open when the write finally resolves, so a
+  slow toggle silently repaints the NEXT note — which is why only one of five consecutive
+  notes reproduced under an injected delay. And the failure screenshot, captured a couple of
+  WebDriver round trips after the assertion, shows the note correctly decorated: the paint had
+  arrived by then, which reads as "the assertion was wrong" rather than "the paint was late".
+
+- **`requestAnimationFrame` is the wrong instrument for measuring how long a DOM effect took.**
+  Polling for the decoration with rAF reported 282–1890ms under machine load; a
+  `MutationObserver` on the same mutation, in the same run, reported 30–62ms. Frame callbacks
+  are throttled by exactly the contention being investigated, so an rAF-based latency figure
+  mostly measures the scheduler. Had the first number been believed, the search would have
+  stopped at "the toggle is slow" with a plausible-looking and wrong mechanism.

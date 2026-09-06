@@ -38,10 +38,17 @@ describe('mode registry', () => {
 
   it('toggles, persists, and hydrates', async () => {
     const { registry, saves } = make();
-    expect(await registry.toggle('a.md')).toBe(true);
+    // Read back before either write is awaited: the mode a toggle reports is in
+    // force immediately, and only the record of it is asynchronous.
+    const first = registry.toggle('a.md');
+    expect(first.on).toBe(true);
     expect(registry.isOutline('a.md')).toBe(true);
+    await first.saved;
     expect(saves.at(-1)).toEqual(['a.md']);
-    expect(await registry.toggle('a.md')).toBe(false);
+    const second = registry.toggle('a.md');
+    expect(second.on).toBe(false);
+    expect(registry.isOutline('a.md')).toBe(false);
+    await second.saved;
     expect(saves.at(-1)).toEqual([]);
 
     const { registry: rehydrated } = make();
@@ -51,7 +58,7 @@ describe('mode registry', () => {
 
   it('rename migrates state; delete prunes; no-ops save nothing', async () => {
     const { registry, saves } = make();
-    await registry.toggle('old.md');
+    await registry.toggle('old.md').saved;
     await registry.handleRename('old.md', 'new.md');
     expect(registry.isOutline('old.md')).toBe(false);
     expect(registry.isOutline('new.md')).toBe(true);
