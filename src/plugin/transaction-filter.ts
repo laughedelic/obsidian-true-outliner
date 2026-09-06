@@ -30,8 +30,9 @@ import { editorInfoField, Notice } from 'obsidian';
 import type { OutlineDoc } from '../model';
 import { encodeLines } from '../encode';
 import { classify, type ChangedLineSpan, type TransactionFacts } from '../classify';
-import { escalateRanges } from '../escalate';
+import { escalateRanges, type Cover } from '../escalate';
 import { rangesEqual } from '../line-pos';
+import { clampRange } from '../zoom';
 import { resolvePlacement, resolveMarkerPlacement } from '../caret';
 import { linePosToOffset, offsetToLinePos, toLineRange } from './cm-pos';
 import { computeVerdictForRanges, type EditFact, type RewriteVerdict } from '../enforce';
@@ -41,6 +42,7 @@ import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import type { ModeSource } from './keymap';
 import { parsedDoc } from './parsed-doc';
+import { zoomScope } from './zoom-scope';
 import { isNestedTransaction } from './nested-editor';
 import type { TransactionStats } from './stats';
 
@@ -139,9 +141,17 @@ function escalateSelection(
   outlineDoc: OutlineDoc,
   doc: Text,
   tr: Transaction,
+  scope: Cover | undefined,
 ): EditorSelection | undefined {
   const before = tr.newSelection.ranges.map((range) => toLineRange(doc, range));
-  const escalated = escalateRanges(outlineDoc, before);
+  // `outline-zoom` D7 names this the ONE site that truncates. It is safe here
+  // and nowhere else because the scope is itself a subtree cover: the
+  // intersection of an escalated cover with an enclosing cover is a cover, so a
+  // clamped selection still covers whole nodes exactly. The walks bound their
+  // enumeration instead; only this correction clips.
+  const escalated = escalateRanges(outlineDoc, before).map((range) =>
+    scope ? clampRange(scope, range) : range,
+  );
   const after = escalated.map((range) => {
     if (range.anchor.line !== range.head.line || range.anchor.ch !== range.head.ch) return range;
     const resolved = resolvePlacement(outlineDoc, range.anchor);
@@ -275,7 +285,13 @@ export function transactionFilterExtension(
     let verdictKind: 'pass' | 'rewrite' | 'veto' | undefined;
 
     if (cls === 'selection-only') {
-      const escalated = escalateSelection(outlineDoc, tr.startState.doc, tr);
+      // The scope of the state the selection is landing in, not the one it left.
+      const escalated = escalateSelection(
+        outlineDoc,
+        tr.startState.doc,
+        tr,
+        zoomScope(tr.startState, source)?.cover,
+      );
       if (escalated) result = [tr, { selection: escalated }];
     } else if (cls === 'programmatic' && userEvent === undefined && changedLineSpans.length === 0) {
       // A foreign, unannotated cursor move (see resolveForeignCursors).

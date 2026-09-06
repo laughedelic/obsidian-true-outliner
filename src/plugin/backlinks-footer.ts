@@ -44,6 +44,8 @@ import {
 } from 'obsidian';
 import type { ModeSource } from './keymap';
 import { nestedEditorField } from './nested-editor';
+import { renderLineageContent } from './lineage-row';
+import { contentEndAnchor } from './zoom-scope';
 import { buildMarkerIcon } from './decorations';
 import {
   MARKER_LEFT_SHIFT_EXPR,
@@ -1181,76 +1183,16 @@ class FooterController {
     }
 
     if (row.type === 'lineage') {
-      el.addClass('is-lineage');
-      const icons = this.source.backlinksSegmentIcons;
-      // The gutter marker IS the first segment's, so it takes that segment's own
-      // state — a task ancestor gets its checkbox and an ordered one its number,
-      // the same rule a node row follows. `row.kind` alone gave both of them the
-      // generic bullet.
-      if (icons !== 'none') {
-        // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-        el.appendChild(segmentMarker(row.segments[0], row.kind));
-      }
-      const content = el.createSpan({ cls: 'to-backlinks-content' });
-      row.segments.forEach((segment, i) => {
-        // Between two ancestors, so outside both — a separator that sat inside a
-        // segment would share that ancestor's link target and open it.
-        if (i > 0 && this.source.backlinksSeparator === 'chevron') {
-          const sep = content.createSpan({ cls: 'to-backlinks-seg-sep' });
-          sep.setAttribute('aria-hidden', 'true');
-          // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-          sep.appendChild(separatorGlyph());
-        }
-        // Each ancestor is its own target. One handler on the row could only
-        // open the note, which is not what "a lineage element navigates to that
-        // ancestor" promises — a chain is several ancestors on one line.
-        const seg = content.createSpan({ cls: 'to-backlinks-seg' });
-        // Every ancestor names its own kind. The FIRST one's marker is the
-        // row's, already drawn in the gutter above, so only the rest need one
-        // here — and it goes inside the segment, not between two of them, so it
-        // shares that ancestor's link target and its hover rather than sitting
-        // in dead space.
-        if (i > 0) {
-          if (segment.ordinal) {
-            // Its number IS its mark, and the model has taken it out of the
-            // text — a bullet here would drop it entirely. Drawn whatever the
-            // icon setting says, because it is CONTENT the model removed from
-            // the text rather than notation added to it: without it the row
-            // reads "Item" where the note reads "10. Item". No gutter slot:
-            // this one sits in the text run, where the number needs its own
-            // width.
-            seg.createSpan({ cls: 'to-backlinks-seg-ord', text: segment.ordinal });
-          } else if (icons === 'all') {
-            const icon = seg.createSpan({ cls: 'to-backlinks-seg-icon' });
-            // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
-            icon.appendChild(segmentGlyph(segment));
-          }
-        }
-        // Already stripped by the model, which owns the rule so that a segment
-        // and a node row of the same kind say the same thing.
-        seg.appendText(segment.text);
-        // Focusable AND operable. `role="link"` with a tab stop and no key
-        // handler is a control the keyboard can reach and cannot use, which is
-        // worse than one it cannot reach at all — it advertises itself and then
-        // does nothing.
-        seg.setAttribute('role', 'link');
-        seg.tabIndex = 0;
-        seg.addEventListener('click', (event) => {
-          event.stopPropagation();
-          this.open(event, sourcePath, segment.nodeId);
-        });
-        seg.addEventListener('keydown', (event) => {
-          if (event.key !== 'Enter') return;
-          // `open` BEFORE `preventDefault`, not after. Its first guard is
-          // `event.defaultPrevented`, which exists to let a nested link that has
-          // already handled itself win — so preventing the default first made
-          // this handler veto its own call, and Enter on a segment did nothing
-          // at all. Shipped that way: the segment was focusable and inert, which
-          // is worse than not being reachable.
-          this.open(event, sourcePath, segment.nodeId);
-          event.preventDefault();
-          event.stopPropagation();
-        });
+      // The row's LOOK is shared with zoom's breadcrumb trail (`lineage-row.ts`);
+      // what a segment does when activated is this surface's own.
+      renderLineageContent(el, row.segments, {
+        icons: this.source.backlinksSegmentIcons,
+        separator: this.source.backlinksSeparator,
+        kind: row.kind,
+        onActivate: (segment, event) => this.open(event as MouseEvent, sourcePath, segment.nodeId),
+        marker: segmentMarker,
+        glyph: segmentGlyph,
+        separatorGlyph,
       });
       return;
     }
@@ -1426,7 +1368,7 @@ function markerFor(row: Extract<FooterRow, { type: 'node' }>): HTMLElement {
  * `fallbackKind` covers a chain with no elements, which the model does not
  * produce but the type permits.
  */
-function segmentMarker(segment: LineageSegment | undefined, fallbackKind: NodeKind): HTMLElement {
+export function segmentMarker(segment: LineageSegment | undefined, fallbackKind: NodeKind): HTMLElement {
   if (!segment) return markerSlot(buildMarkerIcon(fallbackKind));
   if (segment.task !== undefined) return markerSlot(checkboxGlyph(segment.task));
   if (segment.ordinal) return ordinalMarker(segment.ordinal);
@@ -1437,7 +1379,7 @@ function segmentMarker(segment: LineageSegment | undefined, fallbackKind: NodeKi
  * icon — which sits in the text run and needs no gutter slot around it. An
  * ordered segment never reaches here: its number is drawn as text instead,
  * since no fixed-width icon box holds `10.`. */
-function segmentGlyph(segment: LineageSegment): Element {
+export function segmentGlyph(segment: LineageSegment): Element {
   if (segment.task !== undefined) return checkboxGlyph(segment.task);
   return buildMarkerIcon(segment.kind);
 }
@@ -1713,7 +1655,12 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
       // on a position after the content the footer sits after.
       side: 1,
       block: true,
-    }).range(state.doc.length),
+    // `state.doc.length` normally, and the end of the visible range while a
+    // zoom scope is active: zoom's trailing hidden range ends AT `doc.length`,
+    // and a block replacement swallows a widget anchored there, so the footer
+    // would silently vanish on zoom. Re-anchoring is the only available fix —
+    // measured in docs/research/23, which also rules out shortening that range.
+    }).range(contentEndAnchor(state, source)),
   ]);
 }
 
@@ -1792,7 +1739,7 @@ function clearGlyph(): SVGSVGElement {
 }
 
 /** What stands between two ancestors when the separator setting asks for one. */
-function separatorGlyph(): SVGSVGElement {
+export function separatorGlyph(): SVGSVGElement {
   return glyph(24, ['M9 5l7 7-7 7'], {
     fill: 'none',
     stroke: 'currentColor',

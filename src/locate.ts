@@ -57,6 +57,22 @@ export function nodeStartLine(doc: OutlineDoc, id: number): number {
   return found;
 }
 
+/**
+ * The document's total line count: the preamble plus every node's own span.
+ *
+ * Here rather than in a consumer because it is the same `preamble.length` plus
+ * `ownSpan` accumulation `forEachNodeWithLine` walks — the module comment above
+ * exists because four modules had each re-implemented that sum privately, and a
+ * fifth copy computing the END of it would be the same mistake one step later.
+ */
+export function documentLineCount(doc: OutlineDoc): number {
+  let total = doc.preamble.length;
+  forEachNodeWithLine(doc, (node) => {
+    total += ownSpan(node);
+  });
+  return total;
+}
+
 export function nodeAtLine(doc: OutlineDoc, line: number): OutlineNode | undefined {
   if (line < doc.preamble.length) return undefined;
   let found: OutlineNode | undefined;

@@ -124,7 +124,11 @@ function ladderFor(doc: OutlineDoc, node: OutlineNode): readonly Cover[] {
  * the preamble, or past the document's very final trailing gap) — in both
  * cases the caller should let native Select All run for this range.
  */
-export function nextRung(doc: OutlineDoc, range: LineRange): LineRange | null {
+export function nextRung(
+  doc: OutlineDoc,
+  range: LineRange,
+  bound?: Cover,
+): LineRange | null {
   const node = nodeAtLine(doc, range.anchor.line);
   if (!node) return null;
 
@@ -132,6 +136,13 @@ export function nextRung(doc: OutlineDoc, range: LineRange): LineRange | null {
   const hi = isBackward(range) ? range.anchor : range.head;
 
   for (const cover of ladderFor(doc, node)) {
+    // `outline-zoom` D7: an active scope BOUNDS the enumeration rather than
+    // truncating its output. Rungs that reach past the zoom root are dropped
+    // from the sequence, so the root's own subtree becomes the top and every
+    // rung the ladder still offers is an exact cover. Clipping the answer
+    // instead would hand back a range that is not a cover, which
+    // `node-selection-extension` requires its dispatches to be.
+    if (bound && !containsBounds(bound, cover.start, cover.end)) continue;
     if (!containsBounds(cover, lo, hi)) continue;
     if (posEqual(cover.start, lo) && posEqual(cover.end, hi)) continue; // already here — keep climbing
     return isBackward(range)
@@ -150,6 +161,10 @@ export function nextRung(doc: OutlineDoc, range: LineRange): LineRange | null {
  * or — when every range is `null` — fall through to native Select All
  * entirely).
  */
-export function nextRungs(doc: OutlineDoc, ranges: readonly LineRange[]): readonly (LineRange | null)[] {
-  return ranges.map((range) => nextRung(doc, range));
+export function nextRungs(
+  doc: OutlineDoc,
+  ranges: readonly LineRange[],
+  bound?: Cover,
+): readonly (LineRange | null)[] {
+  return ranges.map((range) => nextRung(doc, range, bound));
 }

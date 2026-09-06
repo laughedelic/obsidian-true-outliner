@@ -74,6 +74,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
+import { zoomScope } from './zoom-scope';
 import { MARKER_GUTTER_CSS, MARKER_ICON_CSS, UNIT_EXPR } from './chrome-tokens';
 import {
   chromeStyle,
@@ -423,16 +424,62 @@ function computeProvisional(state: EditorState): Provisional | null {
  * consumers read it on the same render, and a CM6 state is immutable, so one
  * identity fixes the document and the selection together.
  */
+/**
+ * Facts for a zoomed view: the SAME `decorate`/`computeLineGuides`, handed the
+ * zoom root's subtree as a document instead of the whole note, with every line
+ * number translated back by the root's own start line (`outline-zoom` D9).
+ *
+ * Nothing in `decorate.ts` or `chrome-tokens.ts` is touched, and that is the
+ * decision rather than a happy accident. `tree-projection` already guarantees a
+ * detached tree is a document its pure consumers accept unchanged and that
+ * depth is read from the tree handed in — pinned for this layer by
+ * `tests/projection-decorate.test.ts`. So re-basing is a different INPUT, not a
+ * new parameter threaded through two functions every decoration path calls for
+ * the benefit of one caller.
+ *
+ * Only the visible lines get facts. A hidden line is not rendered, so a fact for
+ * it would have nothing to apply to (D11), and every consumer here looks its
+ * line up rather than iterating positions.
+ *
+ * Keyed by `EditorState`, NOT by `Text` like `docFacts`: two panes on one file
+ * share a `Text` and can hold different scopes, so a doc-keyed cache would hand
+ * one pane the other's re-basing.
+ */
+const zoomedFactsCache = new WeakMap<EditorState, DocFacts>();
+
+function baseFacts(state: EditorState, modes: DecorationSource): DocFacts {
+  const cached = zoomedFactsCache.get(state);
+  if (cached) return cached;
+  const scope = zoomScope(state, modes);
+  if (!scope) return docFacts(state);
+
+  const offset = scope.startLine;
+  const shift = <T extends { readonly lineNumber: number }>(fact: T): T => ({
+    ...fact,
+    lineNumber: fact.lineNumber + offset,
+  });
+  const facts = decorate(scope.document).map(shift);
+  const guides = computeLineGuides(scope.document).map(shift);
+  const computed: DocFacts = {
+    facts,
+    factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
+    guides,
+    guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
+  };
+  zoomedFactsCache.set(state, computed);
+  return computed;
+}
+
 const overlayCache = new WeakMap<EditorState, DocFacts>();
 
-function factsFor(state: EditorState): DocFacts {
+function factsFor(state: EditorState, modes: DecorationSource): DocFacts {
   const cached = overlayCache.get(state);
   if (cached) return cached;
 
   const provisional = provisionalAt(state);
   let computed: DocFacts;
   if (!provisional) {
-    computed = docFacts(state);
+    computed = baseFacts(state, modes);
   } else if (provisional.joins) {
     const facts = decorate(provisional.doc);
     // The row is one of a node's own lines in the resolved outline, so the
@@ -446,7 +493,7 @@ function factsFor(state: EditorState): DocFacts {
       guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
     };
   } else {
-    const base = docFacts(state);
+    const base = baseFacts(state, modes);
     const facts = [...base.facts, provisional.fact].sort((a, b) => a.lineNumber - b.lineNumber);
     // Guides still come from the document as it actually is — the position adds
     // no depth to any line — but its row counts as content for where a guide
@@ -913,7 +960,7 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
   // line it stands for would carry, under the same eligibility and visibility
   // gates — and so is the marker a bisected node's displaced line must NOT carry.
   // `factsFor` answers both.
-  const { facts } = factsFor(state);
+  const { facts } = factsFor(state, modes);
   for (const fact of facts) {
     // List items keep their fully native marker, untouched (same exclusion
     // guides already use); continuation lines never repeat the marker. The
@@ -985,7 +1032,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // and a bisected node's displaced lines take the facts they had. Every OTHER
   // gap line still keeps the guide-only decoration: this layer renders where the
   // user currently is, not every blank line in the document.
-  const { factsByLine, guides } = factsFor(state);
+  const { factsByLine, guides } = factsFor(state, modes);
   const trail = positionTrail(state, modes);
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
@@ -1128,12 +1175,17 @@ const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
  * target is just its own line's shift, i.e. the rectangle starts at the
  * root's own box with no further leftward reach.
  */
-function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string> {
+function selectedLineRootTargets(
+  state: EditorState,
+  modes: DecorationSource,
+): ReadonlyMap<number, string> {
   const { doc } = parsedDoc(state.doc);
-  // `docFacts`, not `factsFor`: a provisional position requires a single empty
+  // `baseFacts`, not `factsFor`: a provisional position requires a single empty
   // cursor and a cover requires a non-empty one, so the two cannot coexist and
   // routing this through the overlay would imply a case that cannot happen.
-  const { factsByLine } = docFacts(state);
+  // Still zoom-aware, though — the chrome's left edge is derived from depth, and
+  // an unrebased depth would sit the highlight off its own text while zoomed.
+  const { factsByLine } = baseFacts(state, modes);
   const totalLines = state.doc.lines;
   const targets = new Map<number, string>();
   for (const selRange of state.selection.ranges) {
@@ -1222,9 +1274,9 @@ function computeSelectionDecorations(state: EditorState, modes: DecorationSource
 
   const totalLines = state.doc.lines;
   // Raw facts here too, for the reason `selectedLineRootTargets` states.
-  const { factsByLine } = docFacts(state);
+  const { factsByLine } = baseFacts(state, modes);
   const builder = new RangeSetBuilder<Decoration>();
-  const targets = Array.from(selectedLineRootTargets(state).entries()).sort((a, b) => a[0] - b[0]);
+  const targets = Array.from(selectedLineRootTargets(state, modes).entries()).sort((a, b) => a[0] - b[0]);
   for (const [line, rootTarget] of targets) {
     if (line >= totalLines) continue; // stale, defensive only
     const from = state.doc.line(line + 1).from; // CM6 lines are 1-indexed
@@ -1505,7 +1557,7 @@ function computeOrderedDigits(state: EditorState, modes: DecorationSource): Deco
 
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
-  const { facts } = factsFor(state);
+  const { facts } = factsFor(state, modes);
   for (const fact of facts) {
     // Exactly "list-item first line" — a continuation line repeats no marker,
     // and no other kind has one of this shape.
@@ -2306,9 +2358,9 @@ class MarginCompensation implements PluginValue {
     // same overlay a plain one does, or a displaced line would move here while
     // its plain neighbour did not (`decorate-widget-rendered-lines`' own rule,
     // applied to this change's facts).
-    const { factsByLine, guidesByLine } = factsFor(this.view.state);
+    const { factsByLine, guidesByLine } = factsFor(this.view.state, this.modes);
     const nativeBasePx = this.nativeMarginBasePx();
-    const selectedLineTargets = selectedLineRootTargets(this.view.state);
+    const selectedLineTargets = selectedLineRootTargets(this.view.state, this.modes);
     // Position indicators reach widget atoms the same way everything else
     // does — through this imperative patch, since a CM6 decoration has no
     // effect on them at all (module doc comment).
@@ -2382,10 +2434,11 @@ class MarginCompensation implements PluginValue {
         patched.add(el);
         continue;
       }
-      // View chrome that happens to be a block widget — the backlinks footer —
-      // is not a rendering of the line it is anchored to, and everything below
-      // would hand it that line's node chrome. It keeps the one thing the
-      // theme gives every line's box, and draws the rest itself.
+      // View chrome that happens to be a block widget — the backlinks footer,
+      // and zoom's breadcrumb trail — is not a rendering of the line it is
+      // anchored to, and everything below would hand it that line's node
+      // chrome. It keeps the one thing the theme gives every line's box, and
+      // draws the rest itself.
       if (el.classList.contains(OWN_CHROME_CLASS)) {
         clearWidgetPatch(el);
         patched.add(el);

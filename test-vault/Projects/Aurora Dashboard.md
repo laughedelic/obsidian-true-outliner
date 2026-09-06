@@ -3,7 +3,6 @@ status: active
 team: [ "[[Maya Lindqvist]]", "[[Priya Nair]]" ]
 tags: [project, work]
 ---
-
 # Aurora Dashboard
 
 Redesign of the alarm dashboard for industrial monitoring customers. Q3 goal: cut mean time-to-acknowledge by 30%.
