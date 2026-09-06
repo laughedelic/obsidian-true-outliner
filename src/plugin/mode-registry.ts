@@ -183,7 +183,7 @@ export class OutlineModeRegistry {
 
   /**
    * Flips `path`'s mode and reports the state in force from here on, with the
-   * write that records it still in flight.
+   * write that will cover it still in flight.
    *
    * Synchronous in what it decides, asynchronous only in what it stores. The
    * mode IS this object's own `Set`; `data.json` is where that set survives a
@@ -194,9 +194,14 @@ export class OutlineModeRegistry {
    * repaints only when the plugin nudges it, and that nudge waited on the
    * write.
    *
-   * `saved` is handed back rather than dropped, so a caller that genuinely
-   * needs the file on disk can still wait for it, and a failed write still
-   * reaches whoever asked for the toggle.
+   * `saved` resolves once the stored set is at least as NEW as this call — not
+   * once `on` in particular is on disk. Each write snapshots the set as it
+   * stands when it runs (`save`), so a later toggle whose own write is still
+   * queued behind this one is stored in its place; the file is never left
+   * holding a state older than this call, and may hold a newer one. Awaiting it
+   * is therefore a claim about freshness rather than about a value: what it is
+   * good for is knowing the file has caught up, and surfacing a failed write to
+   * whoever asked for the toggle.
    */
   toggle(path: string): { on: boolean; saved: Promise<void> } {
     const on = !this.paths.has(path);
