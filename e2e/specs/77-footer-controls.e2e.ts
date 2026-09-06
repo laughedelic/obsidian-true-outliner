@@ -29,8 +29,22 @@ import {
 } from '../footer.js';
 
 const TARGET = 'Projects/Aurora Dashboard.md';
-/** A target whose only source notes carry no tags at all. */
+
+/** The control that owns a popover: the three axes, and sort. */
+/** What the name filter currently holds. */
+const searchValue = (): Promise<string> =>
+  browser.executeObsidian(
+    () =>
+      document.querySelector<HTMLInputElement>('.workspace-leaf.mod-active .to-backlinks-search')
+        ?.value ?? 'gone',
+  );
+
+const sel = (axis: string): string =>
+  axis === 'sort' ? '.to-backlinks-sort' : `.to-backlinks-facet[data-axis="${axis}"]`;
+/** A target whose only source notes carry no tags at all — and, at five lines
+ * with three groups, the cheapest footer in the fixture to fold and unfold. */
 const UNTAGGED = 'Backlinks/Reference target.md';
+const SMALL = UNTAGGED;
 
 describe('the footer’s controls', function () {
   before(async function () {
@@ -224,60 +238,178 @@ describe('the footer’s controls', function () {
 
   it('opens the sort control and reorders by it', async function () {
     await openFilters();
-    const options = await browser.executeObsidian(() => {
-      const select = document.querySelector<HTMLSelectElement>(
-        '.workspace-leaf.mod-active .to-backlinks-sort',
-      );
-      if (!select) return null;
-      return { value: select.value, all: Array.from(select.options).map((o) => o.value) };
-    });
-    expect(options).not.toBeNull();
-    expect(options!.value).toBe('recent');
-    expect(options!.all.length).toBeGreaterThan(1);
 
-    // Driven as a real control rather than through WebdriverIO's select
-    // handling, which reaches `scrollIntoView` and the Actions API this
-    // runtime does not implement. A pointer press and then the keyboard is
-    // also the closer test: what was broken was the browser's own default on
-    // pointerdown, so the thing worth asserting is that a press FOCUSES it and
-    // that the keyboard then moves it.
+    // A popover like the facets', not a native `select`. That is the point of
+    // the control: the header and the filter row speak one vocabulary, and the
+    // press that opens it is a real press rather than a platform menu the
+    // driver cannot reach.
     await clickIn(`${FOOTER} .to-backlinks-sort`);
-    const focused = await browser.executeObsidian(
-      () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+    const menu = await readStable(() =>
+      browser.executeObsidian(() => {
+        const anchor = document
+          .querySelector('.workspace-leaf.mod-active .to-backlinks-sort')
+          ?.closest('.to-backlinks-facet-anchor');
+        const options = Array.from(
+          anchor?.querySelectorAll<HTMLElement>('.to-backlinks-facet-option') ?? [],
+        );
+        return {
+          open:
+            document
+              .querySelector('.workspace-leaf.mod-active .to-backlinks-sort')
+              ?.getAttribute('aria-expanded') === 'true',
+          labels: options.map((o) =>
+            (o.querySelector('.to-backlinks-facet-label')?.textContent ?? '').trim(),
+          ),
+          chosen: options
+            .filter((o) => o.getAttribute('aria-checked') === 'true')
+            .map((o) => (o.querySelector('.to-backlinks-facet-label')?.textContent ?? '').trim()),
+          // Icon only: the four orders have long names, and the header's job is
+          // to state counts.
+          text: (
+            document.querySelector('.workspace-leaf.mod-active .to-backlinks-sort')?.textContent ??
+            ''
+          ).trim(),
+          icon:
+            document.querySelector('.workspace-leaf.mod-active .to-backlinks-sort svg') !== null,
+        };
+      }),
     );
-    expect(focused).toBe('sort');
+    expect(menu.open).toBe(true);
+    expect(menu.labels.length).toBe(4);
+    expect(menu.text).toBe('');
+    expect(menu.icon).toBe(true);
+    // Exactly one is marked, and it is the default.
+    expect(menu.chosen).toEqual(['Recently modified']);
+    // A radio group: one choice, announced as one. The facets' toggle
+    // semantics would say several orders could be on at once.
+    const roles = await browser.executeObsidian(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-sort-menu .to-backlinks-facet-option',
+        ),
+      ).map((o) => o.getAttribute('role')),
+    );
+    expect(roles).toEqual(['menuitemradio', 'menuitemradio', 'menuitemradio', 'menuitemradio']);
 
-    // The two halves are asserted separately because only one of them can be
-    // driven portably. Focus is the half that REGRESSED — a prevented default
-    // on pointerdown stops a select opening at all — and a real press proves
-    // it. Moving the selection from the keyboard is not portable: on macOS
-    // ArrowDown opens the closed control rather than changing its value, and on
-    // other platforms it changes it. So the value is set the way the control
-    // itself would, and the assertion is that the change reaches plugin data.
-    await browser.executeObsidian((_ctx, next: string) => {
-      const select = document.querySelector<HTMLSelectElement>(
-        '.workspace-leaf.mod-active .to-backlinks-sort',
-      );
-      if (!select) return;
-      select.value = next;
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    }, options!.all[1]!);
-    await browser.pause(900);
+    const before = await readStable(groupNames);
+    await chooseFacetValue('Note name');
+    await settle();
 
     const stored = (await h.readPluginData()) as unknown as Record<string, unknown> | null;
-    expect(stored?.backlinksSort).toBe(options!.all[1]);
-
-    // And it carries its own mark, which the first cut left out entirely.
-    const hasIcon = await browser.executeObsidian(
+    expect(stored?.backlinksSort).toBe('name');
+    // Choosing an order closes the menu it was chosen from — unlike a facet,
+    // where a second value is a normal next move.
+    const stillOpen = await browser.executeObsidian(
       () =>
-        document.querySelector('.workspace-leaf.mod-active .to-backlinks-sort-icon svg') !== null,
+        document
+          .querySelector('.workspace-leaf.mod-active .to-backlinks-sort')
+          ?.getAttribute('aria-expanded') === 'true',
     );
-    expect(hasIcon).toBe(true);
+    expect(stillOpen).toBe(false);
+
+    const after = await readStable(groupNames);
+    expect(after).not.toEqual(before);
+    // Ordered by name, which is the whole of what was asked for. NOT the same
+    // notes reshuffled: under a cap the order decides which groups are admitted
+    // at all, so a sort legitimately changes the set (design Risks). Asserting
+    // the sets matched would have been asserting the design was different.
+    expect(after).toEqual([...after].sort((a, b) => a.localeCompare(b)));
 
     await browser.executeObsidian(async ({ plugins }) => {
       await (plugins.trueOutliner as any).setBacklinksSort('recent');
     });
-    await browser.pause(500);
+    await settle();
+  });
+
+  it('closes an open popover when the click lands somewhere else', async function () {
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    const expanded = (axis: string): Promise<string> =>
+      browser.executeObsidian(
+        (_ctx, selector: string) =>
+          document.querySelector(selector)?.getAttribute('aria-expanded') ?? 'gone',
+        `.workspace-leaf.mod-active ${sel(axis)}`,
+      );
+
+    // A click in the NOTE, on a line that is on screen BESIDE the footer.
+    //
+    // Two things rule out the obvious alternatives. The footer's own header
+    // folds the section, so clicking it would prove the popover closed by
+    // destroying the row that held it. And clicking a line far up the note
+    // means scrolling there first, which unmounts the widget — CodeMirror
+    // discards a block widget outside its viewport, and the listener goes with
+    // it, so the click is never seen and the popover is still open when the
+    // view comes back. A visible line is the gesture a reader actually makes.
+    const dismiss = async (): Promise<void> => {
+      const point = await browser.executeObsidian(() => {
+        const leaf = document.querySelector('.workspace-leaf.mod-active');
+        const footer = leaf?.querySelector('.to-backlinks')?.getBoundingClientRect();
+        const lines = Array.from(leaf?.querySelectorAll<HTMLElement>('.cm-line') ?? []);
+        const above = lines
+          .map((l) => l.getBoundingClientRect())
+          .filter((r) => r.height > 0 && r.top > 0 && footer && r.bottom < footer.top);
+        const last = above[above.length - 1];
+        return last ? { x: last.left + 8, y: last.top + last.height / 2 } : null;
+      });
+      if (!point) throw new Error('no visible note line beside the footer');
+      await h.clickAtPoint(point.x, point.y);
+      await browser.pause(400);
+    };
+
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    expect(await expanded('folder')).toBe('true');
+    await dismiss();
+    // Pressing the button again also closes it, but that was the ONLY way out.
+    expect(await expanded('folder')).toBe('false');
+
+    // And the sort menu, which shares the one open-popover slot.
+    await clickIn(`${FOOTER} .to-backlinks-sort`);
+    expect(await expanded('sort')).toBe('true');
+    await dismiss();
+    expect(await expanded('sort')).toBe('false');
+  });
+
+  it('holds the row still when the reset appears and goes', async function () {
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    const facetEdges = (): Promise<number[]> =>
+      browser.executeObsidian(() =>
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '.workspace-leaf.mod-active .to-backlinks-filters .to-backlinks-facet',
+          ),
+        ).map((f) => Math.round(f.getBoundingClientRect().left)),
+      );
+
+    const idle = await readStable(facetEdges);
+    expect(idle.length).toBe(3);
+
+    // Filtering is switched on through the SEARCH FIELD, so the only thing
+    // that changes in the row is the reset appearing. Choosing a facet value
+    // also moves that facet's own edge, because its word becomes the value it
+    // holds — intended, and a different question from this one.
+    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await browser.keys('a');
+    await browser.pause(700);
+    await settle();
+
+    const filtered = await readStable(facetEdges);
+    const reset = await browser.executeObsidian(
+      () => document.querySelector('.workspace-leaf.mod-active .to-backlinks-reset') !== null,
+    );
+    expect(reset).toBe(true);
+    // The reset appeared and NOTHING moved. Its slot is in the row whether or
+    // not it holds a button, so choosing a value cannot shift the control
+    // beside the one being used.
+    expect(filtered).toEqual(idle);
+
+    await clearFilters();
+    await openFilters();
+    expect(await readStable(facetEdges)).toEqual(idle);
   });
 
   it('re-counts one axis against the other’s selection', async function () {
@@ -444,6 +576,80 @@ describe('the footer’s controls', function () {
     // using no tags from meeting a control that can do nothing.
     expect(axes).not.toContain('tag');
     expect(axes).toContain('kind');
+
+    await openFooter(TARGET);
+  });
+
+  it('clears the name filter from the control inside the field', async function () {
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await browser.keys('Bri');
+    await browser.pause(700);
+    expect(await searchValue()).toBe('Bri');
+
+    // A REAL press on the field's own clear control. It used to reach
+    // Chromium's native cancel button instead — the field was `type="search"`,
+    // which puts one at exactly this position — and that clears the element's
+    // value while reporting it through an event this code does not listen for,
+    // so the term came straight back on the next repaint.
+    await clickIn(`${FOOTER} .to-backlinks-search-clear`);
+    await browser.pause(700);
+    expect(await searchValue()).toBe('');
+    // And the field is still there to type into, rather than the row having
+    // been rebuilt out from under the reader.
+    const focused = await browser.executeObsidian(
+      () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+    );
+    expect(focused).toBe('search');
+  });
+
+  /**
+   * Folding, on a footer small enough to fold cheaply.
+   *
+   * Deliberately NOT an assertion about where the view ends up. A fold takes
+   * height out of the document from BELOW the head, so the head's own position
+   * in the document does not move: if the reader's scroll offset still fits the
+   * shortened document the browser keeps it and nothing moves at all, and if it
+   * does not, the browser clamps — and no offset could have held the head,
+   * because the one it would need no longer exists. Measured on a five-line
+   * note whose footer is most of a screen: the offset went 206 to 0 because the
+   * whole document then fitted the viewport. There is nothing here for this
+   * code to preserve, so what is pinned is the fold itself.
+   */
+  it('folds the section away and brings it back', async function () {
+    await openFooter(SMALL);
+
+    const shape = (): Promise<{ collapsed: boolean; groups: number; head: boolean }> =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        return {
+          collapsed:
+            root?.querySelector('.to-backlinks-head')?.classList.contains('is-collapsed') ?? false,
+          groups: root?.querySelectorAll('.to-backlinks-group').length ?? -1,
+          head: root?.querySelector('.to-backlinks-head') !== null,
+        };
+      });
+
+    const open = await readStable(shape);
+    expect(open.collapsed).toBe(false);
+    expect(open.groups).toBeGreaterThan(0);
+
+    await clickIn(`${FOOTER} .to-backlinks-title`);
+    await settle();
+    const folded = await readStable(shape);
+    // The head stays — it is the way back — and everything under it goes.
+    expect(folded.collapsed).toBe(true);
+    expect(folded.head).toBe(true);
+    expect(folded.groups).toBe(0);
+
+    await clickIn(`${FOOTER} .to-backlinks-title`);
+    await settle();
+    const reopened = await readStable(shape);
+    expect(reopened.collapsed).toBe(false);
+    expect(reopened.groups).toBe(open.groups);
 
     await openFooter(TARGET);
   });

@@ -1903,26 +1903,30 @@ body {
  * also folds the section the header click would.
  */
 
-.to-backlinks-filter-toggle,
-.to-backlinks-sort,
-.to-backlinks-reset {
+/* Scoped with `.to-backlinks` in front, like every other control here. Without
+ * it these lost `background: transparent` to Obsidian's own button fill, and
+ * the funnel carried a filled box in the state where it has nothing to say. */
+.to-backlinks .to-backlinks-filter-toggle,
+.to-backlinks .to-backlinks-sort,
+.to-backlinks .to-backlinks-reset {
   flex-shrink: 0;
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-s);
+  box-shadow: none;
   cursor: pointer;
 }
 
-.to-backlinks-filter-toggle:hover,
-.to-backlinks-sort:hover,
-.to-backlinks-reset:hover {
+.to-backlinks .to-backlinks-filter-toggle:hover,
+.to-backlinks .to-backlinks-sort:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
 }
 
-.to-backlinks-filter-toggle {
+.to-backlinks .to-backlinks-filter-toggle,
+.to-backlinks .to-backlinks-sort {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -1930,7 +1934,18 @@ body {
   width: 1.6em;
   height: 1.6em;
   padding: 0.2em;
-  box-shadow: none;
+}
+
+/* Open is the one state either of them fills for: a menu is on screen, and the
+ * button it belongs to should say so. */
+.to-backlinks .to-backlinks-sort.is-active {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks .to-backlinks-sort > svg {
+  width: 100%;
+  height: 100%;
 }
 
 /* The dot is the only thing saying a hidden control row is narrowing what the
@@ -1945,38 +1960,6 @@ body {
   height: 0.35em;
   border-radius: 50%;
   background: var(--to-decor-accent, var(--text-accent));
-}
-
-/* The icon cannot live inside a `select` — it renders its own contents — so it
- * sits over the control's leading edge and the select reserves room for it. */
-.to-backlinks-sort-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.to-backlinks-sort-icon {
-  position: absolute;
-  inset-inline-start: 0.35em;
-  display: inline-flex;
-  width: 0.85em;
-  height: 0.85em;
-  color: var(--text-muted);
-  /* The select owns the clicks; the icon is notation lying on top of it. */
-  pointer-events: none;
-}
-
-.to-backlinks-sort-icon > svg {
-  width: 100%;
-  height: 100%;
-}
-
-.to-backlinks-sort {
-  max-width: 11em;
-  padding-block: 0.1em;
-  padding-inline: 1.5em 0.3em;
-  height: auto;
 }
 
 /* ---- The filter row ------------------------------------------------------ *
@@ -2032,6 +2015,14 @@ body {
   height: 100%;
 }
 
+/* `!important` on the background alone, and only there.
+ *
+ * Measured rather than assumed: exactly two rules set a background on this
+ * input — Obsidian's `input[type="text"]` and this one — and this one is both
+ * more specific and later in the document, yet the computed value stayed
+ * Obsidian's while every other declaration here (the padding, the border) won
+ * normally. Whatever the host is doing, the effect is a filled pill inside the
+ * field with the caret against its rounded end, which is what this defeats. */
 .to-backlinks .to-backlinks-search {
   flex: 1 1 auto;
   min-width: 0;
@@ -2040,7 +2031,7 @@ body {
   height: auto;
   font-size: var(--font-ui-smaller);
   color: var(--text-normal);
-  background: transparent;
+  background: transparent !important;
   border: none;
   box-shadow: none;
 }
@@ -2199,7 +2190,8 @@ body {
   border-color: var(--interactive-accent);
 }
 
-.to-backlinks .to-backlinks-facet-find input {
+/* The same pill, for the same reason — see the note on the search field. */
+.to-backlinks .to-backlinks-find-input {
   flex: 1 1 auto;
   min-width: 0;
   width: 100%;
@@ -2207,9 +2199,16 @@ body {
   height: auto;
   font-size: var(--font-ui-smaller);
   color: var(--text-normal);
-  background: transparent;
+  background: transparent !important;
   border: none;
   box-shadow: none;
+}
+
+/* Sort is ONE choice. The empty squares a facet's list draws would promise
+ * that several could be ticked at once; only the chosen row is marked here. */
+.to-backlinks-sort-menu .to-backlinks-facet-box {
+  border-color: transparent;
+  background: transparent;
 }
 
 .to-backlinks-facet-list {
@@ -2288,6 +2287,18 @@ body {
  * deliberately unlike a facet: a fourth rectangle at the end of three of them
  * reads as another facet rather than as the thing that undoes them.
  */
+/* Always present, filled or empty. A reset that took its width out of the
+ * search field shifted every facet left the moment a value was chosen — a
+ * visible jump in the row the reader was working in. */
+.to-backlinks-reset-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.75em;
+  height: 1.75em;
+}
+
 .to-backlinks .to-backlinks-reset {
   display: inline-flex;
   align-items: center;
