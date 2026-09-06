@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M1TBXRGZ2A9VABCK47S72Q1A",
+  "strategy": "manual-commit",
+  "branch": "fix/toggle-paints-before-write",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/11-decoration-lessons.md",
+    "docs/research/12-decoration-follow-ups.md",
+    "e2e/specs/10-outline-mode.e2e.ts",
+    "openspec/specs/outline-mode/spec.md",
+    "src/plugin/main.ts",
+    "src/plugin/mode-registry.ts",
+    "tests/plugin.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 194,
+    "cache_creation_tokens": 209341,
+    "cache_read_tokens": 16628474,
+    "output_tokens": 85386,
+    "api_call_count": 97
+  }
+}

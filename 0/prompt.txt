@@ -1,0 +1,26 @@
+`e2e/specs/56-list-grid.e2e.ts` has an intermittent failure on CI (desktop, `decorations` group).
+
+The case is `puts space-indented levels on the grid whatever the space count` (around line 513). The failing assertion is:
+
+    expect(row.markerX).toBeCloseTo(row.column, 1);
+
+Observed on GitHub Actions run 34001303005 (job `desktop (decorations)`, commit 893c4c5 of branch `feat/backlinks-controls`): `Expected: 0, Received: 14.88`. So the row's marker sat roughly one marker-gutter to the right of the depth-0 column instead of on it.
+
+Context that narrows it:
+- The whole `decorations` group passes locally on macOS (8/8 spec files, 30 cases in 56-list-grid) at that same commit.
+- It also passed on CI on the immediately preceding runs of the same branch, so it is not a new persistent break.
+- The branch's only stylesheet changes at that point were all scoped under `.to-backlinks*` (the backlinks footer's own controls), so they cannot reach `.cm-line` list-grid decorations. The failure is very unlikely to be caused by that branch.
+
+The case loops over three indent styles (`'  '`, `'   '`, `'\t'`) and rebuilds the note each time, so the first thing worth establishing is which iteration failed and whether the measurement ran before the layout settled — 14.88 is suspiciously close to one gutter, which suggests the marker was measured while the row was still being decorated, or that Obsidian's own indent rendering had not yet resolved.
+
+Goal: reproduce it (running the group repeatedly, or under load / with more parallel instances, is the likely route since CI is slower than a dev machine), find the actual cause, and fix either the timing of the measurement or the underlying decoration if it is real. Read `docs/research/` notes on decorations and the list grid before changing anything — several mechanisms there were chosen by measurement and the comments record why.
+
+---
+
+<task-notification>
+<task-id>bb7h8b7t8</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner--claude-worktrees-native-lists-decoration-5f72c7/b2190af8-b7ff-4821-ab09-41347aa9ad4b/tasks/bb7h8b7t8.output</output-file>
+<status>completed</status>
+<summary>Background command "Start the hammer loop in the background" completed (exit code 0)</summary>
+</task-notification>
