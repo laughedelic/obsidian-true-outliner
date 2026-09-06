@@ -168,6 +168,8 @@ export function normalizePluginData(raw: unknown): PluginData {
 
 export class OutlineModeRegistry {
   private paths = new Set<string>();
+  /** The write queue's tail, so the next write starts after this one lands. */
+  private writing: Promise<void> = Promise.resolve();
 
   constructor(private readonly persist: (paths: string[]) => Promise<void>) {}
 
@@ -179,12 +181,33 @@ export class OutlineModeRegistry {
     return this.paths.has(path);
   }
 
-  async toggle(path: string): Promise<boolean> {
+  /**
+   * Flips `path`'s mode and reports the state in force from here on, with the
+   * write that will cover it still in flight.
+   *
+   * Synchronous in what it decides, asynchronous only in what it stores. The
+   * mode IS this object's own `Set`; `data.json` is where that set survives a
+   * restart, and no reader of the mode consults the file. Reporting the new
+   * state only once the write resolved put every visible consequence of a
+   * toggle behind disk latency, which is a real wait rather than a theoretical
+   * one: a mode change dispatches no CM6 transaction of its own, so the editor
+   * repaints only when the plugin nudges it, and that nudge waited on the
+   * write.
+   *
+   * `saved` resolves once the stored set is at least as NEW as this call — not
+   * once `on` in particular is on disk. Each write snapshots the set as it
+   * stands when it runs (`save`), so a later toggle whose own write is still
+   * queued behind this one is stored in its place; the file is never left
+   * holding a state older than this call, and may hold a newer one. Awaiting it
+   * is therefore a claim about freshness rather than about a value: what it is
+   * good for is knowing the file has caught up, and surfacing a failed write to
+   * whoever asked for the toggle.
+   */
+  toggle(path: string): { on: boolean; saved: Promise<void> } {
     const on = !this.paths.has(path);
     if (on) this.paths.add(path);
     else this.paths.delete(path);
-    await this.save();
-    return on;
+    return { on, saved: this.save() };
   }
 
   async handleRename(oldPath: string, newPath: string): Promise<void> {
@@ -203,7 +226,25 @@ export class OutlineModeRegistry {
     return [...this.paths].sort();
   }
 
+  /**
+   * Queues a write of the mode set, ordered against every other write and
+   * carrying the state in force when it RUNS rather than when it was asked for.
+   *
+   * Both properties are load-bearing now that a toggle returns before its write
+   * lands. `forceRedraw` flips a note off and back on within one turn to make
+   * the decorations recompute twice, so two writes are in flight over one file
+   * and one of them describes a state that was never meant to outlive the turn.
+   * Unordered, whichever finishes last wins, and the note can come back from a
+   * restart with outline mode off while memory says it is on. Snapshotting late
+   * goes further than ordering alone: a queued write records where the set
+   * ended up, so the transient state is not stored at all.
+   *
+   * A failed write is reported to whoever asked for it and does not poison the
+   * queue — the next write starts from the caught tail.
+   */
   private save(): Promise<void> {
-    return this.persist(this.snapshot());
+    const done = this.writing.then(() => this.persist(this.snapshot()));
+    this.writing = done.catch(() => undefined);
+    return done;
   }
 }
