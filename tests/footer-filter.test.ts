@@ -1,0 +1,397 @@
+import { describe, expect, it } from 'vitest';
+import {
+  applyControls,
+  axesOf,
+  NO_FILTER,
+  type ControlsState,
+  type SourceRefs,
+} from '../src/plugin/footer-filter';
+import type { BacklinkReference, ReferenceKind } from '../src/plugin/backlink-index';
+import {
+  DEFAULT_GROUP_HEIGHT,
+  GROUP_HEIGHT_CSS,
+  OVERALL_CAP_REFERENCES,
+} from '../src/plugin/mode-registry';
+
+const ref = (kind: ReferenceKind, original = '[[Target]]'): BacklinkReference => ({
+  kind,
+  sourcePath: 'unused',
+  line: 0,
+  original,
+});
+
+/** A referencing note: its path, its mtime, and one reference per kind given. */
+const src = (path: string, mtime: number, ...kinds: ReferenceKind[]): SourceRefs => ({
+  path,
+  mtime,
+  refs: kinds.map((k) => ref(k)),
+  tags: [],
+});
+
+/** The same, carrying tags — the axis where one note answers to several values. */
+const tagged = (path: string, mtime: number, tags: string[], ...kinds: ReferenceKind[]): SourceRefs =>
+  ({ ...src(path, mtime, ...kinds), tags });
+
+const controls = (over: Partial<ControlsState> = {}): ControlsState => ({ ...NO_FILTER, ...over });
+
+const paths = (r: { groups: readonly { path: string }[] }): string[] => r.groups.map((g) => g.path);
+
+// A fixture with two folders, three kinds, and distinct mtimes.
+const VAULT: SourceRefs[] = [
+  src('Daily/2026-01-03.md', 300, 'note', 'note'),
+  src('Daily/2026-01-01.md', 100, 'anchor'),
+  src('Notes/Brief.md', 200, 'note', 'embed', 'embed'),
+];
+
+describe('axes', () => {
+  it('offers only the values actually present, with contributing note counts', () => {
+    const axes = axesOf(VAULT);
+    expect(axes.folders).toEqual([
+      { value: 'Daily', notes: 2 },
+      { value: 'Notes', notes: 1 },
+    ]);
+    // No `property` anywhere in the fixture, so it is not offered at all.
+    expect(axes.kinds).toEqual([
+      { value: 'note', notes: 2 },
+      { value: 'anchor', notes: 1 },
+      { value: 'embed', notes: 1 },
+    ]);
+  });
+
+  it('offers one kind when every reference is of that kind', () => {
+    const axes = axesOf([src('A.md', 1, 'note'), src('B.md', 2, 'note', 'note')]);
+    expect(axes.kinds).toEqual([{ value: 'note', notes: 2 }]);
+  });
+
+  it('names the vault root as the empty folder', () => {
+    expect(axesOf([src('Root.md', 1, 'note')]).folders).toEqual([{ value: '', notes: 1 }]);
+  });
+});
+
+describe('axis counts answer "if I add this, what do I get"', () => {
+  it('re-counts the other axis against a selected folder', () => {
+    // `Daily` holds two notes: one of kind `note`, one of kind `anchor`. The
+    // `embed` references all live under `Notes`, so within `Daily` there are
+    // none — and the chip has to say so rather than keep the count it had.
+    const axes = axesOf(VAULT, controls({ folders: new Set(['Daily']) }));
+    expect(axes.kinds).toEqual([
+      { value: 'note', notes: 1 },
+      { value: 'anchor', notes: 1 },
+      { value: 'embed', notes: 0 },
+    ]);
+  });
+
+  it('keeps a zeroed value on offer rather than removing it', () => {
+    const axes = axesOf(VAULT, controls({ folders: new Set(['Daily']) }));
+    expect(axes.kinds.map((k) => k.value)).toEqual(['note', 'anchor', 'embed']);
+  });
+
+  it('does not count an axis against its own selection', () => {
+    // Picking `embed` must not zero `note` and `anchor`, or no second kind
+    // could ever be added to the selection.
+    const axes = axesOf(VAULT, controls({ kinds: new Set<ReferenceKind>(['embed']) }));
+    expect(axes.kinds.find((k) => k.value === 'note')?.notes).toBe(2);
+    expect(axes.kinds.find((k) => k.value === 'anchor')?.notes).toBe(1);
+  });
+
+  it('re-counts folders against a selected kind', () => {
+    const axes = axesOf(VAULT, controls({ kinds: new Set<ReferenceKind>(['embed']) }));
+    expect(axes.folders).toEqual([
+      { value: 'Daily', notes: 0 },
+      { value: 'Notes', notes: 1 },
+    ]);
+  });
+
+  it('re-counts both axes against the search term', () => {
+    const axes = axesOf(VAULT, controls({ search: 'brief' }));
+    expect(axes.folders).toEqual([
+      { value: 'Daily', notes: 0 },
+      { value: 'Notes', notes: 1 },
+    ]);
+    expect(axes.kinds.find((k) => k.value === 'anchor')?.notes).toBe(0);
+  });
+
+  it('is the unfiltered count when nothing is selected', () => {
+    expect(axesOf(VAULT, NO_FILTER)).toEqual(axesOf(VAULT));
+  });
+});
+
+describe('focus-on semantics', () => {
+  it('admits everything when no axis has a selection', () => {
+    const result = applyControls(VAULT, controls());
+    expect(result.totals).toEqual({ references: 6, notes: 3 });
+    expect(result.shortfall).toEqual({ references: 0, notes: 0 });
+  });
+
+  it('narrows to a selected folder', () => {
+    const result = applyControls(VAULT, controls({ folders: new Set(['Notes']) }));
+    expect(paths(result)).toEqual(['Notes/Brief.md']);
+    expect(result.totals).toEqual({ references: 3, notes: 1 });
+  });
+
+  it('counts only references of a selected kind, and drops a group left with none', () => {
+    const result = applyControls(VAULT, controls({ kinds: new Set<ReferenceKind>(['embed']) }));
+    expect(paths(result)).toEqual(['Notes/Brief.md']);
+    expect(result.groups[0]?.count).toBe(2);
+  });
+
+  it('restores an axis when its last value is deselected', () => {
+    const selected = applyControls(VAULT, controls({ folders: new Set(['Notes']) }));
+    const cleared = applyControls(VAULT, controls({ folders: new Set() }));
+    expect(paths(selected)).toHaveLength(1);
+    expect(paths(cleared)).toHaveLength(3);
+  });
+
+  it('combines the axes conjunctively', () => {
+    const result = applyControls(
+      VAULT,
+      controls({ folders: new Set(['Daily']), kinds: new Set<ReferenceKind>(['note']) }),
+    );
+    expect(paths(result)).toEqual(['Daily/2026-01-03.md']);
+    expect(result.groups[0]?.count).toBe(2);
+  });
+
+  it('drops a selection whose value no longer exists rather than emptying the footer', () => {
+    const result = applyControls(VAULT, controls({ folders: new Set(['Archive']) }));
+    expect(paths(result)).toHaveLength(3);
+  });
+});
+
+describe('the tag axis', () => {
+  // Two folders, and tags that deliberately cut ACROSS them, so a tag result is
+  // not reachable by a folder selection.
+  const TAGGED: SourceRefs[] = [
+    tagged('Daily/mon.md', 400, ['standup', 'review'], 'note'),
+    tagged('Daily/tue.md', 300, ['standup'], 'anchor'),
+    tagged('Notes/spec.md', 200, ['review'], 'note'),
+    tagged('Notes/idle.md', 100, [], 'embed'),
+  ];
+
+  it('offers the tags actually present, with contributing note counts', () => {
+    expect(axesOf(TAGGED).tags).toEqual([
+      { value: 'review', notes: 2 },
+      { value: 'standup', notes: 2 },
+    ]);
+  });
+
+  it('offers nothing when no contributing note is tagged', () => {
+    expect(axesOf(VAULT).tags).toEqual([]);
+  });
+
+  it('narrows to a selected tag', () => {
+    const result = applyControls(TAGGED, controls({ tags: new Set(['review']) }));
+    expect(paths(result).sort()).toEqual(['Daily/mon.md', 'Notes/spec.md']);
+  });
+
+  it('WIDENS on a second tag, where a second folder could only narrow', () => {
+    const one = applyControls(TAGGED, controls({ tags: new Set(['review']) }));
+    const two = applyControls(TAGGED, controls({ tags: new Set(['review', 'standup']) }));
+    // A note carrying EITHER is admitted — the whole of D9's asymmetry.
+    expect(paths(one)).toHaveLength(2);
+    expect(paths(two).sort()).toEqual(['Daily/mon.md', 'Daily/tue.md', 'Notes/spec.md']);
+  });
+
+  it('still combines with the other axes conjunctively', () => {
+    const result = applyControls(
+      TAGGED,
+      controls({ tags: new Set(['review', 'standup']), kinds: new Set<ReferenceKind>(['anchor']) }),
+    );
+    expect(paths(result)).toEqual(['Daily/tue.md']);
+  });
+
+  it('drops an untagged note whenever any tag is selected', () => {
+    const result = applyControls(TAGGED, controls({ tags: new Set(['review', 'standup']) }));
+    expect(paths(result)).not.toContain('Notes/idle.md');
+  });
+
+  it('counts a tag against the OTHER axes, its own excluded', () => {
+    // Within `Notes`, `standup` has nothing — but `review` keeps its live count,
+    // and both stay on offer.
+    const axes = axesOf(TAGGED, controls({ folders: new Set(['Notes']) }));
+    expect(axes.tags).toEqual([
+      { value: 'review', notes: 1 },
+      { value: 'standup', notes: 0 },
+    ]);
+  });
+
+  it('does not count the tag axis against its own selection', () => {
+    const axes = axesOf(TAGGED, controls({ tags: new Set(['review']) }));
+    expect(axes.tags.find((t) => t.value === 'standup')?.notes).toBe(2);
+  });
+
+  it('re-counts the other axes against a selected tag', () => {
+    const axes = axesOf(TAGGED, controls({ tags: new Set(['standup']) }));
+    expect(axes.folders).toEqual([
+      { value: 'Daily', notes: 2 },
+      { value: 'Notes', notes: 0 },
+    ]);
+  });
+
+  it('drops a selected tag that stops existing', () => {
+    const result = applyControls(TAGGED, controls({ tags: new Set(['gone']) }));
+    expect(paths(result)).toHaveLength(4);
+  });
+});
+
+describe('search', () => {
+  it('matches source note names, case-insensitively', () => {
+    expect(paths(applyControls(VAULT, controls({ search: 'brief' })))).toEqual(['Notes/Brief.md']);
+  });
+
+  it('does not reach reference content', () => {
+    const withText: SourceRefs[] = [
+      { path: 'A.md', mtime: 1, refs: [ref('note', '[[Target|quarterly review]]')], tags: [] },
+    ];
+    expect(paths(applyControls(withText, controls({ search: 'quarterly' })))).toEqual([]);
+    expect(paths(applyControls(withText, controls({ search: 'A' })))).toEqual(['A.md']);
+  });
+
+  it('does not match the folder part of a path', () => {
+    expect(paths(applyControls(VAULT, controls({ search: 'Daily' })))).toEqual([]);
+  });
+
+  it('combines with an axis', () => {
+    const result = applyControls(
+      VAULT,
+      controls({ search: '2026-01', kinds: new Set<ReferenceKind>(['anchor']) }),
+    );
+    expect(paths(result)).toEqual(['Daily/2026-01-01.md']);
+  });
+
+  it('admits everything when the term is blank', () => {
+    expect(paths(applyControls(VAULT, controls({ search: '   ' })))).toHaveLength(3);
+  });
+});
+
+describe('sort', () => {
+  it('defaults to most recently modified first', () => {
+    expect(paths(applyControls(VAULT, controls()))).toEqual([
+      'Daily/2026-01-03.md',
+      'Notes/Brief.md',
+      'Daily/2026-01-01.md',
+    ]);
+  });
+
+  it('reverses for oldest first', () => {
+    expect(paths(applyControls(VAULT, controls({ sort: 'oldest' })))).toEqual([
+      'Daily/2026-01-01.md',
+      'Notes/Brief.md',
+      'Daily/2026-01-03.md',
+    ]);
+  });
+
+  it('orders by note name, not by path', () => {
+    expect(paths(applyControls(VAULT, controls({ sort: 'name' })))).toEqual([
+      'Daily/2026-01-01.md',
+      'Daily/2026-01-03.md',
+      'Notes/Brief.md',
+    ]);
+  });
+
+  it('orders by reference count, most first', () => {
+    expect(paths(applyControls(VAULT, controls({ sort: 'references' })))).toEqual([
+      'Notes/Brief.md',
+      'Daily/2026-01-03.md',
+      'Daily/2026-01-01.md',
+    ]);
+  });
+
+  it('uses path only as the tie-break', () => {
+    const tied = [src('Zed.md', 500, 'note'), src('Abe.md', 500, 'note')];
+    expect(paths(applyControls(tied, controls()))).toEqual(['Abe.md', 'Zed.md']);
+  });
+
+  it('admits the same groups with the same counts whatever the order', () => {
+    const shape = (s: ControlsState['sort']): [string, number][] =>
+      applyControls(VAULT, controls({ sort: s }))
+        .groups.map((g): [string, number] => [g.path, g.count])
+        .sort();
+    expect(shape('oldest')).toEqual(shape('recent'));
+    expect(shape('name')).toEqual(shape('recent'));
+    expect(shape('references')).toEqual(shape('recent'));
+  });
+});
+
+describe('the overall cap', () => {
+  it('admits whole groups and stops before the one that would cross', () => {
+    const result = applyControls(VAULT, controls({ cap: 4 }));
+    // 2 then 3 would be 5; the second group is refused rather than cut.
+    expect(paths(result)).toEqual(['Daily/2026-01-03.md']);
+    expect(result.shortfall).toEqual({ references: 4, notes: 2 });
+  });
+
+  it('admits nothing after the group it stopped at', () => {
+    // Under `oldest` the 1-reference group leads, so a cap of 2 could fit the
+    // trailing group but must not reach past the one it refused.
+    const result = applyControls(VAULT, controls({ sort: 'oldest', cap: 2 }));
+    expect(paths(result)).toEqual(['Daily/2026-01-01.md']);
+  });
+
+  it('admits a single group that exceeds the cap on its own', () => {
+    const result = applyControls([src('Hub.md', 1, 'note', 'note', 'note')], controls({ cap: 1 }));
+    expect(paths(result)).toEqual(['Hub.md']);
+    expect(result.shortfall).toEqual({ references: 0, notes: 0 });
+  });
+
+  it('reports true totals, not the rendered subset', () => {
+    const result = applyControls(VAULT, controls({ cap: 1 }));
+    expect(result.totals).toEqual({ references: 6, notes: 3 });
+  });
+
+  it('reports totals for the FILTERED set when a filter is active', () => {
+    const result = applyControls(VAULT, controls({ folders: new Set(['Daily']), cap: 1 }));
+    expect(result.totals).toEqual({ references: 3, notes: 2 });
+  });
+
+  it('frees budget when a filter narrows the set', () => {
+    const capped = applyControls(VAULT, controls({ cap: 3 }));
+    const narrowed = applyControls(VAULT, controls({ cap: 3, folders: new Set(['Notes']) }));
+    expect(capped.shortfall.references).toBeGreaterThan(0);
+    // The whole of the narrowed set now fits inside the same cap.
+    expect(narrowed.shortfall).toEqual({ references: 0, notes: 0 });
+  });
+
+  it('admits everything when there is no limit', () => {
+    const result = applyControls(VAULT, controls());
+    expect(paths(result)).toHaveLength(3);
+    expect(result.shortfall).toEqual({ references: 0, notes: 0 });
+  });
+});
+
+describe('the empty-controls case', () => {
+  it('reproduces the unfiltered footer: every group, recency order, no shortfall', () => {
+    const result = applyControls(VAULT, NO_FILTER);
+    const byRecency = [...VAULT].sort((a, b) => b.mtime - a.mtime).map((s) => s.path);
+    expect(paths(result)).toEqual(byRecency);
+    expect(result.groups.map((g) => g.count)).toEqual([2, 3, 1]);
+    expect(result.shortfall).toEqual({ references: 0, notes: 0 });
+  });
+
+  it('is dormant for a note with no references', () => {
+    const result = applyControls([], NO_FILTER);
+    expect(result.groups).toEqual([]);
+    expect(result.totals).toEqual({ references: 0, notes: 0 });
+  });
+});
+
+describe('the cap settings', () => {
+  it('gives every overall-cap option a reference count', () => {
+    expect(Object.values(OVERALL_CAP_REFERENCES).every((n) => n > 0)).toBe(true);
+    expect(OVERALL_CAP_REFERENCES.none).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('gives every group-height option a value the stylesheet accepts', () => {
+    for (const value of Object.values(GROUP_HEIGHT_CSS)) {
+      expect(value).toMatch(/^(?:\d+(?:\.\d+)?rem|none)$/);
+    }
+  });
+
+  it('leaves the shipped group height as the default', () => {
+    expect(GROUP_HEIGHT_CSS[DEFAULT_GROUP_HEIGHT]).toBe('16rem');
+  });
+
+  it('caps nothing at the no-limit setting', () => {
+    const result = applyControls(VAULT, controls({ cap: OVERALL_CAP_REFERENCES.none }));
+    expect(result.shortfall).toEqual({ references: 0, notes: 0 });
+  });
+});

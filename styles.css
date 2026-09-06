@@ -1367,11 +1367,21 @@ body {
   margin-inline-start: auto;
 }
 
+/*
+ * The section's own icon is NOT a row mark, and does not take the footer's
+ * smaller mark size. It sits on the depth-0 column beside the editor's own
+ * top-level markers, so it is the size of one — published from the token by the
+ * controller (`--to-backlinks-head-icon`) rather than written here, where a
+ * literal would be a copy of a derived value.
+ *
+ * Both the width and the left shift read the same property, so the centre stays
+ * anchored on the column whatever the size is.
+ */
 .to-backlinks-icon {
   position: absolute;
-  left: calc(-1 * var(--to-marker-icon-size, 0.85rem) / 2);
-  width: var(--to-marker-icon-size, 0.85rem);
-  height: var(--to-marker-icon-size, 0.85rem);
+  left: calc(-1 * var(--to-backlinks-head-icon, 0.85rem) / 2);
+  width: var(--to-backlinks-head-icon, 0.85rem);
+  height: var(--to-backlinks-head-icon, 0.85rem);
   flex-shrink: 0;
   /* A marker's colour, because on the depth-0 column that is what it now reads
    * as. It brightens only when the section is folded, where it stops being
@@ -1883,4 +1893,587 @@ body {
 .to-backlinks-more:hover {
   color: var(--text-normal);
   border-color: var(--background-modifier-border-hover);
+}
+
+/* ---- The footer's controls ---------------------------------------------- *
+ *
+ * Two rows: the header always carries the totals, the filter affordance and
+ * the sort selector, and a second row appears only when the affordance is
+ * used. Both control rows stop their own clicks in JS, so operating one never
+ * also folds the section the header click would.
+ */
+
+/* Scoped with `.to-backlinks` in front, like every other control here. Without
+ * it these lost `background: transparent` to Obsidian's own button fill, and
+ * the funnel carried a filled box in the state where it has nothing to say. */
+.to-backlinks .to-backlinks-filter-toggle,
+.to-backlinks .to-backlinks-sort,
+.to-backlinks .to-backlinks-reset {
+  flex-shrink: 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-filter-toggle:hover,
+.to-backlinks .to-backlinks-sort:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks .to-backlinks-filter-toggle,
+.to-backlinks .to-backlinks-sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  padding: 0.2em;
+}
+
+/* Open is the one state either of them fills for: a menu is on screen, and the
+ * button it belongs to should say so. */
+.to-backlinks .to-backlinks-sort.is-active {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks .to-backlinks-sort > svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* The dot is the only thing saying a hidden control row is narrowing what the
+ * body shows. Drawn rather than swapped into the glyph, so the affordance
+ * keeps one shape and gains a mark. */
+.to-backlinks-filter-toggle.is-active::after {
+  content: '';
+  position: absolute;
+  top: 0.1em;
+  inset-inline-end: 0.1em;
+  width: 0.35em;
+  height: 0.35em;
+  border-radius: 50%;
+  background: var(--to-decor-accent, var(--text-accent));
+}
+
+/* ---- The filter row ------------------------------------------------------ *
+ *
+ * Flush with the CARDS, not with the header. The header's leading gutter is the
+ * marker column, which exists to hold the section icon; nothing in this row
+ * sits in it, so inheriting that indent was borrowed alignment.
+ *
+ * The row's shape does not change with width: the search field takes what is
+ * left over and the facets are fixed. That is what lets a facet shed its word
+ * on a narrow footer without anything reflowing — only a button's CONTENT
+ * changes, and nothing here is competing for space.
+ */
+.to-backlinks-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.to-backlinks-search-field {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  /* The one control that grows. `min-width: 0` is what allows it to SHRINK
+   * below its content, without which a long placeholder would push the facets
+   * off the end. */
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 0.3em 0 0.5em;
+  min-height: 1.9em;
+  background: var(--background-modifier-form-field, var(--background-primary));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.to-backlinks-search-field:focus-within {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px hsla(var(--interactive-accent-hsl), 0.28);
+}
+
+.to-backlinks-search-icon {
+  display: inline-flex;
+  flex: none;
+  width: 0.85em;
+  height: 0.85em;
+  color: var(--text-faint);
+}
+
+.to-backlinks-search-icon > svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* `!important` on the background alone, and only there.
+ *
+ * Measured rather than assumed: exactly two rules set a background on this
+ * input — Obsidian's `input[type="text"]` and this one — and this one is both
+ * more specific and later in the document, yet the computed value stayed
+ * Obsidian's while every other declaration here (the padding, the border) won
+ * normally. Whatever the host is doing, the effect is a filled pill inside the
+ * field with the caret against its rounded end, which is what this defeats. */
+.to-backlinks .to-backlinks-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  height: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-normal);
+  background: transparent !important;
+  border: none;
+  box-shadow: none;
+}
+
+/* The host's own input chrome, defeated on both fields at once.
+ *
+ * Its focus ring is a 2px spread `box-shadow` at an 8px radius, which around a
+ * bare 14px-tall input draws a small rounded oblong tight to the text — sitting
+ * over the caret and the first character typed. It arrives with focus, so it is
+ * at its most visible exactly when the field is being used. The border-radius
+ * goes with it: nothing here is a rounded box of its own, the FIELD around it
+ * is. Same `!important` and the same reason as the background above. */
+.to-backlinks .to-backlinks-search,
+.to-backlinks .to-backlinks-search:focus,
+.to-backlinks .to-backlinks-search:focus-visible,
+.to-backlinks .to-backlinks-find-input,
+.to-backlinks .to-backlinks-find-input:focus,
+.to-backlinks .to-backlinks-find-input:focus-visible {
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
+}
+
+.to-backlinks .to-backlinks-search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  padding: 0.15em;
+  color: var(--text-faint);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-search-clear:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* ---- One facet per axis -------------------------------------------------- */
+
+.to-backlinks-facet-anchor {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.to-backlinks .to-backlinks-facet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  flex: none;
+  padding: 0.1em 0.45em;
+  min-height: 1.9em;
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-facet:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks .to-backlinks-facet.is-active {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  border-color: var(--to-decor-accent, var(--text-accent));
+}
+
+.to-backlinks-facet-mark {
+  display: inline-flex;
+  flex: none;
+  width: 0.85em;
+  height: 0.85em;
+}
+
+/* The wikilink mark is lighter ink than the other two — brackets against a
+ * filled outline — so it is drawn a shade larger to look the same size. */
+.to-backlinks-facet[data-axis='kind'] .to-backlinks-facet-mark {
+  width: 0.98em;
+  height: 0.98em;
+}
+
+.to-backlinks-facet-mark > svg {
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Narrow: the word goes, the mark stays.
+ *
+ * A CONTAINER query, not a media query — the footer measures itself, so a
+ * narrow split pane on a wide screen behaves like a phone, which is the case a
+ * viewport query gets wrong.
+ */
+.to-backlinks {
+  container-type: inline-size;
+}
+
+@container (max-width: 32rem) {
+  .to-backlinks-facet-word {
+    display: none;
+  }
+
+  .to-backlinks .to-backlinks-facet {
+    padding-inline: 0.35em;
+  }
+}
+
+/* ---- A facet's values ---------------------------------------------------- */
+
+.to-backlinks-facet-menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  inset-inline-end: 0;
+  z-index: var(--layer-popover, 30);
+  min-width: 12rem;
+  max-width: 18rem;
+  padding: 0.35rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s, 0 10px 30px rgba(0, 0, 0, 0.45));
+}
+
+.to-backlinks-facet-cap {
+  display: flex;
+  align-items: center;
+  padding: 0.15rem 0.4rem 0.3rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+.to-backlinks .to-backlinks-facet-clear {
+  margin-inline-start: auto;
+  padding: 0 0.2em;
+  height: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--to-decor-accent, var(--text-accent));
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+/* Only the axes whose value sets are unbounded get one (design D10). */
+.to-backlinks-facet-find {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0.1rem 0.3rem;
+  padding: 0 0.4em;
+  min-height: 1.8em;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.to-backlinks-facet-find:focus-within {
+  border-color: var(--interactive-accent);
+}
+
+/* The same pill, for the same reason — see the note on the search field. */
+.to-backlinks .to-backlinks-find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  height: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-normal);
+  background: transparent !important;
+  border: none;
+  box-shadow: none;
+}
+
+/* Sort is ONE choice. The empty squares a facet's list draws would promise
+ * that several could be ticked at once; only the chosen row is marked here. */
+.to-backlinks-sort-menu .to-backlinks-facet-box {
+  border-color: transparent;
+  background: transparent;
+}
+
+.to-backlinks-facet-list {
+  max-height: 13rem;
+  overflow-y: auto;
+}
+
+.to-backlinks .to-backlinks-facet-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.25rem 0.4rem;
+  font-size: var(--font-ui-smaller);
+  text-align: start;
+  color: var(--text-normal);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  height: auto;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-facet-option:hover {
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks-facet-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 0.95em;
+  height: 0.95em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+}
+
+.to-backlinks-facet-option.is-selected .to-backlinks-facet-box {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+.to-backlinks-facet-box > svg {
+  width: 80%;
+  height: 80%;
+}
+
+.to-backlinks-facet-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Nothing left under the OTHER axes' selections. The count is what changed, so
+ * the count is what is marked; the row recedes without leaving the list,
+ * because adding it and dropping whatever emptied it is a normal way out.
+ */
+.to-backlinks-facet-option.is-empty {
+  color: var(--text-faint);
+}
+
+.to-backlinks-chip-count {
+  margin-inline-start: auto;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The one control that clears every axis at once. Round and icon-only,
+ * deliberately unlike a facet: a fourth rectangle at the end of three of them
+ * reads as another facet rather than as the thing that undoes them.
+ */
+/* Always present, filled or empty. A reset that took its width out of the
+ * search field shifted every facet left the moment a value was chosen — a
+ * visible jump in the row the reader was working in. */
+.to-backlinks-reset-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.75em;
+  height: 1.75em;
+}
+
+.to-backlinks .to-backlinks-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.75em;
+  height: 1.75em;
+  padding: 0.4em;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 50%;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-reset:hover {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+.to-backlinks .to-backlinks-reset > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.to-backlinks-facet-none {
+  padding: 0.2rem 0.4rem 0.35rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+/* ---- Incompleteness, said spatially as well as numerically --------------- *
+ *
+ * A count sentence alone is too quiet for a section a reader scrolls past, so
+ * an omission is marked three ways: a rung where the missing rows would have
+ * stood, the sentence, and a fade on the last card so the list is visibly
+ * running off rather than ending (docs/research/18, D10).
+ */
+
+/* The rung IS the cap's control — it says how much is hidden and reveals it,
+ * rather than a bare chevron beside a number somewhere else.
+ *
+ * It is a ROW, so it undoes the pill above it completely rather than restyling
+ * it. The chevron straddles the card's bottom edge from `position: absolute`,
+ * and a rung that inherited that was a full-width box centred on half a card's
+ * width, lying across the last line of text — with the pill's border coming
+ * back on hover, because the rung had only turned the border off in its resting
+ * state. Both belong to the same element and only one of them is a pill.
+ *
+ * Static positioning is also what makes the depth work: the rung carries the
+ * line chrome's `--to-depth`, and the rules that read it indent a line in
+ * normal flow. */
+.to-backlinks .to-backlinks-rung {
+  position: static;
+  transform: none;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: auto;
+  margin-top: 0.15rem;
+  padding: 0;
+  color: var(--text-faint);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  text-align: start;
+  cursor: pointer;
+}
+
+.to-backlinks .to-backlinks-rung:hover,
+.to-backlinks .to-backlinks-rung:focus,
+.to-backlinks .to-backlinks-rung:focus-visible {
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.to-backlinks-more-count {
+  font-size: var(--font-ui-smaller);
+}
+
+.to-backlinks-tail {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-left: calc(var(--to-marker-icon-size, 0.85rem) / 2);
+}
+
+/* The action to the left of the sentence, which is where D10 puts it. */
+.to-backlinks-tail > .to-backlinks-rung {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.to-backlinks-shortfall {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+/* The last card dissolves when the list continues past it. Masked rather than
+ * overlaid, for the same reason the group fade is: a gradient would have to
+ * know the theme's background colour, and a mask fades the content itself. */
+.to-backlinks-group.is-fading {
+  mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+}
+
+/* ---- Coexistence with Obsidian's own in-document backlinks --------------- *
+ *
+ * Obsidian renders its own "Linked mentions" section INSIDE the editor —
+ * measured, not assumed: it is a child of `.cm-sizer`, a sibling of the
+ * `.cm-content` our footer's widget lives in. So the condition "a view where
+ * our footer is rendering" is expressible on the nearest shared ancestor,
+ * which is tighter than reaching up to the workspace leaf.
+ *
+ * Presentational only, and nothing has to undo it. The rule lives in the
+ * stylesheet Obsidian unloads with the plugin, so `plugin-shell`'s no-residue
+ * requirement holds by construction rather than by a lifecycle hook that has
+ * to run. `:has()` has been in Chromium since 105, well below the Electron
+ * that ships with our `minAppVersion`.
+ *
+ * The setting is carried as a class on the footer itself, so the whole
+ * condition — the plugin is decorating this note, its footer is mounted, and
+ * the reader wants one list rather than two — is one selector.
+ */
+.cm-sizer:has(.to-backlinks.is-suppressing-core) > .embedded-backlinks {
+  /* `!important` because Obsidian drives this element's visibility with an
+   * INLINE style — measured: an unpopulated section carries
+   * `style="display: none"` of its own, and a populated one is shown the same
+   * way. A stylesheet declaration loses to an inline one whatever its
+   * specificity, so without this the rule would apply in exactly the case it
+   * does not matter and lose in the one it does. */
+  display: none !important;
+}
+
+/* ---- The lineage separator, when the setting asks for one ---------------- *
+ *
+ * Off by default: the icons already divide the names, and a mark between two
+ * names is one more than the eye needs. When it IS on, it holds the same
+ * 0.7em a chain of plain names divides by — the chevron's own margins, split
+ * either side of it — so turning it on changes what stands between two
+ * ancestors and not the rhythm of the chain.
+ *
+ * `.to-backlinks-seg + .to-backlinks-seg` no longer matches once a separator
+ * sits between them, so that rule stops applying exactly where this one starts.
+ */
+.to-backlinks-seg-sep {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  width: 0.65em;
+  height: 0.65em;
+  margin-inline: 0.35em;
+  color: var(--to-backlinks-mark);
+  opacity: 0.7;
+}
+
+.to-backlinks-seg-sep > svg {
+  width: 100%;
+  height: 100%;
 }
