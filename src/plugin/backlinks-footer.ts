@@ -913,36 +913,49 @@ class FooterController {
       findable: true,
     });
 
-    // One control that undoes all of them, offered only while there is
-    // something to undo. Each facet can also clear its own axis, but a reader
-    // who has narrowed three ways should not have to visit three menus.
+    // One control at the row's end, and it is always there.
     //
-    // An icon button rather than a labelled one: a fourth rectangle at the end
-    // of three facets reads as another facet.
+    // It undoes all three axes and the term at once — each facet can clear its
+    // own, but a reader who has narrowed three ways should not have to visit
+    // three menus. An icon button rather than a labelled one: a fourth
+    // rectangle at the end of three facets reads as another facet.
     //
-    // Its SLOT is always here, empty or not. The search field is the one
-    // control that grows, so a button appearing at the row's end took its width
-    // out of the field — and every facet between them shifted left. Choosing a
-    // filter value should not move the control next to the one being used, so
-    // the space is reserved and only the button comes and goes.
+    // It carries a SECOND action rather than coming and going, and the reason
+    // is the row's shape. The search field is the one control that grows, so a
+    // button appearing at the end took its width out of the field and shifted
+    // every facet between them; reserving the space fixed the shift but left a
+    // hole where the button was not. So the space is filled: with nothing
+    // selected the same cross closes the row it sits in, which is the other
+    // thing a reader wants from a control in that position and is what a cross
+    // at the end of a row means anyway.
+    const filtering = this.isFiltering(state);
     const slot = row.createDiv({ cls: 'to-backlinks-reset-slot' });
-    if (!this.isFiltering(state)) return;
     const reset = slot.createEl('button', { cls: 'to-backlinks-reset' });
     reset.type = 'button';
     reset.dataset.focusKey = 'reset';
-    reset.setAttribute('aria-label', 'Clear filters and search');
+    // Which of the two it is, said in the DOM as well as in the label: the
+    // glyph is the same either way, and a caller — a test, a stylesheet —
+    // should not have to infer the mode from the state of three axes.
+    reset.dataset.mode = filtering ? 'clear' : 'close';
+    reset.toggleClass('is-clearing', filtering);
+    reset.setAttribute('aria-label', filtering ? 'Clear filters and search' : 'Hide filters');
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     reset.appendChild(clearGlyph());
     reset.addEventListener('click', (event) => {
       event.stopPropagation();
       const current = viewStateFor(this.targetPath);
+      current.openFacet = null;
+      if (!filtering) {
+        current.filtersOpen = false;
+        void this.render();
+        return;
+      }
       current.folders.clear();
       current.kinds.clear();
       current.tags.clear();
       current.search = '';
       current.folderQuery = '';
       current.tagQuery = '';
-      current.openFacet = null;
       current.capBonus = 0;
       void this.render();
     });

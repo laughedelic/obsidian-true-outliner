@@ -318,12 +318,19 @@ export async function setSearchTerm(text: string): Promise<void> {
   await settle();
 }
 
-/** Clear every selection, so a case starts from a known filter state. */
+/**
+ * Clear every selection, so a case starts from a known filter state.
+ *
+ * Pressed only when it is actually the clearing control. The same button closes
+ * the filter row when nothing is selected, so pressing it blind would leave the
+ * row shut and the next `openFilters` doing the work this was meant to do.
+ */
 export async function clearFilters(): Promise<void> {
   await browser.executeObsidian(() => {
-    const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
-    const reset = root?.querySelector<HTMLElement>('.to-backlinks-reset');
-    reset?.click();
+    const reset = document.querySelector<HTMLElement>(
+      '.workspace-leaf.mod-active .to-backlinks-reset',
+    );
+    if (reset?.dataset.mode === 'clear') reset.click();
   });
   await browser.pause(600);
 }

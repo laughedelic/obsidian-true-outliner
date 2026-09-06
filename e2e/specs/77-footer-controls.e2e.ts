@@ -129,6 +129,34 @@ describe('the footer’s controls', function () {
     expect(edges!.title).toBeGreaterThan(edges!.row);
   });
 
+  it('gives a facet button the same height as the search field', async function () {
+    await openFilters();
+
+    // Obsidian's own `button { height: var(--input-height) }` is a FIXED
+    // height that wins over a `min-height` set in `em` whenever it is the
+    // larger of the two — and `--input-height` is a touch-target value on
+    // mobile that dwarfs a facet's own row height. Undefeated, a facet stood
+    // tall and narrow instead of square-ish, and matched the field only by
+    // coincidence on desktop, where the host's value happens to fall near it.
+    // So this is asserted on whichever viewport is actually running: the
+    // relationship has to hold everywhere, not just on the one that used to
+    // hide the bug.
+    const heights = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        const field = root?.querySelector('.to-backlinks-search-field');
+        const facet = root?.querySelector('.to-backlinks-facet[data-axis="kind"]');
+        if (!field || !facet) return null;
+        return {
+          field: Math.round(field.getBoundingClientRect().height),
+          facet: Math.round(facet.getBoundingClientRect().height),
+        };
+      }),
+    );
+    expect(heights).not.toBeNull();
+    expect(heights!.facet).toBe(heights!.field);
+  });
+
   it('sheds the facet words on a narrow footer without the row wrapping', async function () {
     await openFilters();
     const measure = (): Promise<{
@@ -393,20 +421,26 @@ describe('the footer’s controls', function () {
     const idle = await readStable(facetEdges);
     expect(idle.length).toBe(3);
 
-    // Filtering is switched on through the SEARCH FIELD, so the only thing
-    // that changes in the row is the reset appearing. Choosing a facet value
+    const mode = (): Promise<string> =>
+      browser.executeObsidian(
+        () =>
+          document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-reset')
+            ?.dataset.mode ?? 'gone',
+      );
+    // Present before anything is selected, as the control that closes the row.
+    expect(await mode()).toBe('close');
+
+    // Filtering is switched on through the SEARCH FIELD, so the only thing that
+    // changes in the row is what that one button does. Choosing a facet value
     // also moves that facet's own edge, because its word becomes the value it
     // holds — intended, and a different question from this one.
     await setSearchTerm('a');
 
     const filtered = await readStable(facetEdges);
-    const reset = await browser.executeObsidian(
-      () => document.querySelector('.workspace-leaf.mod-active .to-backlinks-reset') !== null,
-    );
-    expect(reset).toBe(true);
-    // The reset appeared and NOTHING moved. Its slot is in the row whether or
-    // not it holds a button, so choosing a value cannot shift the control
-    // beside the one being used.
+    expect(await mode()).toBe('clear');
+    // The button changed its job and NOTHING moved. It holds its place in the
+    // row whichever of the two it is, so choosing a value cannot shift the
+    // control beside the one being used.
     expect(filtered).toEqual(idle);
 
     await clearFilters();
@@ -485,16 +519,36 @@ describe('the footer’s controls', function () {
         return {
           active: root?.querySelectorAll('.to-backlinks-facet.is-active').length ?? -1,
           search: root?.querySelector<HTMLInputElement>('.to-backlinks-search')?.value ?? 'x',
-          reset: root?.querySelector('.to-backlinks-reset') !== null,
+          mode: root?.querySelector<HTMLElement>('.to-backlinks-reset')?.dataset.mode ?? 'gone',
+          row: root?.querySelector('.to-backlinks-filters') !== null,
           dot: root?.querySelector('.to-backlinks-filter-toggle.is-active') !== null,
         };
       }),
     );
     expect(cleared.active).toBe(0);
     expect(cleared.search).toBe('');
-    // Offered only while something is active.
-    expect(cleared.reset).toBe(false);
     expect(cleared.dot).toBe(false);
+    // The control stays, and becomes the one that closes the row — with the
+    // row still open, since one press clears and it takes another to close.
+    expect(cleared.row).toBe(true);
+    expect(cleared.mode).toBe('close');
+
+    // And that second press does close it.
+    await clickIn(`${FOOTER} .to-backlinks-reset`);
+    await settle();
+    const shut = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        return {
+          row: root?.querySelector('.to-backlinks-filters') !== null,
+          expanded: root
+            ?.querySelector('.to-backlinks-filter-toggle')
+            ?.getAttribute('aria-expanded'),
+        };
+      }),
+    );
+    expect(shut.row).toBe(false);
+    expect(shut.expanded).toBe('false');
   });
 
   /**
