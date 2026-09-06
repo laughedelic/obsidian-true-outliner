@@ -580,6 +580,51 @@ describe('the footer’s controls', function () {
     await openFooter(TARGET);
   });
 
+  it('leaves no chrome of its own inside either text field', async function () {
+    await openFilters();
+
+    const chrome = async (selector: string): Promise<Record<string, string> | null> =>
+      browser.executeObsidian((_ctx, sel: string) => {
+        const el = document.querySelector<HTMLElement>(`.workspace-leaf.mod-active ${sel}`);
+        if (!el) return null;
+        const cs = getComputedStyle(el);
+        return {
+          background: cs.backgroundColor,
+          boxShadow: cs.boxShadow,
+          radius: cs.borderRadius,
+          border: cs.borderTopWidth,
+        };
+      }, selector);
+
+    // FOCUSED, which is the state the host dresses an input in and the state a
+    // reader is in when it matters. Its focus ring is a 2px spread shadow at an
+    // 8px radius, and around a bare 14px-tall input that draws a small rounded
+    // oblong tight to the text — over the caret and the first character typed.
+    // The box the reader should see is the FIELD around it, which keeps its own
+    // border and its own focus treatment.
+    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await browser.pause(400);
+    const name = await chrome('.to-backlinks-search');
+    expect(name).not.toBeNull();
+    expect(name!.background).toBe('rgba(0, 0, 0, 0)');
+    expect(name!.boxShadow).toBe('none');
+    expect(name!.radius).toBe('0px');
+    expect(name!.border).toBe('0px');
+
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    await browser.pause(300);
+    await clickIn(`${FOOTER} .to-backlinks-facet-find input`);
+    await browser.pause(400);
+    const find = await chrome('.to-backlinks-find-input');
+    expect(find).not.toBeNull();
+    expect(find!.background).toBe('rgba(0, 0, 0, 0)');
+    expect(find!.boxShadow).toBe('none');
+    expect(find!.radius).toBe('0px');
+    expect(find!.border).toBe('0px');
+
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+  });
+
   it('clears the name filter from the control inside the field', async function () {
     await openFilters();
     await clearFilters();

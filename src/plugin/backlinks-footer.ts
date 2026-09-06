@@ -305,6 +305,55 @@ class FooterController {
     this.el.detach();
   }
 
+  /**
+   * Fold or unfold, and put the section's head back where the reader had it.
+   *
+   * Folding takes height out of the document from BELOW the head, so the head's
+   * own position does not move and the browser has no reason to scroll. It does
+   * anyway once the footer is more than about half the screen — reported from
+   * use, and reproducible: below that share the view holds, above it the note
+   * jumps to the top, whatever the note's length or where the caret is. Length
+   * is what rules out the obvious explanation, since a clamp cannot take a long
+   * document to its top.
+   *
+   * What is left is CodeMirror's own scroll restoration. It keeps the view
+   * steady across an update by holding a block at a fixed offset, and the block
+   * it holds is the one at the top of the visible area — which IS this widget
+   * once the footer covers that much of the screen. Restoring a shrunken
+   * block's top then moves the view rather than steadying it.
+   *
+   * So the head's offset is measured before and restored after, twice: once
+   * immediately, and once past the frame in which CodeMirror re-measures, since
+   * the correction has to outlive the restoration it is correcting. Where the
+   * document is genuinely too short to hold the position the browser still
+   * clamps, which is the one case nothing can help.
+   */
+  private foldKeepingPlace(): void {
+    const scroller = this.el.closest<HTMLElement>('.cm-scroller');
+    if (!scroller) {
+      void this.render();
+      return;
+    }
+    const offsetOfHead = (): number | null => {
+      const head = this.el.querySelector<HTMLElement>('.to-backlinks-head');
+      if (!head) return null;
+      return head.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    };
+
+    const before = offsetOfHead();
+    void this.render();
+    if (before === null) return;
+
+    const restore = (): void => {
+      const now = offsetOfHead();
+      if (now === null) return;
+      scroller.scrollTop += now - before;
+    };
+    restore();
+    const win = this.el.win;
+    win.requestAnimationFrame(() => win.requestAnimationFrame(restore));
+  }
+
   /** Repaints from scratch: cheap, and simpler than diffing a tree whose shape
    * changes with every expand. Async group fills are keyed to a generation so a
    * late arrival never writes into a DOM that has since been rebuilt. */
@@ -661,7 +710,7 @@ class FooterController {
     head.addEventListener('click', () => {
       const current = viewStateFor(this.targetPath);
       current.collapsed = !current.collapsed;
-      void this.render();
+      this.foldKeepingPlace();
     });
   }
 

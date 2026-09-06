@@ -2036,8 +2036,23 @@ body {
   box-shadow: none;
 }
 
-.to-backlinks .to-backlinks-search:focus {
-  box-shadow: none;
+/* The host's own input chrome, defeated on both fields at once.
+ *
+ * Its focus ring is a 2px spread `box-shadow` at an 8px radius, which around a
+ * bare 14px-tall input draws a small rounded oblong tight to the text — sitting
+ * over the caret and the first character typed. It arrives with focus, so it is
+ * at its most visible exactly when the field is being used. The border-radius
+ * goes with it: nothing here is a rounded box of its own, the FIELD around it
+ * is. Same `!important` and the same reason as the background above. */
+.to-backlinks .to-backlinks-search,
+.to-backlinks .to-backlinks-search:focus,
+.to-backlinks .to-backlinks-search:focus-visible,
+.to-backlinks .to-backlinks-find-input,
+.to-backlinks .to-backlinks-find-input:focus,
+.to-backlinks .to-backlinks-find-input:focus-visible {
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
 }
 
 .to-backlinks .to-backlinks-search-clear {
