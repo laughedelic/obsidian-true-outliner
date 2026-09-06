@@ -227,6 +227,33 @@ export async function openFilters(): Promise<void> {
   throw new Error('the filter row never appeared');
 }
 
+/**
+ * Put the caret in the name filter, and refuse to continue without it.
+ *
+ * Typing is the one gesture here that damages something when it misses: the
+ * footer sits inside the editor, so a keystroke that does not reach the field
+ * reaches the NOTE. A press can miss when a group fill replaces the input
+ * between the rect read and the press — seen on CI as a case that failed two
+ * assertions later, having quietly typed into the document.
+ *
+ * So the press is retried against the thing that matters, which is focus, and
+ * a failure to take it is raised here rather than discovered downstream.
+ */
+export async function focusSearch(): Promise<void> {
+  const key = (): Promise<string> =>
+    browser.executeObsidian(
+      () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+    );
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await browser.pause(250);
+    if ((await key()) === 'search') return;
+    await settle();
+  }
+  throw new Error('the name filter never took focus; a keystroke would reach the note');
+}
+
 /** Clear every selection, so a case starts from a known filter state. */
 export async function clearFilters(): Promise<void> {
   await browser.executeObsidian(() => {

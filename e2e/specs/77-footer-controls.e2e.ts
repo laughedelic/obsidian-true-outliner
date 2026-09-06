@@ -20,6 +20,7 @@ import {
   clearFilters,
   chooseFacetValue,
   clickIn,
+  focusSearch,
   facetOptions,
   groupNames,
   openFilters,
@@ -204,8 +205,7 @@ describe('the footer’s controls', function () {
     });
     expect(term.length).toBeGreaterThan(2);
 
-    await clickIn(`${FOOTER} .to-backlinks-search`);
-    await browser.pause(300);
+    await focusSearch();
     const focused = await browser.executeObsidian(
       () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
     );
@@ -392,7 +392,7 @@ describe('the footer’s controls', function () {
     // that changes in the row is the reset appearing. Choosing a facet value
     // also moves that facet's own edge, because its word becomes the value it
     // holds — intended, and a different question from this one.
-    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await focusSearch();
     await browser.keys('a');
     await browser.pause(700);
     await settle();
@@ -462,7 +462,7 @@ describe('the footer’s controls', function () {
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
     await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
-    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await focusSearch();
     await browser.keys('a');
     await browser.pause(700);
 
@@ -585,7 +585,7 @@ describe('the footer’s controls', function () {
     await clearFilters();
     await openFilters();
 
-    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await focusSearch();
     await browser.keys('Bri');
     await browser.pause(700);
     expect(await searchValue()).toBe('Bri');

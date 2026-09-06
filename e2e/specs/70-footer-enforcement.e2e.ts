@@ -34,6 +34,7 @@ import {
   FOOTER,
   clearFilters,
   clickIn,
+  focusSearch,
   openFilters,
   openFooter,
   scrollToFooter,
@@ -361,7 +362,7 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
     await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
-    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await focusSearch();
     await browser.keys('a');
     await browser.pause(600);
     await browser.executeObsidian(async ({ plugins }) => {
