@@ -263,6 +263,87 @@ describe('the overall cap and the per-note bound', function () {
     expect(after.slice(0, before.length)).toEqual(before);
   });
 
+  it('draws the rung as a row inside the card, not as a pill on its edge', async function () {
+    await setCap('none');
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksGroupHeight('compact');
+    });
+    await settle();
+
+    const geometry = await readStable(() =>
+      browser.executeObsidian(() => {
+        const card = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-group',
+        );
+        const rung = card?.querySelector<HTMLElement>('.to-backlinks-more.to-backlinks-rung');
+        const body = card?.querySelector<HTMLElement>('.to-backlinks-rows');
+        if (!card || !rung || !body) return null;
+        const c = card.getBoundingClientRect();
+        const r = rung.getBoundingClientRect();
+        const b = body.getBoundingClientRect();
+        return {
+          insideCard: r.top >= c.top && r.bottom <= c.bottom,
+          belowBody: r.top >= b.bottom - 1,
+          startsWithinCard: r.left >= c.left && r.right <= c.right,
+          border: getComputedStyle(rung).borderTopWidth,
+        };
+      }),
+    );
+    expect(geometry).not.toBeNull();
+
+    // The rung inherits the bare chevron's element, and the chevron is a pill
+    // that STRADDLES the card's bottom edge from `position: absolute`. A rung
+    // that kept that was a full-width box centred on half a card's width, lying
+    // across the last line of text. It is a row: inside the card, after the
+    // body, and within the card's own bounds.
+    expect(geometry!.insideCard).toBe(true);
+    expect(geometry!.belowBody).toBe(true);
+    expect(geometry!.startsWithinCard).toBe(true);
+    expect(geometry!.border).toBe('0px');
+
+    // And no box appears under the pointer. The pill's border came back on
+    // hover, because the rung had only turned it off in its resting state.
+    //
+    // Brought on screen first: the geometry above is viewport-independent, but
+    // a pointer cannot be moved to a point outside the window.
+    await browser.executeObsidian(() => {
+      document
+        .querySelector('.workspace-leaf.mod-active .to-backlinks-group')
+        ?.scrollIntoView({ block: 'center' });
+    });
+    await settle();
+    const point = await browser.executeObsidian(() => {
+      const el = document.querySelector(
+        '.workspace-leaf.mod-active .to-backlinks-more.to-backlinks-rung',
+      );
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) };
+    });
+    expect(point).not.toBeNull();
+    await browser
+      .action('pointer', { parameters: { pointerType: 'mouse' } })
+      .move({ x: point!.x, y: point!.y, origin: 'viewport' })
+      .perform();
+    await browser.pause(400);
+    const hovered = await browser.executeObsidian(() => {
+      const el = document.querySelector<HTMLElement>(
+        '.workspace-leaf.mod-active .to-backlinks-more.to-backlinks-rung',
+      );
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return { border: cs.borderTopWidth, background: cs.backgroundColor };
+    });
+    expect(hovered).not.toBeNull();
+    expect(hovered!.border).toBe('0px');
+    expect(hovered!.background).toBe('rgba(0, 0, 0, 0)');
+
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksGroupHeight('standard');
+    });
+    await settle();
+  });
+
   it('caps a tall group by height and says what the height hid', async function () {
     await setCap('none');
     // `compact` guarantees the fixture overflows whatever CI's font metrics are

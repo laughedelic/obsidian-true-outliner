@@ -2341,11 +2341,26 @@ body {
  */
 
 /* The rung IS the cap's control — it says how much is hidden and reveals it,
- * rather than a bare chevron beside a number somewhere else. */
+ * rather than a bare chevron beside a number somewhere else.
+ *
+ * It is a ROW, so it undoes the pill above it completely rather than restyling
+ * it. The chevron straddles the card's bottom edge from `position: absolute`,
+ * and a rung that inherited that was a full-width box centred on half a card's
+ * width, lying across the last line of text — with the pill's border coming
+ * back on hover, because the rung had only turned the border off in its resting
+ * state. Both belong to the same element and only one of them is a pill.
+ *
+ * Static positioning is also what makes the depth work: the rung carries the
+ * line chrome's `--to-depth`, and the rules that read it indent a line in
+ * normal flow. */
 .to-backlinks .to-backlinks-rung {
+  position: static;
+  transform: none;
   display: flex;
   align-items: center;
   width: 100%;
+  height: auto;
+  margin-top: 0.15rem;
   padding: 0;
   color: var(--text-faint);
   background: transparent;
@@ -2353,12 +2368,15 @@ body {
   box-shadow: none;
   text-align: start;
   cursor: pointer;
-  height: auto;
 }
 
-.to-backlinks .to-backlinks-rung:hover {
+.to-backlinks .to-backlinks-rung:hover,
+.to-backlinks .to-backlinks-rung:focus,
+.to-backlinks .to-backlinks-rung:focus-visible {
   color: var(--text-muted);
   background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .to-backlinks-more-count {
