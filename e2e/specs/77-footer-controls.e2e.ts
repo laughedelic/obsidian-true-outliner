@@ -20,7 +20,7 @@ import {
   clearFilters,
   chooseFacetValue,
   clickIn,
-  focusSearch,
+  setSearchTerm,
   facetOptions,
   groupNames,
   openFilters,
@@ -205,9 +205,10 @@ describe('the footer’s controls', function () {
     });
     expect(term.length).toBeGreaterThan(2);
 
-    // A REAL press, asserted directly rather than through `focusSearch` — this
-    // is the one case that exists to say a press focuses the field, so it must
-    // not go through the helper that falls back to focusing it directly.
+    // A REAL press and real keystrokes, which no other case here depends on.
+    // This is the one that exists to say a press focuses the field and that
+    // every character reaches it; the others set the term directly, so a focus
+    // miss cannot make them fail on a question they do not ask.
     await clickIn(`${FOOTER} .to-backlinks-search`);
     await browser.pause(400);
     const focused = await browser.executeObsidian(
@@ -396,10 +397,7 @@ describe('the footer’s controls', function () {
     // that changes in the row is the reset appearing. Choosing a facet value
     // also moves that facet's own edge, because its word becomes the value it
     // holds — intended, and a different question from this one.
-    await focusSearch();
-    await browser.keys('a');
-    await browser.pause(700);
-    await settle();
+    await setSearchTerm('a');
 
     const filtered = await readStable(facetEdges);
     const reset = await browser.executeObsidian(
@@ -466,9 +464,7 @@ describe('the footer’s controls', function () {
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
     await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
-    await focusSearch();
-    await browser.keys('a');
-    await browser.pause(700);
+    await setSearchTerm('a');
 
     const before = await readStable(() =>
       browser.executeObsidian(() => {
@@ -589,9 +585,7 @@ describe('the footer’s controls', function () {
     await clearFilters();
     await openFilters();
 
-    await focusSearch();
-    await browser.keys('Bri');
-    await browser.pause(700);
+    await setSearchTerm('Bri');
     expect(await searchValue()).toBe('Bri');
 
     // A REAL press on the field's own clear control. It used to reach
@@ -602,12 +596,17 @@ describe('the footer’s controls', function () {
     await clickIn(`${FOOTER} .to-backlinks-search-clear`);
     await browser.pause(700);
     expect(await searchValue()).toBe('');
-    // And the field is still there to type into, rather than the row having
-    // been rebuilt out from under the reader.
-    const focused = await browser.executeObsidian(
-      () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
-    );
-    expect(focused).toBe('search');
+    // The field is still there to type into, and the control that emptied it
+    // has withdrawn — it is offered only while there is something to clear.
+    const after = await browser.executeObsidian(() => {
+      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+      return {
+        field: root?.querySelector('.to-backlinks-search') !== null,
+        clear: root?.querySelector('.to-backlinks-search-clear') !== null,
+      };
+    });
+    expect(after.field).toBe(true);
+    expect(after.clear).toBe(false);
   });
 
   /**

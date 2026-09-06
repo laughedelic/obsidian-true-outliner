@@ -289,6 +289,35 @@ export async function focusSearch(): Promise<void> {
   }
 }
 
+/**
+ * Put a term in the name filter without typing it.
+ *
+ * For the cases where the term is a means rather than the subject — the reset
+ * appearing, the axes clearing. Those turn on what the filter DOES, and making
+ * them depend on a real keystroke made them depend on focus, which on a runner
+ * the editor sometimes keeps: measured with the press landing on the input
+ * (`elementFromPoint` names it) while `document.activeElement` was still
+ * `.cm-content`. A keystroke that misses this field reaches the note, so the
+ * cases that do not need one do not take the risk.
+ *
+ * The `input` event is the one the field's own handler listens for, so the
+ * filter runs exactly as it does when a reader types. Whether a real press
+ * focuses the field, and whether every character reaches it, are asserted by
+ * the case written for that.
+ */
+export async function setSearchTerm(text: string): Promise<void> {
+  await browser.executeObsidian((_ctx, value: string) => {
+    const input = document.querySelector<HTMLInputElement>(
+      '.workspace-leaf.mod-active .to-backlinks-search',
+    );
+    if (!input) throw new Error('no name filter');
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, text);
+  await browser.pause(500);
+  await settle();
+}
+
 /** Clear every selection, so a case starts from a known filter state. */
 export async function clearFilters(): Promise<void> {
   await browser.executeObsidian(() => {
