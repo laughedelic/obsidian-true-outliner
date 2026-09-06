@@ -56,6 +56,52 @@ describe('mode registry', () => {
     expect(rehydrated.isOutline('y.md')).toBe(true);
   });
 
+  it('never stores a state that a later toggle in the same turn replaced', async () => {
+    // `forceRedraw`'s shape: flip a note off and back on within one turn, so the
+    // decorations recompute twice. Both writes are in flight over one file, and
+    // the first describes a state that was never meant to outlive the turn.
+    const saves: string[][] = [];
+    let call = 0;
+    const persist = async (paths: string[]): Promise<void> => {
+      // The first write finishes last — the completion order a concurrent pair
+      // gives no guarantee about, and the one that loses the note its mode.
+      // Counted in microtask turns rather than milliseconds, so the ordering is
+      // decided by the code under test and not by a timer.
+      const turns = call++ === 0 ? 5 : 0;
+      for (let i = 0; i < turns; i++) await Promise.resolve();
+      saves.push(paths);
+    };
+    const registry = new OutlineModeRegistry(persist);
+    registry.hydrate(['a.md']);
+
+    const off = registry.toggle('a.md');
+    const on = registry.toggle('a.md');
+    expect(off.on).toBe(false);
+    expect(on.on).toBe(true);
+    await Promise.all([off.saved, on.saved]);
+
+    expect(registry.isOutline('a.md')).toBe(true);
+    expect(saves.at(-1)).toEqual(['a.md']); // what a restart would read back
+    expect(saves).not.toContainEqual([]); // the transient state is never stored
+  });
+
+  it('reports a failed write without blocking the next one', async () => {
+    const saves: string[][] = [];
+    let fail = true;
+    const registry = new OutlineModeRegistry((paths) => {
+      if (fail) {
+        fail = false;
+        return Promise.reject(new Error('disk full'));
+      }
+      saves.push(paths);
+      return Promise.resolve();
+    });
+
+    await expect(registry.toggle('a.md').saved).rejects.toThrow('disk full');
+    await registry.toggle('b.md').saved;
+    expect(saves).toEqual([['a.md', 'b.md']]);
+  });
+
   it('rename migrates state; delete prunes; no-ops save nothing', async () => {
     const { registry, saves } = make();
     await registry.toggle('old.md').saved;

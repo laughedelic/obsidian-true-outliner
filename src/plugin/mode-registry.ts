@@ -168,6 +168,8 @@ export function normalizePluginData(raw: unknown): PluginData {
 
 export class OutlineModeRegistry {
   private paths = new Set<string>();
+  /** The write queue's tail, so the next write starts after this one lands. */
+  private writing: Promise<void> = Promise.resolve();
 
   constructor(private readonly persist: (paths: string[]) => Promise<void>) {}
 
@@ -219,7 +221,25 @@ export class OutlineModeRegistry {
     return [...this.paths].sort();
   }
 
+  /**
+   * Queues a write of the mode set, ordered against every other write and
+   * carrying the state in force when it RUNS rather than when it was asked for.
+   *
+   * Both properties are load-bearing now that a toggle returns before its write
+   * lands. `forceRedraw` flips a note off and back on within one turn to make
+   * the decorations recompute twice, so two writes are in flight over one file
+   * and one of them describes a state that was never meant to outlive the turn.
+   * Unordered, whichever finishes last wins, and the note can come back from a
+   * restart with outline mode off while memory says it is on. Snapshotting late
+   * goes further than ordering alone: a queued write records where the set
+   * ended up, so the transient state is not stored at all.
+   *
+   * A failed write is reported to whoever asked for it and does not poison the
+   * queue — the next write starts from the caught tail.
+   */
   private save(): Promise<void> {
-    return this.persist(this.snapshot());
+    const done = this.writing.then(() => this.persist(this.snapshot()));
+    this.writing = done.catch(() => undefined);
+    return done;
   }
 }

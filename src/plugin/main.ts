@@ -429,7 +429,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     // Off and back on within one turn. `toggle` decides synchronously (see its
     // own comment), so the note is never left rendering as a stock note while a
     // write settles — the two passes are what this method needs, not a visible
-    // interval between them.
+    // interval between them. The transient "off" reaches no file: the registry
+    // orders its writes and snapshots each at write time, so both of these
+    // record the state this turn ends in.
     const off = this.registry.toggle(path); // off
     view.editor.setCursor(view.editor.getCursor());
     const on = this.registry.toggle(path); // back on, now reading the new setting
