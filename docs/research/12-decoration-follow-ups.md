@@ -755,3 +755,14 @@ fix, one more kind to cover.
 - **Consolidating per-experiment verification residue into `verification.md`** — the
   split noted in tasks.md 3.3 (each experiment doc carries its own results section)
   stays livable; consolidate only if navigating it proves hard in practice.
+- **The settings setters still repaint from behind their own data write.**
+  `setMarkerVisibility`, `setGuideHighlight`, `setMarkerHighlight` and
+  `setBacklinksFooter` each `await this.saveData(...)` before calling
+  `forceRedraw()`, which is the shape `toggleMode` was fixed out of when it
+  turned out to be putting the whole outline's paint behind disk latency
+  (docs/research/11, "Verification and process discipline"). The reordering is
+  the same one: `this.data` is already mutated before the await, so the redraw
+  can happen first and the write can settle after it. Left alone because a
+  settings toggle repainting a moment late is not the defect the mode toggle
+  was, and because `forceRedraw` itself is already parked here for a revisit —
+  worth folding into that revisit rather than doing twice.
