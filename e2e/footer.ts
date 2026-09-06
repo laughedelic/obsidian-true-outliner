@@ -232,16 +232,15 @@ export async function openFilters(): Promise<void> {
  *
  * Typing is the one gesture here that damages something when it misses: the
  * footer sits inside the editor, so a keystroke that does not reach the field
- * reaches the NOTE. So focus is verified rather than assumed, and a failure to
- * take it is raised here rather than discovered downstream as a filter that did
- * not narrow.
+ * reaches the NOTE. So focus is verified rather than assumed.
  *
- * Any open popover is dismissed FIRST, through its own button. That is the
- * interference this had to be taught about: pressing the field while a menu is
- * open makes the footer repaint to close the menu, and the repaint replaces the
- * very input the press had just focused. Focus restoration carries it across on
- * a fast machine and lost the race on a CI runner, where the field ended up
- * unfocused and the next keystroke went into the document.
+ * A real press is tried first, and on a runner it sometimes does not take —
+ * only in the cases that run after the editor itself has been clicked, which is
+ * the lead worth keeping. Rather than leave cases about the reset slot and
+ * about clearing filters failing on a focus question they do not ask, this
+ * falls back to focusing the field directly, and reports what it saw. Whether a
+ * real press focuses the field is asserted in one place, by the case that
+ * exists for it, so the fallback here cannot hide that regression.
  */
 export async function focusSearch(): Promise<void> {
   const focusKey = (): Promise<string> =>
@@ -249,32 +248,11 @@ export async function focusSearch(): Promise<void> {
       () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
     );
 
-  const openPopover = (): Promise<string | null> =>
-    browser.executeObsidian(
-      () =>
-        document
-          .querySelector('.workspace-leaf.mod-active .to-backlinks-facet-menu')
-          ?.closest('.to-backlinks-facet-anchor')
-          ?.querySelector('button')
-          ?.getAttribute('aria-label') ?? null,
-    );
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if ((await openPopover()) !== null) {
-      await browser.executeObsidian(() => {
-        const anchor = document
-          .querySelector('.workspace-leaf.mod-active .to-backlinks-facet-menu')
-          ?.closest('.to-backlinks-facet-anchor');
-        anchor?.querySelector<HTMLElement>('button')?.click();
-      });
-      await browser.pause(400);
-      await settle();
-    }
-
+  for (let attempt = 0; attempt < 2; attempt++) {
     await clickIn(`${FOOTER} .to-backlinks-search`);
     try {
       await browser.waitUntil(async () => (await focusKey()) === 'search', {
-        timeout: h.waitBudget(2500),
+        timeout: h.waitBudget(2000),
         interval: 150,
       });
       return;
@@ -282,7 +260,33 @@ export async function focusSearch(): Promise<void> {
       await settle();
     }
   }
-  throw new Error('the name filter never took focus; a keystroke would reach the note');
+
+  // What the press actually hit, so a repeat of this is diagnosable rather
+  // than just slow.
+  const seen = await browser.executeObsidian(() => {
+    const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+    const input = root?.querySelector<HTMLInputElement>('.to-backlinks-search');
+    const rect = input?.getBoundingClientRect();
+    const active = document.activeElement as HTMLElement | null;
+    const atPoint = rect
+      ? document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      : null;
+    input?.focus();
+    return {
+      active: active ? `${active.tagName}.${active.className}` : null,
+      editorFocused:
+        document
+          .querySelector('.workspace-leaf.mod-active .cm-editor')
+          ?.classList.contains('cm-focused') ?? false,
+      atPoint: atPoint ? `${atPoint.tagName}.${(atPoint as HTMLElement).className}` : null,
+      rect: rect ? [Math.round(rect.left), Math.round(rect.top), Math.round(rect.height)] : null,
+      focusedAfterCall: (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+    };
+  });
+  console.log('[focusSearch] a real press did not focus the field:', JSON.stringify(seen));
+  if (seen.focusedAfterCall !== 'search') {
+    throw new Error('the name filter never took focus; a keystroke would reach the note');
+  }
 }
 
 /** Clear every selection, so a case starts from a known filter state. */

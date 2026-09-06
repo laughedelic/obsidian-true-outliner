@@ -205,7 +205,11 @@ describe('the footer’s controls', function () {
     });
     expect(term.length).toBeGreaterThan(2);
 
-    await focusSearch();
+    // A REAL press, asserted directly rather than through `focusSearch` — this
+    // is the one case that exists to say a press focuses the field, so it must
+    // not go through the helper that falls back to focusing it directly.
+    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await browser.pause(400);
     const focused = await browser.executeObsidian(
       () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
     );
