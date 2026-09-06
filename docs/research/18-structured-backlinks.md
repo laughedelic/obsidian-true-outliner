@@ -490,9 +490,10 @@ contract publishes `--to-*` custom properties, so a CSS snippet already covers t
 
 ## Open questions
 
-All three are now answered — by the spike series
+The first three are answered — by the spike series
 ([19](19-backlinks-footer-spikes.md)) and by building the change. Kept with their answers
 rather than deleted, since two of them were answered differently from how they were asked.
+The fourth is open, and is recorded with what has been measured so far.
 
 1. ~~**Footer collapse state** — per note, global, or not persisted?~~ **Per note, and not
    persisted past the tab.** What a reader unfolded is about the reading they are doing, not
@@ -511,6 +512,26 @@ rather than deleted, since two of them were answered differently from how they w
    is the fact→(class, custom properties) CONTRACT, now `src/plugin/chrome-line.ts`, which both
    surfaces call. S6 then confirmed the two alternatives to consuming it — a markdown list, and
    a real CodeMirror per group — are both worse.
+
+4. **Where the view lands when the section is folded, on a note the footer is taller than.**
+   Reported from use as "it jumps to the top of the note", and not yet solved.
+
+   What is measured: a fold takes height out of the document from BELOW the head, so the head's
+   own position in the document does not move. If the reader's scroll offset still fits the
+   shortened document the browser keeps it and nothing moves at all; if it does not, the browser
+   clamps — and no offset could have held the head, because the one it would need no longer
+   exists. On a five-line note whose footer is most of a screen, the offset went 206 to 0, the
+   whole document having come to fit the viewport. An anchoring pass that restores the head's
+   viewport position was written against exactly this and measured as a no-op in both the short
+   and the long case, so it was removed rather than shipped.
+
+   What that argument does NOT cover, and what to check next: whether the jump is ever seen while
+   the document is still scrollable. The model above says it cannot be — the browser simply keeps
+   the offset — so a single observation of it would mean something else is scrolling, and the
+   first suspect is a transaction dispatched with `scrollIntoView` while the caret sits elsewhere
+   in the note, which would land the view on the CARET rather than at the clamp. That is a
+   different mechanism and a fixable one. Both measurements so far were taken with the caret
+   untouched, which is precisely the case that cannot tell the two apart.
 
 ## Prototype
 
