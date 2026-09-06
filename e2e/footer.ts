@@ -232,24 +232,55 @@ export async function openFilters(): Promise<void> {
  *
  * Typing is the one gesture here that damages something when it misses: the
  * footer sits inside the editor, so a keystroke that does not reach the field
- * reaches the NOTE. A press can miss when a group fill replaces the input
- * between the rect read and the press — seen on CI as a case that failed two
- * assertions later, having quietly typed into the document.
+ * reaches the NOTE. So focus is verified rather than assumed, and a failure to
+ * take it is raised here rather than discovered downstream as a filter that did
+ * not narrow.
  *
- * So the press is retried against the thing that matters, which is focus, and
- * a failure to take it is raised here rather than discovered downstream.
+ * Any open popover is dismissed FIRST, through its own button. That is the
+ * interference this had to be taught about: pressing the field while a menu is
+ * open makes the footer repaint to close the menu, and the repaint replaces the
+ * very input the press had just focused. Focus restoration carries it across on
+ * a fast machine and lost the race on a CI runner, where the field ended up
+ * unfocused and the next keystroke went into the document.
  */
 export async function focusSearch(): Promise<void> {
-  const key = (): Promise<string> =>
+  const focusKey = (): Promise<string> =>
     browser.executeObsidian(
       () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
     );
 
+  const openPopover = (): Promise<string | null> =>
+    browser.executeObsidian(
+      () =>
+        document
+          .querySelector('.workspace-leaf.mod-active .to-backlinks-facet-menu')
+          ?.closest('.to-backlinks-facet-anchor')
+          ?.querySelector('button')
+          ?.getAttribute('aria-label') ?? null,
+    );
+
   for (let attempt = 0; attempt < 3; attempt++) {
+    if ((await openPopover()) !== null) {
+      await browser.executeObsidian(() => {
+        const anchor = document
+          .querySelector('.workspace-leaf.mod-active .to-backlinks-facet-menu')
+          ?.closest('.to-backlinks-facet-anchor');
+        anchor?.querySelector<HTMLElement>('button')?.click();
+      });
+      await browser.pause(400);
+      await settle();
+    }
+
     await clickIn(`${FOOTER} .to-backlinks-search`);
-    await browser.pause(250);
-    if ((await key()) === 'search') return;
-    await settle();
+    try {
+      await browser.waitUntil(async () => (await focusKey()) === 'search', {
+        timeout: h.waitBudget(2500),
+        interval: 150,
+      });
+      return;
+    } catch {
+      await settle();
+    }
   }
   throw new Error('the name filter never took focus; a keystroke would reach the note');
 }
