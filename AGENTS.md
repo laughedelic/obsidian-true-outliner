@@ -93,7 +93,7 @@ durationMs }] }` and is overwritten (not appended) at the start of each invocati
 the real desktop app. To run headlessly instead (nothing appears on the host, whatever OS it is):
 
 ```bash
-npm run test:e2e:docker [-- --group <name>]
+npm run test:e2e:docker [-- --group <name> | <spec> [grep]]
 ```
 
 This runs inside a Linux container under Xvfb (`e2e/docker/`) — one container per invocation,

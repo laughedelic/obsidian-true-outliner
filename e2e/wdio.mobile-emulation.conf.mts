@@ -4,7 +4,7 @@ import { resolveObsidianTarget } from './obsidian-target.mjs';
 import {
   maxInstances,
   reporters,
-  resetJsonReportDir,
+  resetE2eReports,
   screenshotOnFailure,
   writeFailureSummary,
 } from './wdio.shared.mjs';
@@ -17,7 +17,7 @@ const root = path.resolve(e2eDir, '..');
  * configurable cache, so pinning a version silently applied to the desktop
  * suite only. */
 const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile');
-await resetJsonReportDir();
+await resetE2eReports();
 
 /**
  * Mobile-emulation variant of wdio.conf.mts: identical plugin/vault/specs,

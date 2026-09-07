@@ -72,7 +72,7 @@ export function screenshotOnFailure(label: string) {
 // narrow or full-group, passing or failing — with no re-run needed.
 
 /** Where each worker's raw JSON dump lands. Reset per invocation (see
- * `resetJsonReportDir`) so a run never reports on a previous run's leftovers. */
+ * `resetE2eReports`) so a run never reports on a previous run's leftovers. */
 export const JSON_REPORT_DIR = path.join(process.cwd(), '.obsidian-cache', 'e2e-reports');
 
 /** The one file worth `cat`ing after a run — see `writeFailureSummary`. */
@@ -88,17 +88,25 @@ export const reporters: NonNullable<WebdriverIO.Config['reporters']> = [
 ];
 
 /**
- * Clears `JSON_REPORT_DIR` before a new invocation writes into it.
+ * Clears `JSON_REPORT_DIR` and any leftover `FAILURE_SUMMARY_FILE` before a
+ * new invocation writes into them.
+ *
+ * The summary is removed here, not just the report dir: `writeFailureSummary`
+ * only runs from `onComplete`, so if this invocation's wdio config or service
+ * startup fails before that (a bad Obsidian download, a config error), a
+ * stale summary from a PREVIOUS successful run would otherwise remain and
+ * read as if it described this one.
  *
  * Only the launcher process should do this: the config module is re-loaded
  * in every worker too (see the `WDIO_WORKER_ID` guard on the banner above),
  * and a worker clearing the directory mid-run would race its siblings and
  * delete their output.
  */
-export async function resetJsonReportDir(): Promise<void> {
+export async function resetE2eReports(): Promise<void> {
   if (process.env.WDIO_WORKER_ID !== undefined) return;
   await fsp.rm(JSON_REPORT_DIR, { recursive: true, force: true });
   await fsp.mkdir(JSON_REPORT_DIR, { recursive: true });
+  await fsp.rm(FAILURE_SUMMARY_FILE, { force: true });
 }
 
 interface RawTest {

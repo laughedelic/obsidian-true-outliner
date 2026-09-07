@@ -10,13 +10,16 @@ services:
       # Live source, so an edit is picked up without rebuilding the image.
       - ../..:/workspace
       # Shadows the bind-mounted node_modules above with the image's own
-      # (Linux) node_modules — Docker seeds a fresh named volume from the
-      # image's content at that path the first time it's used. Without this,
-      # the bind mount would put the host's node_modules (macOS/Windows
-      # binaries) in front of the image's.
-      - e2e-node-modules:/workspace/node_modules
-      # Obsidian/driver downloads (~490MB, measured) persist across container runs
-      # instead of re-fetching every invocation. Scoped to just the binary
+      # (Linux) node_modules — otherwise the bind mount would put the host's
+      # node_modules (macOS/Windows binaries) in front of the image's.
+      # Anonymous (no name in `volumes:` below), not persistent: it's
+      # re-seeded from the image on every `run`, so a `package-lock.json`
+      # change always takes effect on the next run — a named volume, seeded
+      # from the image only the first time it's created, would otherwise
+      # keep serving whatever node_modules existed at that first run.
+      - /workspace/node_modules
+      # Obsidian/driver downloads persist across container runs instead of
+      # re-fetching every invocation. Scoped to just the binary
       # subdirectories obsidian-launcher populates — NOT the whole
       # .obsidian-cache — so e2e-summary.json and e2e-reports/, written
       # under the same directory each run, stay on the bind-mounted host
@@ -29,11 +32,13 @@ services:
     environment:
       - E2E_MAX_INSTANCES
       - OBSIDIAN_VERSION
-      - OBSIDIAN_E2E_MOBILE
+      # Not OBSIDIAN_E2E_MOBILE: run-e2e.mjs (inside the container) sets it
+      # itself for a mobile run. Passing it through here as well would leak
+      # a stray host value into a desktop run and silently change which
+      # tests helpers.ts's IS_MOBILE_RUN skips.
     working_dir: /workspace
 
 volumes:
-  e2e-node-modules:
   e2e-obsidian-app:
   e2e-obsidian-installer:
   e2e-electron-chromedriver:

@@ -38,12 +38,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /workspace
 
 # Dependencies are baked into the image at build time (Linux binaries for
-# esbuild, Electron, etc). The compose file mounts a named volume over
+# esbuild, Electron, etc). The compose file mounts a volume over
 # node_modules at runtime instead of the host's node_modules, which never
 # has Linux binaries on a macOS/Windows host — see e2e/docker/README.md.
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 COPY . .
+
+# scripts/e2e-docker.mjs runs the container as the invoking host UID/GID (not
+# root) so files it writes into the bind-mounted repo — and the object
+# store obsidian-launcher downloads into — stay owned by that user rather
+# than root, and so git doesn't reject the bind-mounted worktree as an
+# unsafe repository. That UID has no matching /etc/passwd entry and no
+# ownership of what npm ci and obsidian-launcher created as root, so both
+# node_modules and the .obsidian-cache mount points need to be writable by
+# anyone.
+RUN mkdir -p .obsidian-cache/obsidian-app .obsidian-cache/obsidian-installer .obsidian-cache/electron-chromedriver \
+  && chmod -R a+rwX node_modules .obsidian-cache
 
 CMD ["bash"]

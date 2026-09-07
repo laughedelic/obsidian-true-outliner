@@ -18,12 +18,8 @@
  * changes to the specs themselves.
  *
  * This still runs the plugin build, the backlink-hub generator, and the vault
- * drift snapshot/restore that `run-e2e.mjs` runs — measured at under half a
- * second combined (`time` against each in isolation), which is not where the
- * minutes went. What made the whole-group loop slow was Obsidian launching
- * once per spec FILE in the group (up to 10), not this setup — so the actual
- * lever here is `--spec` targeting a single file, and this script does not
- * try to skip the cheap, correctness-preserving steps around it.
+ * drift snapshot/restore that `run-e2e.mjs` runs — the lever here is `--spec`
+ * targeting a single file instead of a whole group, not skipping that setup.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -47,7 +43,7 @@ function usage() {
       'Examples:',
       '  node scripts/e2e-narrow.mjs 77-footer-controls',
       '  node scripts/e2e-narrow.mjs footer-controls "renders the footer"',
-      '  npm run e2e:narrow -- 77 "renders the footer"',
+      '  npm run test:e2e:narrow -- 77 "renders the footer"',
     ].join('\n'),
   );
 }
@@ -90,6 +86,12 @@ console.log(`[e2e:narrow] spec: ${path.relative(root, specPath)}${grep ? `, grep
 const run = (cmd, args, env) =>
   spawnSync(cmd, args, { cwd: root, stdio: 'inherit', env: { ...process.env, ...env } }).status ?? 1;
 
+// Resolved before any setup step runs, so a missing install fails loudly and
+// changes nothing — same reasoning as run-e2e.mjs. Resolving it after the
+// drift snapshot would leave that snapshot stranded (unconsumed) if this
+// throws, and a later run would then treat it as a valid baseline.
+const wdio = binPath('wdio');
+
 const build = run(process.execPath, ['esbuild.config.mjs', 'production', '--dev']);
 if (build !== 0) process.exit(build);
 
@@ -99,7 +101,6 @@ if (hub !== 0) process.exit(hub);
 const drift = (...args) => run(process.execPath, ['scripts/check-vault-drift.mjs', ...args]);
 if (drift('--snapshot') !== 0) process.exit(1);
 
-const wdio = binPath('wdio');
 const wdioArgs = [
   'run',
   mobile ? 'e2e/wdio.mobile-emulation.conf.mts' : 'e2e/wdio.conf.mts',

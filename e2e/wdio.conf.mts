@@ -4,7 +4,7 @@ import { resolveObsidianTarget } from './obsidian-target.mjs';
 import {
   maxInstances,
   reporters,
-  resetJsonReportDir,
+  resetE2eReports,
   screenshotOnFailure,
   writeFailureSummary,
 } from './wdio.shared.mjs';
@@ -36,7 +36,7 @@ const root = path.resolve(e2eDir, '..');
  * problem.
  */
 const { browserVersion, cacheDir } = await resolveObsidianTarget(root, '');
-await resetJsonReportDir();
+await resetE2eReports();
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
