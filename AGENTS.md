@@ -52,6 +52,59 @@ Planning and implementation share one PR, in this order:
 `npm version <patch|minor>` rewrites `manifest.json` and `versions.json` and deliberately creates
 no tag: the release is cut from the squashed merge commit, which no local tag can name.
 
+## E2E testing
+
+CI is the source of truth for full-suite validation — its matrix runs every group, desktop and
+mobile (`.github/workflows/ci.yml`, groups from `scripts/spec-groups.mjs`). A pushed checkpoint
+already runs the full sweep there; the local loop does not need to reprove that before every
+push.
+
+**Default to narrow mode while iterating on one test:**
+
+```bash
+npm run test:e2e:narrow -- <spec> [test-name-grep]
+# e.g.
+npm run test:e2e:narrow -- 77-footer-controls "renders the footer"
+```
+
+`<spec>` matches a filename in `e2e/specs/` by substring (an ambiguous one lists every match
+instead of guessing); the grep becomes `--mochaOpts.grep`. This still builds the plugin,
+regenerates the backlink hub, and snapshots/restores vault drift like `run-e2e.mjs` does —
+measured at under half a second combined, so skipping them buys nothing. What actually made the
+whole-group loop slow was Obsidian launching once per spec FILE (up to ten in a group); targeting
+one file directly is the entire speedup, taking an iteration from minutes to ~10-30s. `--mobile`
+runs it under the mobile-emulation config.
+
+`npm run test:e2e[:mobile]` (`run-e2e.mjs`) still exists for a whole group (`--group <name>`) or
+the whole suite — reserve it for a final check before a checkpoint, not per-edit iteration.
+Outside CI, it prints a one-line reminder toward narrow mode whenever more than a couple of spec
+files are in scope — not a block, just a nudge at the moment the slow path is actually taken.
+
+**Every run — narrow, grouped, or full, desktop or mobile — writes
+`.obsidian-cache/e2e-summary.json`**, a small file naming what failed without needing to scroll
+past a whole group's stdout or re-run narrower to find out:
+
+```bash
+cat .obsidian-cache/e2e-summary.json | jq '.failures'
+```
+
+It carries `{ specs, passed, failed, skipped, failures: [{ spec, suite, test, error, stack,
+durationMs }] }` and is overwritten (not appended) at the start of each invocation.
+
+**The Obsidian window still pops on macOS/Windows** — narrow mode and `run-e2e.mjs` both launch
+the real desktop app. To run headlessly instead (nothing appears on the host, whatever OS it is):
+
+```bash
+npm run test:e2e:docker [-- --group <name> | <spec> [grep]]
+```
+
+This runs inside a Linux container under Xvfb (`e2e/docker/`) — one container per invocation,
+covering however many specs are in scope (the whole suite by default, or one group), never one
+container per file. `E2E_MAX_INSTANCES` defaults to 2 there (override via env) since the
+container shares the Docker Desktop/OrbStack VM's CPU with the rest of the host, unlike a
+dedicated CI runner. It deliberately does not fan out multiple containers to race CI's
+per-group matrix — CI already gives that; this path exists for a headless run, not a faster one.
+
 ## Conventions
 
 - **Committed prose is team voice** — "we" and "our", never "you", and never session-log phrasing

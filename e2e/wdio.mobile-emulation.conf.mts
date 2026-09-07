@@ -1,7 +1,13 @@
 import * as path from 'node:path';
 import * as url from 'node:url';
 import { resolveObsidianTarget } from './obsidian-target.mjs';
-import { maxInstances, screenshotOnFailure } from './wdio.shared.mjs';
+import {
+  maxInstances,
+  reporters,
+  resetE2eReports,
+  screenshotOnFailure,
+  writeFailureSummary,
+} from './wdio.shared.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(e2eDir, '..');
@@ -10,6 +16,10 @@ const root = path.resolve(e2eDir, '..');
  * file had its own copy, which honored neither `OBSIDIAN_VERSION` nor a
  * configurable cache, so pinning a version silently applied to the desktop
  * suite only. */
+// Before resolveObsidianTarget: that can throw (a bad/uncached pinned
+// version), and a stale summary from a previous run must not survive this
+// invocation failing before it gets anywhere near a test.
+await resetE2eReports();
 const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile');
 
 /**
@@ -74,9 +84,10 @@ export const config: WebdriverIO.Config = {
   },
 
   afterTest: screenshotOnFailure('mobile'),
+  onComplete: writeFailureSummary,
 
   services: ['obsidian'],
-  reporters: ['obsidian'],
+  reporters,
 
   cacheDir,
   mochaOpts: {

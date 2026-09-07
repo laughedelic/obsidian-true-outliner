@@ -56,6 +56,18 @@ if (argv.includes('--group')) {
   specArgs.push(...specs.flatMap((spec) => ['--spec', spec]));
 }
 
+// Each spec FILE in scope launches its own Obsidian window — the actual cost
+// behind the whole-group loop this nudge exists to shortcut (see AGENTS.md's
+// "E2E testing" section). Only outside CI, where the full sweep is the point;
+// only above a couple of files, so a two-file group isn't nagged over.
+const specCount = argv.includes('--group') ? specArgs.length / 2 : Object.values(specGroups()).flat().length;
+if (!process.env.CI && specCount > 2) {
+  console.log(
+    `[e2e] running ${specCount} spec files, each its own Obsidian launch. ` +
+      'Iterating on one test? npm run test:e2e:narrow -- <spec> [grep]',
+  );
+}
+
 /**
  * Whether this run will execute any spec from an exclusive group — true for the
  * group itself, and true for the whole suite, which contains it.
