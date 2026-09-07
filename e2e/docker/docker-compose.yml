@@ -1,0 +1,39 @@
+# See e2e/docker/README.md. Invoke via `npm run test:e2e:docker[:mobile]`
+# (scripts/e2e-docker.mjs), not `docker compose` directly — the script also
+# forwards --group and picks a sensible E2E_MAX_INSTANCES default.
+services:
+  e2e:
+    build:
+      context: ../..
+      dockerfile: e2e/docker/Dockerfile
+    volumes:
+      # Live source, so an edit is picked up without rebuilding the image.
+      - ../..:/workspace
+      # Shadows the bind-mounted node_modules above with the image's own
+      # (Linux) node_modules — Docker seeds a fresh named volume from the
+      # image's content at that path the first time it's used. Without this,
+      # the bind mount would put the host's node_modules (macOS/Windows
+      # binaries) in front of the image's.
+      - e2e-node-modules:/workspace/node_modules
+      # Obsidian/driver downloads (~490MB, measured) persist across container runs
+      # instead of re-fetching every invocation. Scoped to just the binary
+      # subdirectories obsidian-launcher populates — NOT the whole
+      # .obsidian-cache — so e2e-summary.json and e2e-reports/, written
+      # under the same directory each run, stay on the bind-mounted host
+      # filesystem where `cat .obsidian-cache/e2e-summary.json` can find them
+      # right after the container exits, instead of being shadowed into a
+      # volume nothing on the host can see.
+      - e2e-obsidian-app:/workspace/.obsidian-cache/obsidian-app
+      - e2e-obsidian-installer:/workspace/.obsidian-cache/obsidian-installer
+      - e2e-electron-chromedriver:/workspace/.obsidian-cache/electron-chromedriver
+    environment:
+      - E2E_MAX_INSTANCES
+      - OBSIDIAN_VERSION
+      - OBSIDIAN_E2E_MOBILE
+    working_dir: /workspace
+
+volumes:
+  e2e-node-modules:
+  e2e-obsidian-app:
+  e2e-obsidian-installer:
+  e2e-electron-chromedriver:

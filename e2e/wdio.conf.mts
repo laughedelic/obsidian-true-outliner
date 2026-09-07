@@ -1,7 +1,13 @@
 import * as path from 'node:path';
 import * as url from 'node:url';
 import { resolveObsidianTarget } from './obsidian-target.mjs';
-import { maxInstances, screenshotOnFailure } from './wdio.shared.mjs';
+import {
+  maxInstances,
+  reporters,
+  resetJsonReportDir,
+  screenshotOnFailure,
+  writeFailureSummary,
+} from './wdio.shared.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(e2eDir, '..');
@@ -30,6 +36,7 @@ const root = path.resolve(e2eDir, '..');
  * problem.
  */
 const { browserVersion, cacheDir } = await resolveObsidianTarget(root, '');
+await resetJsonReportDir();
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
@@ -86,9 +93,10 @@ export const config: WebdriverIO.Config = {
   },
 
   afterTest: screenshotOnFailure('desktop'),
+  onComplete: writeFailureSummary,
 
   services: ['obsidian'],
-  reporters: ['obsidian'],
+  reporters,
 
   cacheDir,
   mochaOpts: {

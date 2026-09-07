@@ -1,7 +1,13 @@
 import * as path from 'node:path';
 import * as url from 'node:url';
 import { resolveObsidianTarget } from './obsidian-target.mjs';
-import { maxInstances, screenshotOnFailure } from './wdio.shared.mjs';
+import {
+  maxInstances,
+  reporters,
+  resetJsonReportDir,
+  screenshotOnFailure,
+  writeFailureSummary,
+} from './wdio.shared.mjs';
 
 const e2eDir = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(e2eDir, '..');
@@ -11,6 +17,7 @@ const root = path.resolve(e2eDir, '..');
  * configurable cache, so pinning a version silently applied to the desktop
  * suite only. */
 const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile');
+await resetJsonReportDir();
 
 /**
  * Mobile-emulation variant of wdio.conf.mts: identical plugin/vault/specs,
@@ -74,9 +81,10 @@ export const config: WebdriverIO.Config = {
   },
 
   afterTest: screenshotOnFailure('mobile'),
+  onComplete: writeFailureSummary,
 
   services: ['obsidian'],
-  reporters: ['obsidian'],
+  reporters,
 
   cacheDir,
   mochaOpts: {
