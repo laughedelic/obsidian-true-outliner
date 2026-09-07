@@ -27,6 +27,13 @@ whole-document rung, the handler SHALL NOT intercept and SHALL let native
 Select All run instead, so the top of the ladder is byte-identical to stock
 Select All.
 
+**While a zoom scope is active** (`outline-zoom`), the ladder SHALL be BOUNDED by that scope
+rather than by the document: no rung SHALL exceed the zoom root's own whole subtree, ancestors
+above the zoom root SHALL NOT contribute rungs, and the whole-outline-body rung SHALL be replaced
+by the zoom root's whole subtree as the ladder's top. The fall-through to native Select All SHALL
+be suppressed for as long as the zoom is active, because native Select All would select hidden
+content. A press at the top of a bounded ladder SHALL leave the selection unchanged.
+
 #### Scenario: First press with cursor inside a leaf node selects its own content
 - **WHEN** the cursor is inside a paragraph node with no children and the user
   presses Mod-A
@@ -54,13 +61,30 @@ Select All.
   produces the whole document, including any frontmatter, identical to stock
   Obsidian behavior with the plugin disabled
 
+#### Scenario: While zoomed, the ladder tops out at the zoom root
+- **WHEN** the user is zoomed into a node and presses Mod-A repeatedly until the selection stops
+  growing
+- **THEN** the largest selection reached is the zoom root's own whole subtree, and no press ever
+  selects hidden content or falls through to native Select All
+
+#### Scenario: While zoomed, ancestors above the root contribute no rungs
+- **WHEN** the caret is in a grandchild of the zoom root and the user presses Mod-A repeatedly
+- **THEN** the ladder climbs through that node's own rungs and its ancestors only up to the zoom
+  root, and stops
+
+#### Scenario: Clearing the zoom restores the unbounded ladder
+- **WHEN** the user clears the zoom and presses Mod-A repeatedly
+- **THEN** the ladder climbs to the whole outline body and falls through to native Select All
+  exactly as it does with no zoom
+
 #### Scenario: Outside outline mode, Mod-A is untouched
 - **WHEN** the active file is not in outline mode and the user presses Mod-A
 - **THEN** native Select All runs exactly as it does without this plugin
 
 **Covered by**: `tests/select-all-ladder.test.ts` (unit and property tests,
-mirroring `tests/escalate.test.ts`'s style); `e2e/specs/64-progressive-select-
-all.e2e.ts` (real Obsidian instance, keyboard-driven).
+mirroring `tests/escalate.test.ts`'s style, including the scope-bounded ladder);
+`e2e/specs/64-progressive-select-all.e2e.ts` (real Obsidian instance, keyboard-driven);
+`e2e/specs/80-outline-zoom.e2e.ts` (the bounded ladder in a live instance).
 
 ### Requirement: Ladder progression is stateless
 The handler SHALL determine the next rung solely from the CURRENT selection

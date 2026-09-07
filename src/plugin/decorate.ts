@@ -31,6 +31,7 @@ import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
 import { isAtom, ownSpan } from '../model';
 import { nodeAtLine } from '../locate';
 import { parse } from '../parse';
+import type { ZoomScope } from '../zoom';
 
 export interface LineDecorationFact {
   /** 0-indexed absolute line number in the document. */
@@ -818,4 +819,62 @@ export function computePositionTrail(
         : new Map<number, boolean>(),
     byLine,
   };
+}
+
+/**
+ * `computePositionTrail`'s result, moved from a re-rooted sub-document's own
+ * line numbering back to the SOURCE document's.
+ *
+ * Only line numbers move; the `depth` values inside `byLine`'s accents do not,
+ * because `scope.document` (`outline-zoom` D9) already re-roots at depth 0 —
+ * the same shift `decorations.ts`'s `baseFacts` applies to the facts and
+ * guides this trail is later clipped against (`accentsOn`), for the same
+ * reason: every consumer indexes by the ABSOLUTE line the real document
+ * renders, never by the sub-document's own.
+ */
+function shiftTrail(trail: PositionTrail, offset: number): PositionTrail {
+  return {
+    currentLine: trail.currentLine === null ? null : trail.currentLine + offset,
+    currentIsListItem: trail.currentIsListItem,
+    ancestorLines: new Map(
+      Array.from(trail.ancestorLines, ([line, isListItem]) => [line + offset, isListItem]),
+    ),
+    byLine: new Map(
+      Array.from(trail.byLine, ([line, fact]) => [
+        line + offset,
+        { ...fact, lineNumber: fact.lineNumber + offset },
+      ]),
+    ),
+  };
+}
+
+/**
+ * `computePositionTrail`, re-based against an active zoom scope — the caret's
+ * own counterpart to `decorations.ts`'s `baseFacts`.
+ *
+ * Computed straight against the source document when `scope` is null, exactly
+ * as it always was. Computed against the zoom root's own sub-document
+ * otherwise, with the cursor line translated into that sub-document's local
+ * numbering, then shifted back: without this, an ancestor's UN-rebased depth
+ * can coincide with a guide at a different level once the base guides ARE
+ * re-based, so `accentsOn`'s depth-membership test silently accents the wrong
+ * column — or none, when the depth exceeds what the zoomed view renders at
+ * all. `decorations.ts`'s `computeTrail` is the thin `EditorState`-reading
+ * wrapper around this; kept here, pure and state-free, so it is what the unit
+ * suite actually exercises rather than something only reachable through a
+ * live editor.
+ *
+ * `cursorLine` is already local to `doc` when `scope` is null, and already
+ * ABSOLUTE (source-document) when it is not — the caller's job, since only it
+ * knows which frame its own cursor position came from.
+ */
+export function zoomAwarePositionTrail(
+  doc: OutlineDoc,
+  cursorLine: number,
+  scope: ZoomScope | null,
+  highlight: PositionHighlight,
+): PositionTrail {
+  if (!scope) return computePositionTrail(doc, cursorLine, highlight);
+  const trail = computePositionTrail(scope.document, cursorLine - scope.startLine, highlight);
+  return shiftTrail(trail, scope.startLine);
 }

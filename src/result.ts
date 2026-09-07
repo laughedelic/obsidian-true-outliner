@@ -19,7 +19,8 @@ export type RejectionReason =
   | 'would-orphan-children'
   | 'merge-not-expressible'
   | 'insertion-not-expressible'
-  | 'cannot-unwrap';
+  | 'cannot-unwrap'
+  | 'would-leave-zoom-scope';
 
 export interface Rejection {
   readonly reason: RejectionReason;

@@ -29,6 +29,7 @@ const LABELS = {
   5: 'decorations',
   6: 'selection',
   7: 'backlinks',
+  8: 'zoom',
   // Its own group: the longest spec in the suite, and its own feature.
   55: 'position-indicators',
   // Lifted out of `selection` and run one-at-a-time: see EXCLUSIVE_GROUPS.

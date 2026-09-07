@@ -389,9 +389,16 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
     //
     // This checks the glyph (not the wrapper) against BOTH neighbors: the
     // marker on its right, and the nearest ancestor's guide column on its
-    // left. Wrapper-vs-marker overlap is explicitly NOT asserted against —
-    // our own marker has `pointer-events: none`, so hit-area overlap with
-    // it is harmless; only the visible glyph's position matters here.
+    // left. Wrapper-vs-marker overlap is explicitly NOT asserted against:
+    // the chevron's own box carries invisible padding either side of its
+    // painted glyph, and only the glyph's position is a visual claim.
+    //
+    // The marker is a control now — clicking it zooms (`zoom-click.ts`) — so
+    // hit-area overlap is no longer free the way `pointer-events: none` once
+    // made it. Where the two boxes genuinely fight, on a LIST line whose
+    // indicator box covers the bullet outright, the fix is a stacking order
+    // rather than a shifted glyph (styles.css), and `80-outline-zoom` asserts
+    // that a click on the bullet reaches the bullet.
     const note = 'Scratch/markers-fold-chevron.md';
     const md = ['# A', '', '## B', '', '### C with a child', '', 'child', ''].join('\n');
     await h.createNote(note, md);

@@ -29,5 +29,12 @@
   "backlinksFooter": true,
   "markerVisibility": "all",
   "guideHighlight": "full",
-  "markerHighlight": "current"
+  "markerHighlight": "current",
+  "backlinksSort": "name",
+  "backlinksOverallCap": "50",
+  "backlinksGroupHeight": "standard",
+  "backlinksSuppressCore": true,
+  "backlinksSegmentIcons": "all",
+  "backlinksSeparator": "none",
+  "backlinksGuides": false
 }

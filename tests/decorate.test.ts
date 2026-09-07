@@ -13,9 +13,11 @@ import {
   resolvedOutline,
   materializeProbe,
   provisionalFact,
+  zoomAwarePositionTrail,
   type LineDecorationFact,
   type PositionHighlight,
 } from '../src/plugin/decorate';
+import { resolveZoom } from '../src/zoom';
 
 describe('decorate: indentation depth', () => {
   it('agrees across heading, list, and paragraph-adjacency encodings', () => {
@@ -1019,6 +1021,68 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       ]);
       expect(ancestors(trail(md, 2, FULL))).toEqual([]);
     });
+  });
+});
+
+describe('zoomAwarePositionTrail: the caret trail re-based against a zoom scope', () => {
+  const LINEAGE: PositionHighlight = { guides: 'lineage', markers: 'lineage' };
+
+  it('is a plain passthrough with no scope', () => {
+    const md = ['# A', '## B', '- one', '  - two', ''].join('\n');
+    const doc = parse(md);
+    const plain = computePositionTrail(doc, 3, LINEAGE);
+    expect(zoomAwarePositionTrail(doc, 3, null, LINEAGE)).toEqual(plain);
+  });
+
+  it('accents the RE-BASED depth, not the source document’s own', () => {
+    // 0 "# A" (depth 0)  1 "## B" (depth 1, zoom root)  2 "- one" (depth 2)
+    // 3 "  - two" (depth 3, the caret)  4 "" (trailing gap)
+    const md = ['# A', '## B', '- one', '  - two', ''].join('\n');
+    const doc = parse(md);
+    const scope = resolveZoom(doc, 1)!; // zoom into "## B"
+    expect(scope.startLine).toBe(1);
+
+    const zoomed = zoomAwarePositionTrail(doc, 3, scope, LINEAGE);
+    // Ancestors are still named by their ABSOLUTE line — "## B" (1) and
+    // "- one" (2) — the same lines a marker consumer indexes by whether or
+    // not a zoom is active, and the same result the bug (which never touched
+    // markers) already produced.
+    expect([...zoomed.ancestorLines.keys()].sort()).toEqual([1, 2]);
+    expect(zoomed.currentLine).toBe(3);
+
+    // The guide accent is what the bug actually broke. Re-based, "two"'s own
+    // row carries depth 1 — its ONE ancestor inside the zoomed subtree,
+    // "- one", which the re-rooted sub-document places at depth 1 because the
+    // zoom root "## B" now sits at depth 0. The un-rebased computation this
+    // replaces would instead put depth 2 there (B's own absolute depth 1 plus
+    // one's absolute depth 2, counted from the document's real root) — a
+    // stripe that either lands on the wrong guide column once the base guides
+    // ARE re-based, or on none at all, in a deeper document where it exceeds
+    // what the zoomed view renders.
+    const line3 = zoomed.byLine.get(3);
+    expect(line3?.accents).toEqual([{ depth: 1, extent: 'top' }]);
+
+    // Cross-checked against the reference computation the fix is built from:
+    // running `computePositionTrail` directly on the scope's own re-rooted
+    // sub-document, with the cursor translated into its local numbering, then
+    // shifting every line number in the result back by `scope.startLine`.
+    const local = computePositionTrail(scope.document, 3 - scope.startLine, LINEAGE);
+    expect(zoomed.currentLine).toBe(local.currentLine! + scope.startLine);
+    expect([...zoomed.ancestorLines.keys()].sort()).toEqual(
+      [...local.ancestorLines.keys()].map((l) => l + scope.startLine).sort((a, b) => a - b),
+    );
+  });
+
+  it('keeps the depth-0 root itself un-accented, the same as unzoomed', () => {
+    // The zoom root has no ancestor of its own inside the visible subtree, so
+    // its own row carries no guide accent — matching a top-level node's own
+    // row unzoomed, which `computePositionTrail`'s own "own rows carry none"
+    // rule already gives every other root.
+    const md = ['# A', '## B', '- one', ''].join('\n');
+    const doc = parse(md);
+    const scope = resolveZoom(doc, 1)!;
+    const zoomed = zoomAwarePositionTrail(doc, 2, scope, LINEAGE);
+    expect(zoomed.byLine.get(1)).toBeUndefined();
   });
 });
 

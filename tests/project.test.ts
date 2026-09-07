@@ -1,9 +1,16 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
-import { project, isEmptyProjection, type NodePredicate } from '../src/project';
+import {
+  project,
+  isEmptyProjection,
+  subtreeDocument,
+  type NodePredicate,
+} from '../src/project';
 import { collapseLineage, lineageText, type LineageRow } from '../src/lineage';
 import { arbMarkdownText } from './generators';
+import { decorate } from '../src/plugin/decorate';
+import { documentLineCount, nodeStartLine } from '../src/locate';
 import type { OutlineDoc, OutlineNode } from '../src/model';
 
 /** Every node in a tree, in document order. */
@@ -347,6 +354,87 @@ describe('lineage: collapsing', () => {
         }
       }),
       { numRuns: 200 },
+    );
+  });
+});
+
+describe('subtreeDocument: a node re-rooted as its own document', () => {
+  const NESTED = `# A
+	
+## B
+	
+- one
+	- two
+		- three
+`.replace(/\t\n/g, '\n');
+
+  it('puts the subject at depth 0 whatever its source depth', () => {
+    const doc = parse(NESTED);
+    const all = walk(doc.children);
+    const deep = all.find((n) => head(n).includes('three'));
+    expect(deep).toBeDefined();
+    const sourceDepthOfDeep = shape(doc).find((l) => l.includes('three'))!.match(/^ */)![0].length / 2;
+    expect(sourceDepthOfDeep).toBeGreaterThan(0);
+
+    const sub = subtreeDocument(deep!);
+    expect(sub.children).toHaveLength(1);
+    expect(shape(sub)).toEqual(['- three']);
+  });
+
+  it('keeps nothing outside the subtree — no ancestors, siblings or preamble', () => {
+    const doc = parse(`---\nk: v\n---\n\n# A\n\n## B\n\ntext\n\n## C\n`);
+    const b = walk(doc.children).find((n) => head(n).includes('## B'))!;
+    const sub = subtreeDocument(b);
+    expect(sub.preamble).toEqual([]);
+    expect(shape(sub)).toEqual(['## B', '  text']);
+  });
+
+  it('carries node content through unmodified', () => {
+    const doc = parse(NESTED);
+    const one = walk(doc.children).find((n) => head(n).includes('one'))!;
+    const sub = subtreeDocument(one);
+    const root = sub.children[0]!;
+    expect(root.kind).toBe(one.kind);
+    expect(root.level).toBe(one.level);
+    expect(root.listStyle).toEqual(one.listStyle);
+    expect(root.lines).toEqual(one.lines);
+    expect(root.trailingGap).toEqual(one.trailingGap);
+  });
+
+  it('yields a single-node document for a leaf', () => {
+    const doc = parse(NESTED);
+    const leaf = walk(doc.children).find((n) => head(n).includes('three'))!;
+    const sub = subtreeDocument(leaf);
+    expect(sub.children).toHaveLength(1);
+    expect(sub.children[0]!.children).toEqual([]);
+  });
+
+  it('maps its lines to source lines by a constant offset', () => {
+    fc.assert(
+      fc.property(arbMarkdownText, (md) => {
+        const doc = parse(md);
+        for (const node of walk(doc.children)) {
+          const start = nodeStartLine(doc, node.id);
+          const sub = subtreeDocument(node);
+          // Line K of the sub-document is line start+K of the source, so the
+          // sub-document's own length must fit inside the source from `start`.
+          expect(start + documentLineCount(sub)).toBeLessThanOrEqual(documentLineCount(doc));
+        }
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it('decorates like the same nodes at those relative depths — the shared contract', () => {
+    const doc = parse(NESTED);
+    const b = walk(doc.children).find((n) => head(n).includes('## B'))!;
+    const facts = decorate(subtreeDocument(b));
+    // The subject is depth 0 in its own document, and its descendants count
+    // outward from it — the re-basing zoom needs, with decorate() untouched.
+    expect(facts[0]!.depth).toBe(0);
+    expect(facts.every((f) => f.depth >= 0)).toBe(true);
+    expect(Math.max(...facts.map((f) => f.depth))).toBeLessThan(
+      Math.max(...decorate(doc).map((f) => f.depth)) + 1,
     );
   });
 });
