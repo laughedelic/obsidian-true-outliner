@@ -68,6 +68,7 @@ import {
 import {
   applyControls,
   axesOf,
+  type ControlsResult,
   type ControlsState,
   type FilterAxes,
   type SortOrder,
@@ -423,7 +424,7 @@ class FooterController {
       bodies.push({ path: group.path, body, card });
     }
 
-    this.renderTail(root, result.shortfall);
+    this.renderTail(root, result, this.controls(state).cap);
 
     this.swap(root);
     // Started only after the swap, so a fast read cannot fill a body that is
@@ -440,7 +441,8 @@ class FooterController {
    * (docs/research/18, D10) — so the last card fades as well, and a list that
    * is complete gets none of the three.
    */
-  private renderTail(root: HTMLElement, shortfall: { references: number; notes: number }): void {
+  private renderTail(root: HTMLElement, result: ControlsResult, effectiveCap: number): void {
+    const { shortfall } = result;
     if (shortfall.notes <= 0) return;
 
     const cards = root.querySelectorAll('.to-backlinks-group');
@@ -467,7 +469,23 @@ class FooterController {
       // Additive: the model is a pure function of the controls and its order is
       // stable, so a larger cap yields a superset in the same order and nothing
       // already on screen moves (design D5).
-      viewStateFor(this.targetPath).capBonus += Number.isFinite(tranche) ? tranche : 0;
+      //
+      // The increment is AT LEAST one tranche, but never less than what the
+      // very next omitted group needs to fit. A fixed tranche alone can be
+      // smaller than that group — a hub note with a 90-reference source right
+      // past a 25-reference cap needs more than one click's worth just to
+      // reach it, and every click in between repaints an IDENTICAL list,
+      // which reads as a broken control rather than as "keep clicking".
+      // `admittedReferences` is what the cap actually let through this render
+      // (never more than `effectiveCap`, per D2); raising the cap to admitted
+      // + the next group's own size is exactly enough to cross it.
+      const admittedReferences = result.totals.references - result.shortfall.references;
+      const needed = result.nextOmittedReferences ?? 0;
+      const minIncrement = Math.max(
+        Number.isFinite(tranche) ? tranche : 0,
+        admittedReferences + needed - effectiveCap,
+      );
+      viewStateFor(this.targetPath).capBonus += minIncrement;
       void this.render();
     });
 
@@ -536,7 +554,13 @@ class FooterController {
     const kinds = state.kinds;
     const refOf = (node: OutlineNode): PlacedReference | undefined => {
       const ref = placed.refs.get(node.id);
-      return ref && (kinds.size === 0 || kinds.has(ref.kind)) ? ref : undefined;
+      // ANY kind the node carries, not just the one `place()` kept for its
+      // own marker/quote choice — a node can hold references of more than one
+      // kind, and the group's own count already counts every one of them.
+      if (!ref) return undefined;
+      if (kinds.size === 0) return ref;
+      for (const k of ref.kinds) if (kinds.has(k)) return ref;
+      return undefined;
     };
     const matches = (node: OutlineNode): boolean => refOf(node) !== undefined;
     const properties =

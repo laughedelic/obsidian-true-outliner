@@ -761,19 +761,6 @@ describe('the footer’s controls', function () {
     expect(shut.expanded).toBe('false');
   });
 
-  /**
-   * The tag axis, which is the only one that is many-to-one (design D9).
-   *
-   * A note has one folder and a reference has one kind, so those two axes
-   * partition their values and a second selection can only narrow. A note
-   * carries any number of tags, so a second tag WIDENS — while the axes still
-   * combine with AND. These two cases are that asymmetry, end to end.
-   *
-   * The fixture facts they turn on: `#person` is Maya and Priya, who each link
-   * plainly; `#research` is the study write-up, which reaches the target only
-   * through a property and an embed. So the two tags are disjoint sets, and
-   * `Note` is a kind that one of them has and the other does not.
-   */
   it("says a filter is active in the toggle's own name, not only in the dot", async function () {
     await openFilters();
     await clearFilters();
@@ -815,6 +802,19 @@ describe('the footer’s controls', function () {
     expect(closedIdle).not.toMatch(/active/i);
   });
 
+  /**
+   * The tag axis, the only one a source can answer to several values of at
+   * once (design D9). Every axis widens on a second selected value — folder
+   * and kind do too, by the same set-membership check — what is different
+   * here is that ONE SOURCE can itself satisfy two different tag values at
+   * once, which needs a scan over the note's own tags rather than a single
+   * membership test. These two cases are that, end to end.
+   *
+   * The fixture facts they turn on: `#person` is Maya and Priya, who each link
+   * plainly; `#research` is the study write-up, which reaches the target only
+   * through a property and an embed. So the two tags are disjoint sets, and
+   * `Note` is a kind that one of them has and the other does not.
+   */
   it('offers the tags its sources carry, and none they do not', async function () {
     await openFilters();
     await clearFilters();

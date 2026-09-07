@@ -2510,11 +2510,20 @@ body {
 
 /* ---- Coexistence with Obsidian's own in-document backlinks --------------- *
  *
- * Obsidian renders its own "Linked mentions" section INSIDE the editor —
+ * Obsidian renders its own in-document backlinks section INSIDE the editor —
  * measured, not assumed: it is a child of `.cm-sizer`, a sibling of the
  * `.cm-content` our footer's widget lives in. So the condition "a view where
  * our footer is rendering" is expressible on the nearest shared ancestor,
  * which is tighter than reaching up to the workspace leaf.
+ *
+ * The rule hides the WHOLE section, unlinked mentions included, not only the
+ * "Linked mentions" half this plugin actually duplicates. That is not a
+ * choice: `.embedded-backlinks` wraps one `BacklinkPane` component whose
+ * linked and unlinked halves share every class down to the DOM (read from
+ * Obsidian's own bundle, since the harness cannot populate this section to
+ * inspect live) — there is nothing to scope a stylesheet rule to one half.
+ * The setting's own name and description say this plainly, and Obsidian's own
+ * Backlinks pane still shows both regardless of this rule.
  *
  * Presentational only, and nothing has to undo it. The rule lives in the
  * stylesheet Obsidian unloads with the plugin, so `plugin-shell`'s no-residue

@@ -20,6 +20,7 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 import {
   FOOTER,
+  chooseFacetValue,
   clickIn,
   focusSearch,
   groupNames,
@@ -510,5 +511,164 @@ describe('the overall cap and the per-note bound', function () {
       await (plugins.trueOutliner as any).setBacklinksGroupHeight('standard');
     });
     await settle();
+  });
+});
+
+/**
+ * "Load more" has to admit at least the next whole group, not just add one
+ * fixed tranche.
+ *
+ * In its own `describe`, with two fixture notes built to an exact reference
+ * count rather than relying on the generated hub's own numbers — the point
+ * being tested is a size RELATIONSHIP (a source bigger than one tranche,
+ * sitting right past the cap), which is easiest to state exactly rather than
+ * to go looking for in a fixture built for other purposes.
+ */
+describe('"Load more" against a group larger than one tranche', function () {
+  const TARGET = 'Scratch/Tranche Target.md';
+  /** Twenty references — admitted first regardless of size (D2's own
+   * exception), and small enough to fit under a 25-reference cap alone. */
+  const SMALL_SOURCE = 'Scratch/Tranche A.md';
+  /** Forty references — bigger than one 25-reference tranche on its own, so
+   * a single "Load more" click has to raise the cap by more than one tranche
+   * to admit it at all. */
+  const BIG_SOURCE = 'Scratch/Tranche B.md';
+
+  const mentions = (n: number): string =>
+    Array.from({ length: n }, (_, i) => `- mention ${i + 1} of [[Tranche Target]]`).join('\n') +
+    '\n';
+
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.createNote(TARGET, '# Tranche Target\n');
+    await h.createNote(SMALL_SOURCE, mentions(20));
+    await h.createNote(BIG_SOURCE, mentions(40));
+
+    // Waited on the INDEX directly rather than on the footer: both fixture
+    // notes are fresh writes, and confirming the plugin has already seen both
+    // before the footer is ever opened removes the whole class of
+    // reindex-timing race this file's other `describe` had to work around.
+    await browser.waitUntil(
+      async () => {
+        const paths = await browser.executeObsidian(
+          ({ plugins }, target: string) =>
+            (
+              plugins.trueOutliner as never as {
+                backlinks: { summaries(p: string): { path: string }[] };
+              }
+            ).backlinks
+              .summaries(target)
+              .map((s) => s.path),
+          TARGET,
+        );
+        return paths.includes(SMALL_SOURCE) && paths.includes(BIG_SOURCE);
+      },
+      { timeout: h.waitBudget(10_000), timeoutMsg: 'the two fixture sources never indexed' },
+    );
+
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksSort('name');
+    });
+    await openFooter(TARGET);
+    await setCap('25');
+  });
+
+  it('admits the next group in one click even though it exceeds one tranche', async function () {
+    const before = await readStable(groupNames);
+    // A (20 refs) fits under 25 and sorts first; B (40 refs) does not fit
+    // behind it (20 + 40 > 25) and is held back.
+    expect(before).toEqual(['Tranche A']);
+
+    await clickIn(`${FOOTER} .to-backlinks-load-more`);
+    await settle();
+
+    // ONE click, not several: 25 (one tranche) would raise the cap to 50,
+    // and 20 + 40 = 60 still would not fit — a fixed tranche alone leaves
+    // this click looking like it did nothing.
+    const after = await readStable(groupNames);
+    expect(after).toEqual(['Tranche A', 'Tranche B']);
+  });
+});
+
+/**
+ * A node holding references of MORE than one kind: the group's own count and
+ * the rendered row have to agree on whether it counts as, say, an embed.
+ *
+ * `place()` keeps only the FIRST reference per node for its marker/quote
+ * choice — a node can hold several, and deciding a marker for each would be
+ * a different feature. A kind filter that read only that first choice would
+ * disagree with the group's own count, which is taken from the raw,
+ * undeduplicated reference list: selecting Embed would count this node (it
+ * has one) while the row for it vanished, because the FIRST reference the
+ * node happened to record was a plain link. Recorded as a known gap in
+ * `docs/research/12-decoration-follow-ups.md` before `backlinks-controls`
+ * existed to resolve it; found again in review once a kind filter existed
+ * to expose it.
+ */
+describe('a node carrying references of more than one kind', function () {
+  const TARGET = 'Scratch/Multi-kind Target.md';
+  const SOURCE = 'Scratch/Multi-kind Source.md';
+
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.createNote(TARGET, '# Multi-kind Target\n');
+    // ONE line, so both references land on the SAME node — a plain link
+    // (recorded first, per `place()`'s own rule) and an embed of the same
+    // target right after it.
+    await h.createNote(
+      SOURCE,
+      '- mentions [[Multi-kind Target]] and embeds ![[Multi-kind Target]]\n',
+    );
+
+    await browser.waitUntil(
+      async () => {
+        const refs = await browser.executeObsidian(
+          ({ plugins }, [target, source]: [string, string]) =>
+            (
+              plugins.trueOutliner as never as {
+                backlinks: { referencesFrom(t: string, s: string): { kind: string }[] };
+              }
+            ).backlinks.referencesFrom(target, source),
+          [TARGET, SOURCE] as [string, string],
+        );
+        return refs.length === 2;
+      },
+      { timeout: h.waitBudget(10_000), timeoutMsg: 'the two references on one line never indexed' },
+    );
+
+    await openFooter(TARGET);
+  });
+
+  it('keeps the row when the node’s non-first reference is the selected kind', async function () {
+    const shape = (): Promise<{ count: string; rows: number } | null> =>
+      browser.executeObsidian(() => {
+        const card = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-group',
+        );
+        if (!card) return null;
+        return {
+          count: card.querySelector('.to-backlinks-group-count')?.textContent ?? '',
+          rows: card.querySelectorAll('.to-backlinks-row').length,
+        };
+      });
+
+    const unfiltered = await readStable(shape);
+    expect(unfiltered).not.toBeNull();
+    expect(unfiltered!.count).toBe('2');
+    expect(unfiltered!.rows).toBe(1);
+
+    await openFilters();
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    await chooseFacetValue('Embed');
+
+    const embedOnly = await readStable(shape);
+    expect(embedOnly).not.toBeNull();
+    // The count says one embed reference exists here...
+    expect(embedOnly!.count).toBe('1');
+    // ...and the row for it is still there — not dropped because the FIRST
+    // reference `place()` recorded for this node happened to be the link.
+    expect(embedOnly!.rows).toBe(1);
   });
 });

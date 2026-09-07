@@ -836,8 +836,8 @@ const SETTING_BACKLINKS_GROUP_HEIGHT = {
 } as const;
 
 const SETTING_BACKLINKS_SUPPRESS_CORE = {
-  name: 'Backlinks: hide Obsidian’s own linked mentions',
-  desc: 'Hides Obsidian’s in-document backlinks section in notes where this plugin renders its own, so the same references are not listed twice. Presentational only: no other plugin’s settings are read or changed, and turning this off restores the section immediately.',
+  name: 'Backlinks: hide Obsidian’s own in-document section',
+  desc: 'Hides Obsidian’s in-document backlinks section entirely in notes where this plugin renders its own — including unlinked mentions, which this plugin does not reproduce and has no way to hide selectively. Obsidian’s own Backlinks pane still shows both, unaffected. Presentational only: no other plugin’s settings are read or changed, and turning this off restores the section immediately.',
 } as const;
 
 const SETTING_BACKLINKS_SEGMENT_ICONS = {

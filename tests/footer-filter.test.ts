@@ -29,8 +29,12 @@ const src = (path: string, mtime: number, ...kinds: ReferenceKind[]): SourceRefs
 });
 
 /** The same, carrying tags — the axis where one note answers to several values. */
-const tagged = (path: string, mtime: number, tags: string[], ...kinds: ReferenceKind[]): SourceRefs =>
-  ({ ...src(path, mtime, ...kinds), tags });
+const tagged = (
+  path: string,
+  mtime: number,
+  tags: string[],
+  ...kinds: ReferenceKind[]
+): SourceRefs => ({ ...src(path, mtime, ...kinds), tags });
 
 const controls = (over: Partial<ControlsState> = {}): ControlsState => ({ ...NO_FILTER, ...over });
 
@@ -129,6 +133,32 @@ describe('focus-on semantics', () => {
     expect(result.totals).toEqual({ references: 3, notes: 1 });
   });
 
+  // Every axis widens on a second selected value — a source is admitted
+  // whenever its value is IN the selected set, so a second folder or a second
+  // kind is exactly the same set-membership OR the tag axis uses (D9's own
+  // "the only one" claim named this as tag-specific and was wrong to; review
+  // caught it).
+  it('a second folder widens too, the same rule the tag axis uses', () => {
+    const one = applyControls(VAULT, controls({ folders: new Set(['Notes']) }));
+    const two = applyControls(VAULT, controls({ folders: new Set(['Notes', 'Daily']) }));
+    expect(paths(one)).toHaveLength(1);
+    expect(paths(two)).toHaveLength(3);
+  });
+
+  it('a second kind widens too, for the same reason', () => {
+    const one = applyControls(VAULT, controls({ kinds: new Set<ReferenceKind>(['anchor']) }));
+    const two = applyControls(
+      VAULT,
+      controls({ kinds: new Set<ReferenceKind>(['anchor', 'note']) }),
+    );
+    expect(paths(one)).toEqual(['Daily/2026-01-01.md']);
+    expect(paths(two).sort()).toEqual([
+      'Daily/2026-01-01.md',
+      'Daily/2026-01-03.md',
+      'Notes/Brief.md',
+    ]);
+  });
+
   it('counts only references of a selected kind, and drops a group left with none', () => {
     const result = applyControls(VAULT, controls({ kinds: new Set<ReferenceKind>(['embed']) }));
     expect(paths(result)).toEqual(['Notes/Brief.md']);
@@ -183,10 +213,14 @@ describe('the tag axis', () => {
     expect(paths(result).sort()).toEqual(['Daily/mon.md', 'Notes/spec.md']);
   });
 
-  it('WIDENS on a second tag, where a second folder could only narrow', () => {
+  it('widens on a second tag, the same OR-within-an-axis rule every axis follows', () => {
     const one = applyControls(TAGGED, controls({ tags: new Set(['review']) }));
     const two = applyControls(TAGGED, controls({ tags: new Set(['review', 'standup']) }));
-    // A note carrying EITHER is admitted — the whole of D9's asymmetry.
+    // A note carrying EITHER is admitted. Folder and kind widen on a second
+    // selected value too (see focus-on semantics, 'a second folder widens too', above) — what is
+    // distinct about tags is not this, it is that a SINGLE note can satisfy
+    // two tag values at once, which is why the check is `.some()` rather than
+    // a single membership test (design D9).
     expect(paths(one)).toHaveLength(2);
     expect(paths(two).sort()).toEqual(['Daily/mon.md', 'Daily/tue.md', 'Notes/spec.md']);
   });
@@ -355,6 +389,19 @@ describe('the overall cap', () => {
     const result = applyControls(VAULT, controls());
     expect(paths(result)).toHaveLength(3);
     expect(result.shortfall).toEqual({ references: 0, notes: 0 });
+  });
+
+  it('names the size of the group a fixed tranche might still be too small for', () => {
+    // "Load more" raises the cap by a fixed tranche, which can be smaller
+    // than the very group it means to reveal — this is what lets the
+    // renderer raise the cap by ENOUGH instead of by one tranche regardless.
+    const result = applyControls(VAULT, controls({ cap: 4 }));
+    expect(result.nextOmittedReferences).toBe(3);
+  });
+
+  it('reports no next omission once nothing is held back', () => {
+    const result = applyControls(VAULT, controls());
+    expect(result.nextOmittedReferences).toBeNull();
   });
 });
 
