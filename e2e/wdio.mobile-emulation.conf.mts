@@ -16,8 +16,11 @@ const root = path.resolve(e2eDir, '..');
  * file had its own copy, which honored neither `OBSIDIAN_VERSION` nor a
  * configurable cache, so pinning a version silently applied to the desktop
  * suite only. */
-const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile');
+// Before resolveObsidianTarget: that can throw (a bad/uncached pinned
+// version), and a stale summary from a previous run must not survive this
+// invocation failing before it gets anywhere near a test.
 await resetE2eReports();
+const { browserVersion, cacheDir } = await resolveObsidianTarget(root, ' mobile');
 
 /**
  * Mobile-emulation variant of wdio.conf.mts: identical plugin/vault/specs,

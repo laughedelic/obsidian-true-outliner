@@ -110,8 +110,15 @@ const platform = argv[0] === 'mobile' ? 'mobile' : 'desktop';
 const rest = argv[0] === 'desktop' || argv[0] === 'mobile' ? argv.slice(1) : argv;
 
 const groupIndex = rest.indexOf('--group');
-const group = groupIndex === -1 ? undefined : rest[groupIndex + 1];
-if (group !== undefined) {
+let group;
+if (groupIndex !== -1) {
+  group = rest[groupIndex + 1];
+  // Missing entirely, or the next token is itself a flag: --group with no
+  // value must fail loudly, not silently fall back to running everything.
+  if (group === undefined || group.startsWith('--')) {
+    console.error('[e2e:docker] --group requires a value.');
+    process.exit(1);
+  }
   const groups = specGroups();
   if (!groups[group]) {
     console.error(

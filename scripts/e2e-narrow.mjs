@@ -3,7 +3,7 @@
  * then invokes wdio directly against a single spec file (optionally further
  * narrowed to a single test by name), skipping `run-e2e.mjs`'s whole-group
  * dispatch. Reserve `run-e2e.mjs` (`npm run test:e2e[:mobile]`) for a final
- * check before pushing — see CLAUDE.md's "E2E testing" section for why.
+ * check before pushing — see AGENTS.md's "E2E testing" section for why.
  *
  *   node scripts/e2e-narrow.mjs <spec> [test-name-grep] [--mobile]
  *

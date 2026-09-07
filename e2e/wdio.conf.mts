@@ -35,8 +35,11 @@ const root = path.resolve(e2eDir, '..');
  * account is required" — a download that SUCCEEDED, reported as a credentials
  * problem.
  */
-const { browserVersion, cacheDir } = await resolveObsidianTarget(root, '');
+// Before resolveObsidianTarget: that can throw (a bad/uncached pinned
+// version), and a stale summary from a previous run must not survive this
+// invocation failing before it gets anywhere near a test.
 await resetE2eReports();
+const { browserVersion, cacheDir } = await resolveObsidianTarget(root, '');
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
