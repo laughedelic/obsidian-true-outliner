@@ -725,7 +725,7 @@ describe('outline zoom', function () {
     expect(await trail()).toEqual(before);
   });
 
-  it('exits when outline mode is switched off', async function () {
+  it('exits when outline mode is switched off, and stays cleared on re-enable', async function () {
     await openZoomable();
     await zoomAt(DOC, '## Mid');
     expect(await trail()).not.toEqual([]);
@@ -733,9 +733,14 @@ describe('outline zoom', function () {
     await h.waitForNotice('Outline mode off');
     await h.dismissNotices();
     expect(await trail()).toEqual([]);
+    // The stored anchor, not only the scope it would otherwise derive: gating
+    // the DERIVED scope on outline mode is not the same as clearing what it is
+    // derived FROM, and re-enabling mode used to walk straight back into the
+    // zoom the user had already left.
     await h.toggleOutlineMode();
     await h.waitForNotice('Outline mode on');
     await h.dismissNotices();
+    expect(await trail()).toEqual([]);
   });
 
   it('does nothing when the caret is in the preamble', async function () {
@@ -939,6 +944,21 @@ describe('outline zoom', function () {
     expect(await trail()).toEqual(['zoom', 'Top', 'second']);
   });
 
+  it('leaves a task’s checkbox to its own click, not this gesture', async function () {
+    // A task's mark is Obsidian's own checkbox, and its click already means
+    // something — toggling the task. This gesture does not contest it: the
+    // click reaches the checkbox exactly as it always has, and no zoom
+    // happens (design D15, spec's task-exception scenario). The command, the
+    // context menu, and a hotkey remain how a task is zoomed by the pointer.
+    const md = ['# Top', '', '- [ ] an open task', ''].join('\n');
+    await openZoomable(md);
+    await browser.pause(250);
+    await clickMark('.task-list-item-checkbox', 0);
+    await browser.pause(250);
+    expect(await trail()).toEqual([]);
+    expect(await h.getBuffer()).toContain('- [x] an open task');
+  });
+
   it('marks a crumb whose node has more lines than the one it shows', async function () {
     const md = ['- an item', '  that wraps', '\t- child', ''].join('\n');
     await openZoomable(md);
@@ -991,5 +1011,23 @@ describe('outline zoom', function () {
     await h.toggleOutlineMode();
     await h.waitForNotice('Outline mode on');
     await h.dismissNotices();
+  });
+
+  it('offers zoom-out and zoom-clear only while zoomed', async function () {
+    // Unlike zoom-in, which is always meaningful in outline mode, stepping out
+    // or clearing a zoom that is not there is a pure no-op — the palette should
+    // not offer either. `editorCheckCallback`'s CHECKING pass has to answer
+    // this without dispatching anything, which is why it is a separate
+    // predicate from the action rather than a dry run of it.
+    await openZoomable();
+    expect(await h.commandAvailable('zoom-out')).toBe(false);
+    expect(await h.commandAvailable('zoom-clear')).toBe(false);
+    await zoomAt(DOC, '## Mid');
+    expect(await h.commandAvailable('zoom-out')).toBe(true);
+    expect(await h.commandAvailable('zoom-clear')).toBe(true);
+    await h.runCommand('zoom-clear');
+    await browser.pause(150);
+    expect(await h.commandAvailable('zoom-out')).toBe(false);
+    expect(await h.commandAvailable('zoom-clear')).toBe(false);
   });
 });

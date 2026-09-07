@@ -33,6 +33,14 @@
  * handled press is remembered until its own gesture ends, and the `mousedown`,
  * `mouseup` and `click` that follow it are swallowed rather than allowed to
  * place a caret from coordinates that now mean something else entirely.
+ *
+ * `instanceof Element` (below) reads from the view's OWN window, not the
+ * global one it happens to be evaluated in. An Obsidian pop-out leaf runs in a
+ * real separate window, with its OWN `Element`/`MouseEvent` constructors — an
+ * element or event built there is not an `instanceof` this MODULE's globals,
+ * so a check against the bare identifiers declined every click there. Read
+ * once, from `view.dom.ownerDocument.defaultView`, the same resolution
+ * `zoom-view.ts` already uses for the same reason.
  */
 
 import { ViewPlugin, type EditorView, type PluginValue } from '@codemirror/view';
@@ -67,6 +75,10 @@ const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
 class ZoomClickPlugin implements PluginValue {
   private readonly onPointerDown: (event: Event) => void;
   private readonly onTrailing: (event: Event) => void;
+  /** This view's OWN `Element`, not the module's global — see the module
+   * comment on pop-out windows. Read once: a live view's DOM does not move to
+   * a different window without being torn down and rebuilt. */
+  private readonly Element: typeof Element;
   /** A press this gesture took, until its own trailing events are spent. */
   private consuming = false;
 
@@ -74,9 +86,12 @@ class ZoomClickPlugin implements PluginValue {
     private readonly view: EditorView,
     private readonly modes: ModeSource,
   ) {
-    this.onPointerDown = (event) => {
-      if (event instanceof MouseEvent) this.handle(event);
-    };
+    this.Element = view.dom.ownerDocument.defaultView?.Element ?? Element;
+    // No realm check needed on `event` itself: a listener registered for
+    // `'pointerdown'` is only ever invoked with a `PointerEvent`, whichever
+    // window built it, so a cast is exact here — unlike `event.target` below,
+    // which needs the real check because nothing pins its type this way.
+    this.onPointerDown = (event) => this.handle(event as MouseEvent);
     this.onTrailing = (event) => this.swallow(event);
     this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
     for (const type of TRAILING_EVENTS) {
@@ -110,8 +125,9 @@ class ZoomClickPlugin implements PluginValue {
     // `<path>` inside its SVG, and an SVG element is not an HTMLElement. The
     // narrower test silently dropped every click that actually landed on a
     // glyph — measured, and invisible to a synthesised event dispatched on the
-    // span itself.
-    const target = event.target instanceof Element ? event.target : null;
+    // span itself. `this.Element`, not the bare identifier: see the module
+    // comment on pop-out windows.
+    const target = event.target instanceof this.Element ? event.target : null;
     const mark = target?.closest<HTMLElement>(MARK_SELECTOR);
     if (!mark) return;
     // The trail and the footer draw marks of their own inside `.cm-content` and

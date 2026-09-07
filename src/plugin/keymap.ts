@@ -625,14 +625,21 @@ function makeHorizontalHandler(modes: ModeSource, direction: "left" | "right") {
         // Never let a visual step land inside chrome; `max` is safe rightward too,
         // since native motion cannot go below the boundary in that direction.
         const ch = Math.max(nativePos.ch, boundary);
-        return dispatchCursor(view, modes, linePosToOffset(doc, { line: pos.line, ch }));
+        // CONSUMED regardless of `dispatchCursor`'s own result — the same
+        // contract the vertical handler holds. A `return dispatchCursor(...)`
+        // here propagated a zoom-scope refusal as "this handler declined the
+        // key", and CM6 falls through to the NEXT bound handler on a decline —
+        // stock motion among them, which is exactly how a caret would step
+        // past the boundary into hidden content the refusal was meant to keep
+        // it out of.
+        dispatchCursor(view, modes, linePosToOffset(doc, { line: pos.line, ch }));
         return true;
       }
       // Native motion left the line although the planner did not expect it to:
       // fall through and trust the planner.
     }
 
-    return dispatchCursor(view, modes, linePosToOffset(doc, target));
+    dispatchCursor(view, modes, linePosToOffset(doc, target));
     return true;
   };
 }

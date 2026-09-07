@@ -334,3 +334,34 @@ implementation, not an assertion.
 - [ ] 15.5 Affordance budget for a node's mark — zoom, fold, drag, and a task's checkbox all
       want the same 14px. Explored in `docs/research/12-decoration-follow-ups.md`; nothing
       settled, and nothing in this change
+
+## 16. Review round five (Copilot, PR #69)
+
+- [x] 16.1 The caret trail's guide accent used the SOURCE document's depths while zoomed, then
+      compared them against the RE-BASED guide depths `accentsOn` filters by — an ancestor's
+      absolute depth can coincide with a different re-based level, silently accenting the wrong
+      guide column or none at all. Extracted as `zoomAwarePositionTrail` (`decorate.ts`), pure
+      and unit-tested directly, rather than left inside the `EditorState`-reading wrapper only
+      an e2e could reach
+- [x] 16.2 The horizontal motion handler propagated a zoom-scope refusal as "this key was
+      declined", letting CM6 fall through to native motion — the one route past the boundary the
+      vertical handler's own "consume regardless" contract exists to close. Also removed two
+      lines of dead code (`return x; return true;`) the same defect was hiding behind
+- [x] 16.3 `zoom-out`/`zoom-clear` reported available in the palette whether or not a zoom was
+      active, because CHECKING never asked — `addZoomCommand` now takes a side-effect-free
+      `available` predicate, separate from `act`, which dispatches
+- [x] 16.4 Turning outline mode off left the stored anchor in place behind a gate that only
+      currently reads false, so re-enabling mode revived the zoom the user had already left.
+      Cleared explicitly in `toggleMode`, reading the raw `zoomAnchorField` rather than the
+      already-gated `zoomScope` — the first attempt at this fix checked the derived scope and
+      therefore never found anything to clear, caught by the e2e case for it
+- [x] 16.5 `instanceof MouseEvent`/`instanceof Element` in the click listener read from the
+      module's global constructors, which are not what a click built in an Obsidian pop-out
+      window is an instance of. The `pointerdown` check is a type-only cast (the listener's own
+      event name already guarantees the type); the `target` check resolves `Element` from
+      `view.dom.ownerDocument.defaultView`, the same resolution `zoom-view.ts` already uses
+- [x] 16.6 The click-to-zoom requirement claimed "every node kind" without qualification; a
+      task's mark is Obsidian's checkbox, whose click already means something, and this gesture
+      correctly declines to contest it. Narrowed the requirement and added the scenario and
+      e2e case that were missing, rather than the affordance itself — recorded as still open in
+      15.5

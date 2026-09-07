@@ -66,7 +66,7 @@ import { zoomTrailExtension } from './zoom-trail';
 import { zoomViewExtension } from './zoom-view';
 import { viewFor } from './view-registry';
 import { zoomScope } from './zoom-scope';
-import { zoomCleared, zoomTo } from './zoom-state';
+import { zoomAnchorField, zoomCleared, zoomTo } from './zoom-state';
 import { operandEscapes, parentOf, resolveZoom } from '../zoom';
 import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
@@ -246,12 +246,27 @@ export default class TrueOutlinerPlugin extends Plugin {
     // common community plugin. The palette and the context menu are the entry
     // points; a user who wants a key assigns one.
     this.addZoomCommand('zoom-in', 'Zoom in to node', (view) => this.zoomInFrom(view));
-    this.addZoomCommand('zoom-out', 'Zoom out one level', (view) => this.zoomOutFrom(view));
-    this.addZoomCommand('zoom-clear', 'Zoom out fully', (view) => {
-      if (zoomScope(view.state, this) === null) return false;
-      view.dispatch({ effects: zoomCleared.of(null) });
-      return true;
-    });
+    // Available only while zoomed: both are otherwise a no-op, and the
+    // palette should not offer "zoom out" when there is nothing to zoom out
+    // of. The predicate is `zoomScope` itself, the same read `act` starts
+    // with — cheap and side-effect-free, unlike `act`, which is why it is a
+    // second function rather than a dry run of the first.
+    this.addZoomCommand(
+      'zoom-out',
+      'Zoom out one level',
+      (view) => this.zoomOutFrom(view),
+      (view) => zoomScope(view.state, this) !== null,
+    );
+    this.addZoomCommand(
+      'zoom-clear',
+      'Zoom out fully',
+      (view) => {
+        if (zoomScope(view.state, this) === null) return false;
+        view.dispatch({ effects: zoomCleared.of(null) });
+        return true;
+      },
+      (view) => zoomScope(view.state, this) !== null,
+    );
 
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {
@@ -636,7 +651,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // The same note can be open in more than one split, and `refreshDecorations`
     // reaches one of them. Every footer for this path has just become wrong.
     nudgeFooters(this.app);
-    this.refreshDecorations(path);
+    this.refreshDecorations(path, on);
     // Awaited last rather than dropped: the command site `void`s this promise,
     // so a rejected write surfaces exactly as it did before.
     await saved;
@@ -647,10 +662,35 @@ export default class TrueOutlinerPlugin extends Plugin {
    * decorationsExtension's StateField never gets a chance to recompute.
    * Nudging the cursor to its own position is a real (public-API) dispatch
    * that forces the recompute without changing anything visible.
+   *
+   * Turning mode OFF also clears any zoom on this view. `zoomAnchorField`'s own
+   * `update()` cannot host that check itself: the module is deliberately kept
+   * free of `obsidian` (`zoom-state.ts`'s own comment says why), and "is this
+   * file in outline mode" is an instance method on the registry, not something
+   * a resolver installed once at module load can answer the way the other exit
+   * triggers do. Left uncleared, the anchor survives the toggle inert —
+   * `computeScope` already gates on outline mode, so the zoom has no visible
+   * effect while mode is off — and reactivates the moment mode comes back,
+   * reviving a zoom the user never asked to keep. Same one-of-several-panes
+   * limitation `nudgeFooters`'s own caller comment already accepts for this
+   * whole redraw.
+   *
+   * Read the FIELD directly below, never `zoomScope`: that derived read is the
+   * very gate this comment just described, so by the time `outlineModeOn` is
+   * false it always answers null and a check against it would never find
+   * anything to clear.
    */
-  private refreshDecorations(path: string): void {
+  private refreshDecorations(path: string, outlineModeOn: boolean): void {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (view?.file?.path !== path) return;
+    const cm = viewFor(view);
+    // The RAW anchor, not `zoomScope`: that already gates on outline mode, so
+    // by the time this runs (mode is already off in the registry) it always
+    // answers null — checking it here would never find anything to clear,
+    // which is exactly the bug this exists to fix.
+    if (!outlineModeOn && cm?.state.field(zoomAnchorField, false) != null) {
+      cm.dispatch({ effects: zoomCleared.of(null) });
+    }
     view.editor.setCursor(view.editor.getCursor());
   }
 
@@ -731,12 +771,20 @@ export default class TrueOutlinerPlugin extends Plugin {
    *
    * `editorCheckCallback` rather than `editorCallback`, so the command is
    * absent from the palette outside outline mode instead of present and inert —
-   * matching `toggle-outline-mode` and the structural commands. The action
-   * reports whether it did anything, and a gesture with nothing to do reports
-   * `false` while CHECKING so the palette hides it, but never surfaces a cue:
-   * "zoom out when not zoomed" is a no-op, not a rejection.
+   * matching `toggle-outline-mode` and the structural commands. `available`
+   * is what makes CHECKING answer honestly: it has to be side-effect-free,
+   * since checking runs on every palette keystroke, so it is a SEPARATE
+   * argument from `act` rather than a dry-run of it — `act` dispatches.
+   * Defaulted to always-available for zoom-in, which is always meaningful in
+   * outline mode; a caret in the preamble is a documented no-op (design D6),
+   * not a case this hides.
    */
-  private addZoomCommand(id: string, name: string, act: (view: EditorView) => boolean): void {
+  private addZoomCommand(
+    id: string,
+    name: string,
+    act: (view: EditorView) => boolean,
+    available: (view: EditorView) => boolean = () => true,
+  ): void {
     this.addCommand({
       id,
       name,
@@ -745,9 +793,8 @@ export default class TrueOutlinerPlugin extends Plugin {
         if (!path || !this.registry.isOutline(path)) return false;
         const view = viewFor(ctx);
         if (!view) return false;
-        if (checking) return true;
-        act(view);
-        return true;
+        if (checking) return available(view);
+        return act(view);
       },
     });
   }

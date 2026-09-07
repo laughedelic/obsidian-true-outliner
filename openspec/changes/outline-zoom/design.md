@@ -579,6 +579,14 @@ several others. It is the colour this plugin already uses for the node in play.
 to the node the caret is already in, so it is inside the new scope by construction. A click can
 name any node on screen, so the caret is usually outside it and has to come along.
 
+*A task list item has no click-to-zoom mark, and that is a scope line rather than an oversight.*
+Its mark is Obsidian's own checkbox, and this gesture does not contest a click that already means
+something — the same restraint it already shows toward the trail's and the footer's own marks. A
+task stays reachable by the command, the context menu, and a hotkey, so the gap is one entry point
+short of four rather than the feature failing to reach the kind at all. Giving a task a pointer
+route that does not fight its checkbox is real design work — explored, not decided, in
+docs/research/12's affordance-budget entry.
+
 ### D16. A nested per-cell editor must not be asked whether it is nested until it is mounted
 
 Not a decision so much as a correction to D5's, recorded because the timing is invisible and the

@@ -241,8 +241,16 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 A plain left click on the mark that stands for a node — this plugin's marker icon, or the bullet or
 number a list item shows in its place — SHALL zoom into that node, the same as invoking zoom in
 with the caret on it. An ordered item SHALL be reachable by its digits whether or not Obsidian
-emits a marker element of its own for that line. The gesture SHALL work for every node kind, including one rendered
-as an opaque widget, whose mark is injected rather than decorated.
+emits a marker element of its own for that line. The gesture SHALL work for every node kind whose
+mark is not already claimed by another click affordance, including one rendered as an opaque
+widget, whose mark is injected rather than decorated.
+
+A TASK list item is the one exception: its mark is Obsidian's own checkbox, whose click already
+toggles the task, and this gesture SHALL NOT contest that click. A task SHALL remain zoomable by
+the command, the context menu, and a hotkey — the same three entry points every node has — so the
+gap is a missing FOURTH way in for one kind, not a node this feature cannot reach at all. Giving a
+task a click-to-zoom affordance without breaking its checkbox is open, and recorded in
+docs/research/12 rather than decided here.
 
 The click SHALL NOT also do what a click there would otherwise do: it SHALL NOT place the caret,
 begin a selection, or fold the node. The caret SHALL move to the new zoom root, since the node
@@ -273,6 +281,11 @@ piece of work.
 #### Scenario: A widget-rendered node's mark works the same
 - **WHEN** the user clicks the marker beside a table
 - **THEN** the view zooms to the table
+
+#### Scenario: A task's checkbox keeps its own click
+- **WHEN** the user clicks a task list item's checkbox
+- **THEN** the task's checked state toggles, and the view does not zoom — the command, the
+  context menu, and a hotkey remain how a task is zoomed by pointer-adjacent means
 
 #### Scenario: A modified click is not this gesture
 - **WHEN** the user clicks a marker with the platform's primary modifier held
@@ -454,6 +467,10 @@ triggers:
    another application; and edits dispatched from another pane onto the same file.
 3. Outline mode is switched off for the file.
 
+Each trigger SHALL clear the STORED anchor, not merely suppress the scope it would otherwise
+derive: leaving the anchor in place behind a gate that only currently reads false is what let a
+disabled-then-re-enabled outline mode silently resurrect the zoom the user had already left.
+
 An automatic exit SHALL NOT modify the document and SHALL NOT move the caret.
 
 Ordinary edits inside the scope — including editing the zoom root's own text — SHALL NOT exit the
@@ -475,6 +492,11 @@ zoom.
 #### Scenario: Turning outline mode off clears the zoom
 - **WHEN** the user disables outline mode for the file while zoomed
 - **THEN** the whole document renders as stock Obsidian, with no zoom and no breadcrumb trail
+
+#### Scenario: Re-enabling outline mode does not revive a cleared zoom
+- **WHEN** the user disables outline mode while zoomed, then re-enables it
+- **THEN** the file opens unzoomed — trigger 3 clears the stored anchor itself, not only the
+  scope it would otherwise still derive
 
 ### Requirement: Zoom is per editor view and is never persisted
 A zoom SHALL belong to one editor view. Two views showing the same file SHALL be able to hold

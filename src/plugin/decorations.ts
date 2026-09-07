@@ -98,6 +98,7 @@ import {
   decorate,
   materializeProbe,
   positionBisectsANode,
+  zoomAwarePositionTrail,
   type GuideHighlight,
   type MarkerHighlight,
   type LineDecorationFact,
@@ -533,16 +534,25 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
   // end of a paragraph that is the new node's SIBLING, and accenting it reads as
   // "you are inside this", which is the opposite of true.
   const provisional = provisionalAt(state);
-  const doc = provisional ? provisional.doc : parsedDoc(state.doc).doc;
   // The HEAD of the PRIMARY range: head so the trail follows where the user is
   // steering, primary so multiple cursors draw one trail rather than N
   // competing ones.
   const head = state.selection.main.head;
   const cursorLine = state.doc.lineAt(head).number - 1;
-  return computePositionTrail(doc, cursorLine, {
-    guides: modes.guideHighlight,
-    markers: modes.markerHighlight,
-  });
+  const highlight = { guides: modes.guideHighlight, markers: modes.markerHighlight };
+
+  if (provisional) {
+    // Left un-rebased while a provisional position is ALSO open:
+    // `provisional.doc` is materialized from the whole document
+    // (`computeProvisional`), not from the zoom scope's, and re-basing that
+    // combination is unbuilt. Narrower than the gap `zoomAwarePositionTrail`
+    // closes — it needs an empty caret resting on a blank gap line inside the
+    // zoomed subtree, a transient position rather than the ordinary
+    // caret-follows-a-node case that function fixes.
+    return computePositionTrail(provisional.doc, cursorLine, highlight);
+  }
+  const { doc } = parsedDoc(state.doc);
+  return zoomAwarePositionTrail(doc, cursorLine, zoomScope(state, modes), highlight);
 }
 
 /**
