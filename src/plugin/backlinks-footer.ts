@@ -693,14 +693,30 @@ class FooterController {
     // mounted until `swap`.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     head.appendChild(linkGlyph());
-    head.createSpan({ cls: 'to-backlinks-title', text: 'Structured backlinks' });
+    // Two spans, one word each, swapped by the same container query the
+    // facets already use — a narrow footer no longer wraps the title onto a
+    // second line. Only one of the two is ever visible.
+    head.createSpan({ cls: 'to-backlinks-title to-backlinks-title-full', text: 'Structured backlinks' });
+    head.createSpan({ cls: 'to-backlinks-title to-backlinks-title-short', text: 'Backlinks' });
 
     const refs = `${totals.references} ${totals.references === 1 ? 'reference' : 'references'}`;
     const counts =
       totals.references > 0
         ? `${refs} · ${totals.notes} ${totals.notes === 1 ? 'note' : 'notes'}`
         : refs;
-    head.createSpan({ cls: 'to-backlinks-totals', text: counts });
+    head.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-full', text: counts });
+
+    // The narrow form: both numbers with none of the words, the second one
+    // bold so the pair still reads as two different counts rather than one
+    // number with a stray dot in it. An icon per count was tried and dropped —
+    // this footer already carries a mark for every axis and every kind, and a
+    // third vocabulary for the same two numbers was more to parse, not less.
+    const compact = head.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-compact' });
+    compact.createSpan({ text: String(totals.references) });
+    if (totals.references > 0) {
+      compact.createSpan({ text: ' · ' });
+      compact.createSpan({ cls: 'to-backlinks-totals-notes', text: String(totals.notes) });
+    }
 
     if (!foldable) return;
     // The controls go AFTER the totals and stop the click that folds the
@@ -787,20 +803,20 @@ class FooterController {
     menu.setAttribute('role', 'menu');
     menu.setAttribute('aria-label', 'Sort');
     menu.createDiv({ cls: 'to-backlinks-facet-cap' }).createSpan({ text: 'sort' });
-    const list = menu.createDiv({ cls: 'to-backlinks-facet-list' });
+    const list = menu.createDiv({ cls: 'to-backlinks-facet-list to-backlinks-sort-list' });
     for (const [value, label] of Object.entries(SORT_LABELS)) {
       const chosen = value === current;
-      const option = list.createEl('button', { cls: 'to-backlinks-facet-option' });
+      // No box: a facet's box says "on or off", which is right for a set of
+      // independent toggles and wrong for four mutually exclusive orders. One
+      // row, and the chosen one reads as chosen from its own weight and colour
+      // rather than from a mark beside it.
+      const option = list.createEl('button', {
+        cls: 'to-backlinks-facet-option to-backlinks-sort-option',
+      });
       option.type = 'button';
       option.setAttribute('role', 'menuitemradio');
       option.setAttribute('aria-checked', String(chosen));
       option.toggleClass('is-selected', chosen);
-      const box = option.createSpan({ cls: 'to-backlinks-facet-box' });
-      box.setAttribute('aria-hidden', 'true');
-      if (chosen) {
-        // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-        box.appendChild(checkGlyph());
-      }
       option.createSpan({ cls: 'to-backlinks-facet-label', text: label });
       option.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -1621,6 +1637,7 @@ function linkGlyph(): SVGSVGElement {
   el.addClass('to-backlinks-icon');
   return el;
 }
+
 
 /** The cap's own control: down to reveal what is hidden, up to put it back.
  * Distinct from `chevronGlyph`, whose two states are a DISCLOSURE's — right for

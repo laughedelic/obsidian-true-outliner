@@ -1397,9 +1397,22 @@ body {
   font-weight: var(--font-semibold);
 }
 
+/* The short title and the compact totals are the narrow-container forms — see
+ * the `@container` rule below, which is the one place that switches them on.
+ * Hidden here so the wide case (everything else) never shows both. */
+.to-backlinks-title-short,
+.to-backlinks-totals-compact {
+  display: none;
+}
+
 .to-backlinks-totals {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
+}
+
+.to-backlinks-totals-notes {
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
 }
 
 /* A note nothing links to still ends predictably: one quiet line where the
@@ -2181,6 +2194,19 @@ body {
   .to-backlinks .to-backlinks-facet {
     padding-inline: 0.35em;
   }
+
+  /* The same threshold shortens the header, which wrapped to two lines below
+   * it: "Structured backlinks" plus the full "N references · M notes" is more
+   * than a phone-width line holds beside the filter and sort icons. */
+  .to-backlinks-title-full,
+  .to-backlinks-totals-full {
+    display: none;
+  }
+
+  .to-backlinks-title-short,
+  .to-backlinks-totals-compact {
+    display: inline;
+  }
 }
 
 /* ---- A facet's values ---------------------------------------------------- */
@@ -2250,11 +2276,26 @@ body {
   box-shadow: none;
 }
 
-/* Sort is ONE choice. The empty squares a facet's list draws would promise
- * that several could be ticked at once; only the chosen row is marked here. */
-.to-backlinks-sort-menu .to-backlinks-facet-box {
-  border-color: transparent;
-  background: transparent;
+/*
+ * Sort is ONE choice, and the row itself says so — no box.
+ *
+ * A facet's box is right for an axis, where several values can be on at once
+ * and the box is what shows which. Sort has no such state, and reusing the
+ * box for a single-choice list said the wrong thing twice: an empty square
+ * beside every unchosen order read as "not yet decided" rather than "not
+ * this one", and it was a checkbox's shape doing a radio button's job.
+ */
+.to-backlinks .to-backlinks-sort-option {
+  color: var(--text-muted);
+}
+
+.to-backlinks .to-backlinks-sort-option:hover {
+  color: var(--text-normal);
+}
+
+.to-backlinks .to-backlinks-sort-option.is-selected {
+  color: var(--to-decor-accent, var(--text-accent));
+  font-weight: var(--font-semibold);
 }
 
 .to-backlinks-facet-list {

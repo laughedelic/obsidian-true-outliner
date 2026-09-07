@@ -287,8 +287,11 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     // A REAL click, driven by the browser rather than dispatched into it —
     // synthetic MouseEvents do not move the DOM selection, so a dispatched
     // click also passes either way.
-    const title = await $('.workspace-leaf.mod-active .to-backlinks .to-backlinks-title');
-    await title.click();
+    // `.to-backlinks-icon`, not `.to-backlinks-title`: the header carries TWO
+    // title spans now (a short one for a narrow footer), and only one is ever
+    // visible — the icon is unconditional and always in the same place.
+    const icon = await $('.workspace-leaf.mod-active .to-backlinks .to-backlinks-icon');
+    await icon.click();
     await browser.pause(300);
 
     // Without the fix this reports the document's very end, and the editor

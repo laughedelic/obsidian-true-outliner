@@ -112,7 +112,12 @@ describe('the footer’s controls', function () {
         const card = root?.querySelector('.to-backlinks-group');
         // The head's own TEXT, not its box: the gutter is padding, so the
         // element starts at the same edge and only its content is pushed in.
-        const title = root?.querySelector('.to-backlinks-title');
+        // Two title spans share this class now — a short one for a narrow
+        // footer — and only one is ever on screen; `offsetParent` is null on
+        // the one `display: none` hides.
+        const title = Array.from(
+          root?.querySelectorAll<HTMLElement>('.to-backlinks-title') ?? [],
+        ).find((el) => el.offsetParent !== null);
         if (!row || !card || !title) return null;
         return {
           row: Math.round(row.getBoundingClientRect().left),
@@ -218,6 +223,59 @@ describe('the footer’s controls', function () {
     expect(back!.words).toBe(start!.words);
   });
 
+  it('shortens the header on the same narrow footer that sheds facet words', async function () {
+    // The same container threshold, because it is the same cause: the full
+    // title plus "N references · M notes" beside the filter and sort icons
+    // wraps the header onto a second line before the filter row's own words
+    // are given up. One breakpoint for both, since a footer narrow enough for
+    // one is narrow enough for the other.
+    const measure = (): Promise<{
+      height: number;
+      titleText: string;
+      totalsText: string;
+    } | null> =>
+      browser.executeObsidian(() => {
+        const head = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-head',
+        );
+        if (!head) return null;
+        const visible = (sel: string) =>
+          Array.from(head.querySelectorAll<HTMLElement>(sel)).find(
+            (el) => el.offsetParent !== null,
+          );
+        return {
+          height: Math.round(head.getBoundingClientRect().height),
+          titleText: (visible('.to-backlinks-title')?.textContent ?? '').trim(),
+          totalsText: (visible('.to-backlinks-totals')?.textContent ?? '').trim(),
+        };
+      });
+
+    const wide = await readStable(measure);
+    expect(wide).not.toBeNull();
+    if (wide!.titleText === 'Backlinks') {
+      // Already narrower than the threshold — the mobile run.
+      expect(wide!.totalsText).toMatch(/^\d+( · \d+)?$/);
+      return;
+    }
+    expect(wide!.titleText).toBe('Structured backlinks');
+    expect(wide!.totalsText).toMatch(/references?/);
+
+    await h.resizeLeafForFooter(340);
+    const narrow = await readStable(measure);
+    expect(narrow).not.toBeNull();
+    expect(narrow!.titleText).toBe('Backlinks');
+    // Numbers only, no words — and still the same two counts, just undressed.
+    expect(narrow!.totalsText).toMatch(/^\d+( · \d+)?$/);
+    // ONE line: the height a single-line header takes, not the roughly double
+    // it wrapping to two would. Compared to the wide header's own height
+    // rather than to a literal pixel count, which the font stack decides.
+    expect(narrow!.height).toBeLessThanOrEqual(wide!.height + 2);
+
+    await h.resizeLeafForFooter(null);
+    const back = await readStable(measure);
+    expect(back!.titleText).toBe(wide!.titleText);
+  });
+
   it('lets the caret land in the search field, and filters as it is typed', async function () {
     await openFilters();
     await clearFilters();
@@ -267,6 +325,15 @@ describe('the footer’s controls', function () {
     expect(after.stillFocused).toBe('search');
     expect(after.groups).toBeGreaterThan(0);
     for (const name of after.names) expect(name).toContain(term);
+
+    // Left narrowed otherwise: the next case in this file opens the sort menu
+    // against a footer this one has just typed a filter term into. Seen on CI
+    // as that menu failing to open at all — not a click miss, `readStable`
+    // read `aria-expanded="false"` consistently, which is what a repaint
+    // arriving after the menu opened but from a state snapshot captured before
+    // it looks like. Clearing here removes the leftover state rather than
+    // asking every later case to survive whatever is left behind.
+    await clearFilters();
   });
 
   it('opens the sort control and reorders by it', async function () {
@@ -739,7 +806,7 @@ describe('the footer’s controls', function () {
     expect(open.collapsed).toBe(false);
     expect(open.groups).toBeGreaterThan(0);
 
-    await clickIn(`${FOOTER} .to-backlinks-title`);
+    await clickIn(`${FOOTER} .to-backlinks-icon`);
     await settle();
     const folded = await readStable(shape);
     // The head stays — it is the way back — and everything under it goes.
@@ -747,7 +814,7 @@ describe('the footer’s controls', function () {
     expect(folded.head).toBe(true);
     expect(folded.groups).toBe(0);
 
-    await clickIn(`${FOOTER} .to-backlinks-title`);
+    await clickIn(`${FOOTER} .to-backlinks-icon`);
     await settle();
     const reopened = await readStable(shape);
     expect(reopened.collapsed).toBe(false);
