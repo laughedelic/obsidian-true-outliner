@@ -1339,6 +1339,22 @@ body {
   cursor: pointer;
 }
 
+/*
+ * The disclosure role and its icon/title/totals live here, not on `.to-backlinks-head`
+ * itself — the filter and sort buttons are `.to-backlinks-head`'s other children,
+ * and a `role="button"` ancestor of real `<button>` descendants is an anti-pattern.
+ * No `position` of its own: the chevron and section icon are absolutely positioned
+ * against `.to-backlinks-head`, and this group sitting between them in the DOM
+ * must not become a nearer positioning context.
+ */
+.to-backlinks-head-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Folded, or empty: the header IS the section, so it owes nothing below it. */
 .to-backlinks-head.is-collapsed,
 .to-backlinks.is-dormant .to-backlinks-head {
@@ -1460,17 +1476,19 @@ body {
  * consistency worth having here is with the other group heads beside it, not
  * with the section above them.
  */
-.to-backlinks-head:not(.is-collapsed) > .to-backlinks-chevron {
+.to-backlinks-head:not(.is-collapsed) > .to-backlinks-head-title > .to-backlinks-chevron {
   opacity: 0;
 }
 
-.to-backlinks-head:hover > .to-backlinks-chevron {
+.to-backlinks-head:hover > .to-backlinks-head-title > .to-backlinks-chevron {
   opacity: 1;
 }
 
 /* The SECTION's fold, placed where the editor places a foldable line's: clear of
- * the marker's left edge by the same 3px gap. */
-.to-backlinks-head > .to-backlinks-chevron {
+ * the marker's left edge by the same 3px gap. Absolute against `.to-backlinks-head`
+ * (`position: relative`) — `.to-backlinks-head-title` between them sets no
+ * `position` of its own, so it is not the containing block. */
+.to-backlinks-head > .to-backlinks-head-title > .to-backlinks-chevron {
   position: absolute;
   left: calc(
     -1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px + var(--to-fold-size, 0.7rem))

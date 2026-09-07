@@ -198,7 +198,8 @@ export function applyControls(
 
 /**
  * The three axes and the search term, combined conjunctively — but each axis's
- * own values disjunctively, which only shows on the tag axis (D9).
+ * own values disjunctively: selecting a second value on any one axis widens
+ * that axis's own admission rather than narrowing it further (D9).
  *
  * The axes filter at different levels: a folder, a name and a tag are
  * properties of the source, so they admit or reject a whole group, while a kind

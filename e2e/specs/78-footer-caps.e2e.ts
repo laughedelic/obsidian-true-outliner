@@ -72,23 +72,13 @@ describe('the overall cap and the per-note bound', function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
     // The hub is generated, and `resetVault` hands the worker a fresh copy the
-    // metadata cache then indexes asynchronously. Rebuilding against a cache
-    // that has not taken it in yet reports the eight tracked fixtures instead
-    // of ~128 sources — measured, and the reason 76 waits the same way.
-    let seen = -1;
-    await browser.waitUntil(
-      async () => {
-        const now = await browser.executeObsidian(({ app }) => app.vault.getMarkdownFiles().length);
-        if (now === seen) return true;
-        seen = now;
-        return false;
-      },
-      {
-        timeout: h.waitBudget(20_000),
-        interval: 250,
-        timeoutMsg: 'vault file count never settled',
-      },
-    );
+    // metadata cache then indexes asynchronously. Waited on the PLUGIN's OWN
+    // rebuilt index reaching the hub's real ~128-source scale, not on
+    // Obsidian's file discovery settling — that only proves every file was
+    // found, not that its links were parsed, and rebuilding against a cache
+    // that has discovered but not yet parsed reports the eight tracked
+    // fixtures instead (measured, and the reason 76 waits the same way).
+    await h.waitForBacklinkIndexReady(HUB, 100);
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });

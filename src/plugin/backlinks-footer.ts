@@ -460,31 +460,29 @@ class FooterController {
     // and a "Load next Z" beside the sentence, but the sentence to its right
     // already states the notes — two elements a hand-span apart saying "112"
     // read as two different numbers until they are compared.
+    //
+    // The increment is AT LEAST one tranche, but never less than what the very
+    // next omitted group needs to fit. A fixed tranche alone can be smaller
+    // than that group — a hub note with a 90-reference source right past a
+    // 25-reference cap needs more than one click's worth just to reach it,
+    // and every click in between repaints an IDENTICAL list, which reads as a
+    // broken control rather than as "keep clicking". The label has to promise
+    // the same number the click delivers, so this is computed once and used
+    // for both. `admittedReferences` is what the cap actually let through
+    // this render (never more than `effectiveCap`, per D2); raising the cap
+    // to admitted + the next group's own size is exactly enough to cross it.
     const tranche = OVERALL_CAP_REFERENCES[this.source.backlinksOverallCap];
-    const next = Number.isFinite(tranche) ? `Load ${tranche} more` : 'Load more';
+    const admittedReferences = result.totals.references - result.shortfall.references;
+    const needed = result.nextOmittedReferences ?? 0;
+    const minIncrement = Math.max(
+      Number.isFinite(tranche) ? tranche : 0,
+      admittedReferences + needed - effectiveCap,
+    );
+    const next = minIncrement > 0 ? `Load ${minIncrement} more` : 'Load more';
     more.createSpan({ cls: 'to-backlinks-more-count', text: next });
     more.setAttribute('aria-label', next);
     more.addEventListener('click', (event) => {
       event.stopPropagation();
-      // Additive: the model is a pure function of the controls and its order is
-      // stable, so a larger cap yields a superset in the same order and nothing
-      // already on screen moves (design D5).
-      //
-      // The increment is AT LEAST one tranche, but never less than what the
-      // very next omitted group needs to fit. A fixed tranche alone can be
-      // smaller than that group — a hub note with a 90-reference source right
-      // past a 25-reference cap needs more than one click's worth just to
-      // reach it, and every click in between repaints an IDENTICAL list,
-      // which reads as a broken control rather than as "keep clicking".
-      // `admittedReferences` is what the cap actually let through this render
-      // (never more than `effectiveCap`, per D2); raising the cap to admitted
-      // + the next group's own size is exactly enough to cross it.
-      const admittedReferences = result.totals.references - result.shortfall.references;
-      const needed = result.nextOmittedReferences ?? 0;
-      const minIncrement = Math.max(
-        Number.isFinite(tranche) ? tranche : 0,
-        admittedReferences + needed - effectiveCap,
-      );
       viewStateFor(this.targetPath).capBonus += minIncrement;
       void this.render();
     });
@@ -761,35 +759,43 @@ class FooterController {
     const collapsed = state.collapsed;
     const head = root.createDiv({ cls: 'to-backlinks-head' });
     head.toggleClass('is-collapsed', collapsed);
-    if (foldable) makeDisclosure(head, !collapsed, 'Structured backlinks');
+
+    // The disclosure role lives on this title group, not on `head` itself —
+    // `head` also carries the filter and sort buttons once `renderHeaderControls`
+    // runs, and a `role="button"` ancestor of real `<button>` descendants is an
+    // anti-pattern assistive tech is not required to handle: it may flatten or
+    // misreport the buttons inside it. `head` stays the click target for the
+    // whole row (D-fold), it just no longer claims the ARIA role for it.
+    const title = head.createDiv({ cls: 'to-backlinks-head-title' });
+    if (foldable) makeDisclosure(title, !collapsed, 'Structured backlinks');
     if (foldable) {
-      const chevron = head.createSpan({ cls: 'to-backlinks-chevron' });
+      const chevron = title.createSpan({ cls: 'to-backlinks-chevron' });
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
       chevron.appendChild(chevronGlyph(!collapsed));
     }
-    // `head` is inside the off-tree root this pass is building; nothing here is
-    // mounted until `swap`.
+    // `title` is inside the off-tree root this pass is building; nothing here
+    // is mounted until `swap`.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-    head.appendChild(linkGlyph());
+    title.appendChild(linkGlyph());
     // Two spans, one word each, swapped by the same container query the
     // facets already use — a narrow footer no longer wraps the title onto a
     // second line. Only one of the two is ever visible.
-    head.createSpan({ cls: 'to-backlinks-title to-backlinks-title-full', text: 'Structured backlinks' });
-    head.createSpan({ cls: 'to-backlinks-title to-backlinks-title-short', text: 'Backlinks' });
+    title.createSpan({ cls: 'to-backlinks-title to-backlinks-title-full', text: 'Structured backlinks' });
+    title.createSpan({ cls: 'to-backlinks-title to-backlinks-title-short', text: 'Backlinks' });
 
     const refs = `${totals.references} ${totals.references === 1 ? 'reference' : 'references'}`;
     const counts =
       totals.references > 0
         ? `${refs} · ${totals.notes} ${totals.notes === 1 ? 'note' : 'notes'}`
         : refs;
-    head.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-full', text: counts });
+    title.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-full', text: counts });
 
     // The narrow form: both numbers with none of the words, the second one
     // bold so the pair still reads as two different counts rather than one
     // number with a stray dot in it. An icon per count was tried and dropped —
     // this footer already carries a mark for every axis and every kind, and a
     // third vocabulary for the same two numbers was more to parse, not less.
-    const compact = head.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-compact' });
+    const compact = title.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-compact' });
     compact.createSpan({ text: String(totals.references) });
     if (totals.references > 0) {
       compact.createSpan({ text: ' · ' });
@@ -797,8 +803,9 @@ class FooterController {
     }
 
     if (!foldable) return;
-    // The controls go AFTER the totals and stop the click that folds the
-    // section, so operating one never also collapses what it just changed.
+    // The controls go AFTER the title group, as a sibling rather than a
+    // descendant of it, and stop the click that folds the section, so
+    // operating one never also collapses what it just changed.
     this.renderHeaderControls(head, state);
 
     head.addEventListener('click', () => {
@@ -902,6 +909,10 @@ class FooterController {
       option.setAttribute('role', 'menuitemradio');
       option.setAttribute('aria-checked', String(chosen));
       option.toggleClass('is-selected', chosen);
+      // Choosing an order closes the menu the option lived in, so the option
+      // is gone by the next repaint — the same key as the trigger it opened
+      // from hands focus back there instead of losing it (D-focus).
+      option.dataset.focusKey = 'sort';
       option.createSpan({ cls: 'to-backlinks-facet-label', text: label });
       option.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -1088,7 +1099,10 @@ class FooterController {
     button.dataset.focusKey = `facet:${spec.axis}`;
     button.toggleClass('is-active', active || open);
     button.setAttribute('aria-expanded', String(open));
-    button.setAttribute('aria-label', spec.word);
+    // `aria-label` overrides the descendant text a sighted reader sees, so it
+    // has to carry the same state — the bare axis word would tell a screen
+    // reader "kind" no matter how many kinds are chosen.
+    button.setAttribute('aria-label', this.facetWord(spec));
     const mark = button.createSpan({ cls: 'to-backlinks-facet-mark' });
     mark.setAttribute('aria-hidden', 'true');
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
@@ -1186,6 +1200,10 @@ class FooterController {
       option.type = 'button';
       option.setAttribute('aria-pressed', String(on));
       option.toggleClass('is-selected', on);
+      // Multi-select keeps the menu open, so this same option is still in the
+      // repainted list under the same value — a per-value key lets focus
+      // survive the toggle instead of the reader landing back at the trigger.
+      option.dataset.focusKey = `facet:${spec.axis}:${value.value}`;
       // Nothing left under the other axes' selections. Still offered and still
       // operable — adding it and dropping whatever emptied it is a normal way
       // out — but it says so rather than showing a count that stopped being true.
