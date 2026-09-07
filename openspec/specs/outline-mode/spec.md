@@ -8,11 +8,18 @@ plugin data across restarts and renames.
 ### Requirement: Per-note outline mode toggle
 The plugin SHALL provide a command (and editor menu entry) that toggles outline mode for
 the active markdown note. The mode SHALL be a pure editor-UI state: toggling it SHALL
-never modify the note's content, metadata, or modification time.
+never modify the note's content, metadata, or modification time. The new mode SHALL be in
+force, and the note re-rendered under it, as soon as the toggle runs — never waiting on the
+write that records it.
 
 #### Scenario: Toggling leaves the file untouched
 - **WHEN** outline mode is toggled on and off for a note
 - **THEN** the file's bytes and mtime are unchanged at every point
+
+#### Scenario: The toggle takes effect before it is recorded
+- **WHEN** the toggle command runs on a note
+- **THEN** the note is rendered in its new mode within that command's own turn,
+  with the write that records the mode still in flight
 
 ### Requirement: Mode persistence in plugin data
 Outline mode state SHALL be remembered per note in the plugin data store (keyed by file

@@ -101,6 +101,49 @@ describe('outline mode', function () {
     );
   });
 
+  it('paints the note in the command’s own turn, not after the data write', async function () {
+    // A mode toggle dispatches no CM6 transaction of its own, so the
+    // decorations recompute only when the plugin nudges the editor — and that
+    // nudge used to sit behind the awaited `data.json` write, leaving the note
+    // stock-rendered for however long the disk took. It reached CI as an
+    // intermittent 56-list-grid failure reporting a marker on Obsidian’s own
+    // native column (docs/research/11-decoration-lessons.md).
+    //
+    // Asserted in ONE synchronous turn rather than after a settle: the paint
+    // always arrived eventually, so a poll passes either way. What this states
+    // is that nothing asynchronous stands between the command and the paint.
+    await h.createNote('Scratch/paints-now.md', ['# H', '', '- one', ''].join('\n'));
+    const depth = await browser.executeObsidian(
+      ({ app, obsidian }, commandId: string) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        if (!view) throw new Error('no active markdown view');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (view.editor as any).cm;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (app as any).commands.executeCommandById(commandId);
+        // No await and no frame in between: whatever the toggle paints in its
+        // own turn has been painted by the time this loop runs.
+        for (const child of Array.from(cm.contentDOM.children) as HTMLElement[]) {
+          let n = -1;
+          try {
+            n = cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1;
+          } catch {
+            continue; // not a line-mapped child
+          }
+          if (n === 2) return child.style.getPropertyValue('--to-depth');
+        }
+        throw new Error('the list line did not render');
+      },
+      `${h.PLUGIN_ID}:toggle-outline-mode`,
+    );
+    // The item’s own depth, one below the heading above it.
+    expect(depth).toBe('1');
+
+    await h.waitForNotice('Outline mode on');
+    await h.toggleOutlineMode(); // leave it off for later tests
+    await h.waitForNotice('Outline mode off');
+  });
+
   it('structural commands are gated to outline notes', async function () {
     await h.openNote(NOTE); // mode is off here
     for (const id of STRUCTURAL) {
