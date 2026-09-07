@@ -172,7 +172,10 @@ paragraph.
 ### Requirement: Indentation is additive, and every kind takes the same grid
 Every node's lines SHALL carry an indentation contribution equal to `depth × unit`,
 computed from the node's distance from the document root in the parsed tree — not from raw
-markdown indentation or heading level. Which CSS property carries that contribution SHALL be
+markdown indentation or heading level. **While a zoom scope is active** (`outline-zoom`), that
+distance SHALL be measured from the ZOOM ROOT instead: the zoom root contributes depth 0 and its
+descendants count outward from it, and no line carries a contribution for a level above the zoom
+root. Which CSS property carries that contribution SHALL be
 determined by the line's RENDERED FORM, not by its node's kind: a line rendered as plain
 text with no visible box of its own takes it as `padding-left`; a line that renders a
 visible box of its own — an atom, or any line Obsidian replaces with an opaque widget —
@@ -185,6 +188,11 @@ list, which Obsidian's own list rendering supplies once the outline unit is the 
 renders a list level at. The plugin SHALL retarget that native rendering by supplying the
 unit, and SHALL state the item's own hanging indent; it SHALL NOT reposition a list item by
 overriding native rendering line by line.
+
+Because re-basing SHALL NOT reposition a list item line by line either, only the part this plugin
+supplies is re-based: a zoom root that is a list item SHALL keep the within-list depth Obsidian's
+list rendering supplies. This is a stated limit of re-basing, not a defect in it, and it applies
+to no other kind.
 
 Nodes at the same tree depth SHALL receive the same indentation contribution regardless of
 whether their depth is encoded via heading level, list indentation, or paragraph adjacency,
@@ -212,6 +220,27 @@ AND regardless of whether the line is currently rendered as plain text or as an 
   paragraph sits at the same tree depth in the same document
 - **THEN** both start at the same column — the widget-rendered line's indentation
   contribution is its node's, exactly as though it had rendered as plain text
+
+#### Scenario: A zoomed heading renders at the left margin
+- **WHEN** the user zooms into a heading two levels deep
+- **THEN** it carries no indentation contribution from this plugin, and its children carry one
+  unit
+
+#### Scenario: A zoomed list item keeps its within-list indentation
+- **WHEN** the user zooms into a twice-nested list item
+- **THEN** its `supplementalDepth` contribution is gone and the within-list depth Obsidian's list
+  rendering supplies is unchanged
+
+#### Scenario: Clearing the zoom restores document-root depths
+- **WHEN** the user clears an active zoom
+- **THEN** every line's indentation contribution is identical to its pre-zoom value
+
+**Covered by**: `tests/decorate.test.ts` and `tests/project.test.ts` (the re-based facts come from
+decorating the zoom root's subtree as a document, so they are covered by the same detached-tree
+guarantee `tests/projection-decorate.test.ts` already pins);
+`e2e/specs/50-decorations.e2e.ts` and `e2e/specs/56-list-grid.e2e.ts` for the unzoomed grid;
+`e2e/specs/80-outline-zoom.e2e.ts` for re-basing in a live instance, including the list-item
+root's retained within-list indentation.
 
 ### Requirement: A list item's hanging indent is stated, not measured
 
@@ -534,6 +563,16 @@ A marker SHALL NOT remove, replace, or visibly collide with Obsidian's native bl
 the CSS containment/specificity rules widget atoms carry, or Obsidian's native fold chevron on
 a heading.
 
+A marker in the EDITOR is also a control: it SHALL accept pointer events, show a pointer cursor,
+brighten to the accent while the pointer is on it, and zoom into its node when clicked
+(`outline-zoom`). The accent is what names the node the gesture would act on, which a cursor alone
+does not. Where a node's mark is Obsidian's own — a list item's bullet or number — that element
+SHALL be the control instead, and SHALL be reachable: a native affordance whose invisible hit area
+covers it SHALL NOT take the click, while every pixel that affordance actually PAINTS SHALL keep
+it. This SHALL hold for every list item, whether or not it is foldable. A marker a surface draws as
+pure chrome, in a lineage row or a trail, is not a node mark and SHALL keep that surface's own
+behaviour.
+
 #### Scenario: Marker size is font-size-independent
 - **WHEN** a marker renders on a heading line and on a paragraph line
 - **THEN** its rendered width and height are identical despite the heading's larger font
@@ -553,6 +592,15 @@ a heading.
 - **THEN** the chevron does not overlap the heading's own marker or an ancestor's guide
   line passing through the same row
 
+#### Scenario: A list item's mark is reachable past the fold indicator
+- **WHEN** the user clicks the bullet or number of a FOLDABLE list item, whose native collapse
+  indicator's hit area covers it
+- **THEN** the click reaches the mark
+
+#### Scenario: A mark under the pointer says which node it would act on
+- **WHEN** the pointer rests on a marker
+- **THEN** the marker shows the accent, as the node in play does elsewhere
+
 **Covered by**: `e2e/specs/52-block-markers-icons.e2e.ts` ("blockquote: native colored bar
 and the marker widget coexist (DOM widget, not a pseudo-element — no clobber by
 construction)", "marker size is fixed (rem), NOT font-size-dependent — identical
@@ -562,7 +610,7 @@ unclipped", "code fence and blockquote markers align horizontally with a same-de
 paragraph's (native padding/text-indent compensation)", "heading marker vertical offset
 from the line's own center is small and doesn't grow with heading level (H1 vs H3)",
 "native fold chevron glyph sits between the marker and an ancestor's guide line, clear of
-both").
+both"); `e2e/specs/80-outline-zoom.e2e.ts` for the marks as controls.
 
 ### Requirement: Markers and guides share one column definition
 
@@ -1090,4 +1138,20 @@ unchanged by the rendering); and, for the guide extension, `tests/decorate.test.
 past a subtree's last content line, the blank rows between the two, and the same document
 without the position as the negative control) plus `e2e/specs/51-guides-gradient.e2e.ts` (the
 gradient present on the position's row and absent once the caret leaves).
+
+### Requirement: Indentation guides re-base with the zoom scope
+While a zoom scope is active, the indentation guides drawn for a visible line SHALL correspond to
+its depth relative to the zoom root, on the same single column definition every other layer reads.
+Guides representing levels above the zoom root SHALL NOT be rendered at all, so the zoomed view
+shows no guide column standing in for hidden ancestors.
+
+Clearing the zoom SHALL restore every line's guides exactly as they were before it.
+
+#### Scenario: No guide column for hidden ancestors
+- **WHEN** the user zooms into a node three levels deep
+- **THEN** its own line carries no ancestor guide column, and its children carry exactly one
+
+#### Scenario: Guides are restored on zoom out
+- **WHEN** the user clears the zoom
+- **THEN** every line's guides are identical to their pre-zoom rendering
 
