@@ -42,9 +42,9 @@ The note's own content SHALL occupy the same document positions with the footer 
 without it, so that a caret position, a selection, or a structural operation behaves identically
 either way.
 
-Filtering, sorting, changing a cap, requesting further results, and toggling the suppression of
-Obsidian's own in-document backlinks SHALL all preserve these guarantees: they change what the
-footer renders and nothing else.
+Filtering, searching, sorting, changing a cap, requesting further results, and toggling the
+suppression of Obsidian's own in-document backlinks SHALL all preserve these guarantees: they
+change what the footer renders and nothing else.
 
 #### Scenario: Rendering mutates nothing
 
@@ -65,10 +65,29 @@ footer renders and nothing else.
 
 #### Scenario: Filtering and sorting are inert
 
-- **WHEN** the reader applies filters, changes the sort order, and requests further results
+- **WHEN** the reader applies filters, types a search term, changes the sort order, and requests
+  further results
 - **THEN** the note's text, positions, caret, selection and undo stack are unchanged throughout
 
 ## ADDED Requirements
+
+### Requirement: The footer is chrome after the content, not a rendering of the line it follows
+The footer SHALL be rendered AFTER the line it is anchored to, without splitting it. A block widget
+that sorts INSIDE its line leaves the line's empty remainder rendered below the widget, and that
+remainder is a real line: it takes the caret, so the space under the footer became a place a click
+could put the cursor on a position past the content the footer sits after.
+
+The footer SHALL NOT take the chrome of the line it is anchored to. It is mounted after the content
+rather than being a rendering of that line, so an ancestor guide belonging to that line SHALL NOT be
+drawn through the footer, and the footer's own left edge SHALL NOT follow that line's depth.
+
+#### Scenario: Nothing is rendered below the footer
+- **WHEN** a note with the footer enabled is open
+- **THEN** the footer is the last thing in the content, with no line after it
+
+#### Scenario: The footer takes no guide from its neighbour
+- **WHEN** the last line above the footer is a nested list item, so it carries an ancestor guide
+- **THEN** no guide is drawn through the footer
 
 ### Requirement: The footer carries a single header control row
 

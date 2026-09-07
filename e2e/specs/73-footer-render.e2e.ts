@@ -79,6 +79,47 @@ describe('backlinks footer: first render', function () {
     expect(lines.some((l) => l.includes('[[Aurora Dashboard]]'))).toBe(false);
   });
 
+  it('is the last thing in the content, with no line of its own below it', async function () {
+    // A block widget with a NEGATIVE side at the END of a line sorts INSIDE
+    // that line and splits it, leaving the line's empty remainder rendered
+    // below the widget. That remainder is a real line: it takes the caret, so
+    // the space under the footer became a place a click could put the cursor.
+    await h.openNote(TARGET);
+    await ensureOutlineMode(TARGET);
+    await scrollToEnd();
+    await browser.pause(1500);
+    expect(
+      await browser.executeObsidian(() => {
+        const content = document.querySelector('.workspace-leaf.mod-active .cm-content');
+        if (!content) return -1;
+        const kids = Array.from(content.children) as HTMLElement[];
+        const footer = kids.findIndex((el) => el.classList.contains('to-backlinks'));
+        if (footer < 0) return -1;
+        return kids.slice(footer + 1).filter((el) => el.classList.contains('cm-line')).length;
+      }),
+    ).toBe(0);
+  });
+
+  it('takes no chrome from the line it is anchored to', async function () {
+    // The footer is mounted after the content rather than being a rendering of
+    // that line, and the widget-line patch cannot tell the difference on its
+    // own. Without saying so, a note whose last line is a nested list item drew
+    // that item's ancestor guide straight down through the whole footer.
+    const note = 'Scratch/footer-neighbour.md';
+    await h.createNote(note, ['# Top', '', '- one', '\t- nested', ''].join('\n'));
+    await h.openNote(note);
+    await ensureOutlineMode(note);
+    await scrollToEnd();
+    await browser.pause(1500);
+    const footer = await browser.executeObsidian(() => {
+      const el = document.querySelector('.workspace-leaf.mod-active .to-backlinks') as HTMLElement | null;
+      if (!el) return null;
+      return { cls: el.className, guide: getComputedStyle(el, '::after').backgroundImage };
+    });
+    expect(footer?.cls).toContain('to-decor-own-chrome');
+    expect(footer?.guide).toBe('none');
+  });
+
   it('shows one header line, counted, for a note nothing links to', async function () {
     await h.openNote('Notes/Sourdough Log.md');
     await ensureOutlineMode('Notes/Sourdough Log.md');

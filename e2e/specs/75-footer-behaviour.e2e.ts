@@ -55,7 +55,7 @@ async function openFooter(notePath: string): Promise<void> {
         ?.classList.contains('is-collapsed') ?? false,
   );
   if (collapsed) {
-    await h.clickClear(`${FOOTER} .to-backlinks-title`);
+    await h.clickClear(`${FOOTER} .to-backlinks-icon`);
     await browser.pause(300);
   }
 }
@@ -85,6 +85,8 @@ describe('backlinks footer: behaviour', function () {
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
+    // Not a volume spec: see `pinBacklinksCapOff`.
+    await h.pinBacklinksCapOff();
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });
@@ -168,9 +170,9 @@ describe('backlinks footer: behaviour', function () {
 
       // Now read the footer: scroll it, click its header, fold and unfold it.
       await scrollToEnd();
-      await h.clickClear(`${FOOTER} .to-backlinks-title`);
+      await h.clickClear(`${FOOTER} .to-backlinks-icon`);
       await browser.pause(300);
-      await h.clickClear(`${FOOTER} .to-backlinks-title`);
+      await h.clickClear(`${FOOTER} .to-backlinks-icon`);
       await browser.pause(300);
       expect(await h.getBuffer()).toBe(edited);
 
@@ -320,8 +322,9 @@ describe('backlinks footer: behaviour', function () {
 
     const opened = await browser.executeObsidian(
       ({ app }) =>
-        (app as unknown as { workspace: { getActiveFile(): { basename: string } | null } }).workspace
-          .getActiveFile()?.basename ?? '',
+        (
+          app as unknown as { workspace: { getActiveFile(): { basename: string } | null } }
+        ).workspace.getActiveFile()?.basename ?? '',
     );
     // The link's target, not the note the row came from.
     expect(opened).toBe(href);
@@ -352,8 +355,7 @@ describe('backlinks footer: behaviour', function () {
   it('drops a source’s group when that source stops referencing', async function () {
     await openFooter(TARGET);
     const groupsBefore = await browser.executeObsidian(
-      () =>
-        document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group').length,
+      () => document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group').length,
     );
     expect(groupsBefore).toBeGreaterThan(1);
 
@@ -392,7 +394,7 @@ describe('backlinks footer: behaviour', function () {
     }
   });
 
-/**
+  /**
    * The promise, not the mechanism: rename a source and the footer says so,
    * without being touched.
    *
@@ -536,7 +538,10 @@ describe('backlinks footer: behaviour', function () {
     expect(before).not.toBeNull();
     expect(before!.hidden).toBeGreaterThan(0);
     expect(before!.expanded).toBe('false');
-    expect(before!.label).toBe('Show more');
+    // The control is the omission rung: it says HOW MANY it is hiding, counted
+    // off the same measurement that decided the cap was hiding anything at all
+    // (backlinks-controls design D3). A bare "Show more" is the regression.
+    expect(before!.label).toMatch(/^Show \d+ more$/);
 
     // Resolved at click time rather than stamped earlier: measuring the cap
     // rebuilds the footer, so an attribute set before the measurement is gone by
@@ -706,9 +711,9 @@ describe('backlinks footer: behaviour', function () {
     await browser.keys('Enter');
     await browser.pause(700);
 
-    expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
-      DEEP_SOURCE,
-    );
+    expect(
+      await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? ''),
+    ).toBe(DEEP_SOURCE);
     // At the node, the same as a click — the keyboard path is the same promise.
     expect((await h.getCursor()).line).toBe(7);
   });
@@ -727,7 +732,9 @@ describe('backlinks footer: behaviour', function () {
       const cards = document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-group');
       for (const card of Array.from(cards)) {
         if (card.querySelector('.to-backlinks-group-name')?.textContent !== groupName) continue;
-        const segs = card.querySelectorAll<HTMLElement>('.to-backlinks-row.is-lineage .to-backlinks-seg');
+        const segs = card.querySelectorAll<HTMLElement>(
+          '.to-backlinks-row.is-lineage .to-backlinks-seg',
+        );
         const last = segs[segs.length - 1];
         if (!last) return null;
         last.focus();
@@ -743,9 +750,9 @@ describe('backlinks footer: behaviour', function () {
     await browser.keys('Enter');
     await browser.pause(700);
 
-    expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
-      DEEP_SOURCE,
-    );
+    expect(
+      await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? ''),
+    ).toBe(DEEP_SOURCE);
     // The chain's LAST ancestor, line 6 — the same answer its click gives.
     expect((await h.getCursor()).line).toBe(6);
   });
@@ -811,9 +818,7 @@ describe('backlinks footer: behaviour', function () {
           const row = card.querySelectorAll<HTMLElement>('.to-backlinks-row')[args.row];
           if (!row) return false;
           const el =
-            args.seg >= 0
-              ? row.querySelectorAll<HTMLElement>('.to-backlinks-seg')[args.seg]
-              : row;
+            args.seg >= 0 ? row.querySelectorAll<HTMLElement>('.to-backlinks-seg')[args.seg] : row;
           if (!el) return false;
           el.setAttribute('data-e2e-target', 'yes');
           return true;
@@ -904,9 +909,9 @@ describe('backlinks footer: behaviour', function () {
     const last = await pointInGroup(DEEP_GROUP, 0, segments - 1);
     await h.clickAtPoint(last.x, last.y);
     await browser.pause(700);
-    expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
-      DEEP_SOURCE,
-    );
+    expect(
+      await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? ''),
+    ).toBe(DEEP_SOURCE);
     // Line 6 — the chain's last ancestor. Line 0 would be its first, which is
     // what a row-level handler or a first-segment default would give.
     expect((await h.getCursor()).line).toBe(6);
@@ -941,9 +946,9 @@ describe('backlinks footer: behaviour', function () {
     // leaf count is what isolates the modifier's effect (checked by dropping the
     // key from the chain: 15 -> 15, and the note still opens).
     expect(after).toBe(before + 1);
-    expect(await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? '')).toBe(
-      DEEP_SOURCE,
-    );
+    expect(
+      await browser.executeObsidian(({ app }) => app.workspace.getActiveFile()?.path ?? ''),
+    ).toBe(DEEP_SOURCE);
     await clearTargets();
   });
 });

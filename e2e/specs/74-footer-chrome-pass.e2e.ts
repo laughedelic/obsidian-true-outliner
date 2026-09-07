@@ -108,6 +108,8 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
+    // Not a volume spec: see `pinBacklinksCapOff`.
+    await h.pinBacklinksCapOff();
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });

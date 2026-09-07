@@ -94,11 +94,28 @@ export interface PlacedSource {
 
 /** What a placed reference tells the renderer about the node holding it. */
 export interface PlacedReference {
+  /** The marker/quote choice for this node — the FIRST reference it holds,
+   * when it holds more than one. Rendering only ever needs one kind to draw
+   * and one line to quote, so this stays a "first wins" choice exactly as
+   * before. */
   readonly kind: ReferenceKind;
   /** Which of the node's own lines carries it, or absent when the node has one. */
   readonly line?: number | undefined;
   /** The link as written, alias and all. */
   readonly text: string;
+  /**
+   * EVERY kind a reference on this node carries, `kind` included. A node can
+   * hold more than one reference — a table cell with a plain link and an
+   * embed, say — and a kind filter has to ask "does this node have ANY
+   * reference of the selected kind", not "is the FIRST one this kind". Using
+   * `kind` alone here let the group's own count (over the raw, undeduplicated
+   * reference list) disagree with which rows a kind filter admitted — the
+   * count said a group had an embed, the row for it did not match "Embed"
+   * because its FIRST recorded reference happened to be a plain link. Found
+   * in review; recorded as a known gap in docs/research/12 before
+   * `backlinks-controls` existed to fix it.
+   */
+  readonly kinds: ReadonlySet<ReferenceKind>;
 }
 
 export class BacklinkIndex {
@@ -186,19 +203,27 @@ export class BacklinkIndex {
     const doc = await this.trees.get(file);
     const matchedIds = new Set<number>();
     const placed = new Map<number, PlacedReference>();
+    const kindsByNode = new Map<number, Set<ReferenceKind>>();
     for (const ref of refs) {
       if (ref.line === undefined) continue;
       const node = nodeAtLine(doc, ref.line);
       if (!node) continue;
       matchedIds.add(node.id);
-      // A node can hold more than one reference; the first wins, which only
-      // decides a marker and which line to quote, never whether the node is a
-      // reference at all.
+      let kinds = kindsByNode.get(node.id);
+      if (!kinds) {
+        kinds = new Set();
+        kindsByNode.set(node.id, kinds);
+      }
+      kinds.add(ref.kind);
+      // A node can hold more than one reference; the first wins for MARKER and
+      // QUOTE purposes — `kinds` above is what lets a kind filter still see
+      // every kind the node actually carries.
       if (!placed.has(node.id)) {
         placed.set(node.id, {
           kind: ref.kind,
           line: ref.line - nodeStartLine(doc, node.id),
           text: ref.original,
+          kinds,
         });
       }
     }

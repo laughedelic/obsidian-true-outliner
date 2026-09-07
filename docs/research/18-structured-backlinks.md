@@ -209,6 +209,35 @@ folder filter at all; selecting one narrows the list to it. A Reset control appe
 filter is active and clears chips and search together. The sort control is a dropdown carrying a
 sort icon, not a cycling button — four options should be directly selectable.
 
+**Answered by `backlinks-controls`, and the row's shape changed on the way.** Three things this
+decision left open are now settled:
+
+*The search field matches source note NAMES, and nothing else.* It reads the same summary layer
+the axes do, so it costs no file read and stays upstream of placement with them. Matching
+reference content would need the parsed tree of every candidate note — the expensive half — and
+would make the search a different feature from the one described here.
+
+*Chips became facets.* Values are behind a button per axis rather than laid out in the row,
+because a row of chips cannot hold a vault's folders and cannot survive a narrow pane. The
+focus-on semantics are unchanged, and so is the reset — one control at the row's end that clears
+every axis and the term together — but its own presentation changed after review: it now stays in
+the row always, rather than appearing only while something is active, and closes the row instead
+when there is nothing to clear. An empty slot where it came and went read as an incomplete row.
+Each facet also clears its own axis, which a reader who has narrowed one way should not have to
+reach past two other menus for.
+
+*There is a third axis.* Tags, the only one a source can answer to several selected values of AT
+ONCE — a note has one folder and a reference has one kind, so checking either against a selection
+is a single membership test, while a note's own tags need `.some()` over its whole list. Every
+axis widens on a second selected value by the same set-membership rule; what is different about
+tags is the SHAPE of the check a many-valued property needs, not whether widening happens at all
+(an earlier draft of this note attributed the widening itself to tags, which review caught as
+wrong — folder and kind widen on a second value too).
+
+The two unbounded axes carry a find box inside their popover; kind, with four values forever,
+does not. A selected value stays listed however that box is narrowed — hiding it would leave a
+filter in effect with no visible cause and no way to switch it off from the control that set it.
+
 ### D9. Empty state: a dormant bar
 
 A note with no references shows a single quiet line, "No linked references", rather than
@@ -237,6 +266,28 @@ the same frame. There is nothing to cap for performance. The caps are still want
 a **legibility** decision — a note should not be buried under four hundred backlinks — and
 `backlinks-controls` must choose its defaults on that basis. Choosing them from an imagined read
 cost would size them wrongly, and probably far too small.
+
+**`backlinks-controls` split the two caps apart, because they answer different questions.**
+"Two caps — one per note, one overall — both configurable" reads as one mechanism applied twice.
+It is not.
+
+The OVERALL cap is a count of references, and it is applied by the pure controls model before any
+source note is read. That ordering is what makes it bound the WORK and not only the length: a
+group the model does not admit is one `place()` is never called for. It admits whole groups in
+sort order, so it is a bound rather than a quota — the footer usually shows slightly fewer
+references than the cap allows, and the header's totals stay the true filtered totals regardless.
+
+The PER-NOTE bound is not a count at all. It is the group HEIGHT cap the footer already shipped,
+because row height depends on how content wraps and N rows is therefore a bound on nothing a
+reader perceives: three wrapped rows can be three times the height of three short ones. This
+decision's own ellipsis rung then falls out of the measurement that cap already runs — the rows
+whose bottom falls past the body's visible limit are the omitted ones, and the first of them
+carries the depth the rung sits at. So the rung is a consequence of the existing mechanism rather
+than a second truncation, and the two cannot disagree.
+
+The defaults are 50 references and a 16rem group, chosen on the legibility footing S5 cleared
+above: around fifty references is where a footer stops reading as a list and starts reading as a
+document, and 16rem is a card that can be taken in without scrolling inside it.
 
 ### D11. First paint: progressive, never skeletal
 
@@ -270,7 +321,10 @@ Detect-and-defer was considered and is not implementable.
 Deferred, but recorded so it is not re-derived:
 
 - **Zoom carries the footer.** Once a node can be zoomed into, the same footer renders below
-  it scoped to that node. No new surface, no new interaction.
+  it scoped to that node. No new surface, no new interaction. It belongs to neither change on
+  its own: it needs `outline-zoom` to have a zoomed node at all, and it needs this footer's
+  controls model, which decides which groups exist from the summary layer and would gain a
+  scope alongside the three axes. Nothing in either change forecloses it.
 - **A count decoration on the anchor.** A heading is addressable as `[[Note#Heading]]` with
   **no block id and no file pollution** — node-level backlinks come free for every heading in
   the vault, and for any block once it carries a `^id`. The count for both is already in
@@ -305,6 +359,13 @@ The filter row carries these chips beside the folder chips, same focus-on semant
 **deliberately different in shape**: folders are round pills (a *where*), reference kinds are
 square icon-led chips (a *what*), split by a divider.
 
+**`backlinks-controls` kept the requirement and changed how it is met.** Pills and chips
+distinguished two axes by their outline; three axes behind three facet buttons are distinguished
+by their MARK instead. The two axes whose values are literal syntax are drawn as that syntax —
+`[[]]` for kind, `#` for tag — and folder, which has no syntax of its own, keeps a picture. That
+is why the hash belongs to tags: it is what a tag is written as, and spending it on reference
+kind would have left the axis a reader reaches for most often with a borrowed symbol.
+
 An alias renders as written — `[[Maya Lindqvist|Maya]]` shows *Maya* — because the row shows
 the source node's own text verbatim, which is the whole point of the feature.
 
@@ -314,9 +375,22 @@ Recency first. A **chronological** mode — filter to daily notes, sort by the n
 parsed as a date rather than by file mtime — is a recognised want for journal-heavy vaults
 and is deferred, not rejected.
 
+`backlinks-controls` left it a small addition rather than a redesign: sort is one named value in
+the pure model with one comparator each, and adding a fifth is that comparator plus one entry in
+the options list. What it would also need is a way to say WHICH notes are dated, since parsing a
+name as a date only makes sense for the ones that are — most likely the tag or folder axis
+already there, rather than a new setting.
+
 ### D16. Unlinked mentions: out of scope
 
 Core already has them, they are expensive, and they have no tree structure to show.
+
+`backlinks-controls`'s core-suppression setting reaches them anyway, as a side effect rather than
+by design: `.embedded-backlinks` wraps one `BacklinkPane` component whose linked and unlinked
+lists share every class down to the DOM, with nothing to scope a stylesheet rule to one half.
+Turning the setting off restores both, and Obsidian's own Backlinks pane shows both regardless —
+the setting's own description says this plainly rather than promising a narrower effect than one
+selector rule can have.
 
 ### D17. Pruned projection is a shared function, not a shared renderer
 
@@ -429,9 +503,10 @@ contract publishes `--to-*` custom properties, so a CSS snippet already covers t
 
 ## Open questions
 
-All three are now answered — by the spike series
+The first three are answered — by the spike series
 ([19](19-backlinks-footer-spikes.md)) and by building the change. Kept with their answers
 rather than deleted, since two of them were answered differently from how they were asked.
+The fourth is open, and is recorded with what has been measured so far.
 
 1. ~~**Footer collapse state** — per note, global, or not persisted?~~ **Per note, and not
    persisted past the tab.** What a reader unfolded is about the reading they are doing, not
@@ -450,6 +525,29 @@ rather than deleted, since two of them were answered differently from how they w
    is the fact→(class, custom properties) CONTRACT, now `src/plugin/chrome-line.ts`, which both
    surfaces call. S6 then confirmed the two alternatives to consuming it — a markdown list, and
    a real CodeMirror per group — are both worse.
+
+4. **Where the view lands when the section is folded, on a note the footer is taller than.**
+   Reported from use as "it jumps to the top of the note". Reduced, and shipped, with one
+   residual case still open.
+
+   The first model considered was too simple: a fold takes height out of the document from BELOW
+   the head, so the head's own position in the document does not move, and either the reader's
+   scroll offset still fits the shortened document (nothing moves) or it does not (the browser
+   clamps, and no offset could have held the head). Under that model there is nothing left for
+   this code to do, and a restoration pass built against it measured as a no-op both ways. What
+   the model does not account for is CodeMirror's OWN scroll anchoring, which steadies a view
+   across an update by holding whichever block sits at the top of the visible area at a fixed
+   offset — and once the footer covers a large share of the screen, that block IS the footer
+   widget, so restoring a SHRUNKEN block's own top moves the view instead of steadying it.
+   `FooterController.foldKeepingPlace()` measures the head's offset before folding and restores
+   it after, twice — once immediately and once past the frame CodeMirror re-measures in, since
+   the correction has to outlive the restoration it is correcting.
+
+   Manual testing confirms it helps: with the caret near the end of the document the jump is
+   minimal regardless of the footer's size. What remains is a jump reported as occasional and not
+   yet reliably reproducible, specifically when the footer exceeds roughly half the viewport —
+   consistent with the anchoring model above but not yet caught in the act of failing under it,
+   which is what would confirm the mechanism rather than the correlation.
 
 ## Prototype
 

@@ -30,17 +30,26 @@
 import { $, browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import {
+  FOOTER,
+  clearFilters,
+  clickIn,
+  focusSearch,
+  openFilters,
+  openFooter,
+  scrollToFooter,
+  settle,
+} from '../footer.js';
 
 const NOTE = 'Backlinks/Deep chain.md';
+/** A note with enough backlinks to have every control, for the last case. */
+const HUB = 'Projects/Aurora Dashboard.md';
 const WIDGET_SELECTOR = '.to-backlinks';
 
 async function setFooter(on: boolean): Promise<void> {
-  await browser.executeObsidian(
-    async ({ plugins }, enabled) => {
-      await (plugins.trueOutliner as any).setBacklinksFooter(enabled);
-    },
-    on,
-  );
+  await browser.executeObsidian(async ({ plugins }, enabled) => {
+    await (plugins.trueOutliner as any).setBacklinksFooter(enabled);
+  }, on);
 }
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
@@ -278,8 +287,11 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     // A REAL click, driven by the browser rather than dispatched into it —
     // synthetic MouseEvents do not move the DOM selection, so a dispatched
     // click also passes either way.
-    const title = await $('.workspace-leaf.mod-active .to-backlinks .to-backlinks-title');
-    await title.click();
+    // `.to-backlinks-icon`, not `.to-backlinks-title`: the header carries TWO
+    // title spans now (a short one for a narrow footer), and only one is ever
+    // visible — the icon is unconditional and always in the same place.
+    const icon = await $('.workspace-leaf.mod-active .to-backlinks .to-backlinks-icon');
+    await icon.click();
     await browser.pause(300);
 
     // Without the fix this reports the document's very end, and the editor
@@ -292,6 +304,122 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
           ?.classList.contains('cm-focused') ?? false,
     );
     expect(focused).toBe(false);
+  });
+
+  /**
+   * Reading the footer is not editing the note, under every control.
+   *
+   * The mount case above asks whether the widget's PRESENCE perturbs anything.
+   * This asks the same question of its use — because the controls are the parts
+   * that take keystrokes and focus, and a keystroke that misses the search field
+   * lands in the document. That is not hypothetical: the footer prevents the
+   * default on pointerdown to keep the editor's caret, and the first cut of that
+   * guard stopped the search field focusing at all, which is precisely the state
+   * in which typing a filter term would have typed it into the note.
+   *
+   * So a real edit is made first and undone last: if any control had pushed a
+   * transaction into history, the single undo would revert that instead and the
+   * buffer would not come back.
+   */
+  it('changes nothing in the document under filtering, search, sort, caps or load more', async function () {
+    await setFooter(true);
+    // A small cap before the footer is ever built. The hub has ~128 sources and
+    // this case cares about the CONTROLS, not the volume — 78 is where the cap
+    // is the subject. Twenty-five still leaves every facet populated and a tail
+    // rung to press.
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksOverallCap('25');
+    });
+    await openFooter(HUB);
+
+    const original = await h.getBuffer();
+    // A BODY line, found by content: `setCursor(1, …)` would land in the
+    // frontmatter, where an edit is not the ordinary case this asserts about.
+    const line = original.split('\n').findIndex((text) => text.startsWith('Redesign of'));
+    expect(line).toBeGreaterThan(0);
+    await h.setCursor(line, 5);
+    await h.keys.type('x');
+    const edited = await h.getBuffer();
+    expect(edited).not.toBe(original);
+    await h.saveActiveFile();
+
+    const before = {
+      buffer: edited,
+      disk: await h.readVaultFile(HUB),
+      length: edited.length,
+      caret: await h.getCursor(),
+      selection: await h.getSelection(),
+    };
+
+    // Back to the footer before touching it. Typing scrolled the editor to the
+    // caret, which on a narrow viewport leaves the footer outside CodeMirror's
+    // rendered range entirely — the control is not off screen, it does not
+    // exist. `scrollToFooter` is what handles that, and why it scrolls more
+    // than once. Caret and selection are read from editor STATE, so scrolling
+    // cannot affect what they compare.
+    await scrollToFooter();
+
+    // Every control, in one pass.
+    await openFilters();
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    await clickIn(`${FOOTER} .to-backlinks-facet-option`);
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    await clickIn(`${FOOTER} .to-backlinks-facet-option`);
+    await focusSearch();
+    await browser.keys('a');
+    await browser.pause(600);
+    // `.to-backlinks-sort` is a BUTTON now, not a `<select>` — it opens a
+    // popover on `click`, and has no `.value`/`change` to drive. Setting the
+    // sort here is not testing the CONTROL (77 does that); it is one of the
+    // "every setting" changes this case checks causes no document mutation,
+    // so the plugin's own setter is the direct way to make it happen.
+    await browser.executeObsidian(async ({ plugins }) => {
+      const plugin = plugins.trueOutliner as any;
+      await plugin.setBacklinksSort('name');
+      await plugin.setBacklinksOverallCap('50');
+      await plugin.setBacklinksGroupHeight('compact');
+    });
+    await settle();
+    await clearFilters();
+    await settle();
+    const loadMore = await browser.executeObsidian(
+      () => document.querySelector('.workspace-leaf.mod-active .to-backlinks-load-more') !== null,
+    );
+    if (loadMore) {
+      await clickIn(`${FOOTER} .to-backlinks-load-more`);
+      await settle();
+    }
+
+    await h.saveActiveFile();
+    const after = {
+      buffer: await h.getBuffer(),
+      disk: await h.readVaultFile(HUB),
+      length: (await h.getBuffer()).length,
+      caret: await h.getCursor(),
+      selection: await h.getSelection(),
+    };
+
+    expect(after.buffer).toBe(before.buffer);
+    expect(after.disk).toBe(before.disk);
+    expect(after.length).toBe(before.length);
+    expect(after.caret).toEqual(before.caret);
+    expect(after.selection).toEqual(before.selection);
+
+    // The undo stack is where a silent write would still show. One undo, and
+    // the note is back — which it would not be if a control had put an entry of
+    // its own on top of the edit.
+    await h.setCursor(before.caret.line, before.caret.ch);
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe(original);
+    await h.saveActiveFile();
+
+    await browser.executeObsidian(async ({ plugins }) => {
+      const plugin = plugins.trueOutliner as any;
+      await plugin.setBacklinksOverallCap('50');
+      await plugin.setBacklinksGroupHeight('standard');
+      await plugin.setBacklinksSort('recent');
+    });
+    await setFooter(false);
   });
 
   it('leaves the document byte-identical after mounting and unmounting', async function () {
