@@ -257,7 +257,10 @@ describe('the footer’s controls', function () {
     }
 
     await h.resizeLeafForFooter(340);
-    const narrow = await readStable(measure);
+    // Wider deadline: this measurement follows a real reflow across a
+    // container query, which is slower to settle than most of this file's
+    // reads and has room to run behind on a loaded CI box.
+    const narrow = await readStable(measure, 20000);
     expect(narrow).not.toBeNull();
     // The words go; the row neither grows nor wraps. A RELATIONSHIP — the
     // height is unchanged across the threshold — never a pixel width.
@@ -267,7 +270,7 @@ describe('the footer’s controls', function () {
     expect(narrow!.height).toBe(start!.height);
 
     await h.resizeLeafForFooter(null);
-    const back = await readStable(measure);
+    const back = await readStable(measure, 20000);
     expect(back!.words).toBe(start!.words);
   });
 
@@ -309,7 +312,11 @@ describe('the footer’s controls', function () {
     expect(wide!.totalsText).toMatch(/references?/);
 
     await h.resizeLeafForFooter(340);
-    const narrow = await readStable(measure);
+    // Wider deadline — see the sibling case above ("sheds the facet words")
+    // for why a post-resize measurement needs more room than this file's
+    // other reads: measured reliably fast locally, and still timed out twice
+    // in a row on CI at the previous 8-second default.
+    const narrow = await readStable(measure, 20000);
     expect(narrow).not.toBeNull();
     expect(narrow!.titleText).toBe('Backlinks');
     // Numbers only, no words — and still the same two counts, just undressed.
@@ -320,7 +327,7 @@ describe('the footer’s controls', function () {
     expect(narrow!.height).toBeLessThanOrEqual(wide!.height + 2);
 
     await h.resizeLeafForFooter(null);
-    const back = await readStable(measure);
+    const back = await readStable(measure, 20000);
     expect(back!.titleText).toBe(wide!.titleText);
   });
 

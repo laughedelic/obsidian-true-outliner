@@ -70,12 +70,16 @@ export async function settle(budgetMs = 20000): Promise<void> {
  * and removes a whole class of flake that has nothing to do with what a case
  * asserts.
  */
-export async function readStable<T>(read: () => Promise<T>): Promise<T> {
+export async function readStable<T>(read: () => Promise<T>, baseDeadlineMs = 8000): Promise<T> {
   // A deadline rather than a fixed attempt count, and one that scales with the
   // rest of the suite's waits. Twelve samples 200ms apart is two and a half
   // seconds of patience, which is enough on a developer machine and was not
-  // enough on a CI runner filling a hub note's groups.
-  const deadline = Date.now() + h.waitBudget(8000);
+  // enough on a CI runner filling a hub note's groups. `baseDeadlineMs` lets a
+  // caller ask for more than that default — a measurement taken right after
+  // resizing the leaf waits on a real reflow across a container query, which
+  // measured reliably fast locally and still timed out on CI twice in a row,
+  // so 8 seconds is not everyone's floor.
+  const deadline = Date.now() + h.waitBudget(baseDeadlineMs);
   let previous = '';
   do {
     const value = await read();
