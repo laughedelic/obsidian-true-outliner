@@ -90,6 +90,38 @@ export function resolveZoom(doc: OutlineDoc, anchorLine: number): ZoomScope | nu
 }
 
 /**
+ * Re-resolves a scope against a DIFFERENT parse of (presumptively) the same
+ * document — what `operandEscapes`/`splitEscapes` need before comparing ids
+ * across a parse boundary, which they must never do directly.
+ *
+ * Every `parse()` call allocates fresh node ids regardless of content
+ * (`model.ts`'s `nextId` is a single global counter, never reset and never
+ * keyed by text), so two parses of BYTE-IDENTICAL text produce structurally
+ * identical trees whose ids share no values at all. A scope built from one
+ * parse and compared by id against nodes from another therefore never
+ * matches — not "rarely", never — silently disabling whatever refusal the
+ * comparison was supposed to make. `grammar.ts`'s `planKey` hits this on
+ * every call: it takes a scope from its caller (resolved against the LIVE
+ * editor's cached parse) but always re-parses `text` itself, fresh, to plan
+ * against.
+ *
+ * `scope.startLine` is the one line-shaped, parse-independent fact a
+ * `ZoomScope` carries, which is what makes re-resolution possible without an
+ * anchor position of the caller's own. Resolved the same tolerant way
+ * `resolveZoom` always has — by which node OWNS that line, not by requiring
+ * an exact match — so this can retarget to a different node if the edit
+ * between the two parses changed what sits on that line (a deletion just
+ * above the root shifting a sibling onto it, say). That is an accepted,
+ * narrow imprecision: the escape checks this feeds are advisory for the
+ * transaction being planned RIGHT NOW, and a root that has genuinely stopped
+ * existing is caught by the state-level exit trigger on the very next
+ * dispatch regardless of what this returns here.
+ */
+export function reresolveZoom(doc: OutlineDoc, scope: ZoomScope): ZoomScope | null {
+  return resolveZoom(doc, scope.startLine);
+}
+
+/**
  * A node's ancestors, outermost first.
  *
  * Read off `findPath` rather than by a second walk: the path IS the ancestor

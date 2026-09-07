@@ -703,6 +703,32 @@ describe('outline zoom', function () {
     expect(await trail()).toEqual([]);
   });
 
+  it('exits rather than retargets when the root is deleted and a sibling slides into its line', async function () {
+    // `setBuffer`, above, replaces the WHOLE document; this one deletes ONLY
+    // the root's own two lines in place, leaving everything before and after
+    // untouched. `- two` — the following sibling — then starts on the exact
+    // line `- one` used to, which is a real node and would satisfy "does some
+    // node start here" on its own. The end-to-end behaviour this asserts
+    // (exit, not a silent retarget) holds either way here, through the
+    // outside-range trigger; `tests/zoom-state-triggers.test.ts` isolates the
+    // deletion-identity check itself (`zoom-state.ts`'s own trigger 1a) from
+    // that one, against a resolver contract rather than this geometry.
+    await openZoomable();
+    await zoomAt(DOC, '- one');
+    expect(await trail()).toEqual(['zoom', 'Top', 'Mid']);
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const text: string = cm.state.doc.toString();
+      const from = text.indexOf('- one');
+      const to = text.indexOf('- two');
+      cm.dispatch({ changes: { from, to, insert: '' } });
+    });
+    await browser.pause(300);
+    expect(await trail()).toEqual([]);
+  });
+
   it('exits when a change reaches outside the visible range', async function () {
     await openZoomable();
     await zoomAt(DOC, '- one');
@@ -741,6 +767,73 @@ describe('outline zoom', function () {
     await h.waitForNotice('Outline mode on');
     await h.dismissNotices();
     expect(await trail()).toEqual([]);
+  });
+
+  it('clears zoom on every pane showing the file, not only the one the toggle ran from', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '## Mid');
+    expect(await trail()).not.toEqual([]);
+
+    // A second leaf on the SAME file, zoomed to a DIFFERENT node — proves the
+    // first pane's scope survives independently and is not merely along for
+    // the ride on whatever the active pane does.
+    await browser.executeObsidian(async ({ app }) => {
+      const leaf = app.workspace.getLeaf('split');
+      const file = app.vault.getAbstractFileByPath('Scratch/zoom.md');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await leaf.openFile(file as any);
+      app.workspace.setActiveLeaf(leaf, { focus: true });
+    });
+    await browser.pause(500);
+    await zoomAt(DOC, '- one');
+    expect(await trail()).not.toEqual([]);
+
+    // The toggle runs on the COMMAND's own file-resolution, from whichever
+    // pane is active — here, the second one. `main.ts` used to look up only
+    // `getActiveViewOfType` when clearing the stored anchor, so the first,
+    // untouched pane kept its scope and went on rendering a trail for a mode
+    // that was now off everywhere; the fix walks every leaf on this path.
+    await h.toggleOutlineMode();
+    await h.waitForNotice('Outline mode off');
+    await h.dismissNotices();
+
+    // Every leaf on the file, not exactly two: which leaf a freshly-recreated
+    // note lands on is Obsidian's own business, not this test's — the claim
+    // under test is that NONE of them still show a trail, whatever their count.
+    const readTrails = () =>
+      browser.executeObsidian(({ app, obsidian }) => {
+        return app.workspace
+          .getLeavesOfType('markdown')
+          .filter((leaf) => leaf.view instanceof obsidian.MarkdownView && leaf.view.file?.path === 'Scratch/zoom.md')
+          .map((leaf) => {
+            const el = leaf.view.containerEl.querySelector('.to-zoom-trail');
+            if (!el) return [];
+            return Array.from(el.querySelectorAll('.to-backlinks-seg')).map(
+              (seg) => (seg as HTMLElement).innerText.trim(),
+            );
+          });
+      });
+    const trailsOff = await readTrails();
+    expect(trailsOff.length).toBeGreaterThanOrEqual(2);
+    expect(trailsOff.every((t) => t.length === 0)).toBe(true);
+
+    // The stored anchor, not only what the shared gate hides while mode is
+    // off — both panes gate their SCOPE on `isOutline(path)`, a check keyed by
+    // path rather than by leaf, so a raw anchor left behind on the untouched
+    // pane is invisible right up until mode comes back on and revives it. That
+    // is the actual bug this exists to catch: turning mode off looked like it
+    // had cleared both panes even when it had only cleared the active one.
+    await h.toggleOutlineMode();
+    await h.waitForNotice('Outline mode on');
+    await h.dismissNotices();
+    const trailsOn = await readTrails();
+    expect(trailsOn.length).toBeGreaterThanOrEqual(2);
+    expect(trailsOn.every((t) => t.length === 0)).toBe(true);
+
+    await browser.executeObsidian(({ app }) => {
+      app.workspace.detachLeavesOfType('markdown');
+    });
+    await browser.pause(200);
   });
 
   it('does nothing when the caret is in the preamble', async function () {
@@ -803,6 +896,55 @@ describe('outline zoom', function () {
     // press misses, which is how a version of it driven by viewport coordinates
     // hid a real mobile failure.
     await clickMark('.cm-line > .to-decor-marker-icon', 1);
+    expect(await trail()).toEqual(['zoom', 'Top']);
+  });
+
+  it('consumes the whole gesture, click included, not only the press that started it', async function () {
+    // `mousedown`, `mouseup` and `click` arrive as three SEPARATE events, in
+    // that order, and `preventDefault()` on one does nothing to the others —
+    // each has to be caught on its own. A version of the listener that
+    // stopped tracking the gesture after `mouseup` left `click` to run
+    // uncaught: the guard for it saw the gesture as already over and returned
+    // before touching the event at all. Checked directly, on the event
+    // itself, rather than through a side effect a later mechanism (zooming
+    // into a folded node auto-opens it) could otherwise paper over.
+    //
+    // The trailing three are dispatched on `contentDOM`, NOT on the marker
+    // `pointerdown` itself targeted: the zoom that `pointerdown` triggers
+    // re-roots the view and replaces the marker's own line synchronously, so
+    // a reference to the marker element is already detached by the time a
+    // second event would be dispatched on it — and an event dispatched on a
+    // detached node never reaches a capture-phase listener bound to the
+    // (still-attached) editor above it. `contentDOM` survives every
+    // re-render; only its children are replaced. `swallow()` reads only
+    // `consuming`, never `event.target`, so where exactly a trailing event
+    // originates does not matter to the mechanism this proves.
+    await openZoomable();
+    const defaultPrevented = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const mark = cm.contentDOM.querySelectorAll('.cm-line > .to-decor-marker-icon')[1] as
+        | HTMLElement
+        | undefined;
+      if (!mark) throw new Error('no marker[1] rendered');
+      const r = mark.getBoundingClientRect();
+      const opts = {
+        bubbles: true,
+        cancelable: true,
+        clientX: r.left + r.width / 2,
+        clientY: r.top + r.height / 2,
+        button: 0,
+      };
+      mark.dispatchEvent(new PointerEvent('pointerdown', { ...opts, buttons: 1 }));
+      const contentDom = cm.contentDOM as HTMLElement;
+      contentDom.dispatchEvent(new MouseEvent('mousedown', { ...opts, buttons: 1 }));
+      contentDom.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
+      const click = new MouseEvent('click', { ...opts, buttons: 0 });
+      contentDom.dispatchEvent(click);
+      return click.defaultPrevented;
+    });
+    expect(defaultPrevented).toBe(true);
     expect(await trail()).toEqual(['zoom', 'Top']);
   });
 

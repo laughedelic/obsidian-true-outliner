@@ -67,7 +67,7 @@ import { zoomViewExtension } from './zoom-view';
 import { viewFor } from './view-registry';
 import { zoomScope } from './zoom-scope';
 import { zoomAnchorField, zoomCleared, zoomTo } from './zoom-state';
-import { operandEscapes, parentOf, resolveZoom } from '../zoom';
+import { operandEscapes, parentOf, reresolveZoom, resolveZoom } from '../zoom';
 import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
@@ -648,8 +648,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     const { on, saved } = this.registry.toggle(path);
     this.footerRev++;
     new Notice(on ? 'Outline mode on' : 'Outline mode off', 1500);
-    // The same note can be open in more than one split, and `refreshDecorations`
-    // reaches one of them. Every footer for this path has just become wrong.
+    // The same note can be open in more than one split. Every footer for this
+    // path has just become wrong, and — while mode is turning OFF — so has
+    // every one of those panes' own zoom, if it had one; both are reached in
+    // every pane, not only the active one.
     nudgeFooters(this.app);
     this.refreshDecorations(path, on);
     // Awaited last rather than dropped: the command site `void`s this promise,
@@ -663,17 +665,21 @@ export default class TrueOutlinerPlugin extends Plugin {
    * Nudging the cursor to its own position is a real (public-API) dispatch
    * that forces the recompute without changing anything visible.
    *
-   * Turning mode OFF also clears any zoom on this view. `zoomAnchorField`'s own
-   * `update()` cannot host that check itself: the module is deliberately kept
-   * free of `obsidian` (`zoom-state.ts`'s own comment says why), and "is this
-   * file in outline mode" is an instance method on the registry, not something
-   * a resolver installed once at module load can answer the way the other exit
-   * triggers do. Left uncleared, the anchor survives the toggle inert —
-   * `computeScope` already gates on outline mode, so the zoom has no visible
-   * effect while mode is off — and reactivates the moment mode comes back,
-   * reviving a zoom the user never asked to keep. Same one-of-several-panes
-   * limitation `nudgeFooters`'s own caller comment already accepts for this
-   * whole redraw.
+   * Turning mode OFF also clears any zoom on EVERY pane showing this file, not
+   * only the active one — the same `getLeavesOfType('markdown')` sweep
+   * `nudgeFooters` already runs, for the same reason: `outline-zoom`'s own
+   * "Zoom is per editor view" requirement lets two panes on one file hold
+   * different scopes, so turning outline mode off for the FILE has to reach
+   * every view showing it, not whichever one happened to be active when the
+   * command ran. `zoomAnchorField`'s own `update()` cannot host this check
+   * itself: the module is deliberately kept free of `obsidian`
+   * (`zoom-state.ts`'s own comment says why), and "is this file in outline
+   * mode" is an instance method on the registry, not something a resolver
+   * installed once at module load can answer the way the other exit triggers
+   * do. Left uncleared, the anchor survives the toggle inert — `computeScope`
+   * already gates on outline mode, so the zoom has no visible effect while
+   * mode is off — and reactivates the moment mode comes back, reviving a zoom
+   * the user never asked to keep, in whichever pane still held one.
    *
    * Read the FIELD directly below, never `zoomScope`: that derived read is the
    * very gate this comment just described, so by the time `outlineModeOn` is
@@ -681,17 +687,19 @@ export default class TrueOutlinerPlugin extends Plugin {
    * anything to clear.
    */
   private refreshDecorations(path: string, outlineModeOn: boolean): void {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (view?.file?.path !== path) return;
-    const cm = viewFor(view);
-    // The RAW anchor, not `zoomScope`: that already gates on outline mode, so
-    // by the time this runs (mode is already off in the registry) it always
-    // answers null — checking it here would never find anything to clear,
-    // which is exactly the bug this exists to fix.
-    if (!outlineModeOn && cm?.state.field(zoomAnchorField, false) != null) {
-      cm.dispatch({ effects: zoomCleared.of(null) });
+    for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView) || view.file?.path !== path) continue;
+      const cm = viewFor(view);
+      // The RAW anchor, not `zoomScope`: that already gates on outline mode,
+      // so by the time this runs (mode is already off in the registry) it
+      // always answers null — checking it here would never find anything to
+      // clear, which is exactly the bug this exists to fix.
+      if (!outlineModeOn && cm?.state.field(zoomAnchorField, false) != null) {
+        cm.dispatch({ effects: zoomCleared.of(null) });
+      }
+      view.editor.setCursor(view.editor.getCursor());
     }
-    view.editor.setCursor(view.editor.getCursor());
   }
 
   /**
@@ -935,7 +943,15 @@ export default class TrueOutlinerPlugin extends Plugin {
     // `selection-structural-ops` exists to prevent.
     const view = viewFor(ctx);
     const scope = view ? zoomScope(view.state, this) : null;
-    if (scope && operandEscapes(scope, operand.groups, isOutdent)) {
+    // Re-resolved against `doc`, the fresh parse this command just made —
+    // `scope` was built from the live editor's own cached parse, a DIFFERENT
+    // parse object even when the text agrees, and `parse()` allocates every
+    // node a new id regardless of content. Comparing `scope`'s ids against
+    // `operand.groups`' below without this re-derivation would never match
+    // anything, silently letting every palette operation on the zoom root or
+    // its direct children through (`reresolveZoom`'s own comment says why).
+    const localScope = scope ? reresolveZoom(doc, scope) : null;
+    if (localScope && operandEscapes(localScope, operand.groups, isOutdent)) {
       new Notice(REJECTION_MESSAGES['would-leave-zoom-scope'], 1500);
       return;
     }

@@ -540,27 +540,67 @@ describe('the clamp is what makes the anchor safe (D4 retarget property)', () =>
         const scope = resolveZoom(doc, seed % total);
         if (!scope) return;
 
-        // An edit strictly INSIDE the visible range: replace one covered line's
-        // text. This is the only kind the clamps permit, and the property is
-        // that it cannot make the anchor resolve to a different node.
+        // An edit strictly INSIDE the visible range: append to one covered
+        // line's text. This is the only kind the clamps permit, and the
+        // property is that it cannot make the anchor resolve to a DIFFERENT
+        // node while looking like the same one.
         const lines = md.split('\n');
         const target = scope.cover.start.line;
+        const originalLine = lines[target] ?? '';
+        const suffix = insert.replace(/\n/g, '');
         const edited = [...lines];
-        edited[target] = (edited[target] ?? '') + insert.replace(/\n/g, '');
+        edited[target] = originalLine + suffix;
         const after = parse(edited.join('\n'));
         const reresolved = resolveZoom(after, scope.startLine);
-        // The rule the implementation enforces, and the one this property
-        // exists to state: either the anchor still names a node's OWN START —
-        // in which case the root is the same node — or the zoom must exit.
-        // A re-resolution that lands on a node starting somewhere else is a
-        // silent retarget, which is what an `hr` losing its hr-ness does.
-        const survived = reresolved !== null && reresolved.startLine === scope.startLine;
-        const mustExit = reresolved === null || reresolved.startLine !== scope.startLine;
-        expect(survived || mustExit).toBe(true);
-        if (survived) expect(reresolved.startLine).toBe(scope.startLine);
+        if (reresolved === null || reresolved.startLine !== scope.startLine) return; // exited — always the safe answer
+
+        // `reresolved.startLine === scope.startLine` alone is NOT identity —
+        // it is the exact question a node sliding into the root's old line
+        // would also answer yes to (review comment on this test: `survived`
+        // and `mustExit` were exact complements, so the property never
+        // actually checked anything). Identity is asserted independently of
+        // that startLine match: the SAME first line's text, with only the
+        // appended suffix different — derived from the SOURCE lines directly,
+        // not from another call to the function under test.
+        //
+        // NOT the kind, and NOT the line count: an in-place reclassification
+        // (an `hr` losing its hr-ness with nothing above it to merge into, so
+        // it becomes a paragraph at the SAME startLine) or a reparse that
+        // makes the edited line absorb a FOLLOWING line that used to be a
+        // separate node (found by this property: `---` + a table on the next
+        // line, appending `!` turns the hr into a paragraph that swallows the
+        // table line as plain continuation text) are both legitimate
+        // "survived" by this design — the root's OWN first line is untouched
+        // by the edit apart from the append, which is what identity means
+        // here. The named `hr` test below covers the kind-AND-position-change
+        // case that IS an exit; `direct deletion of the root before a
+        // sibling`, further below, covers the case where the first line's
+        // text does NOT survive the edit at all.
+        expect(reresolved.root.lines[0]).toBe(originalLine + suffix);
       }),
       { numRuns: 100 },
     );
+  });
+
+  it('direct deletion of the root before a sibling forces an exit, not a retarget onto the sibling', () => {
+    // The scenario a review of the property above named directly (`outline-
+    // zoom` PR #69, review on this test): deleting the root's WHOLE subtree
+    // can leave a SIBLING starting on the exact line the root did. A resolver
+    // that only asks "does a node start here" cannot tell that sibling apart
+    // from the root having survived — this is that shape, stated at the pure
+    // `resolveZoom` layer; `tests/zoom-state-triggers.test.ts` covers the same
+    // shape at the CM6 reducer layer that actually guards the running plugin.
+    const before = parse('- one\n  - nested\n- two\n');
+    const scope = resolveZoom(before, 0)!;
+    expect(scope.root.lines[0]).toBe('- one');
+
+    const after = parse('- two\n'); // the root's own two lines, gone
+    const reresolved = resolveZoom(after, 0);
+    // A node DOES start on line 0 now — `- two` — so a startLine-only check
+    // would call this survival. The identity check says otherwise.
+    expect(reresolved).not.toBeNull();
+    expect(reresolved!.startLine).toBe(0);
+    expect(reresolved!.root.lines[0]).not.toBe(scope.root.lines[0]);
   });
 
   it('an hr that stops being an hr forces an exit rather than a silent retarget', () => {

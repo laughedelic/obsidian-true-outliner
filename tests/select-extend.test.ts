@@ -236,6 +236,47 @@ describe('extendSelections: multi-range independence (design.md D4)', () => {
   });
 });
 
+describe('extendSelection: the `bound` argument (outline-zoom D7)', () => {
+  const nested = parse(['- P', '\t- c1', '\t- c2', '- Q'].join('\n'));
+  const P = nodeAtLine(nested, 0)!;
+  // P's own subtree: lines 0..2 (P, c1, c2) — Q, at line 3, is outside it.
+  const bound = subtreeCoverOf(nested, P);
+
+  it('growth stopping at the root cover: a descendant cannot grow past it to a sibling of the root', () => {
+    // Unbounded, growing down from c1 eventually reaches Q (a sibling of P,
+    // outside P's own subtree) — the ordinary, unscoped sequence.
+    expect(press(nested, caret(1, 4), ['down', 'down', 'down'])).toEqual([
+      '1..1 fwd',
+      '1..2 fwd',
+      '1..3 fwd',
+    ]);
+    // Bounded to P's own subtree, the third press has nowhere left to go: the
+    // next unbounded step would leave the bound, which is the same answer an
+    // exhausted sequence gives, so the range stays at its second-press value.
+    const out: (LineRange | null)[] = [];
+    let current: LineRange = caret(1, 4);
+    for (const direction of ['down', 'down', 'down'] as const) {
+      const next = extendSelection(nested, current, direction, bound);
+      out.push(next);
+      if (next) current = next;
+    }
+    expect(out.map(span)).toEqual(['1..1 fwd', '1..2 fwd', 'null']);
+  });
+
+  it('extension starting on the root itself stays inside the bound, one press to its own subtree', () => {
+    // Unbounded, a first press from P's own line takes its whole subtree
+    // (0..2, same as the no-bound case above), and a second press grows past
+    // it to Q (0..3).
+    expect(press(nested, caret(0, 2), ['down', 'down'])).toEqual(['0..2 fwd', '0..3 fwd']);
+    // Bounded to P's own subtree, starting ON the root is not itself
+    // rejected — the first press still reaches P's own subtree, which IS the
+    // bound — but the second press, which would grow past it to Q, declines.
+    const first = extendSelection(nested, caret(0, 2), 'down', bound);
+    expect(span(first)).toBe('0..2 fwd');
+    expect(extendSelection(nested, first!, 'down', bound)).toBeNull();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Properties
 // ---------------------------------------------------------------------------

@@ -136,7 +136,6 @@ function segmentsFor(fileName: string, trail: readonly OutlineNode[]): LineageSe
 
 class ZoomTrailWidget extends WidgetType {
   constructor(
-    private readonly view: () => EditorView | null,
     private readonly modes: ZoomTrailSource,
     private readonly key: string,
   ) {
@@ -165,10 +164,20 @@ class ZoomTrailWidget extends WidgetType {
 
     const file = view.state.field(editorInfoField, false)?.file;
     const name = file ? splitPath(file.path).name : 'Note';
+    // `view`, `toDOM`'s own parameter — not a "live view" read from some
+    // shared place. A `WidgetType` is one CM6 state field's own value, which
+    // is one editor's own value; nothing about it is shared across panes, so
+    // there is no view for a getter to go find that this parameter is not
+    // already. Dispatching through it later still reaches that editor's
+    // CURRENT state: an `EditorView` is the same object across every state it
+    // holds, so a reference captured now does not go stale as the state moves
+    // on — only if the editor itself is torn down, which discards this widget
+    // along with it and calls `toDOM` fresh on whatever replaces it.
     const clear = (): void => {
-      (this.view() ?? view).dispatch({ effects: zoomCleared.of(null) });
+      view.dispatch({ effects: zoomCleared.of(null) });
     };
-    renderLineageContent(row, segmentsFor(name, scope.trail), {
+    const segments = segmentsFor(name, scope.trail);
+    renderLineageContent(row, segments, {
       icons: this.modes.backlinksSegmentIcons,
       // ALWAYS separated, whatever the footer's setting says: the trail is a
       // single horizontal path where the join between two ancestors is the only
@@ -176,23 +185,35 @@ class ZoomTrailWidget extends WidgetType {
       // whose structure already groups it (design D10).
       separator: 'chevron',
       kind: scope.trail[0]?.kind ?? 'paragraph',
-      // The gutter mark is the zoom-out control, not this segment's kind.
+      // The gutter mark is the zoom-out control, not this segment's kind — so
+      // it stays even when the icon setting says "none", which would
+      // otherwise remove it along with the decorative kind glyphs it is not.
+      markerRequired: true,
       marker: () => zoomOutMark(clear),
       glyph: segmentGlyph,
       separatorGlyph,
       onActivate: (segment) => {
-        const target = this.view() ?? view;
         if (segment.nodeId === FILE_SEGMENT_ID) {
           clear();
           return;
         }
-        // Resolved from the CURRENT parse rather than from the node captured
-        // when the row was built: a crumb activated after an edit must re-root
-        // on where that ancestor is now.
-        const { doc } = parsedDoc(target.state.doc);
-        const line = nodeStartLine(doc, segment.nodeId);
+        // Resolved by this segment's POSITION in the trail, not by the id
+        // captured when the row was built. `eq()` above keys on segment TEXT
+        // alone, so an edit that reparses without changing any ancestor's
+        // label reuses this exact widget — DOM, closures and all — while
+        // `model.ts`'s global `nextId` counter has already handed out a new
+        // id for every node underneath it. A captured id is stale the moment
+        // that happens and a lookup against the current parse finds nothing,
+        // so the crumb goes dead; the POSITION still names the same ancestor,
+        // because the label that kept this widget alive is that ancestor's.
+        const index = segments.indexOf(segment);
+        const current = zoomScope(view.state, this.modes);
+        const ancestor = current?.trail[index - 1]; // -1: index 0 is the file
+        if (!ancestor) return;
+        const { doc } = parsedDoc(view.state.doc);
+        const line = nodeStartLine(doc, ancestor.id);
         if (line < 0) return;
-        target.dispatch({ effects: zoomTo.of(target.state.doc.line(line + 1).from) });
+        view.dispatch({ effects: zoomTo.of(view.state.doc.line(line + 1).from) });
       },
     });
     return el;
@@ -204,7 +225,7 @@ class ZoomTrailWidget extends WidgetType {
   }
 }
 
-function compute(state: EditorState, modes: ZoomTrailSource, view: () => EditorView | null): DecorationSet {
+function compute(state: EditorState, modes: ZoomTrailSource): DecorationSet {
   const scope = zoomScope(state, modes);
   if (!scope) return Decoration.none;
   const file = state.field(editorInfoField, false)?.file;
@@ -219,23 +240,26 @@ function compute(state: EditorState, modes: ZoomTrailSource, view: () => EditorV
   // position (`zoom-offsets`), so a widget here is outside it either way.
   const at = state.doc.line(scope.cover.start.line + 1).from;
   return Decoration.set([
-    Decoration.widget({ widget: new ZoomTrailWidget(view, modes, key), side: -1, block: true }).range(at),
+    Decoration.widget({ widget: new ZoomTrailWidget(modes, key), side: -1, block: true }).range(at),
   ]);
 }
 
 export function zoomTrailExtension(modes: ZoomTrailSource): Extension {
-  let live: EditorView | null = null;
-  const field = StateField.define<DecorationSet>({
-    create: (state) => compute(state, modes, () => live),
-    update: (_value, tr) => compute(tr.state, modes, () => live),
+  // A plain `StateField.define(...)`, not a `ViewPlugin`, and that is exactly
+  // what earlier drove a widget toward reading some OTHER, "live" view instead
+  // of its own `toDOM` argument: this factory runs ONCE per plugin load, and
+  // the ONE field definition it returns is shared, verbatim, by every editor
+  // that includes this extension — so a module-level variable closed over by
+  // `create`/`update` is shared the same way, across every pane at once, and
+  // the click handler that read it dispatched into whichever pane happened to
+  // update last rather than the one the reader actually clicked in. No such
+  // variable is needed: each editor's OWN call into `create`/`update` already
+  // carries that editor's own `state`, and the field's VALUE — the
+  // `DecorationSet`, this widget included — is CM6's own per-editor state, not
+  // shared at all. `toDOM`'s own `view` argument is that same editor's view.
+  return StateField.define<DecorationSet>({
+    create: (state) => compute(state, modes),
+    update: (_value, tr) => compute(tr.state, modes),
     provide: (f) => EditorView.decorations.from(f),
   });
-  return [
-    field,
-    // The widget needs a view to dispatch into after an edit has replaced the
-    // one it was built with; `toDOM`'s own argument is the view at BUILD time.
-    EditorView.updateListener.of((update) => {
-      live = update.view;
-    }),
-  ];
 }

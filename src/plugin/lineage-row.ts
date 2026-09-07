@@ -27,14 +27,25 @@ export interface LineageRowOptions {
   readonly separator: LineageSeparator;
   /** The row's own kind, for the gutter marker when the first segment has none. */
   readonly kind: NodeKind;
-  /** What activating one segment means on this surface. */
-  readonly onActivate: (segment: LineageSegment, event: Event) => void;
+  /** What activating one segment means on this surface. The event is always
+   * the `click` or `keydown` that triggered it — never any other kind — since
+   * this module is the only place that dispatches it. */
+  readonly onActivate: (segment: LineageSegment, event: MouseEvent | KeyboardEvent) => void;
   /** Builds the gutter marker for the first segment. */
   readonly marker: (segment: LineageSegment | undefined, fallbackKind: NodeKind) => HTMLElement;
   /** Builds one segment's own inline icon. */
   readonly glyph: (segment: LineageSegment) => Element;
   /** Builds the between-segments separator. */
   readonly separatorGlyph: () => Element;
+  /**
+   * Render the marker regardless of `icons`. `icons` is an APPEARANCE
+   * setting, correct for hiding a marker that is decoration — the footer's
+   * own case, a kind glyph naming what the first segment is. Zoom's trail
+   * puts a CONTROL there instead (the zoom-out affordance), and `icons:
+   * 'none'` must not be able to remove a control a requirement states as
+   * always present. Unset for the footer, which has nothing that needs it.
+   */
+  readonly markerRequired?: boolean;
 }
 
 /**
@@ -53,7 +64,7 @@ export function renderLineageContent(
   // state — a task ancestor gets its checkbox and an ordered one its number,
   // the same rule a node row follows. The row's kind alone gave both of them
   // the generic bullet.
-  if (options.icons !== 'none') {
+  if (options.icons !== 'none' || options.markerRequired) {
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
     el.appendChild(options.marker(segments[0], options.kind));
   }

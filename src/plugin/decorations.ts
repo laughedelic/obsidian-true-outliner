@@ -548,7 +548,9 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
     // combination is unbuilt. Narrower than the gap `zoomAwarePositionTrail`
     // closes — it needs an empty caret resting on a blank gap line inside the
     // zoomed subtree, a transient position rather than the ordinary
-    // caret-follows-a-node case that function fixes.
+    // caret-follows-a-node case that function fixes. Diagnosed with a fix
+    // sketch in docs/research/12 ("A provisional position inside a zoomed
+    // subtree renders its trail at the source document's depth").
     return computePositionTrail(provisional.doc, cursorLine, highlight);
   }
   const { doc } = parsedDoc(state.doc);

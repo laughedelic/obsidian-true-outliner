@@ -32,7 +32,7 @@ import { afterState, groupRootsByParent, resolveOperand } from '../operand';
 import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange, type EditorPos } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
-import { operandEscapes, splitEscapes, type ZoomScope } from '../zoom';
+import { operandEscapes, reresolveZoom, splitEscapes, type ZoomScope } from '../zoom';
 
 export type GrammarKey =
   | 'indent'
@@ -359,6 +359,13 @@ function planOverSelection(
   to: EditorPos,
   key: GrammarKey,
   fallbackIndentUnit?: string,
+  /** Passed straight through to the recursive `planKey` call below, unused
+   * here — this function only deletes the covered selection, it plans
+   * nothing of its own the guard would judge. `planKey` re-resolves it
+   * against its OWN fresh parse of the post-deletion text; passing the
+   * caller's raw scope through unchanged is correct because re-resolution
+   * needs only `scope.startLine`, a parse-independent fact. */
+  scope?: ZoomScope | null,
 ): GrammarOutcome {
   const lines = text === '' ? [] : text.split('\n');
 
@@ -388,7 +395,16 @@ function planOverSelection(
         { kind: 'deletion', removed: groups.flat() },
         { before: doc, after: deletion.value.doc, anchor: deletion.value.anchor },
       );
-      const inner = planKey(afterDelete.join('\n'), caret, key, fallbackIndentUnit);
+      const inner = planKey(
+        afterDelete.join('\n'),
+        caret,
+        key,
+        fallbackIndentUnit,
+        undefined,
+        undefined,
+        undefined,
+        scope,
+      );
       if (inner === null || 'notice' in inner) return inner;
       const finalLines = applyPlanChanges(afterDelete.join('\n'), inner.plan.changes).split('\n');
       return {
@@ -424,7 +440,16 @@ function planOverSelection(
 
   // Everything before the cut is byte-identical, so the collapse point keeps
   // its own line/ch coordinates in the shortened text.
-  const inner = planKey(remaining, from, key, fallbackIndentUnit);
+  const inner = planKey(
+    remaining,
+    from,
+    key,
+    fallbackIndentUnit,
+    undefined,
+    undefined,
+    undefined,
+    scope,
+  );
   // Declining here declines the whole gesture: stock behavior then replaces the
   // selection itself, which is the correct fallback for a collapse point our
   // grammar has no jurisdiction over (an atom, the preamble).
@@ -478,7 +503,13 @@ export function planKey(
     (selectionEnd.line !== cursor.line || selectionEnd.ch !== cursor.ch) &&
     (key === 'split' || key === 'continue')
   ) {
-    return planOverSelection(text, cursor, selectionEnd, key, fallbackIndentUnit);
+    // `scope` threaded through, not dropped: this path deletes a covered
+    // selection and then plans Enter/Shift+Enter at the caret the deletion
+    // leaves, and that inner plan is exactly the kind of split the scope
+    // guard below exists to judge. Re-resolution happens once, inside the
+    // RECURSIVE `planKey` call this makes — never here, since this function
+    // has not parsed anything yet for the scope to be re-resolved against.
+    return planOverSelection(text, cursor, selectionEnd, key, fallbackIndentUnit, scope);
   }
   const doc = parse(text);
   const node = nodeAtLine(doc, cursor.line);
@@ -533,6 +564,17 @@ export function planKey(
   const opNode = outline ? nodeAtLine(outline, cursor.line) : node;
   if (!opNode) return null;
 
+  // Re-resolved against `opDoc`, NOT used as the caller handed it: `scope` was
+  // built from whichever parse the caller had cached (the live editor's, via
+  // `zoomScope`), and `doc`/`opDoc` above are a FRESH parse of `text` this
+  // function just made — `parse()` allocates every node a new id regardless
+  // of content, so the two parses share no id values at all, and comparing
+  // `scope`'s ids against `opDoc`'s ids below would never match anything
+  // (`reresolveZoom`'s own comment says why). Without this, `operandEscapes`
+  // and `splitEscapes` silently never fire: every keyboard-grammar operation
+  // reads as staying inside the scope, whether or not it does.
+  const localScope = scope ? reresolveZoom(opDoc, scope) : null;
+
   // What the operation ACTS ON (`selection-structural-ops`): the selection's
   // covered subtrees, grouped by parent. An empty selection and a range inside
   // one node both resolve to a single root, which is what keeps every existing
@@ -559,16 +601,24 @@ export function planKey(
   // Refused over the WHOLE operand, before the algebra runs: a multi-root
   // selection with one escaping root is refused entirely rather than applied to
   // the roots that happen to be safe. The same predicate guards the palette.
-  if (scope && isStructuralKey(key) && operandEscapes(scope, groups, key === 'outdent')) {
+  if (
+    localScope &&
+    isStructuralKey(key) &&
+    operandEscapes(localScope, groups, key === 'outdent')
+  ) {
     return { notice: REJECTION_MESSAGES['would-leave-zoom-scope'] };
   }
   // A split is judged by DESTINATION scope instead: splitting the zoom root is
   // fine when the remainder becomes its child, which is what happens for a node
   // with children and always for a heading.
+  //
+  // `opNode`, not `node`: the same `opDoc`-consistency `localScope` was
+  // re-resolved for. They coincide except over a materialized provisional
+  // position, where `node` is still `doc`'s (pre-resolution) node.
   if (
-    scope &&
+    localScope &&
     key === 'split' &&
-    splitEscapes(scope, node, cursor, markerPrefixCh, itemContentIsEmpty)
+    splitEscapes(localScope, opNode, cursor, markerPrefixCh, itemContentIsEmpty)
   ) {
     return { notice: REJECTION_MESSAGES['would-leave-zoom-scope'] };
   }

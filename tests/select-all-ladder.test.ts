@@ -3,7 +3,7 @@ import fc from 'fast-check';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
 import { nextRung, nextRungs } from '../src/select-all-ladder';
-import { coveredSubtreeRoots, escalateRange } from '../src/escalate';
+import { coveredSubtreeRoots, escalateRange, subtreeCoverOf, type Cover } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
 import { extendSelection, type ExtendDirection } from '../src/select-extend';
 import { arbTree } from './generators';
@@ -44,11 +44,16 @@ function climb(start: LineRange, maxSteps = 20): LineRange[] {
   return climbIn(doc, start, maxSteps);
 }
 
-function climbIn(targetDoc: ReturnType<typeof parse>, start: LineRange, maxSteps = 20): LineRange[] {
+function climbIn(
+  targetDoc: ReturnType<typeof parse>,
+  start: LineRange,
+  maxSteps = 20,
+  bound?: Cover,
+): LineRange[] {
   const steps: LineRange[] = [];
   let current: LineRange | null = start;
   for (let i = 0; i < maxSteps; i++) {
-    const next = nextRung(targetDoc, current);
+    const next = nextRung(targetDoc, current, bound);
     if (next === null) return steps;
     steps.push(next);
     current = next;
@@ -249,6 +254,32 @@ describe('nextRungs: independent per-range climbing (design.md D5)', () => {
     const [a, b] = nextRungs(doc, [atTop, stillClimbing]);
     expect(a).toBeNull();
     expect(b).toEqual(range(pos(0, 0), pos(0, 4)));
+  });
+});
+
+describe('nextRung: the `bound` argument (outline-zoom D7)', () => {
+  // `item`'s own subtree (lines 4..7, gap-inclusive) stands in for a zoom
+  // root: every rung past it — Para one's subtree, H1's subtree, the whole
+  // outline body — reaches outside `item`, so a bound to `item`'s subtree
+  // should climb exactly up to it and no further.
+  const item = nodeAtLine(doc, 4)!;
+  const bound = subtreeCoverOf(doc, item);
+
+  it('climbs to the bound and no further, where unbounded climbing continues past it', () => {
+    const unbounded = climb(cursor(pos(6, 10)));
+    // The bound's own cover is the fourth rung in the unbounded climb from
+    // the earlier "deeply nested leaf" test — confirms this bound is the
+    // right stand-in for a zoom root before asserting the DIFFERENCE it makes.
+    expect(unbounded[3]).toEqual(range(pos(4, 0), pos(7, 0)));
+    expect(unbounded.length).toBeGreaterThan(4); // climbs on, past the bound
+
+    const bounded = climbIn(doc, cursor(pos(6, 10)), 20, bound);
+    expect(bounded).toEqual(unbounded.slice(0, 4)); // same rungs, up to and including the bound
+  });
+
+  it('a press already at the bound has no further rung — the same answer an exhausted ladder gives', () => {
+    const atBound = range(bound.start, bound.end);
+    expect(nextRung(doc, atBound, bound)).toBeNull();
   });
 });
 

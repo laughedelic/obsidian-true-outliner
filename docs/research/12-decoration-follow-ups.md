@@ -124,6 +124,35 @@ the depth-0 guide column. The list case closes the 24px our own layer was withho
 `supplementalDepth` margin, which is exactly the "one level left, outside the list block"
 users report).
 
+### A provisional position inside a zoomed subtree renders its trail at the source document's depth
+
+Found during `outline-zoom`'s review (PR #69, a suppressed Copilot comment on
+`decorations.ts`'s `computeTrail`). `zoomAwarePositionTrail` re-bases the caret trail to
+the zoom root for the ordinary case — a caret resting on a node, or on the gap line that
+node owns — by handing it the SCOPED subtree document and a root-relative line number
+(design D9, the same re-basing `baseFacts` does for the main decoration facts). A
+*provisional* position — an empty caret on a blank line, materialized as the node a
+keystroke there would create (the previous entry above) — takes a different path:
+`computeProvisional` parses `materializeProbe` against the WHOLE buffer, not the zoomed
+subtree, because re-deriving that probe against a scoped document was left unbuilt when
+the trail's own zoom-awareness landed. `computeTrail` hands that unscoped tree straight to
+`computePositionTrail` with the RAW (whole-document) line number, so a provisional
+position that happens to sit inside a zoomed subtree renders its marker and guides at the
+hidden ancestors' depth instead of the zoom root's.
+
+Narrow by construction: it needs an EMPTY caret resting on a BLANK line that ALSO sits
+inside an active zoom scope — the ordinary "caret on a node" trail is unaffected, and so is
+every non-provisional zoomed render (the actual visible CONTENT, decorated through
+`baseFacts`, is already correctly re-based; only this transient highlight-trail is not).
+
+The fix, for whoever picks it up: thread `modes: DecorationSource` into `provisionalAt`/
+`computeProvisional` (neither takes it today), resolve `zoomScope` there, and when a scope
+is active, materialize the probe against `scope.document`'s text with the line number
+translated to root-relative before parsing — the same shift `baseFacts` already applies
+to its facts and guides, just applied one step earlier, before the probe is built rather
+than after. `computeTrail` would then hand `computePositionTrail` the resulting
+scope-relative doc and line exactly as it does for the non-provisional branch.
+
 ### A list item's continuation line does not align with the item's own content
 
 Two separate stock-Obsidian offsets, found while closing the row above and confirmed

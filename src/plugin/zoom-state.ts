@@ -40,6 +40,11 @@ export const zoomAnchorField = StateField.define<number | null>({
       if (effect.is(zoomTo)) return effect.value;
     }
     if (value === null) return null;
+    // Computed once, in the OLD state, and reused by both triggers below —
+    // it names the root's own span before the edit, which is the frame both
+    // "did a change reach outside it" and "did the whole of it disappear"
+    // need.
+    const bounds = tr.docChanged ? visibleBounds?.(tr.startState, value) : undefined;
     // Trigger 2 (design D4): a change touching any position OUTSIDE the visible
     // range as it stood before the transaction clears the zoom.
     //
@@ -50,12 +55,23 @@ export const zoomAnchorField = StateField.define<number | null>({
     // same file. An in-scope edit cannot trip it, which is what makes the
     // anchor safe from silently retargeting: the node above the root is outside
     // the range, so an edit that would merge the root into it trips this first.
-    if (tr.docChanged && touchesOutside(value, tr)) return null;
+    if (tr.docChanged && bounds && touchesOutside(bounds, tr)) return null;
     const mapped = mapAnchor(value, tr);
     if (mapped === null) return null;
-    // Trigger 1, in its real form. The anchor IS "the start of the zoom root's
-    // own first line", so if it stops naming a node's start, the node it named
-    // is gone.
+    // Trigger 1a: the root's WHOLE subtree was deleted, not merely edited.
+    // `mapped` is the anchor mapped FORWARD, which after a deletion spanning
+    // the entire old cover lands on whatever now occupies that offset — the
+    // following sibling, if the document has one, sliding up to fill the gap.
+    // That sibling can perfectly well start a node of its own at that exact
+    // line, which is exactly what `stillRooted` below asks and answers `true`
+    // to: a real node does start there, just not the one the anchor named.
+    // Detected by mapping the OLD cover's END backward through the same
+    // changes: if that lands at or before `mapped`, nothing between the two
+    // old endpoints survived the edit — the whole root is gone, sibling or no.
+    if (tr.docChanged && bounds && tr.changes.mapPos(bounds.to, -1) <= mapped) return null;
+    // Trigger 1b, in its real form. The anchor IS "the start of the zoom
+    // root's own first line", so if it stops naming a node's start, the node
+    // it named is gone.
     //
     // Not the same thing as the line being deleted, which is what an earlier
     // draft of D4 assumed trigger 1 covered. Zoom into an `hr` (`***`), type a
@@ -94,14 +110,11 @@ export const zoomAnchorField = StateField.define<number | null>({
  * Did any of this transaction's changes reach outside the visible range?
  *
  * Measured against `tr.startState` — the range as it stood BEFORE the change,
- * which is the only frame in which "outside" is still well defined. The scope
- * cannot be recomputed here (that needs `editorInfoField`, see the module
- * note), so the bounds come from re-deriving them in the old state via the
- * caller-supplied resolver.
+ * which is the only frame in which "outside" is still well defined. `bounds`
+ * is the caller's own re-derivation in that old state (see `setVisibleBoundsResolver`),
+ * computed once and shared with the deletion check beside this one's call site.
  */
-function touchesOutside(anchor: number, tr: Transaction): boolean {
-  const bounds = visibleBounds?.(tr.startState, anchor);
-  if (!bounds) return false;
+function touchesOutside(bounds: { from: number; to: number }, tr: Transaction): boolean {
   let outside = false;
   tr.changes.iterChangedRanges((fromA, toA) => {
     if (fromA < bounds.from || toA > bounds.to) outside = true;

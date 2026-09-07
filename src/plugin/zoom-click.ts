@@ -106,17 +106,33 @@ class ZoomClickPlugin implements PluginValue {
     }
   }
 
-  /** The rest of a press this gesture already took. `click` ends it: it is the
-   * last of the three, and a gesture that never produces one — a drag off the
-   * mark — is ended by the `mouseup` before it. */
+  /**
+   * The rest of a press this gesture already took. `click` is what clears it,
+   * NOT `mouseup`: a real mouse press fires `mousedown`, `mouseup`, then
+   * `click`, in that order, so clearing on `mouseup` left `consuming` false
+   * by the time `click` arrived — the swallow guard above returned
+   * immediately, and the click ran uncaught, free to place a caret or fold a
+   * list item exactly where this gesture is supposed to have the only say.
+   *
+   * A gesture that drags OFF the mark before release produces `mousedown`
+   * and `mouseup` with no `click` at all, so clearing only on `click` would
+   * leave this stuck `true` forever — `handle` clears it unconditionally on
+   * every new press instead, which is the only point a stuck flag can
+   * matter: nothing else runs between one gesture's end and the next one's
+   * start.
+   */
   private swallow(event: Event): void {
     if (!this.consuming) return;
     event.preventDefault();
     event.stopPropagation();
-    if (event.type !== 'mousedown') this.consuming = false;
+    if (event.type === 'click') this.consuming = false;
   }
 
   private handle(event: MouseEvent): void {
+    // A fresh gesture starting is also the only reliable point to notice a
+    // PREVIOUS one that dragged off the mark and never produced its `click` —
+    // see `swallow`'s own comment for why that leaves this set.
+    this.consuming = false;
     if (event.button !== 0) return;
     // A modified click is someone else's gesture — Obsidian's own follow-link
     // and multi-caret bindings live there — and never this one.
