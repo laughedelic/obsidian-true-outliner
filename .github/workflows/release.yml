@@ -1,9 +1,12 @@
 name: Release
 
 on:
+  workflow_dispatch: # manual trigger
   push:
     branches: [main]
-    paths: [manifest.json]
+    paths: 
+      - manifest.json
+      - .github/workflows/release.yml
 
 permissions:
   contents: write     # create the release
@@ -12,6 +15,54 @@ permissions:
 
 jobs:
   release:
-    uses: laughedelic/gha-obsidian/.github/workflows/release.yml@main
-    with:
-      node-version: "26"
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: npm
+
+      - run: npm ci
+        shell: bash
+  
+      - run: npm run build:plugin
+        shell: bash
+  
+      # Obsidian expects main.js and manifest.json, plus styles.css if the plugin has one
+      - name: Collect release assets
+        id: assets
+        shell: bash
+        run: |
+          assets="main.js manifest.json"
+          if [[ -f styles.css ]]; then
+            assets="$assets styles.css"
+          fi
+          echo "list=$assets" >> "$GITHUB_OUTPUT"
+          {
+            echo "paths<<EOF"
+            tr ' ' '\n' <<< "$assets"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+  
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: ${{ steps.assets.outputs.paths }}
+  
+      - name: Create release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(jq -r .version manifest.json)"
+          if gh release view "$version" >/dev/null 2>&1; then
+            echo "Release $version already exists, skipping."
+            exit 0
+          fi
+          gh release create "$version" \
+            --target "$GITHUB_SHA" \
+            --title "$version" \
+            --generate-notes \
+            ${{ steps.assets.outputs.list }}

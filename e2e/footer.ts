@@ -227,12 +227,110 @@ export async function openFilters(): Promise<void> {
   throw new Error('the filter row never appeared');
 }
 
-/** Clear every selection, so a case starts from a known filter state. */
+/**
+ * Put the caret in the name filter, and refuse to continue without it.
+ *
+ * Typing is the one gesture here that damages something when it misses: the
+ * footer sits inside the editor, so a keystroke that does not reach the field
+ * reaches the NOTE. So focus is verified rather than assumed.
+ *
+ * A real press is tried first, and on a runner it sometimes does not take —
+ * only in the cases that run after the editor itself has been clicked, which is
+ * the lead worth keeping. Rather than leave cases about the reset slot and
+ * about clearing filters failing on a focus question they do not ask, this
+ * falls back to focusing the field directly, and reports what it saw. Whether a
+ * real press focuses the field is asserted in one place, by the case that
+ * exists for it, so the fallback here cannot hide that regression.
+ */
+export async function focusSearch(): Promise<void> {
+  const focusKey = (): Promise<string> =>
+    browser.executeObsidian(
+      () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+    );
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await clickIn(`${FOOTER} .to-backlinks-search`);
+    try {
+      await browser.waitUntil(async () => (await focusKey()) === 'search', {
+        timeout: h.waitBudget(2000),
+        interval: 150,
+      });
+      return;
+    } catch {
+      await settle();
+    }
+  }
+
+  // What the press actually hit, so a repeat of this is diagnosable rather
+  // than just slow.
+  const seen = await browser.executeObsidian(() => {
+    const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+    const input = root?.querySelector<HTMLInputElement>('.to-backlinks-search');
+    const rect = input?.getBoundingClientRect();
+    const active = document.activeElement as HTMLElement | null;
+    const atPoint = rect
+      ? document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      : null;
+    input?.focus();
+    return {
+      active: active ? `${active.tagName}.${active.className}` : null,
+      editorFocused:
+        document
+          .querySelector('.workspace-leaf.mod-active .cm-editor')
+          ?.classList.contains('cm-focused') ?? false,
+      atPoint: atPoint ? `${atPoint.tagName}.${(atPoint as HTMLElement).className}` : null,
+      rect: rect ? [Math.round(rect.left), Math.round(rect.top), Math.round(rect.height)] : null,
+      focusedAfterCall: (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+    };
+  });
+  console.log('[focusSearch] a real press did not focus the field:', JSON.stringify(seen));
+  if (seen.focusedAfterCall !== 'search') {
+    throw new Error('the name filter never took focus; a keystroke would reach the note');
+  }
+}
+
+/**
+ * Put a term in the name filter without typing it.
+ *
+ * For the cases where the term is a means rather than the subject — the reset
+ * appearing, the axes clearing. Those turn on what the filter DOES, and making
+ * them depend on a real keystroke made them depend on focus, which on a runner
+ * the editor sometimes keeps: measured with the press landing on the input
+ * (`elementFromPoint` names it) while `document.activeElement` was still
+ * `.cm-content`. A keystroke that misses this field reaches the note, so the
+ * cases that do not need one do not take the risk.
+ *
+ * The `input` event is the one the field's own handler listens for, so the
+ * filter runs exactly as it does when a reader types. Whether a real press
+ * focuses the field, and whether every character reaches it, are asserted by
+ * the case written for that.
+ */
+export async function setSearchTerm(text: string): Promise<void> {
+  await browser.executeObsidian((_ctx, value: string) => {
+    const input = document.querySelector<HTMLInputElement>(
+      '.workspace-leaf.mod-active .to-backlinks-search',
+    );
+    if (!input) throw new Error('no name filter');
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, text);
+  await browser.pause(500);
+  await settle();
+}
+
+/**
+ * Clear every selection, so a case starts from a known filter state.
+ *
+ * Pressed only when it is actually the clearing control. The same button closes
+ * the filter row when nothing is selected, so pressing it blind would leave the
+ * row shut and the next `openFilters` doing the work this was meant to do.
+ */
 export async function clearFilters(): Promise<void> {
   await browser.executeObsidian(() => {
-    const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
-    const reset = root?.querySelector<HTMLElement>('.to-backlinks-reset');
-    reset?.click();
+    const reset = document.querySelector<HTMLElement>(
+      '.workspace-leaf.mod-active .to-backlinks-reset',
+    );
+    if (reset?.dataset.mode === 'clear') reset.click();
   });
   await browser.pause(600);
 }

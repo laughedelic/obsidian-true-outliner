@@ -18,7 +18,17 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
-import { FOOTER, clickIn, groupNames, openFooter, readStable, settle } from '../footer.js';
+import {
+  FOOTER,
+  clickIn,
+  focusSearch,
+  groupNames,
+  openFilters,
+  openFooter,
+  readStable,
+  setSearchTerm,
+  settle,
+} from '../footer.js';
 
 /** The generated hub: far more sources than any cap on offer. */
 const HUB = 'Projects/Aurora Dashboard.md';
@@ -261,6 +271,169 @@ describe('the overall cap and the per-note bound', function () {
     // controls and its order is stable, so a larger cap yields the same groups
     // in the same order with more after them. Nothing already read moves.
     expect(after.slice(0, before.length)).toEqual(before);
+
+    // The tranche this loaded is a per-note OVERRIDE with no UI of its own to
+    // undo it — no filter went active, so the reset button stays in its
+    // row-closing mode and does not touch it. Left alone, it would silently
+    // widen every later case in this file that also runs at cap 25. Typing
+    // into (and so past) the search field is the one path that always resets
+    // it regardless of whether a value actually changes.
+    await openFilters();
+    await setSearchTerm('');
+    await settle();
+  });
+
+  /**
+   * "Load more" enlarges the per-note cap OVERRIDE, and every other filter
+   * change resets that override back to zero — a narrowed set should not stay
+   * behind a tranche the WIDER set consumed. Escape and the search field's own
+   * clear button were the two paths that missed this: both cleared the term
+   * but left the enlarged override in place.
+   */
+  /** The sum of every rendered group's own count badge — the cap's own
+   * invariant (D2): at or under whatever the cap currently is. */
+  const sumOfGroupCounts = (): Promise<number> =>
+    browser.executeObsidian(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-group-count',
+        ),
+      ).reduce((sum, el) => sum + Number((el.textContent ?? '0').replace(/\D+/g, '')), 0),
+    );
+
+  it('resets the loaded tranche when Escape clears the search', async function () {
+    await setCap('25');
+    const before = await readStable(sumOfGroupCounts);
+    expect(before).toBeLessThanOrEqual(25);
+
+    await openFilters();
+    await clickIn(`${FOOTER} .to-backlinks-load-more`);
+    await settle();
+    const loaded = await readStable(sumOfGroupCounts);
+    expect(loaded).toBeGreaterThan(before);
+
+    // Escape with nothing TYPED — the override is what this clears, not a
+    // term. Focusing is enough to reach the field's own keydown handler.
+    await focusSearch();
+    await browser.keys('Escape');
+    await settle();
+
+    // Back under the CONFIGURED cap, not the tranche "Load more" added.
+    expect(await readStable(sumOfGroupCounts)).toBeLessThanOrEqual(25);
+  });
+
+  it('resets the loaded tranche when the search field’s own clear button is used', async function () {
+    await setCap('25');
+
+    // Typing itself already resets the override (the `input` handler does,
+    // and that path was never the bug) — so the override has to be raised
+    // WHILE a term is active, by loading more against the NARROWED view
+    // rather than the plain one. "2025-01" keeps the whole month of generated
+    // hub notes (~28 of them, several references apiece), comfortably past
+    // the 25-cap on its own, which is what guarantees a "Load more" exists to
+    // press here.
+    await openFilters();
+    await setSearchTerm('2025-01');
+    await settle();
+    expect(await readStable(sumOfGroupCounts)).toBeLessThanOrEqual(25);
+
+    const hasLoadMore = await browser.executeObsidian(
+      () => document.querySelector('.workspace-leaf.mod-active .to-backlinks-load-more') !== null,
+    );
+    expect(hasLoadMore).toBe(true);
+    await clickIn(`${FOOTER} .to-backlinks-load-more`);
+    await settle();
+    const narrowedLoaded = await readStable(sumOfGroupCounts);
+    expect(narrowedLoaded).toBeGreaterThan(25);
+
+    await clickIn(`${FOOTER} .to-backlinks-search-clear`);
+    await settle();
+
+    // Back under the plain 25-cap. Without the fix the tranche the narrowed
+    // view loaded stays in effect, and the cleared, unfiltered view keeps
+    // admitting up to 25-plus-that-tranche references instead of 25.
+    expect(await readStable(sumOfGroupCounts)).toBeLessThanOrEqual(25);
+  });
+
+  it('draws the rung as a row inside the card, not as a pill on its edge', async function () {
+    await setCap('none');
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksGroupHeight('compact');
+    });
+    await settle();
+
+    const geometry = await readStable(() =>
+      browser.executeObsidian(() => {
+        const card = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-group',
+        );
+        const rung = card?.querySelector<HTMLElement>('.to-backlinks-more.to-backlinks-rung');
+        const body = card?.querySelector<HTMLElement>('.to-backlinks-rows');
+        if (!card || !rung || !body) return null;
+        const c = card.getBoundingClientRect();
+        const r = rung.getBoundingClientRect();
+        const b = body.getBoundingClientRect();
+        return {
+          insideCard: r.top >= c.top && r.bottom <= c.bottom,
+          belowBody: r.top >= b.bottom - 1,
+          startsWithinCard: r.left >= c.left && r.right <= c.right,
+          border: getComputedStyle(rung).borderTopWidth,
+        };
+      }),
+    );
+    expect(geometry).not.toBeNull();
+
+    // The rung inherits the bare chevron's element, and the chevron is a pill
+    // that STRADDLES the card's bottom edge from `position: absolute`. A rung
+    // that kept that was a full-width box centred on half a card's width, lying
+    // across the last line of text. It is a row: inside the card, after the
+    // body, and within the card's own bounds.
+    expect(geometry!.insideCard).toBe(true);
+    expect(geometry!.belowBody).toBe(true);
+    expect(geometry!.startsWithinCard).toBe(true);
+    expect(geometry!.border).toBe('0px');
+
+    // And no box appears under the pointer. The pill's border came back on
+    // hover, because the rung had only turned it off in its resting state.
+    //
+    // Brought on screen first: the geometry above is viewport-independent, but
+    // a pointer cannot be moved to a point outside the window.
+    await browser.executeObsidian(() => {
+      document
+        .querySelector('.workspace-leaf.mod-active .to-backlinks-group')
+        ?.scrollIntoView({ block: 'center' });
+    });
+    await settle();
+    const point = await browser.executeObsidian(() => {
+      const el = document.querySelector(
+        '.workspace-leaf.mod-active .to-backlinks-more.to-backlinks-rung',
+      );
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) };
+    });
+    expect(point).not.toBeNull();
+    await browser
+      .action('pointer', { parameters: { pointerType: 'mouse' } })
+      .move({ x: point!.x, y: point!.y, origin: 'viewport' })
+      .perform();
+    await browser.pause(400);
+    const hovered = await browser.executeObsidian(() => {
+      const el = document.querySelector<HTMLElement>(
+        '.workspace-leaf.mod-active .to-backlinks-more.to-backlinks-rung',
+      );
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return { border: cs.borderTopWidth, background: cs.backgroundColor };
+    });
+    expect(hovered).not.toBeNull();
+    expect(hovered!.border).toBe('0px');
+    expect(hovered!.background).toBe('rgba(0, 0, 0, 0)');
+
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksGroupHeight('standard');
+    });
+    await settle();
   });
 
   it('caps a tall group by height and says what the height hid', async function () {

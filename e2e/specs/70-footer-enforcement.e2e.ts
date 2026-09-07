@@ -34,6 +34,7 @@ import {
   FOOTER,
   clearFilters,
   clickIn,
+  focusSearch,
   openFilters,
   openFooter,
   scrollToFooter,
@@ -286,8 +287,11 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     // A REAL click, driven by the browser rather than dispatched into it —
     // synthetic MouseEvents do not move the DOM selection, so a dispatched
     // click also passes either way.
-    const title = await $('.workspace-leaf.mod-active .to-backlinks .to-backlinks-title');
-    await title.click();
+    // `.to-backlinks-icon`, not `.to-backlinks-title`: the header carries TWO
+    // title spans now (a short one for a narrow footer), and only one is ever
+    // visible — the icon is unconditional and always in the same place.
+    const icon = await $('.workspace-leaf.mod-active .to-backlinks .to-backlinks-icon');
+    await icon.click();
     await browser.pause(300);
 
     // Without the fix this reports the document's very end, and the editor
@@ -361,18 +365,17 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
     await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
-    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await focusSearch();
     await browser.keys('a');
     await browser.pause(600);
+    // `.to-backlinks-sort` is a BUTTON now, not a `<select>` — it opens a
+    // popover on `click`, and has no `.value`/`change` to drive. Setting the
+    // sort here is not testing the CONTROL (77 does that); it is one of the
+    // "every setting" changes this case checks causes no document mutation,
+    // so the plugin's own setter is the direct way to make it happen.
     await browser.executeObsidian(async ({ plugins }) => {
       const plugin = plugins.trueOutliner as any;
-      const select = document.querySelector<HTMLSelectElement>(
-        '.workspace-leaf.mod-active .to-backlinks-sort',
-      );
-      if (select) {
-        select.value = 'name';
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      await plugin.setBacklinksSort('name');
       await plugin.setBacklinksOverallCap('50');
       await plugin.setBacklinksGroupHeight('compact');
     });

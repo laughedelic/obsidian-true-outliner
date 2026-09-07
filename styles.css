@@ -1481,9 +1481,22 @@ body {
   font-weight: var(--font-semibold);
 }
 
+/* The short title and the compact totals are the narrow-container forms — see
+ * the `@container` rule below, which is the one place that switches them on.
+ * Hidden here so the wide case (everything else) never shows both. */
+.to-backlinks-title-short,
+.to-backlinks-totals-compact {
+  display: none;
+}
+
 .to-backlinks-totals {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
+}
+
+.to-backlinks-totals-notes {
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
 }
 
 /* A note nothing links to still ends predictably: one quiet line where the
@@ -1987,26 +2000,30 @@ body {
  * also folds the section the header click would.
  */
 
-.to-backlinks-filter-toggle,
-.to-backlinks-sort,
-.to-backlinks-reset {
+/* Scoped with `.to-backlinks` in front, like every other control here. Without
+ * it these lost `background: transparent` to Obsidian's own button fill, and
+ * the funnel carried a filled box in the state where it has nothing to say. */
+.to-backlinks .to-backlinks-filter-toggle,
+.to-backlinks .to-backlinks-sort,
+.to-backlinks .to-backlinks-reset {
   flex-shrink: 0;
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-s);
+  box-shadow: none;
   cursor: pointer;
 }
 
-.to-backlinks-filter-toggle:hover,
-.to-backlinks-sort:hover,
-.to-backlinks-reset:hover {
+.to-backlinks .to-backlinks-filter-toggle:hover,
+.to-backlinks .to-backlinks-sort:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
 }
 
-.to-backlinks-filter-toggle {
+.to-backlinks .to-backlinks-filter-toggle,
+.to-backlinks .to-backlinks-sort {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -2014,7 +2031,18 @@ body {
   width: 1.6em;
   height: 1.6em;
   padding: 0.2em;
-  box-shadow: none;
+}
+
+/* Open is the one state either of them fills for: a menu is on screen, and the
+ * button it belongs to should say so. */
+.to-backlinks .to-backlinks-sort.is-active {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.to-backlinks .to-backlinks-sort > svg {
+  width: 100%;
+  height: 100%;
 }
 
 /* The dot is the only thing saying a hidden control row is narrowing what the
@@ -2029,38 +2057,6 @@ body {
   height: 0.35em;
   border-radius: 50%;
   background: var(--to-decor-accent, var(--text-accent));
-}
-
-/* The icon cannot live inside a `select` — it renders its own contents — so it
- * sits over the control's leading edge and the select reserves room for it. */
-.to-backlinks-sort-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.to-backlinks-sort-icon {
-  position: absolute;
-  inset-inline-start: 0.35em;
-  display: inline-flex;
-  width: 0.85em;
-  height: 0.85em;
-  color: var(--text-muted);
-  /* The select owns the clicks; the icon is notation lying on top of it. */
-  pointer-events: none;
-}
-
-.to-backlinks-sort-icon > svg {
-  width: 100%;
-  height: 100%;
-}
-
-.to-backlinks-sort {
-  max-width: 11em;
-  padding-block: 0.1em;
-  padding-inline: 1.5em 0.3em;
-  height: auto;
 }
 
 /* ---- The filter row ------------------------------------------------------ *
@@ -2080,6 +2076,21 @@ body {
   gap: 0.4rem;
   margin-bottom: 0.75rem;
   flex-wrap: nowrap;
+  /* One height, shared by construction rather than by two `em` values that
+   * happen to agree. The search field and a facet button carry different font
+   * sizes — a facet's word reads at UI-smaller, the field at the row's own —
+   * so each computing `1.9em` against its OWN font gave two different pixel
+   * heights the moment something stopped forcing them together (see the note
+   * on `.to-backlinks-facet`).
+   *
+   * `rem`, not `em`. A custom property's relative units are NOT resolved where
+   * it is declared — `var()` substitutes the token `1.9em` verbatim, and each
+   * user then resolves it against ITS OWN font-size, which is exactly the bug
+   * this property exists to fix. `rem` always reads the document root's font
+   * size, so every user of this property gets the same pixels regardless of
+   * its own font. The number matches the field's old `1.9em` at the root's
+   * 16px, so this is a mechanism change with no value change. */
+  --to-backlinks-control-h: 1.9rem;
 }
 
 .to-backlinks-search-field {
@@ -2092,7 +2103,7 @@ body {
   flex: 1 1 auto;
   min-width: 0;
   padding: 0 0.3em 0 0.5em;
-  min-height: 1.9em;
+  min-height: var(--to-backlinks-control-h);
   background: var(--background-modifier-form-field, var(--background-primary));
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
@@ -2116,6 +2127,14 @@ body {
   height: 100%;
 }
 
+/* `!important` on the background alone, and only there.
+ *
+ * Measured rather than assumed: exactly two rules set a background on this
+ * input — Obsidian's `input[type="text"]` and this one — and this one is both
+ * more specific and later in the document, yet the computed value stayed
+ * Obsidian's while every other declaration here (the padding, the border) won
+ * normally. Whatever the host is doing, the effect is a filled pill inside the
+ * field with the caret against its rounded end, which is what this defeats. */
 .to-backlinks .to-backlinks-search {
   flex: 1 1 auto;
   min-width: 0;
@@ -2124,13 +2143,28 @@ body {
   height: auto;
   font-size: var(--font-ui-smaller);
   color: var(--text-normal);
-  background: transparent;
+  background: transparent !important;
   border: none;
   box-shadow: none;
 }
 
-.to-backlinks .to-backlinks-search:focus {
-  box-shadow: none;
+/* The host's own input chrome, defeated on both fields at once.
+ *
+ * Its focus ring is a 2px spread `box-shadow` at an 8px radius, which around a
+ * bare 14px-tall input draws a small rounded oblong tight to the text — sitting
+ * over the caret and the first character typed. It arrives with focus, so it is
+ * at its most visible exactly when the field is being used. The border-radius
+ * goes with it: nothing here is a rounded box of its own, the FIELD around it
+ * is. Same `!important` and the same reason as the background above. */
+.to-backlinks .to-backlinks-search,
+.to-backlinks .to-backlinks-search:focus,
+.to-backlinks .to-backlinks-search:focus-visible,
+.to-backlinks .to-backlinks-find-input,
+.to-backlinks .to-backlinks-find-input:focus,
+.to-backlinks .to-backlinks-find-input:focus-visible {
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
 }
 
 .to-backlinks .to-backlinks-search-clear {
@@ -2162,13 +2196,29 @@ body {
   flex: none;
 }
 
+/* `height: auto` is load-bearing, not decoration — see the note above the
+ * search input. Obsidian's own `button { height: var(--input-height) }` sets a
+ * FIXED height that wins over `min-height` whenever it is the larger of the
+ * two, and `--input-height` is a touch-target value on mobile (44px) that
+ * dwarfs this button's own share of `--to-backlinks-control-h`. Undefeated,
+ * the facet stood taller AND narrower than the search field beside it —
+ * matching by coincidence on desktop, where the host's height happens to fall
+ * near the control height, and visibly mismatched on a touch layout, where it
+ * does not.
+ *
+ * `min-height` reads the shared custom property rather than its own `1.9em`:
+ * this button's font-size is UI-smaller for its label, and an `em` here would
+ * resolve against THAT, not against the field's font — two different pixel
+ * heights from the same-looking number the moment `height: auto` stopped
+ * something else from forcing them together. */
 .to-backlinks .to-backlinks-facet {
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
   flex: none;
+  height: auto;
   padding: 0.1em 0.45em;
-  min-height: 1.9em;
+  min-height: var(--to-backlinks-control-h);
   font-size: var(--font-ui-smaller);
   white-space: nowrap;
   color: var(--text-muted);
@@ -2228,6 +2278,19 @@ body {
   .to-backlinks .to-backlinks-facet {
     padding-inline: 0.35em;
   }
+
+  /* The same threshold shortens the header, which wrapped to two lines below
+   * it: "Structured backlinks" plus the full "N references · M notes" is more
+   * than a phone-width line holds beside the filter and sort icons. */
+  .to-backlinks-title-full,
+  .to-backlinks-totals-full {
+    display: none;
+  }
+
+  .to-backlinks-title-short,
+  .to-backlinks-totals-compact {
+    display: inline;
+  }
 }
 
 /* ---- A facet's values ---------------------------------------------------- */
@@ -2283,7 +2346,8 @@ body {
   border-color: var(--interactive-accent);
 }
 
-.to-backlinks .to-backlinks-facet-find input {
+/* The same pill, for the same reason — see the note on the search field. */
+.to-backlinks .to-backlinks-find-input {
   flex: 1 1 auto;
   min-width: 0;
   width: 100%;
@@ -2291,9 +2355,31 @@ body {
   height: auto;
   font-size: var(--font-ui-smaller);
   color: var(--text-normal);
-  background: transparent;
+  background: transparent !important;
   border: none;
   box-shadow: none;
+}
+
+/*
+ * Sort is ONE choice, and the row itself says so — no box.
+ *
+ * A facet's box is right for an axis, where several values can be on at once
+ * and the box is what shows which. Sort has no such state, and reusing the
+ * box for a single-choice list said the wrong thing twice: an empty square
+ * beside every unchosen order read as "not yet decided" rather than "not
+ * this one", and it was a checkbox's shape doing a radio button's job.
+ */
+.to-backlinks .to-backlinks-sort-option {
+  color: var(--text-muted);
+}
+
+.to-backlinks .to-backlinks-sort-option:hover {
+  color: var(--text-normal);
+}
+
+.to-backlinks .to-backlinks-sort-option.is-selected {
+  color: var(--to-decor-accent, var(--text-accent));
+  font-weight: var(--font-semibold);
 }
 
 .to-backlinks-facet-list {
@@ -2372,6 +2458,18 @@ body {
  * deliberately unlike a facet: a fourth rectangle at the end of three of them
  * reads as another facet rather than as the thing that undoes them.
  */
+/* Always present, filled or empty. A reset that took its width out of the
+ * search field shifted every facet left the moment a value was chosen — a
+ * visible jump in the row the reader was working in. */
+.to-backlinks-reset-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.75em;
+  height: 1.75em;
+}
+
 .to-backlinks .to-backlinks-reset {
   display: inline-flex;
   align-items: center;
@@ -2388,7 +2486,20 @@ body {
   cursor: pointer;
 }
 
-.to-backlinks .to-backlinks-reset:hover {
+/* Quieter in the state where it only closes the row: the same control, but
+ * undoing three narrowings is the weightier of its two jobs. */
+.to-backlinks .to-backlinks-reset:not(.is-clearing) {
+  color: var(--text-faint);
+  border-color: transparent;
+}
+
+.to-backlinks .to-backlinks-reset:not(.is-clearing):hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border);
+}
+
+.to-backlinks .to-backlinks-reset.is-clearing:hover {
   color: var(--text-on-accent);
   background: var(--interactive-accent);
   border-color: var(--interactive-accent);
@@ -2414,11 +2525,26 @@ body {
  */
 
 /* The rung IS the cap's control — it says how much is hidden and reveals it,
- * rather than a bare chevron beside a number somewhere else. */
+ * rather than a bare chevron beside a number somewhere else.
+ *
+ * It is a ROW, so it undoes the pill above it completely rather than restyling
+ * it. The chevron straddles the card's bottom edge from `position: absolute`,
+ * and a rung that inherited that was a full-width box centred on half a card's
+ * width, lying across the last line of text — with the pill's border coming
+ * back on hover, because the rung had only turned the border off in its resting
+ * state. Both belong to the same element and only one of them is a pill.
+ *
+ * Static positioning is also what makes the depth work: the rung carries the
+ * line chrome's `--to-depth`, and the rules that read it indent a line in
+ * normal flow. */
 .to-backlinks .to-backlinks-rung {
+  position: static;
+  transform: none;
   display: flex;
   align-items: center;
   width: 100%;
+  height: auto;
+  margin-top: 0.15rem;
   padding: 0;
   color: var(--text-faint);
   background: transparent;
@@ -2426,12 +2552,15 @@ body {
   box-shadow: none;
   text-align: start;
   cursor: pointer;
-  height: auto;
 }
 
-.to-backlinks .to-backlinks-rung:hover {
+.to-backlinks .to-backlinks-rung:hover,
+.to-backlinks .to-backlinks-rung:focus,
+.to-backlinks .to-backlinks-rung:focus-visible {
   color: var(--text-muted);
   background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .to-backlinks-more-count {

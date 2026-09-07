@@ -20,6 +20,7 @@ import {
   clearFilters,
   chooseFacetValue,
   clickIn,
+  setSearchTerm,
   facetOptions,
   groupNames,
   openFilters,
@@ -29,8 +30,22 @@ import {
 } from '../footer.js';
 
 const TARGET = 'Projects/Aurora Dashboard.md';
-/** A target whose only source notes carry no tags at all. */
+
+/** The control that owns a popover: the three axes, and sort. */
+/** What the name filter currently holds. */
+const searchValue = (): Promise<string> =>
+  browser.executeObsidian(
+    () =>
+      document.querySelector<HTMLInputElement>('.workspace-leaf.mod-active .to-backlinks-search')
+        ?.value ?? 'gone',
+  );
+
+const sel = (axis: string): string =>
+  axis === 'sort' ? '.to-backlinks-sort' : `.to-backlinks-facet[data-axis="${axis}"]`;
+/** A target whose only source notes carry no tags at all — and, at five lines
+ * with three groups, the cheapest footer in the fixture to fold and unfold. */
 const UNTAGGED = 'Backlinks/Reference target.md';
+const SMALL = UNTAGGED;
 
 describe('the footer’s controls', function () {
   before(async function () {
@@ -67,6 +82,54 @@ describe('the footer’s controls', function () {
     expect(shape.filters).toBe(false);
   });
 
+  /**
+   * Enter on the filter toggle opens it, and does not fold the section.
+   *
+   * The toggle is a CHILD of the header, which `makeDisclosure` turns into its
+   * own keyboard-operable disclosure. Enter or Space on a focused child
+   * bubbles to the header's own keydown handler, and that handler used to act
+   * on every such event regardless of `event.target` — folding the section AND
+   * cancelling the button's own native activation from the same keypress, so
+   * a keyboard reader tabbing to the toggle could never open it.
+   */
+  it('activates the filter toggle from the keyboard without folding the section', async function () {
+    await browser.executeObsidian(() => {
+      document
+        .querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-filter-toggle')
+        ?.focus();
+    });
+    const focused = await browser.executeObsidian(
+      () =>
+        (document.activeElement as HTMLElement | null)?.classList.contains(
+          'to-backlinks-filter-toggle',
+        ) ?? false,
+    );
+    expect(focused).toBe(true);
+
+    await h.keys.enter();
+    await settle();
+
+    const shape = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        return {
+          expanded: root
+            ?.querySelector('.to-backlinks-filter-toggle')
+            ?.getAttribute('aria-expanded'),
+          filtersRow: root?.querySelector('.to-backlinks-filters') !== null,
+          headCollapsed:
+            root?.querySelector('.to-backlinks-head')?.classList.contains('is-collapsed') ?? true,
+        };
+      }),
+    );
+    // The toggle opened — not the OTHER thing an unguarded bubble would do.
+    expect(shape.expanded).toBe('true');
+    expect(shape.filtersRow).toBe(true);
+    expect(shape.headCollapsed).toBe(false);
+
+    await clearFilters();
+  });
+
   it('reveals a row carrying the search field and one facet per axis', async function () {
     await openFilters();
     const shape = await readStable(() =>
@@ -97,7 +160,12 @@ describe('the footer’s controls', function () {
         const card = root?.querySelector('.to-backlinks-group');
         // The head's own TEXT, not its box: the gutter is padding, so the
         // element starts at the same edge and only its content is pushed in.
-        const title = root?.querySelector('.to-backlinks-title');
+        // Two title spans share this class now — a short one for a narrow
+        // footer — and only one is ever on screen; `offsetParent` is null on
+        // the one `display: none` hides.
+        const title = Array.from(
+          root?.querySelectorAll<HTMLElement>('.to-backlinks-title') ?? [],
+        ).find((el) => el.offsetParent !== null);
         if (!row || !card || !title) return null;
         return {
           row: Math.round(row.getBoundingClientRect().left),
@@ -112,6 +180,34 @@ describe('the footer’s controls', function () {
     // icon.
     expect(edges!.row).toBe(edges!.card);
     expect(edges!.title).toBeGreaterThan(edges!.row);
+  });
+
+  it('gives a facet button the same height as the search field', async function () {
+    await openFilters();
+
+    // Obsidian's own `button { height: var(--input-height) }` is a FIXED
+    // height that wins over a `min-height` set in `em` whenever it is the
+    // larger of the two — and `--input-height` is a touch-target value on
+    // mobile that dwarfs a facet's own row height. Undefeated, a facet stood
+    // tall and narrow instead of square-ish, and matched the field only by
+    // coincidence on desktop, where the host's value happens to fall near it.
+    // So this is asserted on whichever viewport is actually running: the
+    // relationship has to hold everywhere, not just on the one that used to
+    // hide the bug.
+    const heights = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        const field = root?.querySelector('.to-backlinks-search-field');
+        const facet = root?.querySelector('.to-backlinks-facet[data-axis="kind"]');
+        if (!field || !facet) return null;
+        return {
+          field: Math.round(field.getBoundingClientRect().height),
+          facet: Math.round(facet.getBoundingClientRect().height),
+        };
+      }),
+    );
+    expect(heights).not.toBeNull();
+    expect(heights!.facet).toBe(heights!.field);
   });
 
   it('sheds the facet words on a narrow footer without the row wrapping', async function () {
@@ -175,6 +271,59 @@ describe('the footer’s controls', function () {
     expect(back!.words).toBe(start!.words);
   });
 
+  it('shortens the header on the same narrow footer that sheds facet words', async function () {
+    // The same container threshold, because it is the same cause: the full
+    // title plus "N references · M notes" beside the filter and sort icons
+    // wraps the header onto a second line before the filter row's own words
+    // are given up. One breakpoint for both, since a footer narrow enough for
+    // one is narrow enough for the other.
+    const measure = (): Promise<{
+      height: number;
+      titleText: string;
+      totalsText: string;
+    } | null> =>
+      browser.executeObsidian(() => {
+        const head = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-head',
+        );
+        if (!head) return null;
+        const visible = (sel: string) =>
+          Array.from(head.querySelectorAll<HTMLElement>(sel)).find(
+            (el) => el.offsetParent !== null,
+          );
+        return {
+          height: Math.round(head.getBoundingClientRect().height),
+          titleText: (visible('.to-backlinks-title')?.textContent ?? '').trim(),
+          totalsText: (visible('.to-backlinks-totals')?.textContent ?? '').trim(),
+        };
+      });
+
+    const wide = await readStable(measure);
+    expect(wide).not.toBeNull();
+    if (wide!.titleText === 'Backlinks') {
+      // Already narrower than the threshold — the mobile run.
+      expect(wide!.totalsText).toMatch(/^\d+( · \d+)?$/);
+      return;
+    }
+    expect(wide!.titleText).toBe('Structured backlinks');
+    expect(wide!.totalsText).toMatch(/references?/);
+
+    await h.resizeLeafForFooter(340);
+    const narrow = await readStable(measure);
+    expect(narrow).not.toBeNull();
+    expect(narrow!.titleText).toBe('Backlinks');
+    // Numbers only, no words — and still the same two counts, just undressed.
+    expect(narrow!.totalsText).toMatch(/^\d+( · \d+)?$/);
+    // ONE line: the height a single-line header takes, not the roughly double
+    // it wrapping to two would. Compared to the wide header's own height
+    // rather than to a literal pixel count, which the font stack decides.
+    expect(narrow!.height).toBeLessThanOrEqual(wide!.height + 2);
+
+    await h.resizeLeafForFooter(null);
+    const back = await readStable(measure);
+    expect(back!.titleText).toBe(wide!.titleText);
+  });
+
   it('lets the caret land in the search field, and filters as it is typed', async function () {
     await openFilters();
     await clearFilters();
@@ -190,8 +339,12 @@ describe('the footer’s controls', function () {
     });
     expect(term.length).toBeGreaterThan(2);
 
+    // A REAL press and real keystrokes, which no other case here depends on.
+    // This is the one that exists to say a press focuses the field and that
+    // every character reaches it; the others set the term directly, so a focus
+    // miss cannot make them fail on a question they do not ask.
     await clickIn(`${FOOTER} .to-backlinks-search`);
-    await browser.pause(300);
+    await browser.pause(400);
     const focused = await browser.executeObsidian(
       () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
     );
@@ -220,64 +373,194 @@ describe('the footer’s controls', function () {
     expect(after.stillFocused).toBe('search');
     expect(after.groups).toBeGreaterThan(0);
     for (const name of after.names) expect(name).toContain(term);
+
+    // Left narrowed otherwise: the next case in this file opens the sort menu
+    // against a footer this one has just typed a filter term into. Seen on CI
+    // as that menu failing to open at all — not a click miss, `readStable`
+    // read `aria-expanded="false"` consistently, which is what a repaint
+    // arriving after the menu opened but from a state snapshot captured before
+    // it looks like. Clearing here removes the leftover state rather than
+    // asking every later case to survive whatever is left behind.
+    await clearFilters();
   });
 
   it('opens the sort control and reorders by it', async function () {
     await openFilters();
-    const options = await browser.executeObsidian(() => {
-      const select = document.querySelector<HTMLSelectElement>(
-        '.workspace-leaf.mod-active .to-backlinks-sort',
-      );
-      if (!select) return null;
-      return { value: select.value, all: Array.from(select.options).map((o) => o.value) };
-    });
-    expect(options).not.toBeNull();
-    expect(options!.value).toBe('recent');
-    expect(options!.all.length).toBeGreaterThan(1);
 
-    // Driven as a real control rather than through WebdriverIO's select
-    // handling, which reaches `scrollIntoView` and the Actions API this
-    // runtime does not implement. A pointer press and then the keyboard is
-    // also the closer test: what was broken was the browser's own default on
-    // pointerdown, so the thing worth asserting is that a press FOCUSES it and
-    // that the keyboard then moves it.
+    // A popover like the facets', not a native `select`. That is the point of
+    // the control: the header and the filter row speak one vocabulary, and the
+    // press that opens it is a real press rather than a platform menu the
+    // driver cannot reach.
     await clickIn(`${FOOTER} .to-backlinks-sort`);
-    const focused = await browser.executeObsidian(
-      () => (document.activeElement as HTMLElement | null)?.dataset?.focusKey ?? '',
+    const menu = await readStable(() =>
+      browser.executeObsidian(() => {
+        const anchor = document
+          .querySelector('.workspace-leaf.mod-active .to-backlinks-sort')
+          ?.closest('.to-backlinks-facet-anchor');
+        const options = Array.from(
+          anchor?.querySelectorAll<HTMLElement>('.to-backlinks-facet-option') ?? [],
+        );
+        return {
+          open:
+            document
+              .querySelector('.workspace-leaf.mod-active .to-backlinks-sort')
+              ?.getAttribute('aria-expanded') === 'true',
+          labels: options.map((o) =>
+            (o.querySelector('.to-backlinks-facet-label')?.textContent ?? '').trim(),
+          ),
+          chosen: options
+            .filter((o) => o.getAttribute('aria-checked') === 'true')
+            .map((o) => (o.querySelector('.to-backlinks-facet-label')?.textContent ?? '').trim()),
+          // Icon only: the four orders have long names, and the header's job is
+          // to state counts.
+          text: (
+            document.querySelector('.workspace-leaf.mod-active .to-backlinks-sort')?.textContent ??
+            ''
+          ).trim(),
+          icon:
+            document.querySelector('.workspace-leaf.mod-active .to-backlinks-sort svg') !== null,
+        };
+      }),
     );
-    expect(focused).toBe('sort');
+    expect(menu.open).toBe(true);
+    expect(menu.labels.length).toBe(4);
+    expect(menu.text).toBe('');
+    expect(menu.icon).toBe(true);
+    // Exactly one is marked, and it is the default.
+    expect(menu.chosen).toEqual(['Recently modified']);
+    // A radio group: one choice, announced as one. The facets' toggle
+    // semantics would say several orders could be on at once.
+    const roles = await browser.executeObsidian(() =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-sort-menu .to-backlinks-facet-option',
+        ),
+      ).map((o) => o.getAttribute('role')),
+    );
+    expect(roles).toEqual(['menuitemradio', 'menuitemradio', 'menuitemradio', 'menuitemradio']);
 
-    // The two halves are asserted separately because only one of them can be
-    // driven portably. Focus is the half that REGRESSED — a prevented default
-    // on pointerdown stops a select opening at all — and a real press proves
-    // it. Moving the selection from the keyboard is not portable: on macOS
-    // ArrowDown opens the closed control rather than changing its value, and on
-    // other platforms it changes it. So the value is set the way the control
-    // itself would, and the assertion is that the change reaches plugin data.
-    await browser.executeObsidian((_ctx, next: string) => {
-      const select = document.querySelector<HTMLSelectElement>(
-        '.workspace-leaf.mod-active .to-backlinks-sort',
-      );
-      if (!select) return;
-      select.value = next;
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    }, options!.all[1]!);
-    await browser.pause(900);
+    const before = await readStable(groupNames);
+    await chooseFacetValue('Note name');
+    await settle();
 
     const stored = (await h.readPluginData()) as unknown as Record<string, unknown> | null;
-    expect(stored?.backlinksSort).toBe(options!.all[1]);
-
-    // And it carries its own mark, which the first cut left out entirely.
-    const hasIcon = await browser.executeObsidian(
+    expect(stored?.backlinksSort).toBe('name');
+    // Choosing an order closes the menu it was chosen from — unlike a facet,
+    // where a second value is a normal next move.
+    const stillOpen = await browser.executeObsidian(
       () =>
-        document.querySelector('.workspace-leaf.mod-active .to-backlinks-sort-icon svg') !== null,
+        document
+          .querySelector('.workspace-leaf.mod-active .to-backlinks-sort')
+          ?.getAttribute('aria-expanded') === 'true',
     );
-    expect(hasIcon).toBe(true);
+    expect(stillOpen).toBe(false);
+
+    const after = await readStable(groupNames);
+    expect(after).not.toEqual(before);
+    // Ordered by name, which is the whole of what was asked for. NOT the same
+    // notes reshuffled: under a cap the order decides which groups are admitted
+    // at all, so a sort legitimately changes the set (design Risks). Asserting
+    // the sets matched would have been asserting the design was different.
+    expect(after).toEqual([...after].sort((a, b) => a.localeCompare(b)));
 
     await browser.executeObsidian(async ({ plugins }) => {
       await (plugins.trueOutliner as any).setBacklinksSort('recent');
     });
-    await browser.pause(500);
+    await settle();
+  });
+
+  it('closes an open popover when the click lands somewhere else', async function () {
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    const expanded = (axis: string): Promise<string> =>
+      browser.executeObsidian(
+        (_ctx, selector: string) =>
+          document.querySelector(selector)?.getAttribute('aria-expanded') ?? 'gone',
+        `.workspace-leaf.mod-active ${sel(axis)}`,
+      );
+
+    // A click in the NOTE, on a line that is on screen BESIDE the footer.
+    //
+    // Two things rule out the obvious alternatives. The footer's own header
+    // folds the section, so clicking it would prove the popover closed by
+    // destroying the row that held it. And clicking a line far up the note
+    // means scrolling there first, which unmounts the widget — CodeMirror
+    // discards a block widget outside its viewport, and the listener goes with
+    // it, so the click is never seen and the popover is still open when the
+    // view comes back. A visible line is the gesture a reader actually makes.
+    const dismiss = async (): Promise<void> => {
+      const point = await browser.executeObsidian(() => {
+        const leaf = document.querySelector('.workspace-leaf.mod-active');
+        const footer = leaf?.querySelector('.to-backlinks')?.getBoundingClientRect();
+        const lines = Array.from(leaf?.querySelectorAll<HTMLElement>('.cm-line') ?? []);
+        const above = lines
+          .map((l) => l.getBoundingClientRect())
+          .filter((r) => r.height > 0 && r.top > 0 && footer && r.bottom < footer.top);
+        const last = above[above.length - 1];
+        return last ? { x: last.left + 8, y: last.top + last.height / 2 } : null;
+      });
+      if (!point) throw new Error('no visible note line beside the footer');
+      await h.clickAtPoint(point.x, point.y);
+      await browser.pause(400);
+    };
+
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    expect(await expanded('folder')).toBe('true');
+    await dismiss();
+    // Pressing the button again also closes it, but that was the ONLY way out.
+    expect(await expanded('folder')).toBe('false');
+
+    // And the sort menu, which shares the one open-popover slot.
+    await clickIn(`${FOOTER} .to-backlinks-sort`);
+    expect(await expanded('sort')).toBe('true');
+    await dismiss();
+    expect(await expanded('sort')).toBe('false');
+  });
+
+  it('holds the row still when the reset appears and goes', async function () {
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    const facetEdges = (): Promise<number[]> =>
+      browser.executeObsidian(() =>
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '.workspace-leaf.mod-active .to-backlinks-filters .to-backlinks-facet',
+          ),
+        ).map((f) => Math.round(f.getBoundingClientRect().left)),
+      );
+
+    const idle = await readStable(facetEdges);
+    expect(idle.length).toBe(3);
+
+    const mode = (): Promise<string> =>
+      browser.executeObsidian(
+        () =>
+          document.querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-reset')
+            ?.dataset.mode ?? 'gone',
+      );
+    // Present before anything is selected, as the control that closes the row.
+    expect(await mode()).toBe('close');
+
+    // Filtering is switched on through the SEARCH FIELD, so the only thing that
+    // changes in the row is what that one button does. Choosing a facet value
+    // also moves that facet's own edge, because its word becomes the value it
+    // holds — intended, and a different question from this one.
+    await setSearchTerm('a');
+
+    const filtered = await readStable(facetEdges);
+    expect(await mode()).toBe('clear');
+    // The button changed its job and NOTHING moved. It holds its place in the
+    // row whichever of the two it is, so choosing a value cannot shift the
+    // control beside the one being used.
+    expect(filtered).toEqual(idle);
+
+    await clearFilters();
+    await openFilters();
+    expect(await readStable(facetEdges)).toEqual(idle);
   });
 
   it('re-counts one axis against the other’s selection', async function () {
@@ -301,6 +584,101 @@ describe('the footer’s controls', function () {
     for (const kind of after) {
       if (kind.count === '0') expect(kind.empty).toBe(true);
     }
+  });
+
+  /**
+   * Selecting a kind narrows the RENDERED rows, not only the count beside them.
+   *
+   * The model (`footer-filter.ts`) only ever touched a group's COUNT — kind is
+   * a property of a reference, not of the source note the model groups by, so
+   * narrowing which groups are admitted was never enough on its own. `place()`
+   * locates every reference in a source regardless of the controls, and
+   * nothing between it and `buildRows` used to drop the ones an unselected
+   * kind excluded — so choosing Embed still rendered that source's Property
+   * and Note rows too; only the number beside the group's name read as
+   * embeds-only. `Severity study writeup.md` carries exactly one embed and one
+   * property reference to this hub, which is what lets one group prove both
+   * directions without relying on which OTHER sources happen to exist.
+   */
+  it('narrows the rendered rows to the selected kind, not only the count', async function () {
+    // The default overall cap (50 references, recency-sorted) can leave the
+    // fixture's small tracked notes outside the budget behind the generated
+    // hub's own sources. Lifted for just this case, which needs one SPECIFIC
+    // source rather than the volume the default cap is normally exercised
+    // against.
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksOverallCap('none');
+    });
+    await settle();
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    const groupRows = (): Promise<{
+      count: string;
+      embedTags: number;
+      propertyRows: number;
+      total: number;
+    } | null> =>
+      browser.executeObsidian(() => {
+        const group = Array.from(
+          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-group'),
+        ).find(
+          (g) =>
+            (g.querySelector('.to-backlinks-group-name')?.textContent ?? '').trim() ===
+            'Severity study writeup',
+        );
+        if (!group) return null;
+        const rows = Array.from(group.querySelectorAll<HTMLElement>('.to-backlinks-row'));
+        return {
+          count: group.querySelector('.to-backlinks-group-count')?.textContent ?? '',
+          embedTags: rows.filter((r) => r.querySelector('.to-backlinks-tag')).length,
+          propertyRows: rows.filter((r) => r.dataset.kind === 'property').length,
+          // ALL rows in the group. A property reference is its own row TYPE
+          // and never carries `.is-reference` — that class marks a `type:
+          // 'node'` row specifically — so counting only `.is-reference` rows
+          // would silently miss the property one. Both references in this
+          // fixture sit at depth 0 with no lineage of their own, so the
+          // group's row count is exactly its reference count.
+          total: rows.length,
+        };
+      });
+
+    const unfiltered = await readStable(groupRows);
+    expect(unfiltered).not.toBeNull();
+    // Both kinds present before any filter — the fixture's own guarantee.
+    expect(unfiltered!.embedTags).toBe(1);
+    expect(unfiltered!.propertyRows).toBe(1);
+    expect(unfiltered!.total).toBe(2);
+
+    // One open of the menu for both halves: an option click narrows or
+    // widens without closing it, and the facet BUTTON is what toggles it —
+    // pressing that again mid-sequence would close the menu instead of
+    // changing a selection.
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    await chooseFacetValue('Property');
+    const propertyOnly = await readStable(groupRows);
+    expect(propertyOnly).not.toBeNull();
+    expect(propertyOnly!.count).toBe('1');
+    // The embed row is GONE, not just uncounted.
+    expect(propertyOnly!.embedTags).toBe(0);
+    expect(propertyOnly!.propertyRows).toBe(1);
+    expect(propertyOnly!.total).toBe(1);
+
+    await chooseFacetValue('Property');
+    await chooseFacetValue('Embed');
+    const embedOnly = await readStable(groupRows);
+    expect(embedOnly).not.toBeNull();
+    expect(embedOnly!.count).toBe('1');
+    expect(embedOnly!.embedTags).toBe(1);
+    expect(embedOnly!.propertyRows).toBe(0);
+    expect(embedOnly!.total).toBe(1);
+
+    await clearFilters();
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksOverallCap('50');
+    });
+    await settle();
   });
 
   it('offers a find box on the unbounded axes and not on the fixed one', async function () {
@@ -330,9 +708,7 @@ describe('the footer’s controls', function () {
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
     await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
     await clickIn(`${FOOTER} .to-backlinks-facet-option`);
-    await clickIn(`${FOOTER} .to-backlinks-search`);
-    await browser.keys('a');
-    await browser.pause(700);
+    await setSearchTerm('a');
 
     const before = await readStable(() =>
       browser.executeObsidian(() => {
@@ -353,16 +729,36 @@ describe('the footer’s controls', function () {
         return {
           active: root?.querySelectorAll('.to-backlinks-facet.is-active').length ?? -1,
           search: root?.querySelector<HTMLInputElement>('.to-backlinks-search')?.value ?? 'x',
-          reset: root?.querySelector('.to-backlinks-reset') !== null,
+          mode: root?.querySelector<HTMLElement>('.to-backlinks-reset')?.dataset.mode ?? 'gone',
+          row: root?.querySelector('.to-backlinks-filters') !== null,
           dot: root?.querySelector('.to-backlinks-filter-toggle.is-active') !== null,
         };
       }),
     );
     expect(cleared.active).toBe(0);
     expect(cleared.search).toBe('');
-    // Offered only while something is active.
-    expect(cleared.reset).toBe(false);
     expect(cleared.dot).toBe(false);
+    // The control stays, and becomes the one that closes the row — with the
+    // row still open, since one press clears and it takes another to close.
+    expect(cleared.row).toBe(true);
+    expect(cleared.mode).toBe('close');
+
+    // And that second press does close it.
+    await clickIn(`${FOOTER} .to-backlinks-reset`);
+    await settle();
+    const shut = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        return {
+          row: root?.querySelector('.to-backlinks-filters') !== null,
+          expanded: root
+            ?.querySelector('.to-backlinks-filter-toggle')
+            ?.getAttribute('aria-expanded'),
+        };
+      }),
+    );
+    expect(shut.row).toBe(false);
+    expect(shut.expanded).toBe('false');
   });
 
   /**
@@ -378,6 +774,47 @@ describe('the footer’s controls', function () {
    * through a property and an embed. So the two tags are disjoint sets, and
    * `Note` is a kind that one of them has and the other does not.
    */
+  it("says a filter is active in the toggle's own name, not only in the dot", async function () {
+    await openFilters();
+    await clearFilters();
+
+    // Narrow, then CLOSE the row — the state a screen-reader user meets when
+    // they tab to the toggle without having opened it themselves this visit.
+    await openFilters();
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    await clickIn(`${FOOTER} .to-backlinks-facet-option`);
+    await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
+    await settle();
+
+    const closedActive = await readStable(() =>
+      browser.executeObsidian(() => {
+        const toggle = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-filter-toggle',
+        );
+        return {
+          expanded: toggle?.getAttribute('aria-expanded'),
+          label: toggle?.getAttribute('aria-label') ?? '',
+        };
+      }),
+    );
+    expect(closedActive.expanded).toBe('false');
+    // The dot is visual only; the accessible name has to say the same thing.
+    expect(closedActive.label).toMatch(/active/i);
+
+    await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
+    await clearFilters();
+    await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
+    const closedIdle = await readStable(() =>
+      browser.executeObsidian(
+        () =>
+          document
+            .querySelector('.workspace-leaf.mod-active .to-backlinks-filter-toggle')
+            ?.getAttribute('aria-label') ?? '',
+      ),
+    );
+    expect(closedIdle).not.toMatch(/active/i);
+  });
+
   it('offers the tags its sources carry, and none they do not', async function () {
     await openFilters();
     await clearFilters();
@@ -444,6 +881,128 @@ describe('the footer’s controls', function () {
     // using no tags from meeting a control that can do nothing.
     expect(axes).not.toContain('tag');
     expect(axes).toContain('kind');
+
+    await openFooter(TARGET);
+  });
+
+  it('leaves no chrome of its own inside either text field', async function () {
+    await openFilters();
+
+    const chrome = async (selector: string): Promise<Record<string, string> | null> =>
+      browser.executeObsidian((_ctx, sel: string) => {
+        const el = document.querySelector<HTMLElement>(`.workspace-leaf.mod-active ${sel}`);
+        if (!el) return null;
+        const cs = getComputedStyle(el);
+        return {
+          background: cs.backgroundColor,
+          boxShadow: cs.boxShadow,
+          radius: cs.borderRadius,
+          border: cs.borderTopWidth,
+        };
+      }, selector);
+
+    // FOCUSED, which is the state the host dresses an input in and the state a
+    // reader is in when it matters. Its focus ring is a 2px spread shadow at an
+    // 8px radius, and around a bare 14px-tall input that draws a small rounded
+    // oblong tight to the text — over the caret and the first character typed.
+    // The box the reader should see is the FIELD around it, which keeps its own
+    // border and its own focus treatment.
+    await clickIn(`${FOOTER} .to-backlinks-search`);
+    await browser.pause(400);
+    const name = await chrome('.to-backlinks-search');
+    expect(name).not.toBeNull();
+    expect(name!.background).toBe('rgba(0, 0, 0, 0)');
+    expect(name!.boxShadow).toBe('none');
+    expect(name!.radius).toBe('0px');
+    expect(name!.border).toBe('0px');
+
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    await browser.pause(300);
+    await clickIn(`${FOOTER} .to-backlinks-facet-find input`);
+    await browser.pause(400);
+    const find = await chrome('.to-backlinks-find-input');
+    expect(find).not.toBeNull();
+    expect(find!.background).toBe('rgba(0, 0, 0, 0)');
+    expect(find!.boxShadow).toBe('none');
+    expect(find!.radius).toBe('0px');
+    expect(find!.border).toBe('0px');
+
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+  });
+
+  it('clears the name filter from the control inside the field', async function () {
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    await setSearchTerm('Bri');
+    expect(await searchValue()).toBe('Bri');
+
+    // A REAL press on the field's own clear control. It used to reach
+    // Chromium's native cancel button instead — the field was `type="search"`,
+    // which puts one at exactly this position — and that clears the element's
+    // value while reporting it through an event this code does not listen for,
+    // so the term came straight back on the next repaint.
+    await clickIn(`${FOOTER} .to-backlinks-search-clear`);
+    await browser.pause(700);
+    expect(await searchValue()).toBe('');
+    // The field is still there to type into, and the control that emptied it
+    // has withdrawn — it is offered only while there is something to clear.
+    const after = await browser.executeObsidian(() => {
+      const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+      return {
+        field: root?.querySelector('.to-backlinks-search') !== null,
+        clear: root?.querySelector('.to-backlinks-search-clear') !== null,
+      };
+    });
+    expect(after.field).toBe(true);
+    expect(after.clear).toBe(false);
+  });
+
+  /**
+   * Folding, on a footer small enough to fold cheaply.
+   *
+   * Deliberately NOT an assertion about where the view ends up. A fold takes
+   * height out of the document from BELOW the head, so the head's own position
+   * in the document does not move: if the reader's scroll offset still fits the
+   * shortened document the browser keeps it and nothing moves at all, and if it
+   * does not, the browser clamps — and no offset could have held the head,
+   * because the one it would need no longer exists. Measured on a five-line
+   * note whose footer is most of a screen: the offset went 206 to 0 because the
+   * whole document then fitted the viewport. There is nothing here for this
+   * code to preserve, so what is pinned is the fold itself.
+   */
+  it('folds the section away and brings it back', async function () {
+    await openFooter(SMALL);
+
+    const shape = (): Promise<{ collapsed: boolean; groups: number; head: boolean }> =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        return {
+          collapsed:
+            root?.querySelector('.to-backlinks-head')?.classList.contains('is-collapsed') ?? false,
+          groups: root?.querySelectorAll('.to-backlinks-group').length ?? -1,
+          head: root?.querySelector('.to-backlinks-head') !== null,
+        };
+      });
+
+    const open = await readStable(shape);
+    expect(open.collapsed).toBe(false);
+    expect(open.groups).toBeGreaterThan(0);
+
+    await clickIn(`${FOOTER} .to-backlinks-icon`);
+    await settle();
+    const folded = await readStable(shape);
+    // The head stays — it is the way back — and everything under it goes.
+    expect(folded.collapsed).toBe(true);
+    expect(folded.head).toBe(true);
+    expect(folded.groups).toBe(0);
+
+    await clickIn(`${FOOTER} .to-backlinks-icon`);
+    await settle();
+    const reopened = await readStable(shape);
+    expect(reopened.collapsed).toBe(false);
+    expect(reopened.groups).toBe(open.groups);
 
     await openFooter(TARGET);
   });

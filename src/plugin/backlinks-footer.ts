@@ -83,7 +83,7 @@ import {
   type OverallCap,
   type SegmentIcons,
 } from './mode-registry';
-import type { ReferenceKind } from './backlink-index';
+import type { PlacedReference, ReferenceKind } from './backlink-index';
 import type { BacklinkIndex } from './backlink-index';
 import type { NodeKind, OutlineNode } from '../model';
 import { nodeStartLine } from '../locate';
@@ -135,8 +135,9 @@ interface ViewState {
   readonly kinds: Set<ReferenceKind>;
   readonly tags: Set<string>;
   search: string;
-  /** Which facet's values are on screen, if any. One at a time. */
-  openFacet: FacetAxis | null;
+  /** Which popover is on screen, if any. One at a time — the sort menu is in
+   * here with the facets precisely so opening one closes another. */
+  openFacet: OpenPopover | null;
   /** What each unbounded axis's own find box holds (design D10). */
   folderQuery: string;
   tagQuery: string;
@@ -269,14 +270,90 @@ class FooterController {
     };
     this.el.addEventListener('pointerdown', keepFocus);
     this.el.addEventListener('mousedown', keepFocus);
+    // A popover closes when the reader looks away from it.
+    //
+    // On the DOCUMENT rather than on the footer: the click that dismisses a
+    // menu is usually somewhere else entirely — the note, another pane — and a
+    // listener inside the footer never sees it. Clicks on the anchor are left
+    // alone so the button's own handler decides, which is what makes pressing
+    // an open facet close it rather than close-and-reopen.
+    //
+    // On `click`, NOT `pointerdown`, and that is not a detail. Dismissing at
+    // pointerdown repaints the footer before the browser has acted on the
+    // press — so clicking the search field while a menu was open destroyed the
+    // input the press was about to focus, and the term the reader then typed
+    // went into the note. Caught by the read-only spec, which is what it is
+    // for. By `click` the focus has landed, and the repaint's own focus
+    // restoration carries it across.
+    this.el.doc.addEventListener('click', this.closeOnOutsideClick, true);
     this.component.load();
     void this.render();
   }
 
+  /** Bound once so it can be removed again; see the constructor. */
+  private readonly closeOnOutsideClick = (event: Event): void => {
+    const state = viewStates.get(this.targetPath);
+    if (!state || state.openFacet === null) return;
+    const target = event.target as HTMLElement | null;
+    if (target && this.el.contains(target) && target.closest('.to-backlinks-facet-anchor')) return;
+    state.openFacet = null;
+    void this.render();
+  };
+
   destroy(): void {
     this.generation++;
+    this.el.doc.removeEventListener('click', this.closeOnOutsideClick, true);
     this.component.unload();
     this.el.detach();
+  }
+
+  /**
+   * Fold or unfold, and put the section's head back where the reader had it.
+   *
+   * Folding takes height out of the document from BELOW the head, so the head's
+   * own position does not move and the browser has no reason to scroll. It does
+   * anyway once the footer is more than about half the screen — reported from
+   * use, and reproducible: below that share the view holds, above it the note
+   * jumps to the top, whatever the note's length or where the caret is. Length
+   * is what rules out the obvious explanation, since a clamp cannot take a long
+   * document to its top.
+   *
+   * What is left is CodeMirror's own scroll restoration. It keeps the view
+   * steady across an update by holding a block at a fixed offset, and the block
+   * it holds is the one at the top of the visible area — which IS this widget
+   * once the footer covers that much of the screen. Restoring a shrunken
+   * block's top then moves the view rather than steadying it.
+   *
+   * So the head's offset is measured before and restored after, twice: once
+   * immediately, and once past the frame in which CodeMirror re-measures, since
+   * the correction has to outlive the restoration it is correcting. Where the
+   * document is genuinely too short to hold the position the browser still
+   * clamps, which is the one case nothing can help.
+   */
+  private foldKeepingPlace(): void {
+    const scroller = this.el.closest<HTMLElement>('.cm-scroller');
+    if (!scroller) {
+      void this.render();
+      return;
+    }
+    const offsetOfHead = (): number | null => {
+      const head = this.el.querySelector<HTMLElement>('.to-backlinks-head');
+      if (!head) return null;
+      return head.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    };
+
+    const before = offsetOfHead();
+    void this.render();
+    if (before === null) return;
+
+    const restore = (): void => {
+      const now = offsetOfHead();
+      if (now === null) return;
+      scroller.scrollTop += now - before;
+    };
+    restore();
+    const win = this.el.win;
+    win.requestAnimationFrame(() => win.requestAnimationFrame(restore));
   }
 
   /** Repaints from scratch: cheap, and simpler than diffing a tree whose shape
@@ -301,6 +378,18 @@ class FooterController {
     // never called for a group the cap did not admit (design D1, D2).
     const sources = this.sourceRefs();
     const axes = axesOf(sources, this.controls(state));
+    // A selected value that stopped existing is DROPPED, not merely
+    // discounted for this one pass. `filterSources` already treats it as
+    // absent when deciding what to admit (`live()`), but the facet's own
+    // checkbox, its active dot and its word all read `state.folders` /
+    // `state.kinds` / `state.tags` DIRECTLY — a value only discounted at
+    // filtering time would still draw as selected, and would silently
+    // reactivate with no action from the reader if it ever reappeared
+    // (design Risks: "a selection whose value is absent... is dropped").
+    // `axes` already carries exactly the present values per axis, computed
+    // from the sources rather than from any current selection, which is what
+    // makes it the right thing to prune against.
+    this.pruneDeadSelections(state, axes);
     const result = applyControls(sources, this.controls(state));
 
     this.el.toggleClass('is-suppressing-core', this.source.backlinksSuppressCore);
@@ -438,11 +527,28 @@ class FooterController {
     if (generation !== this.generation || !placed) return;
 
     const state = viewStateFor(this.targetPath);
+    // The kind filter narrowed this GROUP's admitted count upstream (D1), but
+    // `place()` knows nothing of the controls and locates every reference in
+    // the source. Undone here: a node whose recorded kind is not selected
+    // stops being a reference match — falling back to plain lineage context if
+    // some OTHER node still matches, and disappearing from the tree entirely
+    // if it does not — and an excluded property reference is dropped outright.
+    // Without this, selecting Embed still rendered Note and Property rows from
+    // the same source; only the count read as embeds-only.
+    const kinds = state.kinds;
+    const refOf = (node: OutlineNode): PlacedReference | undefined => {
+      const ref = placed.refs.get(node.id);
+      return ref && (kinds.size === 0 || kinds.has(ref.kind)) ? ref : undefined;
+    };
+    const matches = (node: OutlineNode): boolean => refOf(node) !== undefined;
+    const properties =
+      kinds.size === 0 ? placed.properties : placed.properties.filter((r) => kinds.has(r.kind));
+
     const rows = buildRows(
       placed.doc,
-      placed.matches,
-      placed.properties,
-      (node: OutlineNode) => placed.refs.get(node.id),
+      matches,
+      properties,
+      refOf,
       (node: OutlineNode) => state.expandedRows.has(`${sourcePath}:${node.id}`),
     );
 
@@ -539,6 +645,31 @@ class FooterController {
   }
 
   /**
+   * Removes a selection whose value no longer exists among `axes`' own
+   * values, from the STORED state rather than only from a computation over
+   * it. See the call site's comment for why this has to reach the persisted
+   * Sets and not just discount the value while filtering.
+   *
+   * Covered by a unit test at the model level (`footer-filter.test.ts`, "drops
+   * a selected tag that stops existing") and by a negative control here
+   * (revert this call, the render-layer behaviour it fixes fails) rather than
+   * by a standing e2e case: the one written for it edited a fixture file and
+   * waited on Obsidian's own metadata reindex, which measurably slows deep
+   * into a long test session and made the case flake in the full suite while
+   * passing every time in isolation. Not worth chasing further given the fix
+   * is otherwise fully verified.
+   */
+  private pruneDeadSelections(state: ViewState, axes: FilterAxes): void {
+    const prune = <T>(selected: Set<T>, present: readonly { readonly value: T }[]): void => {
+      const live = new Set(present.map((v) => v.value));
+      for (const value of selected) if (!live.has(value)) selected.delete(value);
+    };
+    prune(state.folders, axes.folders);
+    prune(state.kinds, axes.kinds);
+    prune(state.tags, axes.tags);
+  }
+
+  /**
    * Everything the controls read about this note's references, from the index's
    * cheap half only. No file is read here, which is what lets the cap be
    * applied before `place()`.
@@ -618,14 +749,30 @@ class FooterController {
     // mounted until `swap`.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     head.appendChild(linkGlyph());
-    head.createSpan({ cls: 'to-backlinks-title', text: 'Structured backlinks' });
+    // Two spans, one word each, swapped by the same container query the
+    // facets already use — a narrow footer no longer wraps the title onto a
+    // second line. Only one of the two is ever visible.
+    head.createSpan({ cls: 'to-backlinks-title to-backlinks-title-full', text: 'Structured backlinks' });
+    head.createSpan({ cls: 'to-backlinks-title to-backlinks-title-short', text: 'Backlinks' });
 
     const refs = `${totals.references} ${totals.references === 1 ? 'reference' : 'references'}`;
     const counts =
       totals.references > 0
         ? `${refs} · ${totals.notes} ${totals.notes === 1 ? 'note' : 'notes'}`
         : refs;
-    head.createSpan({ cls: 'to-backlinks-totals', text: counts });
+    head.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-full', text: counts });
+
+    // The narrow form: both numbers with none of the words, the second one
+    // bold so the pair still reads as two different counts rather than one
+    // number with a stray dot in it. An icon per count was tried and dropped —
+    // this footer already carries a mark for every axis and every kind, and a
+    // third vocabulary for the same two numbers was more to parse, not less.
+    const compact = head.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-compact' });
+    compact.createSpan({ text: String(totals.references) });
+    if (totals.references > 0) {
+      compact.createSpan({ text: ' · ' });
+      compact.createSpan({ cls: 'to-backlinks-totals-notes', text: String(totals.notes) });
+    }
 
     if (!foldable) return;
     // The controls go AFTER the totals and stop the click that folds the
@@ -635,7 +782,7 @@ class FooterController {
     head.addEventListener('click', () => {
       const current = viewStateFor(this.targetPath);
       current.collapsed = !current.collapsed;
-      void this.render();
+      this.foldKeepingPlace();
     });
   }
 
@@ -654,9 +801,16 @@ class FooterController {
     filters.type = 'button';
     // The dot is the whole point of the affordance while the row is hidden: a
     // narrowed footer that looks unfiltered is a footer lying about its counts.
-    filters.toggleClass('is-active', this.isFiltering(state));
+    // `aria-expanded` says whether the ROW is open, which is a different fact
+    // from whether it is narrowing anything — a screen-reader user with the
+    // row closed heard the same "Show filters" whether or not results were
+    // being held back, where a sighted reader had the dot. Said in the name
+    // instead, so it reaches both.
+    const active = this.isFiltering(state);
+    filters.toggleClass('is-active', active);
     filters.setAttribute('aria-expanded', String(state.filtersOpen));
-    filters.setAttribute('aria-label', state.filtersOpen ? 'Hide filters' : 'Show filters');
+    const verb = state.filtersOpen ? 'Hide filters' : 'Show filters';
+    filters.setAttribute('aria-label', active ? `${verb} (active)` : verb);
     filters.dataset.focusKey = 'filters';
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     filters.appendChild(filterGlyph());
@@ -667,27 +821,74 @@ class FooterController {
       void this.render();
     });
 
-    // A native `select` rather than a menu: four options should be directly
-    // selectable (D8), and the platform control is the one that already works
-    // with a keyboard and on a phone. The icon cannot go INSIDE it — a select
-    // renders its own contents — so it sits over the control's leading edge and
-    // the select carries padding for it.
-    const sortWrap = head.createDiv({ cls: 'to-backlinks-sort-wrap' });
-    const sortIcon = sortWrap.createSpan({ cls: 'to-backlinks-sort-icon' });
-    sortIcon.setAttribute('aria-hidden', 'true');
+    this.renderSortControl(head, state);
+  }
+
+  /**
+   * Sort: the same popover the facets use, and an icon-only button.
+   *
+   * It was a native `select`, which put a platform control beside three of our
+   * own and made the one that is not a filter look like the odd one out rather
+   * than the different one. The menu here is `renderFacetMenu`'s shape — a cap,
+   * a list, a check against the current value — so the header and the filter
+   * row speak with one vocabulary.
+   *
+   * Icon-only, because the four sort orders have long names and the button
+   * would otherwise be the widest thing in a header whose job is to state
+   * counts. What is chosen is shown by the check inside the menu.
+   */
+  private renderSortControl(head: HTMLElement, state: ViewState): void {
+    const current = this.source.backlinksSort;
+    const open = state.openFacet === 'sort';
+
+    const anchor = head.createDiv({ cls: 'to-backlinks-facet-anchor' });
+    const button = anchor.createEl('button', { cls: 'to-backlinks-sort' });
+    button.type = 'button';
+    button.dataset.focusKey = 'sort';
+    button.toggleClass('is-active', open);
+    button.setAttribute('aria-expanded', String(open));
+    button.setAttribute('aria-haspopup', 'true');
+    button.setAttribute('aria-label', `Sort backlinks — ${SORT_LABELS[current]}`);
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-    sortIcon.appendChild(sortGlyph());
-    const sort = sortWrap.createEl('select', { cls: 'to-backlinks-sort' });
-    sort.setAttribute('aria-label', 'Sort backlinks');
-    sort.dataset.focusKey = 'sort';
-    for (const [value, label] of Object.entries(SORT_LABELS)) {
-      sort.createEl('option', { value, text: label });
-    }
-    sort.value = this.source.backlinksSort;
-    sort.addEventListener('click', (event) => event.stopPropagation());
-    sort.addEventListener('change', () => {
-      void this.source.setBacklinksSort(sort.value as SortOrder);
+    button.appendChild(sortGlyph());
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const now = viewStateFor(this.targetPath);
+      now.openFacet = open ? null : 'sort';
+      void this.render();
     });
+
+    if (!open) return;
+
+    const menu = anchor.createDiv({ cls: 'to-backlinks-facet-menu to-backlinks-sort-menu' });
+    // A radio group, not a set of toggles. The facets' own boxes say "several
+    // of these can be on at once", which is true of an axis and false here.
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-label', 'Sort');
+    menu.createDiv({ cls: 'to-backlinks-facet-cap' }).createSpan({ text: 'sort' });
+    const list = menu.createDiv({ cls: 'to-backlinks-facet-list to-backlinks-sort-list' });
+    for (const [value, label] of Object.entries(SORT_LABELS)) {
+      const chosen = value === current;
+      // No box: a facet's box says "on or off", which is right for a set of
+      // independent toggles and wrong for four mutually exclusive orders. One
+      // row, and the chosen one reads as chosen from its own weight and colour
+      // rather than from a mark beside it.
+      const option = list.createEl('button', {
+        cls: 'to-backlinks-facet-option to-backlinks-sort-option',
+      });
+      option.type = 'button';
+      option.setAttribute('role', 'menuitemradio');
+      option.setAttribute('aria-checked', String(chosen));
+      option.toggleClass('is-selected', chosen);
+      option.createSpan({ cls: 'to-backlinks-facet-label', text: label });
+      option.addEventListener('click', (event) => {
+        event.stopPropagation();
+        // One at a time, so choosing an order closes the menu it was chosen
+        // from — unlike a facet, where a second value is a normal next move.
+        viewStateFor(this.targetPath).openFacet = null;
+        void this.source.setBacklinksSort(value as SortOrder);
+      });
+    }
   }
 
   /**
@@ -712,7 +913,15 @@ class FooterController {
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     glass.appendChild(searchGlyph());
     const search = field.createEl('input', { cls: 'to-backlinks-search' });
-    search.type = 'search';
+    // `text`, not `search`. A search input carries Chromium's own cancel
+    // button, which reserved room at the field's end whether or not there was
+    // anything to clear and sat exactly where this field's own clear control
+    // is — so the press that looked like it should empty the field went to the
+    // native button instead, which clears the ELEMENT's value and reports it
+    // through a `search` event this code does not listen for. The value came
+    // straight back on the next repaint, which reads as a control that does
+    // nothing.
+    search.type = 'text';
     search.placeholder = 'Filter by note name…';
     search.value = state.search;
     search.setAttribute('aria-label', 'Filter by source note name');
@@ -731,6 +940,10 @@ class FooterController {
       event.preventDefault();
       const current = viewStateFor(this.targetPath);
       current.search = '';
+      // A narrowed set should not stay behind a cap the wider set consumed —
+      // the same rule every other filter change follows. Escape is a filter
+      // change like typing is, and had been missing this.
+      current.capBonus = 0;
       void this.render();
     });
     if (state.search.length > 0) {
@@ -739,13 +952,20 @@ class FooterController {
       clear.setAttribute('aria-label', 'Clear the name filter');
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
       clear.appendChild(clearGlyph());
-      // `mousedown`, not `click`: the field blurs first, and a repaint would
-      // take the button out from under the pointer.
-      clear.addEventListener('mousedown', (event) => {
-        event.preventDefault();
+      // `click`, like every other control here. It was `mousedown`, to keep the
+      // field from blurring before the press was handled — but this footer
+      // cancels the default on `pointerdown` to hold the editor's caret, and a
+      // cancelled pointerdown takes the compatibility `mousedown` with it. So
+      // the handler never ran, and the control that looks like it empties the
+      // field did nothing at all. The blur it was avoiding is not a problem
+      // either: the same cancelled default is what stops focus moving, and a
+      // repaint restores it by key.
+      clear.addEventListener('click', (event) => {
         event.stopPropagation();
         const current = viewStateFor(this.targetPath);
         current.search = '';
+        // See the note on the Escape handler just above — the same rule.
+        current.capBonus = 0;
         void this.render();
       });
     }
@@ -778,29 +998,49 @@ class FooterController {
       findable: true,
     });
 
-    // One control that undoes all of them, offered only while there is
-    // something to undo. Each facet can also clear its own axis, but a reader
-    // who has narrowed three ways should not have to visit three menus.
+    // One control at the row's end, and it is always there.
     //
-    // An icon button rather than a labelled one: a fourth rectangle at the end
-    // of three facets reads as another facet.
-    if (!this.isFiltering(state)) return;
-    const reset = row.createEl('button', { cls: 'to-backlinks-reset' });
+    // It undoes all three axes and the term at once — each facet can clear its
+    // own, but a reader who has narrowed three ways should not have to visit
+    // three menus. An icon button rather than a labelled one: a fourth
+    // rectangle at the end of three facets reads as another facet.
+    //
+    // It carries a SECOND action rather than coming and going, and the reason
+    // is the row's shape. The search field is the one control that grows, so a
+    // button appearing at the end took its width out of the field and shifted
+    // every facet between them; reserving the space fixed the shift but left a
+    // hole where the button was not. So the space is filled: with nothing
+    // selected the same cross closes the row it sits in, which is the other
+    // thing a reader wants from a control in that position and is what a cross
+    // at the end of a row means anyway.
+    const filtering = this.isFiltering(state);
+    const slot = row.createDiv({ cls: 'to-backlinks-reset-slot' });
+    const reset = slot.createEl('button', { cls: 'to-backlinks-reset' });
     reset.type = 'button';
     reset.dataset.focusKey = 'reset';
-    reset.setAttribute('aria-label', 'Clear filters and search');
+    // Which of the two it is, said in the DOM as well as in the label: the
+    // glyph is the same either way, and a caller — a test, a stylesheet —
+    // should not have to infer the mode from the state of three axes.
+    reset.dataset.mode = filtering ? 'clear' : 'close';
+    reset.toggleClass('is-clearing', filtering);
+    reset.setAttribute('aria-label', filtering ? 'Clear filters and search' : 'Hide filters');
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     reset.appendChild(clearGlyph());
     reset.addEventListener('click', (event) => {
       event.stopPropagation();
       const current = viewStateFor(this.targetPath);
+      current.openFacet = null;
+      if (!filtering) {
+        current.filtersOpen = false;
+        void this.render();
+        return;
+      }
       current.folders.clear();
       current.kinds.clear();
       current.tags.clear();
       current.search = '';
       current.folderQuery = '';
       current.tagQuery = '';
-      current.openFacet = null;
       current.capBonus = 0;
       void this.render();
     });
@@ -877,8 +1117,13 @@ class FooterController {
       glass.setAttribute('aria-hidden', 'true');
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
       glass.appendChild(searchGlyph());
-      const input = find.createEl('input');
-      input.type = 'search';
+      const input = find.createEl('input', { cls: 'to-backlinks-find-input' });
+      // Named by a class of its own rather than reached as `... find input`.
+      // Measured: the descendant form matched the element and still lost the
+      // background to Obsidian's own input rule, so the box drew a lighter pill
+      // inside itself with the caret against its rounded end. The main search
+      // field, whose rule names a class ON the element, has never had it.
+      input.type = 'text';
       input.placeholder = `Find ${spec.word}…`;
       input.value = query;
       input.setAttribute('aria-label', `Find a ${spec.word}`);
@@ -1374,6 +1619,14 @@ function makeDisclosure(el: HTMLElement, expanded: boolean, label: string): void
   el.tabIndex = 0;
   el.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
+    // Only when EL ITSELF has focus. The section header carries this
+    // disclosure and also carries the filter and sort buttons as children —
+    // Enter or Space on one of those bubbles here too, and without this guard
+    // it both fired `el.click()` (folding the section) and, via
+    // `preventDefault`, cancelled the button's OWN native activation from the
+    // same keypress. A keyboard reader tabbing to the filter toggle could
+    // never open it; every press folded the footer instead.
+    if (event.target !== el) return;
     event.preventDefault();
     el.click();
   });
@@ -1401,6 +1654,7 @@ function linkGlyph(): SVGSVGElement {
   el.addClass('to-backlinks-icon');
   return el;
 }
+
 
 /** The cap's own control: down to reveal what is hidden, up to put it back.
  * Distinct from `chevronGlyph`, whose two states are a DISCLOSURE's — right for
@@ -1556,14 +1810,27 @@ function omissionBelow(body: HTMLElement, rows: readonly FooterRow[]): Omission 
   return { count: references > 0 ? references : clipped, depth: rows[first]?.depth ?? 0 };
 }
 
-/** The sort control's mark: lines shortening downward, the usual sort figure. */
+/**
+ * The sort control's mark: an arrow beside bars that shorten along it.
+ *
+ * Bars alone were three shortening lines, which is also what a paragraph looks
+ * like at this size — the two marks sat a few pixels apart in the same header
+ * and read as the same thing. The arrow is what makes it a sort figure rather
+ * than a picture of text: it names the direction the bars are ordered in, and
+ * it is the form the icon has settled into across editors.
+ */
 function sortGlyph(): SVGSVGElement {
-  return glyph(24, ['M4 7h13', 'M4 12h9', 'M4 17h5'], {
-    fill: 'none',
-    stroke: 'currentColor',
-    'stroke-width': '2',
-    'stroke-linecap': 'round',
-  });
+  return glyph(
+    24,
+    ['M6 4v15', 'M3 16l3 3 3-3', 'M12 6h9', 'M12 12h6', 'M12 18h3'],
+    {
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': '2',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+    },
+  );
 }
 
 /** Reset's mark: a cross, which is what clearing looks like everywhere else. */
@@ -1599,6 +1866,9 @@ function ellipsisGlyph(): SVGSVGElement {
 
 /** The three axes, in the order they sit in the row. */
 type FacetAxis = 'kind' | 'folder' | 'tag';
+/** Sort is not an axis — it does not filter — but its menu is one of the same
+ * set of popovers, so it shares the slot that keeps only one of them open. */
+type OpenPopover = FacetAxis | 'sort';
 
 /** Everything one facet needs; the axes differ only in these fields. */
 interface FacetSpec {
