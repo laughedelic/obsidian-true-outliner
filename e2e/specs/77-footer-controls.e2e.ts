@@ -82,6 +82,54 @@ describe('the footer’s controls', function () {
     expect(shape.filters).toBe(false);
   });
 
+  /**
+   * Enter on the filter toggle opens it, and does not fold the section.
+   *
+   * The toggle is a CHILD of the header, which `makeDisclosure` turns into its
+   * own keyboard-operable disclosure. Enter or Space on a focused child
+   * bubbles to the header's own keydown handler, and that handler used to act
+   * on every such event regardless of `event.target` — folding the section AND
+   * cancelling the button's own native activation from the same keypress, so
+   * a keyboard reader tabbing to the toggle could never open it.
+   */
+  it('activates the filter toggle from the keyboard without folding the section', async function () {
+    await browser.executeObsidian(() => {
+      document
+        .querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-filter-toggle')
+        ?.focus();
+    });
+    const focused = await browser.executeObsidian(
+      () =>
+        (document.activeElement as HTMLElement | null)?.classList.contains(
+          'to-backlinks-filter-toggle',
+        ) ?? false,
+    );
+    expect(focused).toBe(true);
+
+    await h.keys.enter();
+    await settle();
+
+    const shape = await readStable(() =>
+      browser.executeObsidian(() => {
+        const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+        return {
+          expanded: root
+            ?.querySelector('.to-backlinks-filter-toggle')
+            ?.getAttribute('aria-expanded'),
+          filtersRow: root?.querySelector('.to-backlinks-filters') !== null,
+          headCollapsed:
+            root?.querySelector('.to-backlinks-head')?.classList.contains('is-collapsed') ?? true,
+        };
+      }),
+    );
+    // The toggle opened — not the OTHER thing an unguarded bubble would do.
+    expect(shape.expanded).toBe('true');
+    expect(shape.filtersRow).toBe(true);
+    expect(shape.headCollapsed).toBe(false);
+
+    await clearFilters();
+  });
+
   it('reveals a row carrying the search field and one facet per axis', async function () {
     await openFilters();
     const shape = await readStable(() =>
@@ -538,6 +586,101 @@ describe('the footer’s controls', function () {
     }
   });
 
+  /**
+   * Selecting a kind narrows the RENDERED rows, not only the count beside them.
+   *
+   * The model (`footer-filter.ts`) only ever touched a group's COUNT — kind is
+   * a property of a reference, not of the source note the model groups by, so
+   * narrowing which groups are admitted was never enough on its own. `place()`
+   * locates every reference in a source regardless of the controls, and
+   * nothing between it and `buildRows` used to drop the ones an unselected
+   * kind excluded — so choosing Embed still rendered that source's Property
+   * and Note rows too; only the number beside the group's name read as
+   * embeds-only. `Severity study writeup.md` carries exactly one embed and one
+   * property reference to this hub, which is what lets one group prove both
+   * directions without relying on which OTHER sources happen to exist.
+   */
+  it('narrows the rendered rows to the selected kind, not only the count', async function () {
+    // The default overall cap (50 references, recency-sorted) can leave the
+    // fixture's small tracked notes outside the budget behind the generated
+    // hub's own sources. Lifted for just this case, which needs one SPECIFIC
+    // source rather than the volume the default cap is normally exercised
+    // against.
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksOverallCap('none');
+    });
+    await settle();
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+
+    const groupRows = (): Promise<{
+      count: string;
+      embedTags: number;
+      propertyRows: number;
+      total: number;
+    } | null> =>
+      browser.executeObsidian(() => {
+        const group = Array.from(
+          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-group'),
+        ).find(
+          (g) =>
+            (g.querySelector('.to-backlinks-group-name')?.textContent ?? '').trim() ===
+            'Severity study writeup',
+        );
+        if (!group) return null;
+        const rows = Array.from(group.querySelectorAll<HTMLElement>('.to-backlinks-row'));
+        return {
+          count: group.querySelector('.to-backlinks-group-count')?.textContent ?? '',
+          embedTags: rows.filter((r) => r.querySelector('.to-backlinks-tag')).length,
+          propertyRows: rows.filter((r) => r.dataset.kind === 'property').length,
+          // ALL rows in the group. A property reference is its own row TYPE
+          // and never carries `.is-reference` — that class marks a `type:
+          // 'node'` row specifically — so counting only `.is-reference` rows
+          // would silently miss the property one. Both references in this
+          // fixture sit at depth 0 with no lineage of their own, so the
+          // group's row count is exactly its reference count.
+          total: rows.length,
+        };
+      });
+
+    const unfiltered = await readStable(groupRows);
+    expect(unfiltered).not.toBeNull();
+    // Both kinds present before any filter — the fixture's own guarantee.
+    expect(unfiltered!.embedTags).toBe(1);
+    expect(unfiltered!.propertyRows).toBe(1);
+    expect(unfiltered!.total).toBe(2);
+
+    // One open of the menu for both halves: an option click narrows or
+    // widens without closing it, and the facet BUTTON is what toggles it —
+    // pressing that again mid-sequence would close the menu instead of
+    // changing a selection.
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    await chooseFacetValue('Property');
+    const propertyOnly = await readStable(groupRows);
+    expect(propertyOnly).not.toBeNull();
+    expect(propertyOnly!.count).toBe('1');
+    // The embed row is GONE, not just uncounted.
+    expect(propertyOnly!.embedTags).toBe(0);
+    expect(propertyOnly!.propertyRows).toBe(1);
+    expect(propertyOnly!.total).toBe(1);
+
+    await chooseFacetValue('Property');
+    await chooseFacetValue('Embed');
+    const embedOnly = await readStable(groupRows);
+    expect(embedOnly).not.toBeNull();
+    expect(embedOnly!.count).toBe('1');
+    expect(embedOnly!.embedTags).toBe(1);
+    expect(embedOnly!.propertyRows).toBe(0);
+    expect(embedOnly!.total).toBe(1);
+
+    await clearFilters();
+    await browser.executeObsidian(async ({ plugins }) => {
+      await (plugins.trueOutliner as any).setBacklinksOverallCap('50');
+    });
+    await settle();
+  });
+
   it('offers a find box on the unbounded axes and not on the fixed one', async function () {
     await openFilters();
     const findable = async (axis: string): Promise<boolean> => {
@@ -631,6 +774,47 @@ describe('the footer’s controls', function () {
    * through a property and an embed. So the two tags are disjoint sets, and
    * `Note` is a kind that one of them has and the other does not.
    */
+  it("says a filter is active in the toggle's own name, not only in the dot", async function () {
+    await openFilters();
+    await clearFilters();
+
+    // Narrow, then CLOSE the row — the state a screen-reader user meets when
+    // they tab to the toggle without having opened it themselves this visit.
+    await openFilters();
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="kind"]`);
+    await clickIn(`${FOOTER} .to-backlinks-facet-option`);
+    await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
+    await settle();
+
+    const closedActive = await readStable(() =>
+      browser.executeObsidian(() => {
+        const toggle = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-filter-toggle',
+        );
+        return {
+          expanded: toggle?.getAttribute('aria-expanded'),
+          label: toggle?.getAttribute('aria-label') ?? '',
+        };
+      }),
+    );
+    expect(closedActive.expanded).toBe('false');
+    // The dot is visual only; the accessible name has to say the same thing.
+    expect(closedActive.label).toMatch(/active/i);
+
+    await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
+    await clearFilters();
+    await clickIn(`${FOOTER} .to-backlinks-filter-toggle`);
+    const closedIdle = await readStable(() =>
+      browser.executeObsidian(
+        () =>
+          document
+            .querySelector('.workspace-leaf.mod-active .to-backlinks-filter-toggle')
+            ?.getAttribute('aria-label') ?? '',
+      ),
+    );
+    expect(closedIdle).not.toMatch(/active/i);
+  });
+
   it('offers the tags its sources carry, and none they do not', async function () {
     await openFilters();
     await clearFilters();

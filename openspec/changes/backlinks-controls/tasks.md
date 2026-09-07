@@ -75,9 +75,12 @@ the state lives.
 - [x] 3.3 The revealed second row: round pills for folders, square icon chips for kinds, the
       search field, and reset. Two shapes so the axes are told apart without reading labels — the
       spec requires the distinction be in form, not wording
-- [x] 3.4 Reset clears both axes and the search term together and is offered only while something
-      is active. Verify from the spec's scenario: all three active, one reset, everything eligible
-      again
+- [x] 3.4 Reset clears all three axes and the search term together. It stays in the row rather
+      than coming and going with them — reserving its slot fixed the shift when it appeared but
+      left the row looking incomplete with nothing to clear — and the same control closes the
+      filter row when nothing is active, which is what a cross at the end of the row means anyway
+      once it has nothing to undo. Verify from the spec's scenario: all three active, one reset,
+      everything eligible again
 - [x] 3.5 A selected value that stops existing is dropped, returning its axis to admitting
       everything (design Risks). Verify by editing a source note so its folder no longer
       contributes, with that folder selected, and confirming the footer does not go empty

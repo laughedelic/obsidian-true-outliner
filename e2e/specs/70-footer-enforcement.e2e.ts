@@ -368,15 +368,14 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     await focusSearch();
     await browser.keys('a');
     await browser.pause(600);
+    // `.to-backlinks-sort` is a BUTTON now, not a `<select>` — it opens a
+    // popover on `click`, and has no `.value`/`change` to drive. Setting the
+    // sort here is not testing the CONTROL (77 does that); it is one of the
+    // "every setting" changes this case checks causes no document mutation,
+    // so the plugin's own setter is the direct way to make it happen.
     await browser.executeObsidian(async ({ plugins }) => {
       const plugin = plugins.trueOutliner as any;
-      const select = document.querySelector<HTMLSelectElement>(
-        '.workspace-leaf.mod-active .to-backlinks-sort',
-      );
-      if (select) {
-        select.value = 'name';
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      await plugin.setBacklinksSort('name');
       await plugin.setBacklinksOverallCap('50');
       await plugin.setBacklinksGroupHeight('compact');
     });

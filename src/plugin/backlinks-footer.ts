@@ -81,7 +81,7 @@ import {
   type OverallCap,
   type SegmentIcons,
 } from './mode-registry';
-import type { ReferenceKind } from './backlink-index';
+import type { PlacedReference, ReferenceKind } from './backlink-index';
 import type { BacklinkIndex } from './backlink-index';
 import type { NodeKind, OutlineNode } from '../model';
 import { nodeStartLine } from '../locate';
@@ -376,6 +376,18 @@ class FooterController {
     // never called for a group the cap did not admit (design D1, D2).
     const sources = this.sourceRefs();
     const axes = axesOf(sources, this.controls(state));
+    // A selected value that stopped existing is DROPPED, not merely
+    // discounted for this one pass. `filterSources` already treats it as
+    // absent when deciding what to admit (`live()`), but the facet's own
+    // checkbox, its active dot and its word all read `state.folders` /
+    // `state.kinds` / `state.tags` DIRECTLY — a value only discounted at
+    // filtering time would still draw as selected, and would silently
+    // reactivate with no action from the reader if it ever reappeared
+    // (design Risks: "a selection whose value is absent... is dropped").
+    // `axes` already carries exactly the present values per axis, computed
+    // from the sources rather than from any current selection, which is what
+    // makes it the right thing to prune against.
+    this.pruneDeadSelections(state, axes);
     const result = applyControls(sources, this.controls(state));
 
     this.el.toggleClass('is-suppressing-core', this.source.backlinksSuppressCore);
@@ -513,11 +525,28 @@ class FooterController {
     if (generation !== this.generation || !placed) return;
 
     const state = viewStateFor(this.targetPath);
+    // The kind filter narrowed this GROUP's admitted count upstream (D1), but
+    // `place()` knows nothing of the controls and locates every reference in
+    // the source. Undone here: a node whose recorded kind is not selected
+    // stops being a reference match — falling back to plain lineage context if
+    // some OTHER node still matches, and disappearing from the tree entirely
+    // if it does not — and an excluded property reference is dropped outright.
+    // Without this, selecting Embed still rendered Note and Property rows from
+    // the same source; only the count read as embeds-only.
+    const kinds = state.kinds;
+    const refOf = (node: OutlineNode): PlacedReference | undefined => {
+      const ref = placed.refs.get(node.id);
+      return ref && (kinds.size === 0 || kinds.has(ref.kind)) ? ref : undefined;
+    };
+    const matches = (node: OutlineNode): boolean => refOf(node) !== undefined;
+    const properties =
+      kinds.size === 0 ? placed.properties : placed.properties.filter((r) => kinds.has(r.kind));
+
     const rows = buildRows(
       placed.doc,
-      placed.matches,
-      placed.properties,
-      (node: OutlineNode) => placed.refs.get(node.id),
+      matches,
+      properties,
+      refOf,
       (node: OutlineNode) => state.expandedRows.has(`${sourcePath}:${node.id}`),
     );
 
@@ -611,6 +640,31 @@ class FooterController {
       else s.expandedGroups.add(sourcePath);
       void this.render();
     });
+  }
+
+  /**
+   * Removes a selection whose value no longer exists among `axes`' own
+   * values, from the STORED state rather than only from a computation over
+   * it. See the call site's comment for why this has to reach the persisted
+   * Sets and not just discount the value while filtering.
+   *
+   * Covered by a unit test at the model level (`footer-filter.test.ts`, "drops
+   * a selected tag that stops existing") and by a negative control here
+   * (revert this call, the render-layer behaviour it fixes fails) rather than
+   * by a standing e2e case: the one written for it edited a fixture file and
+   * waited on Obsidian's own metadata reindex, which measurably slows deep
+   * into a long test session and made the case flake in the full suite while
+   * passing every time in isolation. Not worth chasing further given the fix
+   * is otherwise fully verified.
+   */
+  private pruneDeadSelections(state: ViewState, axes: FilterAxes): void {
+    const prune = <T>(selected: Set<T>, present: readonly { readonly value: T }[]): void => {
+      const live = new Set(present.map((v) => v.value));
+      for (const value of selected) if (!live.has(value)) selected.delete(value);
+    };
+    prune(state.folders, axes.folders);
+    prune(state.kinds, axes.kinds);
+    prune(state.tags, axes.tags);
   }
 
   /**
@@ -745,9 +799,16 @@ class FooterController {
     filters.type = 'button';
     // The dot is the whole point of the affordance while the row is hidden: a
     // narrowed footer that looks unfiltered is a footer lying about its counts.
-    filters.toggleClass('is-active', this.isFiltering(state));
+    // `aria-expanded` says whether the ROW is open, which is a different fact
+    // from whether it is narrowing anything — a screen-reader user with the
+    // row closed heard the same "Show filters" whether or not results were
+    // being held back, where a sighted reader had the dot. Said in the name
+    // instead, so it reaches both.
+    const active = this.isFiltering(state);
+    filters.toggleClass('is-active', active);
     filters.setAttribute('aria-expanded', String(state.filtersOpen));
-    filters.setAttribute('aria-label', state.filtersOpen ? 'Hide filters' : 'Show filters');
+    const verb = state.filtersOpen ? 'Hide filters' : 'Show filters';
+    filters.setAttribute('aria-label', active ? `${verb} (active)` : verb);
     filters.dataset.focusKey = 'filters';
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     filters.appendChild(filterGlyph());
@@ -877,6 +938,10 @@ class FooterController {
       event.preventDefault();
       const current = viewStateFor(this.targetPath);
       current.search = '';
+      // A narrowed set should not stay behind a cap the wider set consumed —
+      // the same rule every other filter change follows. Escape is a filter
+      // change like typing is, and had been missing this.
+      current.capBonus = 0;
       void this.render();
     });
     if (state.search.length > 0) {
@@ -897,6 +962,8 @@ class FooterController {
         event.stopPropagation();
         const current = viewStateFor(this.targetPath);
         current.search = '';
+        // See the note on the Escape handler just above — the same rule.
+        current.capBonus = 0;
         void this.render();
       });
     }
@@ -1610,6 +1677,14 @@ function makeDisclosure(el: HTMLElement, expanded: boolean, label: string): void
   el.tabIndex = 0;
   el.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
+    // Only when EL ITSELF has focus. The section header carries this
+    // disclosure and also carries the filter and sort buttons as children —
+    // Enter or Space on one of those bubbles here too, and without this guard
+    // it both fired `el.click()` (folding the section) and, via
+    // `preventDefault`, cancelled the button's OWN native activation from the
+    // same keypress. A keyboard reader tabbing to the filter toggle could
+    // never open it; every press folded the footer instead.
+    if (event.target !== el) return;
     event.preventDefault();
     el.click();
   });

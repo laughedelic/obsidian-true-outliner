@@ -6,9 +6,11 @@ decision below is about where in that shape a control belongs.
 **The index answers at two levels, and only one of them costs anything.** `BacklinkIndex` holds a
 reverse map of target path → source path → `BacklinkReference[]`, built entirely from Obsidian's
 in-memory metadata cache. `summaries()` and `referencesFrom()` read it with no file access;
-`place()` is the only method that reads and parses a source note. Every value the two filter axes
-need is already in the cheap level: a source's folder is `splitPath(path).folder`, and a
-reference's kind is `BacklinkReference.kind`.
+`place()` is the only method that reads and parses a source note. Every value all three filter
+axes need is already in the cheap level: a source's folder is `splitPath(path).folder`, a
+reference's kind is `BacklinkReference.kind`, and a source note's tags come from the metadata
+cache's own `getAllTags()` — added as a third axis by D9, and cheap for the same reason the other
+two are.
 
 **The footer repaints from scratch.** `FooterController.render()` rebuilds a detached tree and
 swaps it in with one mutation, then fills each group asynchronously through `fillGroup()`.
@@ -62,11 +64,11 @@ already holds, and a controls state, and returns the admitted groups in order, t
 and the shortfall. It reads no files and touches no DOM, so it is unit-testable in
 `tests/footer-filter.test.ts` without a vault.
 
-This is possible only because both axes live in the cheap level (see Context). The alternative —
-filtering after placement, where the placed tree is available — was rejected on two grounds. It
-would make the overall cap unable to bound anything: every candidate note would have to be read
-and parsed to discover whether it should be shown. And it would put the filter decision downstream
-of an async boundary, so a group could appear and then vanish as its read resolved.
+This is possible only because all three axes live in the cheap level (see Context). The
+alternative — filtering after placement, where the placed tree is available — was rejected on two
+grounds. It would make the overall cap unable to bound anything: every candidate note would have
+to be read and parsed to discover whether it should be shown. And it would put the filter decision
+downstream of an async boundary, so a group could appear and then vanish as its read resolved.
 
 ### D2. The overall cap admits whole groups, before placement
 

@@ -128,8 +128,12 @@ The filter controls SHALL be hidden by default behind a single affordance, so an
 footer carries no filter chrome. That affordance SHALL indicate whether any filter is currently
 active.
 
-A reset SHALL be offered whenever any filter or search term is active, and SHALL clear every
-axis and the search term together, returning the footer to its unfiltered state.
+A reset control SHALL always be present in the revealed row, rather than appearing only while
+something is active — an empty slot where it comes and goes reads as an incomplete row. While any
+filter or search term is active, activating it SHALL clear every axis and the search term
+together, returning the footer to its unfiltered state. While nothing is active, activating it
+SHALL instead hide the filter row, which is the other thing a control in that position means once
+it has nothing left to undo.
 
 #### Scenario: No filter chrome until asked for
 
@@ -145,6 +149,11 @@ axis and the search term together, returning the footer to its unfiltered state.
 
 - **WHEN** filters on every axis and a search term are all active and reset is invoked
 - **THEN** all of them clear and every reference is again eligible
+
+#### Scenario: Reset closes the row once it has nothing left to clear
+
+- **WHEN** no filter or search term is active and reset is invoked
+- **THEN** the filter row is hidden, the same as the affordance that reveals it would do
 
 ### Requirement: Sort order is selectable, with recency as the default
 
@@ -192,8 +201,14 @@ rendered.
 #### Scenario: The overall cap bounds the footer
 
 - **WHEN** the sum of references across groups exceeds the overall cap
-- **THEN** rendering stops at the last source note that fits within it, without exceeding it, and
-  the footer reports how much is not shown
+- **THEN** rendering stops at the last source note that fits within it, and the footer reports how
+  much is not shown
+
+#### Scenario: A single group larger than the cap is still admitted whole
+
+- **WHEN** the very first group's own reference count already exceeds the overall cap
+- **THEN** that group is admitted in full rather than refused — refusing it would render a footer
+  that reports references and shows none — and nothing after it is
 
 #### Scenario: A note beyond the overall cap is never read
 
