@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M1XZFJF3NDD3P2CKW714SJY6",
+  "strategy": "manual-commit",
+  "branch": "chore/e2e-dev-loop",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "AGENTS.md",
+    "e2e/docker/Dockerfile",
+    "e2e/docker/README.md",
+    "e2e/docker/docker-compose.yml",
+    "e2e/docker/start-xvfb-and-run.sh",
+    "e2e/wdio.shared.mts",
+    "scripts/e2e-docker.mjs",
+    "scripts/e2e-narrow.mjs"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 118,
+    "cache_creation_tokens": 96188,
+    "cache_read_tokens": 19664315,
+    "output_tokens": 57330,
+    "api_call_count": 59
+  }
+}
