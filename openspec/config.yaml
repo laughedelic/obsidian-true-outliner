@@ -42,8 +42,10 @@ rules:
 operations:
   apply:
     guidance:
-      - Run the unit suite and the e2e group covering the touched area; the full
-        sweep is CI's job.
+      - Run the unit suite and narrow-mode e2e (`npm run test:e2e:narrow --
+        <spec> [grep]`) against the touched test while iterating; a full group
+        run isn't needed locally, CI's matrix covers the full sweep — see
+        AGENTS.md's "E2E testing" section.
       - Confirm a new test fails with the fix disabled before trusting that it
         passes with it.
       - Assert relationships in e2e, never absolute glyph widths - CI's fonts
