@@ -40,10 +40,14 @@ export interface ControlsState {
   readonly folders: ReadonlySet<string>;
   readonly kinds: ReadonlySet<ReferenceKind>;
   /**
-   * Tags on the source note. The only axis whose values are many-to-one: a note
-   * has one folder and a reference has one kind, but a note carries any number
-   * of tags — so selecting two tags WIDENS, admitting a note carrying either,
-   * while the axes still combine with AND (design D9).
+   * Tags on the source note. The only axis a source can answer to several
+   * selected values of AT ONCE: a note has one folder and a reference has one
+   * kind, so checking either against the selected set is one membership test,
+   * but a note carries any number of tags — so this axis is checked with
+   * `.some()` over the note's own tags rather than a single value. Every axis
+   * still widens on a second selected value (set membership is OR within an
+   * axis everywhere); what is different here is the SHAPE of the check
+   * (design D9).
    */
   readonly tags: ReadonlySet<string>;
   /** Matched against source note NAMES only. Empty admits everything. */
@@ -93,6 +97,11 @@ export interface ControlsResult {
   readonly totals: { references: number; notes: number };
   /** What the cap held back — zero on both counts when nothing is omitted. */
   readonly shortfall: { references: number; notes: number };
+  /** The reference count of the first group the cap did NOT admit, or `null`
+   * when nothing was held back. "Load more" needs this: raising the cap by a
+   * fixed tranche can still be smaller than the very group it was meant to
+   * reveal, which reads as the control doing nothing. */
+  readonly nextOmittedReferences: number | null;
 }
 
 /**
@@ -183,12 +192,14 @@ export function applyControls(
     groups,
     totals: { references, notes: ordered.length },
     shortfall: { references: references - shown, notes: ordered.length - groups.length },
+    nextOmittedReferences: ordered[groups.length]?.count ?? null,
   };
 }
 
 /**
  * The three axes and the search term, combined conjunctively — but each axis's
- * own values disjunctively, which only shows on the tag axis (D9).
+ * own values disjunctively: selecting a second value on any one axis widens
+ * that axis's own admission rather than narrowing it further (D9).
  *
  * The axes filter at different levels: a folder, a name and a tag are
  * properties of the source, so they admit or reject a whole group, while a kind
@@ -216,8 +227,9 @@ function filterSources(
   for (const source of sources) {
     const { name, folder } = splitPath(source.path);
     if (folders.size > 0 && !folders.has(folder)) continue;
-    // ANY of the selected tags, not all of them: a note carries several, so a
-    // second tag widens where a second folder could only ever narrow (D9).
+    // ANY of the selected tags, not all of them: unlike `folders.has(folder)`,
+    // a note carries several tags at once, so this axis needs a scan over the
+    // note's own values rather than a single membership check (D9).
     if (tags.size > 0 && !source.tags.some((tag) => tags.has(tag))) continue;
     if (search.length > 0 && !name.toLowerCase().includes(search)) continue;
 

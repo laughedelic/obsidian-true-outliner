@@ -257,7 +257,10 @@ describe('the footer’s controls', function () {
     }
 
     await h.resizeLeafForFooter(340);
-    const narrow = await readStable(measure);
+    // Wider deadline: this measurement follows a real reflow across a
+    // container query, which is slower to settle than most of this file's
+    // reads and has room to run behind on a loaded CI box.
+    const narrow = await readStable(measure, 20000);
     expect(narrow).not.toBeNull();
     // The words go; the row neither grows nor wraps. A RELATIONSHIP — the
     // height is unchanged across the threshold — never a pixel width.
@@ -267,7 +270,7 @@ describe('the footer’s controls', function () {
     expect(narrow!.height).toBe(start!.height);
 
     await h.resizeLeafForFooter(null);
-    const back = await readStable(measure);
+    const back = await readStable(measure, 20000);
     expect(back!.words).toBe(start!.words);
   });
 
@@ -298,7 +301,16 @@ describe('the footer’s controls', function () {
         };
       });
 
-    const wide = await readStable(measure);
+    // Settled BEFORE the first read, not left to `readStable`'s own retry
+    // alone: the previous case ends by restoring the leaf's width, and that
+    // resize can still be rippling through the footer's async group fills
+    // when this one starts. `readStable` only confirms the THREE fields below
+    // stop changing, not that the whole footer has caught up — on mobile,
+    // where this test's very first read is also its last (the width is
+    // already under the threshold), that gap was enough to fail on CI twice
+    // without ever reproducing locally.
+    await settle();
+    const wide = await readStable(measure, 20000);
     expect(wide).not.toBeNull();
     if (wide!.titleText === 'Backlinks') {
       // Already narrower than the threshold — the mobile run.
@@ -309,7 +321,11 @@ describe('the footer’s controls', function () {
     expect(wide!.totalsText).toMatch(/references?/);
 
     await h.resizeLeafForFooter(340);
-    const narrow = await readStable(measure);
+    // Wider deadline — see the sibling case above ("sheds the facet words")
+    // for why a post-resize measurement needs more room than this file's
+    // other reads: measured reliably fast locally, and still timed out twice
+    // in a row on CI at the previous 8-second default.
+    const narrow = await readStable(measure, 20000);
     expect(narrow).not.toBeNull();
     expect(narrow!.titleText).toBe('Backlinks');
     // Numbers only, no words — and still the same two counts, just undressed.
@@ -320,7 +336,7 @@ describe('the footer’s controls', function () {
     expect(narrow!.height).toBeLessThanOrEqual(wide!.height + 2);
 
     await h.resizeLeafForFooter(null);
-    const back = await readStable(measure);
+    const back = await readStable(measure, 20000);
     expect(back!.titleText).toBe(wide!.titleText);
   });
 
@@ -761,19 +777,6 @@ describe('the footer’s controls', function () {
     expect(shut.expanded).toBe('false');
   });
 
-  /**
-   * The tag axis, which is the only one that is many-to-one (design D9).
-   *
-   * A note has one folder and a reference has one kind, so those two axes
-   * partition their values and a second selection can only narrow. A note
-   * carries any number of tags, so a second tag WIDENS — while the axes still
-   * combine with AND. These two cases are that asymmetry, end to end.
-   *
-   * The fixture facts they turn on: `#person` is Maya and Priya, who each link
-   * plainly; `#research` is the study write-up, which reaches the target only
-   * through a property and an embed. So the two tags are disjoint sets, and
-   * `Note` is a kind that one of them has and the other does not.
-   */
   it("says a filter is active in the toggle's own name, not only in the dot", async function () {
     await openFilters();
     await clearFilters();
@@ -815,6 +818,19 @@ describe('the footer’s controls', function () {
     expect(closedIdle).not.toMatch(/active/i);
   });
 
+  /**
+   * The tag axis, the only one a source can answer to several values of at
+   * once (design D9). Every axis widens on a second selected value — folder
+   * and kind do too, by the same set-membership check — what is different
+   * here is that ONE SOURCE can itself satisfy two different tag values at
+   * once, which needs a scan over the note's own tags rather than a single
+   * membership test. These two cases are that, end to end.
+   *
+   * The fixture facts they turn on: `#person` is Maya and Priya, who each link
+   * plainly; `#research` is the study write-up, which reaches the target only
+   * through a property and an embed. So the two tags are disjoint sets, and
+   * `Note` is a kind that one of them has and the other does not.
+   */
   it('offers the tags its sources carry, and none they do not', async function () {
     await openFilters();
     await clearFilters();

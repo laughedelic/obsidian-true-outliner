@@ -41,8 +41,6 @@ interface Cost {
 }
 
 describe('spike S5: what a hub note costs', function () {
-  let lastSeen = -1;
-
   before(async function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
@@ -52,28 +50,15 @@ describe('spike S5: what a hub note costs', function () {
 
   it('measures index build, summaries and per-source placement', async function () {
     await h.openNote(HUB);
-    // Wait for Obsidian's own metadata cache to finish taking in the generated
-    // hub before measuring anything.
-    //
-    // `resetVault()` hands the worker a fresh copy of a vault with several
-    // hundred generated notes in it, and the cache indexes them asynchronously.
-    // Measuring immediately measures a COLD cache: `rebuild()` then sees only
-    // the tracked diagnostic fixtures and reports eight sources — the exact
-    // number this spec's own floor assertion was written to catch, and which it
+    // Wait for the PLUGIN's OWN rebuilt index to reach the hub's real scale,
+    // not for Obsidian's file discovery to settle — see
+    // `waitForBacklinkIndexReady`'s own comment for why file discovery alone
+    // measures a COLD metadata cache: `rebuild()` then sees only the tracked
+    // diagnostic fixtures and reports eight sources, the exact number this
+    // spec's own floor assertion below was written to catch, and which it
     // correctly caught on a slow CI runner. The floor stays: it is about the
     // fixture existing at all. This is about the cache having read it.
-    //
-    // Settled rather than counted, so the wait says nothing about the fixture's
-    // size and survives it being regenerated at another scale.
-    await browser.waitUntil(
-      async () => {
-        const seen = await browser.executeObsidian(({ app }) => app.vault.getMarkdownFiles().length);
-        if (seen === lastSeen) return true;
-        lastSeen = seen;
-        return false;
-      },
-      { timeout: h.waitBudget(20_000), interval: 250, timeoutMsg: 'vault file count never settled' },
-    );
+    await h.waitForBacklinkIndexReady(HUB);
 
     const cost = await browser.executeObsidian(async ({ app, plugins }, target: string) => {
       const backlinks = (

@@ -211,7 +211,7 @@ function compute(state: EditorState, modes: ZoomTrailSource, view: () => EditorV
   const name = file ? splitPath(file.path).name : 'Note';
   const key = segmentsFor(name, scope.trail)
     .map((s) => s.text)
-    .join(' ');
+    .join(' ');
   // `side: -1`, and the sign is not a preference. At a line's start a block
   // widget sorts above the line with a negative side and INSIDE it with a
   // positive one, which splits the root line in two and puts the trail between

@@ -149,9 +149,7 @@ export async function setCursorSettled(line: number, ch: number): Promise<void> 
     {
       timeout: waitBudget(3000),
       interval: 50,
-      timeoutMsg:
-        `cursor never held ${target.line}:${target.ch} ` +
-        `(requested ${line}:${ch})`,
+      timeoutMsg: `cursor never held ${target.line}:${target.ch} ` + `(requested ${line}:${ch})`,
     },
   );
 }
@@ -468,21 +466,18 @@ export async function doubleClickAt(line: number, ch: number): Promise<void> {
 export async function dispatchSelectOnlyRanges(
   ranges: readonly { anchor: { line: number; ch: number }; head: { line: number; ch: number } }[],
 ): Promise<void> {
-  await browser.executeObsidian(
-    ({ app, obsidian }, ranges) => {
-      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      if (!view) throw new Error('no active markdown view');
-      const cm = (view.editor as any).cm;
-      const Selection = cm.state.selection.constructor;
-      const toOffset = (pos: { line: number; ch: number }) =>
-        cm.state.doc.line(pos.line + 1).from + pos.ch;
-      const cmRanges = ranges.map((r: (typeof ranges)[number]) =>
-        Selection.range(toOffset(r.anchor), toOffset(r.head)),
-      );
-      cm.dispatch({ selection: Selection.create(cmRanges), userEvent: 'select' });
-    },
-    ranges,
-  );
+  await browser.executeObsidian(({ app, obsidian }, ranges) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const cm = (view.editor as any).cm;
+    const Selection = cm.state.selection.constructor;
+    const toOffset = (pos: { line: number; ch: number }) =>
+      cm.state.doc.line(pos.line + 1).from + pos.ch;
+    const cmRanges = ranges.map((r: (typeof ranges)[number]) =>
+      Selection.range(toOffset(r.anchor), toOffset(r.head)),
+    );
+    cm.dispatch({ selection: Selection.create(cmRanges), userEvent: 'select' });
+  }, ranges);
 }
 
 /**
@@ -654,6 +649,50 @@ export async function pinBacklinksCapOff(): Promise<void> {
 }
 
 /**
+ * Waits for the PLUGIN's own rebuilt index to reach the generated hub's real
+ * scale, not for Obsidian's file discovery to settle.
+ *
+ * `resetVault()` hands the worker a fresh copy of a vault with several hundred
+ * generated notes, and the metadata cache indexes them asynchronously. The
+ * naive wait — `vault.getMarkdownFiles().length` holding still — only proves
+ * every file has been DISCOVERED, not that its METADATA has been PARSED; a
+ * rebuild against a cache that has discovered the files but not yet parsed
+ * their links reports only the handful of tracked, hand-written fixtures
+ * (measured at 8 for this vault) rather than the hub's own scale. This polls
+ * the index the caller actually depends on instead — `rebuild()` then
+ * `summaries(target).length` — until it stops changing across two rebuilds
+ * AND clears `minSources`, so a case that regenerates the hub at another size
+ * still gets a real answer rather than a stale one.
+ */
+export async function waitForBacklinkIndexReady(target: string, minSources = 10): Promise<void> {
+  let last = -1;
+  await browser.waitUntil(
+    async () => {
+      const count = await browser.executeObsidian(({ plugins }, targetPath: string) => {
+        const backlinks = (
+          plugins.trueOutliner as never as {
+            backlinks: {
+              rebuild(): void;
+              summaries(p: string): unknown[];
+            };
+          }
+        ).backlinks;
+        backlinks.rebuild();
+        return backlinks.summaries(targetPath).length;
+      }, target);
+      const stable = count === last && count >= minSources;
+      last = count;
+      return stable;
+    },
+    {
+      timeout: waitBudget(20_000),
+      interval: 250,
+      timeoutMsg: `the backlink index for ${target} never settled at or above ${minSources} sources`,
+    },
+  );
+}
+
+/**
  * Squeeze the active leaf's editor so the FOOTER becomes narrow, or let it go.
  *
  * The footer's controls answer to a container query on the footer itself, not
@@ -664,9 +703,7 @@ export async function pinBacklinksCapOff(): Promise<void> {
  */
 export async function resizeLeafForFooter(width: number | null): Promise<void> {
   await browser.executeObsidian((_ctx, px: number | null) => {
-    const sizer = document.querySelector<HTMLElement>(
-      '.workspace-leaf.mod-active .cm-content',
-    );
+    const sizer = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .cm-content');
     if (!sizer) return;
     if (px === null) sizer.style.removeProperty('max-width');
     else sizer.style.maxWidth = `${px}px`;
@@ -705,17 +742,14 @@ export function commandRegistered(shortId: string): Promise<boolean> {
 
 /** Would the command show in the palette for the active editor right now? */
 export function commandAvailable(shortId: string): Promise<boolean> {
-  return browser.executeObsidian(
-    ({ app, obsidian }, fullId) => {
-      const cmd = (app as any).commands.commands[fullId];
-      if (!cmd) return false;
-      if (!cmd.editorCheckCallback) return true;
-      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      if (!view) return false;
-      return cmd.editorCheckCallback(true, view.editor, view) === true;
-    },
-    `${PLUGIN_ID}:${shortId}`,
-  );
+  return browser.executeObsidian(({ app, obsidian }, fullId) => {
+    const cmd = (app as any).commands.commands[fullId];
+    if (!cmd) return false;
+    if (!cmd.editorCheckCallback) return true;
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) return false;
+    return cmd.editorCheckCallback(true, view.editor, view) === true;
+  }, `${PLUGIN_ID}:${shortId}`);
 }
 
 // ---- Transaction classification stats (design.md D8) ----------------------
@@ -971,84 +1005,78 @@ export interface LineElementInfo {
 }
 
 export function getLineElementInfo(lineIndex: number): Promise<LineElementInfo> {
-  return browser.executeObsidian(
-    ({ app, obsidian }, lineIndex) => {
-      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      if (!view) throw new Error('no active markdown view');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cm = (view.editor as any).cm;
-      const content: HTMLElement = cm.contentDOM;
-      const matches: HTMLElement[] = [];
-      for (const child of Array.from(content.children)) {
-        try {
-          if (cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1 === lineIndex) {
-            matches.push(child as HTMLElement);
-          }
-        } catch {
-          // Scaffolding (a viewport gap placeholder) has no document
-          // position of its own — never the element we're looking for.
+  return browser.executeObsidian(({ app, obsidian }, lineIndex) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cm = (view.editor as any).cm;
+    const content: HTMLElement = cm.contentDOM;
+    const matches: HTMLElement[] = [];
+    for (const child of Array.from(content.children)) {
+      try {
+        if (cm.state.doc.lineAt(cm.posAtDOM(child)).number - 1 === lineIndex) {
+          matches.push(child as HTMLElement);
         }
+      } catch {
+        // Scaffolding (a viewport gap placeholder) has no document
+        // position of its own — never the element we're looking for.
       }
-      if (matches.length === 0) throw new Error(`no element renders document line ${lineIndex}`);
-      // Fail loudly rather than silently picking whichever came first in DOM
-      // order. One document line really can be rendered by TWO direct
-      // children at once — with the cursor on it, Obsidian reveals the raw
-      // source as a `.cm-line` while KEEPING the rendered widget — and in
-      // that state "the element for line N" is an ambiguous question this
-      // helper has no business answering by accident. Every caller today
-      // parks the cursor elsewhere so exactly one element exists; a caller
-      // that genuinely wants the doubly-rendered state should ask for the
-      // rendering it means, not inherit a DOM-order coin flip.
-      if (matches.length > 1) {
-        throw new Error(
-          `document line ${lineIndex} is rendered by ${matches.length} elements ` +
-            `(${matches.map((m) => `"${m.className}"`).join(', ')}) — ` +
-            `move the cursor off the line, or assert against the specific rendering you mean`,
-        );
-      }
-      const found = matches[0]!;
-      const cs = getComputedStyle(found);
-      const r = found.getBoundingClientRect();
-      const marginLeft = parseFloat(cs.marginLeft) || 0;
-      const paddingLeft = parseFloat(cs.paddingLeft) || 0;
-      const marker = found.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
-      // The guide renders as an ::after layer; read the resolved value so a
-      // pass proves something actually painted, not just that a custom
-      // property was set (the postmortem's false-confidence rule).
-      const guideBg = getComputedStyle(found, '::after').backgroundImage;
-      return {
-        cls: found.className,
-        isCmLine: found.classList.contains('cm-line'),
-        rect: { left: r.left, top: r.top, width: r.width, height: r.height },
-        marginLeft,
-        paddingLeft,
-        alignedLeft: r.left + paddingLeft,
-        hasMarker: !!marker,
-        markerLeft: marker ? marker.getBoundingClientRect().left : null,
-        hasGuides: found.classList.contains('to-decor-guides'),
-        guideBackground: guideBg && guideBg !== 'none' ? guideBg : '',
-        hasSelectedChrome: found.classList.contains('to-decor-node-selected'),
-      };
-    },
-    lineIndex,
-  );
+    }
+    if (matches.length === 0) throw new Error(`no element renders document line ${lineIndex}`);
+    // Fail loudly rather than silently picking whichever came first in DOM
+    // order. One document line really can be rendered by TWO direct
+    // children at once — with the cursor on it, Obsidian reveals the raw
+    // source as a `.cm-line` while KEEPING the rendered widget — and in
+    // that state "the element for line N" is an ambiguous question this
+    // helper has no business answering by accident. Every caller today
+    // parks the cursor elsewhere so exactly one element exists; a caller
+    // that genuinely wants the doubly-rendered state should ask for the
+    // rendering it means, not inherit a DOM-order coin flip.
+    if (matches.length > 1) {
+      throw new Error(
+        `document line ${lineIndex} is rendered by ${matches.length} elements ` +
+          `(${matches.map((m) => `"${m.className}"`).join(', ')}) — ` +
+          `move the cursor off the line, or assert against the specific rendering you mean`,
+      );
+    }
+    const found = matches[0]!;
+    const cs = getComputedStyle(found);
+    const r = found.getBoundingClientRect();
+    const marginLeft = parseFloat(cs.marginLeft) || 0;
+    const paddingLeft = parseFloat(cs.paddingLeft) || 0;
+    const marker = found.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+    // The guide renders as an ::after layer; read the resolved value so a
+    // pass proves something actually painted, not just that a custom
+    // property was set (the postmortem's false-confidence rule).
+    const guideBg = getComputedStyle(found, '::after').backgroundImage;
+    return {
+      cls: found.className,
+      isCmLine: found.classList.contains('cm-line'),
+      rect: { left: r.left, top: r.top, width: r.width, height: r.height },
+      marginLeft,
+      paddingLeft,
+      alignedLeft: r.left + paddingLeft,
+      hasMarker: !!marker,
+      markerLeft: marker ? marker.getBoundingClientRect().left : null,
+      hasGuides: found.classList.contains('to-decor-guides'),
+      guideBackground: guideBg && guideBg !== 'none' ? guideBg : '',
+      hasSelectedChrome: found.classList.contains('to-decor-node-selected'),
+    };
+  }, lineIndex);
 }
 
 /** getBoundingClientRect() of the Nth (0-indexed) `.cm-line` in the active editor. */
 export function getLineRect(lineIndex: number): Promise<Rect> {
-  return browser.executeObsidian(
-    ({ app, obsidian }, lineIndex) => {
-      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      if (!view) throw new Error('no active markdown view');
-      const cm = (view.editor as any).cm;
-      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
-      const el = lines[lineIndex] as HTMLElement | undefined;
-      if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
-      const r = el.getBoundingClientRect();
-      return { left: r.left, top: r.top, width: r.width, height: r.height };
-    },
-    lineIndex,
-  );
+  return browser.executeObsidian(({ app, obsidian }, lineIndex) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const cm = (view.editor as any).cm;
+    const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+    const el = lines[lineIndex] as HTMLElement | undefined;
+    if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  }, lineIndex);
 }
 
 /** Computed style property of the Nth (0-indexed) `.cm-line` in the active editor. */
@@ -1104,18 +1132,15 @@ export function getLinePseudoComputedStyle(
 
 /** classList of the Nth (0-indexed) `.cm-line` in the active editor. */
 export function getLineClassList(lineIndex: number): Promise<string[]> {
-  return browser.executeObsidian(
-    ({ app, obsidian }, lineIndex) => {
-      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-      if (!view) throw new Error('no active markdown view');
-      const cm = (view.editor as any).cm;
-      const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
-      const el = lines[lineIndex] as HTMLElement | undefined;
-      if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
-      return Array.from(el.classList);
-    },
-    lineIndex,
-  );
+  return browser.executeObsidian(({ app, obsidian }, lineIndex) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const cm = (view.editor as any).cm;
+    const lines = cm.contentDOM.querySelectorAll(':scope > .cm-line');
+    const el = lines[lineIndex] as HTMLElement | undefined;
+    if (!el) throw new Error(`no .cm-line at index ${lineIndex}`);
+    return Array.from(el.classList);
+  }, lineIndex);
 }
 
 /** Bounding rects of every element matching `selector` within the Nth `.cm-line`. */
@@ -1345,15 +1370,12 @@ export async function waitForContentChildCount(
 ): Promise<void> {
   await browser.waitUntil(
     async () => {
-      const count = await browser.executeObsidian(
-        ({ app, obsidian }, selector) => {
-          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
-          if (!view) return -1;
-          const cm = (view.editor as any).cm;
-          return cm.contentDOM.querySelectorAll(selector).length as number;
-        },
-        selector,
-      );
+      const count = await browser.executeObsidian(({ app, obsidian }, selector) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        if (!view) return -1;
+        const cm = (view.editor as any).cm;
+        return cm.contentDOM.querySelectorAll(selector).length as number;
+      }, selector);
       return count === expected;
     },
     { timeout, timeoutMsg: `expected ${expected} "${selector}" element(s) within ${timeout}ms` },

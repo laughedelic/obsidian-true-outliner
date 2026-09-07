@@ -323,7 +323,9 @@ describe('row content is notation, not reproduction (D18)', () => {
   /** What the index supplies at runtime, computed here from the same text. */
   const refAt = (node: OutlineNode): PlacedReference | undefined => {
     const i = node.lines.findIndex((l) => l.includes('[[Reference target]]'));
-    return i === -1 ? undefined : { kind: 'note', line: i, text: '[[Reference target]]' };
+    return i === -1
+      ? undefined
+      : { kind: 'note', line: i, text: '[[Reference target]]', kinds: new Set(['note']) };
   };
 
   const galleryRows = (): FooterRow[] =>
@@ -391,7 +393,7 @@ describe('row content is notation, not reproduction (D18)', () => {
     );
     const refAlias = (node: OutlineNode): PlacedReference | undefined =>
       node.lines.some((l) => l.includes('[[Reference target'))
-        ? { kind: 'note', line: 2, text: '[[Reference target\\|the target]]' }
+        ? { kind: 'note', line: 2, text: '[[Reference target\\|the target]]', kinds: new Set(['note']) }
         : undefined;
     const rows = buildRows(
       doc,

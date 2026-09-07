@@ -219,14 +219,20 @@ would make the search a different feature from the one described here.
 
 *Chips became facets.* Values are behind a button per axis rather than laid out in the row,
 because a row of chips cannot hold a vault's folders and cannot survive a narrow pane. The
-focus-on semantics are unchanged, and so is the reset: one control at the row's end that clears
-every axis and the term together, still offered only while something is active. Each facet also
-clears its own axis, which a reader who has narrowed one way should not have to reach past two
-other menus for.
+focus-on semantics are unchanged, and so is the reset — one control at the row's end that clears
+every axis and the term together — but its own presentation changed after review: it now stays in
+the row always, rather than appearing only while something is active, and closes the row instead
+when there is nothing to clear. An empty slot where it came and went read as an incomplete row.
+Each facet also clears its own axis, which a reader who has narrowed one way should not have to
+reach past two other menus for.
 
-*There is a third axis.* Tags, which are many-to-one where folder and kind are not — so selecting
-two tags widens while the axes still combine with AND. The rule is "OR within an axis, AND across
-them", which is what a faceted filter does everywhere and needs no explaining in the UI.
+*There is a third axis.* Tags, the only one a source can answer to several selected values of AT
+ONCE — a note has one folder and a reference has one kind, so checking either against a selection
+is a single membership test, while a note's own tags need `.some()` over its whole list. Every
+axis widens on a second selected value by the same set-membership rule; what is different about
+tags is the SHAPE of the check a many-valued property needs, not whether widening happens at all
+(an earlier draft of this note attributed the widening itself to tags, which review caught as
+wrong — folder and kind widen on a second value too).
 
 The two unbounded axes carry a find box inside their popover; kind, with four values forever,
 does not. A selected value stays listed however that box is narrowed — hiding it would leave a
@@ -379,6 +385,13 @@ already there, rather than a new setting.
 
 Core already has them, they are expensive, and they have no tree structure to show.
 
+`backlinks-controls`'s core-suppression setting reaches them anyway, as a side effect rather than
+by design: `.embedded-backlinks` wraps one `BacklinkPane` component whose linked and unlinked
+lists share every class down to the DOM, with nothing to scope a stylesheet rule to one half.
+Turning the setting off restores both, and Obsidian's own Backlinks pane shows both regardless —
+the setting's own description says this plainly rather than promising a narrower effect than one
+selector rule can have.
+
 ### D17. Pruned projection is a shared function, not a shared renderer
 
 Backlinks, zoom and filtered search all want the same tree algebra: keep a subset of nodes plus
@@ -514,24 +527,27 @@ The fourth is open, and is recorded with what has been measured so far.
    a real CodeMirror per group — are both worse.
 
 4. **Where the view lands when the section is folded, on a note the footer is taller than.**
-   Reported from use as "it jumps to the top of the note", and not yet solved.
+   Reported from use as "it jumps to the top of the note". Reduced, and shipped, with one
+   residual case still open.
 
-   What is measured: a fold takes height out of the document from BELOW the head, so the head's
-   own position in the document does not move. If the reader's scroll offset still fits the
-   shortened document the browser keeps it and nothing moves at all; if it does not, the browser
-   clamps — and no offset could have held the head, because the one it would need no longer
-   exists. On a five-line note whose footer is most of a screen, the offset went 206 to 0, the
-   whole document having come to fit the viewport. An anchoring pass that restores the head's
-   viewport position was written against exactly this and measured as a no-op in both the short
-   and the long case, so it was removed rather than shipped.
+   The first model considered was too simple: a fold takes height out of the document from BELOW
+   the head, so the head's own position in the document does not move, and either the reader's
+   scroll offset still fits the shortened document (nothing moves) or it does not (the browser
+   clamps, and no offset could have held the head). Under that model there is nothing left for
+   this code to do, and a restoration pass built against it measured as a no-op both ways. What
+   the model does not account for is CodeMirror's OWN scroll anchoring, which steadies a view
+   across an update by holding whichever block sits at the top of the visible area at a fixed
+   offset — and once the footer covers a large share of the screen, that block IS the footer
+   widget, so restoring a SHRUNKEN block's own top moves the view instead of steadying it.
+   `FooterController.foldKeepingPlace()` measures the head's offset before folding and restores
+   it after, twice — once immediately and once past the frame CodeMirror re-measures in, since
+   the correction has to outlive the restoration it is correcting.
 
-   What that argument does NOT cover, and what to check next: whether the jump is ever seen while
-   the document is still scrollable. The model above says it cannot be — the browser simply keeps
-   the offset — so a single observation of it would mean something else is scrolling, and the
-   first suspect is a transaction dispatched with `scrollIntoView` while the caret sits elsewhere
-   in the note, which would land the view on the CARET rather than at the clamp. That is a
-   different mechanism and a fixable one. Both measurements so far were taken with the caret
-   untouched, which is precisely the case that cannot tell the two apart.
+   Manual testing confirms it helps: with the caret near the end of the document the jump is
+   minimal regardless of the footer's size. What remains is a jump reported as occasional and not
+   yet reliably reproducible, specifically when the footer exceeds roughly half the viewport —
+   consistent with the anchoring model above but not yet caught in the act of failing under it,
+   which is what would confirm the mechanism rather than the correlation.
 
 ## Prototype
 

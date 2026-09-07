@@ -44,7 +44,6 @@ import {
 } from 'obsidian';
 import type { ModeSource } from './keymap';
 import { nestedEditorField } from './nested-editor';
-import { renderLineageContent } from './lineage-row';
 import { contentEndAnchor } from './zoom-scope';
 import { buildMarkerIcon } from './decorations';
 import {
@@ -70,6 +69,7 @@ import {
 import {
   applyControls,
   axesOf,
+  type ControlsResult,
   type ControlsState,
   type FilterAxes,
   type SortOrder,
@@ -425,7 +425,7 @@ class FooterController {
       bodies.push({ path: group.path, body, card });
     }
 
-    this.renderTail(root, result.shortfall);
+    this.renderTail(root, result, this.controls(state).cap);
 
     this.swap(root);
     // Started only after the swap, so a fast read cannot fill a body that is
@@ -442,7 +442,8 @@ class FooterController {
    * (docs/research/18, D10) — so the last card fades as well, and a list that
    * is complete gets none of the three.
    */
-  private renderTail(root: HTMLElement, shortfall: { references: number; notes: number }): void {
+  private renderTail(root: HTMLElement, result: ControlsResult, effectiveCap: number): void {
+    const { shortfall } = result;
     if (shortfall.notes <= 0) return;
 
     const cards = root.querySelectorAll('.to-backlinks-group');
@@ -460,16 +461,30 @@ class FooterController {
     // and a "Load next Z" beside the sentence, but the sentence to its right
     // already states the notes — two elements a hand-span apart saying "112"
     // read as two different numbers until they are compared.
+    //
+    // The increment is AT LEAST one tranche, but never less than what the very
+    // next omitted group needs to fit. A fixed tranche alone can be smaller
+    // than that group — a hub note with a 90-reference source right past a
+    // 25-reference cap needs more than one click's worth just to reach it,
+    // and every click in between repaints an IDENTICAL list, which reads as a
+    // broken control rather than as "keep clicking". The label has to promise
+    // the same number the click delivers, so this is computed once and used
+    // for both. `admittedReferences` is what the cap actually let through
+    // this render (never more than `effectiveCap`, per D2); raising the cap
+    // to admitted + the next group's own size is exactly enough to cross it.
     const tranche = OVERALL_CAP_REFERENCES[this.source.backlinksOverallCap];
-    const next = Number.isFinite(tranche) ? `Load ${tranche} more` : 'Load more';
+    const admittedReferences = result.totals.references - result.shortfall.references;
+    const needed = result.nextOmittedReferences ?? 0;
+    const minIncrement = Math.max(
+      Number.isFinite(tranche) ? tranche : 0,
+      admittedReferences + needed - effectiveCap,
+    );
+    const next = minIncrement > 0 ? `Load ${minIncrement} more` : 'Load more';
     more.createSpan({ cls: 'to-backlinks-more-count', text: next });
     more.setAttribute('aria-label', next);
     more.addEventListener('click', (event) => {
       event.stopPropagation();
-      // Additive: the model is a pure function of the controls and its order is
-      // stable, so a larger cap yields a superset in the same order and nothing
-      // already on screen moves (design D5).
-      viewStateFor(this.targetPath).capBonus += Number.isFinite(tranche) ? tranche : 0;
+      viewStateFor(this.targetPath).capBonus += minIncrement;
       void this.render();
     });
 
@@ -538,7 +553,13 @@ class FooterController {
     const kinds = state.kinds;
     const refOf = (node: OutlineNode): PlacedReference | undefined => {
       const ref = placed.refs.get(node.id);
-      return ref && (kinds.size === 0 || kinds.has(ref.kind)) ? ref : undefined;
+      // ANY kind the node carries, not just the one `place()` kept for its
+      // own marker/quote choice — a node can hold references of more than one
+      // kind, and the group's own count already counts every one of them.
+      if (!ref) return undefined;
+      if (kinds.size === 0) return ref;
+      for (const k of ref.kinds) if (kinds.has(k)) return ref;
+      return undefined;
     };
     const matches = (node: OutlineNode): boolean => refOf(node) !== undefined;
     const properties =
@@ -739,35 +760,43 @@ class FooterController {
     const collapsed = state.collapsed;
     const head = root.createDiv({ cls: 'to-backlinks-head' });
     head.toggleClass('is-collapsed', collapsed);
-    if (foldable) makeDisclosure(head, !collapsed, 'Structured backlinks');
+
+    // The disclosure role lives on this title group, not on `head` itself —
+    // `head` also carries the filter and sort buttons once `renderHeaderControls`
+    // runs, and a `role="button"` ancestor of real `<button>` descendants is an
+    // anti-pattern assistive tech is not required to handle: it may flatten or
+    // misreport the buttons inside it. `head` stays the click target for the
+    // whole row (D-fold), it just no longer claims the ARIA role for it.
+    const title = head.createDiv({ cls: 'to-backlinks-head-title' });
+    if (foldable) makeDisclosure(title, !collapsed, 'Structured backlinks');
     if (foldable) {
-      const chevron = head.createSpan({ cls: 'to-backlinks-chevron' });
+      const chevron = title.createSpan({ cls: 'to-backlinks-chevron' });
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
       chevron.appendChild(chevronGlyph(!collapsed));
     }
-    // `head` is inside the off-tree root this pass is building; nothing here is
-    // mounted until `swap`.
+    // `title` is inside the off-tree root this pass is building; nothing here
+    // is mounted until `swap`.
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-    head.appendChild(linkGlyph());
+    title.appendChild(linkGlyph());
     // Two spans, one word each, swapped by the same container query the
     // facets already use — a narrow footer no longer wraps the title onto a
     // second line. Only one of the two is ever visible.
-    head.createSpan({ cls: 'to-backlinks-title to-backlinks-title-full', text: 'Structured backlinks' });
-    head.createSpan({ cls: 'to-backlinks-title to-backlinks-title-short', text: 'Backlinks' });
+    title.createSpan({ cls: 'to-backlinks-title to-backlinks-title-full', text: 'Structured backlinks' });
+    title.createSpan({ cls: 'to-backlinks-title to-backlinks-title-short', text: 'Backlinks' });
 
     const refs = `${totals.references} ${totals.references === 1 ? 'reference' : 'references'}`;
     const counts =
       totals.references > 0
         ? `${refs} · ${totals.notes} ${totals.notes === 1 ? 'note' : 'notes'}`
         : refs;
-    head.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-full', text: counts });
+    title.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-full', text: counts });
 
     // The narrow form: both numbers with none of the words, the second one
     // bold so the pair still reads as two different counts rather than one
     // number with a stray dot in it. An icon per count was tried and dropped —
     // this footer already carries a mark for every axis and every kind, and a
     // third vocabulary for the same two numbers was more to parse, not less.
-    const compact = head.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-compact' });
+    const compact = title.createSpan({ cls: 'to-backlinks-totals to-backlinks-totals-compact' });
     compact.createSpan({ text: String(totals.references) });
     if (totals.references > 0) {
       compact.createSpan({ text: ' · ' });
@@ -775,8 +804,9 @@ class FooterController {
     }
 
     if (!foldable) return;
-    // The controls go AFTER the totals and stop the click that folds the
-    // section, so operating one never also collapses what it just changed.
+    // The controls go AFTER the title group, as a sibling rather than a
+    // descendant of it, and stop the click that folds the section, so
+    // operating one never also collapses what it just changed.
     this.renderHeaderControls(head, state);
 
     head.addEventListener('click', () => {
@@ -880,6 +910,10 @@ class FooterController {
       option.setAttribute('role', 'menuitemradio');
       option.setAttribute('aria-checked', String(chosen));
       option.toggleClass('is-selected', chosen);
+      // Choosing an order closes the menu the option lived in, so the option
+      // is gone by the next repaint — the same key as the trigger it opened
+      // from hands focus back there instead of losing it (D-focus).
+      option.dataset.focusKey = 'sort';
       option.createSpan({ cls: 'to-backlinks-facet-label', text: label });
       option.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -1066,7 +1100,10 @@ class FooterController {
     button.dataset.focusKey = `facet:${spec.axis}`;
     button.toggleClass('is-active', active || open);
     button.setAttribute('aria-expanded', String(open));
-    button.setAttribute('aria-label', spec.word);
+    // `aria-label` overrides the descendant text a sighted reader sees, so it
+    // has to carry the same state — the bare axis word would tell a screen
+    // reader "kind" no matter how many kinds are chosen.
+    button.setAttribute('aria-label', this.facetWord(spec));
     const mark = button.createSpan({ cls: 'to-backlinks-facet-mark' });
     mark.setAttribute('aria-hidden', 'true');
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
@@ -1164,6 +1201,10 @@ class FooterController {
       option.type = 'button';
       option.setAttribute('aria-pressed', String(on));
       option.toggleClass('is-selected', on);
+      // Multi-select keeps the menu open, so this same option is still in the
+      // repainted list under the same value — a per-value key lets focus
+      // survive the toggle instead of the reader landing back at the trigger.
+      option.dataset.focusKey = `facet:${spec.axis}:${value.value}`;
       // Nothing left under the other axes' selections. Still offered and still
       // operable — adding it and dropping whatever emptied it is a normal way
       // out — but it says so rather than showing a count that stopped being true.
@@ -1279,16 +1320,76 @@ class FooterController {
     }
 
     if (row.type === 'lineage') {
-      // The row's LOOK is shared with zoom's breadcrumb trail (`lineage-row.ts`);
-      // what a segment does when activated is this surface's own.
-      renderLineageContent(el, row.segments, {
-        icons: this.source.backlinksSegmentIcons,
-        separator: this.source.backlinksSeparator,
-        kind: row.kind,
-        onActivate: (segment, event) => this.open(event as MouseEvent, sourcePath, segment.nodeId),
-        marker: segmentMarker,
-        glyph: segmentGlyph,
-        separatorGlyph,
+      el.addClass('is-lineage');
+      const icons = this.source.backlinksSegmentIcons;
+      // The gutter marker IS the first segment's, so it takes that segment's own
+      // state — a task ancestor gets its checkbox and an ordered one its number,
+      // the same rule a node row follows. `row.kind` alone gave both of them the
+      // generic bullet.
+      if (icons !== 'none') {
+        // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
+        el.appendChild(segmentMarker(row.segments[0], row.kind));
+      }
+      const content = el.createSpan({ cls: 'to-backlinks-content' });
+      row.segments.forEach((segment, i) => {
+        // Between two ancestors, so outside both — a separator that sat inside a
+        // segment would share that ancestor's link target and open it.
+        if (i > 0 && this.source.backlinksSeparator === 'chevron') {
+          const sep = content.createSpan({ cls: 'to-backlinks-seg-sep' });
+          sep.setAttribute('aria-hidden', 'true');
+          // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
+          sep.appendChild(separatorGlyph());
+        }
+        // Each ancestor is its own target. One handler on the row could only
+        // open the note, which is not what "a lineage element navigates to that
+        // ancestor" promises — a chain is several ancestors on one line.
+        const seg = content.createSpan({ cls: 'to-backlinks-seg' });
+        // Every ancestor names its own kind. The FIRST one's marker is the
+        // row's, already drawn in the gutter above, so only the rest need one
+        // here — and it goes inside the segment, not between two of them, so it
+        // shares that ancestor's link target and its hover rather than sitting
+        // in dead space.
+        if (i > 0) {
+          if (segment.ordinal) {
+            // Its number IS its mark, and the model has taken it out of the
+            // text — a bullet here would drop it entirely. Drawn whatever the
+            // icon setting says, because it is CONTENT the model removed from
+            // the text rather than notation added to it: without it the row
+            // reads "Item" where the note reads "10. Item". No gutter slot:
+            // this one sits in the text run, where the number needs its own
+            // width.
+            seg.createSpan({ cls: 'to-backlinks-seg-ord', text: segment.ordinal });
+          } else if (icons === 'all') {
+            const icon = seg.createSpan({ cls: 'to-backlinks-seg-icon' });
+            // eslint-disable-next-line no-restricted-syntax -- detached DOM: the row is still detached.
+            icon.appendChild(segmentGlyph(segment));
+          }
+        }
+        // Already stripped by the model, which owns the rule so that a segment
+        // and a node row of the same kind say the same thing.
+        seg.appendText(segment.text);
+        // Focusable AND operable. `role="link"` with a tab stop and no key
+        // handler is a control the keyboard can reach and cannot use, which is
+        // worse than one it cannot reach at all — it advertises itself and then
+        // does nothing.
+        seg.setAttribute('role', 'link');
+        seg.tabIndex = 0;
+        seg.addEventListener('click', (event) => {
+          event.stopPropagation();
+          this.open(event, sourcePath, segment.nodeId);
+        });
+        seg.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter') return;
+          // `open` BEFORE `preventDefault`, not after. Its first guard is
+          // `event.defaultPrevented`, which exists to let a nested link that has
+          // already handled itself win — so preventing the default first made
+          // this handler veto its own call, and Enter on a segment did nothing
+          // at all. Shipped that way: the segment was focusable and inert, which
+          // is worse than not being reachable.
+          this.open(event, sourcePath, segment.nodeId);
+          event.preventDefault();
+          event.stopPropagation();
+        });
       });
       return;
     }
@@ -1843,7 +1944,10 @@ function clearGlyph(): SVGSVGElement {
   });
 }
 
-/** What stands between two ancestors when the separator setting asks for one. */
+/** What stands between two ancestors when the separator setting asks for one.
+ * Exported: zoom's own trail (`zoom-trail.ts`) builds a lineage row through the
+ * same shared primitive and reuses this glyph rather than drawing a second
+ * chevron. */
 export function separatorGlyph(): SVGSVGElement {
   return glyph(24, ['M9 5l7 7-7 7'], {
     fill: 'none',

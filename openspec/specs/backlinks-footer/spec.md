@@ -42,6 +42,10 @@ The note's own content SHALL occupy the same document positions with the footer 
 without it, so that a caret position, a selection, or a structural operation behaves identically
 either way.
 
+Filtering, searching, sorting, changing a cap, requesting further results, and toggling the
+suppression of Obsidian's own in-document backlinks SHALL all preserve these guarantees: they
+change what the footer renders and nothing else.
+
 #### Scenario: Rendering mutates nothing
 
 - **WHEN** a note with many references is opened, scrolled, and closed in outline mode
@@ -59,12 +63,67 @@ either way.
 - **WHEN** the user expands, collapses, and clicks within the footer
 - **THEN** the note's text and undo stack are unchanged
 
+#### Scenario: Filtering and sorting are inert
+
+- **WHEN** the reader applies filters, types a search term, changes the sort order, and requests
+  further results
+- **THEN** the note's text, positions, caret, selection and undo stack are unchanged throughout
+
 **Covered by**: `e2e/specs/70-footer-enforcement.e2e.ts` ("leaves the document byte-identical
 after mounting and unmounting", "does not change caret placement, selection escalation, or
-structural ops", "does not move the caret when the footer is clicked") and
+structural ops", "does not move the caret when the footer is clicked", "changes nothing in the
+document under filtering, search, sort, caps or load more") and
 `e2e/specs/75-footer-behaviour.e2e.ts` ("leaves the note's bytes and undo stack untouched while
 being read" — the undo half asserted after a real edit, so there is something on the stack to
 lose).
+
+### Requirement: The footer is chrome after the content, not a rendering of the line it follows
+
+The footer SHALL be rendered AFTER the line it is anchored to, without splitting it. A block widget
+that sorts INSIDE its line leaves the line's empty remainder rendered below the widget, and that
+remainder is a real line: it takes the caret, so the space under the footer became a place a click
+could put the cursor on a position past the content the footer sits after.
+
+The footer SHALL NOT take the chrome of the line it is anchored to. It is mounted after the content
+rather than being a rendering of that line, so an ancestor guide belonging to that line SHALL NOT be
+drawn through the footer, and the footer's own left edge SHALL NOT follow that line's depth.
+
+#### Scenario: Nothing is rendered below the footer
+
+- **WHEN** a note with the footer enabled is open
+- **THEN** the footer is the last thing in the content, with no line after it
+
+#### Scenario: The footer takes no guide from its neighbour
+
+- **WHEN** the last line above the footer is a nested list item, so it carries an ancestor guide
+- **THEN** no guide is drawn through the footer
+
+**Covered by**: `e2e/specs/73-footer-render.e2e.ts` ("is the last thing in the content, with no
+line of its own below it", "takes no chrome from the line it is anchored to").
+
+### Requirement: The footer carries a single header control row
+
+The footer's header SHALL present, on one row: the reference and note totals, an affordance
+revealing the filter controls, and the sort selector. The filter controls SHALL occupy a second
+row that appears only when revealed.
+
+Controls whose behaviour is fixed by design rather than chosen by the reader — how lineage is
+collapsed, and how deeply descendants are shown — SHALL NOT be presented as controls.
+
+#### Scenario: One row until filtering is asked for
+
+- **WHEN** the footer renders with the filter controls hidden
+- **THEN** the header occupies a single row carrying the totals, the filter affordance and the
+  sort selector
+
+#### Scenario: Revealing filters adds a row
+
+- **WHEN** the filter affordance is activated
+- **THEN** a second row appears carrying the filter controls, and the header row is otherwise
+  unchanged
+
+**Covered by**: `e2e/specs/77-footer-controls.e2e.ts` ("keeps the header to one row until the
+filter affordance is used", "reveals a row carrying the search field and one facet per axis").
 
 ### Requirement: References are grouped by source note
 
@@ -74,6 +133,13 @@ contributes. A group SHALL be collapsible, and collapsing it SHALL hide its refe
 leaving its label and count visible.
 
 The footer SHALL state the total number of references and the number of contributing notes.
+Those totals SHALL describe the complete result set for the note under the currently active
+filters, whether or not every reference in that set is rendered — the presentation of an
+incomplete body is governed by `backlink-filtering`.
+
+Group order SHALL follow the reader's selected sort order, and which groups appear SHALL follow
+the active filters, both as defined by `backlink-filtering`. References within a group SHALL
+appear in their source note's document order regardless of either.
 
 #### Scenario: One group per source note
 
@@ -85,10 +151,17 @@ The footer SHALL state the total number of references and the number of contribu
 - **WHEN** a group is collapsed
 - **THEN** its references are hidden and its name and count remain visible
 
+#### Scenario: Reported totals survive truncation
+
+- **WHEN** the rendered body is bounded by a cap
+- **THEN** the stated reference and note totals still describe the whole filtered result set
+
 **Covered by**: `e2e/specs/73-footer-render.e2e.ts` ("renders groups and rows for a referenced
 note"), `e2e/specs/72-backlink-index.e2e.ts` ("reports totals that match the per-source
-counts") and `e2e/specs/75-footer-behaviour.e2e.ts` ("drops a source’s group when that source
-stops referencing").
+counts"), `e2e/specs/75-footer-behaviour.e2e.ts` ("drops a source’s group when that source
+stops referencing"), `e2e/specs/77-footer-controls.e2e.ts` ("opens the sort control and
+reorders by it") and `e2e/specs/78-footer-caps.e2e.ts` ("reports the true totals whatever the
+cap admits").
 
 ### Requirement: A reference renders in its lineage, with the outline's own notation
 
