@@ -77,6 +77,8 @@ runs it under the mobile-emulation config.
 
 `npm run test:e2e[:mobile]` (`run-e2e.mjs`) still exists for a whole group (`--group <name>`) or
 the whole suite — reserve it for a final check before a checkpoint, not per-edit iteration.
+Outside CI, it prints a one-line reminder toward narrow mode whenever more than a couple of spec
+files are in scope — not a block, just a nudge at the moment the slow path is actually taken.
 
 **Every run — narrow, grouped, or full, desktop or mobile — writes
 `.obsidian-cache/e2e-summary.json`**, a small file naming what failed without needing to scroll
