@@ -301,7 +301,16 @@ describe('the footer’s controls', function () {
         };
       });
 
-    const wide = await readStable(measure);
+    // Settled BEFORE the first read, not left to `readStable`'s own retry
+    // alone: the previous case ends by restoring the leaf's width, and that
+    // resize can still be rippling through the footer's async group fills
+    // when this one starts. `readStable` only confirms the THREE fields below
+    // stop changing, not that the whole footer has caught up — on mobile,
+    // where this test's very first read is also its last (the width is
+    // already under the threshold), that gap was enough to fail on CI twice
+    // without ever reproducing locally.
+    await settle();
+    const wide = await readStable(measure, 20000);
     expect(wide).not.toBeNull();
     if (wide!.titleText === 'Backlinks') {
       // Already narrower than the threshold — the mobile run.
