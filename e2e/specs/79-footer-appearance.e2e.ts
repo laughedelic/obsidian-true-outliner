@@ -77,6 +77,40 @@ async function footerShape(): Promise<Shape> {
   return s;
 }
 
+/**
+ * A footer count read after the footer has stopped changing.
+ *
+ * The footer paints what it knows and fills in the rest as it resolves (its own
+ * spec's "paints known information first"), and this note's footer is the whole
+ * hub fixture — hundreds of rows. A count taken mid-fill is a real number for a
+ * moment and a different real number a moment later, so a test comparing one to
+ * another is measuring the fill, not the thing it means to. Two consecutive
+ * agreeing reads is the settle condition.
+ */
+async function settledGuideRows(): Promise<number> {
+  let last = -1;
+  for (let i = 0; i < 20; i++) {
+    const now = (await footerShape()).guideRows;
+    if (now === last) return now;
+    last = now;
+    await browser.pause(500);
+  }
+  return last;
+}
+
+/** The first footer row's own resolved guide background — a per-ROW fact, so it
+ * does not move with however many other rows have finished filling in. */
+async function firstRowGuides(): Promise<string> {
+  await scrollToFooter();
+  return browser.execute(() => {
+    const row = document.querySelector<HTMLElement>(
+      '.workspace-leaf.mod-active .to-backlinks-row.to-decor-guides',
+    );
+    if (!row) throw new Error('no footer row drawing guides');
+    return getComputedStyle(row, '::after').backgroundImage;
+  });
+}
+
 describe('the footer’s appearance settings', function () {
   before(async function () {
     await obsidianPage.resetVault();
@@ -168,7 +202,8 @@ describe('the footer’s appearance settings', function () {
     // it whatever the editor is doing, and does not repaint as the caret moves.
     await set('backlinksGuides', true);
     await set('guideVisibility', 'cursor');
-    const before = (await footerShape()).guideRows;
+    const before = await settledGuideRows();
+    const beforeFirst = await firstRowGuides();
     expect(before).toBeGreaterThan(0);
 
     // Plain `setCursor`: the caret-placement policy corrects a position at a
@@ -179,7 +214,10 @@ describe('the footer’s appearance settings', function () {
     // measure.
     await h.setCursor(0, 0);
     await browser.pause(300);
-    expect((await footerShape()).guideRows).toBe(before);
+    // The row's own drawing first — the claim itself, and independent of how
+    // much of the rest of the footer has resolved — then the settled count.
+    expect(await firstRowGuides()).toBe(beforeFirst);
+    expect(await settledGuideRows()).toBe(before);
 
     await set('guideVisibility', 'all');
     await set('backlinksGuides', false);
@@ -193,9 +231,10 @@ describe('the footer’s appearance settings', function () {
     await set('backlinksGuides', true);
     await scrollToFooter();
 
-    /** A footer row's own resolved chrome. */
-    const rowChrome = (): Promise<{ unit: number; guide: number; inset: number }> =>
-      browser.execute(() => {
+    /** A footer row's own resolved chrome, once there is a row to read it from. */
+    const rowChrome = async (): Promise<{ unit: number; guide: number; inset: number }> => {
+      await scrollToFooter();
+      return browser.execute(() => {
         const row = document.querySelector<HTMLElement>(
           '.workspace-leaf.mod-active .to-backlinks-row',
         );
@@ -216,11 +255,11 @@ describe('the footer’s appearance settings', function () {
         const inset = group ? parseFloat(getComputedStyle(group).paddingLeft) || 0 : 0;
         return { unit, guide, inset };
       });
+    };
 
     const base = await rowChrome();
     await set('outlineUnit', 'wide');
     await set('guideThickness', 'medium');
-    await scrollToFooter();
     const after = await rowChrome();
     // Relationships, not pixels: a wider step is wider on this surface too, and
     // the group's own inset — stated from the unit rather than copied from a
