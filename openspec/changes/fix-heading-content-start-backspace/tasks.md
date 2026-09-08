@@ -42,11 +42,11 @@
 - [x] 3.2 Add an e2e case for Backspace inside a heading's `#` run asserting the level changes
       natively and `verdictCounts.veto` does NOT move. Negative control: it must fail if 2.1
       widens the column test past the single content-start column headings resolve.
-- [ ] 3.3 Run `npm run test:e2e:narrow -- 62-outline-edit-enforcement` and verify the group's
+- [x] 3.3 Run `npm run test:e2e:narrow -- 62-outline-edit-enforcement` and verify the group's
       cases pass; push the checkpoint so CI runs the full sweep.
 
 ## 4. Close the change
 
-- [ ] 4.1 Run `npm run lint` and `npx tsc --noEmit` (or the project's build) and verify both are
+- [x] 4.1 Run `npm run lint` and `npx tsc --noEmit` (or the project's build) and verify both are
       clean.
-- [ ] 4.2 Run `openspec validate fix-heading-content-start-backspace --strict`.
+- [x] 4.2 Run `openspec validate fix-heading-content-start-backspace --strict`.
