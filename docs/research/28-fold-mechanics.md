@@ -162,3 +162,52 @@ cheapest way to feel the tolerance question D7 leaves open.
 - The mobile chevron. Obsidian reveals the fold indicator on hover, and a touch device has no
   hover; the affordance question there is open and untouched by this pass.
 - Anything in reading mode, which renders through the post-processor and has no CM6 fold at all.
+
+## The gate, re-measured against the real provider (8 September 2026)
+
+`better-folding-ux`'s task 1 built the provider for real — `Prec.high`, answering from the cached
+parse — and re-ran every question above against it, in outline mode, through
+`e2e/specs/90-fold-service.e2e.ts`. Two answers came back different from the first pass, and both
+change what has to be built.
+
+### The chevron DOES follow `foldable()`
+
+The finding above — "the chevron is not driven by `foldable()`" — was an artefact of how it was
+measured. That probe registered a provider into a LIVE editor through `registerEditorExtension` +
+`updateOptions` and then read the DOM; a reconfigure does not rebuild the fold decoration for a
+line that has not otherwise changed, so the absent chevron said nothing about the rule.
+
+Registered at load, as the plugin does, the indicator appears on exactly the lines the provider
+claims — the paragraph with attached children included. So the affordance is NOT ours to draw in
+the default configuration; Obsidian draws it, in the column our decorations already transform it
+into.
+
+**But it is gated on the settings, and the fold is not.** With "Fold heading" and "Fold indent"
+both off: no indicator on any line, while `foldable()` still reports our ranges and every fold
+path still folds — the native fold operation included. So the two questions genuinely separate:
+the settings decide whether Obsidian offers a control, and our provider decides what a fold is.
+That configuration is what a plugin-drawn affordance exists for, which is why the spec's condition
+is "a node we make foldable, with no native chevron on its line" rather than a kind.
+
+### What we take over, diffed across the corpus
+
+Native fold extents against ours over seven vault notes (`Edge Case Zoo`, `List decoration demo`,
+`Kinds gallery`, `Family tree`, `Deep chain`, a journal entry, `README`). Every divergence falls
+into one of four buckets, three of them intended:
+
+| Bucket | Example | Verdict |
+| --- | --- | --- |
+| Ours ends one line earlier | heading at line 0: native `0–39`, ours `0–38` | intended (D2): the trailing blank line stays visible |
+| We fold where nothing did | `List decoration demo` lines 52, 59, 78 | the point of the change — paragraphs with attached children |
+| Native folds a node's OWN continuation line | `Deep chain` line 5, journal lines 4 and 17 | intended: a fold hides a node's children, never part of its own text |
+| Native folds inside an atom | `Edge Case Zoo` line 17, inside a code fence | left alone; declining is not a veto |
+
+**D1 stands as written.** No divergence needed the precedence narrowed.
+
+### One defect the diff caught
+
+Keying our answer off the node's LAST own line put the fold control one line below the marker on
+every wrapped list item in the vault — a bullet on one line and its fold on the next. The chrome
+belongs on the node's FIRST line, where the marker is, while the RANGE still begins after the
+node's last own line. The two coincide for every single-line node, which is why a fixture of short
+lines cannot see it; the corpus could.

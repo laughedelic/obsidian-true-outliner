@@ -150,12 +150,17 @@ line-start widget in the marker gutter — the same place `decorations.ts` alrea
 and the same place the native chevron is transformed onto. One element per line at most: when
 Obsidian's chevron is present, we position it and draw none of our own.
 
-*How much of this there is:* less than it first looked. Only three kinds can hold children —
-heading, list item (bullet, ordered or task), and paragraph via the attachment rule; an atom is
-never a parent, verified against `parse` (a list after a table is the table's sibling). Obsidian
-already paints a chevron on the first two, so the paragraph is the sole consumer today. The
-condition is still written as "no native chevron on a foldable line" rather than "is a paragraph",
-because which lines Obsidian decorates is internal to it.
+*How much of this there is:* none, in the default configuration — corrected by task 1's gate,
+which measured the opposite of what this design first assumed. Obsidian's indicator DOES follow
+`foldable()`; the earlier reading came from registering a provider into a live editor, where the
+fold decoration for an unchanged line is not rebuilt. Registered at load, the chevron appears on
+every line the provider claims, the paragraph included.
+
+What remains is the configuration the same measurement found: with "Fold heading" and "Fold
+indent" off, Obsidian paints NO indicator on any line while `foldable()` and every fold path keep
+working. So the plugin's own affordance is the answer for a user who turned those settings off —
+which is exactly the condition the spec states, and the reason it is written as "a node we make
+foldable, with no native chevron" rather than as a kind. Section 5.4 tests it there.
 
 *Alternative rejected:* a CM6 `gutter()` beside the content. It is the obvious mechanism and the
 wrong one here: a gutter sits outside the readable-line-width column, so the affordance would

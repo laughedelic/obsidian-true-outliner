@@ -40,10 +40,12 @@ fold affordance SHALL still be offered — the setting governs the kind mark, no
 
 Obsidian paints its fold indicator on heading and list lines by a rule of its own, which takes no
 notice of what the editor reports as foldable. A line carrying a node `outline-folding` makes
-foldable, with no native chevron on it — today the paragraph with attached children, and heading
-or list lines whenever Obsidian's own rule declines them — SHALL receive a fold affordance drawn
-by the plugin, in the marker gutter, at the position the native chevron is transformed onto for
-the lines that have one.
+foldable, with no native chevron on it, SHALL receive a fold affordance drawn by the plugin, in
+the marker gutter, at the position the native chevron is transformed onto for the lines that have
+one. In the default configuration Obsidian paints an indicator on every line the plugin makes
+foldable, so this draws nothing; with Obsidian's own "Fold heading" and "Fold indent" settings
+off it paints none anywhere, and the plugin's affordance is what keeps every foldable node
+operable by pointer.
 
 The condition SHALL be that pairing — our fold, no native chevron — rather than the node's kind or
 the editor's own notion of foldability. Kind is wrong because Obsidian's rule is its own to

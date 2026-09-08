@@ -889,6 +889,117 @@ export function runCommand(shortId: string): Promise<void> {
   return browser.executeObsidianCommand(`${PLUGIN_ID}:${shortId}`);
 }
 
+/**
+ * A CORE Obsidian command, by its full id.
+ *
+ * Beware the focus gate: Obsidian's own editor commands decline when the editor
+ * does not have focus, and under WebDriver the OS window is not focused, so
+ * `editor.hasFocus()` reads false however many times a test calls `focus()`.
+ * Measured with `editor:toggle-fold`, which does nothing here while
+ * `runEditorExec('toggleFold')` — the same operation through the public Editor
+ * API — folds exactly as it should. Prefer `runEditorExec` for anything with an
+ * exec verb; this stays for the commands that have none.
+ */
+export function runObsidianCommand(fullId: string): Promise<void> {
+  return browser.executeObsidianCommand(fullId);
+}
+
+/** An Obsidian `Editor.exec` verb — `toggleFold`, `indentList`, and the rest of
+ * the public editor operations. Reaches the same code the native command does
+ * without going through the focus gate described above. */
+export function runEditorExec(verb: string): Promise<void> {
+  return browser.executeObsidian(({ app, obsidian }, v) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    view.editor.focus();
+    (view.editor as unknown as { exec(command: string): void }).exec(v);
+  }, verb);
+}
+
+// ---- Folding ------------------------------------------------------------
+
+/**
+ * The fold layer's view of the active editor, in LINE numbers, from the
+ * plugin's own `foldState()` probe.
+ *
+ * Through the plugin because CM6's fold exports resolve only in plugin module
+ * scope: neither `@codemirror/language` nor `obsidian` is reachable from the
+ * renderer's own `require`, so a spec has no way to read a folded range
+ * directly (docs/research/28).
+ */
+interface FoldStateSnapshot {
+  folded: { from: number; to: number }[];
+  editorFoldable: { line: number; from: number; to: number }[];
+  ourFoldable: { line: number; from: number; to: number }[];
+  chromeLines: number[];
+}
+
+function foldState(): Promise<FoldStateSnapshot> {
+  return browser.executeObsidian(
+    ({ plugins }) => (plugins.trueOutliner as any).foldState() as FoldStateSnapshot,
+  );
+}
+
+/** Lines the editor considers foldable, or — with `oursOnly` — the ones OUR
+ * provider claims. The two differ on purpose: declining is not a veto, so the
+ * editor still reports folds we deliberately do not offer. */
+export async function foldableLines(
+  opts: { oursOnly?: boolean } = {},
+): Promise<{ line: number; from: number; to: number }[]> {
+  const state = await foldState();
+  return opts.oursOnly ? state.ourFoldable : state.editorFoldable;
+}
+
+/** Currently folded ranges, as the first and last hidden LINE. */
+export async function foldedLineRanges(): Promise<{ from: number; to: number }[]> {
+  return (await foldState()).folded;
+}
+
+/** Lines carrying Obsidian's own fold indicator, right now. Whether one is
+ * VISIBLE is a hover state in CSS; this reports whether the element is there at
+ * all, which is what decides who has to draw the affordance. */
+export function nativeChevronLines(): Promise<number[]> {
+  return browser.executeObsidian(() =>
+    Array.from(document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line'))
+      .map((el, i) => (el.querySelector('.cm-fold-indicator') ? i : -1))
+      .filter((i) => i >= 0),
+  );
+}
+
+/** Obsidian's own "Fold heading" / "Fold indent" settings, which gate its
+ * indicator (measured) but not the fold itself. */
+export async function setNativeFoldSettings(on: boolean): Promise<void> {
+  await browser.executeObsidian(({ app }, value) => {
+    const vault = app.vault as unknown as { setConfig(k: string, v: unknown): void };
+    vault.setConfig('foldHeading', value);
+    vault.setConfig('foldIndent', value);
+    app.workspace.updateOptions();
+  }, on);
+  await browser.pause(300);
+}
+
+/** Lines where the plugin's own fold chrome belongs. */
+export async function foldChromeLines(): Promise<number[]> {
+  return (await foldState()).chromeLines;
+}
+
+/**
+ * What the editor actually renders, line by line — a folded range's lines are
+ * absent from the DOM entirely, which is how a fold is asserted from outside.
+ *
+ * `textContent`, not `innerText`: an empty `.cm-line` holds a `<br>`, which
+ * `innerText` reports as a newline. And the text is the RENDERED text, so Live
+ * Preview's hidden syntax is already gone — a heading reads `Top`, not
+ * `# Top` — which is what a reader sees and what a fold is judged against.
+ */
+export function renderedLineTexts(): Promise<string[]> {
+  return browser.executeObsidian(() =>
+    Array.from(
+      document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line'),
+    ).map((el) => (el.textContent ?? '').replace(/\u200b/g, '')),
+  );
+}
+
 /** Is the command registered at all (e.g. after plugin unload)? */
 export function commandRegistered(shortId: string): Promise<boolean> {
   return browser.executeObsidian(

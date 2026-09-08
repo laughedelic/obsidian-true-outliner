@@ -26,9 +26,10 @@ engine, and none of which writes to the note.
 - **Three commands with default hotkeys** — fold node (`Mod+Alt+ArrowUp`), unfold node
   (`Mod+Alt+ArrowDown`), toggle fold (`Mod+Alt+Period`) — plus document-wide fold all, unfold all,
   and fold to level, scoped to our tree rather than to what Obsidian's own fold-all reaches.
-- **A fold affordance on every foldable kind.** Obsidian paints its chevron on heading and list
-  lines only, by a rule of its own that ignores `foldable()` — which leaves the paragraph with
-  nothing to click. That affordance is ours to draw, in the gutter our markers and the
+- **A fold affordance on every foldable node, whoever draws it.** Obsidian's own chevron follows
+  the provider — a paragraph gets one for free — but it disappears from every line when a user
+  turns "Fold heading" or "Fold indent" off, while the fold itself keeps working. The plugin draws
+  its own wherever a node we fold has no native chevron, in the gutter our markers and the
   repositioned chevron already share.
 - **A folded node reads as folded.** The marker itself carries the state: the kind's own glyph,
   solid, with the count of hidden descendants after the node's text. Chosen from a rendered

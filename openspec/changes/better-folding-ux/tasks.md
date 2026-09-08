@@ -3,13 +3,13 @@
 Design D1 rests on one claim the spike did not put on the instrument, and one behaviour we are
 about to take over. Nothing in section 3 onward is built until 1.4 records a verdict.
 
-- [ ] 1.1 Throwaway `foldService` provider registered at `Prec.high` in the dev vault, answering
+- [x] 1.1 Throwaway `foldService` provider registered at `Prec.high` in the dev vault, answering
       from the cached parse for EVERY node with children. Verify through a probe spec that
       `foldable()` returns our range on a heading, on each list notation (bullet, ordered, task)
       and on a paragraph with attached children — the same instrument
       `docs/research/28-fold-mechanics.md` used, which is `browser.executeObsidian` against the
       CM6 exports reached from the plugin instance
-- [ ] 1.2 **What survives our `null`.** Declining to answer is not a veto: `foldable()` falls
+- [x] 1.2 **What survives our `null`.** Declining to answer is not a veto: `foldable()` falls
       through to the providers below us and then to syntax folding. Probe every atom kind — code
       fence, table, callout, quote, raw HTML, rule — and record which the editor still calls
       foldable. Measured already for the PR-review pass: raw HTML is one, and no chevron is
@@ -17,7 +17,7 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       `outline-decorations` — our affordance follows OUR fold, never the editor's — so this task
       is the test that keeps it, plus a check that nothing we draw appears on such a line
 
-- [ ] 1.3 **The settings question.** Turn Obsidian's "Fold heading" and "Fold indent" OFF and
+- [x] 1.3 **The settings question.** Turn Obsidian's "Fold heading" and "Fold indent" OFF and
       re-run 1.1's fold path through the affordance, `editor:toggle-fold`, and a direct
       `foldEffect`. Record which of the three still works.
 
@@ -27,24 +27,24 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       paragraph does, and section 5.4 covers them. What this task settles is whether that path is
       exercised in the default configuration or only in a non-default one — which decides whether
       5.4's e2e needs a settings-off run
-- [ ] 1.4 **What we take over.** Diff native fold extents against ours across the `test-vault/`
+- [x] 1.4 **What we take over.** Diff native fold extents against ours across the `test-vault/`
       corpus: heading sections (with and without a trailing gap), nested lists, a list under a
       paragraph, ordered lists, tasks.
 
       Atoms are covered by 1.2, not here: we answer `null` for them, so what matters is what
       the editor still does underneath us, not what changes. Any divergence that is not clearly an improvement is a reason to
       narrow D1's precedence, and that decision belongs here, not in review
-- [ ] 1.5 Verdict appended to `docs/research/28-fold-mechanics.md` under a dated heading: what
+- [x] 1.5 Verdict appended to `docs/research/28-fold-mechanics.md` under a dated heading: what
       held, what did not, and whether D1 stands as written
 
 ## 2. Fold model
 
-- [ ] 2.1 `src/plugin/fold-model.ts`: node → fold range (D2 — ends at the last descendant's last
+- [x] 2.1 `src/plugin/fold-model.ts`: node → fold range (D2 — ends at the last descendant's last
       content line, trailing gaps stay visible), node → hidden-descendant count, and line →
       nearest foldable node at or above it (the escalation the commands use). Pure functions over
       the parsed tree, unit-tested in `tests/` against fixture documents; negative control —
       returning the subtree cover INCLUDING the trailing gap must fail the gap test
-- [ ] 2.2 `foldService` provider built on 2.1, registered from `main.ts`, gated on outline mode
+- [x] 2.2 `foldService` provider built on 2.1, registered from `main.ts`, gated on outline mode
       exactly as the other editor extensions are. Verify with an e2e that a paragraph with
       attached children folds through Obsidian's own `editor:toggle-fold`; negative control —
       unregistering the provider must make that test fail
@@ -107,11 +107,13 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       absent from copied text. Settle where it sits when the text wraps (design — Open Questions). Verify by folding a node with a nested subtree, copying it, and
       asserting the clipboard has no count; negative control — rendering the count as document
       text must fail it
-- [ ] 5.4 Our own fold affordance wherever a foldable line has no native chevron (D5) — today
-      the paragraph — in the marker column, with the native chevron's hover/persist behaviour.
-      Verify exactly one affordance per foldable line, the same column for every kind, and none
-      on a table; the one-affordance-per-line assertion is what catches a double-draw on
-      headings
+- [ ] 5.4 Our own fold affordance wherever a node we fold has no native chevron (D5). Task 1.3
+      measured where that is: NOT the default configuration, where Obsidian's indicator follows
+      the provider onto every line we claim — but with "Fold heading" and "Fold indent" off,
+      where it paints none anywhere. Verify in both configurations: exactly one affordance per
+      foldable line in each, the same column for every kind, and none on a table or on a line
+      only the editor calls foldable. The one-affordance-per-line assertion is what catches a
+      double-draw on headings
 - [ ] 5.5 Mobile pass: the affordance is reachable without hover, on a touch target that is not
       the 14px glyph. Verify under `--mobile`
 

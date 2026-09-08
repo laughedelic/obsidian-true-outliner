@@ -78,6 +78,9 @@ import { operandEscapes, parentOf, reresolveZoom, resolveZoom } from '../zoom';
 import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
+import { foldable } from '@codemirror/language';
+import { foldChromeTarget, foldRangeAt, foldServiceExtension } from './fold-service';
+import { currentFolds } from './fold-ops';
 import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
@@ -232,6 +235,50 @@ export default class TrueOutlinerPlugin extends Plugin {
    * Home/End logic (docs/research/04 Q27).
    */
   readonly motionCounts: Record<string, { invoked: number; consumed: number }> = {};
+
+  /**
+   * What the fold layer currently believes, in LINE numbers, for the harness.
+   *
+   * Same "public for the harness" rationale as `stats` and `motionCounts`, with
+   * one reason of its own: CM6's fold exports resolve only inside plugin module
+   * scope — the renderer's `require` has neither `@codemirror/language` nor
+   * `obsidian` — so a spec cannot read a folded range without going through the
+   * plugin. Measured while writing docs/research/28, which had to hang a
+   * temporary probe on the instance to ask anything at all.
+   *
+   * Three separate answers, because the change turns on their differences: what
+   * the EDITOR calls foldable (which includes lines we deliberately decline,
+   * such as a raw HTML block), what WE claim, and where our own fold chrome
+   * belongs.
+   */
+  foldState(): {
+    folded: { from: number; to: number }[];
+    editorFoldable: { line: number; from: number; to: number }[];
+    ourFoldable: { line: number; from: number; to: number }[];
+    chromeLines: number[];
+  } {
+    const view = viewFor(this.app.workspace.getActiveViewOfType(MarkdownView));
+    if (!view) return { folded: [], editorFoldable: [], ourFoldable: [], chromeLines: [] };
+    const { state } = view;
+    const lineOf = (pos: number): number => state.doc.lineAt(pos).number - 1;
+    const editorFoldable: { line: number; from: number; to: number }[] = [];
+    const ourFoldable: { line: number; from: number; to: number }[] = [];
+    const chromeLines: number[] = [];
+    for (let n = 1; n <= state.doc.lines; n++) {
+      const line = state.doc.line(n);
+      const editor = foldable(state, line.from, line.to);
+      if (editor) editorFoldable.push({ line: n - 1, from: lineOf(editor.from), to: lineOf(editor.to) });
+      const ours = foldRangeAt(state, n - 1);
+      if (ours) ourFoldable.push({ line: n - 1, from: lineOf(ours.from), to: lineOf(ours.to) });
+      if (foldChromeTarget(state, n - 1)) chromeLines.push(n - 1);
+    }
+    return {
+      folded: currentFolds(state).map((r) => ({ from: lineOf(r.from), to: lineOf(r.to) })),
+      editorFoldable,
+      ourFoldable,
+      chromeLines,
+    };
+  }
 
   /** The stamp compiled into THIS bundle. Public so the dev hot-reload plugin
    * can name the build it just loaded: `manifest.json` is copied verbatim and
@@ -409,6 +456,12 @@ export default class TrueOutlinerPlugin extends Plugin {
     // Before every extension that GATES on the mode, so the field it reads is
     // installed by the time their own `create` runs.
     this.registerEditorExtension(outlineStateExtension(this));
+    // After the mode field it gates on, and before the decorations that draw
+    // fold chrome from the same answer. Registering it is what makes an outline
+    // node foldable at all — Obsidian's own fold command, placeholder and
+    // per-file persistence all follow from this one provider
+    // (docs/research/28-fold-mechanics.md).
+    this.registerEditorExtension(foldServiceExtension());
     this.registerEditorExtension(grammarExtension());
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
