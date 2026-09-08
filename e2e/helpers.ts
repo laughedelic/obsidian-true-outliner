@@ -481,6 +481,50 @@ export async function dispatchSelectOnlyRanges(
 }
 
 /**
+ * Attempts a failed click is worth, and the wait between them.
+ *
+ * Only a STALE element reference is retried. It means the target was rebuilt
+ * between the query and the click — the race described on `clickClear` below,
+ * which re-querying answers — so an attempt costs a query and a pause. Matched
+ * on its full W3C error-code phrase rather than the bare word, which would
+ * catch unrelated messages.
+ *
+ * An intercepted click is deliberately NOT retried, and that is a measurement
+ * rather than a preference: chromedriver spends its own budget before refusing,
+ * so one attempt against a covered target costs ~15 s and four overrun the mocha
+ * per-test timeout, turning a real failure that names the element covering the
+ * target into a bare timeout that names nothing. The one interception this
+ * suite has actually met was the phone drawer below, which no wait closes.
+ * Figures and the diagnosis are in `docs/research/29-e2e-click-retry-costs.md`.
+ */
+const CLICK_ATTEMPTS = 4;
+
+/** Waited between attempts. A retry that does not wait is the one that already failed. */
+const CLICK_RETRY_PAUSE_MS = 250;
+
+/**
+ * Collapses the phone UI's left drawer if it is open.
+ *
+ * On the phone viewport the file explorer is a DRAWER, not a sidebar: open, it
+ * covers 327 of the 390 available pixels, including the centre of the editor
+ * where `clickClear` puts its target. It is open early in a session — measured
+ * open at (0, 0) 327x844 while `75-footer-behaviour` was clicking at (195, 412),
+ * `leftSplit.collapsed` reading false — and it closes on its own later, which is
+ * what made the resulting CI failure look like a race.
+ *
+ * It is not one. A drawer that is open is open, and no amount of waiting inside
+ * a single test closes it; the click has to be made against a workspace with the
+ * editor actually on screen. Nothing in this suite asserts the drawer's state,
+ * so collapsing it is free.
+ */
+async function collapseLeftDrawer(): Promise<void> {
+  await browser.executeObsidian(({ app }) => {
+    const left = app.workspace.leftSplit;
+    if (left && !left.collapsed) left.collapse();
+  });
+}
+
+/**
  * Scrolls `selector` clear of the app's fixed chrome and clicks it.
  *
  * `element.click()` scrolls too, but to the nearest edge — which on the mobile
@@ -495,27 +539,24 @@ export async function dispatchSelectOnlyRanges(
  * left the first handle pointing at a node no longer in the document — a "stale
  * element reference" that reads like a test bug and is really a race. Observed
  * on CI, on a commit whose only changes were documentation.
+ *
+ * Re-querying narrows that window without closing it — a render can start
+ * between the second query and the click as easily as between the first and the
+ * scroll — so the whole attempt is retried, up to `CLICK_ATTEMPTS` times. Any
+ * failure that is not a stale reference is thrown where it happens.
  */
 export async function clickClear(selector: string): Promise<void> {
-  // Retried, because re-querying after the scroll narrows the window and does
-  // not close it. The footer rebuilds its whole subtree on every render, and a
-  // render can start between the second query and the click as easily as
-  // between the first and the scroll — a scroll is itself one of the things
-  // that starts one, since CodeMirror rebuilding its viewport recreates the
-  // widget the footer lives in. Observed on CI on both platforms, and more
-  // often once the footer had controls that re-render it.
-  //
-  // Four attempts rather than one, and only for staleness: any other failure is
-  // a real one and is thrown on the spot.
   for (let attempt = 0; ; attempt++) {
     try {
-      await (await $(selector)).scrollIntoView({ block: 'center' });
+      if (IS_MOBILE_RUN) await collapseLeftDrawer();
+      await (await browser.$(selector)).scrollIntoView({ block: 'center' });
       await browser.pause(150);
-      await (await $(selector)).click();
+      await (await browser.$(selector)).click();
       return;
     } catch (error) {
-      if (attempt >= 3 || !String(error).includes('stale')) throw error;
-      await browser.pause(250);
+      const stale = String(error).includes('stale element reference');
+      if (!stale || attempt >= CLICK_ATTEMPTS - 1) throw error;
+      await browser.pause(CLICK_RETRY_PAUSE_MS);
     }
   }
 }
