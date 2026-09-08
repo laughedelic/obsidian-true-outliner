@@ -9,7 +9,8 @@ notice and leaves file bytes and mtime unchanged, from every view mode; the togg
 active tab only; the global default survives an app restart while a tab's manual state does
 not; a fresh install starts with the default on; no per-path mode state is stored; structural
 commands are gated per tab; the indicator surfaces state and toggle the active tab's mode and
-follow tab switches; and toggling on from reading view enters editing.
+follow tab switches; and toggling on from reading view enters editing, over an off default and
+over a manual off alike.
 
 #### Scenario: Toggle leaves file untouched
 
@@ -36,11 +37,12 @@ follow tab switches; and toggling on from reading view enters editing.
 - **THEN** notes opened afterwards are stock (the setting persisted, no mode marker ever in
   note content), and the manually outlined tab reopens stock
 
-#### Scenario: A tab's manual state resets with its editor
+#### Scenario: A tab's manual state resets with its editor state
 
 - **WHEN** a tab is manually switched off outline mode, and then switches to another note and
   back, and separately round-trips through reading view
-- **THEN** the tab is outlined again — the default — without any toggle having been invoked
+- **THEN** the note switch leaves it outlined again — the default, with no toggle invoked —
+  and the reading round-trip leaves it off, the state the tab was left in
 
 #### Scenario: Fresh install is on by default
 
@@ -72,7 +74,7 @@ follow tab switches; and toggling on from reading view enters editing.
 
 #### Scenario: Toggling on from reading view enters editing
 
-- **WHEN** the active pane is in reading view and the toggle is invoked, with the default on
-  and separately with it off
+- **WHEN** the active pane is in reading view and the toggle is invoked — with the default on,
+  separately with it off, and separately from a tab the user had manually switched off
 - **THEN** the pane enters the editing mode it was last in (Live Preview when it records
-  none) showing the outline decorations in both cases
+  none) showing the outline decorations in all three cases

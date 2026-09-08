@@ -99,17 +99,49 @@ Consequences worth naming:
 
 ## Open questions carried into the change's design
 
-1. What `MarkdownView.getState()` returns for the `source` flag while the view is in reading
-   mode, and what `setState({ mode: 'source' })` does without one — measured by the change's
-   first e2e task, since the answer decides whether "switch to edit" needs to synthesize a
-   `source` value or can round-trip the view's own.
+1. ~~What `MarkdownView.getState()` returns for the `source` flag while the view is in reading
+   mode, and what `setState({ mode: 'source' })` does without one.~~ Measured below: the flag
+   round-trips, and nothing has to synthesize one.
 2. Where a plugin status bar item lands relative to the core pencil (when the core setting is
    on) — layout is not controllable, so this is a look-and-feel check, not a design input.
 3. The ribbon icon's on/off appearance: class-toggled styling is available; which visual
    treatment reads as "on" without a second icon is a choice for the change's tasks, verified
    against a real vault the way the decoration experiments were.
-4. Which public events fire when a leaf switches view mode IN PLACE (reading ↔ editing) —
-   `active-leaf-change` covers tab switches and `file-open` covers note switches, but the
-   in-place mode switch is undocumented. The change's surfaces task measures it in the dev
-   vault; the worst case is an indicator stale until the next event, with the decorations as
-   ground truth.
+4. ~~Which public events fire when a leaf switches view mode IN PLACE (reading ↔ editing).~~
+   Measured below: none do.
+
+## Measured: view state, editor lifetime and mode-switch events
+
+Answers open questions 1 and 4, and one thing neither of them asked. Measured against Obsidian
+1.13.7 through the e2e harness, driving a real workspace rather than reasoning about the API.
+
+**Question 1 — the reading-view state encoding. Round-trippable, and more forgiving than
+assumed.** In reading view `getState()` returns `{ file, mode: 'preview', source }` with the
+`source` flag the view was last editing under, preserved verbatim. Spreading that state and
+overriding `mode` lands the pane back in its own editing mode, both ways round. Omitting
+`source` entirely — `setState({ mode: 'source' })` on its own — also preserves it, so the flag
+survives whether or not the caller carries it. A leaf opened straight into reading view with no
+editing history reports `source: false`, synthesized by Obsidian: the state never lacks the
+flag, so nothing has to default it.
+
+**Question 4 — no public event fires on an in-leaf mode switch.** Flipping a leaf between
+reading and editing in place fires none of `active-leaf-change`, `file-open` or
+`layout-change`. Tab switches fire `active-leaf-change` + `file-open`, and opening a note fires
+both plus `layout-change`, as documented. An indicator that tracks the active tab therefore
+cannot learn about a mode switch from the workspace at all; the CM6 side has to report it.
+
+**Unasked, and it decides the reset semantics: Obsidian keeps ONE `EditorView` per leaf and
+rebuilds its `EditorState` only on a file switch.** Tracking object identity of the view and of
+`EditorState`'s configuration across each transition:
+
+| transition | `EditorView` | `EditorState` rebuilt |
+| --- | --- | --- |
+| an edit or cursor dispatch | same | no |
+| editing → reading → editing, in place | same | **no** |
+| the leaf switches to another note | same | **yes** |
+| a new leaf | new | yes |
+
+So a `StateField`'s `create` runs on a new tab and on a file switch, and does NOT run on a mode
+round-trip: the state chain survives the pane going to reading view and back. A per-tab mode
+held in a `StateField` therefore resets on a new tab, on a file switch and on tab close, and
+SURVIVES a reading round-trip.

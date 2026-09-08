@@ -18,9 +18,12 @@ docs/research/24 records the surface research and the mode-shape decision this c
   that tab and nothing else: other tabs keep their state, and every newly opened note still
   follows the default. Two tabs on the same file can differ, exactly as two panes already can
   hold different zoom scopes.
-- **A tab's manual state is ephemeral.** It dies with the tab's editor view: closing the tab,
-  switching it to another note, or round-tripping through reading mode all reset the tab to the
-  default. Nothing is persisted per file or per tab — the same shape zoom's scope already has.
+- **A tab's manual state is ephemeral.** It dies with the tab's editor state: closing the tab or
+  switching it to another note resets the tab to the default. A reading-view round-trip does not
+  — measured, Obsidian keeps one editor per leaf and rebuilds its state only on a file switch
+  (docs/research/24, "Measured"), so a pane the user flipped to reading view and back comes back
+  as they left it. Nothing is persisted per file or per tab — the same shape zoom's scope already
+  has.
 - **Changing the setting touches future opens only.** Like the built-in "default view mode for
   new tabs" setting it mirrors, it does not retoggle already-open tabs.
 - **The toggle works from any view mode.** The command switches from `editorCheckCallback` to a
@@ -29,8 +32,9 @@ docs/research/24 records the surface research and the mode-shape decision this c
   no-default-hotkeys guideline is followed (docs/research/24, table).
 - **Toggling from reading view enters outlined editing.** Reading view renders no outline
   (doc 20, the two renderers), so the ON direction switches the pane to an editing mode via the
-  public `View.setState` route — the editing mode the view was last in, or Live Preview when it
-  records none (measured by the change's first task). The OFF direction is a no-op: nothing is
+  public `View.setState` route — the editing mode the view was last in, which the view's own
+  state round-trips verbatim (measured; a pane with no editing history reports Live Preview
+  itself, so nothing has to default it). The OFF direction is a no-op: nothing is
   outlined in reading view, and switching a pane the user did not ask to leave would be a
   second unrequested change.
 - **A visible indication in the main UI:** a plugin status bar item (desktop-only, public API)

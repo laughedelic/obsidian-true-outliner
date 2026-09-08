@@ -3,11 +3,16 @@
 One question gates one task: D6's `source` default. The surfaces task also carries a small
 measurement of its own (D7), but only this one can change a design decision.
 
-- [ ] 1.1 Dev-vault probe: for a `MarkdownView` switched to reading view, record `getState()`
+- [x] 1.1 Dev-vault probe: for a `MarkdownView` switched to reading view, record `getState()`
       for both histories — last in Live Preview, and last in the source editor — and what
       `setState({ mode: 'source' })` alone does in each. Amend docs/research/24's open question
       1 with the measured answer and the verdict for D6's default. Task 4.4 waits on this; if
-      the encoding is not round-trippable at all, STOP and revise D6 before building the entry
+      the encoding is not round-trippable at all, STOP and revise D6 before building the entry.
+      **Measured** (docs/research/24, "Measured"): the state round-trips and the `source`
+      default is unreachable, so D6 stands with that clause dropped. The same probe answered
+      open question 4 (no public event fires on an in-leaf mode switch — D7 no longer needs
+      one) and found that a reading round-trip does NOT rebuild the editor state, which moved
+      D4's reset boundary and the ephemerality scenarios in both delta specs
 
 ## 2. Data model — the default
 
@@ -55,9 +60,9 @@ measurement of its own (D7), but only this one can change a design decision.
       `npm run lint`
 - [ ] 4.2 The indicators (D7): status bar item and ribbon icon stating the ACTIVE tab's mode,
       both toggling through 3.4's path; updates from the dispatch site plus
-      `active-leaf-change`/`file-open`; the dev-vault measurement of which events fire on an
-      in-leaf mode switch, adding what is missing; `styles.css` under namespaced classes. The
-      status text wording and the ribbon on-state treatment are settled by a visual pass and
+      `active-leaf-change`/`file-open`, which 1.1 measured to be the complete set — an in-leaf
+      mode switch fires nothing and changes nothing; `styles.css` under namespaced classes.
+      The status text wording and the ribbon on-state treatment are settled by a visual pass and
       recorded in docs/research/24. Verify: two tabs in different states — both indicators
       restate on tab switch; the screenshot lands in 24
 - [ ] 4.3 The settings tab (D8): declarative `getSettingDefinitions()` toggle plus the
@@ -66,10 +71,12 @@ measurement of its own (D7), but only this one can change a design decision.
       settings flip in the dev vault leaves every open tab's state alone, and the next note
       opened follows the new default
 - [ ] 4.4 The reading-view entry (D6, gated on 1.1): ON from a preview pane switches it via
-      `setState` with the measured `source` default, then dispatches the outline-on effect on
-      the fresh editor — overriding an off default, per the spec; only the active pane; OFF
-      from reading is a no-op. Verify: dev vault — entry lands in the pane's own editing mode
-      outlined, with the default off as well as on
+      `setState` on the state's own spread, then dispatches the outline-on effect on the pane's
+      own editor — which survives the switch, so there is nothing to wait for — overriding both
+      an off default and a manual off, per the spec; the pane is recognized by
+      `getMode() === 'preview'`, not by a registry miss; only the active pane; OFF from reading
+      is a no-op. Verify: dev vault — entry lands in the pane's own editing mode outlined, with
+      the default off as well as on, and from a tab manually switched off
 
 ## 5. E2E — lifecycle and surfaces
 
@@ -80,19 +87,21 @@ measurement of its own (D7), but only this one can change a design decision.
       `npm run test:e2e:narrow -- 10-outline-mode` launches (green after 5.2)
 - [ ] 5.2 Rewrite `e2e/specs/10-outline-mode.e2e.ts` for the per-tab lifecycle: a fresh
       install is on by default; the default survives restart while a manual state does not;
-      changing the setting leaves open tabs alone; a manual state resets on file switch and on
-      a reading round-trip; two tabs on one file differ; bytes and mtime are untouched; rename
-      and delete change nothing and the store records no per-path entries, dropping a previous
-      version's entries on save; the structural commands are gated per tab. Negative controls:
+      changing the setting leaves open tabs alone; a manual state resets on a file switch and
+      SURVIVES a reading round-trip (1.1); two tabs on one file differ; bytes and mtime are
+      untouched; rename and delete change nothing and the store records no per-path entries,
+      dropping a previous version's entries on save; the structural commands are gated per tab.
+      Negative controls:
       defaulting the setting to false must fail the fresh-install case; persisting any
       per-path or per-tab state must fail the restart and store cases. Verify: the narrow run
       is green
 - [ ] 5.3 New `e2e/specs/11-outline-mode-surfaces.e2e.ts`: the palette offers the toggle in
       reading view; the indicators state the active tab's mode, restate on tab switch, and
       toggle the active tab only; toggling on from reading view enters the view's own editing
-      mode outlined, overriding an off default; toggling off from reading view does nothing;
-      other panes are not switched. Negative controls: an indicator writing a private copy of
-      the state must fail the restate case; switching panes on the OFF-from-reading direction
+      mode outlined, overriding an off default and a manual off alike; toggling off from
+      reading view does nothing; other panes are not switched. Negative controls: an indicator
+      writing a private copy of the state must fail the restate case; switching panes on the
+      OFF-from-reading direction
       must fail the does-nothing case. Verify: the narrow run is green
 - [ ] 5.4 Mobile pass for both specs (`npm run test:e2e:narrow -- 10-outline-mode --mobile`,
       then 11): the ribbon states and toggles the active tab, no status bar item exists, and

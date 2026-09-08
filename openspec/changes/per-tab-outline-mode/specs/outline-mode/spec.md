@@ -4,18 +4,21 @@
 
 ### Requirement: Per-tab outline state with a global default
 
-Outline mode SHALL be a per-tab state. Every editor view SHALL initialize its outline state
-from one global setting — "open new tabs in outline mode", defaulting to ON — at the moment
-the editor is constructed. The state SHALL be a pure UI state: changing it SHALL never modify
-any note's content, metadata, or modification time.
+Outline mode SHALL be a per-tab state. Every editor SHALL initialize its outline state from one
+global setting — "open new tabs in outline mode", defaulting to ON — at the moment its editor
+state is constructed, which is when a tab opens and when a tab switches to another note. The
+state SHALL be a pure UI state: changing it SHALL never modify any note's content, metadata, or
+modification time.
 
-The setting SHALL be exposed in the plugin's settings tab as a toggle. Changing it SHALL
-affect editor views constructed afterwards and SHALL NOT retoggle any already-open tab.
+The setting SHALL be exposed in the plugin's settings tab as a toggle. Changing it SHALL affect
+editor states constructed afterwards and SHALL NOT retoggle any already-open tab.
 
-A tab's state SHALL NOT outlive its editor view: closing the tab, switching it to another
-note, or switching it to reading view and back SHALL reset the tab to the setting's value.
-The state SHALL NOT be persisted anywhere — not per note, not per tab — and two views showing
-the same file SHALL be able to hold different states, independently of each other.
+A tab's state SHALL NOT outlive the editor state it belongs to: closing the tab, and switching
+the tab to another note, SHALL reset it to the setting's value. Switching a tab to reading view
+and back SHALL NOT — the pane keeps its editor across a view-mode switch, so it comes back in
+the state the user left it in. The state SHALL NOT be persisted anywhere — not per note, not
+per tab — and two views showing the same file SHALL be able to hold different states,
+independently of each other.
 
 #### Scenario: A fresh install outlines every newly opened note
 
@@ -35,12 +38,18 @@ the same file SHALL be able to hold different states, independently of each othe
 - **THEN** every open tab keeps its current state, and the next note opened in a new tab is
   stock
 
-#### Scenario: A tab's manual state resets with its editor
+#### Scenario: A tab's manual state resets when the tab changes notes
 
 - **WHEN** a tab is manually switched off outline mode, and then the tab switches to another
-  note and back, or round-trips through reading view
+  note and back
 - **THEN** the tab is in outline mode again — the setting's default — without any toggle
   having been invoked
+
+#### Scenario: A tab's manual state survives a reading round-trip
+
+- **WHEN** a tab is manually switched off outline mode, and then switches to reading view and
+  back to editing
+- **THEN** the tab is still off — a view-mode switch is not a reset
 
 #### Scenario: Two tabs on one file differ
 
@@ -95,12 +104,13 @@ the two public indicator surfaces:
 - A ribbon icon (desktop and mobile), whose appearance reflects the active tab's state, that
   toggles that tab when activated.
 
-Both indicators SHALL follow the active tab as it changes — switching tabs, and a tab
-switching between notes or view modes, update what they state. The status bar item SHALL NOT
-be offered on mobile, where no status bar exists; the ribbon icon SHALL carry the indication
-there. The transient toggle notice SHALL remain on every toggle from every surface, as the
-immediate feedback on platforms or layouts where neither indicator is visible. No indicator
-or control SHALL be injected into Obsidian's own chrome — the view header mode switcher and
+Both indicators SHALL follow the active tab as it changes: switching tabs, and a tab switching
+between notes, update what they state, and at every point what they state SHALL be the active
+tab's own current state. The status bar item SHALL NOT be offered on mobile, where no status
+bar exists; the ribbon icon SHALL carry the indication there. The transient toggle notice SHALL
+remain on every toggle from every surface, as the immediate feedback on platforms or layouts
+where neither indicator is visible. No indicator or control SHALL be injected into Obsidian's
+own chrome — the view header mode switcher and
 the core status-bar edit-mode button are core UI and SHALL be untouched.
 
 #### Scenario: The indicators follow the active tab
@@ -142,6 +152,9 @@ view in reading view, that pane SHALL switch to an editing mode showing the outl
 regardless of the global default, since the user asked for the outline explicitly. The editing
 mode SHALL be the one the view was last in, or Live Preview when the view records none.
 
+Entering this way SHALL leave the tab outlined once it is editing, whether it was off because
+the global default is off or because the user had turned that tab off.
+
 The OFF direction from reading view SHALL leave the pane in reading view, and panes other than
 the active one SHALL NOT be switched by either direction.
 
@@ -154,6 +167,13 @@ the active one SHALL NOT be switched by either direction.
 
 - **WHEN** the global default is off and the toggle is invoked from a pane in reading view
 - **THEN** the pane enters editing outlined, not stock
+
+#### Scenario: Toggling on from reading view overrides a manual off
+
+- **WHEN** a tab is manually switched off outline mode, then switched to reading view, and the
+  toggle is invoked
+- **THEN** the pane enters editing outlined — the explicit request wins over the state the tab
+  carried in
 
 #### Scenario: The editing mode is the view's own
 
