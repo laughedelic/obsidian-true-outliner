@@ -38,6 +38,18 @@ export interface LineageRowOptions {
   /** Builds the between-segments separator. */
   readonly separatorGlyph: () => Element;
   /**
+   * Puts one segment's own content into its element.
+   *
+   * A hook rather than a call, because this module is DOM and nothing else:
+   * rendering markdown needs Obsidian's renderer and a `Component` to own its
+   * lifetime, and neither belongs to a function that draws a row. Each surface
+   * passes its own — the footer its existing one, zoom's trail one built from
+   * the widget's own component — and both get the same treatment from here.
+   *
+   * May resolve after the row exists; the row is complete without it.
+   */
+  readonly renderSegment: (el: HTMLElement, segment: LineageSegment) => void;
+  /**
    * Render the marker regardless of `icons`. `icons` is an APPEARANCE
    * setting, correct for hiding a marker that is decoration — the footer's
    * own case, a kind glyph naming what the first segment is. Zoom's trail
@@ -46,6 +58,28 @@ export interface LineageRowOptions {
    * always present. Unset for the footer, which has nothing that needs it.
    */
   readonly markerRequired?: boolean;
+}
+
+/**
+ * Does something INSIDE the segment own this event?
+ *
+ * Once a segment renders its markdown, it can contain real links — and a link
+ * inside a crumb is a second destination competing with the crumb's own. The
+ * link wins where the event starts on it, the segment wins everywhere else.
+ *
+ * Here, not in either surface's handler. The footer has a guard of this shape
+ * on its ROW, answering a different question (does a click anywhere in a row
+ * open the source note); zoom has none at all, so without this a click on a
+ * crumb's link would follow the link AND re-root the view. Keyboard as well as
+ * pointer: a rendered anchor is focusable, and its own Enter bubbles to the
+ * segment around it.
+ */
+function ownedByChild(seg: HTMLElement, event: Event): boolean {
+  if (event.defaultPrevented) return true;
+  const target = event.target as HTMLElement | null;
+  if (!target || target === seg) return false;
+  const owner = target.closest('a, button, input, [role="link"], [role="button"]');
+  return owner !== null && owner !== seg && seg.contains(owner);
 }
 
 /**
@@ -102,19 +136,27 @@ export function renderLineageContent(
       }
     }
     // Already stripped by whatever built the segments, which owns the rule so
-    // that a segment and a node row of the same kind say the same thing.
-    seg.appendText(segment.text);
+    // that a segment and a node row of the same kind say the same thing. What is
+    // left is INLINE content, and it reaches the DOM through the same renderer a
+    // node row uses — `appendText` here is what put `**bold**` in a crumb with
+    // its asterisks (docs/research/27).
+    options.renderSegment(seg, segment);
+    // The shortening mark sits OUTSIDE the rendered content, so it is never
+    // parsed as markdown and never lands inside a link the node's text opened.
+    if (segment.shortened === true) seg.appendText('…');
     // Focusable AND operable. `role="link"` with a tab stop and no key handler
     // is a control the keyboard can reach and cannot use, which is worse than
     // one it cannot reach at all — it advertises itself and then does nothing.
     seg.setAttribute('role', 'link');
     seg.tabIndex = 0;
     seg.addEventListener('click', (event) => {
+      if (ownedByChild(seg, event)) return;
       event.stopPropagation();
       options.onActivate(segment, event);
     });
     seg.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
+      if (ownedByChild(seg, event)) return;
       // The action BEFORE `preventDefault`, not after. The footer's own guard is
       // `event.defaultPrevented`, which exists to let a nested link that has
       // already handled itself win — so preventing the default first made the

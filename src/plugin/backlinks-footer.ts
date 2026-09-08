@@ -66,6 +66,7 @@ import {
   splitPath,
   type FooterRow,
   type LineageSegment,
+  type RowRender,
 } from './footer-model';
 import {
   applyControls,
@@ -1334,6 +1335,7 @@ class FooterController {
         marker: segmentMarker,
         glyph: segmentGlyph,
         separatorGlyph,
+        renderSegment: (target, segment) => this.renderSegment(target, segment, sourcePath),
         onActivate: (segment, event) => this.open(event, sourcePath, segment.nodeId),
       });
       return;
@@ -1402,9 +1404,15 @@ class FooterController {
    * Unwrapped, the row's marker and text sit in one inline flow, exactly as a
    * `.cm-line`'s do.
    */
-  private async renderMarkdown(el: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
-    await MarkdownRenderer.render(this.source.app, markdown, el, sourcePath, this.component);
-    unwrapBlocks(el);
+  private renderMarkdown(el: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
+    return renderInline(
+      this.source.app,
+      el,
+      { markdown, render: 'markdown' },
+      sourcePath,
+      this.component,
+      { media: true },
+    );
   }
 
   /**
@@ -1419,21 +1427,37 @@ class FooterController {
     row: Extract<FooterRow, { type: 'node' }>,
     sourcePath: string,
   ): Promise<void> {
-    if (row.markdown.length === 0) return Promise.resolve();
-    if (row.render === 'text') {
-      el.setText(decodeEntities(row.markdown));
-      return Promise.resolve();
-    }
-    if (row.render === 'code') {
-      el.createEl('code', { cls: 'to-backlinks-code', text: row.markdown });
-      return Promise.resolve();
-    }
     // An embed of the target, rendered inside the target's OWN footer, would
     // transclude the note into itself — the reader asked where it was
     // referenced, not to read it again. Rendered as a link instead, and marked.
     const markdown =
       row.referenceKind === 'embed' ? row.markdown.replace(/!\[\[/g, '[[') : row.markdown;
-    return this.renderMarkdown(el, markdown, sourcePath);
+    // A reference row is a QUOTATION of the node, so an embed it contains is
+    // part of what the node says and stays. Its height is bounded by the
+    // stylesheet instead (design D7) — the model does not take a quotation's
+    // content away to fix a layout problem.
+    return renderInline(
+      this.source.app,
+      el,
+      { markdown, render: row.render },
+      sourcePath,
+      this.component,
+      { media: true },
+    );
+  }
+
+  /** One lineage segment's own content, by the same rule and the same renderer
+   * a node row's takes — minus its media, which is the one thing a chain does
+   * not inherit from a quotation (design D1). */
+  private renderSegment(el: HTMLElement, segment: LineageSegment, sourcePath: string): void {
+    void renderInline(
+      this.source.app,
+      el,
+      segment,
+      sourcePath,
+      this.component,
+      { media: false },
+    );
   }
 
   /**
@@ -1620,6 +1644,73 @@ const BLOCK_WRAPPERS = new Set(['P', 'UL', 'OL', 'LI', 'DIV', 'H1', 'H2', 'H3', 
  * unwraps. The wider set stays because a stripping miss must not put a block
  * element in a row — the one invariant the whole model rests on.
  */
+/**
+ * One node's inline content, into one element, by the one rule every surface
+ * that quotes a node follows.
+ *
+ * Three modes, and only `markdown` reaches Obsidian. By then the model has
+ * already removed the node's block syntax, so the renderer is asked for inline
+ * content and returns a single paragraph, which `unwrapBlocks` flattens.
+ *
+ * `sourcePath` is the REFERENCING note, so its relative links resolve from
+ * where they were written rather than from the note being read.
+ *
+ * `media` is D1's one difference between a chain and a quotation. Applied as a
+ * pass over the RENDERED fragment rather than as a rewrite of the markdown: the
+ * only thing that knows what a string parses into is the parser, and stripping
+ * embed syntax by regex ahead of it would get escapes and code spans wrong the
+ * same way a hand-rolled inline stripper would (design D2).
+ *
+ * Resolves after the element already exists. Callers that cannot wait — a CM6
+ * widget's `toDOM` — get a complete row whose text fills in a moment later.
+ */
+export async function renderInline(
+  app: App,
+  el: HTMLElement,
+  content: { readonly markdown: string; readonly render: RowRender },
+  sourcePath: string,
+  component: Component,
+  options: { readonly media: boolean },
+): Promise<void> {
+  if (content.markdown.length === 0) return;
+  if (content.render === 'text') {
+    el.setText(decodeEntities(content.markdown));
+    return;
+  }
+  if (content.render === 'code') {
+    el.createEl('code', { cls: 'to-backlinks-code', text: content.markdown });
+    return;
+  }
+  await MarkdownRenderer.render(app, content.markdown, el, sourcePath, component);
+  unwrapBlocks(el);
+  if (!options.media) dropMedia(el);
+}
+
+/**
+ * Media out of a chain, alt text in its place.
+ *
+ * A lineage row is one line of context; an image is not text and there is no
+ * size at which it belongs there. The alt is what the node SAYS, so it stays —
+ * a segment emptied of its only content is blank, and a blank segment is
+ * unclickable, which is the failure the kind-label fallback already exists to
+ * prevent.
+ *
+ * Obsidian's own internal embeds are `.internal-embed` spans that resolve
+ * later, so they are matched by class as well as by tag: by the time one has
+ * become an `<img>` the row has already been drawn.
+ */
+function dropMedia(el: HTMLElement): void {
+  const media = el.querySelectorAll('img, video, audio, iframe, svg, .internal-embed');
+  media.forEach((node) => {
+    const alt =
+      node.getAttribute('alt') ??
+      node.getAttribute('src') ??
+      node.getAttribute('title') ??
+      '';
+    node.replaceWith(alt.trim());
+  });
+}
+
 function unwrapBlocks(el: HTMLElement): void {
   for (;;) {
     const only = el.children.length === 1 ? el.firstElementChild : null;

@@ -27,7 +27,7 @@ function render(rows: readonly FooterRow[]): string[] {
   return rows.map((r) => {
     const indent = '  '.repeat(r.depth);
     if (r.type === 'lineage') {
-      return `${indent}~ ${r.segments.map((seg) => seg.text.replace(/^[\t\s-]+/, '').trim()).join(' > ')}`;
+      return `${indent}~ ${r.segments.map((seg) => seg.markdown.replace(/^[\t\s-]+/, '').trim()).join(' > ')}`;
     }
     if (r.type === 'property') return `${indent}[${r.property}] ${r.markdown}`;
     const first = r.markdown.split('\n')[0] ?? '';
@@ -88,7 +88,7 @@ describe('footer model', () => {
     const lineage = rows.find((r) => r.type === 'lineage');
     expect(lineage).toBeDefined();
     if (lineage?.type !== 'lineage') throw new Error('expected lineage');
-    expect(lineage.segments.map((s) => s.text).join(' ')).toContain(
+    expect(lineage.segments.map((s) => s.markdown).join(' ')).toContain(
       'Follow-ups from the review:',
     );
   });
@@ -110,12 +110,12 @@ describe('footer model', () => {
 
     const [task, ordered] = chain.segments;
     expect(task!.task).toBe(false);
-    expect(task!.text).toBe('an open task ancestor');
-    expect(task!.text).not.toContain('[ ]');
+    expect(task!.markdown).toBe('an open task ancestor');
+    expect(task!.markdown).not.toContain('[ ]');
 
     expect(ordered!.ordinal).toBe('1.');
-    expect(ordered!.text).toBe('an ordered ancestor');
-    expect(ordered!.text).not.toMatch(/^1\./);
+    expect(ordered!.markdown).toBe('an ordered ancestor');
+    expect(ordered!.markdown).not.toMatch(/^1\./);
   });
 
   it("carries each lineage element its own kind, not the chain leader's", () => {
@@ -522,7 +522,11 @@ describe('what the model reports whatever the renderer draws', () => {
       // Each segment carries what a marker would be drawn FROM, so the renderer
       // can decline per segment without the model knowing which it declined.
       for (const segment of row.segments) {
-        expect(typeof segment.text).toBe('string');
+        expect(typeof segment.markdown).toBe('string');
+        // 3.4: a segment says how it is to be rendered, not only what it says.
+        // Without that pair the renderer has no choice but `appendText`, which
+        // is what showed markdown source in a chain (docs/research/27).
+        expect(['markdown', 'text', 'code']).toContain(segment.render);
         expect(typeof segment.nodeId).toBe('number');
         expect(segment.kind).toBeTruthy();
       }

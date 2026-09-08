@@ -22,13 +22,13 @@
 
 import { StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
-import { editorInfoField } from 'obsidian';
+import { Component, editorInfoField } from 'obsidian';
 import type { OutlineNode } from '../model';
-import { nodeLabel } from '../node-text';
+import { segmentContent } from '../node-text';
 import { nodeStartLine } from '../locate';
 import { rowFact, splitPath, type LineageSegment } from './footer-model';
 import { renderLineageContent } from './lineage-row';
-import { segmentGlyph, separatorGlyph } from './backlinks-footer';
+import { renderInline, segmentGlyph, separatorGlyph } from './backlinks-footer';
 import { lineChrome, applyLineChrome, OWN_CHROME_CLASS } from './chrome-line';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
@@ -124,16 +124,52 @@ const FILE_SEGMENT_ID = -1;
 
 function segmentsFor(fileName: string, trail: readonly OutlineNode[]): LineageSegment[] {
   return [
-    { text: fileName, nodeId: FILE_SEGMENT_ID, kind: 'paragraph' },
+    // A note's name is not markdown, so it is rendered as what it is. Running it
+    // through the renderer would make a file called `**draft**` come out bold.
+    { markdown: fileName, render: 'text', nodeId: FILE_SEGMENT_ID, kind: 'paragraph' },
+    // The same rule the footer's own lineage segments come from, so a crumb and
+    // a segment naming the same node say the same thing (docs/research/27).
     ...trail.map((node) => ({
-      text: nodeLabel(node),
+      ...segmentContent(node),
       nodeId: node.id,
       kind: node.kind,
     })),
   ];
 }
 
+/**
+ * The widget's identity: every field of every segment that changes what is
+ * DRAWN.
+ *
+ * Segment text alone is not enough, and shipping that way meant a task
+ * ancestor could be ticked without its crumb's checkbox following — same label,
+ * different marker, so `eq()` said equal and CodeMirror kept the old DOM. The
+ * render mode makes it worse, since one string can go from plain to rendered.
+ *
+ * Node ids stay OUT, and that is not an oversight: `model.ts`'s global counter
+ * hands out fresh ids on every reparse, so keying on them would rebuild the row
+ * on every keystroke. It is the same reason the activation handler below
+ * resolves an ancestor by its POSITION rather than by a captured id.
+ */
+function trailKey(segments: readonly LineageSegment[]): string {
+  return segments
+    .map((s) => [s.markdown, s.render, s.kind, s.task ?? '', s.ordinal ?? '', s.shortened ?? ''].join('\u0000'))
+    .join('\u0001');
+}
+
 class ZoomTrailWidget extends WidgetType {
+  /**
+   * Owns the rendered markdown in this row for exactly as long as the row
+   * exists.
+   *
+   * Not the plugin's own `Component`: children registered on that one live
+   * until the plugin unloads, so every trail ever drawn would still be
+   * registered at the end of a session. CM6 already gives a widget the
+   * lifecycle this needs — `toDOM` when its DOM appears, `destroy` when it
+   * goes — so the component follows the DOM rather than the plugin.
+   */
+  private component: Component | null = null;
+
   constructor(
     private readonly modes: ZoomTrailSource,
     private readonly key: string,
@@ -141,8 +177,14 @@ class ZoomTrailWidget extends WidgetType {
     super();
   }
 
-  /** Rebuild only when the trail itself changed. The key is the segment texts,
-   * so typing inside the zoomed subtree does not churn the row. */
+  override destroy(): void {
+    this.component?.unload();
+    this.component = null;
+  }
+
+  /** Rebuild only when the trail itself changed — see `trailKey`, which is what
+   * "changed" means here. Typing inside the zoomed subtree does not churn the
+   * row. */
   override eq(other: ZoomTrailWidget): boolean {
     return other.key === this.key;
   }
@@ -161,8 +203,12 @@ class ZoomTrailWidget extends WidgetType {
     // describe.
     applyLineChrome(row, lineChrome(rowFact('paragraph', 0), { nativeBlocks: false }));
 
-    const file = view.state.field(editorInfoField, false)?.file;
+    const info = view.state.field(editorInfoField, false);
+    const file = info?.file;
     const name = file ? splitPath(file.path).name : 'Note';
+    // `MarkdownFileInfo` carries the app, so the trail reads it from the editor
+    // it is already in rather than taking a new constructor dependency.
+    const app = info?.app;
     // `view`, `toDOM`'s own parameter — not a "live view" read from some
     // shared place. A `WidgetType` is one CM6 state field's own value, which
     // is one editor's own value; nothing about it is shared across panes, so
@@ -176,6 +222,14 @@ class ZoomTrailWidget extends WidgetType {
       view.dispatch({ effects: zoomCleared.of(null) });
     };
     const segments = segmentsFor(name, scope.trail);
+    // Fresh per `toDOM`: CM6 may call it again for the same widget after a
+    // `destroy`, and reusing an unloaded component would register children
+    // that never render.
+    this.component?.unload();
+    const component = new Component();
+    component.load();
+    this.component = component;
+    const sourcePath = file?.path ?? '';
     renderLineageContent(row, segments, {
       icons: this.modes.backlinksSegmentIcons,
       // ALWAYS separated, whatever the footer's setting says: the trail is a
@@ -191,6 +245,20 @@ class ZoomTrailWidget extends WidgetType {
       marker: () => zoomOutMark(clear),
       glyph: segmentGlyph,
       separatorGlyph,
+      // The same renderer and the same policy the footer's lineage rows take:
+      // one implementation, so a crumb and a segment naming the same node are
+      // drawn the same way. Resolves after `toDOM` has returned, which is why
+      // the row is built complete without it (design D6).
+      renderSegment: (target, segment) => {
+        // No editor info means no app to render through — the same defensive
+        // branch the note's own name takes above. Plain text rather than
+        // nothing: a blank crumb is unclickable.
+        if (!app) {
+          target.setText(segment.markdown);
+          return;
+        }
+        void renderInline(app, target, segment, sourcePath, component, { media: false });
+      },
       onActivate: (segment) => {
         if (segment.nodeId === FILE_SEGMENT_ID) {
           clear();
@@ -229,9 +297,7 @@ function compute(state: EditorState, modes: ZoomTrailSource): DecorationSet {
   if (!scope) return Decoration.none;
   const file = state.field(editorInfoField, false)?.file;
   const name = file ? splitPath(file.path).name : 'Note';
-  const key = segmentsFor(name, scope.trail)
-    .map((s) => s.text)
-    .join(' ');
+  const key = trailKey(segmentsFor(name, scope.trail));
   // `side: -1`, and the sign is not a preference. At a line's start a block
   // widget sorts above the line with a negative side and INSIDE it with a
   // positive one, which splits the root line in two and puts the trail between

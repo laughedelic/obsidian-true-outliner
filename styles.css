@@ -1743,6 +1743,80 @@ body {
 }
 
 /*
+ * A LINEAGE row renders its markdown live, and spends no colour on it
+ * (docs/research/27, D1).
+ *
+ * A chain is context: it is drawn dimmer than the reference it leads to, and a
+ * theme-accented link inside it is the loudest thing on the line — which
+ * inverts the emphasis the row's own colour establishes. So links and tags stay
+ * live and separately activatable, and take the row's colour instead of their
+ * own.
+ *
+ * `currentColor` throughout rather than a token, so every mark follows the row
+ * — including through the row's own hover, which a fixed colour would not.
+ */
+.to-backlinks-row.is-lineage .to-backlinks-content a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.18em;
+}
+
+/*
+ * The cursor is what tells the two destinations apart before the click rather
+ * than after it: a crumb re-roots the view or opens the source note, a link
+ * inside it leaves for somewhere else entirely. `alias` is the curled arrow the
+ * platform already uses for exactly that, and it costs the row no ink.
+ */
+.to-backlinks-row.is-lineage .to-backlinks-content a.external-link {
+  cursor: alias;
+}
+
+/* A tag is a jump AND a word in the sentence, so it reads as text carrying a
+ * little more ink than the row around it — not as a chip. A pill would be a
+ * second object in a line that is one. The fill on hover is what says it is
+ * operable. */
+.to-backlinks-row.is-lineage .to-backlinks-content a.tag {
+  color: color-mix(in srgb, currentColor 55%, var(--text-normal) 45%);
+  background: none;
+  border: none;
+  padding: 0 0.15em;
+  border-radius: var(--radius-s);
+  text-decoration: none;
+  font-size: inherit;
+}
+
+.to-backlinks-row.is-lineage .to-backlinks-content a.tag:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* A highlight at full strength is the loudest mark on a dim line — the accent
+ * problem again, in the one channel that is only colour. Mixed toward the row's
+ * own ground it keeps the hue that says "highlight" and loses the shout. A
+ * reference row keeps its own at full strength, being a quotation of the node
+ * rather than context for one. */
+.to-backlinks-row.is-lineage .to-backlinks-content mark {
+  background: color-mix(in srgb, var(--text-highlight-bg) 40%, transparent);
+}
+
+/*
+ * Media never sets a row's height.
+ *
+ * A lineage row gets no rule here because nothing reaches it — the renderer
+ * drops an embed to its alt text before the row is drawn (design D7). This is
+ * the REFERENCE row's case, which keeps its embed because that row is a
+ * quotation and the embed is part of what the node says. Left unbounded it
+ * rendered at natural size, which is the reproduction D18 exists to rule out.
+ */
+.to-backlinks-content :is(img, video, canvas, svg.excalidraw-svg) {
+  max-height: 1.4em;
+  width: auto;
+  vertical-align: text-bottom;
+}
+
+/*
  * The step between two ancestors in a collapsed chain — an icon naming the next
  * ancestor's kind, and no separator at all.
  *
@@ -1815,9 +1889,20 @@ body {
   cursor: pointer;
 }
 
+/*
+ * Colour alone. The underline went when a segment started rendering its own
+ * markdown: a link inside a chain is underlined at rest, so a segment that
+ * underlined itself under the pointer made the ancestor read as a link and hid
+ * where any link inside it began and ended. On this row an underline means
+ * "link" and nothing else.
+ *
+ * `--text-normal` rather than a step from the row's own colour, and that is
+ * checked rather than assumed: both lineage surfaces sit at `--text-faint`
+ * (the rule above governs the trail too, which has no colour of its own), so
+ * one destination is visible on both.
+ */
 .to-backlinks-seg:hover {
   color: var(--text-normal);
-  text-decoration: underline;
 }
 
 /* The icon belongs to its own segment, so it answers that segment's hover —
@@ -2844,12 +2929,6 @@ body {
   .to-zoom-trail .to-zoom-out {
     top: calc(var(--to-zoom-mark-size) / 2 - 0.5cap);
   }
-}
-
-/* Colour alone on hover. The underline reads as a link in a row that is already
- * a path of them, and at four segments it made the whole trail look underlined. */
-.to-zoom-trail .to-backlinks-seg:hover {
-  text-decoration: none;
 }
 
 /*

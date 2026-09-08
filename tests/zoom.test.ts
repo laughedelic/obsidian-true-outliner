@@ -13,7 +13,7 @@ import {
   splitEscapes,
   resolveZoom,
 } from '../src/zoom';
-import { nodeLabel, stripBlockPrefix } from '../src/node-text';
+import { nodeContent, nodeLabel, segmentContent, stripBlockPrefix } from '../src/node-text';
 import { documentLineCount } from '../src/locate';
 import { itemContentIsEmpty, markerPrefixCh } from '../src/ops';
 import { decorate, computeLineGuides } from '../src/plugin/decorate';
@@ -184,6 +184,60 @@ describe('nodeLabel: what a crumb is called', () => {
       }),
       { numRuns: 200 },
     );
+  });
+
+  /**
+   * A crumb and a footer row of the SAME node say the same thing.
+   *
+   * The assertion is agreement, not a particular string: what each kind shows
+   * is `nodeContent`'s to decide and is asserted there. What this pins is that
+   * there is only ONE decision — the trail used to reach its own weaker rule,
+   * which is how a callout crumb read `[!tip] Field notes` while the footer row
+   * beneath said `Field notes` (docs/research/27).
+   */
+  it('names a node the way a footer row of that node does', () => {
+    const doc = parse(
+      [
+        '> [!tip] Field notes, **second pass**',
+        '> body line',
+        '',
+        '| owner | **status** |',
+        '| --- | --- |',
+        '| maya | shipped |',
+        '',
+        '```js',
+        'const severity = 3;',
+        '```',
+        '',
+        '<div>an **html** block</div>',
+        '',
+      ].join('\n'),
+    );
+
+    const kinds = ['callout', 'table', 'code', 'html'] as const;
+    for (const kind of kinds) {
+      const node = walk(doc.children).find((n) => n.kind === kind);
+      expect(node, `no ${kind} node in the fixture`).toBeDefined();
+      const crumb = segmentContent(node!);
+      const row = nodeContent(node!);
+      expect(crumb.markdown, kind).toBe(row.markdown);
+      expect(crumb.render, kind).toBe(row.render);
+    }
+  });
+
+  it('leaves no block syntax in a crumb, whatever the ancestor kind', () => {
+    // The three the trail leaked, named as the shapes rather than as strings:
+    // a callout token, a table's pipes, a fence.
+    const doc = parse(
+      ['> [!tip] Field notes', '', '| owner | status |', '| --- | --- |', '', '```js', 'x', '```', ''].join('\n'),
+    );
+    for (const node of walk(doc.children)) {
+      if (!['callout', 'table', 'code'].includes(node.kind)) continue;
+      const label = nodeLabel(node);
+      expect(label, node.kind).not.toMatch(/^\[!/);
+      expect(label, node.kind).not.toContain('|');
+      expect(label, node.kind).not.toMatch(/^(?:```|~~~)/);
+    }
   });
 });
 
