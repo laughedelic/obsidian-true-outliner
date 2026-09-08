@@ -10,10 +10,11 @@
 
 import type { EditorState } from '@codemirror/state';
 import { editorInfoField } from 'obsidian';
-import { resolveZoom, type ZoomScope } from '../zoom';
+import { editEscapes, resolveZoom, type ZoomScope } from '../zoom';
 import {
-  setStillRootedResolver,
+  setChangeEscapesResolver,
   setVisibleBoundsResolver,
+  visibleBoundsOf,
   zoomAnchorField,
 } from './zoom-state';
 import { parsedDoc } from './parsed-doc';
@@ -111,25 +112,26 @@ setVisibleBoundsResolver((state, anchor) => {
   const { doc } = parsedDoc(state.doc);
   const scope = resolveZoom(doc, state.doc.lineAt(anchor).number - 1);
   if (!scope) return null;
-  return {
-    from: state.doc.line(scope.cover.start.line + 1).from,
-    to: state.doc.line(Math.min(scope.cover.end.line + 1, state.doc.lines)).to,
-  };
+  return visibleBoundsOf(state.doc, scope);
 });
 
 /**
- * The anchor still names a node's own first line.
+ * Would this change leave content outside the scope?
  *
- * `resolveZoom` answers "which node owns this line", which is the right
- * question for zooming IN from a caret anywhere in a node and the wrong one for
- * deciding whether an existing zoom survived an edit. A line that stops being
- * its own node — an `hr` that a typed character turns back into paragraph text,
- * say — is still OWNED by a node, just no longer the one the user zoomed into.
+ * The same `editEscapes` the enforcement filter refuses with, so the automatic
+ * exit and the refusal answer one question rather than two similar ones. Both
+ * documents are read through `parsed-doc.ts`'s cache: the before-state's parse
+ * is already there (the filter took it on this same transaction), and the
+ * after-state's is one the NEXT transaction will read as its own start state.
+ *
+ * An unresolvable scope in the old state is not an escape — there was nothing
+ * to leave — and the anchor's own validity is the caller's precondition,
+ * already established by `bounds` having resolved at all.
  */
-setStillRootedResolver((state, anchor) => {
-  if (anchor < 0 || anchor > state.doc.length) return false;
-  const line = state.doc.lineAt(anchor).number - 1;
-  const { doc } = parsedDoc(state.doc);
-  const scope = resolveZoom(doc, line);
-  return scope !== null && scope.startLine === line;
+setChangeEscapesResolver((tr, _bounds, anchor, footprint) => {
+  const { doc: before } = parsedDoc(tr.startState.doc);
+  const scope = resolveZoom(before, tr.startState.doc.lineAt(anchor).number - 1);
+  if (!scope) return false;
+  const { doc: after } = parsedDoc(tr.state.doc);
+  return editEscapes(before, scope, after, footprint);
 });

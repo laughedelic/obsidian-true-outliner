@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import {
-  setStillRootedResolver,
+  setChangeEscapesResolver,
   setVisibleBoundsResolver,
   zoomAnchorField,
   zoomTo,
@@ -9,36 +9,15 @@ import {
 import { parse } from '../src/parse';
 import { resolveZoom } from '../src/zoom';
 
-/**
- * `stillRooted`, wired for real (matching `zoom-scope.ts`'s own resolver body).
- * Answers "does a node start at this exact line" — the question a reviewed
- * comment on `zoom-state.ts` pointed out is the WRONG one for telling a
- * survived root apart from a different node that merely landed on its old
- * line (`outline-zoom` PR #69, review comment on `zoom-state.ts:69`).
- */
-function realStillRooted(state: EditorState, anchor: number): boolean {
-  if (anchor < 0 || anchor > state.doc.length) return false;
-  const line = state.doc.lineAt(anchor).number - 1;
-  const doc = parse(state.doc.toString());
-  const scope = resolveZoom(doc, line);
-  return scope !== null && scope.startLine === line;
-}
-
-describe('the deletion trigger does not depend on the outside-range trigger catching it first', () => {
+describe('the deletion trigger does not depend on the escape trigger catching it first', () => {
   /**
-   * `touchesOutside` (trigger 2) is bounded by whatever `visibleBounds`
-   * reports, and in the real plugin that bound always ends one character
-   * short of a following sibling — CM6's `Line.to` never includes its own
-   * terminating newline, so consuming the separator that lets a sibling
-   * slide onto the root's old line always also trips trigger 2, whichever
-   * node ends up there. That coupling is a property of THIS bounds formula,
-   * not of the deletion check itself — so this test wires a resolver that
-   * DOESN'T have it: bounds generous enough to let the separator through,
-   * isolating trigger 1a (the deletion check) from trigger 2 (the outside-
-   * range check) so a change to either implementation cannot quietly stop
-   * testing the other.
+   * Trigger 1a and the escape trigger beside it can each catch a whole-subtree
+   * deletion, and a test that leaves both wired cannot say which one did. So
+   * this one disables the other: an escape resolver that never reports an
+   * escape, plus bounds generous enough that nothing about the range can be
+   * doing the work either. What is left is trigger 1a alone.
    */
-  it('still exits, rather than retargets, when a generous outside-range bound lets the deletion through', () => {
+  it('still exits, rather than retargets, with the escape trigger disabled', () => {
     const D = '- one\n  - nested\n- two\n';
     const rootEnd = D.indexOf('- two'); // one past the root's own last line
 
@@ -53,7 +32,7 @@ describe('the deletion trigger does not depend on the outside-range trigger catc
       // to isolate trigger 1a.
       return { from: 0, to: rootEnd };
     });
-    setStillRootedResolver(realStillRooted);
+    setChangeEscapesResolver(() => false);
 
     let state = EditorState.create({ doc: D, extensions: [zoomAnchorField] });
     state = state.update({ effects: zoomTo.of(0) }).state;
@@ -68,12 +47,18 @@ describe('the deletion trigger does not depend on the outside-range trigger catc
     expect(next.field(zoomAnchorField)).toBeNull();
   });
 
-  it('negative control: without the deletion check, the same edit silently retargets', () => {
-    // Same setup as above, but `stillRooted` alone — no deletion check —
-    // answers the way `zoomAnchorField.update` would if trigger 1a were
-    // removed: "does a node start here", full stop. This is what the review
-    // comment described, reproduced directly against the resolver contract
-    // rather than through `zoomAnchorField`'s own (now-fixed) reducer.
+  it('negative control: nothing else in the field can catch this deletion', () => {
+    // Why trigger 1a cannot be folded into the escape predicate. After the
+    // deletion, `- two` occupies the root's old line, and BOTH of the questions
+    // the predicate could ask about identity answer "unchanged":
+    //
+    //   - does a node start on that line?  yes — `- two` does
+    //   - does it hold the root's position in the tree? yes — `- one` was the
+    //     first top-level node and `- two` is now the first top-level node
+    //
+    // Only "was the whole cover removed" separates a deleted root from a
+    // surviving one here, which is why it is asked first and asked about the
+    // CHANGE rather than about the after-state.
     const D = '- one\n  - nested\n- two\n';
     const rootEnd = D.indexOf('- two');
     const doc = parse(D);
@@ -83,11 +68,10 @@ describe('the deletion trigger does not depend on the outside-range trigger catc
     const after = parse(D.slice(rootEnd));
     const mappedLine = 0; // forward-mapped anchor after deleting [0, rootEnd)
     const retargeted = resolveZoom(after, mappedLine);
-    // `stillRooted`'s own question, answered by hand: a node DOES start on
-    // line 0 of the post-deletion document — just not the one that was
-    // zoomed into.
-    const wouldSurvive = retargeted !== null && retargeted.startLine === mappedLine;
-    expect(wouldSurvive).toBe(true);
+    expect(retargeted).not.toBeNull();
+    expect(retargeted!.startLine).toBe(mappedLine);
+    expect(retargeted!.path).toEqual(before.path);
+    // A different node, all the same.
     expect(retargeted!.root.lines[0]).toBe('- two');
     expect(retargeted!.root.id).not.toBe(before.root.id);
   });

@@ -19,7 +19,6 @@ import {
   EditorState,
   StateEffect,
   Transaction,
-  type ChangeSpec,
   type Extension,
   type Text,
   type TransactionSpec,
@@ -36,13 +35,14 @@ import { clampRange } from '../zoom';
 import { resolvePlacement, resolveMarkerPlacement } from '../caret';
 import { linePosToOffset, offsetToLinePos, toLineRange } from './cm-pos';
 import { computeVerdictForRanges, type EditFact, type RewriteVerdict } from '../enforce';
-import type { Edit, RejectionReason } from '../result';
+import type { RejectionReason } from '../result';
 import { applyEdits } from '../result';
-import { editsToChanges } from './dispatch';
+import { editsToChangeSpec } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
+import { escapesZoom } from './zoom-enforce';
 import { isNestedTransaction } from './nested-editor';
 import type { TransactionStats } from './stats';
 
@@ -101,17 +101,6 @@ function collectEditFacts(tr: Transaction): EditFact[] {
     });
   });
   return facts;
-}
-
-/** `verdict.edits` (old-document line ranges) → a CM6 `ChangeSpec` against
- * `tr.startState.doc`, via the same `editsToChanges` position-based
- * conversion the grammar's own dispatches use. */
-function editsToChangeSpec(doc: Text, oldLines: readonly string[], edits: readonly Edit[]): ChangeSpec[] {
-  return editsToChanges(oldLines, edits).map((c) => ({
-    from: linePosToOffset(doc, c.from),
-    to: linePosToOffset(doc, c.to),
-    insert: c.text,
-  }));
 }
 
 /** Character offset of a `{line, ch}` position in a freshly-built lines
@@ -252,6 +241,7 @@ function buildRewriteSpec(tr: Transaction, outlineDoc: OutlineDoc, verdict: Rewr
   };
 }
 
+
 export function transactionFilterExtension(
   source: ClassificationSource,
   stats: TransactionStats,
@@ -304,7 +294,16 @@ export function transactionFilterExtension(
       // it from "Indent using tabs", so a structural rewrite that has to
       // materialize brand-new indentation (paste/type-over with no
       // existing indented line to infer from) respects the same setting.
-      const verdict = computeVerdictForRanges(cls, outlineDoc, edits, tr.startState.facet(indentUnit));
+      const computed = computeVerdictForRanges(cls, outlineDoc, edits, tr.startState.facet(indentUnit));
+      // `outline-zoom`: the same escape judgement the structural commands make,
+      // applied to the change enforcement would actually DISPATCH. Asked after
+      // the verdict, never before it, so an edit the rules already refuse keeps
+      // its own reason — a first-node Backspace still reports the first-node
+      // cue, not the zoom one. The zoom reason is for edits that would
+      // otherwise have succeeded.
+      const verdict = escapesZoom(tr, zoomScope(tr.startState), outlineDoc, computed)
+        ? ({ kind: 'veto', reason: 'would-leave-zoom-scope' } as const)
+        : computed;
       verdictKind = verdict.kind;
       if (verdict.kind === 'rewrite') {
         result = buildRewriteSpec(tr, outlineDoc, verdict);

@@ -29,28 +29,33 @@
 
 ## 2. Refusal on the enforcement path
 
-- [ ] 2.1 Carry the after-`OutlineDoc` on `RewriteVerdict` (design D4) and verify the existing
+- [x] 2.1 Carry the after-`OutlineDoc` on `RewriteVerdict` (design D4) and verify the existing
   `tests/enforce.test.ts` suite still passes unchanged — this task adds a field, it changes no
   verdict.
-- [ ] 2.2 Resolve the zoom scope in `transaction-filter.ts`'s boundary-crossing branch and replace
+- [x] 2.2 Resolve the zoom scope in `transaction-filter.ts`'s boundary-crossing branch and replace
   an escaping verdict with a `would-leave-zoom-scope` veto; verify the veto counter increments and
   the buffer is byte-identical, through the stats snapshot the e2e helpers already read.
-- [ ] 2.3 Verify an existing veto keeps its own reason — a first-node zoom root reports the
+- [x] 2.3 Verify an existing veto keeps its own reason — a first-node zoom root reports the
   first-node cue, not the zoom cue — with a unit test; the negative control is applying the zoom
-  check before the verdict rather than after it, which must make the reason change.
-- [ ] 2.4 Verify a `pass` verdict is judged too (the trailing-edge merge is a rewrite, but the
-  gap-line deletion measured as a pass), with a test that a pass reaching outside is vetoed.
+  check before the verdict rather than after it, which must make the reason change. Reaching this
+  from the unit suite needed the decision to live outside `transaction-filter.ts`, which imports
+  `obsidian`: it is `zoom-enforce.ts`, split for the reason `zoom-state.ts` records for its own.
+- [x] 2.4 Verify a `pass` verdict is judged too (the trailing-edge merge is a rewrite, but the
+  gap-line deletion measured as a pass), with a test that a pass reaching outside is vetoed. Note
+  for the record: no MEASURED gesture produces a pass that escapes — every escaping row in
+  docs/research/26 is a rewrite — so the test drives the seam directly rather than claiming a
+  reachable one, and the path stays because a pass lands in the document unjudged otherwise.
 
 ## 3. The exit triggers
 
-- [ ] 3.1 Replace `touchesOutside` in `zoom-state.ts` with the shared predicate through an
+- [x] 3.1 Replace `touchesOutside` in `zoom-state.ts` with the shared predicate through an
   injected resolver (design D6), and verify `tests/zoom-state.test.ts` gains a case where an
   in-scope append at the cover's tail keeps the anchor — the negative control is restoring the
   `toA > bounds.to` comparison, which must make it fail.
-- [ ] 3.2 Give trigger 1 the identity check of design D2 in place of `stillRooted`'s "some node
+- [x] 3.2 Give trigger 1 the identity check of design D2 in place of `stillRooted`'s "some node
   begins here", and verify the existing `hr`-retarget case in `tests/zoom-state.test.ts` still
   clears while an ordinary in-scope edit still does not.
-- [ ] 3.3 Verify a deliberate whole-subtree deletion still succeeds and still exits (design D7)
+- [x] 3.3 Verify a deliberate whole-subtree deletion still succeeds and still exits (design D7)
   with a unit test asserting the predicate says "inside" AND trigger 1a fires — asserting only the
   exit would pass identically if the predicate had wrongly refused first. Verify too that the two
   share one derivation of "the whole cover was removed" rather than computing it twice.

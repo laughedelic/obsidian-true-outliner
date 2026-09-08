@@ -21,10 +21,13 @@
 import {
   StateEffect,
   StateField,
+  type ChangeDesc,
   type EditorState,
   type Extension,
+  type Text,
   type Transaction,
 } from '@codemirror/state';
+import type { EditFootprint, ZoomScope } from '../zoom';
 
 /** Zoom to the node whose own first line starts at this document position. */
 export const zoomTo = StateEffect.define<number>();
@@ -45,44 +48,35 @@ export const zoomAnchorField = StateField.define<number | null>({
     // "did a change reach outside it" and "did the whole of it disappear"
     // need.
     const bounds = tr.docChanged ? visibleBounds?.(tr.startState, value) : undefined;
-    // Trigger 2 (design D4): a change touching any position OUTSIDE the visible
-    // range as it stood before the transaction clears the zoom.
-    //
-    // This is the catch-all for changes that never passed the clamps — history
-    // transactions, which `@codemirror/commands` dispatches with `filter:
-    // false` and which therefore never see the enforcement funnel at all; a
-    // sync or external write; an edit dispatched from another pane onto the
-    // same file. An in-scope edit cannot trip it, which is what makes the
-    // anchor safe from silently retargeting: the node above the root is outside
-    // the range, so an edit that would merge the root into it trips this first.
-    if (tr.docChanged && bounds && touchesOutside(bounds, tr)) return null;
     const mapped = mapAnchor(value, tr);
     if (mapped === null) return null;
-    // Trigger 1a: the root's WHOLE subtree was deleted, not merely edited.
-    // `mapped` is the anchor mapped FORWARD, which after a deletion spanning
-    // the entire old cover lands on whatever now occupies that offset — the
-    // following sibling, if the document has one, sliding up to fill the gap.
-    // That sibling can perfectly well start a node of its own at that exact
-    // line, which is exactly what `stillRooted` below asks and answers `true`
-    // to: a real node does start there, just not the one the anchor named.
-    // Detected by mapping the OLD cover's END backward through the same
-    // changes: if that lands at or before `mapped`, nothing between the two
-    // old endpoints survived the edit — the whole root is gone, sibling or no.
-    if (tr.docChanged && bounds && tr.changes.mapPos(bounds.to, -1) <= mapped) return null;
-    // Trigger 1b, in its real form. The anchor IS "the start of the zoom
-    // root's own first line", so if it stops naming a node's start, the node
-    // it named is gone.
-    //
-    // Not the same thing as the line being deleted, which is what an earlier
-    // draft of D4 assumed trigger 1 covered. Zoom into an `hr` (`***`), type a
-    // character, and the line stops parsing as an hr: it becomes a continuation
-    // of the paragraph ABOVE, and the anchor now resolves to a node starting
-    // outside the old scope. The edit touched only the root's own line, so
-    // neither the clamps nor `touchesOutside` can see it — the merge is a
-    // consequence of re-parsing, not of where the change landed. Found by the
-    // retarget property, which is why that property is stated over generated
-    // documents rather than argued.
-    if (tr.docChanged && stillRooted && !stillRooted(tr.state, mapped)) return null;
+    if (tr.docChanged && bounds) {
+      const footprint = footprintOf(tr.changes, tr.state.doc, bounds, value);
+      // Trigger 1a: the root's WHOLE subtree was deleted, not merely edited.
+      // `mapped` is the anchor mapped FORWARD, which after a deletion spanning
+      // the entire old cover lands on whatever now occupies that offset — the
+      // following sibling, if the document has one, sliding up to fill the gap.
+      // That sibling can perfectly well start a node of its own at that exact
+      // line, so asking whether a node is there answers `true` about the wrong
+      // node. Detected instead by mapping the OLD cover's END backward through
+      // the same changes: if that lands at or before `mapped`, nothing between
+      // the two old endpoints survived — the whole root is gone, sibling or no.
+      if (footprint.coverRemoved) return null;
+      // Triggers 1b and 2, as ONE question (design D6). The predicate is
+      // `zoom.ts`'s, the same one the enforcement filter refuses with, so the
+      // refusal and the exit cannot disagree about what leaving the scope means.
+      //
+      // It replaces an offset comparison that answered two ways wrongly: an
+      // append at the very end of the scope was dispatched at the first HIDDEN
+      // line's start and read as outside, and a root dissolved without touching
+      // a byte outside the range was read as inside. What remains here is what
+      // this trigger was always for — changes that never pass enforcement:
+      // history transactions, which `@codemirror/commands` dispatches with
+      // `filter: false`; a sync or external write; an edit dispatched from
+      // another pane onto the same file. An ENFORCED escaping edit is refused
+      // before it applies and so never reaches this at all.
+      if (changeEscapes?.(tr, bounds, value, footprint)) return null;
+    }
     return mapped;
   },
 });
@@ -107,19 +101,40 @@ export const zoomAnchorField = StateField.define<number | null>({
  * That was wrong; the negative control for it is in `tests/zoom-state.test.ts`.
  */
 /**
- * Did any of this transaction's changes reach outside the visible range?
+ * The two facts `zoom.ts`'s escape check needs about a change.
  *
- * Measured against `tr.startState` — the range as it stood BEFORE the change,
- * which is the only frame in which "outside" is still well defined. `bounds`
- * is the caller's own re-derivation in that old state (see `setVisibleBoundsResolver`),
- * computed once and shared with the deletion check beside this one's call site.
+ * Derived HERE, once, and handed to both consumers — the exit trigger above and
+ * `transaction-filter.ts`'s refusal — because "did the root survive" answered
+ * twice is "did the root survive" answered two ways. The rewrite path passes the
+ * change set its own edits produce rather than `tr.changes`, so both are asked
+ * about the change that will actually land.
  */
-function touchesOutside(bounds: { from: number; to: number }, tr: Transaction): boolean {
-  let outside = false;
-  tr.changes.iterChangedRanges((fromA, toA) => {
-    if (fromA < bounds.from || toA > bounds.to) outside = true;
-  });
-  return outside;
+/**
+ * A scope's visible range as document offsets.
+ *
+ * One formula, in the module that owns the triggers reading it, because the
+ * enforcement refusal needs the SAME offsets to ask the same question. A bounds
+ * that disagrees with the one the exit uses is a refusal and an exit that
+ * disagree, which is what this whole arrangement exists to prevent.
+ */
+export function visibleBoundsOf(doc: Text, scope: ZoomScope): { from: number; to: number } {
+  return {
+    from: doc.line(scope.cover.start.line + 1).from,
+    to: doc.line(Math.min(scope.cover.end.line + 1, doc.lines)).to,
+  };
+}
+
+export function footprintOf(
+  changes: ChangeDesc,
+  newDoc: Text,
+  bounds: { from: number; to: number },
+  anchor: number,
+): EditFootprint {
+  const mapped = changes.mapPos(anchor, 1);
+  return {
+    anchorLine: newDoc.lineAt(Math.min(Math.max(mapped, 0), newDoc.length)).number - 1,
+    coverRemoved: changes.mapPos(bounds.to, -1) <= mapped,
+  };
 }
 
 /**
@@ -138,13 +153,27 @@ export function setVisibleBoundsResolver(
   visibleBounds = resolve;
 }
 
-/** Does this anchor still name the START of a node? See the trigger-1 note. */
-let stillRooted: ((state: EditorState, anchor: number) => boolean) | undefined;
+/**
+ * Would this change leave content outside the scope? — `zoom.ts`'s predicate,
+ * injected for the same reason `visibleBounds` is: answering it needs a parse
+ * of both states and the gating this module must stay free of.
+ *
+ * Without a resolver installed the trigger simply never fires, which is the
+ * safe direction: a zoom that outstays its welcome, not one that vanishes.
+ */
+let changeEscapes:
+  | ((tr: Transaction, bounds: { from: number; to: number }, anchor: number, footprint: EditFootprint) => boolean)
+  | undefined;
 
-export function setStillRootedResolver(
-  resolve: (state: EditorState, anchor: number) => boolean,
+export function setChangeEscapesResolver(
+  resolve: (
+    tr: Transaction,
+    bounds: { from: number; to: number },
+    anchor: number,
+    footprint: EditFootprint,
+  ) => boolean,
 ): void {
-  stillRooted = resolve;
+  changeEscapes = resolve;
 }
 
 function mapAnchor(anchor: number, tr: Transaction): number | null {
