@@ -2027,7 +2027,7 @@ class MarginCompensation implements PluginValue {
     const win = this.view.dom.ownerDocument.defaultView ?? window;
     this.remeasure = win.requestAnimationFrame(() => {
       this.remeasure = 0;
-      if (!this.destroyed) this.apply();
+      if (!this.destroyed) this.measureAfterLayout();
     });
   }
 
@@ -2041,6 +2041,26 @@ class MarginCompensation implements PluginValue {
    * cycle. Observing `view.dom` and writing only custom properties to it cannot
    * loop: a custom property changes no box.
    */
+  /**
+   * Just the two rect-reading measurements, and a retry if they still cannot
+   * run.
+   *
+   * NOT a full `apply()`. This path exists for one reason — `measureChevron`
+   * and `measureSpaceAdvance` need a laid-out DOM and the constructor has none
+   * — and re-running the whole patch to recover two custom properties does far
+   * more than that reason asks: margins, facts, per-line chevron rows and the
+   * widget sweep all recompute, on every editor construction, when
+   * `docViewUpdate` already drives them off real renders. Doing only what was
+   * missed keeps this off the note-open path, where the cost lands on the
+   * largest notes.
+   */
+  private measureAfterLayout(): void {
+    if (!isOutlineMode(this.view.state) || isNestedEditor(this.view)) return;
+    const chevron = this.measureChevron();
+    const advance = this.measureSpaceAdvance();
+    if (chevron === 'not-laid-out' || advance === 'not-laid-out') this.scheduleRemeasure();
+  }
+
   private observeVisibility(): void {
     if (this.visibility || this.destroyed) return;
     const win = this.view.dom.ownerDocument.defaultView;
@@ -2049,7 +2069,7 @@ class MarginCompensation implements PluginValue {
       if (this.destroyed || this.view.dom.getBoundingClientRect().width === 0) return;
       this.visibility?.disconnect();
       this.visibility = undefined;
-      this.apply();
+      this.measureAfterLayout();
     });
     this.visibility.observe(this.view.dom);
   }
