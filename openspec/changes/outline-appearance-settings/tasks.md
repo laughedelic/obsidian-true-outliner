@@ -58,17 +58,19 @@
 
 ## 4. The unit ladder
 
-- [ ] 4.1 Declare the device-class default (`--to-unit-default` at `body`, overridden under the
+- [x] 4.1 Declare the device-class default (`--to-unit-default` at `body`, overridden under the
   mobile body class) with the numbers task 1 fixed, and verify the desktop and mobile e2e runs
   each report the step their class should get with the setting untouched
-- [ ] 4.2 Wire the unit setting through publication, and verify every rung renders every column,
+- [x] 4.2 Wire the unit setting through publication, and verify every rung renders every column,
   marker, hanging indent and footer group inset at that step, on both surfaces — extend
   `e2e/specs/58-unit-override.e2e.ts`, which already measures each independently positioned layer,
   rather than writing a second measurement harness
-- [ ] 4.3 Add the settings-versus-stylesheet precedence case to `58-unit-override.e2e.ts` and
-  verify the stylesheet wins — negative control: publish the setting as an inline
-  `--to-decor-unit` on `body` instead and confirm the new case fails
-- [ ] 4.4 Verify the narrowest rung clears the floor on both device classes with a task-list
+- [x] 4.3 Add the settings-versus-stylesheet precedence case and verify the stylesheet wins —
+  negative control: publish the setting as an inline `--to-decor-unit` on `body` instead and
+  confirm the new case fails. Landed in `59-appearance-settings.e2e.ts` rather than
+  `58-unit-override.e2e.ts`: precedence is a property of the publication mechanism, which that
+  spec holds end to end, and 58 measures the geometry a unit produces
+- [x] 4.4 Verify the narrowest rung clears the floor on both device classes with a task-list
   fixture open, asserting the relationship (child mark right of parent text), never a pixel count
 
 ## 5. Guide appearance

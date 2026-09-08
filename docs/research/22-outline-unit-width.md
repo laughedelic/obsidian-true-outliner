@@ -96,45 +96,63 @@ taste alone — and the floor is not one number, because the gutter it is built 
 ([21](21-marker-text-gap.md) derives the gutter from the marks it must hold, and one of those
 marks is sized by the platform).
 
-**Measured 8 September 2026**, Obsidian 1.13.7, bundled theme, 16px root font, against
-`Notes/List decoration demo.md` — a fixture carrying a task list, an ordered list and four levels
-of bullets. Desktop is the 1024×800 window the e2e harness runs; mobile is the same build under
-`app.emulateMobile()` at 390×844.
+**Measured 8 September 2026**, Obsidian 1.13.7, bundled theme, 16px root font. Desktop is the
+1024×800 window the e2e harness runs; mobile is the same build under `app.emulateMobile()` at
+390×844.
 
 The floor is stated as a relationship rather than a length: **a child's mark must begin right of
-its parent's text.** Measured directly as the tightest gap in the fixture between a parent row's
-first text ink and a child row's leftmost mark ink, at each candidate step.
+its parent's text.** Measured directly as the gap between a parent row's first text ink and a
+child row's leftmost mark ink, over a fixture whose every row is rendered at once (see the
+correction below for why that matters):
+
+```
+# Section
+- [ ] a task
+	- [x] a done subtask
+		- a plain child
+```
 
 | Unit | Step | Desktop clearance | Mobile clearance |
 | --- | ---: | ---: | ---: |
-| `1.375rem` | 22px | +1.21px | **0.00px** |
-| **`1.5rem`** | 24px | +3.21px | +2.00px |
-| `1.625rem` | 26px | +5.21px | +4.00px |
-| **`1.75rem`** | 28px | +7.21px | +6.00px |
-| `2rem` | 32px | +11.21px | +10.00px |
-| `2.5rem` | 40px | +19.21px | +18.00px |
+| `1.5rem` | 24px | +2.0px | **−0.4px** |
+| **`1.625rem`** | 26px | +4.0px | +1.6px |
+| **`1.75rem`** | 28px | +6.0px | +3.6px |
+| `2rem` | 32px | +10.0px | +7.6px |
 
-Clearance is linear in the unit, so each column names its own floor: **20.79px on desktop, 22.0px
-on mobile.** The difference is exactly the gutter's: 14px against 15.2px, from a checkbox Obsidian
-sizes at 16px on desktop and `calc(16px * 1.15)` = 18.4px on mobile.
+Clearance is linear in the unit, so each column names its own floor: **22.0px on desktop, 24.4px
+on mobile.** The binding mark is a task's **checkbox** — Obsidian sizes it 16px on desktop and
+`calc(16px * 1.15)` = 18.4px on mobile, and it is centred on its own column, so half of it falls
+left of that column and the gutter that holds it is 1.2px wider on mobile as well.
 
-Two things in that table are worth keeping.
+**The ladder is therefore `1.625rem` (compact), `1.75rem` (standard, the desktop default), `2rem`
+(roomy) and `2.5rem` (wide), with `1.625rem` as the mobile default.** `1.5rem` — the
+pre-widening default, and the obvious bottom rung — is excluded: on mobile a nested task's
+checkbox begins 0.4px LEFT of its parent's text, which is the one arrangement this grid does not
+survive. The rung set is uniform across device classes rather than per-class, so a preset means
+one step everywhere and only the DEFAULT differs.
 
-**The binding mark is ours, not the checkbox.** Every tightest gap was reported against a
-block-marker icon, not against a task's checkbox — the icon is `0.85rem` centred on its column, so
-6.79px of it falls left of that column, and it beats every native mark in the fixture. The
-checkbox still sets the floor indirectly, through the gutter it widens.
-
-**`1.375rem` is excluded by measurement, not by preference.** It sits exactly ON the mobile floor:
-a child's mark begins where its parent's text does, which is the one arrangement the grid does not
-survive. The ladder therefore starts at `1.5rem` — the pre-widening default, which clears both
-floors — and the setting offers `1.5rem`, `1.75rem` (the desktop default), `2rem` and `2.5rem`.
-
-**The mobile default is `1.5rem`.** On a 390px viewport the step is not a matter of taste: at
-`1.75rem` the fixture's four-deep wrapped item takes six rows, at `1.5rem` five. The ladder still
-reads as a ladder at the narrower step, and the row it gives back is real text.
-
-`2.5rem` was rendered and read alongside the rest rather than assumed. On a desktop window a
-four-deep list at that step spends real width on chrome — more than [the reading above](#what-was-measured-and-what-was-chosen)
+`2.5rem` was rendered and read rather than assumed. On a desktop window a four-deep list at that
+step spends real width on chrome — more than [the reading above](#what-was-measured-and-what-was-chosen)
 found at `2rem` — but nothing about it is unsafe, and it is offered as a choice rather than
 proposed as a default.
+
+On a 390px viewport the narrower default is not a matter of taste: the fixture corpus's four-deep
+wrapped item takes one row fewer at the compact step than at the standard one, and the ladder
+still reads as a ladder.
+
+### The correction: a long fixture measures only its viewport
+
+The first pass at this table reported floors of 20.79px and 22.0px, bound by our own block-marker
+icon rather than by a checkbox, and concluded that `1.5rem` cleared both. It was measured over
+`Notes/List decoration demo.md`, which carries a task list precisely so that the widest mark is in
+the sample.
+
+It was not in the sample. CodeMirror renders the viewport, not the document, and that fixture's
+task section sits below the fold — so the probe swept every rendered row, found no checkbox among
+them, and reported the tightest pair it could see. The number was true of what it measured and
+false of the question it was asked.
+
+Caught by the e2e case that now holds this floor permanently, which failed on the mobile run at
+the rung the first pass had endorsed. Two things follow, both cheap: measure a floor over a
+fixture short enough to render whole, and state the assertion as a relationship the test can
+re-derive on each device class rather than as a number recorded once.

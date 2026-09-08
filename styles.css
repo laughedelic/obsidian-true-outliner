@@ -74,7 +74,7 @@ body {
    * happens to share its value are one number rather than two that agree until
    * someone edits one. `1.375rem` is not among them: it sits exactly on the
    * mobile floor, where a child's mark begins where its parent's text does. */
-  --to-unit-compact: 1.5rem;
+  --to-unit-compact: 1.625rem;
   --to-unit-standard: 1.75rem;
   --to-unit-roomy: 2rem;
   --to-unit-wide: 2.5rem;
