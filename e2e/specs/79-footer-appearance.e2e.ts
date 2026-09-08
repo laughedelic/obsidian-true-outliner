@@ -10,7 +10,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
-import { openFooter, readStable, scrollToFooter } from '../footer.js';
+import { openFooter } from '../footer.js';
 
 /**
  * The hub target's footer, on screen.
@@ -43,10 +43,10 @@ const TARGET = 'Projects/Aurora Dashboard.md';
  * The footer paints what it knows and fills the rest in as it resolves, so on
  * the hub a count taken now and a count taken a moment later are both true and
  * different — measured on CI, 597 rows against 646. That is the fill, not the
- * thing those cases mean to assert. `readStable` and `settle` (both in
- * ../footer.ts) wait that out; a footer small enough to finish rendering means
- * there is much less of it to wait for, on a runner where the waiting is what
- * ran the case past mocha's own timeout.
+ * thing those cases mean to assert. Those two read a ROW instead, and read it
+ * here, where the whole footer is two source notes and `settle` converges in a
+ * pass — on a contended runner the waiting is what ran them past mocha's own
+ * per-test budget.
  *
  * `Backlinks/Family tree.md` and `Backlinks/Kinds gallery.md` reference it, so
  * it still carries deep lineage — rows with ancestors above them, which is what
@@ -89,19 +89,6 @@ async function set(key: string, value: unknown): Promise<void> {
     value,
   );
   await browser.pause(700);
-}
-
-/** The first footer row's own resolved guide background — a per-ROW fact, so it
- * does not move with however many other rows have finished filling in. */
-async function firstRowGuides(): Promise<string> {
-  await scrollToFooter();
-  return browser.execute(() => {
-    const row = document.querySelector<HTMLElement>(
-      '.workspace-leaf.mod-active .to-backlinks-row.to-decor-guides',
-    );
-    if (!row) throw new Error('no footer row drawing guides');
-    return getComputedStyle(row, '::after').backgroundImage;
-  });
 }
 
 describe('the footer’s appearance settings', function () {
@@ -192,51 +179,47 @@ describe('the footer’s appearance settings', function () {
     await set('backlinksGuides', false);
   });
 
-  it('keeps its own rows’ guides while the editor draws only the cursor’s levels', async function () {
-    // The two caret- and document-scoped modes have no referent here: a footer
-    // has no caret of its own, and every row's lineage begins at its source
-    // note's own root. So a footer row draws one guide per ancestor row above
-    // it whatever the editor is doing, and does not repaint as the caret moves.
-    await openFooter(SMALL_TARGET);
-    await set('backlinksGuides', true);
-    await set('guideVisibility', 'cursor');
-    const before = (await readStable(shape))!.guideRows;
-    const beforeFirst = await firstRowGuides();
-    expect(before).toBeGreaterThan(0);
+  /**
+   * The two cases that need a settled footer, sharing one.
+   *
+   * They read a ROW rather than the footer: one row's own resolved chrome and
+   * its own guide background answer both claims, where a count over the whole
+   * footer answers a different question — how much of it has resolved. On the
+   * hub target that count was 597 one moment and 646 the next (measured on CI),
+   * and waiting for it to hold still cost more than mocha's per-test budget on
+   * a contended runner. Rows resolve with their group; the first one is there
+   * as soon as the first group is.
+   *
+   * The small target is the second reason these are cheap: its whole footer is
+   * two source notes, so `settle` converges in one pass instead of chasing a
+   * few hundred rows.
+   */
+  describe('following the outline’s chrome, and not the caret', function () {
+    before(async function () {
+      await openFooter(SMALL_TARGET);
+      await set('backlinksGuides', true);
+    });
 
-    // Plain `setCursor`: the caret-placement policy corrects a position at a
-    // heading's very start, which `setCursorSettled` would report as a failure
-    // to hold — irrelevant here, where only the MOVE matters. The move scrolls
-    // the caret into view and the footer out of it, and CodeMirror renders the
-    // viewport, so it has to be scrolled back before there is anything to
-    // measure.
-    await h.setCursor(0, 0);
-    await browser.pause(300);
-    // The row's own drawing first — the claim itself, and independent of how
-    // much of the rest of the footer has resolved — then the settled count.
-    expect(await firstRowGuides()).toBe(beforeFirst);
-    expect((await readStable(shape))!.guideRows).toBe(before);
+    after(async function () {
+      await set('backlinksGuides', false);
+      await set('outlineUnit', 'auto');
+      await set('guideThickness', 'hairline');
+      await set('guideVisibility', 'all');
+    });
 
-    await set('guideVisibility', 'all');
-    await set('backlinksGuides', false);
-  });
-
-  it('takes the unit, the thickness and the intensity the editor takes', async function () {
-    // Chrome vocabulary is declared at `body`, which both surfaces inherit, so
-    // this is consistency by construction rather than by a second
-    // implementation. Asserted against the RESOLVED values a row renders with,
-    // in case some rule ever scopes one of them to the editor.
-    await openFooter(SMALL_TARGET);
-    await set('backlinksGuides', true);
-
-    /** A footer row's own resolved chrome, once there is a row to read it from. */
-    const rowChrome = async (): Promise<{ unit: number; guide: number; inset: number }> => {
-      await scrollToFooter();
-      return browser.execute(() => {
+    /** The first guide-drawing row: what it says, and the chrome it renders with. */
+    const guideRow = (): Promise<{
+      text: string;
+      background: string;
+      unit: number;
+      guide: number;
+      inset: number;
+    }> =>
+      browser.execute(() => {
         const row = document.querySelector<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-row',
+          '.workspace-leaf.mod-active .to-backlinks-row.to-decor-guides',
         );
-        if (!row) throw new Error('no footer row');
+        if (!row) throw new Error('no footer row drawing guides');
         const probe = document.createElement('div');
         probe.style.cssText = 'position:absolute;visibility:hidden;height:0;';
         row.appendChild(probe);
@@ -250,24 +233,50 @@ describe('the footer’s appearance settings', function () {
         const group = document.querySelector<HTMLElement>(
           '.workspace-leaf.mod-active .to-backlinks-group',
         );
-        const inset = group ? parseFloat(getComputedStyle(group).paddingLeft) || 0 : 0;
-        return { unit, guide, inset };
+        return {
+          // Carried so a comparison can tell it is reading the same row twice.
+          text: (row.textContent ?? '').trim().slice(0, 40),
+          background: getComputedStyle(row, '::after').backgroundImage,
+          unit,
+          guide,
+          inset: group ? parseFloat(getComputedStyle(group).paddingLeft) || 0 : 0,
+        };
       });
-    };
 
-    const base = await rowChrome();
-    await set('outlineUnit', 'wide');
-    await set('guideThickness', 'medium');
-    const after = await rowChrome();
-    // Relationships, not pixels: a wider step is wider on this surface too, and
-    // the group's own inset — stated from the unit rather than copied from a
-    // row — moves with it.
-    expect(after.unit).toBeGreaterThan(base.unit);
-    expect(after.guide).toBeGreaterThan(base.guide);
-    expect(after.inset).toBeGreaterThan(base.inset);
+    it('keeps its own rows’ guides while the editor draws only the cursor’s levels', async function () {
+      // The two caret- and document-scoped modes have no referent here: a
+      // footer has no caret of its own, and every row's lineage begins at its
+      // source note's own root. So a footer row draws one guide per ancestor
+      // row above it whatever the editor is doing.
+      await set('guideVisibility', 'cursor');
+      const before = await guideRow();
 
-    await set('outlineUnit', 'auto');
-    await set('guideThickness', 'hairline');
-    await set('backlinksGuides', false);
+      // Plain `setCursor`: the caret-placement policy corrects a position at a
+      // heading's very start, which `setCursorSettled` would report as a
+      // failure to hold — irrelevant here, where only the MOVE matters.
+      await h.setCursor(0, 0);
+      await browser.pause(300);
+
+      const after = await guideRow();
+      expect(after.text).toBe(before.text); // the same row, not a neighbour
+      expect(after.background).toBe(before.background);
+    });
+
+    it('takes the unit, the thickness and the intensity the editor takes', async function () {
+      // Chrome vocabulary is declared at `body`, which both surfaces inherit,
+      // so this is consistency by construction rather than by a second
+      // implementation. Asserted against the RESOLVED values a row renders
+      // with, in case some rule ever scopes one of them to the editor.
+      const base = await guideRow();
+      await set('outlineUnit', 'wide');
+      await set('guideThickness', 'medium');
+      const after = await guideRow();
+      // Relationships, not pixels: a wider step is wider on this surface too,
+      // and the group's own inset — stated from the unit rather than copied
+      // from a row — moves with it.
+      expect(after.unit).toBeGreaterThan(base.unit);
+      expect(after.guide).toBeGreaterThan(base.guide);
+      expect(after.inset).toBeGreaterThan(base.inset);
+    });
   });
 });
