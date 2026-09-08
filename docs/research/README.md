@@ -33,6 +33,7 @@ Research date: July 2026.
 | [21-marker-text-gap.md](21-marker-text-gap.md) | The one measurement pass behind `--to-marker-gutter`: what each qualifying mark's ink actually reaches, why a multi-digit ordered number is excluded, the floor the one-space sizing rules already imposed on the stated gap, the argument for the gap that was chosen, and the three stale-value defects the derivation exposed |
 | [22-outline-unit-width.md](22-outline-unit-width.md) | The level-to-level unit: why it widened once the gutter tightened, the four candidates measured and read, and how an override of its single declaration went from an incidental property to a stated contract with a test — plus the spelled unit the widening flushed out of an e2e spec |
 | [23-zoom-hiding-mechanism.md](23-zoom-hiding-mechanism.md) | `outline-zoom`'s gate: block-level replace decorations measured against a real instance before the design was built on them — what held (hiding, boundary arithmetic, widget atoms, visible-line chrome, `showPanel`), the design claim that did not (confinement is not free), and the footer fix that turned out to be the only possible one |
+| [24-outline-mode-surfaces.md](24-outline-mode-surfaces.md) | Outline mode as an explicit state: the public-API verdict for every indicator surface (status bar desktop-only, ribbon both platforms, switcher and core status-bar pencil not extensible), the decision — revised mid-planning — to make the mode per-tab with a global default, and the alternatives rejected with their costs |
 
 ## TL;DR
 

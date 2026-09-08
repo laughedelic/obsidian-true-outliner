@@ -1,0 +1,115 @@
+# 24 — Outline mode as an explicit state: surfaces and API feasibility
+
+Researched 2026-09-08 for the `per-tab-outline-mode` change (created as `global-outline-mode`,
+renamed when the model was revised the same day — see below). The request: make outliner mode an
+explicit, persistent, visible state — switchable from any view mode, on by default, and indicated
+in the main UI. This note records what was measured about the public API surface, the decision
+about the mode's shape, and what was rejected, so the diagnosis is not paid for twice.
+
+## What exists today (measured)
+
+- The toggle is an `editorCheckCallback` command (`src/plugin/main.ts`, "toggle-outline-mode") and
+  an editor context-menu entry (`src/plugin/main.ts`, the `editor-menu` handler). Both entry
+  points exist only where an editor exists: in reading view neither is reachable, which is where
+  the confusion comes from — a note that opens in reading view (the core default view mode can be
+  exactly that) shows no way in and no way to see the current mode.
+- The mode is a per-file path set (`OutlineModeRegistry`, `src/plugin/mode-registry.ts`), persisted
+  in `data.json`, migrated on rename, pruned on delete.
+- The only feedback is the transient toggle Notice and the decorations themselves.
+- Decorations render through CM6 editor extensions exclusively; reading view is untouched by
+  construction (doc 20, "The two renderers").
+
+## The public-API surface for an explicit state
+
+Verified against the pinned `obsidian.d.ts` (1.13.1) and the current official API docs.
+
+| Surface | Verdict |
+| --- | --- |
+| Plugin status bar item (`addStatusBarItem`) | Public. **Desktop-only** — the API docs state "Not available on mobile". |
+| Ribbon icon (`addRibbonIcon`) | Public, both platforms. The returned `HTMLElement` can carry classes at runtime, so it can reflect a toggle state. |
+| Adding to a pane's view header (the edit/source/reading switcher) | **No public API.** Nothing in `obsidian.d.ts` adds an action to an existing `MarkdownView`'s header. |
+| Extending the core status-bar pencil (core setting "Show editing mode in status bar") | **No public API.** The button exists (it offers Reading / Live Preview / Source), but plugins cannot hook its click, add options to its menu, or place their item relative to it. Plugin status bar items are appended as separate entries. |
+| `workspace.on('file-open')` | Public and documented; fires with the opened `TFile` or `null`, including embeds. |
+| Switching a view's mode from a command | Public: `View.setState` / `View.getState`. The markdown state encodes `mode: 'source' | 'preview'` plus a `source` boolean (`false` = Live Preview, `true` = source editor). Not yet measured: what `getState()` carries for `source` while the view is in `preview`, and what `setState({ mode: 'source' })` alone defaults to. |
+| A default hotkey for the toggle | Possible (`hotkeys` in `addCommand` is public and not deprecated; the project already ships defaults for move up/down with a documented rationale). Decided: none — there is no dominant convention to inherit, so the guideline's recommendation is followed. |
+
+CSS restyling of core chrome (the switcher, the pencil) from `styles.css` is technically possible
+— the stylesheets can target non-public DOM — and is rejected under the same bar that forbids
+`(editor as any).cm` (`plugin-shell`, no private API): the one presentational exception this
+project carries (suppressing the core in-document backlinks section) is spec'd, reversible, and
+confined to notes we decorate; tinting core buttons is fragile against Obsidian's own DOM churn
+and signals nothing a plugin-owned status bar item cannot.
+
+## The mode's shape: a per-tab state with a global default
+
+**First decision, revised the same day.** The change was first planned around one global
+plugin setting, on by default — the mode as a single app-level switch. A scenario check
+against the author caught the difference before any code was written: a user switching a given
+tab back to stock editing expects that switch to be *local and ephemeral* — that tab stays
+stock until it is closed, other tabs keep their states, and every newly opened note still
+follows the default. A global toggle fails exactly that: flipping it off in one tab changes
+the whole vault, including future opens.
+
+The revised shape: **a per-tab outline state, initialized from one persisted default** ("open
+new tabs in outline mode", on by default). The per-file path store is retired, not repurposed
+— no per-file question remains for it to answer, and `normalizePluginData`'s allow-list
+construction already drops unknown keys on the first save, so an upgrading vault's
+`outlinePaths` disappears without a migration step.
+
+Consequences worth naming:
+
+- **The per-tab state is ephemeral by mechanism.** It lives in the editor view (the same shape
+  `outline-zoom` gives its scope: per view, never persisted), so it dies not only when the tab
+  closes but also when the tab switches notes or round-trips through reading view — the editor
+  is rebuilt in those cases, and the fresh one initializes from the default. "Until it's
+  closed" is only approximately achievable; strictly tab-scoped persistence needs leaf-keyed
+  state outside the editor and was rejected.
+- **No per-file memory at all.** A note reopened later starts from the default every time; a
+  remembered opt-out would be an explicit-off list with its own rename/delete hygiene — the
+  next number in this series if real use demands it.
+- **Changing the setting touches future opens only**, mirroring the built-in "default view
+  mode for new tabs" setting it was modeled on; already-open tabs are not retoggled.
+- **Two tabs on one file can differ**, exactly as two panes already hold different zoom
+  scopes.
+- **Upgrade flips behavior.** An existing install's next file open after the update outlines
+  every newly opened note (the default is on; Obsidian updates do not rewrite settings a user
+  has modified, but this key is new, so the default applies). Deliberate: the mode is the
+  product; hiding it behind an opt-in repeats the discoverability defect this change exists to
+  remove.
+- The zoom-exit trigger "outline mode is switched off" (`outline-zoom`, exit trigger 3)
+  narrows to the view whose mode turned off — clearing that pane's zoom — which matches the
+  per-view shape that spec's own scope model already has.
+
+## What was rejected, and why:
+
+- **Extending the mode switcher or the core status-bar pencil** — no public API (table above).
+- **One global toggle for the whole vault** — the first decision, revised: it makes one tab's
+  escape hatch flip every other tab and every future open, which the deciding scenario
+  rejects. Kept here because its simplicity is genuinely tempting and the scenario is what
+  dissolved it.
+- **A per-file default-plus-exceptions model** (global default, per-file explicit on/off) — needs
+  an explicit-off store with tri-state semantics ("toggle off a file while the default is on"
+  must persist off, or the file re-adopts on next open), rename/delete pruning for the new store,
+  and an indicator that answers "why is this note outlined" with "default or explicit?". None of
+  that complexity maps to a recorded need; the actual request is "the outliner stays on", and the
+  per-tab model answers it without any per-file store at all.
+- **Adoption-on-open** (each newly opened file written into the per-file store as if toggled) —
+  writes every file ever opened into `data.json` forever, and turning the default off later
+  cannot restore any per-file state because none was ever recorded.
+
+## Open questions carried into the change's design
+
+1. What `MarkdownView.getState()` returns for the `source` flag while the view is in reading
+   mode, and what `setState({ mode: 'source' })` does without one — measured by the change's
+   first e2e task, since the answer decides whether "switch to edit" needs to synthesize a
+   `source` value or can round-trip the view's own.
+2. Where a plugin status bar item lands relative to the core pencil (when the core setting is
+   on) — layout is not controllable, so this is a look-and-feel check, not a design input.
+3. The ribbon icon's on/off appearance: class-toggled styling is available; which visual
+   treatment reads as "on" without a second icon is a choice for the change's tasks, verified
+   against a real vault the way the decoration experiments were.
+4. Which public events fire when a leaf switches view mode IN PLACE (reading ↔ editing) —
+   `active-leaf-change` covers tab switches and `file-open` covers note switches, but the
+   in-place mode switch is undocumented. The change's surfaces task measures it in the dev
+   vault; the worst case is an indicator stale until the next event, with the decorations as
+   ground truth.
