@@ -9,7 +9,9 @@ keystroke-latency budget, nested-editor safety, and the dev-facing observability
 turns each choke-point assumption into a permanent regression test. Architecture and
 rationale: the outline-selection-enforcement change's design.md; evidence and findings:
 `docs/research/04` Q14.
+
 ## Requirements
+
 ### Requirement: Enforcement funnel is registered and scoped to outline mode
 A CM6 `transactionFilter` SHALL be registered via `registerEditorExtension` and SHALL
 inspect every transaction dispatched in any editor. For editors whose file does not have
@@ -47,8 +49,10 @@ one node: pure insertions whose inserted text parses as a multi-block sequence
 adjacent lines belong to different nodes, and — per node-edit-enforcement's
 chrome-transparency requirement (amendment 2026-07-21) — chrome-boundary deletions
 whose merge intent is established by the pre-edit cursor position: a deletion of a
-list marker's trailing space ending exactly at the item's first content column with
-the cursor there, and a deletion of the newline ending a node's last content line
+NODE marker's trailing space ending exactly at that node's first content column with
+the cursor there — a list marker's or an ATX heading's alike, since marker kind is a
+marker internal no editing semantic may read — and a deletion of the newline ending
+a node's last content line
 with the cursor at that node's content end (Delete into the node's own trailing
 gap). The pre-edit main-selection cursor is a classification fact supplied by the
 adapter for exactly these shapes; an edit with the same bytes but a different cursor
@@ -68,10 +72,23 @@ adapter for exactly these shapes; an edit with the same bytes but a different cu
   verdicts" requirement below)
 
 #### Scenario: Marker-space deletion at content start is enforced
-- **WHEN** the cursor sits at a list item's first content character and Backspace
-  deletes the marker's trailing space
+- **WHEN** the cursor sits at a list item's or an ATX heading's first content
+  character and Backspace deletes the marker's trailing space
 - **THEN** the transaction is classified `boundary-crossing-edit` and handed to the
   verdict layer (a merge intent), not applied as a within-node marker corruption
+
+#### Scenario: A paragraph's indentation is not a marker column
+- **WHEN** the cursor sits at the first content character of an INDENTED paragraph,
+  whose leading whitespace the content-column rule reads as a content prefix, and
+  Backspace deletes one space of that indentation
+- **THEN** the transaction is classified `within-node-edit` — the shape is recognized
+  by the node's marker, and a paragraph has none
+
+#### Scenario: A column inside the marker's own characters stays native
+- **WHEN** the deletion ends INSIDE a marker rather than at the content column —
+  within a task item's `[ ]`, or within a heading's `#` run
+- **THEN** the transaction is classified `within-node-edit`: those characters are the
+  marker's own, and deleting one is ordinary editing
 
 #### Scenario: The same bytes with a gap-line cursor stay native
 - **WHEN** a deletion removes the newline between a node's last content line and its
@@ -262,4 +279,3 @@ only as prescribed by the node-edit-enforcement capability.
 - **WHEN** any boundary-crossing edit is made in a note without outline mode
 - **THEN** the transaction is applied exactly as dispatched, with no classification
   or verdict recorded
-

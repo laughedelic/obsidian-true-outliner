@@ -146,9 +146,18 @@ function recognizeMergeIntent(
 ): number | 'native' | 'veto-no-predecessor' | undefined {
   if (edit.insert !== '') return undefined;
 
-  // Marker-space deletion at a list item's content start (classified
-  // boundary-crossing by the chrome-deletion fact): merge the item into
+  // Marker-space deletion at a node's own marker column (classified
+  // boundary-crossing by the chrome-deletion fact): merge the node into
   // its content-space predecessor.
+  //
+  // Headings are admitted with list items, and the kind test paired with
+  // classify.ts's — the pairing is load-bearing rather than tidy. Widened
+  // there alone, a heading's marker-space Backspace arrives here, is not
+  // recognized as a merge, and falls through to `computeDeletionVerdict`,
+  // where a one-character range reads as covering the heading's whole subtree:
+  // measured, a section deletion, and a whole-document one on the first node.
+  // A heading's merge is then vetoed by rules already written — `mergeNodes`
+  // refuses to absorb a heading, and a first node takes the branch below.
   //
   // A TASK item has two such columns — after `- ` and after `- [ ] ` — and both
   // are places the caret really sits: the first is where Home lands, the second
@@ -159,7 +168,7 @@ function recognizeMergeIntent(
     const node = nodeAtLine(doc, edit.from.line);
     const line = node?.lines[0] ?? '';
     if (
-      node?.kind === 'list-item' &&
+      (node?.kind === 'list-item' || node?.kind === 'heading') &&
       nodeStartLine(doc, node.id) === edit.from.line &&
       isContentStartCh(line, edit.to.ch) &&
       posEq(edit.cursorBefore, edit.to)

@@ -290,6 +290,62 @@ describe('classify: chrome-boundary deletion shapes (chrome-transparency amendme
       ),
     ).toBe('within-node-edit');
   });
+
+  // A HEADING's marker carries a trailing space exactly as a list marker does, and
+  // Backspace at the column past it expresses the same intent. The shape was
+  // written for list items alone, so the keypress classified as ordinary typing
+  // and `## Two` became `##Two` — a paragraph where a heading was, its section's
+  // anchor gone, with no verdict computed at all.
+  const headings = parse('# One\n\npara one\n\n## Two\n\npara two\n');
+  // 0 '# One' / 1 gap / 2 'para one' / 3 gap / 4 '## Two' / 5 gap / 6 'para two'
+
+  it('marker-space deletion at an ATX heading content start, cursor there → boundary-crossing', () => {
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 4, toLine: 4, insertedText: '', fromCh: 2, toCh: 3 }],
+          cursorBefore: { line: 4, ch: 3 },
+        }),
+        headings,
+      ),
+    ).toBe('boundary-crossing-edit');
+  });
+
+  it('a column INSIDE a heading\'s `#` run is an ordinary edit, not a boundary crossing', () => {
+    // Deleting one `#` out of `##` demotes the heading and leaves it a heading:
+    // the marker's own characters, the same line already drawn inside `[ ]`.
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 4, toLine: 4, insertedText: '', fromCh: 1, toCh: 2 }],
+          cursorBefore: { line: 4, ch: 2 },
+        }),
+        headings,
+      ),
+    ).toBe('within-node-edit');
+  });
+
+  it('an INDENTED paragraph\'s content start is NOT a marker, and stays within-node', () => {
+    // The control that tells "admit `heading`" apart from "drop the kind test".
+    // `contentColumnCh` reads a paragraph's leading indentation as its content
+    // prefix, so `  indented para` resolves a content-start column at 2 like any
+    // marker would; only the kind test keeps Backspace there from becoming a
+    // merge into the predecessor. The two heading cases above cannot detect a
+    // dropped guard — measured, both hold either way.
+    const indented = parse('para one\n\n  indented para\n');
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 2, toLine: 2, insertedText: '', fromCh: 1, toCh: 2 }],
+          cursorBefore: { line: 2, ch: 2 },
+        }),
+        indented,
+      ),
+    ).toBe('within-node-edit');
+  });
 });
 
 describe('classify: fix-orphan-gap-on-node-deletion exact-cover shapes (D1/Q22)', () => {

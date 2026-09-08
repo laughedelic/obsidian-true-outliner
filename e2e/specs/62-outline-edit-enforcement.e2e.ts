@@ -243,6 +243,38 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     expect(snap.verdictCounts.veto).toBeGreaterThan(0);
   });
 
+  it('and vetoes at the heading\'s own CONTENT column, where the caret actually sits', async function () {
+    // The case above places the caret at the heading's LINE start, which reaches
+    // the veto through the newline shape and vetoed before this change too. The
+    // column a reader arrives at by pressing Home — past `## `, where the title
+    // begins — is a within-line deletion of the marker's trailing space, and it
+    // used to fall through natively and leave `##Section`: a paragraph, its
+    // section's anchor gone, with no verdict computed at all.
+    const md = 'Intro.\n## Section\n\nChild body.\n';
+    await outlineNote(md);
+    await h.setCursor(1, '## '.length);
+    await browser.keys(Key.Backspace);
+    await h.waitForNotice(REJECTION_MESSAGES['merge-not-expressible']);
+    expect(await h.getBuffer()).toBe(md);
+    // The counter, not just the buffer: an unchanged buffer is equally what a
+    // silently dropped transaction produces, so only this distinguishes them.
+    const snap = await h.getStats();
+    expect(snap.verdictCounts.veto).toBeGreaterThan(0);
+  });
+
+  it('but a Backspace INSIDE the heading\'s `#` run demotes it natively, with no veto', async function () {
+    // Those characters are the marker's own, so deleting one is ordinary
+    // editing — the same line the spec draws inside a task item's `[ ]`. The
+    // widening must reach the content column and no further.
+    await outlineNote('Intro.\n## Section\n\nChild body.\n');
+    await h.setCursor(1, 2); // between the two `#`, deleting the second
+    await browser.keys(Key.Backspace);
+    await browser.pause(300);
+    expect(await h.getBuffer()).toBe('Intro.\n# Section\n\nChild body.\n');
+    const snap = await h.getStats();
+    expect(snap.verdictCounts.veto).toBe(0);
+  });
+
   it('chrome-transparency (amendment 2026-07-21): Backspace merges two paragraphs ACROSS a real blank-line gap in ONE keystroke', async function () {
     // Supersedes the earlier "two-Backspace native join" finding: the merge
     // is now recognized from the pre-edit cursor regardless of gap width,

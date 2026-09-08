@@ -276,10 +276,12 @@ function crossesViaBoundaryDeletion(doc: OutlineDoc, span: ChangedLineSpan): boo
  * ONE node at line granularity yet express a content-level merge intent,
  * established by the pre-edit cursor:
  *
- * 1. Marker-space deletion: a single-character deletion on a list item's
- *    first line ending exactly at its content column, cursor there —
- *    Backspace at the item's first content character eating the marker's
- *    trailing space.
+ * 1. Marker-space deletion: a single-character deletion on a list item's or
+ *    an ATX heading's first line ending exactly at its content column,
+ *    cursor there — Backspace at the node's first content character eating
+ *    the marker's trailing space. A paragraph is NOT included: its content
+ *    start is indentation rather than a marker, and whether deleting into
+ *    it carries a merge intent is a separate question.
  * 2. Delete into the own gap: a single-newline deletion whose adjacent
  *    lines BOTH belong to one node (the newline ending its last content
  *    line, pulling its own trailing gap up), cursor at the node's content
@@ -299,7 +301,7 @@ function crossesViaChromeDeletion(
   if (!cursor) return false;
   if (span.insertedText !== undefined && span.insertedText !== '') return false;
 
-  // Shape 1: marker-space deletion at a list item's content start.
+  // Shape 1: marker-space deletion at a node's own marker column.
   if (
     span.fromLine === span.toLine &&
     span.fromCh !== undefined &&
@@ -308,7 +310,13 @@ function crossesViaChromeDeletion(
     !span.deletesLineBoundary
   ) {
     const node = nodeAtLine(doc, span.fromLine);
-    if (!node || node.kind !== 'list-item') return false;
+    // A HEADING's `## ` carries a trailing space exactly as `- ` does, and
+    // Backspace past it is the same intent. Restricted to list items, the
+    // keypress classified as ordinary typing and `## Two` became `##Two`.
+    // Named kinds rather than no kind test at all: a paragraph's content start
+    // is INDENTATION, which `contentColumnCh` also reads as a content prefix,
+    // and whether deleting into it means a merge is a separate question.
+    if (!node || (node.kind !== 'list-item' && node.kind !== 'heading')) return false;
     if (nodeStartLine(doc, node.id) !== span.fromLine) return false;
     // Two columns on a task item — after `- ` and after `- [ ] ` — and the
     // second is where the item's text begins, so it is the one a user reaches
