@@ -1,7 +1,4 @@
 <title>Lineage Rendering Sandbox</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
   :root {
     --ground: #f6f7f9;
@@ -21,8 +18,12 @@
     --hl: #fbe58a;
     --code-bg: #eef0f4;
 
-    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    /* No webfont, deliberately. This file is committed as the reproducible
+     * basis for a rendering policy, so it must render the same with no network
+     * at all -- and the contrast that actually carries the page is prose
+     * against monospace, which every platform supplies. */
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     --app: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
 
@@ -320,7 +321,7 @@
   }
 
   .src .seg-src + .seg-src::before {
-    content: "› ";
+    content: "\203A  ";
     color: var(--rule-strong);
   }
 
@@ -399,7 +400,7 @@
   .seg[role="link"] { cursor: pointer; border-radius: 3px; }
 
   /* Hover shifts the COLOUR and nothing else. An underline here would be the
-   * one signal a link already owns, worn by a whole segment — so hovering an
+   * one signal a link already owns, worn by a whole segment -- so hovering an
    * ancestor made the ancestor look like a link, and a link inside it
    * indistinguishable from the segment carrying it.
    *
@@ -435,7 +436,7 @@
   .content mark { background: var(--hl); color: inherit; border-radius: 2px; padding: 0 0.1em; }
   .content a { color: var(--accent); text-decoration: none; cursor: pointer; }
   .content a:hover { text-decoration: underline; }
-  .content a.ext::after { content: "↗"; font-size: 0.8em; margin-inline-start: 0.1em; }
+  .content a.ext::after { content: "\2197"; font-size: 0.8em; margin-inline-start: 0.1em; }
   .content .tag {
     color: var(--accent);
     background: var(--accent-soft);
@@ -447,7 +448,7 @@
   /*
    * The subdued treatment: everything stays live and separately clickable, and
    * none of it takes a colour accent. In a lineage row the accent was the
-   * loudest thing on the line — a chain is context, and a coloured link inside
+   * loudest thing on the line -- a chain is context, and a coloured link inside
    * it out-shouted the reference it leads to.
    *
    * What replaces colour is the underline (present at rest, so a link is
@@ -472,7 +473,7 @@
   .quiet a.wiki { cursor: pointer; }
 
   /* A tag is a jump AND a word in the sentence, so it reads as text with a
-   * little more ink rather than as a chip — the pill was a second object in a
+   * little more ink rather than as a chip -- the pill was a second object in a
    * line that is one. The hover fill is what says it is operable. */
   .quiet .tag {
     /* A step toward the ink from whatever the ROW is, not a fixed colour: the
@@ -488,7 +489,7 @@
 
   .quiet .tag:hover { background: var(--rule); color: var(--ink); }
 
-  /* A highlight at full strength is the loudest thing on a dim line — the same
+  /* A highlight at full strength is the loudest thing on a dim line -- the same
    * problem the link accent had, in the one channel that is pure colour. Muted
    * toward transparent rather than replaced: it keeps the hue that says
    * "highlight" and loses the shout. A reference row keeps its own at full
@@ -534,11 +535,11 @@
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">true-outliner · docs/research prototype</div>
+    <div class="eyebrow">true-outliner &middot; docs/research prototype</div>
     <h1>Lineage Rendering Sandbox</h1>
     <p class="lede">
-      Both surfaces that quote an ancestor chain — the zoom breadcrumb trail and the
-      backlinks footer's lineage rows — currently put the node's raw source into the DOM
+      Both surfaces that quote an ancestor chain &mdash; the zoom breadcrumb trail and the
+      backlinks footer's lineage rows &mdash; currently put the node's raw source into the DOM
       with <code>appendText</code>. Everything below is that same corpus under five
       policies. <strong>subdued</strong> is the one we are taking: live and separately
       clickable, with the colour accent dropped so the chain stays context, and no image
@@ -578,7 +579,7 @@
     </div>
     <div class="chosen">
       <span class="name subdued">subdued &nbsp;chosen</span>
-      <span class="what">Live and separately clickable, with no colour accent — an underline and the
+      <span class="what">Live and separately clickable, with no colour accent &mdash; an underline and the
         cursor carry the affordance. Tags take a shade more ink and fill on hover. No images.</span>
     </div>
     <div>
@@ -593,7 +594,7 @@
       <span class="where">src/plugin/zoom-trail.ts</span>
       <p>
         A block widget at the head of the zoomed subtree. Every crumb is a
-        <code>role="link"</code> that re-roots the view on that ancestor — so a rendered
+        <code>role="link"</code> that re-roots the view on that ancestor &mdash; so a rendered
         link inside one is a second, competing destination.
       </p>
     </div>
@@ -603,10 +604,10 @@
   <section class="surface-panel">
     <div class="panel-head">
       <h2>Backlinks footer</h2>
-      <span class="where">src/plugin/lineage-row.ts · footer-model.ts</span>
+      <span class="where">src/plugin/lineage-row.ts &middot; footer-model.ts</span>
       <p>
         Each chain is shown with the reference row it leads to. That row renders inline
-        markdown in full, at full strength — which is what makes the verbatim lineage above
+        markdown in full, at full strength &mdash; which is what makes the verbatim lineage above
         it read as a defect, and what the subdued chain is calibrated against. The highlight
         example carries one in both rows, so the two intensities sit together.
       </p>
@@ -618,7 +619,7 @@
     <strong>What this prototype is not.</strong> The inline parser here is a stand-in,
     written to make the policies comparable. The real implementation runs Obsidian's own
     <code>MarkdownRenderer</code> once and lets the policy decide what to keep from its
-    output — which is also why <em>plain</em> is not a regex stripper: taking
+    output &mdash; which is also why <em>plain</em> is not a regex stripper: taking
     <code>textContent</code> from a real parse is the only way escapes, nested emphasis and
     bracket-bearing code spans come out right. The reference row under each footer chain
     stays fully live throughout, since that is what it already does and what a chain is being
@@ -631,7 +632,7 @@
   "use strict";
 
   /* ------------------------------------------------------------------ *
-   * Inline markdown → tokens. One parse; the policies are serialisers
+   * Inline markdown -> tokens. One parse; the policies are serialisers
    * over the same token stream, which is the shape the real fix takes.
    * ------------------------------------------------------------------ */
 
@@ -682,7 +683,7 @@
     }
   }
 
-  /* A stand-in for the 120×80 image a real embed resolves to. */
+  /* A stand-in for the 120x80 image a real embed resolves to. */
   var THUMB =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='80'%3E" +
     "%3Crect width='120' height='80' fill='%23c3cfdd'/%3E%3Cpath d='M0 62L34 34 58 54 84 30 120 62Z' fill='%23879bb6'/%3E" +
@@ -764,7 +765,7 @@
   /* ------------------------------------------------------------------ *
    * Block syntax. The footer already strips this per kind; the trail
    * calls stripBlockPrefix alone, which is why a callout crumb still
-   * reads "[!tip] …" and a table crumb still reads "| a | b |".
+   * reads "[!tip] ..." and a table crumb still reads "| a | b |".
    * ------------------------------------------------------------------ */
 
   function stripBlockPrefix(line) {
@@ -880,7 +881,7 @@
       caption: "Emphasis and code spans",
       chain: [
         { kind: "bullet", src: "- work" },
-        { kind: "heading", src: "## **Q3 planning** — *draft*" },
+        { kind: "heading", src: "## **Q3 planning** \u2014 *draft*" },
         { kind: "bullet", src: "- the `--severity` flag, unset" }
       ],
       ref: "- decided against it in [[Aurora Dashboard]], see `sortStable`"
@@ -929,7 +930,7 @@
       ref: "- filed under [[Aurora Dashboard]]"
     },
     {
-      caption: "Task and ordered ancestors — state moves to the marker",
+      caption: "Task and ordered ancestors \u2014 state moves to the marker",
       chain: [
         { kind: "bullet", src: "- [x] **shipped** the flag", task: true },
         { kind: "bullet", src: "10. **Tenth** item, *finally*", ordinal: "10." }
@@ -1008,7 +1009,7 @@
     return row;
   }
 
-  /* The referencing node beneath a footer chain — always fully rendered. */
+  /* The referencing node beneath a footer chain -- always fully rendered. */
   function referenceRow(src) {
     var row = el("div", undefined, "row is-reference");
     var marker = el("span", undefined, "marker");

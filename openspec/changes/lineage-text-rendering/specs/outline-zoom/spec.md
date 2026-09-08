@@ -14,8 +14,7 @@ are always separated.
 The trail's own MARKER SHALL NOT name a node kind. It is a control: activating it SHALL clear the
 zoom entirely, and it SHALL show that it is armed when the pointer is on the marker itself or on
 the file crumb it belongs to, so the row advertises the way out rather than only the ancestors. A
-kind glyph there would be naming the file as a paragraph, which is what it currently does and what
-it says wrongly.
+kind glyph there would name the file as a paragraph, which it is not.
 
 The marker SHALL show that it is armed when the pointer is on the NOTE's own crumb — the segment
 that means what the control does — and not on the rest of the row: a mid-chain ancestor under the
