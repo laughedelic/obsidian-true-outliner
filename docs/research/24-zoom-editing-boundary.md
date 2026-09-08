@@ -6,11 +6,13 @@ gesture that can reach past the visible range — and separates what is a zoom d
 the editor already did before zoom existed.
 
 **Measured 8 September 2026**, Obsidian 1.13.7 (installer 1.5.8, macOS), against the feature as
-merged in PR #69, driven from a throwaway `99-zoom-edit-probe.e2e.ts` in three rounds. Round 2
-ran every gesture twice — once zoomed, once not — so a row that differs is a zoom row and a row
-that matches is base behaviour. Round 4 patched `EditorView.update` to record each dispatched
-transaction's changed ranges alongside the visible bounds, which is what turned a symptom into a
-mechanism.
+merged in PR #69, driven from a throwaway `99-zoom-edit-probe.e2e.ts` over four rounds. Round 1
+aborted partway on a wrong command id and its rows are superseded; round 2 ran every gesture twice
+— once zoomed, once not — so a row that differs is a zoom row and a row that matches is base
+behaviour; round 3 added the boundary shapes round 2 had placed a caret wrongly for; and round 4
+patched `EditorView.update` to record each dispatched transaction's changed ranges alongside the
+visible bounds, which is what turned a symptom into a mechanism. Row labels below carry their
+round's letter, so `A1` and `B1` are round 2, `R6` round 3 and `X1` round 4.
 
 ## Verdict: two defects, and they are cleanly separable
 

@@ -2,15 +2,26 @@
 
 ### Requirement: An operation whose result would leave the zoom scope is rejected
 While zoomed, a structural operation or an ENFORCED EDIT SHALL be rejected — with no document
-change — when its result would place content outside the zoom root's subtree. One judgement
-covers both, and it is made over the AFTER STATE by the scope's own invariant rather than by any
-comparison of positions: an edit is inside the scope when, with the change applied and the
-document re-parsed, ALL THREE hold —
+change — when its result would place content outside the zoom root's subtree.
+
+One GROUND covers both, and it is the scope's invariant below. Three predicates express it,
+because the three sites are asked at different moments and hold different things: a structural
+operation is judged before it is planned, from its resolved operand; a node-splitting key is
+judged from its destination scope; and an enforced edit is judged from the change that would
+actually be dispatched, which is the only one of the three that exists as a concrete after-state.
+They SHALL agree on the ground, and each SHALL be stated in terms of it — a predicate that admits
+a result the invariant forbids is a defect in that predicate, not a second rule.
+
+The invariant: content is inside the scope when, with the change applied and the document
+re-parsed, ALL THREE hold —
 
 1. the text outside the zoom root's subtree is byte-identical to what it was before;
 2. everything the change inserts lies inside the root's subtree as it stands after the change;
 3. the zoom root is still the same node — the node beginning on its own first line holds the same
-   position in the tree.
+   position in the tree. A first line that resolves to NO node is the root having been removed
+   outright, which is the automatic exit's business and SHALL NOT be treated as an escape;
+   otherwise deleting the subtree of a root that ends the document would be refused while the
+   same deletion anywhere else succeeded.
 
 Each clause is load-bearing and none subsumes another. Deleting one line break can absorb a whole
 hidden node into the subtree while changing nothing but that break, which only (1) catches. A
@@ -42,9 +53,11 @@ Deleting the root's whole subtree deliberately is not this case and remains allo
 zoom instead.
 
 The rejection SHALL use the same typed-rejection feedback path as every other structural
-rejection, with a distinct reason of its own. Because the keyboard, the command palette and the
-enforcement filter resolve one after-state between them, they SHALL agree on this judgement by
-construction rather than by each implementing it.
+rejection, with a distinct reason of its own — the same reason from all three predicates, so a
+refusal never tells the user which layer refused. The keyboard and the command palette already
+resolve one operand and one after-state between them and SHALL keep agreeing by construction; the
+enforcement filter SHALL consult the same module the other two do, so its predicate sits beside
+theirs rather than in a second home.
 
 Operations and edits whose results stay inside the scope SHALL be unaffected: indenting, moving
 among siblings, splitting, merging, pasting and deleting inside the subtree all behave exactly as
@@ -91,10 +104,16 @@ inside the scope however far down the document the text lands.
 - **THEN** the document is unchanged, the zoom stays, and the cue is shown
 
 #### Scenario: A deletion into chrome at the scope's edge is refused whatever produced it
-- **WHEN** any gesture produces the same edit as the two above — a whole-word deletion backward
-  from the root's content start, or a Delete on the cover's trailing gap line
+- **WHEN** a gesture other than Backspace produces the same escaping edit — a whole-word deletion
+  backward from the zoom root's content start, say
 - **THEN** it is refused identically, because the judgement is over the resulting change and not
   over which key was pressed
+
+#### Scenario: Deleting the cover's own trailing gap is allowed
+- **WHEN** the caret sits on the blank line the zoom root's own subtree cover includes and the
+  user presses Delete, consuming that gap and nothing else
+- **THEN** the edit applies and the zoom stays active — the gap is inside the visible range, so
+  removing it moves nothing out of the subtree, however close to the scope's edge it sits
 
 #### Scenario: A paste that would splice outside the subtree is refused
 - **WHEN** the user pastes a structural block at the zoom root's content start, where the splice

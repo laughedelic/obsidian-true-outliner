@@ -11,9 +11,14 @@
   subtree, a deletion of the cover's own trailing gap line, a merge between two visible nodes,
   typing into the root — and verify each is judged inside; the negative control is dropping the
   after-cover's terminating line break from clause 2, which must make the append cases fail.
-- [ ] 1.4 Add the cheap gate of design D5 and verify a unit test asserts it takes the strictly-
-  inside exit without consulting the after-document at all (assert the mechanism: pass an
-  after-document that would fail the invariant and confirm the verdict is still "inside").
+- [ ] 1.4 Verify the invariant has NO offset shortcut in front of it (design D5) with a unit test
+  for the reachable counter-example: a structural paste of a top-level heading spliced strictly
+  between the cover's endpoints, which leaves the text after the splice outside the root's
+  subtree. The negative control is adding back the strictly-inside early return, which must make
+  this test pass the edit.
+- [ ] 1.5 Verify clause 3's document-end case (design D7): a whole-subtree deletion of a root that
+  ends the document resolves to no node at the anchor and is judged INSIDE, not refused. The
+  negative control is treating "no node resolves" as an escape, which must make it fail.
 
 ## 2. Refusal on the enforcement path
 
@@ -40,7 +45,8 @@
   clears while an ordinary in-scope edit still does not.
 - [ ] 3.3 Verify a deliberate whole-subtree deletion still succeeds and still exits (design D7)
   with a unit test asserting the predicate says "inside" AND trigger 1a fires — asserting only the
-  exit would pass identically if the predicate had wrongly refused first.
+  exit would pass identically if the predicate had wrongly refused first. Cover both a root with a
+  following sibling and a root that ends the document, since only the second exercises 1.5.
 
 ## 4. Behaviour in a real Obsidian
 
@@ -50,8 +56,9 @@
   hidden parent, an escaping paste, and the unwrap of an emptied list root — asserting for each
   that the buffer is byte-identical, the trail is unchanged, and the cue names the zoomed view.
 - [ ] 4.2 Turn the ALLOWED rows into scenarios in the same spec — the appended last child with and
-  without a trailing gap in the cover, the in-scope paste, the gap-line deletion, the in-scope
-  merge, typing into the root — asserting the edit applied AND the zoom survived. The negative
+  without a trailing gap in the cover, the in-scope paste, the deletion of the cover's own
+  trailing gap line (measured as R6, which today wrongly exits), the in-scope merge, typing into
+  the root — asserting the edit applied AND the zoom survived. The negative
   control for the whole group is reverting task 3.1, which must make every one of them fail.
 - [ ] 4.3 Verify the boundary rows are identical on the mobile config (`--mobile`), since the
   refusal path is keyboard-driven and the cue is a Notice.
@@ -63,8 +70,10 @@
 
 - [ ] 5.1 Measure the enforced-path timings with a zoom active against `node-edit-enforcement`'s
   stated budget, using the stats snapshot the e2e helpers already expose, and record the figures
-  in docs/research/24 under a dated section; if the budget is breached, the gate of design D5 is
-  where to look first.
+  in docs/research/24 under a dated section. Design D5 removed the shortcut deliberately and
+  argues the extra parse is amortised by `parsed-doc.ts`'s cache rather than added; this task is
+  what settles that, and a breach is a reason to revisit D4's reach, never to reinstate an unsound
+  gate.
 - [ ] 5.2 Add a short section to docs/research/24 recording which of its measured rows changed and
   which did not, so the note reads as a before/after rather than only a diagnosis.
 - [ ] 5.3 Run the full e2e sweep for the zoom and enforcement groups desktop and mobile, and

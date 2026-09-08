@@ -30,10 +30,12 @@ it is being used as the primary answer for user edits it was never shaped to jud
   leave the document unchanged and show the `would-leave-zoom-scope` cue the structural layer
   already uses. The two layers then agree on one judgement rather than each having its own, which
   is the argument `outline-zoom` already makes for the keyboard and the palette.
-- **The escape test is judged over the AFTER state.** Every changed position must lie inside the
-  zoom root's subtree once the document is re-parsed. This is the single rule that answers both an
-  edit merging into hidden content and an edit appending a new last child, which no comparison of
-  before-state offsets can separate (docs/research/24, defect 2).
+- **The escape test is the scope's invariant, judged over the AFTER state.** With the change
+  applied and the document re-parsed: the text outside the zoom root's subtree is byte-identical,
+  everything inserted lies inside the root's subtree as it now stands, and the root is still the
+  same node. Not a comparison of changed POSITIONS — every such formulation fails a measured row,
+  including after-state ones (docs/research/24: one keystroke removes a single line break and a
+  whole hidden node is absorbed by it).
 - **In-scope appends keep the zoom.** Enter at the end of the last visible line, and a structural
   paste there, stop clearing a scope they never left.
 - **The zoom root is identified, not merely located.** A surviving node that merely starts on the
@@ -79,9 +81,10 @@ may leave the zoom scope" is how one judgement becomes two that disagree.
 
 - `src/zoom.ts` — the escape predicate for an enforced edit, beside `operandEscapes` and
   `splitEscapes`.
-- `src/enforce.ts` — the verdict path takes the scope and can veto for it.
+- `src/enforce.ts` — stays zoom-free; its rewrite verdict carries the after-document it already
+  computed, so the check outside it needs no second parse.
 - `src/plugin/transaction-filter.ts` — already resolves the scope for its selection-only branch;
-  passes it to the edit branch too.
+  resolves it for the edit branch too, and this is where the veto is applied.
 - `src/plugin/zoom-state.ts`, `src/plugin/zoom-scope.ts` — the exit triggers narrow, and the
   root-identity resolver replaces `stillRooted`'s "some node starts here".
 - `e2e/specs/80-outline-zoom.e2e.ts` — the boundary catalogue becomes assertions.

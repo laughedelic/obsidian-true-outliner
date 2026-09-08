@@ -96,19 +96,43 @@ A rewrite verdict is produced from an `OpOutput` that already holds the after-`O
 `RewriteVerdict` currently drops it and keeps only the line edits. Carrying it on the verdict is a
 one-field addition and removes the only unavoidable re-parse on the rewrite path.
 
-A `pass` verdict has no after-document, so the check parses `tr.newDoc` — but only after the cheap
-gate in D5 says the edit is near an edge, which a pass verdict at an edge is by definition rare.
+A `pass` verdict has no after-document, so the check parses `tr.newDoc`. D5 explains why that is
+not the extra cost it looks like, and why no gate stands between it and the invariant.
 
-### D5: A cheap gate keeps the invariant off the common path
+### D5: There is no sound textual shortcut; the parse cache is what makes the invariant cheap
 
-Before any of D1's clauses run: if every changed range lies STRICTLY inside the cover's offsets —
-touching neither endpoint — and the change inserts nothing at either endpoint, the edit cannot
-alter hidden text, cannot insert outside, and cannot dissolve the root's own first line. Typing,
-mid-node editing and merges between two visible nodes all take this exit with two integer
-comparisons.
+An earlier draft of this design gated the invariant behind an offset test — skip the clauses when
+every changed range lies strictly inside the cover — on the grounds that such an edit cannot reach
+hidden text. **That gate is unsound, and the counter-example is an ordinary paste.** Zoomed to
+`## Two`, paste `# H1` with a body into the middle of its section. `classify.ts` sees a structural
+block sequence and routes it to the paste verdict, so it reaches the check; the splice lands
+strictly between the cover's endpoints, so the gate would wave it through; and afterwards a
+top-level heading sits inside the section, which ENDS the section there and puts everything below
+the splice outside the zoom root's subtree. Clause (1) catches it, because the text outside the
+subtree is no longer what it was. The gate never runs clause (1).
 
-`node-edit-enforcement` states a latency budget for the enforced path, so this is a measurement
-obligation, not an optimisation preference — it appears in tasks as one.
+Two related shapes are worth naming, because they bound the guarantee rather than break the gate.
+Changing a descendant heading's marker from `###` to `#`, and typing one character into an `hr`
+(`***`) so it stops parsing as one — `zoom-state.ts` already records the latter as measured — both
+change tree membership from a single line. Neither reaches this check, because `classify.ts` reads
+them as within-node authoring and no verdict is computed at all. That is a deliberate limit, and
+the `node-edit-enforcement` delta states it: such an edit can narrow what the root's subtree
+contains, but it cannot alter content the user cannot see, so the visible range narrows honestly
+instead of the document changing behind it. What these two DO establish is that no cheaper textual
+shape rescues the gate for the edits that do reach it: **any edit to any line can change that
+line's kind, and a change of kind can change tree membership**, so a shortcut that decides
+membership without consulting the tree is wrong by construction — which is the mistake D1 exists to
+stop repeating.
+
+So the invariant runs whenever a zoom is active and a verdict is being computed, and the cost is
+answered by the cache rather than by a shortcut. `parsed-doc.ts` is a `WeakMap` keyed on CM6's
+immutable `Text`, so parsing `tr.newDoc` here is not an extra parse but an EARLIER one: the very
+next transaction reads that same `Text` as its `startState.doc` and takes a cache hit. On the
+rewrite path D4 removes even that, because the after-`OutlineDoc` already exists.
+
+`node-edit-enforcement` states a latency budget for the enforced path, and this design spends more
+on that path than the rejected gate would have. That makes the measurement an obligation rather
+than a nicety, and it appears in tasks as one.
 
 ### D6: Trigger 2 consults the same predicate, and stops being the primary answer
 
@@ -124,7 +148,18 @@ Trigger 1 gains D2's identity for the same reason, replacing "some node begins a
 
 Clause (1) is satisfied when a whole-subtree deletion removes only the root's own lines, clause
 (2) has nothing to check, and clause (3) is satisfied because the node that inherits the anchor
-holds the root's old position in the tree. So the predicate says "inside", nothing is refused, and
+holds the root's old position in the tree.
+
+Clause (3) needs one explicit case for this to hold at the END of a document, where deleting the
+root leaves NO node at the anchor at all rather than a sibling sliding up into it. "No node
+resolves" is the root being gone outright, which is trigger 1's business and not an escape; only
+a node resolving at a DIFFERENT path is one. Stated the other way round, the clause would refuse
+the whole-subtree deletion of a last node while allowing it everywhere else — a rule whose answer
+depended on how much document happened to follow the root. The distinction also keeps R7 refused:
+a Mod-Backspace that empties the root's line leaves that line owned by the node ABOVE, so a node
+does resolve, at a different path.
+
+So the predicate says "inside", nothing is refused, and
 trigger 1a — the whole old cover mapped away — clears the zoom, exactly as `outline-zoom`
 specifies today. This is deliberate and it is the one place the design does NOT follow Logseq,
 whose focused root cannot be deleted at all (docs/research/24). An explicit selection of the whole
@@ -149,9 +184,12 @@ remove.
   moved anything out of the subtree, which is the guarantee the scope makes.
 - **Clause (1) needs the after-cover to know where the hidden text starts, and the after-cover
   needs the root, and the root needs clause (3).** → Evaluate (3) first and let it short-circuit;
-  a dissolved root is refused before the text comparison has anything to compare against.
-- **The extra parse on the pass path could breach the enforced-path budget.** → D5's gate, plus a
-  measurement task against `node-edit-enforcement`'s stated budget with the zoom active.
+  a dissolved root is refused before the text comparison has anything to compare against, and a
+  root that resolves to nothing at all takes D7's exit before either.
+- **The invariant now runs on every enforced edit while zoomed, with no shortcut in front of it.**
+  → D5 argues the parse is amortised by `parsed-doc.ts`'s cache rather than added, but that is an
+  argument and not a measurement; a task measures the enforced path against
+  `node-edit-enforcement`'s stated budget with a zoom active, and the budget is what settles it.
 - **`RewriteVerdict` grows a field that only one caller reads.** → It is the after-state the
   verdict was computed from; carrying it is cheaper and more honest than re-deriving it.
 
