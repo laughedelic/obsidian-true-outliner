@@ -719,6 +719,20 @@ describe('editEscapes', () => {
       })).toBe(true);
     });
 
+    it('refuses a blank line inserted above a FIRST-node root', () => {
+      // The empty-slice trap. Zoomed to the document's first node there is no
+      // text above the cover at all, so the before-side slice is `[]`; a blank
+      // line inserted above makes the after-side `['']`. Both render as the
+      // empty string when joined, and the root keeps its path either way, so a
+      // joined comparison reports "nothing outside changed" about a change that
+      // added a preamble line outside the subtree.
+      const doc = parse(LIST);
+      const scope = resolveZoom(doc, 0);
+      if (!scope) throw new Error('no scope');
+      const after = parse('\n- alpha\n- beta\n  - beta child\n- gamma\n');
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, onlyCoverRemoved: false })).toBe(true);
+    });
+
     it('refuses a paste spliced beside the root (G1)', () => {
       // Every hidden BYTE is untouched — `- alpha` and `- gamma` are exactly
       // as they were — and the paste still lands outside the subtree.

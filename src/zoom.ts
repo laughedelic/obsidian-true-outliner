@@ -373,6 +373,14 @@ function samePath(a: NodePath, b: NodePath): boolean {
  * Both sides are read through `encodeLines`, so the comparison is between two
  * encodings rather than between an encoding and a buffer — it needs the
  * encoding to be deterministic, not to round-trip.
+ *
+ * Line by line, never by joining. Joining is not injective: `[]` and `['']`
+ * both render as the empty string, and the difference between them is a real
+ * escape. Zoom into the document's FIRST node and have something insert a blank
+ * line above it — a sync write, another pane, an undo — and the root keeps its
+ * path while a preamble line appears outside the subtree. Compared as joined
+ * strings that reads as "nothing outside changed" and the zoom survives a
+ * change that left it.
  */
 function sameOutsideText(
   before: OutlineDoc,
@@ -383,7 +391,11 @@ function sameOutsideText(
   const b = encodeLines(before);
   const a = encodeLines(after);
   return (
-    b.slice(0, beforeCover.start.line).join('\n') === a.slice(0, afterCover.start.line).join('\n') &&
-    b.slice(beforeCover.end.line + 1).join('\n') === a.slice(afterCover.end.line + 1).join('\n')
+    sameLines(b.slice(0, beforeCover.start.line), a.slice(0, afterCover.start.line)) &&
+    sameLines(b.slice(beforeCover.end.line + 1), a.slice(afterCover.end.line + 1))
   );
+}
+
+function sameLines(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((line, i) => line === b[i]);
 }
