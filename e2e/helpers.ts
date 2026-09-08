@@ -1105,26 +1105,61 @@ const INDICATOR_SELECTORS = {
  */
 export async function clickIndicator(which: 'status' | 'ribbon'): Promise<void> {
   await armNoticeRecorder();
-  const selector = INDICATOR_SELECTORS[which];
-  if (which === 'ribbon') {
-    // What a user does to reach it, on either platform.
-    await browser.executeObsidian(({ app }) => {
-      (app.workspace as unknown as { leftSplit?: { expand(): void } }).leftSplit?.expand();
-    });
-    await browser.pause(300);
+  // Reaching the ribbon means opening the sidebar that holds it — and then
+  // putting it back. On a phone viewport the left split is a DRAWER covering
+  // most of the screen (measured at 327 of 390px in docs/research/29), so one
+  // left open intercepts every later click in the same session; that is the
+  // failure mode `clickClear` is being taught to recover from one layer up, and
+  // this helper should not be a second source of it. Restored to whatever it
+  // was, rather than simply collapsed, so it does not decide the workspace's
+  // shape for the tests after it.
+  const wasOpen = which === 'ribbon' ? await expandLeftSplit() : true;
+  try {
+    const selector = INDICATOR_SELECTORS[which];
+    const el = browser.$(selector);
+    if (!(await el.isExisting())) throw new Error(`no ${which} indicator to click`);
+    const size = await el.getSize();
+    if (size.width > 0 && size.height > 0) {
+      await el.click();
+    } else {
+      if (which === 'status') throw new Error('the status bar item exists but has no box to click');
+      await browser.execute((sel: string) => {
+        (document.querySelector(sel) as HTMLElement | null)?.click();
+      }, selector);
+    }
+    await browser.pause(200);
+  } finally {
+    if (!wasOpen) await setLeftSplit(false);
   }
-  const el = browser.$(selector);
-  if (!(await el.isExisting())) throw new Error(`no ${which} indicator to click`);
-  const size = await el.getSize();
-  if (size.width > 0 && size.height > 0) {
-    await el.click();
-  } else {
-    if (which === 'status') throw new Error('the status bar item exists but has no box to click');
-    await browser.execute((sel: string) => {
-      (document.querySelector(sel) as HTMLElement | null)?.click();
-    }, selector);
-  }
-  await browser.pause(200);
+}
+
+/** Opens the left split, reporting whether it was ALREADY open. */
+async function expandLeftSplit(): Promise<boolean> {
+  const wasOpen = await browser.executeObsidian(({ app }) => {
+    const split = (
+      app.workspace as unknown as { leftSplit?: { collapsed: boolean; expand(): void } }
+    ).leftSplit;
+    if (!split) return true; // nothing to restore
+    const open = !split.collapsed;
+    split.expand();
+    return open;
+  });
+  await browser.pause(300);
+  return wasOpen;
+}
+
+async function setLeftSplit(open: boolean): Promise<void> {
+  await browser.executeObsidian(
+    ({ app }, shouldOpen) => {
+      const split = (
+        app.workspace as unknown as { leftSplit?: { expand(): void; collapse(): void } }
+      ).leftSplit;
+      if (shouldOpen) split?.expand();
+      else split?.collapse();
+    },
+    open,
+  );
+  await browser.pause(300);
 }
 
 /**
