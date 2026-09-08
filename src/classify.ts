@@ -276,10 +276,12 @@ function crossesViaBoundaryDeletion(doc: OutlineDoc, span: ChangedLineSpan): boo
  * ONE node at line granularity yet express a content-level merge intent,
  * established by the pre-edit cursor:
  *
- * 1. Marker-space deletion: a single-character deletion on a list item's
- *    first line ending exactly at its content column, cursor there —
- *    Backspace at the item's first content character eating the marker's
- *    trailing space.
+ * 1. Marker-space deletion: a single-character deletion on a list item's or
+ *    an ATX heading's first line ending exactly at its content column,
+ *    cursor there — Backspace at the node's first content character eating
+ *    the marker's trailing space. A paragraph is NOT included: its content
+ *    start is indentation rather than a marker, and whether deleting into
+ *    it carries a merge intent is a separate question.
  * 2. Delete into the own gap: a single-newline deletion whose adjacent
  *    lines BOTH belong to one node (the newline ending its last content
  *    line, pulling its own trailing gap up), cursor at the node's content

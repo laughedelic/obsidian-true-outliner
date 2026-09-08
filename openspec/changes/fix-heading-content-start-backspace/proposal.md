@@ -41,10 +41,16 @@ None.
   marker-internals scenario is extended past list items; and the heading veto is stated
   concretely enough to be testable, including the document's first node, where the failure
   mode is a whole-document deletion rather than a demotion.
+- `transaction-classification`: the chrome-boundary deletion shape the classifier recognizes is
+  broadened the same way, from a list marker's trailing space to any node marker's. Both
+  capabilities state this shape — one decides that the transaction crosses a boundary, the
+  other what the crossing means — so widening either alone leaves the two contracts
+  disagreeing about the same keypress.
 
 ## Impact
 
-- `src/classify.ts` — `crossesViaChromeDeletion`'s marker-space shape.
+- `src/classify.ts` — `crossesViaChromeDeletion`'s marker-space shape, and the contract
+  documented above it.
 - `src/enforce.ts` — `recognizeMergeIntent`'s marker-space branch.
 - `tests/classify.test.ts`, `tests/enforce.test.ts` — both gates, plus the negative controls.
 - `e2e/specs/` — the enforcement spec covering merges and vetoes.
