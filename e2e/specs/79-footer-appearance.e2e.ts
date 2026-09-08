@@ -10,6 +10,27 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { openFooter, readStable, scrollToFooter } from '../footer.js';
+
+/**
+ * The hub target's footer, on screen.
+ *
+ * Deliberately NOT `openFooter`: this spec pins the overall cap off, so this
+ * one footer holds every reference in the hub fixture — hundreds — and its fill
+ * outruns `settle`'s budget. The cases that use it assert a presence or an
+ * absence, which a partly-filled footer answers correctly; only the two that
+ * compare one measurement to another need a settled footer, and those use the
+ * small target.
+ */
+async function showHubFooter(): Promise<void> {
+  await h.openNote(TARGET);
+  await h.setOutlineMode(true);
+  await browser.executeObsidian(() => {
+    const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
+    if (s) s.scrollTop = s.scrollHeight;
+  });
+  await browser.pause(1500);
+}
 
 /** Referenced from `Backlinks/Deep chain.md`, so its footer carries lineage. */
 const TARGET = 'Projects/Aurora Dashboard.md';
@@ -22,21 +43,16 @@ const TARGET = 'Projects/Aurora Dashboard.md';
  * The footer paints what it knows and fills the rest in as it resolves, so on
  * the hub a count taken now and a count taken a moment later are both true and
  * different — measured on CI, 597 rows against 646. That is the fill, not the
- * thing those cases mean to assert. A footer small enough to finish rendering
- * removes the race rather than waiting it out.
+ * thing those cases mean to assert. `readStable` and `settle` (both in
+ * ../footer.ts) wait that out; a footer small enough to finish rendering means
+ * there is much less of it to wait for, on a runner where the waiting is what
+ * ran the case past mocha's own timeout.
  *
  * `Backlinks/Family tree.md` and `Backlinks/Kinds gallery.md` reference it, so
  * it still carries deep lineage — rows with ancestors above them, which is what
  * a guide needs to exist at all.
  */
 const SMALL_TARGET = 'Backlinks/Reference target.md';
-
-/** Open a target and put its footer on screen. */
-async function openFooterOf(note: string): Promise<void> {
-  await h.openNote(note);
-  await h.setOutlineMode(true);
-  await scrollToFooter();
-}
 
 interface Shape {
   lineageRows: number;
@@ -75,58 +91,6 @@ async function set(key: string, value: unknown): Promise<void> {
   await browser.pause(700);
 }
 
-/** The footer is a block widget at the end of the note, and CodeMirror renders
- * the viewport — so it exists in the DOM only while the view is scrolled to it.
- * A setting change or a caret move can scroll it back out, and on a phone-sized
- * viewport it takes more than one pass to reach the end of a long note. */
-async function scrollToFooter(): Promise<void> {
-  for (let i = 0; i < 3; i++) {
-    const there = await browser.executeObsidian(() => {
-      const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
-      if (s) s.scrollTop = s.scrollHeight;
-      return !!document.querySelector('.workspace-leaf.mod-active .to-backlinks-row');
-    });
-    if (there) return;
-    await browser.pause(400);
-  }
-  await browser.pause(400);
-}
-
-/** `shape()`, with the footer scrolled into existence first. */
-async function footerShape(): Promise<Shape> {
-  await scrollToFooter();
-  const s = await shape();
-  if (!s) throw new Error('no footer rendered');
-  return s;
-}
-
-/**
- * A footer count read after the footer has stopped changing.
- *
- * The footer paints what it knows and fills in the rest as it resolves (its own
- * spec's "paints known information first"), and this note's footer is the whole
- * hub fixture — hundreds of rows. A count taken mid-fill is a real number for a
- * moment and a different real number a moment later, so a test comparing one to
- * another is measuring the fill, not the thing it means to. Two consecutive
- * agreeing reads is the settle condition.
- */
-async function settledGuideRows(): Promise<number> {
-  // Scrolled once, then polled WITHOUT scrolling again: the footer stays in the
-  // DOM as long as the view does not move, and re-scrolling per poll is what
-  // pushed this past mocha's per-test timeout on CI's mobile runner. Bounded by
-  // a deadline rather than an iteration count, for the same reason.
-  await scrollToFooter();
-  let last = -1;
-  const deadline = Date.now() + 5000;
-  while (Date.now() < deadline) {
-    const now = (await shape())?.guideRows ?? -1;
-    if (now > 0 && now === last) return now;
-    last = now;
-    await browser.pause(300);
-  }
-  return last;
-}
-
 /** The first footer row's own resolved guide background — a per-ROW fact, so it
  * does not move with however many other rows have finished filling in. */
 async function firstRowGuides(): Promise<string> {
@@ -150,10 +114,7 @@ describe('the footer’s appearance settings', function () {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });
 
-    await h.openNote(TARGET);
-    await h.setOutlineMode(true);
-    await scrollToFooter();
-    await browser.pause(800);
+    await showHubFooter();
   });
 
   afterEach(async function () {
@@ -229,10 +190,10 @@ describe('the footer’s appearance settings', function () {
     // has no caret of its own, and every row's lineage begins at its source
     // note's own root. So a footer row draws one guide per ancestor row above
     // it whatever the editor is doing, and does not repaint as the caret moves.
-    await openFooterOf(SMALL_TARGET);
+    await openFooter(SMALL_TARGET);
     await set('backlinksGuides', true);
     await set('guideVisibility', 'cursor');
-    const before = await settledGuideRows();
+    const before = (await readStable(shape))!.guideRows;
     const beforeFirst = await firstRowGuides();
     expect(before).toBeGreaterThan(0);
 
@@ -247,11 +208,11 @@ describe('the footer’s appearance settings', function () {
     // The row's own drawing first — the claim itself, and independent of how
     // much of the rest of the footer has resolved — then the settled count.
     expect(await firstRowGuides()).toBe(beforeFirst);
-    expect(await settledGuideRows()).toBe(before);
+    expect((await readStable(shape))!.guideRows).toBe(before);
 
     await set('guideVisibility', 'all');
     await set('backlinksGuides', false);
-    await openFooterOf(TARGET);
+    await showHubFooter();
   });
 
   it('takes the unit, the thickness and the intensity the editor takes', async function () {
@@ -259,7 +220,7 @@ describe('the footer’s appearance settings', function () {
     // this is consistency by construction rather than by a second
     // implementation. Asserted against the RESOLVED values a row renders with,
     // in case some rule ever scopes one of them to the editor.
-    await openFooterOf(SMALL_TARGET);
+    await openFooter(SMALL_TARGET);
     await set('backlinksGuides', true);
 
     /** A footer row's own resolved chrome, once there is a row to read it from. */
@@ -302,6 +263,6 @@ describe('the footer’s appearance settings', function () {
     await set('outlineUnit', 'auto');
     await set('guideThickness', 'hairline');
     await set('backlinksGuides', false);
-    await openFooterOf(TARGET);
+    await showHubFooter();
   });
 });
