@@ -104,9 +104,7 @@ Consequences worth naming:
    round-trips, and nothing has to synthesize one.
 2. Where a plugin status bar item lands relative to the core pencil (when the core setting is
    on) — layout is not controllable, so this is a look-and-feel check, not a design input.
-3. The ribbon icon's on/off appearance: class-toggled styling is available; which visual
-   treatment reads as "on" without a second icon is a choice for the change's tasks, verified
-   against a real vault the way the decoration experiments were.
+3. ~~The ribbon icon's on/off appearance.~~ Settled below.
 4. ~~Which public events fire when a leaf switches view mode IN PLACE (reading ↔ editing).~~
    Measured below: none do.
 
@@ -145,3 +143,29 @@ So a `StateField`'s `create` runs on a new tab and on a file switch, and does NO
 round-trip: the state chain survives the pane going to reading view and back. A per-tab mode
 held in a `StateField` therefore resets on a new tab, on a file switch and on tab close, and
 SURVIVES a reading round-trip.
+
+
+## The indicators, as built
+
+**Wording.** The status bar item states `Outline on` / `Outline off`, and blanks when no
+markdown tab is active — three states, because "no tab" is a different thing to say than "off"
+and an indicator that guessed would be stating a mode nothing is in. The same two words the
+toggle notice uses: the transient and the persistent statement of one fact should not be two
+vocabularies. The item reserves the width the two labels differ by, so the items beside it do
+not shift as the mode changes.
+
+**The ribbon's on-state** is a color change to the theme's own `--text-accent`, not a second
+icon. The ribbon is a column of same-sized glyphs, so a swapped icon reads as a different
+control while a tinted one reads as the same control in a different state; taking the accent
+from the theme means it says "on" in whatever palette the user runs.
+
+**`addStatusBarItem` on mobile — the docs are right, the emulator is not.** Measured under
+Obsidian's own `emulateMobile()`, the call still returns a live element and the desktop shell's
+status bar still renders it, so an ungated registration would ship an item onto a platform with
+nowhere to put it. Gated on `Platform.isMobile`, which is the one-line fallback the design named.
+
+**The ribbon on mobile is present but not clickable from a test.** The mobile shell renders it
+inside `.side-dock-ribbon.mod-left.workspace-drawer-ribbon`, which is `display: none` with a
+zero-sized box, and `leftSplit.expand()` does not reveal it. That is Obsidian's own drawer
+rather than our surface, so the mobile e2e activates the icon with a dispatched click — which
+still exercises the handler the requirement is about — and the desktop run keeps the real one.

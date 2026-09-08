@@ -30,11 +30,7 @@ const SCREENSHOT_DIR = path.join(process.cwd(), '.obsidian-cache', 'block-marker
 const MARKER_ICON_SELECTOR = '.to-decor-marker-icon';
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 describe('outline decorations: experiment 5a (block markers, icon widgets)', function () {
@@ -103,11 +99,7 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
   it('draws no markers with outline mode off', async function () {
     const note = 'Scratch/markers-mode-off.md';
     await h.createNote(note, '# Heading\n\nPara.\n');
-    if (await h.isOutlineMode(note)) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(false);
     const rects = await h.getContentChildRect(MARKER_ICON_SELECTOR, 0).catch(() => null);
     expect(rects).toBeNull();
   });

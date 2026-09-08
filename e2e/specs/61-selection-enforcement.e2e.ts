@@ -15,11 +15,7 @@ const NOTE = 'Scratch/selection.md';
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 describe('node-selection-enforcement: Phase B', function () {
@@ -137,7 +133,7 @@ describe('node-selection-enforcement: Phase B', function () {
     if (h.IS_MOBILE_RUN) this.skip(); // real-mouse-drag test: no such gesture under mobile emulation (see IS_MOBILE_RUN)
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await h.createNote(NOTE, md);
-    expect(await h.isOutlineMode(NOTE)).toBe(false);
+    await h.setOutlineMode(false);
     await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 });
     const sel = await h.getSelection();
     expect(sel.anchor).toEqual({ line: 0, ch: 6 });

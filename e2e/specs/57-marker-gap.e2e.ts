@@ -192,11 +192,7 @@ let seq = 0;
 async function open(md: string): Promise<Reading> {
   const note = `Scratch/marker-gap-${++seq}.md`;
   await h.createNote(note, md);
-  if (!(await h.isOutlineMode(note))) {
-    await h.toggleOutlineMode();
-    await browser.pause(200);
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await browser.pause(400);
   return read();
 }

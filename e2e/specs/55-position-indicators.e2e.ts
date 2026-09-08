@@ -61,11 +61,7 @@ const STRUCTURED = [
 ].join('\n');
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 /** Both setters skip a no-op change: each persists and then forces a full
@@ -183,7 +179,7 @@ describe('position indicators: current node and ancestor trail', function () {
       await h.setCursor(8, 5);
       await browser.pause(200);
 
-      expect(await h.isOutlineMode(note)).toBe(false);
+      await h.setOutlineMode(false);
       // No marker exists off-mode at all, so there is nothing to accent, and
       // no overlay renders on any line.
       expect(await h.getLineChildComputedStyle(8, MARKER, 'color')).toBe(null);

@@ -75,11 +75,7 @@ function expectSameColumn(actual: number, expected: number): void {
 
 async function openEmbedFixture(): Promise<void> {
   await createFixture(EMBED, h.createNote);
-  if (!(await h.isOutlineMode(EMBED.note))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   // Embeds resolve and render asynchronously; without this the widget may
   // not exist yet and the assertions would read the pre-embed line. The
   // fixture declares how long that takes, so the corpus screenshot loops
@@ -366,11 +362,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
 
     beforeEach(async function () {
       await h.createNote(LIVE_NOTE, LIVE_MD);
-      if (!(await h.isOutlineMode(LIVE_NOTE))) {
-        await h.toggleOutlineMode();
-        await h.waitForNotice('Outline mode on');
-        await h.dismissNotices();
-      }
+      await h.setOutlineMode(true);
       await h.setCursor(0, 0);
       await browser.pause(700);
     });

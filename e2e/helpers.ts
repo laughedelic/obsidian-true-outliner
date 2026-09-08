@@ -4,7 +4,7 @@
  * sandboxed vault copy from the test process with node:fs.
  */
 
-import { browser } from '@wdio/globals';
+import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as fsp from 'node:fs/promises';
@@ -591,7 +591,7 @@ export async function statMtimeMs(rel: string): Promise<number> {
 }
 
 interface PluginData {
-  outlinePaths: string[];
+  outlineByDefault: boolean;
   debugCrossCheck: boolean;
   coexistenceWarned: boolean;
 }
@@ -711,11 +711,31 @@ export async function resizeLeafForFooter(width: number | null): Promise<void> {
   await browser.pause(500);
 }
 
+/**
+ * Leave the plugin with NO stored settings at all, and reload it so it starts
+ * from its own shipped defaults.
+ *
+ * Distinct from `resetPluginState`, which writes the values the rest of the
+ * suite wants: a claim about what a FRESH INSTALL does cannot be made against a
+ * file the harness just wrote that value into — measured, a spec that leans on
+ * `resetPluginState` passes identically whichever default the plugin ships.
+ */
+export async function clearPluginData(): Promise<void> {
+  await browser.executeObsidian(async ({ plugins }) => {
+    await (plugins.trueOutliner as any).saveData({});
+  });
+  await obsidianPage.disablePlugin(PLUGIN_ID);
+  await obsidianPage.enablePlugin(PLUGIN_ID);
+}
+
 /** Reset plugin data to defaults and reload the plugin so it re-reads it. */
 export async function resetPluginState(): Promise<void> {
   await browser.executeObsidian(async ({ plugins }) => {
     await (plugins.trueOutliner as any).saveData({
-      outlinePaths: [],
+      // On, which is the shipped default: every spec whose subject is outlined
+      // behaviour keeps its subject without arranging for it. A spec measuring
+      // STOCK behaviour says so with `setOutlineMode(false)`.
+      outlineByDefault: true,
       debugCrossCheck: false,
       coexistenceWarned: false,
     });
@@ -845,19 +865,213 @@ export function resetStats(): Promise<void> {
 
 // ---- Outline mode --------------------------------------------------------
 
-export function isOutlineMode(notePath: string): Promise<boolean> {
+/**
+ * The ACTIVE tab's outline mode — the mode is per tab, so there is no note path
+ * to ask about. `undefined` when no markdown tab is active, or when its editor
+ * has not registered yet.
+ *
+ * Read through the plugin's own `activeTabOutlineMode`, which is what the status
+ * bar item and ribbon icon state, so a spec and the UI cannot disagree.
+ */
+export function outlineModeOn(): Promise<boolean | undefined> {
   return browser.executeObsidian(
-    ({ plugins }, p) => (plugins.trueOutliner as any).isOutline(p) as boolean,
-    notePath,
+    ({ plugins }) => (plugins.trueOutliner as any).activeTabOutlineMode() as boolean | undefined,
   );
 }
 
-/** Toggle outline mode for the active note via the real command. */
+/**
+ * Open a note in a NEW tab, leaving the current one open and in whatever state
+ * it is in — the arrangement every per-tab assertion needs.
+ */
+export async function openInNewTab(notePath: string): Promise<void> {
+  await armNoticeRecorder();
+  await browser.executeObsidian(async ({ app }, p: string) => {
+    const file = app.vault.getAbstractFileByPath(p);
+    if (!file) throw new Error(`no note at ${p}`);
+    await app.workspace.getLeaf('tab').openFile(file as never);
+  }, notePath);
+}
+
+/**
+ * Close every open markdown tab, so a spec that indexes tabs starts from a
+ * workspace it built itself.
+ *
+ * A per-tab state makes leftover tabs a real hazard rather than untidiness:
+ * `openNote` reuses the ACTIVE leaf, so a tab another test left in a manual
+ * state becomes the tab this one is measuring, and the index a third one asks
+ * for names something it never opened.
+ */
+export async function closeAllTabs(): Promise<void> {
+  await browser.executeObsidian(({ app }) => {
+    app.workspace.detachLeavesOfType('markdown');
+  });
+  await browser.pause(150);
+}
+
+/** The open markdown tabs, in workspace order, with the active one marked. */
+export function markdownTabs(): Promise<{ path: string | null; active: boolean }[]> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const active = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    return app.workspace.getLeavesOfType('markdown').map((leaf) => {
+      const view = leaf.view as InstanceType<typeof obsidian.MarkdownView>;
+      return { path: view.file?.path ?? null, active: view === active };
+    });
+  });
+}
+
+/** Make the nth open markdown tab (workspace order) the active one. */
+export async function activateTab(index: number): Promise<void> {
+  await browser.executeObsidian(
+    ({ app }, i) => {
+      const leaf = app.workspace.getLeavesOfType('markdown')[i];
+      if (!leaf) throw new Error(`no markdown tab at index ${i}`);
+      app.workspace.setActiveLeaf(leaf, { focus: true });
+    },
+    index,
+  );
+  await browser.pause(150);
+}
+
+/**
+ * Is the active tab's editor the SOURCE editor rather than Live Preview?
+ *
+ * `getMode()` answers 'source' for both, so the distinction lives in the view
+ * state's own `source` flag — the one the reading-view entry round-trips.
+ */
+export function editorIsSourceMode(): Promise<boolean> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    return (view.getState() as { source?: boolean }).source === true;
+  });
+}
+
+/** The active tab's view mode, as Obsidian reports it. */
+export function viewMode(): Promise<'source' | 'preview' | null> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    return (view?.getMode() ?? null) as 'source' | 'preview' | null;
+  });
+}
+
+/**
+ * Switch the active tab's view mode, the way the view header's own switcher
+ * does. `source: false` is Live Preview, `true` the source editor; omitted, the
+ * pane keeps whichever it last had.
+ */
+export async function setViewMode(
+  mode: 'source' | 'preview',
+  source?: boolean,
+): Promise<void> {
+  await browser.executeObsidian(
+    async ({ app, obsidian }, mode, source) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      const state = { ...view.getState(), mode } as Record<string, unknown>;
+      if (source !== undefined) state.source = source;
+      await view.setState(state, { history: false });
+    },
+    mode,
+    source,
+  );
+  await browser.pause(300);
+}
+
+// ---- The mode indicators -------------------------------------------------
+
+/**
+ * The status bar item's text, or `null` when no item exists — which is what
+ * mobile is expected to report, since there is no status bar there.
+ */
+export function statusItemText(): Promise<string | null> {
+  return browser.execute(() => {
+    const el = document.querySelector('.true-outliner-mode-status');
+    return el ? (el.textContent ?? '') : null;
+  });
+}
+
+/** Does the ribbon icon carry its on-state? `null` when there is no icon. */
+export function ribbonIsOn(): Promise<boolean | null> {
+  return browser.execute(() => {
+    const el = document.querySelector('[aria-label="Toggle outline mode"]');
+    return el ? el.classList.contains('true-outliner-ribbon-on') : null;
+  });
+}
+
+const INDICATOR_SELECTORS = {
+  status: '.true-outliner-mode-status',
+  ribbon: '[aria-label="Toggle outline mode"]',
+} as const;
+
+/**
+ * Activate an indicator the way a user does — a real click on the element.
+ *
+ * Under mobile emulation the ribbon is reached through a dispatched click
+ * instead, because a WebDriver click needs a visible target and the ribbon has
+ * none there: measured, the mobile shell renders it inside
+ * `.side-dock-ribbon.mod-left.workspace-drawer-ribbon`, which is `display: none`
+ * with a zero-sized box, and `leftSplit.expand()` does not reveal it. That is
+ * Obsidian's own drawer, not our surface; what the spec asks of us is that
+ * activating the icon toggles the active tab, and a dispatched click exercises
+ * exactly the handler that has to do it. The desktop run keeps the real click,
+ * so the ordinary path is still measured as a user performs it.
+ */
+export async function clickIndicator(which: 'status' | 'ribbon'): Promise<void> {
+  await armNoticeRecorder();
+  const selector = INDICATOR_SELECTORS[which];
+  const el = browser.$(selector);
+  if (!(await el.isExisting())) throw new Error(`no ${which} indicator to click`);
+  if (IS_MOBILE_RUN && which === 'ribbon') {
+    await browser.execute((sel: string) => {
+      (document.querySelector(sel) as HTMLElement | null)?.click();
+    }, selector);
+  } else {
+    await el.click();
+  }
+  await browser.pause(200);
+}
+
+/** Toggle outline mode for the active tab via the real command. */
 export async function toggleOutlineMode(): Promise<void> {
   // Armed BEFORE the toggle: the notice this produces lives ~1500ms, which a
   // slow poll can miss entirely if recording only starts once someone waits.
   await armNoticeRecorder();
   await runCommand('toggle-outline-mode');
+}
+
+/**
+ * Set the global default through the plugin's own setter, the way the settings
+ * toggle does. Deliberately does NOT touch open tabs — that is the setting's
+ * whole contract, and a helper that swept them would hide a broken one.
+ */
+export async function setDefaultOutlineMode(on: boolean): Promise<void> {
+  await browser.executeObsidian(
+    async ({ plugins }, value) => {
+      await (
+        plugins.trueOutliner as never as {
+          setOutlineByDefault(v: boolean): Promise<void>;
+        }
+      ).setOutlineByDefault(value);
+    },
+    on,
+  );
+}
+
+/**
+ * Put the ACTIVE tab in `on`, and confirm it landed there.
+ *
+ * Arranges rather than asserts, because with the default on there is no state a
+ * spec inherits for free: a note measuring STOCK behaviour has to turn its tab
+ * off, where it used to get off by never toggling. Toggling only when the tab
+ * is not already in `on` keeps a spec's notice expectations honest — a
+ * redundant toggle would raise a notice nobody asked for.
+ */
+export async function setOutlineMode(on: boolean): Promise<void> {
+  if ((await outlineModeOn()) === on) return;
+  await toggleOutlineMode();
+  await waitForNotice(on ? 'Outline mode on' : 'Outline mode off');
+  await dismissNotices();
+  expect(await outlineModeOn()).toBe(on);
 }
 
 // ---- Decorations (rendered layout) ----------------------------------------
@@ -1131,6 +1345,27 @@ export function getLinePseudoComputedStyle(
 }
 
 /** classList of the Nth (0-indexed) `.cm-line` in the active editor. */
+/**
+ * How many rendered lines carry an outline decoration class.
+ *
+ * Counted across the whole viewport rather than asserted on one line index:
+ * `.cm-line` DOM order is not document order once widgets are involved, and
+ * this note's own line 0 is a frontmatter delimiter, which the outline never
+ * decorates. What a spec means by "the outline is showing" is that the layer
+ * painted at all, and a count is exactly that claim.
+ */
+export function decoratedLineCount(): Promise<number> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const cm = (view.editor as any).cm;
+    const lines = Array.from(cm.contentDOM.querySelectorAll(':scope > .cm-line')) as HTMLElement[];
+    return lines.filter((el) =>
+      Array.from(el.classList).some((c) => (c as string).startsWith('to-decor-')),
+    ).length;
+  });
+}
+
 export function getLineClassList(lineIndex: number): Promise<string[]> {
   return browser.executeObsidian(({ app, obsidian }, lineIndex) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);

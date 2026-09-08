@@ -33,11 +33,7 @@ async function classListAtLine(lineNumber: number): Promise<string[]> {
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 describe('progressive-select-all', function () {
@@ -237,7 +233,7 @@ describe('progressive-select-all', function () {
   it('outside outline mode, Mod-A is untouched native behavior', async function () {
     const md = '# Head\n\nBody.\n';
     await h.createNote(NOTE, md);
-    expect(await h.isOutlineMode(NOTE)).toBe(false);
+    await h.setOutlineMode(false);
     await h.setCursor(2, 0);
     await h.pressSelectAll();
     const sel = await h.getSelection();

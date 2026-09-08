@@ -4,6 +4,7 @@ import {
   MarkdownFileInfo,
   MarkdownView,
   Notice,
+  Platform,
   Plugin,
   PluginSettingTab,
   Setting,
@@ -725,9 +726,12 @@ export default class TrueOutlinerPlugin extends Plugin {
    * The two indicator surfaces, both stating the ACTIVE tab's mode and both
    * toggling that tab (design D7).
    *
-   * Registered unconditionally. `addStatusBarItem` is documented as
-   * unavailable on mobile and returns nothing usable there; the mobile e2e
-   * asserts the item's absence rather than this code guessing at the platform.
+   * The status bar item is gated on `Platform.isMobile`, because the absence it
+   * relies on is not real: `addStatusBarItem` is documented as unavailable on
+   * mobile, but measured under Obsidian's own `emulateMobile()` it still
+   * returns a live element in the desktop shell's status bar — so leaving it
+   * ungated would ship an item onto a platform that has nowhere to put it. The
+   * ribbon carries the indication there, which is why it is not gated.
    *
    * Refreshed from `active-leaf-change` and `file-open`, which between them
    * cover every transition that can change the answer — measured
@@ -737,7 +741,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    * site.
    */
   private registerIndicators(): void {
-    const status = this.addStatusBarItem();
+    const status = Platform.isMobile ? undefined : this.addStatusBarItem();
     if (status) {
       status.addClass('true-outliner-mode-status');
       status.addClass('mod-clickable');
@@ -762,6 +766,22 @@ export default class TrueOutlinerPlugin extends Plugin {
   }
 
   /**
+   * The ACTIVE tab's outline mode, or `undefined` when no markdown tab is
+   * active — a graph view, the empty state, or a leaf whose editor has not
+   * registered yet.
+   *
+   * What the indicators state, so the e2e harness can assert the same value the
+   * UI shows rather than a parallel one — the same "public for the harness"
+   * rationale as `stats` and `motionCounts`, and here it is the surfaces' own
+   * source of truth rather than test-only scaffolding.
+   */
+  activeTabOutlineMode(): boolean | undefined {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const cm = view?.file ? viewFor(view) : undefined;
+    return cm ? isOutlineMode(cm.state) : undefined;
+  }
+
+  /**
    * Restate both indicators from the active tab.
    *
    * `undefined` where no markdown tab is active at all — a graph view, the
@@ -770,9 +790,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    * surface claims a mode nothing is in.
    */
   private refreshIndicators(): void {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    const cm = view?.file ? viewFor(view) : undefined;
-    const on = cm ? isOutlineMode(cm.state) : undefined;
+    const on = this.activeTabOutlineMode();
     // The same words as the toggle notice, deliberately: the transient and the
     // persistent statement of one fact should not be two vocabularies.
     this.statusItem?.setText(on === undefined ? '' : on ? 'Outline on' : 'Outline off');

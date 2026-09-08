@@ -33,11 +33,7 @@ async function scrollToEnd(): Promise<void> {
 }
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 async function openFooter(notePath: string): Promise<void> {
@@ -477,11 +473,7 @@ describe('backlinks footer: behaviour', function () {
 
   it('leaves a note with no outline mode alone entirely', async function () {
     await h.openNote(DEEP_SOURCE);
-    if (await h.isOutlineMode(DEEP_SOURCE)) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(false);
     await scrollToEnd();
     expect(await footerExists()).toBe(false);
   });

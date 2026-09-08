@@ -133,11 +133,7 @@ describe('spike S5: what a hub note costs', function () {
 
   it('measures first paint — mount to header on screen', async function () {
     await h.openNote(HUB);
-    if (!(await h.isOutlineMode(HUB))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
 
     // Away from the end, so the widget is genuinely unmounted: CodeMirror
     // virtualises, and a footer already in the DOM would measure nothing.

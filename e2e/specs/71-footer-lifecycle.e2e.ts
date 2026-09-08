@@ -87,11 +87,7 @@ function editorCount(): Promise<number> {
 }
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 async function setSourceMode(source: boolean): Promise<void> {
@@ -160,11 +156,7 @@ describe('spike S2: end-of-document block widget lifecycle', function () {
     // A note that is NOT in outline mode: the widget must not follow the editor,
     // only the file's mode.
     await h.openNote(PLAIN);
-    if (await h.isOutlineMode(PLAIN)) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(false);
     await closeAllButOne();
     await waitForWidgetCount(0);
 

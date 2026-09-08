@@ -257,11 +257,7 @@ const near = (a: number, b: number): boolean => Math.abs(a - b) < 0.05;
 
 async function openFixture(name: string): Promise<void> {
   await h.createNote(`Scratch/${name}.md`, FIXTURE);
-  if (!(await h.isOutlineMode(`Scratch/${name}.md`))) {
-    await h.toggleOutlineMode();
-    await browser.pause(200);
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await browser.pause(300);
 }
 
@@ -383,11 +379,7 @@ describe('the outline unit is one declaration the whole grid follows', function 
 
   it('moves the footer’s rows by the same declaration', async function () {
     await h.openNote(TARGET);
-    if (!(await h.isOutlineMode(TARGET))) {
-      await h.toggleOutlineMode();
-      await browser.pause(200);
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });

@@ -20,11 +20,7 @@ const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await h.resetStats();
 }
 
@@ -166,11 +162,7 @@ describe('transaction classification: Phase A evidence', function () {
   it('nested per-cell table editor: typing, selecting, and dragging inside a cell has no enforcement effect', async function () {
     const note = 'Scratch/classification-nested.md';
     await h.createNote(note, '# Section\n\n| a | b |\n| --- | --- |\n| word | two |\n');
-    if (!(await h.isOutlineMode(note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await browser.pause(150);
     await h.resetStats();
 
@@ -213,17 +205,13 @@ describe('transaction classification: Phase A evidence', function () {
     const offNote = 'Scratch/mutation-off.md';
 
     await h.createNote(onNote, md);
-    if (!(await h.isOutlineMode(onNote))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await h.setSelection({ line: 0, ch: 6 }, { line: 2, ch: 6 });
     await browser.keys(Key.Backspace);
     const onResult = await h.getBuffer();
 
     await h.createNote(offNote, md);
-    expect(await h.isOutlineMode(offNote)).toBe(false);
+    await h.setOutlineMode(false);
     await h.setSelection({ line: 0, ch: 6 }, { line: 2, ch: 6 });
     await browser.keys(Key.Backspace);
     const offResult = await h.getBuffer();

@@ -39,11 +39,7 @@ async function classListAtLine(lineNumber: number): Promise<string[]> {
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await h.setBuffer(content);
 }
 
@@ -501,10 +497,7 @@ describe('node-selection-extension: scope of the binding', () => {
   it('off-mode Shift+Arrow is byte-for-byte native', async () => {
     const md = '- alpha\n- bravo\n- charlie\n';
     await h.createNote(NOTE, md);
-    if (await h.isOutlineMode(NOTE)) {
-      await h.toggleOutlineMode();
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(false);
     await h.setBuffer(md);
     await h.setCursor(0, 3);
     await down();

@@ -306,10 +306,7 @@ async function clickMark(selector: string, index = 0, modifier = false): Promise
 async function openZoomable(md = DOC): Promise<void> {
   await h.createNote(NOTE, md);
   await h.openNote(NOTE);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-  }
+  await h.setOutlineMode(true);
   await h.dismissNotices();
 }
 

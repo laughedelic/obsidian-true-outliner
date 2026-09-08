@@ -37,11 +37,7 @@ import { ALL_DECORATION_FIXTURES, createFixture } from '../fixtures/decorations.
 const SCREENSHOT_DIR = path.join(process.cwd(), '.obsidian-cache', 'guides-gradient-screenshots');
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 /** Number of `repeating-linear-gradient(` layers in a resolved background-image. */
@@ -116,11 +112,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
   it('draws no guides with outline mode off', async function () {
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'heading-then-list')!;
     await h.createNote(fixture.note, fixture.md);
-    if (await h.isOutlineMode(fixture.note)) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(false);
     expect(await h.getLineClassList(0)).not.toContain('to-decor-guides');
   });
 

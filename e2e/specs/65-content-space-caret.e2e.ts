@@ -23,11 +23,7 @@ const NOTE = 'Scratch/content-space-caret.md';
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 describe('content-space-caret', function () {
@@ -643,7 +639,7 @@ describe('content-space-caret', function () {
       const offNote = 'Scratch/content-space-caret-off.md';
       const md = '- alpha\n- bravo\n';
       await h.createNote(offNote, md);
-      expect(await h.isOutlineMode(offNote)).toBe(false);
+      await h.setOutlineMode(false);
 
       await h.setCursor(1, 2); // "- |bravo"
       await h.keys.left();

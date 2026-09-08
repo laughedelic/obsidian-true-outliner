@@ -27,11 +27,7 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 describe('outline decorations: contracts (nested editors, non-mutation)', function () {

@@ -16,11 +16,7 @@ const NOTE = 'Scratch/content-space-caret-manual-pass.md';
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 describe('content-space-caret: real-vault-style manual pass (node kinds outside the fixtures)', function () {
@@ -139,11 +135,7 @@ describe('content-space-caret: real-vault-style manual pass (node kinds outside 
     // editor before the very next `browser.keys()` call (the same
     // test-hygiene lesson the table Home/End test above already recorded).
     await h.createNote('Scratch/content-space-caret-table-down.md', 'Before.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAfter.\n');
-    if (!(await h.isOutlineMode('Scratch/content-space-caret-table-down.md'))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     // Measured: this plugin computes and dispatches the table's own FIRST
     // row (line 2) as the crossing target, but Obsidian's table widget then
     // claims the position through its own nested-editor hand-off and can
@@ -165,11 +157,7 @@ describe('content-space-caret: real-vault-style manual pass (node kinds outside 
 
   it('D8: vertical motion crossing UP into a table lands within it, never on the gap below', async function () {
     await h.createNote('Scratch/content-space-caret-table-up.md', 'Before.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAfter.\n');
-    if (!(await h.isOutlineMode('Scratch/content-space-caret-table-up.md'))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
     await h.setCursor(6, 3);
     await h.keys.up();
@@ -181,11 +169,7 @@ describe('content-space-caret: real-vault-style manual pass (node kinds outside 
 
   it("D8: exiting a table's own nested editor via repeated vertical presses can transiently land on the surrounding gap, but the very next motion normalizes it (measured: this is the SAME accepted `programmatic`-jurisdiction case node-selection-enforcement's own scenario names for a workspace restore — table cells run their own nested CM6 editor, and Obsidian's own focus-handoff back to the outer editor dispatches with no userEvent)", async function () {
     await h.createNote('Scratch/content-space-caret-table-exit.md', 'Before.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAfter.\n');
-    if (!(await h.isOutlineMode('Scratch/content-space-caret-table-exit.md'))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await h.waitForContentChildCount('.cm-embed-block.cm-table-widget', 1);
     await h.setCursor(6, 3); // "After."
     await h.keys.up(); // into the table (own nested editor from here on — which row is Obsidian's own call, see the crossing tests above)
