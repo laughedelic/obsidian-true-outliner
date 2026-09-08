@@ -248,6 +248,24 @@ describe('transaction classification: Phase A evidence', function () {
     await outlineNote(stress);
     await browser.pause(200); // let the initial parse/cache settle
 
+    // A few driven edits BEFORE the measurement, and the reset after them, so
+    // what this samples is steady-state classification rather than a document
+    // still warming up. The budget is a per-keystroke contract, and a handful
+    // of first-touch samples on a 2000-line note is not what it is about.
+    //
+    // `outlineNote` resets the stats already, but it does so the moment the
+    // mode flips. That used to be several hundred milliseconds of settling
+    // later, because reaching outline mode meant waiting on a toast; the toast
+    // is gone and the wait is now a state poll, so the window this measures
+    // began arriving earlier and closer to the note's own warm-up. Leaning on
+    // an unrelated delay was never the intent — this states the settle
+    // instead, and does not depend on how fast the toggle returns.
+    for (let i = 0; i < 3; i++) {
+      await h.setCursor(i * 4 + 2, 5);
+      await h.keys.type('w');
+    }
+    await h.resetStats();
+
     // Drive typing across several sections.
     for (let i = 0; i < 20; i++) {
       await h.setCursor(i * 4 + 2, 5);
