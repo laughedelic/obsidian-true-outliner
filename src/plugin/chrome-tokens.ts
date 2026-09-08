@@ -99,6 +99,52 @@ export const CHROME_VARS = {
 } as const;
 
 /**
+ * What a reader may choose, and the declaration each choice resolves to.
+ *
+ * Every value stays in styles.css. A preset names the DECLARATION that holds
+ * its length, never the length — so the plugin publishes
+ * `--to-set-unit: var(--to-unit-compact)` and the number lives exactly once,
+ * beside the default that reads the same declaration. That is what keeps the
+ * mobile default and the compact rung from being two copies of `1.5rem` that
+ * agree only until someone edits one, and it keeps this module holding no
+ * geometry at all — the rule `UNIT_EXPR` already states for the unit itself.
+ *
+ * The maps are `Record`s over their unions, so adding a state to a type without
+ * giving it a declaration is a compile error rather than a silent fallback.
+ */
+export type OutlineUnit = 'auto' | 'compact' | 'standard' | 'roomy' | 'wide';
+export type GuideThickness = 'hairline' | 'medium';
+export type GuideIntensity = 'subtle' | 'normal' | 'strong';
+
+/** The properties the settings layer contributes, which the declarations in
+ * styles.css consume as their default. Publishing a property of our own rather
+ * than restating a token's is what leaves a snippet's override of the token
+ * itself still winning — the settings are a default, not a ceiling. */
+export const SETTING_VARS = {
+  unit: '--to-set-unit',
+  guideWidth: '--to-set-guide-width',
+  guideIntensity: '--to-set-guide-intensity',
+} as const;
+
+export const UNIT_STEP_VARS: Record<Exclude<OutlineUnit, 'auto'>, string> = {
+  compact: '--to-unit-compact',
+  standard: '--to-unit-standard',
+  roomy: '--to-unit-roomy',
+  wide: '--to-unit-wide',
+};
+
+export const GUIDE_THICKNESS_VARS: Record<GuideThickness, string> = {
+  hairline: '--to-guide-width-hairline',
+  medium: '--to-guide-width-medium',
+};
+
+export const GUIDE_INTENSITY_VARS: Record<GuideIntensity, string> = {
+  subtle: '--to-guide-intensity-subtle',
+  normal: '--to-guide-intensity-normal',
+  strong: '--to-guide-intensity-strong',
+};
+
+/**
  * The marker glyph's box as a REFERENCE rather than a literal, for placement
  * arithmetic that must survive a surface resizing its own markers.
  *

@@ -55,10 +55,49 @@ body {
    * width: every column on every surface is derived from it, so a snippet
    * setting it on `body` moves the whole grid and nothing is left behind. That
    * only holds while nothing restates the value — no rule's `var()` fallback,
-   * and nothing in JS (see `UNIT_EXPR`). */
-  --to-decor-unit: 1.75rem;
+   * and nothing in JS (see `UNIT_EXPR`).
+   *
+   * The setting reaches it through `--to-set-unit`, a property of its own that
+   * this declaration consumes as a default, rather than by restating the unit.
+   * The distinction is the whole of the precedence: an inline
+   * `--to-decor-unit` on `body` would beat every stylesheet rule at any
+   * specificity and quietly demote the snippet route to "whatever the plugin is
+   * not currently setting", where a separate property leaves this one
+   * declaration exactly where it is. Unset while the reader has chosen nothing,
+   * so the default below is what resolves. */
+  --to-decor-unit: var(--to-set-unit, var(--to-unit-default));
 
-  --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
+  /* The ladder the setting offers, measured against the grid's own floor — a
+   * child's mark must begin right of its parent's text — on both device classes
+   * (docs/research/22-outline-unit-width.md). A rung is named by its
+   * DECLARATION and never by its length, so a preset and the default that
+   * happens to share its value are one number rather than two that agree until
+   * someone edits one. `1.375rem` is not among them: it sits exactly on the
+   * mobile floor, where a child's mark begins where its parent's text does. */
+  --to-unit-compact: 1.5rem;
+  --to-unit-standard: 1.75rem;
+  --to-unit-roomy: 2rem;
+  --to-unit-wide: 2.5rem;
+
+  /* Only the DEFAULT moves per device class, never `--to-decor-unit` itself:
+   * redeclaring the unit under a body class would raise the winning specificity
+   * above a snippet's own `body` rule and break the escape hatch on exactly the
+   * device where a reader most wants it. Keyed off the class Obsidian already
+   * puts on `body` rather than off a platform check in JS, so it follows
+   * `app.emulateMobile()` and is testable rather than mocked. */
+  --to-unit-default: var(--to-unit-standard);
+
+  /* Intensity is a percentage over the theme's own faint text, so both rungs
+   * resolve from whatever theme is running and neither can be right in one mode
+   * and wrong in the other. A hue stays the stylesheet's to change. */
+  --to-guide-intensity-subtle: 35%;
+  --to-guide-intensity-normal: 60%;
+  --to-guide-intensity-strong: 100%;
+  --to-guide-color: color-mix(
+    in srgb,
+    var(--text-faint) var(--to-set-guide-intensity, var(--to-guide-intensity-normal)),
+    transparent
+  );
   --to-decor-accent: var(--text-accent);
 
   /* A guide stripe's own width. Declared here rather than spelled where a
@@ -66,8 +105,14 @@ body {
    * the position that centres it on the column are built in JS
    * (`chrome-line.ts`), and a number there could not follow this declaration —
    * the stripe would paint at one width while the centring assumed another.
-   * `GUIDE_WIDTH` is the only way JS refers to it, and carries no fallback. */
-  --to-guide-width: 1px;
+   * `GUIDE_WIDTH` is the only way JS refers to it, and carries no fallback.
+   *
+   * `3px` is deliberately not a rung: beside a bullet's dot and a `0.85rem`
+   * marker icon it reads as a bar rather than a guide
+   * (docs/research/09-experiment-2-guide-lines.md). */
+  --to-guide-width-hairline: 1px;
+  --to-guide-width-medium: 2px;
+  --to-guide-width: var(--to-set-guide-width, var(--to-guide-width-hairline));
 
   /* Same width as an unaccented guide, so an accent is purely a change of
    * colour: the line does not thicken as the caret moves into a subtree, and an
@@ -79,6 +124,14 @@ body {
    * agree at every thickness, and a literal only agrees at the one it was
    * written for. */
   --to-trail-width: var(--to-guide-width);
+}
+
+/* The one device-class branch in this file. See `--to-unit-default` above for
+ * why it moves the default and not the unit. `is-mobile` covers phones and
+ * tablets alike; a tablet reader with room to spare picks a wider step
+ * explicitly. */
+body.is-mobile {
+  --to-unit-default: var(--to-unit-compact);
 }
 
 /*

@@ -60,6 +60,11 @@ describe('persisted plugin data', () => {
       markerVisibility: 'with-children' as const,
       guideHighlight: 'lineage' as const,
       markerHighlight: 'lineage' as const,
+      outlineUnit: 'roomy' as const,
+      guideVisibility: 'cursor' as const,
+      guideHideSingleRoot: true,
+      guideThickness: 'medium' as const,
+      guideIntensity: 'strong' as const,
     };
     expect(normalizePluginData(onDisk)).toEqual(onDisk);
   });
@@ -128,6 +133,25 @@ describe('persisted plugin data', () => {
     // and a prototype key is a string but not a known state
     expect(normalizePluginData({ guideHighlight: 'toString' }).guideHighlight).toBe(
       DEFAULT_DATA.guideHighlight,
+    );
+    // The appearance presets, whose unknown states would reach a CSS property
+    // as `var(--to-unit-undefined)` — a reference to nothing, which resolves to
+    // nothing and leaves the grid at a step no setting names.
+    expect(normalizePluginData({ outlineUnit: '1.5rem' }).outlineUnit).toBe(
+      DEFAULT_DATA.outlineUnit,
+    );
+    expect(normalizePluginData({ outlineUnit: 24 }).outlineUnit).toBe(DEFAULT_DATA.outlineUnit);
+    expect(normalizePluginData({ guideVisibility: 'sometimes' }).guideVisibility).toBe(
+      DEFAULT_DATA.guideVisibility,
+    );
+    expect(normalizePluginData({ guideThickness: '3px' }).guideThickness).toBe(
+      DEFAULT_DATA.guideThickness,
+    );
+    expect(normalizePluginData({ guideIntensity: 0.6 }).guideIntensity).toBe(
+      DEFAULT_DATA.guideIntensity,
+    );
+    expect(normalizePluginData({ guideHideSingleRoot: 'yes' }).guideHideSingleRoot).toBe(
+      DEFAULT_DATA.guideHideSingleRoot,
     );
   });
 

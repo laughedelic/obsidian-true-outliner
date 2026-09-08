@@ -20,11 +20,16 @@ import { afterState, resolveOperand } from '../operand';
 import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits } from '../result';
+import { applyAppearance, clearAppearance } from './appearance';
 import {
   DEFAULT_DATA,
   normalizePluginData,
   type GroupHeight,
   type GuideHighlight,
+  type GuideIntensity,
+  type GuideThickness,
+  type GuideVisibility,
+  type OutlineUnit,
   type LineageSeparator,
   type MarkerHighlight,
   type OverallCap,
@@ -113,6 +118,31 @@ const SEGMENT_ICONS_LABELS: Record<SegmentIcons, string> = {
 const LINEAGE_SEPARATOR_LABELS: Record<LineageSeparator, string> = {
   none: 'Nothing',
   chevron: 'A chevron',
+};
+
+const OUTLINE_UNIT_LABELS: Record<OutlineUnit, string> = {
+  auto: 'Automatic — narrower on a phone or tablet',
+  compact: 'Compact',
+  standard: 'Standard',
+  roomy: 'Roomy',
+  wide: 'Wide',
+};
+
+const GUIDE_VISIBILITY_LABELS: Record<GuideVisibility, string> = {
+  all: 'Every level',
+  cursor: 'Only the levels the cursor is inside',
+  off: 'None',
+};
+
+const GUIDE_THICKNESS_LABELS: Record<GuideThickness, string> = {
+  hairline: 'Hairline',
+  medium: 'Medium',
+};
+
+const GUIDE_INTENSITY_LABELS: Record<GuideIntensity, string> = {
+  subtle: 'Subtle',
+  normal: 'Normal',
+  strong: 'Strong',
 };
 
 const GUIDE_HIGHLIGHT_LABELS: Record<GuideHighlight, string> = {
@@ -217,6 +247,14 @@ export default class TrueOutlinerPlugin extends Plugin {
   override async onload(): Promise<void> {
     this.showDevBuildStamp();
     this.data = normalizePluginData(await this.loadData());
+
+    // The appearance settings are published to the document, not built into a
+    // decoration: one property write moves the grid in every open pane and in
+    // the footer at once (see `appearance.ts`). Registered for cleanup rather
+    // than left to an `onunload` override, so the properties go with the
+    // plugin whatever else changes here.
+    this.publishAppearance();
+    this.register(() => clearAppearance(document.body));
 
     // `checkCallback`, not `editorCheckCallback`: the mode is a property of the
     // TAB, and a tab in reading view has no editor to hand the latter. Offered
@@ -579,6 +617,71 @@ export default class TrueOutlinerPlugin extends Plugin {
 
   async setBacklinksGuides(value: boolean): Promise<void> {
     await this.setFooterSetting('backlinksGuides', value);
+  }
+
+  get outlineUnit(): OutlineUnit {
+    return this.data.outlineUnit;
+  }
+
+  async setOutlineUnit(value: OutlineUnit): Promise<void> {
+    this.data.outlineUnit = value;
+    await this.saveData(this.data);
+    // No redraw: every column on both surfaces is a `var()` away from the
+    // property this writes, so the grid moves on the next style recalculation
+    // — in every open pane, which `forceRedraw` could not reach.
+    this.publishAppearance();
+  }
+
+  get guideThickness(): GuideThickness {
+    return this.data.guideThickness;
+  }
+
+  async setGuideThickness(value: GuideThickness): Promise<void> {
+    this.data.guideThickness = value;
+    await this.saveData(this.data);
+    this.publishAppearance();
+  }
+
+  get guideIntensity(): GuideIntensity {
+    return this.data.guideIntensity;
+  }
+
+  async setGuideIntensity(value: GuideIntensity): Promise<void> {
+    this.data.guideIntensity = value;
+    await this.saveData(this.data);
+    this.publishAppearance();
+  }
+
+  get guideVisibility(): GuideVisibility {
+    return this.data.guideVisibility;
+  }
+
+  async setGuideVisibility(value: GuideVisibility): Promise<void> {
+    this.data.guideVisibility = value;
+    await this.saveData(this.data);
+    // A visibility change alters which gradient layers are BUILT, which is a
+    // decoration rebuild — unlike the appearance settings above. The footer
+    // draws no guides at all while the layer is off, so it is repainted too.
+    this.footerRev++;
+    this.publishAppearance();
+    this.forceRedraw();
+    nudgeFooters(this.app);
+    repaintFooters();
+  }
+
+  get guideHideSingleRoot(): boolean {
+    return this.data.guideHideSingleRoot;
+  }
+
+  async setGuideHideSingleRoot(value: boolean): Promise<void> {
+    this.data.guideHideSingleRoot = value;
+    await this.saveData(this.data);
+    this.forceRedraw();
+  }
+
+  /** Write the appearance choices onto the document — see `appearance.ts`. */
+  private publishAppearance(): void {
+    applyAppearance(this.data, document.body);
   }
 
   get markerVisibility(): MarkerVisibility {
@@ -1271,6 +1374,31 @@ const SETTING_BACKLINKS_GUIDES = {
   desc: 'Draws the same indentation guides the editor uses down the footer’s own rows.',
 } as const;
 
+const SETTING_OUTLINE_UNIT = {
+  name: 'Outline width',
+  desc: 'How far one level of the outline steps to the right — in the editor and in the backlinks footer alike. “Automatic” takes a narrower step on a phone or tablet, where the width is worth more. Every step keeps a child’s marker clear of its parent’s text; a CSS snippet setting --to-decor-unit still overrides whatever is chosen here.',
+} as const;
+
+const SETTING_GUIDE_VISIBILITY = {
+  name: 'Which indentation guides to draw',
+  desc: 'The vertical lines that connect a node to the levels above it. Drawing only the levels the cursor is inside keeps the ladder where the reading is and the rest of the page quiet. With none drawn, Obsidian’s own indent-guide setting governs list levels again.',
+} as const;
+
+const SETTING_GUIDE_SINGLE_ROOT = {
+  name: 'Hide the outermost guide under a single root',
+  desc: 'Where a whole note hangs off one top-level node — a single “# Title”, or any zoomed-in view — that node’s guide runs down every line while telling the reader nothing. This drops it and keeps every deeper level. Nothing moves: guides are painted, not laid out.',
+} as const;
+
+const SETTING_GUIDE_THICKNESS = {
+  name: 'Guide line thickness',
+  desc: 'How heavy an indentation guide is drawn. The accent that marks the cursor’s own lineage follows the same thickness, so entering a subtree changes a guide’s colour and never its weight.',
+} as const;
+
+const SETTING_GUIDE_INTENSITY = {
+  name: 'Guide line strength',
+  desc: 'How strongly a guide stands out, as a proportion of the theme’s own faintest text — so it stays right in a light theme and a dark one. A snippet can change the colour itself.',
+} as const;
+
 const SETTING_MARKER_VISIBILITY = {
   name: 'Debug: block marker visibility (experiment 5a)',
   desc: 'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
@@ -1382,6 +1510,50 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         },
       },
       {
+        ...SETTING_OUTLINE_UNIT,
+        control: {
+          type: 'dropdown',
+          key: 'outlineUnit',
+          options: OUTLINE_UNIT_LABELS,
+          defaultValue: DEFAULT_DATA.outlineUnit,
+        },
+      },
+      {
+        ...SETTING_GUIDE_VISIBILITY,
+        control: {
+          type: 'dropdown',
+          key: 'guideVisibility',
+          options: GUIDE_VISIBILITY_LABELS,
+          defaultValue: DEFAULT_DATA.guideVisibility,
+        },
+      },
+      {
+        ...SETTING_GUIDE_SINGLE_ROOT,
+        control: {
+          type: 'toggle',
+          key: 'guideHideSingleRoot',
+          defaultValue: DEFAULT_DATA.guideHideSingleRoot,
+        },
+      },
+      {
+        ...SETTING_GUIDE_THICKNESS,
+        control: {
+          type: 'dropdown',
+          key: 'guideThickness',
+          options: GUIDE_THICKNESS_LABELS,
+          defaultValue: DEFAULT_DATA.guideThickness,
+        },
+      },
+      {
+        ...SETTING_GUIDE_INTENSITY,
+        control: {
+          type: 'dropdown',
+          key: 'guideIntensity',
+          options: GUIDE_INTENSITY_LABELS,
+          defaultValue: DEFAULT_DATA.guideIntensity,
+        },
+      },
+      {
         ...SETTING_MARKER_VISIBILITY,
         control: {
           type: 'dropdown',
@@ -1437,6 +1609,16 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         return this.plugin.backlinksSeparator;
       case 'backlinksGuides':
         return this.plugin.backlinksGuides;
+      case 'outlineUnit':
+        return this.plugin.outlineUnit;
+      case 'guideVisibility':
+        return this.plugin.guideVisibility;
+      case 'guideHideSingleRoot':
+        return this.plugin.guideHideSingleRoot;
+      case 'guideThickness':
+        return this.plugin.guideThickness;
+      case 'guideIntensity':
+        return this.plugin.guideIntensity;
       case 'markerVisibility':
         return this.plugin.markerVisibility;
       case 'guideHighlight':
@@ -1479,6 +1661,21 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         break;
       case 'backlinksGuides':
         await this.plugin.setBacklinksGuides(Boolean(value));
+        break;
+      case 'outlineUnit':
+        await this.plugin.setOutlineUnit(value as OutlineUnit);
+        break;
+      case 'guideVisibility':
+        await this.plugin.setGuideVisibility(value as GuideVisibility);
+        break;
+      case 'guideHideSingleRoot':
+        await this.plugin.setGuideHideSingleRoot(Boolean(value));
+        break;
+      case 'guideThickness':
+        await this.plugin.setGuideThickness(value as GuideThickness);
+        break;
+      case 'guideIntensity':
+        await this.plugin.setGuideIntensity(value as GuideIntensity);
         break;
       case 'markerVisibility':
         await this.plugin.setMarkerVisibility(value as MarkerVisibility);
@@ -1579,6 +1776,50 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         toggle
           .setValue(this.plugin.backlinksGuides)
           .onChange((value) => void this.plugin.setBacklinksGuides(value)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_OUTLINE_UNIT.name)
+      .setDesc(SETTING_OUTLINE_UNIT.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(OUTLINE_UNIT_LABELS)
+          .setValue(this.plugin.outlineUnit)
+          .onChange((value) => void this.plugin.setOutlineUnit(value as OutlineUnit)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_GUIDE_VISIBILITY.name)
+      .setDesc(SETTING_GUIDE_VISIBILITY.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(GUIDE_VISIBILITY_LABELS)
+          .setValue(this.plugin.guideVisibility)
+          .onChange((value) => void this.plugin.setGuideVisibility(value as GuideVisibility)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_GUIDE_SINGLE_ROOT.name)
+      .setDesc(SETTING_GUIDE_SINGLE_ROOT.desc)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.guideHideSingleRoot)
+          .onChange((value) => void this.plugin.setGuideHideSingleRoot(value)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_GUIDE_THICKNESS.name)
+      .setDesc(SETTING_GUIDE_THICKNESS.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(GUIDE_THICKNESS_LABELS)
+          .setValue(this.plugin.guideThickness)
+          .onChange((value) => void this.plugin.setGuideThickness(value as GuideThickness)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_GUIDE_INTENSITY.name)
+      .setDesc(SETTING_GUIDE_INTENSITY.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(GUIDE_INTENSITY_LABELS)
+          .setValue(this.plugin.guideIntensity)
+          .onChange((value) => void this.plugin.setGuideIntensity(value as GuideIntensity)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_MARKER_VISIBILITY.name)

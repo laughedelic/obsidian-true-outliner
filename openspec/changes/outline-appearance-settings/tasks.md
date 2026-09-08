@@ -40,19 +40,19 @@
 
 ## 3. Settings storage and publication
 
-- [ ] 3.1 Add the five settings to `PluginData` (unit step, guide visibility, single-root
+- [x] 3.1 Add the five settings to `PluginData` (unit step, guide visibility, single-root
   qualifier, guide thickness, guide intensity) with their defaults and `KNOWN_*` records in
   `src/plugin/mode-registry.ts`, and verify `tests/` covers each field falling back to its default
   from a wrong-typed and an unknown stored value — negative control: drop one field from its
   `KNOWN_*` record and confirm the type check fails to compile
-- [ ] 3.2 Publish the resolved choices as `--to-set-*` properties on `document.body`, writing a
+- [x] 3.2 Publish the resolved choices as `--to-set-*` properties on `document.body`, writing a
   property only where the reader has chosen a non-default, and verify by inspecting the element
   that the default state leaves no property behind
-- [ ] 3.3 Remove every published property and class on plugin unload, and verify from non-default
+- [x] 3.3 Remove every published property and class on plugin unload, and verify from non-default
   choices that the DISABLED midpoint leaves `body` with no `--to-set-*` property and the grid at
   Obsidian's own rendering, and that re-enabling republishes the saved choices — starting from
   defaults exercises no cleanup at all, since there is nothing published to remove
-- [ ] 3.4 Spell each token in `styles.css` as `var(--to-set-…, <default>)` — unit, guide width,
+- [x] 3.4 Spell each token in `styles.css` as `var(--to-set-…, <default>)` — unit, guide width,
   guide intensity — keeping each declaration single and at `body`, and verify a stylesheet
   override at `body` still wins over a published setting (design D1)
 
@@ -121,7 +121,7 @@
 
 ## 8. The settings tab
 
-- [ ] 8.1 Add the five controls to `getSettingDefinitions()` and to the pre-1.13 `display()`
+- [x] 8.1 Add the five controls to `getSettingDefinitions()` and to the pre-1.13 `display()`
   fallback, with the plugin's accessor pair for each, and verify both surfaces render the same
   controls with the same labels
 - [ ] 8.2 Verify each control's change applies live in an open note (`e2e/specs/41-backlinks-

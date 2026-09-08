@@ -578,6 +578,88 @@ export type GuideHighlight = 'off' | 'full' | 'lineage';
  */
 export type MarkerHighlight = 'off' | 'current' | 'lineage';
 
+/**
+ * Which of a line's ancestor guides are DRAWN — a different question from
+ * `GuideHighlight`, which decides how a drawn guide is accented.
+ *
+ * - `'all'` — every strict ancestor's, the base rendering.
+ * - `'cursor'` — only those belonging to a strict ancestor of the node holding
+ *   the primary caret. The ladder appears around where the reader is working
+ *   and the rest of the page stays quiet.
+ * - `'off'` — none. The layer then suppresses nothing either, so Obsidian's own
+ *   indent guides govern list levels again (there is no longer anything of ours
+ *   for them to double up with).
+ */
+export type GuideVisibility = 'all' | 'cursor' | 'off';
+
+/** What `visibleGuideDepths` needs to answer "is this guide drawn here". */
+export interface GuideVisibilityContext {
+  readonly visibility: GuideVisibility;
+  /** Drop the outermost guide while the document has exactly one root. */
+  readonly hideSingleRoot: boolean;
+  /** Whether the document this line belongs to HAS exactly one root. */
+  readonly singleRoot: boolean;
+  /**
+   * The depths of the primary caret's strict ancestors, or `null` where there
+   * is no caret to read (the footer, or a state with no resolvable chain).
+   * Only `'cursor'` consults it.
+   */
+  readonly caretDepths: ReadonlySet<number> | null;
+}
+
+/**
+ * The depths a line actually draws, given what the reader asked for.
+ *
+ * Pure, and applied at the point the layers are built rather than inside
+ * `computeLineGuides`: the walk stays caret-free so its result can be cached
+ * per document, where a caret-dependent one would be recomputed on every
+ * cursor move.
+ *
+ * Visibility is a matter of what is painted and nothing else. Nothing here
+ * feeds indentation, so a guide starting or stopping — because a setting
+ * changed, because the caret moved, or because an edit gave the document a
+ * second root — moves no character on the page.
+ */
+export function visibleGuideDepths(
+  depths: readonly number[],
+  ctx: GuideVisibilityContext,
+): readonly number[] {
+  if (ctx.visibility === 'off') return EMPTY_DEPTHS;
+  // The outermost guide is dropped only where every line in the document is
+  // inside it, which is what one root means — a guide every line carries
+  // distinguishes nothing. A zoomed view satisfies this by construction, its
+  // scope being re-based to a single root at depth 0 (`outline-zoom` D9), which
+  // is the behaviour wanted there anyway.
+  const dropRoot = ctx.hideSingleRoot && ctx.singleRoot;
+  if (!dropRoot && ctx.visibility === 'all') return depths;
+  const caret = ctx.caretDepths;
+  return depths.filter(
+    (d) => !(dropRoot && d === 0) && (ctx.visibility !== 'cursor' || (caret?.has(d) ?? false)),
+  );
+}
+
+const EMPTY_DEPTHS: readonly number[] = [];
+
+/** Whether the whole document hangs off one root node. */
+export function hasSingleRoot(doc: OutlineDoc): boolean {
+  return doc.children.length === 1;
+}
+
+/**
+ * The depths of the strict ancestors of the node at `cursorLine` — the levels
+ * the cursor is inside.
+ *
+ * Shares `chainAtLine` with the accent trail, and deliberately not the trail
+ * itself: the trail is suppressed in cases that are about accents (both accent
+ * settings off, a selection covering whole nodes), and a guide the reader asked
+ * to see must not vanish because of either.
+ */
+export function caretAncestorDepths(doc: OutlineDoc, cursorLine: number): Set<number> {
+  const chain = chainAtLine(doc, cursorLine);
+  if (!chain || chain.length === 0) return new Set();
+  return new Set(chain.slice(0, -1).map((entry) => entry.depth));
+}
+
 /** The two independent axes, read together on every recompute. */
 export interface PositionHighlight {
   readonly guides: GuideHighlight;
