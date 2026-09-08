@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "3a973b715195",
+  "strategy": "manual-commit",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "e2e/specs/61-selection-enforcement.e2e.ts",
+    "e2e/specs/64-progressive-select-all.e2e.ts",
+    "e2e/specs/80-outline-zoom.e2e.ts",
+    "openspec/changes/per-tab-outline-mode/proposal.md",
+    "openspec/changes/per-tab-outline-mode/specs/outline-zoom/spec.md",
+    "src/plugin/decorations.ts",
+    "src/plugin/main.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/3a/973b715195/0/metadata.json",
+      "transcript": "/3a/973b715195/0/full.jsonl",
+      "compact_transcript": "/3a/973b715195/0/transcript.jsonl",
+      "content_hash": "/3a/973b715195/0/content_hash.txt",
+      "prompt": "/3a/973b715195/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 53757,
+    "cache_read_tokens": 21634892,
+    "output_tokens": 27578,
+    "api_call_count": 58
+  }
+}

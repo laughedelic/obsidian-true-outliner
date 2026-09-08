@@ -1,0 +1,86 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "3a973b715195",
+  "session_id": "e4229cb5-cf73-4d17-abb7-bfc24905b7f4",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-08T03:58:00.657854Z",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "e2e/specs/61-selection-enforcement.e2e.ts",
+    "e2e/specs/64-progressive-select-all.e2e.ts",
+    "e2e/specs/80-outline-zoom.e2e.ts",
+    "openspec/changes/per-tab-outline-mode/proposal.md",
+    "openspec/changes/per-tab-outline-mode/specs/outline-zoom/spec.md",
+    "src/plugin/decorations.ts",
+    "src/plugin/main.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "0a39123efbc4",
+  "checkpoint_transcript_start": 793,
+  "transcript_lines_at_start": 793,
+  "compact_transcript_start": 160,
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 53757,
+    "cache_read_tokens": 21634892,
+    "output_tokens": 27578,
+    "api_call_count": 58
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-openspec-apply-change-2026-09-08T02:51:45.734248Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "5e820074c7ef",
+      "timestamp": "2026-09-08T02:51:45.734248Z",
+      "native": {
+        "command": "/openspec-apply-change"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/openspec-apply-change",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "initial_attribution": {
+    "calculated_at": "2026-09-08T03:58:00.551942Z",
+    "agent_lines": 153,
+    "agent_removed": 34,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 14,
+    "total_committed": 153,
+    "total_lines_changed": 201,
+    "agent_percentage": 93.03482587064677,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 100,
+      "user_lines_removed": 14,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 84,
+        "src/plugin/decorations.ts": 9,
+        "src/plugin/main.ts": 7
+      },
+      "user_removed_per_file": {
+        "src/plugin/decorations.ts": 8,
+        "src/plugin/main.ts": 6
+      }
+    }
+  ]
+}
