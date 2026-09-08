@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "44cbb973d568",
+  "strategy": "manual-commit",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "openspec/specs/outline-mode/spec.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/44/cbb973d568/0/metadata.json",
+      "transcript": "/44/cbb973d568/0/full.jsonl",
+      "compact_transcript": "/44/cbb973d568/0/transcript.jsonl",
+      "content_hash": "/44/cbb973d568/0/content_hash.txt",
+      "prompt": "/44/cbb973d568/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 18191,
+    "cache_read_tokens": 5312548,
+    "output_tokens": 9367,
+    "api_call_count": 13
+  }
+}

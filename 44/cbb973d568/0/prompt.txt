@@ -1,0 +1,17 @@
+<task-notification>
+<task-id>bfwhumaf6</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/e4229cb5-cf73-4d17-abb7-bfc24905b7f4/tasks/bfwhumaf6.output</output-file>
+<status>completed</status>
+<summary>Background command "Full e2e sweep, second pass" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bm1w81dr7</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/e4229cb5-cf73-4d17-abb7-bfc24905b7f4/tasks/bm1w81dr7.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for the sweep" completed (exit code 0)</summary>
+</task-notification>
