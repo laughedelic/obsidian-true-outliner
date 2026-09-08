@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "7852d862627f",
+  "strategy": "manual-commit",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "openspec/changes/archive/2026-09-08-per-tab-outline-mode/.openspec.yaml",
+    "openspec/changes/archive/2026-09-08-per-tab-outline-mode/design.md",
+    "openspec/changes/archive/2026-09-08-per-tab-outline-mode/proposal.md",
+    "openspec/changes/archive/2026-09-08-per-tab-outline-mode/specs/e2e-verification/spec.md",
+    "openspec/changes/archive/2026-09-08-per-tab-outline-mode/specs/outline-mode/spec.md",
+    "openspec/changes/archive/2026-09-08-per-tab-outline-mode/specs/outline-zoom/spec.md",
+    "openspec/changes/archive/2026-09-08-per-tab-outline-mode/tasks.md",
+    "openspec/changes/per-tab-outline-mode/.openspec.yaml",
+    "openspec/changes/per-tab-outline-mode/design.md",
+    "openspec/changes/per-tab-outline-mode/proposal.md",
+    "openspec/changes/per-tab-outline-mode/specs/e2e-verification/spec.md",
+    "openspec/changes/per-tab-outline-mode/specs/outline-mode/spec.md",
+    "openspec/changes/per-tab-outline-mode/specs/outline-zoom/spec.md",
+    "openspec/changes/per-tab-outline-mode/tasks.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/78/52d862627f/0/metadata.json",
+      "transcript": "/78/52d862627f/0/full.jsonl",
+      "compact_transcript": "/78/52d862627f/0/transcript.jsonl",
+      "content_hash": "/78/52d862627f/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 4874,
+    "cache_read_tokens": 4063062,
+    "output_tokens": 1829,
+    "api_call_count": 7
+  }
+}
