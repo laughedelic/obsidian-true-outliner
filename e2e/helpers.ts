@@ -4,7 +4,7 @@
  * sandboxed vault copy from the test process with node:fs.
  */
 
-import { browser, expect } from '@wdio/globals';
+import { browser } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import { Key } from 'webdriverio';
 import * as fsp from 'node:fs/promises';

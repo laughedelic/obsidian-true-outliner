@@ -2349,6 +2349,19 @@ class MarginCompensation implements PluginValue {
    * needed no value at all. The CSS fallback (`0.26em`) reproduces the bundled
    * font's measurement to within 0.03px and covers the first paint only.
    */
+  /**
+   * The document the view actually lives in.
+   *
+   * `Range` and `TreeWalker` are created BY a document and are scoped to it, so
+   * the global `document` is the wrong one for a note opened in a pop-out
+   * window — the measurement below would be built against a document that does
+   * not contain the node it is measuring. Same realm check `zoom-click.ts`
+   * makes for `Element`, and `scheduleRemeasure` for the frame clock.
+   */
+  private get doc(): Document {
+    return this.view.dom.ownerDocument;
+  }
+
   /** The space Obsidian leaves after a rendered checkbox, when one is in view. */
   private taskLabelSpace(): Node | null {
     const label = this.view.contentDOM.querySelector<HTMLElement>(
@@ -2361,7 +2374,7 @@ class MarginCompensation implements PluginValue {
       const found =
         node.nodeType === Node.TEXT_NODE
           ? node
-          : document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
+          : this.doc.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
       if (found?.nodeValue) text = found;
     }
     // Only a leading space is ours to absorb; anything else means Obsidian
@@ -2384,7 +2397,7 @@ class MarginCompensation implements PluginValue {
       '.cm-line.to-decor-list:not(.HyperMD-task-line) .cm-formatting-list',
     );
     for (const span of Array.from(spans)) {
-      const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
+      const walker = this.doc.createTreeWalker(span, NodeFilter.SHOW_TEXT);
       let last: Node | null = null;
       for (let node = walker.nextNode(); node; node = walker.nextNode()) last = node;
       if (last?.nodeValue === ' ') return last;
@@ -2395,7 +2408,7 @@ class MarginCompensation implements PluginValue {
   private measureSpaceAdvance(): 'not-laid-out' | 'done' {
     const text = this.taskLabelSpace() ?? this.markerTrailingSpace();
     if (!text) return 'done'; // no qualifying marker in view: nothing to measure
-    const range = document.createRange();
+    const range = this.doc.createRange();
     range.setStart(text, 0);
     range.setEnd(text, 1);
     const width = range.getBoundingClientRect().width;
