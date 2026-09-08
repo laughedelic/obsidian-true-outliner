@@ -78,12 +78,11 @@ ancestor says, and a chain that quietly removes them misquotes it. `plain` answe
 and throws away the emphasis a reader uses to recognise an ancestor, at no saving, since
 reaching correct plain text still means parsing.
 
-**The nested-target collision is accepted and bounded.** A crumb is a `role="link"`, and a live
-link inside it is a second destination. The footer's existing `closest('a, button')` guard
-already resolves this the right way — the inner link wins where the pointer is actually on it,
-the crumb wins everywhere else — and the cursor tells the reader which one they are about to
-get before they click. What made this a real risk under an unstyled render was that nothing
-distinguished the two; the cursor is that distinction.
+**The nested-target collision is accepted, and D8 is what bounds it.** A crumb is a
+`role="link"`, and a live link inside it is a second destination. The cursor tells the reader
+which one they are about to get before they click; D8 makes the click itself go to only one of
+them. An earlier draft of this decision claimed the footer's existing `closest('a, button')`
+guard already covered it — it does not, and D8 records why.
 
 ### D2. One parse; the policy is a serialiser over its output
 
@@ -135,13 +134,35 @@ already there. The footer passes its existing one. `ZoomTrailWidget` creates a `
 `toDOM` and unloads it in `destroy`, which is the lifecycle CM6 already gives a widget — not the
 plugin's own `Component`, which would hold every trail ever built until unload.
 
-### D6. Rendering is async; the row is built synchronously
+### D6. Rendering is async, and what a segment shows meanwhile is open
 
-`MarkdownRenderer.render` resolves after the row exists. The footer already handles this by
-giving rendered content its own span and filling it when the promise settles, and the trail
-widget does the same: `toDOM` returns a complete row whose segment texts fill in immediately
-after. A crumb that is briefly empty is not acceptable, so the fallback while the promise is
-pending is the segment's plain text — which the parse already produces.
+`MarkdownRenderer.render` resolves after the row exists, and a CM6 `WidgetType.toDOM` must
+return synchronously. The footer already lives with this: rendered content gets its own span,
+filled when the promise settles.
+
+An earlier draft of this decision said the pending fallback was "the segment's plain text —
+which the parse already produces". That is not available. D4 replaces `text` with `markdown`
+plus `render`, and the only thing that turns markdown into plain text correctly is the parse
+itself, which is the asynchronous step being waited on (D2). Deriving it synchronously would
+mean the regex stripper D2 rules out, and showing the raw `markdown` in the meantime would flash
+exactly the source characters this change exists to remove.
+
+So the real options are two, and they differ by a fact not yet measured:
+
+**Option A — the segment starts empty and fills on settle.** Correct at every frame; the cost is
+a trail or lineage row whose text appears a beat after its markers. Acceptable only if that beat
+is short and rare. It is plausibly both: the trail widget is keyed (D9), so it is rebuilt when
+the chain changes rather than on every keystroke.
+
+**Option B — the model carries a synchronous plain-text field alongside `markdown`,** produced by
+the same parse, cached at build time rather than at paint time. Removes the empty frame at the
+cost of parsing in the view model, which is where `footer-model.ts` deliberately does no DOM work
+today.
+
+**How to choose:** measure how long `MarkdownRenderer.render` actually takes for one inline
+string in the e2e harness, and how often the trail widget is rebuilt during ordinary typing. If
+the gap is sub-frame, A is free and B is a cache nobody needs. That measurement is a task, not a
+judgement call — the same discipline the rest of this change followed.
 
 ### D7. A chain drops media; a reference row constrains it
 
@@ -154,3 +175,41 @@ In a **reference row**, media renders and the stylesheet bounds it. That row is 
 the node, and an embed is part of what the node says — the defect there is only that it sets the
 row's height, which is the stylesheet's question rather than the model's. Removing it in the
 model would take a quotation's content away to fix a layout problem.
+
+### D8. The activation guard belongs to the shared primitive, not to one surface
+
+Once a segment can contain a link, a click on that link must follow the link and must NOT also
+activate the segment around it. Nothing in the current code does that for both surfaces.
+
+`renderLineageContent` dispatches `onActivate` unconditionally on click, and again on `Enter`,
+with no look at the event target. The only guard that exists is in `BacklinksFooter.open` — a
+ROW-level handler on the footer's own surface — so it never runs for zoom at all:
+`ZoomTrailWidget`'s callback re-roots the view on whatever segment was passed to it. Today that
+is harmless, because a segment holds only text. Under D1 it means clicking a link inside a crumb
+follows the link AND re-roots the view, and pressing Enter on a focused inner link does the same.
+
+The guard therefore moves into `lineage-row.ts`, beside the dispatch it guards, where both
+surfaces get it from one implementation. It covers both events: `click` checks the target, and
+`keydown` must too, since a rendered `<a>` is focusable and its own Enter bubbles to the
+segment.
+
+The footer's row-level guard stays where it is. It answers a different question — whether a
+click anywhere in a ROW should open the source note — and a segment is not the only thing a
+footer row contains.
+
+### D9. The trail widget's key covers every field that changes its DOM
+
+`ZoomTrailWidget.eq()` compares a key built from segment TEXT alone. Under D4 a segment also
+carries `render`, and the marker already depends on `kind`, `task` and `ordinal` — none of which
+are in the key. Two states that differ only in those fields compare equal, so CM6 keeps the old
+DOM: toggling a task ancestor's checkbox leaves the old marker, and a node whose kind changes
+keeps the old glyph. The `render` field makes it worse, since the same text can go from plain to
+rendered.
+
+The key becomes every render-relevant field of every segment. Node IDs stay OUT of it, and that
+exclusion is not an oversight — `zoom-trail.ts` already records why: `model.ts`'s global counter
+hands out fresh IDs on every reparse, so keying on them would rebuild the widget on every
+keystroke, and the activation handler resolves an ancestor by its POSITION for the same reason.
+
+This is a pre-existing defect that D4 widens rather than creates, which is why it is stated here
+rather than left to the implementation to notice.

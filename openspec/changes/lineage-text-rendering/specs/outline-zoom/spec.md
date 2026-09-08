@@ -81,7 +81,12 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 #### Scenario: A crumb's link is live and unaccented
 - **WHEN** an ancestor's text carries a link
 - **THEN** the link is separately activatable, drawn in the trail's own colour rather than the
-  theme's link colour, and activating it does not also re-root the view on that ancestor
+  theme's link colour, and activating it — by click or by Enter — does not also re-root the view
+  on that ancestor
+
+#### Scenario: A crumb's marker follows its node's state
+- **WHEN** a task ancestor's checkbox is toggled while zoomed, its label unchanged
+- **THEN** that crumb's marker updates to the new state rather than keeping the old one
 
 #### Scenario: An image embed does not render in a crumb
 - **WHEN** an ancestor's text carries an image embed

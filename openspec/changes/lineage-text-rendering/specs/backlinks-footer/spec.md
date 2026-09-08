@@ -154,8 +154,12 @@ Embedded media SHALL NOT render in a lineage row at all. A chain is one line, an
 size at which an image belongs in it; the segment SHALL keep the embed's alt text, which is what
 the node says, rather than dropping it and risking a blank segment.
 
-Where a link inside a segment and the segment itself both claim a pointer event, the link SHALL
-win where the pointer is on it and the segment SHALL win everywhere else.
+Where a link inside a segment and the segment itself both claim an event, the link SHALL win
+where the event originates inside it and the segment SHALL win everywhere else. This SHALL hold
+for keyboard activation as well as for the pointer, since a rendered link is focusable and its
+own `Enter` reaches the segment around it. The rule SHALL be enforced by the shared rendering
+primitive rather than by either surface's own handler, so that both surfaces get it from one
+implementation.
 
 #### Scenario: A link in a lineage row takes no accent colour
 
@@ -193,9 +197,11 @@ win where the pointer is on it and the segment SHALL win everywhere else.
 - **THEN** the segment shows the embed's alt text, no image element is produced, and the row is
   one line of text tall
 
-#### Scenario: A link inside a segment wins its own click
+#### Scenario: A link inside a segment wins its own activation
 
 - **WHEN** the user clicks a link inside a lineage segment
 - **THEN** that link is followed, and the segment's own action does not also fire
 - **WHEN** the user clicks the segment's text beside it
 - **THEN** the segment's own action fires
+- **WHEN** the user focuses a link inside a segment and presses Enter
+- **THEN** that link is followed, and the segment's own action does not also fire

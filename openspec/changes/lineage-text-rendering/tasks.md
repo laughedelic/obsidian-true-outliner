@@ -34,9 +34,15 @@
       (design D5)
 - [ ] 4.2 The footer passes its existing renderer; `renderContent` becomes the shared entry
 - [ ] 4.3 `ZoomTrailWidget` creates a `Component` in `toDOM` and unloads it in `destroy`
-- [ ] 4.4 Plain text fills a segment synchronously; the rendered form replaces it when the
-      promise settles (design D6)
-- [ ] 4.5 Apply D1's policy in one function over the rendered fragment (design D2): media out,
+- [ ] 4.4 Measure `MarkdownRenderer.render`'s settle time for one inline string, and how often
+      the trail widget rebuilds during ordinary typing — then choose D6's option A or B and
+      record it in design.md. The fallback the first draft assumed does not exist
+- [ ] 4.5 Move the activation guard into `lineage-row.ts` (design D8): a click whose target is
+      inside a link or button does not activate the segment, and neither does an `Enter` raised
+      on a focusable element inside one
+- [ ] 4.6 Widen `ZoomTrailWidget`'s key to every render-relevant segment field (design D9),
+      keeping node IDs out for the reason `zoom-trail.ts` already records
+- [ ] 4.7 Apply D1's policy in one function over the rendered fragment (design D2): media out,
       to its alt text; everything else through
 
 ## 5. The subdued treatment
@@ -88,7 +94,12 @@ against notes that read like notes, or the treatment is only known to work on a 
       carries no block syntax
 - [ ] 7.4 The same spec asserts a crumb renders inline markdown per D1
 - [ ] 7.5 A link inside a crumb takes the click where the pointer is on it, and the crumb takes
-      it everywhere else — the `closest('a, button')` guard asserted as behaviour, not read
+      it everywhere else — asserted as behaviour on BOTH surfaces, since the guard the first
+      draft relied on never ran for zoom (design D8)
+- [ ] 7.5a `Enter` on a link focused inside a segment follows the link and does not also
+      activate the segment
+- [ ] 7.5b Toggling a task ancestor's checkbox while zoomed updates that crumb's marker —
+      the widget-key regression D9 describes
 - [ ] 7.6 An ancestor carrying an image embed renders its alt text, and the row's height is a
       line of text
 - [ ] 7.7 Negative controls for 7.1 and 7.3: disable the fix, confirm each fails

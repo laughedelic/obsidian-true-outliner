@@ -463,9 +463,10 @@
     text-underline-offset: 0.18em;
   }
 
-  /* The underline thickens; the colour does not move. A link dimmer than the
-   * words beside it would be an affordance that hides from the pointer. */
-  .quiet a:hover { text-decoration-thickness: 2px; }
+  /* No hover rule of its own. The link sits inside a segment whose hover already
+   * shifts the colour, and it inherits that; a second signal here would be the
+   * underline change D1 rules out, on the one element whose underline means
+   * something. */
   .quiet a.ext { cursor: alias; }
   .quiet a.ext::after { content: none; }
   .quiet a.wiki { cursor: pointer; }
@@ -556,9 +557,9 @@
       <div class="seg-group" role="group" aria-labelledby="lbl-footer" data-target="footer"></div>
     </div>
     <div class="control checks">
-      <label><input type="checkbox" id="compare"> Compare all four at once</label>
+      <label><input type="checkbox" id="compare"> Compare all five at once</label>
       <label><input type="checkbox" id="showSrc" checked> Show the source lines</label>
-      <label><input type="checkbox" id="blockStrip"> Per-kind block stripping in trail crumbs <span class="proposed">part of the fix</span></label>
+      <label><input type="checkbox" id="blockStrip" checked> Per-kind block stripping in trail crumbs <span class="proposed">part of the fix</span></label>
     </div>
   </div>
 

@@ -38,6 +38,12 @@ implementations, `contentOf` in `footer-model.ts` (per kind) and `nodeLabel` in 
   renderer injected so the module stays DOM-only and free of the footer's `MarkdownRenderer` and
   `Component` plumbing.
 - **Truncation becomes one rule**, applied wherever a chain element is quoted.
+- **The activation guard moves into the shared primitive** (design D8). A click on a link inside
+  a segment must follow that link and must not also activate the segment — which nothing does
+  today for zoom, since the only such guard is a row-level one on the footer's own surface.
+- **The trail widget's key covers every field that changes its DOM** (design D9). It compares
+  segment TEXT alone, so a task ancestor toggling its checkbox keeps the stale marker; adding a
+  render mode widens a defect that already exists.
 - **Nothing block-shaped enters a row.** Media is dropped to its alt text in a chain and bounded
   by the stylesheet in a reference row, closing the `<img>` case the requirement already forbids
   in words.
@@ -46,10 +52,11 @@ implementations, `contentOf` in `footer-model.ts` (per kind) and `nodeLabel` in 
 `docs/research/prototypes/lineage-rendering.html` and against Logseq, which solves the same
 problem on the same two surfaces. A chain renders live — links and tags stay separately
 activatable — and takes **no colour accent**, because in a dim context row the accent was the
-loudest thing on the line. An underline present at rest, the platform's `alias` cursor for an
-external link, and a hover that thickens the underline carry the affordance instead. A tag
-takes a step of ink from the row's own colour and fills on hover. Media does not render in a
-chain at all: a crumb is one line, and the alt text is what the node says.
+loudest thing on the line. An underline present at rest and the platform's `alias` cursor for an
+external link carry the affordance instead; hover shifts colour and changes no underline, so on
+this row an underline means "link" and nothing else. A tag takes a step of ink from the row's own
+colour and fills on hover, and a highlight is muted toward transparent. Media does not render in
+a chain at all: a crumb is one line, and the alt text is what the node says.
 
 ## Capabilities
 
