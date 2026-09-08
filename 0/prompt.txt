@@ -1,0 +1,33 @@
+Measured defect in obsidian-true-outliner, found while probing zoom editing semantics but independent of zoom.
+
+`openspec/specs/node-edit-enforcement/spec.md`, requirement "Content-adjacent deletions become merges or vetoes", states:
+
+> #### Scenario: Structure-corrupting merge is vetoed
+> - **WHEN** the user presses Backspace at the first character of a heading (a merge that would absorb the heading and destroy its section's anchor)
+> - **THEN** the document is unchanged and the rejection cue is shown
+
+Measured behaviour (Obsidian 1.13.7, macOS, 8 Sep 2026, plugin at commit f4a76eb):
+
+Document:
+```
+# One
+
+para one
+
+## Two
+
+para two
+
+## Three
+
+para three
+```
+Put the caret at line 4, ch 3 — the first content character of `## Two`, immediately after `## ` — and press Backspace.
+
+Observed: the buffer becomes `##Two` (one `#` deleted). No veto, no cue, verdict counters read `{pass:0, rewrite:0, veto:0}` — the transaction was not even classified as boundary-crossing. Identical with and without a zoom scope active, so this is not zoom behaviour.
+
+Expected per the spec: document unchanged, rejection cue shown.
+
+Consequences worth noting: `##Two` is no longer a heading, so the section it anchored dissolves and its children re-parent. Under an active zoom rooted on that heading the visible scope silently collapses to the one line — that symptom is recorded in `docs/research/24-zoom-editing-boundary.md` under "A defect this pass found that has nothing to do with zoom", and the note explicitly leaves the fix to a separate change.
+
+Start by reproducing it, then look at `recognizeMergeIntent` in `src/enforce.ts` and at `classify` in `src/classify.ts` — the zero verdict counters suggest the transaction never reaches the verdict path at all, so classification is the first place to check, not the merge recognizer. Follow the repo's OpenSpec workflow (CLAUDE.md): explore and measure first, then `/openspec-propose` a change of its own; do not fold it into the `zoom-edit-confinement` change already planned.
