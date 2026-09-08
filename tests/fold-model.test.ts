@@ -203,3 +203,14 @@ describe('which node a line’s fold gesture belongs to', () => {
     expect(show(foldTargetAtLine(withFrontmatter, 6))).toBe('heading "# Heading" @4');
   });
 });
+
+describe('depth', () => {
+  it('counts nesting, with a heading section nesting what follows it', () => {
+    expect(foldableEntries(doc).map((e) => `${e.node.lines[0]} @${e.depth}`)).toEqual([
+      '# Top @0',
+      'Paragraph with children: @1',
+      '- one @2',
+      '## Second @1',
+    ]);
+  });
+});

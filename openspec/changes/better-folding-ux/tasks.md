@@ -48,27 +48,27 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       exactly as the other editor extensions are. Verify with an e2e that a paragraph with
       attached children folds through Obsidian's own `editor:toggle-fold`; negative control —
       unregistering the provider must make that test fail
-- [ ] 2.3 Fold-state read/write helpers (`is this node folded`, `fold`, `unfold`, `toggle`) over
+- [x] 2.3 Fold-state read/write helpers (`is this node folded`, `fold`, `unfold`, `toggle`) over
       `foldedRanges` / `foldEffect` / `unfoldEffect`, so no call site touches CM6's fold API
       directly. Verify a fold produces no document change and no undo entry (spec: "Folding
       leaves the document byte-identical")
 
 ## 3. Commands and hotkeys
 
-- [ ] 3.1 Fold node, unfold node, toggle fold — resolving the operand through
+- [x] 3.1 Fold node, unfold node, toggle fold — resolving the operand through
       `selection-structural-ops` and escalating to the nearest ancestor with children (D3).
       Default hotkeys `Mod+Alt+ArrowUp` / `Mod+Alt+ArrowDown` / `Mod+Alt+Period`, declared in
       `addCommand` so Settings > Hotkeys can rebind them. Verify with an e2e per scenario in
       `outline-folding`, including the leaf-escalation one; negative control — removing the
       escalation must fail the "toggle from a leaf" test
-- [ ] 3.2 A caret inside the range about to be hidden moves to the folded node's line, and any
+- [x] 3.2 A caret inside the range about to be hidden moves to the folded node's line, and any
       operation that would place the caret inside a folded range opens that fold first (spec: "A
       caret never lands inside hidden content"). Verify both directions in one e2e
-- [ ] 3.3 Fold all / unfold all / fold one level more / fold one level less, scoped to the zoom
+- [x] 3.3 Fold all / unfold all / fold one level more / fold one level less, scoped to the zoom
       scope when one is active. Verify fold-all reaches a paragraph with children, which
       Obsidian's own fold-all does not; negative control — delegating to `editor:fold-all` must
       fail that test
-- [ ] 3.4 Commands declined outside outline mode and under a multi-range selection, matching the
+- [x] 3.4 Commands declined outside outline mode and under a multi-range selection, matching the
       structural commands' rule. Verify with `commandAvailable`
 
 ## 4. Fold state through structural operations

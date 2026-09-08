@@ -978,6 +978,30 @@ export async function setNativeFoldSettings(on: boolean): Promise<void> {
   await browser.pause(300);
 }
 
+/**
+ * Unfold everything in the active note.
+ *
+ * Needed as a fixture step because fold state PERSISTS per file in Obsidian's
+ * workspace state — the feature working. Rewriting a note's content through
+ * `createNote` does not clear it, so without this a test inherits whatever the
+ * previous one left folded, and the failure looks like the command under test
+ * folding far more than it was asked to.
+ */
+export async function clearFolds(): Promise<void> {
+  // A loop, not one call: Obsidian restores a file's saved folds when the note
+  // opens, and that restore can land AFTER a fixture has already cleared them.
+  // Measured as a leak between two specs in this file, where the second folded
+  // far more than it asked for.
+  await browser.waitUntil(
+    async () => {
+      if ((await foldedLineRanges()).length === 0) return true;
+      if (await commandAvailable('unfold-all')) await runCommand('unfold-all');
+      return (await foldedLineRanges()).length === 0;
+    },
+    { timeout: waitBudget(3000), interval: 100, timeoutMsg: 'folds did not clear' },
+  );
+}
+
 /** Lines where the plugin's own fold chrome belongs. */
 export async function foldChromeLines(): Promise<number[]> {
   return (await foldState()).chromeLines;
@@ -994,9 +1018,20 @@ export async function foldChromeLines(): Promise<number[]> {
  */
 export function renderedLineTexts(): Promise<string[]> {
   return browser.executeObsidian(() =>
-    Array.from(
-      document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line'),
-    ).map((el) => (el.textContent ?? '').replace(/\u200b/g, '')),
+    Array.from(document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line')).map(
+      (el) => (el.textContent ?? '').replace(/\u200b/g, ''),
+    ),
+  );
+}
+
+/** A command's DEFAULT hotkeys, as declared by whoever registered it — the
+ * `hotkeys` on the command itself, not a user's own assignment. */
+export function commandHotkeys(shortId: string): Promise<{ modifiers: string[]; key: string }[]> {
+  return browser.executeObsidian(
+    ({ app }, fullId) =>
+      ((app as unknown as { commands: { commands: Record<string, { hotkeys?: unknown[] }> } })
+        .commands.commands[fullId]?.hotkeys ?? []) as { modifiers: string[]; key: string }[],
+    `${PLUGIN_ID}:${shortId}`,
   );
 }
 
@@ -1171,14 +1206,11 @@ export function markdownTabs(): Promise<{ path: string | null; active: boolean }
 
 /** Make the nth open markdown tab (workspace order) the active one. */
 export async function activateTab(index: number): Promise<void> {
-  await browser.executeObsidian(
-    ({ app }, i) => {
-      const leaf = app.workspace.getLeavesOfType('markdown')[i];
-      if (!leaf) throw new Error(`no markdown tab at index ${i}`);
-      app.workspace.setActiveLeaf(leaf, { focus: true });
-    },
-    index,
-  );
+  await browser.executeObsidian(({ app }, i) => {
+    const leaf = app.workspace.getLeavesOfType('markdown')[i];
+    if (!leaf) throw new Error(`no markdown tab at index ${i}`);
+    app.workspace.setActiveLeaf(leaf, { focus: true });
+  }, index);
   await browser.pause(150);
 }
 
@@ -1218,10 +1250,7 @@ export function viewMode(): Promise<'source' | 'preview' | null> {
  * does. `source: false` is Live Preview, `true` the source editor; omitted, the
  * pane keeps whichever it last had.
  */
-export async function setViewMode(
-  mode: 'source' | 'preview',
-  source?: boolean,
-): Promise<void> {
+export async function setViewMode(mode: 'source' | 'preview', source?: boolean): Promise<void> {
   await browser.executeObsidian(
     async ({ app, obsidian }, mode, source) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
@@ -1430,16 +1459,13 @@ export async function toggleOutlineMode(): Promise<void> {
  * whole contract, and a helper that swept them would hide a broken one.
  */
 export async function setDefaultOutlineMode(on: boolean): Promise<void> {
-  await browser.executeObsidian(
-    async ({ plugins }, value) => {
-      await (
-        plugins.trueOutliner as never as {
-          setOutlineByDefault(v: boolean): Promise<void>;
-        }
-      ).setOutlineByDefault(value);
-    },
-    on,
-  );
+  await browser.executeObsidian(async ({ plugins }, value) => {
+    await (
+      plugins.trueOutliner as never as {
+        setOutlineByDefault(v: boolean): Promise<void>;
+      }
+    ).setOutlineByDefault(value);
+  }, on);
 }
 
 /**

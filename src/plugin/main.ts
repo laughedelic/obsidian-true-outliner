@@ -81,6 +81,14 @@ import { parsedDoc } from './parsed-doc';
 import { foldable } from '@codemirror/language';
 import { foldChromeTarget, foldRangeAt, foldServiceExtension } from './fold-service';
 import { currentFolds } from './fold-ops';
+import { foldViewExtension } from './fold-view';
+import {
+  foldGestureAvailable,
+  hasAnyFold,
+  runFoldAll,
+  runFoldGesture,
+  runFoldLevel,
+} from './fold-commands';
 import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
@@ -168,10 +176,7 @@ const MARKER_HIGHLIGHT_LABELS: Record<MarkerHighlight, string> = {
  * own existing indentation, same as before this fix — a known, small gap
  * limited to the command-palette / custom-hotkey entry point.
  */
-type StructuralOp = (
-  doc: OutlineDoc,
-  groups: readonly (readonly number[])[],
-) => OpResult<OpOutput>;
+type StructuralOp = (doc: OutlineDoc, groups: readonly (readonly number[])[]) => OpResult<OpOutput>;
 
 /**
  * The cursor a palette-invoked structural command should end on: decided by
@@ -267,13 +272,18 @@ export default class TrueOutlinerPlugin extends Plugin {
     for (let n = 1; n <= state.doc.lines; n++) {
       const line = state.doc.line(n);
       const editor = foldable(state, line.from, line.to);
-      if (editor) editorFoldable.push({ line: n - 1, from: lineOf(editor.from), to: lineOf(editor.to) });
+      if (editor)
+        editorFoldable.push({ line: n - 1, from: lineOf(editor.from), to: lineOf(editor.to) });
       const ours = foldRangeAt(state, n - 1);
       if (ours) ourFoldable.push({ line: n - 1, from: lineOf(ours.from), to: lineOf(ours.to) });
       if (foldChromeTarget(state, n - 1)) chromeLines.push(n - 1);
     }
     return {
-      folded: currentFolds(state).map((r) => ({ from: lineOf(r.from), to: lineOf(r.to) })),
+      // Sorted: `foldedRanges` iterates a RangeSet, whose order across nested
+      // ranges is an implementation detail no assertion should depend on.
+      folded: currentFolds(state)
+        .map((r) => ({ from: lineOf(r.from), to: lineOf(r.to) }))
+        .sort((a, b) => a.from - b.from || a.to - b.to),
       editorFoldable,
       ourFoldable,
       chromeLines,
@@ -325,6 +335,46 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.addStructuralCommand('move-node-down', 'Move node down', moveGroupsDown, false, [
       { modifiers: ['Mod', 'Shift'], key: 'ArrowDown' },
     ]);
+
+    // Folding's three gestures, and the four document-wide ones.
+    //
+    // Default hotkeys here, unlike zoom's, because the bindings are free and
+    // the gesture is one users reach for constantly: measured against Obsidian
+    // 1.13.7, no core command claims Mod+Alt+ArrowUp, Mod+Alt+ArrowDown or
+    // Mod+Alt+Period. (Mod+Alt+ArrowLeft/Right ARE taken — by back and forward
+    // — which is the pair worth remembering about that modifier.) The same
+    // deliberate departure from the no-default-hotkeys guideline the move
+    // commands document, for the same reason: a gesture nobody can find is not
+    // a gesture.
+    this.addFoldCommand('fold-node', 'Fold node', (view) => runFoldGesture(view, 'fold'), [
+      { modifiers: ['Mod', 'Alt'], key: 'ArrowUp' },
+    ]);
+    this.addFoldCommand('unfold-node', 'Unfold node', (view) => runFoldGesture(view, 'unfold'), [
+      { modifiers: ['Mod', 'Alt'], key: 'ArrowDown' },
+    ]);
+    this.addFoldCommand('toggle-fold', 'Toggle fold', (view) => runFoldGesture(view, 'toggle'), [
+      { modifiers: ['Mod', 'Alt'], key: 'Period' },
+    ]);
+    // Document-wide, and unbound: these are palette operations, and every
+    // remaining modifier combination is worth more to the per-node gestures.
+    // `hasAnyFold` gates the two that would otherwise be offered on a document
+    // with nothing to act on.
+    this.addFoldCommand('fold-all', 'Fold all nodes', (view) => runFoldAll(view, 'fold'));
+    this.addFoldCommand(
+      'unfold-all',
+      'Unfold all nodes',
+      (view) => runFoldAll(view, 'unfold'),
+      undefined,
+      (view) => hasAnyFold(view.state),
+    );
+    this.addFoldCommand('fold-more', 'Fold one level more', (view) => runFoldLevel(view, 'more'));
+    this.addFoldCommand(
+      'fold-less',
+      'Fold one level less',
+      (view) => runFoldLevel(view, 'less'),
+      undefined,
+      (view) => hasAnyFold(view.state),
+    );
 
     // Zoom's three gestures. No default hotkeys: unlike the move commands there
     // is no dominant convention to inherit, and every plausible binding
@@ -462,6 +512,8 @@ export default class TrueOutlinerPlugin extends Plugin {
     // per-file persistence all follow from this one provider
     // (docs/research/28-fold-mechanics.md).
     this.registerEditorExtension(foldServiceExtension());
+    // Beside it: the rule that a computed caret never lands in hidden content.
+    this.registerEditorExtension(foldViewExtension());
     this.registerEditorExtension(grammarExtension());
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
@@ -1115,6 +1167,39 @@ export default class TrueOutlinerPlugin extends Plugin {
    * outline mode; a caret in the preamble is a documented no-op (design D6),
    * not a case this hides.
    */
+  /**
+   * A fold command: outline-mode-gated and routed to the live `EditorView`,
+   * the same shape `addZoomCommand` uses and for the same reasons — the mode
+   * lives in editor state, and `checking` must not dispatch.
+   *
+   * Folding needs no `Notice` on refusal. Every other command here can fail for
+   * a reason the user cannot see (an operand that would leave the zoom scope, a
+   * move with nowhere to go); a fold that finds nothing to fold is a node
+   * without children, which the absence of any chevron beside it already says.
+   */
+  private addFoldCommand(
+    id: string,
+    name: string,
+    act: (view: EditorView) => boolean,
+    hotkeys?: Hotkey[],
+    available: (view: EditorView) => boolean = (view) => foldGestureAvailable(view.state),
+  ): void {
+    this.addCommand({
+      id,
+      name,
+      ...(hotkeys ? { hotkeys } : {}),
+      editorCheckCallback: (checking, editor, ctx) => {
+        const view = viewFor(ctx);
+        if (!view || !isOutlineMode(view.state)) return false;
+        // Multi-cursor declines, matching the structural commands: acting would
+        // silently pick one range out of several.
+        if (editor.listSelections().length !== 1) return false;
+        if (checking) return available(view);
+        return act(view);
+      },
+    });
+  }
+
   private addZoomCommand(
     id: string,
     name: string,
@@ -1329,8 +1414,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // A selection that WAS a block cover survives the operation as the cover of
     // the nodes that moved; anything else lands a caret, exactly as before.
     const planned = afterState(result.value, operand.wasCover, cursor);
-    const after =
-      backward && planned.to ? { from: planned.to, to: planned.from } : planned;
+    const after = backward && planned.to ? { from: planned.to, to: planned.from } : planned;
     if (changes.length > 0) editor.transaction({ changes, selection: after });
     if (after.to) editor.setSelection(after.from, after.to);
     else editor.setCursor(after.from);
