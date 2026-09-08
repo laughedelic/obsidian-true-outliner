@@ -13,7 +13,9 @@ change's design.md (D9–D16 for the chrome-transparency, merge, cursor-placemen
 paste-re-indentation amendments from five real-vault manual passes); deferred
 threads: docs/research/04 (Q17 outdent-in-place and heading-Enter-split, Q20 the
 redo-cursor investigation), docs/research/12–13 (gap-line visual/cursor UX).
+
 ## Requirements
+
 ### Requirement: User edit transactions receive a verdict
 Every transaction classified `boundary-crossing-edit` in an outline-mode editor SHALL
 receive exactly one verdict — `pass`, `rewrite`, or `veto` — computed by a pure
@@ -171,7 +173,11 @@ is its first application. Amendment 2026-07-25, `content-space-caret`: the
 principle is extended from edits to caret placement. Amendment 2026-08-07,
 `enter-and-shift-enter-grammar`: the claim that a caret can never rest on a gap line is
 corrected — provisional positions are exactly that case, and the principle is restated in
-the form that survives them.)*
+the form that survives them. Amendment 2026-09-08,
+`fix-heading-content-start-backspace`: the principle was stated over all markers and
+applied only to list markers, so Backspace at a heading's content start deleted the
+marker's trailing space instead of being read as an intent. Marker KIND is a marker
+internal too, and the scenario below now says so.)*
 
 #### Scenario: Gap width never changes merge behavior
 - **WHEN** the user presses Backspace at a node's first content character, with zero,
@@ -201,10 +207,14 @@ the form that survives them.)*
   and no rule inspects a blank-line count
 
 #### Scenario: Marker internals never change editing semantics
-- **WHEN** the user presses Backspace at a list item's content start, whatever the
-  item's marker character or indentation width
+- **WHEN** the user presses Backspace at a node's content start, whatever marker
+  precedes it — a bullet, an ordered number, an ATX heading's `#` run — and whatever
+  its indentation width
 - **THEN** the edit is recognized as a merge intent, never as a deletion of the
   marker's trailing space
+- **AND** the node's KIND is a marker internal like the rest: a heading and a list item
+  at their own content starts are recognized alike, and differ only in the verdict the
+  recognized merge then receives
 
 ### Requirement: Content-adjacent deletions become merges or vetoes
 A deletion expressing "join this node with its content-space neighbor" SHALL be
@@ -214,13 +224,15 @@ not. The recognized shapes, all cursor-derived and input-agnostic (any gesture
 producing the same edit from the same cursor position is enforced identically):
 
 - Backspace with the cursor at a node's first content character — deleting backward
-  into chrome (the separator newline, a gap line's newline, or a list marker's
-  trailing space) — merges that node into its content-space predecessor (the node
-  whose content ends nearest above; possibly its parent or a previous sibling's
-  deepest descendant). A TASK item has TWO such positions, and BOTH SHALL be
-  recognized: after its list marker, where Home lands, and after its task marker,
-  where the item's own text begins. A position INSIDE the task marker SHALL NOT be —
-  those characters are the marker's own, and deleting one is ordinary editing.
+  into chrome (the separator newline, a gap line's newline, or a marker's trailing
+  space) — merges that node into its content-space predecessor (the node whose content
+  ends nearest above; possibly its parent or a previous sibling's deepest descendant).
+  The marker may be of ANY kind the encoding uses: a list bullet or number, or an ATX
+  heading's `#` run. A TASK item has TWO such positions, and BOTH SHALL be recognized:
+  after its list marker, where Home lands, and after its task marker, where the item's
+  own text begins. A position INSIDE a marker SHALL NOT be — inside a task item's
+  `[ ]`, or inside a heading's `#` run — those characters are the marker's own, and
+  deleting one is ordinary editing that leaves the node's kind for the parse to decide.
 - Delete with the cursor at a node's last content character — deleting forward into
   chrome — merges the node's content-space successor into it. When no successor
   exists, the edit passes natively (trailing whitespace editing, nothing structural
@@ -259,6 +271,21 @@ editing.
 - **WHEN** the user presses Backspace at the first character of a heading (a merge
   that would absorb the heading and destroy its section's anchor)
 - **THEN** the document is unchanged and the rejection cue is shown
+- **AND** this holds at the heading's own content column, immediately after its `#`
+  run and the space that follows — not only at the start of its line — so the heading
+  keeps its marker, its section keeps its anchor, and its children keep their parent
+
+#### Scenario: A heading with no predecessor vetoes rather than deleting its section
+- **WHEN** the cursor sits at the content start of a heading that is the document's
+  first node and the user presses Backspace
+- **THEN** the document is unchanged and the rejection cue is shown — the keypress is
+  never widened into a deletion of the heading, its section, or the document
+
+#### Scenario: Editing a heading's own marker characters stays ordinary
+- **WHEN** the cursor sits inside a heading's `#` run — between two `#` characters, or
+  immediately after the first of several — and the user presses Backspace
+- **THEN** the character is deleted natively, the heading's level changes as the parse
+  reads it, and no merge is recognized and no veto is raised
 
 #### Scenario: Backspace where a task item's text begins merges it
 - **WHEN** the cursor sits immediately after `- [ ] ` on `- [ ] bar`, below `- [x] foo`, and
@@ -379,4 +406,3 @@ verdict is recorded before the change is archived.
 - **WHEN** the change reaches verification and a gap path still cannot be automated
 - **THEN** its scripted manual scenario and observed verdict are recorded in the
   change documentation, not silently skipped
-
