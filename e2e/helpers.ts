@@ -603,9 +603,9 @@ export async function clickClear(selector: string): Promise<void> {
   for (;;) {
     try {
       if (IS_MOBILE_RUN) await collapseLeftDrawer();
-      await (await $(selector)).scrollIntoView({ block: 'center' });
+      await (await browser.$(selector)).scrollIntoView({ block: 'center' });
       await browser.pause(150);
-      await (await $(selector)).click();
+      await (await browser.$(selector)).click();
       return;
     } catch (error) {
       if (!spendClickAttempt(spent, error)) throw error;

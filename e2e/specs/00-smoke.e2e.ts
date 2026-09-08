@@ -4,7 +4,7 @@
  * e2e/wdio.mobile-emulation.conf.mts silently running in desktop mode.
  */
 
-import { $, browser, expect } from '@wdio/globals';
+import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import {
   IS_MOBILE_RUN,
@@ -118,7 +118,7 @@ describe('smoke', function () {
     let thrown: unknown;
     try {
       const started = Date.now();
-      await (await $(target)).click().catch(() => undefined);
+      await (await browser.$(target)).click().catch(() => undefined);
       oneAttempt = Date.now() - started;
 
       const retried = Date.now();
