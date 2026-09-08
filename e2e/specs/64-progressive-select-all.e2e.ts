@@ -82,6 +82,10 @@ describe('progressive-select-all', function () {
     const md = '# Head\n\nBody one.\n\nBody two.\n';
     const offNote = 'Scratch/progressive-select-all-off.md';
     await h.createNote(offNote, md);
+    // Stock, explicitly: with the mode defaulting ON, a note that was never
+    // toggled is outlined, and this reference would be the ladder's own first
+    // rung rather than the native Select All it stands for.
+    await h.setOutlineMode(false);
     await h.setCursor(2, 0);
     await h.pressSelectAll();
     const offSel = await h.getSelection();

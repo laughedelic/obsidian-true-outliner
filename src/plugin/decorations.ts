@@ -2,8 +2,8 @@
  * CM6 adapter for outline mode's decorations. All the pure computation
  * (depth/supplementalDepth, per-line guide depths) lives in decorate.ts;
  * this module only turns those facts into CM6 decorations/DOM, gated
- * per-editor on outline mode via the public `editorInfoField` — same
- * gating pattern as keymap.ts's grammarExtension.
+ * per-editor on the outline-mode state field (`outline-state.ts`) — the same
+ * gate keymap.ts's grammarExtension reads.
  *
  * Two mechanisms, because Obsidian renders lines two different ways in Live
  * Preview. Which mechanism a line needs is decided by its RENDERED FORM, not
@@ -575,7 +575,7 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
  *
  * The settings are checked separately because they live outside the state, and
  * that check is DEFENSIVE rather than load-bearing today: `forceRedraw`
- * (main.ts) applies a settings change by dispatching a cursor transaction, so
+ * (main.ts) applies a settings change by dispatching two mode transactions, so
  * the next render always arrives on a new state and misses this cache anyway.
  * Deliberately kept, and deliberately noted as untested — deleting it fails
  * nothing in the suite, precisely because `forceRedraw` makes the case
@@ -678,11 +678,12 @@ function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: b
 export type { MarkerVisibility } from './mode-registry';
 import type { MarkerVisibility } from './mode-registry';
 
-/** Anything that can supply decorations needs to say which notes are in
- * outline mode (ModeSource) and which nodes get a marker at all — a real
- * Obsidian setting, read fresh on every recompute so switching it live (no
- * rebuild) takes effect on the very next transaction, the same way toggling
- * outline mode already does (see main.ts's refreshDecorations). */
+/** The settings a decoration recompute reads. Outline mode is NOT among them:
+ * it is per-editor state, read from the state each builder already holds
+ * (`isOutlineMode`). These are real Obsidian settings, read fresh on every
+ * recompute so switching one live takes effect on the very next transaction —
+ * which for a setting whose output can be byte-identical is what main.ts's
+ * `forceRedraw` exists to guarantee. */
 export interface DecorationSource {
   readonly markerVisibility: MarkerVisibility;
   /** Which markers to accent (hierarchy-position-indicators). Read fresh per
@@ -1758,7 +1759,15 @@ class SelectionDecorationPlugin implements PluginValue {
    */
   update(update: ViewUpdate): void {
     this.decorations = this.compute();
-    if (update.selectionSet && !this.mouseDown) this.applyFocusPolicy();
+    // A mode change is an exit like any other, and it is not a selection
+    // change: the cover survives the toggle untouched, so `selectionSet` is
+    // false and the policy would never see the edge. It used to, only because
+    // turning the mode off also nudged the cursor from outside CM6; with the
+    // mode in editor state that nudge is gone and this is what carries it.
+    // Left out, the editor stays blurred with no way back — the document key
+    // path correctly declines, being off-mode, so nothing restores focus.
+    const modeChanged = isOutlineMode(update.startState) !== isOutlineMode(update.state);
+    if ((update.selectionSet || modeChanged) && !this.mouseDown) this.applyFocusPolicy();
   }
 
   destroy(): void {
@@ -1941,11 +1950,30 @@ class SelectionDecorationPlugin implements PluginValue {
 }
 
 class MarginCompensation implements PluginValue {
+  /** A scheduled retry for a measurement that ran before layout, so a second
+   * one is never queued on top of it. */
+  private remeasure = 0;
+  private destroyed = false;
+
   constructor(
     private readonly view: EditorView,
     private readonly modes: DecorationSource,
   ) {
     this.apply();
+    // One deferred pass, always. The constructor runs before the view has any
+    // `.cm-line` DOM at all, so the measurements below find nothing to measure
+    // — and nothing brings them back on a view that opens already decorated:
+    // `docViewUpdate` fires when a decoration source's OUTPUT differs, and this
+    // one's output was already correct on the first render.
+    //
+    // Measured on a note opened in outline mode: `--to-marker-icon-size` was
+    // published (it is written unconditionally) while `--to-space-advance` and
+    // `--to-chevron-dead-right` were not, and both appeared the instant any
+    // transaction arrived. Before the mode became editor state that transaction
+    // was guaranteed, because reaching outline mode meant toggling into it; a
+    // note outlined from construction has no such event, so the gap became
+    // reachable exactly when the default started outlining every note that opens.
+    this.scheduleRemeasure();
   }
 
   docViewUpdate(): void {
@@ -1953,7 +1981,39 @@ class MarginCompensation implements PluginValue {
   }
 
   destroy(): void {
+    this.destroyed = true;
+    if (this.remeasure) {
+      (this.view.dom.ownerDocument.defaultView ?? window).cancelAnimationFrame(this.remeasure);
+    }
     this.clearAll();
+  }
+
+  /**
+   * Run `apply` again on the next frame.
+   *
+   * Called once from the constructor, for the reason given there, and again
+   * from `apply` itself whenever a measurement reports `not-laid-out` — an
+   * element it FOUND and could not measure, because the browser had not laid
+   * the view out yet. `measureChevron` and `measureSpaceAdvance` both read a
+   * rect and both decline a zero-width one rather than publish a nonsense
+   * length, so that state has to be retried rather than accepted.
+   *
+   * Deliberately not "retry while the value is unpublished": a note with no
+   * list and no foldable block has nothing to measure at all and never
+   * publishes either, and re-arming on that would hold a frame callback open
+   * for as long as the note is. The `not-laid-out` answer is the one that says
+   * another frame will help.
+   */
+  private scheduleRemeasure(): void {
+    if (this.remeasure || this.destroyed) return;
+    // The view's OWN window, not this realm's: a pop-out window has its own
+    // frame clock, and a callback scheduled here would run against the wrong
+    // one (`zoom-click.ts` makes the same realm check, for the same reason).
+    const win = this.view.dom.ownerDocument.defaultView ?? window;
+    this.remeasure = win.requestAnimationFrame(() => {
+      this.remeasure = 0;
+      if (!this.destroyed) this.apply();
+    });
   }
 
   /**
@@ -2118,7 +2178,7 @@ class MarginCompensation implements PluginValue {
     }
   }
 
-  private measureChevron(): void {
+  private measureChevron(): 'not-laid-out' | 'done' {
     // From a BLOCK line's chevron, because the block rule is the only consumer.
     // Measured, the wrapper's width is not a property of the chevron but of the
     // line it sits on: 15px on a heading or paragraph, 30.8px on a list item
@@ -2134,14 +2194,16 @@ class MarginCompensation implements PluginValue {
       '.cm-line.to-decor-block .cm-fold-indicator .collapse-indicator',
     );
     const glyph = wrapper?.querySelector('svg');
-    if (!wrapper || !glyph) return;
+    if (!wrapper || !glyph) return 'done'; // no chevron in view: nothing to measure
     const wrapperRect = wrapper.getBoundingClientRect();
     const glyphRect = glyph.getBoundingClientRect();
-    if (wrapperRect.width === 0 || glyphRect.width === 0) return;
+    // Found, but the browser has not laid it out yet — see `scheduleRemeasure`.
+    if (wrapperRect.width === 0 || glyphRect.width === 0) return 'not-laid-out';
     const deadRight = `${(wrapperRect.right - glyphRect.right).toFixed(1)}px`;
-    if (deadRight === this.lastDeadRight) return;
+    if (deadRight === this.lastDeadRight) return 'done';
     this.lastDeadRight = deadRight;
     this.view.dom.setCssProps({ '--to-chevron-dead-right': deadRight });
+    return 'done';
   }
 
   /**
@@ -2292,18 +2354,19 @@ class MarginCompensation implements PluginValue {
     return null;
   }
 
-  private measureSpaceAdvance(): void {
+  private measureSpaceAdvance(): 'not-laid-out' | 'done' {
     const text = this.taskLabelSpace() ?? this.markerTrailingSpace();
-    if (!text) return;
+    if (!text) return 'done'; // no qualifying marker in view: nothing to measure
     const range = document.createRange();
     range.setStart(text, 0);
     range.setEnd(text, 1);
     const width = range.getBoundingClientRect().width;
-    if (width === 0) return;
+    if (width === 0) return 'not-laid-out';
     const advance = `${width.toFixed(2)}px`;
-    if (advance === this.lastSpaceAdvance) return;
+    if (advance === this.lastSpaceAdvance) return 'done';
     this.lastSpaceAdvance = advance;
     this.view.dom.setCssProps({ '--to-space-advance': advance });
+    return 'done';
   }
 
   /**
@@ -2352,10 +2415,15 @@ class MarginCompensation implements PluginValue {
     // there; same target here for consistency). Re-measured every render,
     // so a theme switch mid-session corrects on the next update.
     this.view.dom.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
-    this.measureChevron();
+    const chevron = this.measureChevron();
     this.measureChevronRows();
-    this.measureSpaceAdvance();
+    const advance = this.measureSpaceAdvance();
     this.measureSelectionColor();
+    // Only when a measurement FOUND its element and the browser had not laid it
+    // out — see `scheduleRemeasure`. Not "the value is still unpublished": a
+    // note with no list and no foldable block never publishes either, and
+    // retrying on that would re-arm a frame callback for the life of the view.
+    if (chevron === 'not-laid-out' || advance === 'not-laid-out') this.scheduleRemeasure();
 
     // `factsFor`, not `docFacts`: a line Obsidian renders as a widget takes the
     // same overlay a plain one does, or a displaced line would move here while

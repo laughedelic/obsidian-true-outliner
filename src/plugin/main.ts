@@ -455,12 +455,13 @@ export default class TrueOutlinerPlugin extends Plugin {
     return this.data.backlinksFooter;
   }
 
-  /** See `SpikeFooterSource.footerRevision` — bumped whenever outline mode or
-   * the backlinks-footer setting changes, so the footer's StateField gets a real
-   * transaction to recompute on (docs/research/19, S2). Those are the two
-   * inputs the footer's own rendering reads; a setting added later that the
-   * footer depends on has to bump this too, or its change is invisible until
-   * some unrelated transaction arrives. */
+  /** See `SpikeFooterSource.footerRevision` — bumped whenever a SETTING the
+   * footer reads changes, so its StateField gets a real transaction to
+   * recompute on (docs/research/19, S2). Outline mode used to be one of those
+   * inputs and no longer is: it lives in editor state, so a mode toggle is
+   * itself the transaction the footer recomputes on. A setting added later that
+   * the footer depends on still has to bump this, or its change is invisible
+   * until some unrelated transaction arrives. */
   private footerRev = 0;
 
   get footerRevision(): number {

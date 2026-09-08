@@ -60,6 +60,11 @@ None — the mode already has a capability; this change reshapes it.
   lifecycle (rename follows, delete prunes, per-note command gating); they are restated for the
   per-tab model and extended with the new surfaces (indicator, reading-mode toggle,
   default-on, ephemerality).
+- `outline-zoom`: exit trigger 3 says the mode is "switched off for the file", and its two
+  scenarios say the same. With a per-tab mode that is no longer a thing that happens, so the
+  trigger is restated for the view holding the zoom and a scenario is added for the view that
+  was not toggled. Only the wording of one trigger moves; the scope model it appeals to is
+  unchanged, and was already per view.
 
 ## Impact
 
@@ -79,7 +84,8 @@ None — the mode already has a capability; this change reshapes it.
   the rename/delete `registry` handlers go.
 - Zoom's exit trigger 3 ("outline mode is switched off", `outline-zoom`) narrows to the view
   whose mode turned off — clearing that pane's zoom — which is the per-view shape that spec's
-  own scope model already has; its per-file wording is consequential, not contradicted.
+  own scope model already has. Its per-file WORDING does have to change, though, because a
+  per-tab mode is never switched off for a file; that is the `outline-zoom` delta above.
 - `e2e/specs/10-outline-mode.e2e.ts` is rewritten for the per-tab lifecycle;
   `e2e/helpers.ts` writes the new key; a new spec covers the indicator surfaces, tab-switch
   updates, two-tab independence, and the reading-mode toggle, under both desktop and mobile

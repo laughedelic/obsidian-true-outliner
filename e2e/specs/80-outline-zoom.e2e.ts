@@ -766,7 +766,7 @@ describe('outline zoom', function () {
     expect(await trail()).toEqual([]);
   });
 
-  it('clears zoom on every pane showing the file, not only the one the toggle ran from', async function () {
+  it('turning a pane off clears ITS zoom and leaves the other pane’s alone', async function () {
     await openZoomable();
     await zoomAt(DOC, '## Mid');
     expect(await trail()).not.toEqual([]);
@@ -785,47 +785,46 @@ describe('outline zoom', function () {
     await zoomAt(DOC, '- one');
     expect(await trail()).not.toEqual([]);
 
-    // The toggle runs on the COMMAND's own file-resolution, from whichever
-    // pane is active — here, the second one. `main.ts` used to look up only
-    // `getActiveViewOfType` when clearing the stored anchor, so the first,
-    // untouched pane kept its scope and went on rendering a trail for a mode
-    // that was now off everywhere; the fix walks every leaf on this path.
+    // The toggle acts on the ACTIVE tab — here the second pane. Outline mode
+    // is per view now, so exit trigger 3 fires for the view whose mode turned
+    // off and for no other: the first pane is still in outline mode, still
+    // zoomed, and has been asked for nothing.
     await h.toggleOutlineMode();
     await h.waitForNotice('Outline mode off');
     await h.dismissNotices();
 
-    // Every leaf on the file, not exactly two: which leaf a freshly-recreated
-    // note lands on is Obsidian's own business, not this test's — the claim
-    // under test is that NONE of them still show a trail, whatever their count.
     const readTrails = () =>
       browser.executeObsidian(({ app, obsidian }) => {
         return app.workspace
           .getLeavesOfType('markdown')
-          .filter((leaf) => leaf.view instanceof obsidian.MarkdownView && leaf.view.file?.path === 'Scratch/zoom.md')
+          .filter(
+            (leaf) =>
+              leaf.view instanceof obsidian.MarkdownView &&
+              leaf.view.file?.path === 'Scratch/zoom.md',
+          )
           .map((leaf) => {
             const el = leaf.view.containerEl.querySelector('.to-zoom-trail');
             if (!el) return [];
-            return Array.from(el.querySelectorAll('.to-backlinks-seg')).map(
-              (seg) => (seg as HTMLElement).innerText.trim(),
+            return Array.from(el.querySelectorAll('.to-backlinks-seg')).map((seg) =>
+              (seg as HTMLElement).innerText.trim(),
             );
           });
       });
     const trailsOff = await readTrails();
     expect(trailsOff.length).toBeGreaterThanOrEqual(2);
-    expect(trailsOff.every((t) => t.length === 0)).toBe(true);
+    // Exactly one pane still shows a trail: the one nobody toggled.
+    expect(trailsOff.filter((t) => t.length > 0).length).toBe(1);
+    expect(await trail()).toEqual([]); // the active pane, the one turned off
 
-    // The stored anchor, not only what the shared gate hides while mode is
-    // off — both panes gate their SCOPE on `isOutline(path)`, a check keyed by
-    // path rather than by leaf, so a raw anchor left behind on the untouched
-    // pane is invisible right up until mode comes back on and revives it. That
-    // is the actual bug this exists to catch: turning mode off looked like it
-    // had cleared both panes even when it had only cleared the active one.
+    // The stored anchor, not only what the shared gate hides while mode is off.
+    // The toggled pane's anchor was CLEARED, not merely ungated, so turning it
+    // back on revives nothing — while the untouched pane, which never lost its
+    // scope, still has it.
     await h.toggleOutlineMode();
     await h.waitForNotice('Outline mode on');
     await h.dismissNotices();
-    const trailsOn = await readTrails();
-    expect(trailsOn.length).toBeGreaterThanOrEqual(2);
-    expect(trailsOn.every((t) => t.length === 0)).toBe(true);
+    expect(await trail()).toEqual([]);
+    expect((await readTrails()).filter((t) => t.length > 0).length).toBe(1);
 
     await browser.executeObsidian(({ app }) => {
       app.workspace.detachLeavesOfType('markdown');

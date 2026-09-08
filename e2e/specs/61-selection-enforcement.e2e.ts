@@ -114,6 +114,10 @@ describe('node-selection-enforcement: Phase B', function () {
     const md = '---\nkey: value\n---\n\n# Head\n\nBody.\n';
     const offNote = 'Scratch/select-all-off.md';
     await h.createNote(offNote, md);
+    // Stock, explicitly: with the mode defaulting ON, a note that was never
+    // toggled is outlined, and the reference this captures would be the
+    // ladder's own first rung rather than the native behaviour it stands for.
+    await h.setOutlineMode(false);
     await h.setCursor(4, 0);
     await h.pressSelectAll();
     const offSel = await h.getSelection();
@@ -343,6 +347,7 @@ describe('node-selection-enforcement: Phase B', function () {
     const md = 'Alpha.\n\nBeta.\n';
     const offNote = 'Scratch/select-all-nofm-off.md';
     await h.createNote(offNote, md);
+    await h.setOutlineMode(false); // the stock reference; see the frontmatter variant
     await h.setCursor(0, 0);
     await h.pressSelectAll();
     const offSel = await h.getSelection();
