@@ -1,0 +1,2 @@
+/openspec-apply-change per-tab-outline-mode.
+start with a new branch and a draft PR
