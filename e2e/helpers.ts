@@ -484,7 +484,7 @@ export async function dispatchSelectOnlyRanges(
  * How many attempts a failed click is worth, by failure mode — 0 for a failure
  * that is simply real. Exactly two modes are retried, each for its own reason,
  * and each with the bound its own cost allows; see
- * `docs/research/24-e2e-click-retry-costs.md` for the figures behind the two
+ * `docs/research/29-e2e-click-retry-costs.md` for the figures behind the two
  * numbers.
  *
  * A STALE element reference means the target was rebuilt between the query and

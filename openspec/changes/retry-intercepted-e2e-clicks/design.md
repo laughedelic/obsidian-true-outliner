@@ -50,7 +50,7 @@ not the code.
 
 **A bound per mode, not one bound for both.** The change was drafted with four attempts for
 both, on the assumption that an intercepted attempt costs about what a stale one does. The
-measurement says otherwise — `docs/research/24-e2e-click-retry-costs.md` — and it is the
+measurement says otherwise — `docs/research/29-e2e-click-retry-costs.md` — and it is the
 figure the whole design turns on: chromedriver spends its own budget before refusing, so
 one `clickClear` attempt against a covered target costs ~15 s and four of them cost ~60 s
 against a 60 s mocha per-test budget. Observed on both sides of that line in one afternoon:

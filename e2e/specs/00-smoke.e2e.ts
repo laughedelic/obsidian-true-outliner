@@ -70,7 +70,7 @@ describe('smoke', function () {
    * test, which a slow enough runner passes having exercised nothing.
    *
    * The assertion is that the error survives the retries. Exhausting the bound
-   * is not free (`docs/research/24-e2e-click-retry-costs.md`), and a bound set
+   * is not free (`docs/research/29-e2e-click-retry-costs.md`), and a bound set
    * too high spends the mocha budget instead, replacing an error that names the
    * covering element with a timeout that names nothing. Mocha's own per-test
    * timeout is the other half of the assertion: this test failing that way is

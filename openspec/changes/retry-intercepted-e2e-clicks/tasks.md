@@ -1,7 +1,7 @@
 ## 1. Measure before choosing a bound
 
 - [x] 1.1 Drive `clickClear` at a target covered for the whole call and time it; record the
-      per-click, per-attempt and per-bound figures in `docs/research/24-e2e-click-retry-costs.md`.
+      per-click, per-attempt and per-bound figures in `docs/research/29-e2e-click-retry-costs.md`.
       Verified: four attempts cost 59.7 s against a 60 s mocha budget, observed both timing
       out and finishing at 60.3 s.
 
