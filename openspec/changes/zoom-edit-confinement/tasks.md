@@ -5,7 +5,7 @@
   first, then clause 1, then clause 2. Clause 3 is first because the other two need the after-cover
   and the after-cover needs a surviving root (design Risks), and because its "no node resolves"
   arm answers "inside" outright. Verify with unit tests in `tests/zoom.test.ts` covering one row
-  per clause taken from docs/research/24 — B1 for clause 1, G1 for clause 2, R4 for clause 3.
+  per clause taken from docs/research/26 — B1 for clause 1, G1 for clause 2, R4 for clause 3.
 - [ ] 1.2 Add the root-identity helper (design D2) reading `findPath`, and verify a unit test
   distinguishes an unwrapped list root from the child that inherits its line — the negative
   control is replacing the path comparison with `startLine` equality, which must make it fail.
@@ -52,7 +52,7 @@
 
 ## 4. Behaviour in a real Obsidian
 
-- [ ] 4.1 Turn docs/research/24's refusal rows into `e2e/specs/80-outline-zoom.e2e.ts` scenarios —
+- [ ] 4.1 Turn docs/research/26's refusal rows into `e2e/specs/80-outline-zoom.e2e.ts` scenarios —
   Backspace at the root's content start, Delete at the end of the last visible line,
   Mod-Backspace at the root's content start, Backspace at a nested root's content start into its
   hidden parent, an escaping paste, and the unwrap of an emptied list root — asserting for each
@@ -65,18 +65,18 @@
 - [ ] 4.3 Verify the boundary rows are identical on the mobile config (`--mobile`), since the
   refusal path is keyboard-driven and the cue is a Notice.
 - [ ] 4.4 Verify a heading zoom root's trailing edge still reports the inexpressible-merge cue
-  rather than the zoom cue, so the accidental protection docs/research/24 records is not silently
+  rather than the zoom cue, so the accidental protection docs/research/26 records is not silently
   replaced by the new one.
 
 ## 5. Budget and close-out
 
 - [ ] 5.1 Measure the enforced-path timings with a zoom active against `node-edit-enforcement`'s
   stated budget, using the stats snapshot the e2e helpers already expose, and record the figures
-  in docs/research/24 under a dated section. Design D5 removed the shortcut deliberately and
+  in docs/research/26 under a dated section. Design D5 removed the shortcut deliberately and
   argues the extra parse is amortised by `parsed-doc.ts`'s cache rather than added; this task is
   what settles that, and a breach is a reason to revisit D4's reach, never to reinstate an unsound
   gate.
-- [ ] 5.2 Add a short section to docs/research/24 recording which of its measured rows changed and
+- [ ] 5.2 Add a short section to docs/research/26 recording which of its measured rows changed and
   which did not, so the note reads as a before/after rather than only a diagnosis.
 - [ ] 5.3 Run the full e2e sweep for the zoom and enforcement groups desktop and mobile, and
   verify `.obsidian-cache/e2e-summary.json` reports no failures.

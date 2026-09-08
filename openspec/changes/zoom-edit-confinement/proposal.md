@@ -6,7 +6,7 @@ move or a split whose result would land outside the zoom root's subtree, with a 
 and a cue. The text-editing layer was not taught anything, so a Backspace, a Delete or a paste at
 the scope's edge reaches straight through it.
 
-The measured catalogue (docs/research/24) is unambiguous. Nine gestures mutate content the user
+The measured catalogue (docs/research/26) is unambiguous. Nine gestures mutate content the user
 cannot see and then drop the zoom with no cue; the zoomed and unzoomed results are byte-identical,
 because nothing in the edit path knows a scope exists. A separate arithmetic error sends the
 correction the other way: an Enter or a structural paste that appends a new last child of the zoom
@@ -16,7 +16,7 @@ unwraps leaves the zoom ACTIVE, rooted on a different node, with the trail still
 otherwise.
 
 One cause sits under all three. `zoom-state.ts`'s trigger 2 is an offset comparison in the state
-BEFORE the change, and it is being asked a question offsets cannot answer: docs/research/24's X2
+BEFORE the change, and it is being asked a question offsets cannot answer: docs/research/26's X2
 records one insertion offset with two structural outcomes, in scope and out, depending only on what
 is inserted. Whether an edit escapes is a fact about the re-parsed tree AFTER it. Trigger 2 was
 built as the catch-all for changes that never pass enforcement — history, sync, another pane — and
@@ -34,7 +34,7 @@ it is being used as the primary answer for user edits it was never shaped to jud
   applied and the document re-parsed: the text outside the zoom root's subtree is byte-identical,
   everything inserted lies inside the root's subtree as it now stands, and the root is still the
   same node. Not a comparison of changed POSITIONS — every such formulation fails a measured row,
-  including after-state ones (docs/research/24: one keystroke removes a single line break and a
+  including after-state ones (docs/research/26: one keystroke removes a single line break and a
   whole hidden node is absorbed by it).
 - **In-scope appends keep the zoom.** Enter at the end of the last visible line, and a structural
   paste there, stop clearing a scope they never left.
@@ -50,14 +50,14 @@ it is being used as the primary answer for user edits it was never shaped to jud
 
 - **Promoting the zoom root out of the list.** Every reference outliner renders a zoomed root as a
   page title rather than an editable row, which is what makes its boundary gestures inert by
-  construction (docs/research/24). That is a rendering change of its own size and it is not
+  construction (docs/research/26). That is a rendering change of its own size and it is not
   attempted here; this change makes the boundary honest with the root still in the list.
 - **Capping the select-all ladder at the root's children.** Logseq's focused root cannot be deleted
   at all; ours can, deliberately, and `progressive-select-all`'s stated cap at the root's own
   subtree is unchanged.
 - **The heading-merge veto defect.** Backspace at a heading's first content character deletes a `#`
   instead of vetoing, contradicting `node-edit-enforcement`'s own scenario, identically with and
-  without a zoom (docs/research/24). It is base behaviour, not zoom behaviour, and belongs to its
+  without a zoom (docs/research/26). It is base behaviour, not zoom behaviour, and belongs to its
   own change.
 - **Confining motion, selection or the ladder further.** Those clauses shipped and measure correct.
 
