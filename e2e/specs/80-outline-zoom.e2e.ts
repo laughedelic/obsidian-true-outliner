@@ -91,20 +91,42 @@ function renderedLines(): Promise<string[]> {
 }
 
 /**
- * The trail's segment labels, in order.
+ * What each crumb is CALLED, in order — its name, without the notation drawn
+ * beside it.
  *
  * Read through the FOOTER's own classes, because the trail is a footer lineage
  * row: same markup, same marker gutter, same separators. If this selector ever
  * has to change to something zoom-specific, the shared visual language has been
  * broken and that is the thing to fix.
+ *
+ * The ordinal is excluded for the same reason the kind icon already is: both
+ * are the node's MARKER, drawn in the text run because that is where an ordered
+ * item's number needs its own width, but neither is part of what the node says.
+ * The icon leaves `innerText` alone by being an SVG; the number does not, so it
+ * is removed here rather than baked into every expectation as `2.second`.
+ * `trailOrdinals` asserts it where it is the subject.
  */
 function trail(): Promise<string[]> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
     const el = view?.containerEl.querySelector('.to-zoom-trail');
     if (!el) return [];
+    return Array.from(el.querySelectorAll('.to-backlinks-seg')).map((seg) => {
+      const ord = seg.querySelector('.to-backlinks-seg-ord')?.textContent ?? '';
+      const text = (seg as HTMLElement).innerText.trim();
+      return (ord && text.startsWith(ord) ? text.slice(ord.length) : text).trim();
+    });
+  });
+}
+
+/** The ordinal drawn on each crumb, or '' where the node has none. */
+function trailOrdinals(): Promise<string[]> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const el = view?.containerEl.querySelector('.to-zoom-trail');
+    if (!el) return [];
     return Array.from(el.querySelectorAll('.to-backlinks-seg')).map(
-      (seg) => (seg as HTMLElement).innerText.trim(),
+      (seg) => seg.querySelector('.to-backlinks-seg-ord')?.textContent ?? '',
     );
   });
 }
@@ -1071,6 +1093,11 @@ describe('outline zoom', function () {
     await browser.pause(250);
     expect(await clickMark('.to-decor-list .to-decor-ol-digits', 2)).toBe('mark');
     expect(await trail()).toEqual(['zoom', 'Top', 'second']);
+    // Its NUMBER is drawn beside it, in the marker's place. The trail used to
+    // drop the ordinal entirely, so this crumb read "second" where the note
+    // reads "2. second" — a misquote the footer never made, and the reason both
+    // surfaces now name a node through one rule.
+    expect(await trailOrdinals()).toEqual(['', '', '2.']);
   });
 
   it('leaves a task’s checkbox to its own click, not this gesture', async function () {
