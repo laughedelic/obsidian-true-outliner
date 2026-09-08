@@ -61,7 +61,10 @@ export const zoomAnchorField = StateField.define<number | null>({
       // node. Detected instead by mapping the OLD cover's END backward through
       // the same changes: if that lands at or before `mapped`, nothing between
       // the two old endpoints survived — the whole root is gone, sibling or no.
-      if (footprint.coverRemoved) return null;
+      // A transaction that ALSO touched something outside the cover does not
+      // take this exit; it falls through to the predicate, which reports the
+      // escape and clears the zoom for that reason instead.
+      if (footprint.onlyCoverRemoved) return null;
       // Triggers 1b and 2, as ONE question (design D6). The predicate is
       // `zoom.ts`'s, the same one the enforcement filter refuses with, so the
       // refusal and the exit cannot disagree about what leaving the scope means.
@@ -131,9 +134,23 @@ export function footprintOf(
   anchor: number,
 ): EditFootprint {
   const mapped = changes.mapPos(anchor, 1);
+  // `bounds.to + 1` — the cover's own terminating line break. CM6's `Line.to`
+  // stops before it, so a deletion of exactly the cover's lines ends one past
+  // `bounds.to` and would otherwise read as reaching outside. This is the same
+  // boundary the hiding decorations had to get right (docs/research/23): a
+  // range spans the lines it removes, and the break beside it is the block's
+  // own edge.
+  //
+  // Offsets can answer THIS question soundly, unlike the structural one D1
+  // rejects them for: "did the change touch bytes outside the cover" is about
+  // bytes, and bytes are where offsets live.
+  let touchedOutside = false;
+  changes.iterChangedRanges((fromA, toA) => {
+    if (fromA < bounds.from || toA > bounds.to + 1) touchedOutside = true;
+  });
   return {
     anchorLine: newDoc.lineAt(Math.min(Math.max(mapped, 0), newDoc.length)).number - 1,
-    coverRemoved: changes.mapPos(bounds.to, -1) <= mapped,
+    onlyCoverRemoved: !touchedOutside && changes.mapPos(bounds.to, -1) <= mapped,
   };
 }
 

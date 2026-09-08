@@ -1343,21 +1343,29 @@ describe('outline zoom: editing at the boundary', function () {
   });
 
   describe('an unenforced change that dissolves the root exits cleanly', function () {
-    it('Mod-Backspace on the root’s own line leaves no zoom, not a retargeted one (R7)', async function () {
-      // Deleting to the line start is WITHIN-NODE authoring: one line, one
-      // owner, so the classifier never asks for a verdict and the refusal never
-      // sees it. `node-edit-enforcement` states that limit deliberately — such
-      // an edit cannot reach content the user cannot see. What it can do is
-      // dissolve the root, and the exit trigger is what answers for it.
+    it('emptying the root’s own line leaves no zoom, not a retargeted one (R7)', async function () {
+      // Clearing the root's whole line — marker included — is WITHIN-NODE
+      // authoring: one line, one owner, so the classifier never asks for a
+      // verdict and the refusal never sees it. `node-edit-enforcement` states
+      // that limit deliberately: such an edit cannot reach content the user
+      // cannot see. What it CAN do is dissolve the root, and the exit trigger
+      // is what answers for it.
       //
-      // The measured defect was not that the edit applied. It was that the zoom
-      // stayed ACTIVE, rooted on whatever node inherited the line, with the
-      // trail still claiming otherwise. So this asserts the trail is EMPTY, not
-      // merely that it changed.
+      // Driven by selecting the line and deleting, not by Mod-Backspace. That
+      // key is two different gestures: Cmd+Backspace deletes to the line start
+      // on macOS and Ctrl+Backspace deletes the previous WORD everywhere else,
+      // so the same test measured an emptied line locally and a surviving `- `
+      // marker on CI — where the root is still a list item at the same
+      // position, the edit is in scope, and the zoom correctly stays. The
+      // selection reaches the state this row is about on every platform.
+      //
+      // The measured defect was never that the edit applied. It was that the
+      // zoom stayed ACTIVE, rooted on whatever node inherited the line, with
+      // the trail still claiming otherwise. Hence the trail is asserted EMPTY,
+      // not merely changed.
       await zoomedTo(LIST, '- beta');
-      const c = at(LIST, 1, -1);
-      await h.setCursorSettled(c.line, c.ch);
-      await browser.keys([h.PRIMARY_MOD, 'Backspace']);
+      await h.setSelection({ line: 1, ch: 0 }, { line: 1, ch: '- beta'.length });
+      await browser.keys(['Backspace']);
       await browser.pause(350);
       expect(await h.getBuffer()).toBe('- alpha\n\n  - beta child\n- gamma\n');
       expect(await trail()).toEqual([]);

@@ -172,14 +172,17 @@ inside the scope however far down the document the text lands.
 The zoom SHALL clear itself, leaving the document fully visible, on any of exactly three
 triggers:
 
-1. The zoom root no longer resolves to THE SAME node — its lines were removed, or the document
-   has no nodes left, or a different node now begins where the root's own first line began. A
-   node merely starting at the anchor is not the root; identity is what the scope names.
-2. A change that never passed enforcement touches any position outside the visible range as that
-   range stood before the change. This covers history transactions, which bypass enforcement
-   entirely; writes from sync or another application; and edits dispatched from another pane onto
-   the same file. An ENFORCED edit SHALL NOT reach this trigger: one that would leave the scope
-   is refused before it applies, and one that stays inside it is not an exit.
+1. The zoom root's whole subtree was removed, and nothing outside it was touched. A transaction
+   that took hidden content as well SHALL NOT take this trigger — it is an escape, and trigger 2
+   is what reports it.
+2. A change that never passed enforcement would leave content outside the scope — judged by the
+   SAME invariant a refusal is judged by, not by comparing changed positions against the range as
+   it stood before. The distinction is observable: an append at the very end of the visible range
+   is dispatched at the first HIDDEN line's start, so a position test reads it as outside and
+   clears a zoom the edit never left. This trigger covers history transactions, which bypass
+   enforcement entirely; writes from sync or another application; and edits dispatched from
+   another pane onto the same file. An ENFORCED edit SHALL NOT reach it: one that would leave the
+   scope is refused before it applies, and one that stays inside it is not an exit.
 3. Outline mode is switched off in the view holding the zoom. Trigger 3 fires for that view and
    for no other: the mode is a per-tab state, so a second view on the same file keeps both its
    own mode and its own scope, which is the same per-view shape this capability's own scope model
@@ -204,8 +207,14 @@ that appends content at the very end of the visible range — SHALL NOT exit the
 - **THEN** the zoom clears rather than leaving a scope that no longer matches the document
 
 #### Scenario: Editing the root's own text keeps the zoom
-- **WHEN** the user types into the zoom root's own line, including emptying it of text
+- **WHEN** the user types into the zoom root's own line, including emptying it of its text while
+  the node itself survives — a list item reduced to its marker is still that list item
 - **THEN** the zoom stays exactly as it was
+
+#### Scenario: A deletion that takes hidden content along with the root is not trigger 1
+- **WHEN** one transaction removes the zoom root's whole subtree AND content outside it
+- **THEN** it is judged as an escape rather than taken for a plain deletion of the root, so an
+  enforced one is refused as a whole and an unenforced one clears the zoom by trigger 2
 
 #### Scenario: A write from outside the editor exits the zoom
 - **WHEN** a sync write, another application, or another pane changes content outside the visible

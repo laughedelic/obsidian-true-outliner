@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { escapesZoom } from '../src/plugin/zoom-enforce';
+import { footprintOf, visibleBoundsOf } from '../src/plugin/zoom-state';
 import { computeVerdict, type EditFact } from '../src/enforce';
 import { parse } from '../src/parse';
 import { resolveZoom } from '../src/zoom';
@@ -81,5 +82,33 @@ describe('escapesZoom', () => {
         false,
       );
     });
+  });
+});
+
+describe('footprintOf: clause 0 is about the cover AND nothing else', () => {
+  it('reports onlyCoverRemoved for a deletion of exactly the cover', () => {
+    const state = EditorState.create({ doc: LIST });
+    const scope = scopeOf(1);
+    const bounds = visibleBoundsOf(state.doc, scope);
+    const anchor = state.doc.line(scope.startLine + 1).from;
+    // The root's own two lines and the break that ends them — which lands one
+    // past `bounds.to`, since CM6's `Line.to` stops before its own newline.
+    const tr = state.update({ changes: { from: bounds.from, to: bounds.to + 1, insert: '' } });
+    expect(footprintOf(tr.changes, tr.newDoc, bounds, anchor).onlyCoverRemoved).toBe(true);
+  });
+
+  it('does NOT report it when the same transaction also takes hidden content', () => {
+    const state = EditorState.create({ doc: LIST });
+    const scope = scopeOf(1);
+    const bounds = visibleBoundsOf(state.doc, scope);
+    const anchor = state.doc.line(scope.startLine + 1).from;
+    // Two ranges: the cover, and `- alpha` above it, which the zoom hides.
+    const tr = state.update({
+      changes: [
+        { from: 0, to: 8, insert: '' },
+        { from: bounds.from, to: bounds.to + 1, insert: '' },
+      ],
+    });
+    expect(footprintOf(tr.changes, tr.newDoc, bounds, anchor).onlyCoverRemoved).toBe(false);
   });
 });

@@ -642,7 +642,7 @@ describe('editEscapes', () => {
 
   /** `editEscapes` with the root's own line unmoved and the cover intact —
    * the shape every row but the deletions takes. */
-  const judge = (afterText: string, at = { anchorLine: 1, coverRemoved: false }) => {
+  const judge = (afterText: string, at = { anchorLine: 1, onlyCoverRemoved: false }) => {
     const { doc, scope } = betaScope();
     return editEscapes(doc, scope, parse(afterText), at);
   };
@@ -652,12 +652,12 @@ describe('editEscapes', () => {
     it('allows the deletion when a sibling slides up into the root line (E2)', () => {
       const { doc, scope } = betaScope();
       const after = parse('- alpha\n- gamma\n');
-      expect(editEscapes(doc, scope, after, { anchorLine: 1, coverRemoved: true })).toBe(false);
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, onlyCoverRemoved: true })).toBe(false);
 
       // NEGATIVE CONTROL: without clause 0 this refuses, because `- gamma` now
       // occupies the root's line and its subtree swallows text that used to be
       // outside the cover.
-      expect(editEscapes(doc, scope, after, { anchorLine: 1, coverRemoved: false })).toBe(true);
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, onlyCoverRemoved: false })).toBe(true);
     });
 
     it('allows the deletion when the root ENDED the document (E2 at the end)', () => {
@@ -665,14 +665,26 @@ describe('editEscapes', () => {
       const scope = resolveZoom(doc, 1);
       if (!scope) throw new Error('no scope');
       const after = parse('- alpha\n');
-      expect(editEscapes(doc, scope, after, { anchorLine: 1, coverRemoved: true })).toBe(false);
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, onlyCoverRemoved: true })).toBe(false);
 
       // NEGATIVE CONTROL, and a DIFFERENT failure from the row above: here the
       // trailing blank line is owned by `- alpha`, so it is the identity clause
       // that refuses. One row alone would not show that clause 0 is load-bearing
       // for both reasons.
-      expect(editEscapes(doc, scope, after, { anchorLine: 1, coverRemoved: false })).toBe(true);
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, onlyCoverRemoved: false })).toBe(true);
     });
+  });
+
+  it('clause 0 does not excuse a transaction that took hidden content too', () => {
+    // The multi-range shape: one range removes the root's cover, another takes
+    // a hidden sibling. `onlyCoverRemoved` is false, so clause 0 steps aside
+    // and the remaining clauses see the escape. Were it keyed on the cover
+    // alone, nothing would ever look at the hidden deletion.
+    const { doc, scope } = betaScope();
+    const after = parse('- gamma\n'); // `- alpha` went with it
+    expect(editEscapes(doc, scope, after, { anchorLine: 0, onlyCoverRemoved: false })).toBe(true);
+    // NEGATIVE CONTROL: keyed on the cover alone, this is waved through.
+    expect(editEscapes(doc, scope, after, { anchorLine: 0, onlyCoverRemoved: true })).toBe(false);
   });
 
   describe('clause 1 — the root must still be the root', () => {
@@ -703,7 +715,7 @@ describe('editEscapes', () => {
     it('refuses a merge into the hidden previous sibling (X4)', () => {
       expect(judge('- alphabeta\n  - beta child\n- gamma\n', {
         anchorLine: 0,
-        coverRemoved: false,
+        onlyCoverRemoved: false,
       })).toBe(true);
     });
 
@@ -732,7 +744,7 @@ describe('editEscapes', () => {
       const scope = resolveZoom(doc, 4);
       if (!scope) throw new Error('no scope');
       const after = parse('# One\n\npara one\n\n## Two\n\npara two\n## Three\n\npara three\n');
-      expect(editEscapes(doc, scope, after, { anchorLine: 4, coverRemoved: false })).toBe(false);
+      expect(editEscapes(doc, scope, after, { anchorLine: 4, onlyCoverRemoved: false })).toBe(false);
     });
 
     it('allows an append when the cover ends on a trailing gap (X1)', () => {
@@ -740,7 +752,7 @@ describe('editEscapes', () => {
       const scope = resolveZoom(doc, 4);
       if (!scope) throw new Error('no scope');
       const after = parse('# One\n\npara one\n\n## Two\n\npara two\n\n\n\n## Three\n\npara three\n');
-      expect(editEscapes(doc, scope, after, { anchorLine: 4, coverRemoved: false })).toBe(false);
+      expect(editEscapes(doc, scope, after, { anchorLine: 4, onlyCoverRemoved: false })).toBe(false);
     });
   });
 
@@ -754,7 +766,7 @@ describe('editEscapes', () => {
       const scope = resolveZoom(doc, 2);
       if (!scope) throw new Error('no scope');
       const after = parse('# One\n\n## Two\n\npara two\n\n# H1\n\nmore\n\n## Three\n');
-      expect(editEscapes(doc, scope, after, { anchorLine: 2, coverRemoved: false })).toBe(true);
+      expect(editEscapes(doc, scope, after, { anchorLine: 2, onlyCoverRemoved: false })).toBe(true);
     });
   });
 });

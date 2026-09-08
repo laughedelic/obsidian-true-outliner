@@ -25,11 +25,19 @@ it is being used as the primary answer for user edits it was never shaped to jud
 ## What Changes
 
 - **An edit whose result would leave the zoom scope is refused, not applied.** Backspace at the
-  zoom root's content start, Delete at the end of the last visible line or on the cover's trailing
-  gap, Mod-Backspace at the root's content start, and a paste that splices outside the subtree all
-  leave the document unchanged and show the `would-leave-zoom-scope` cue the structural layer
-  already uses. The two layers then agree on one judgement rather than each having its own, which
-  is the argument `outline-zoom` already makes for the keyboard and the palette.
+  zoom root's content start, Delete at the end of the last visible line, a Backspace that would
+  unwrap an emptied list-item root, and a paste that splices outside the subtree all leave the
+  document unchanged and show the `would-leave-zoom-scope` cue the structural layer already uses.
+  The two layers then agree on one judgement rather than each having its own, which is the argument
+  `outline-zoom` already makes for the keyboard and the palette.
+- **Deleting the cover's own trailing gap is NOT one of them.** That blank line is inside the
+  visible range, so removing it moves nothing out of the subtree; it currently clears the zoom and
+  will stop doing so.
+- **An edit enforcement never judges is not refused either.** Emptying the root's own line is
+  within-node authoring, so no verdict is computed and the refusal never sees it. Such an edit
+  cannot reach content the user cannot see; what it can do is dissolve the root, and the automatic
+  exit answers for that — by clearing the zoom rather than, as today, leaving it active on a
+  different node.
 - **The escape test is the scope's invariant, judged over the AFTER state**, and asked in one
   order: a change that removed the root's whole subtree is not an escape at all; otherwise the node
   owning the root's first line must still hold the root's position in the tree, and the text

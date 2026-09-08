@@ -298,8 +298,19 @@ export function splitEscapes(
 export interface EditFootprint {
   /** The zoom root's own first line, mapped forward into the AFTER document. */
   readonly anchorLine: number;
-  /** Did the change remove every line of the root's subtree cover? */
-  readonly coverRemoved: boolean;
+  /**
+   * Did the change remove every line of the root's subtree cover AND touch
+   * nothing else?
+   *
+   * The "and nothing else" is load-bearing. This fact exists to say "the other
+   * clauses cannot be asked, because there is no root to find them from", and a
+   * transaction that removed the cover but ALSO deleted a hidden subtree still
+   * has an escape in it that nobody would ever look at. Multi-range deletions
+   * are the shape that reaches it: one range takes the root, another takes
+   * something the zoom hides, and `node-edit-enforcement` requires the pair to
+   * be refused as a whole.
+   */
+  readonly onlyCoverRemoved: boolean;
 }
 
 /**
@@ -308,7 +319,8 @@ export interface EditFootprint {
  * The three questions are asked in this order because the later two cannot be
  * asked at all until the earlier ones have answered.
  *
- * **0. Was the whole subtree removed?** Then this is not an escape. Deleting
+ * **0. Was the whole subtree removed, and nothing else touched?** Then this is
+ * not an escape. Deleting
  * the zoom root deliberately is allowed and the automatic exit takes it from
  * here (D7). This is asked first, and asked about the CHANGE rather than the
  * after-state, because the other two begin by locating the root on its own
@@ -339,7 +351,7 @@ export function editEscapes(
   after: OutlineDoc,
   footprint: EditFootprint,
 ): boolean {
-  if (footprint.coverRemoved) return false;
+  if (footprint.onlyCoverRemoved) return false;
 
   const afterScope = resolveZoom(after, footprint.anchorLine);
   // No node owns the line the root began on — it has become preamble, or the

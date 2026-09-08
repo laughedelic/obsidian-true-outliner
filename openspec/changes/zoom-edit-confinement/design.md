@@ -41,6 +41,10 @@ subtree cover, in which case it is not an escape and nothing further is asked (D
 **(1)** the node OWNING the root's own first line holds the position in the tree the root held,
 and **(2)** the text outside the root's subtree is byte-identical to what it was before.
 
+Clause 0 asks about the whole change, not only about the cover. A transaction that removed the
+cover AND took a hidden subtree with it — the multi-range shape — still carries an escape, and
+keying the exception on the cover alone would mean nothing ever looked at the second range.
+
 Every simpler formulation was tried against docs/research/26's tables and each fails a measured
 row. "Changed positions inside the before-cover" fails X2 — one insertion offset, two structural
 answers depending only on the inserted text. "Changed positions inside the after-cover" fails B1 —
@@ -50,9 +54,13 @@ line break, which is the same off-by-one docs/research/23 already had to fix one
 the hiding decorations. Stating the invariant directly costs one string comparison and stops the
 recurrence.
 
-Each clause earns its place: (1) alone passes a paste that adds a sibling beside the root without
-touching a hidden byte; (2) alone passes a merge that absorbs hidden content; (3) alone passes
-both, and is the only clause that catches a Backspace dissolving an emptied list-item root.
+Each of the three earns its place, and the roles are not interchangeable. Clause 0 is the only one
+that can answer at all once the root is deleted, and it is about the CHANGE rather than the
+after-state for exactly that reason. Clause 1 is the only one that catches a Backspace dissolving
+an emptied list-item root, which touches no byte outside the subtree. Clause 2 is the only one that
+catches both a merge absorbing a hidden node — one line break removed, a whole node gone from
+outside — and a paste adding a sibling beside the root, since content inserted outside the subtree
+necessarily changes the text outside it.
 
 *Alternative considered — widen the cover's offset range by one and keep an offset test.* It fixes
 the appends and nothing else, and B1 shows the class of defect it cannot reach. Rejected: it would
