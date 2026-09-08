@@ -1,0 +1,113 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "9a18e289fa6a",
+  "session_id": "e4229cb5-cf73-4d17-abb7-bfc24905b7f4",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-08T20:05:58.929274Z",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/research/24-outline-mode-surfaces.md",
+    "e2e/helpers.ts",
+    "e2e/specs/10-outline-mode.e2e.ts",
+    "e2e/specs/11-outline-mode-surfaces.e2e.ts",
+    "openspec/changes/per-tab-outline-mode/proposal.md",
+    "openspec/changes/per-tab-outline-mode/tasks.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "f6719faaaec7",
+  "checkpoint_transcript_start": 1600,
+  "transcript_lines_at_start": 1600,
+  "compact_transcript_start": 318,
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 15290,
+    "cache_read_tokens": 8249845,
+    "output_tokens": 11323,
+    "api_call_count": 15
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-openspec-apply-change-2026-09-08T02:51:45.734248Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "5e820074c7ef",
+      "timestamp": "2026-09-08T02:51:45.734248Z",
+      "native": {
+        "command": "/openspec-apply-change"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/openspec-apply-change",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01EzGKGD3BWF6k2FxhJoyv7U",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-sync-specs"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "f6719faaaec7",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1085,
+        "end": 1086,
+        "entry_ids": [
+          "453dfbdf-df1a-470c-bcf2-7d2871fb4e02"
+        ],
+        "tool_use_id": "toolu_01EzGKGD3BWF6k2FxhJoyv7U"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01EzGKGD3BWF6k2FxhJoyv7U"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-sync-specs",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-08T20:05:58.798224Z",
+    "agent_lines": 119,
+    "agent_removed": 16,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 119,
+    "total_lines_changed": 135,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 84,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 84
+      }
+    }
+  ]
+}
