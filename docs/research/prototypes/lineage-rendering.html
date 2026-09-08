@@ -1,0 +1,1027 @@
+<title>Lineage Rendering Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --ground: #f6f7f9;
+    --surface: #ffffff;
+    --recess: #f0f2f5;
+    --ink: #1a1d23;
+    --ink-muted: #5b6470;
+    --ink-faint: #8d949f;
+    --accent: #5348c9;
+    --on-accent: #ffffff;
+    --accent-soft: #ece9fb;
+    --warn: #a55f22;
+    --warn-soft: #f7ecdf;
+    --rule: #e3e6eb;
+    --rule-strong: #cfd4dc;
+    --mark: #6f7783;
+    --hl: #fbe58a;
+    --code-bg: #eef0f4;
+
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --app: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #16181c;
+      --surface: #1d2025;
+      --recess: #202429;
+      --ink: #e3e6ea;
+      --ink-muted: #98a1ad;
+      --ink-faint: #69717c;
+      --accent: #a79bf5;
+      --on-accent: #16181c;
+      --accent-soft: #2a2740;
+      --warn: #d99a55;
+      --warn-soft: #372c1f;
+      --rule: #2a2e35;
+      --rule-strong: #3a3f48;
+      --mark: #7d858f;
+      --hl: #6d5c1c;
+      --code-bg: #262a30;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #16181c;
+    --surface: #1d2025;
+    --recess: #202429;
+    --ink: #e3e6ea;
+    --ink-muted: #98a1ad;
+    --ink-faint: #69717c;
+    --accent: #a79bf5;
+    --on-accent: #16181c;
+    --accent-soft: #2a2740;
+    --warn: #d99a55;
+    --warn-soft: #372c1f;
+    --rule: #2a2e35;
+    --rule-strong: #3a3f48;
+    --mark: #7d858f;
+    --hl: #6d5c1c;
+    --code-bg: #262a30;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  /* ---- masthead ---- */
+
+  header { display: flex; flex-direction: column; gap: 0.7rem; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.7rem, 1.2rem + 1.8vw, 2.4rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .lede {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--ink-muted);
+  }
+
+  .lede code, .note code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 0.05em 0.3em;
+    border-radius: 3px;
+  }
+
+  /* ---- controls ---- */
+
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-block: 1px solid var(--rule);
+    margin-inline: -1.5rem;
+    padding: 0.9rem 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.4rem 2rem;
+  }
+
+  .control { display: flex; flex-direction: column; gap: 0.35rem; }
+
+  .control > .label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .seg-group {
+    display: flex;
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .seg-group[data-disabled="true"] { opacity: 0.35; pointer-events: none; }
+
+  .seg-group button {
+    appearance: none;
+    border: 0;
+    border-inline-end: 1px solid var(--rule);
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+  }
+
+  .seg-group button:last-child { border-inline-end: 0; }
+  .seg-group button:hover { color: var(--ink); background: var(--recess); }
+
+  .seg-group button[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 500;
+  }
+
+  .seg-group button[aria-pressed="true"][data-value="verbatim"] {
+    background: var(--warn);
+    color: var(--on-accent);
+  }
+
+  .checks { display: flex; flex-direction: column; gap: 0.3rem; }
+
+  .checks label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.83rem;
+    color: var(--ink-muted);
+    cursor: pointer;
+  }
+
+  .checks input { accent-color: var(--accent); margin: 0; }
+
+  .proposed {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 3px;
+    padding: 0 0.3em;
+  }
+
+  button:focus-visible, input:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* ---- policy legend ---- */
+
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .legend > div {
+    background: var(--surface);
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .legend .name {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .legend .name.verbatim { color: var(--warn); }
+  .legend .name.plain, .legend .name.flat, .legend .name.live { color: var(--accent); }
+  .legend .what { font-size: 0.8rem; color: var(--ink-muted); line-height: 1.4; }
+
+  /* ---- surface panels ---- */
+
+  .surface-panel {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .panel-head {
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.3rem 0.8rem;
+  }
+
+  .panel-head h2 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .panel-head .where {
+    font-family: var(--mono);
+    font-size: 0.73rem;
+    color: var(--ink-faint);
+  }
+
+  .panel-head p {
+    margin: 0;
+    flex-basis: 100%;
+    font-size: 0.84rem;
+    color: var(--ink-muted);
+    max-width: 68ch;
+  }
+
+  .examples { display: flex; flex-direction: column; }
+
+  .example {
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .example:last-child { border-bottom: 0; }
+
+  .example > .caption {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .src {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.7;
+    color: var(--ink-faint);
+    background: var(--recess);
+    border-radius: 6px;
+    padding: 0.5rem 0.7rem;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .src .seg-src + .seg-src::before {
+    content: "› ";
+    color: var(--rule-strong);
+  }
+
+  /* ---- the demo canvas: reads as "inside the app" ---- */
+
+  .canvas {
+    font-family: var(--app);
+    font-size: 15px;
+    line-height: 1.6;
+    background: var(--recess);
+    border-radius: 6px;
+    padding: 0.7rem 0.9rem 0.7rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    overflow-x: auto;
+  }
+
+  .variant {
+    display: grid;
+    grid-template-columns: 5.2rem 1fr;
+    align-items: start;
+    gap: 0.6rem;
+    padding: 0.28rem 0;
+  }
+
+  .variant + .variant { border-top: 1px dashed var(--rule); }
+
+  .variant > .vlabel {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 0.25rem;
+  }
+
+  .variant[data-policy="verbatim"] > .vlabel { color: var(--warn); }
+
+  /* the lineage row itself, transcribed from styles.css */
+
+  .row { position: relative; }
+
+  .row .marker {
+    position: absolute;
+    left: -1.25rem;
+    top: 0.28em;
+    width: 0.85rem;
+    height: 0.85rem;
+    color: var(--mark);
+    display: inline-flex;
+  }
+
+  .row .marker svg { width: 100%; height: 100%; }
+
+  .row .content { overflow-wrap: break-word; }
+  .row.is-lineage .content { color: var(--ink-faint); }
+  .row.is-reference .content { color: var(--ink); }
+
+  .seg + .seg { margin-inline-start: 0.7em; }
+
+  .seg-icon {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    width: 0.8em;
+    height: 0.8em;
+    margin-inline-end: 0.3em;
+    color: var(--mark);
+  }
+
+  .seg-icon svg { width: 100%; height: 100%; }
+
+  .seg-ord { margin-inline-end: 0.3em; color: var(--mark); font-variant-numeric: tabular-nums; }
+
+  .seg[role="link"] { cursor: pointer; border-radius: 3px; }
+  .seg[role="link"]:hover { color: var(--ink-muted); }
+  .row.is-lineage .seg[role="link"]:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+  /* trail chrome */
+
+  .trail-wrap {
+    border-bottom: 1px solid var(--rule-strong);
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .trail-wrap .row .marker { width: 1.0625rem; height: 1.0625rem; left: -1.45rem; color: var(--ink); }
+  .trail-wrap .row.is-lineage .content { color: var(--ink-muted); }
+
+  .sep { color: var(--rule-strong); display: inline-flex; width: 0.7em; height: 0.7em; vertical-align: middle; margin-inline: 0.15em; }
+  .sep svg { width: 100%; height: 100%; }
+
+  /* inline rendered markdown inside a row */
+
+  .content code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border-radius: 3px;
+    padding: 0.05em 0.3em;
+  }
+
+  .content mark { background: var(--hl); color: inherit; border-radius: 2px; padding: 0 0.1em; }
+  .content a { color: var(--accent); text-decoration: none; }
+  .content a:hover { text-decoration: underline; }
+  .content a.ext::after { content: "↗"; font-size: 0.8em; margin-inline-start: 0.1em; }
+  .content .tag {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 10px;
+    padding: 0 0.4em;
+    font-size: 0.86em;
+  }
+  .content .math { font-family: var(--mono); font-size: 0.9em; font-style: italic; }
+  .content img { vertical-align: middle; border-radius: 3px; }
+
+  .content .task-box {
+    display: inline-block;
+    width: 0.78em;
+    height: 0.78em;
+    border: 1.5px solid var(--mark);
+    border-radius: 2px;
+    vertical-align: middle;
+  }
+
+  /* ---- notes ---- */
+
+  .note {
+    font-size: 0.85rem;
+    color: var(--ink-muted);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 0.8rem 1rem;
+    max-width: 70ch;
+  }
+
+  .note strong { color: var(--ink); font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  @media (max-width: 34rem) {
+    .variant { grid-template-columns: 1fr; gap: 0.15rem; }
+    .toolbar { margin-inline: -1rem; padding-inline: 1rem; }
+    .wrap { padding-inline: 1rem; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">true-outliner · docs/research prototype</div>
+    <h1>Lineage Rendering Sandbox</h1>
+    <p class="lede">
+      Both surfaces that quote an ancestor chain — the zoom breadcrumb trail and the
+      backlinks footer's lineage rows — currently put the node's raw source into the DOM
+      with <code>appendText</code>. Everything below is that same corpus under four
+      candidate policies, so the choice can be made by looking rather than by arguing.
+    </p>
+  </header>
+
+  <div class="toolbar">
+    <div class="control">
+      <span class="label" id="lbl-trail">Zoom trail crumbs</span>
+      <div class="seg-group" role="group" aria-labelledby="lbl-trail" data-target="trail"></div>
+    </div>
+    <div class="control">
+      <span class="label" id="lbl-footer">Footer lineage segments</span>
+      <div class="seg-group" role="group" aria-labelledby="lbl-footer" data-target="footer"></div>
+    </div>
+    <div class="control checks">
+      <label><input type="checkbox" id="compare"> Compare all four at once</label>
+      <label><input type="checkbox" id="showSrc" checked> Show the source lines</label>
+      <label><input type="checkbox" id="blockStrip"> Per-kind block stripping in trail crumbs <span class="proposed">proposed</span></label>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div>
+      <span class="name verbatim">verbatim</span>
+      <span class="what">What ships today. The source string, characters and all.</span>
+    </div>
+    <div>
+      <span class="name plain">plain</span>
+      <span class="what">Parsed, then reduced to its text. No emphasis, no links, no marks.</span>
+    </div>
+    <div>
+      <span class="name flat">flattened</span>
+      <span class="what">Rendered, but links and embeds collapse to their text. One click target per crumb.</span>
+    </div>
+    <div>
+      <span class="name live">live</span>
+      <span class="what">Rendered in full, exactly as a reference row is. Links click, images load.</span>
+    </div>
+  </div>
+
+  <section class="surface-panel">
+    <div class="panel-head">
+      <h2>Zoom trail</h2>
+      <span class="where">src/plugin/zoom-trail.ts</span>
+      <p>
+        A block widget at the head of the zoomed subtree. Every crumb is a
+        <code>role="link"</code> that re-roots the view on that ancestor — so a rendered
+        link inside one is a second, competing destination.
+      </p>
+    </div>
+    <div class="examples" id="trailExamples"></div>
+  </section>
+
+  <section class="surface-panel">
+    <div class="panel-head">
+      <h2>Backlinks footer</h2>
+      <span class="where">src/plugin/lineage-row.ts · footer-model.ts</span>
+      <p>
+        Each chain is shown with the reference row it leads to. That row already renders
+        inline markdown in full, which is what makes the verbatim lineage above it read as
+        a defect rather than as a choice.
+      </p>
+    </div>
+    <div class="examples" id="footerExamples"></div>
+  </section>
+
+  <p class="note">
+    <strong>What this prototype is not.</strong> The inline parser here is a stand-in,
+    written to make the policies comparable. The real implementation would run Obsidian's
+    own <code>MarkdownRenderer</code> once and let the policy decide what to keep from its
+    output — which is also why <em>plain</em> is not a regex stripper: taking
+    <code>textContent</code> from a real parse is the only way escapes, nested emphasis and
+    bracket-bearing code spans come out right.
+  </p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------ *
+   * Inline markdown → tokens. One parse; the policies are serialisers
+   * over the same token stream, which is the shape the real fix takes.
+   * ------------------------------------------------------------------ */
+
+  var RULES = [
+    ["esc",   /\\([\\`*_~=\[\]()#$!])/],
+    ["code",  /`([^`]+)`/],
+    ["embed", /!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/],
+    ["image", /!\[([^\]]*)\]\(([^)]+)\)/],
+    ["wiki",  /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/],
+    ["link",  /\[([^\]]+)\]\(([^)]+)\)/],
+    ["math",  /\$([^$]+)\$/],
+    ["strong", /\*\*([^*]+)\*\*/],
+    ["mark",  /==([^=]+)==/],
+    ["del",   /~~([^~]+)~~/],
+    ["em",    /(?:\*([^*\s][^*]*)\*|_([^_\s][^_]*)_)/],
+    ["tag",   /(?:^|(?<=\s))#([A-Za-z][\w/-]*)/]
+  ];
+
+  function parseInline(src) {
+    var out = [];
+    var rest = src;
+    while (rest.length) {
+      var best = null;
+      for (var i = 0; i < RULES.length; i++) {
+        var m = RULES[i][1].exec(rest);
+        if (m && (!best || m.index < best.m.index)) best = { name: RULES[i][0], m: m };
+        if (best && best.m.index === 0) break;
+      }
+      if (!best) { out.push({ t: "text", v: rest }); break; }
+      if (best.m.index > 0) out.push({ t: "text", v: rest.slice(0, best.m.index) });
+      out.push(nodeFor(best.name, best.m));
+      rest = rest.slice(best.m.index + best.m[0].length);
+    }
+    return out;
+  }
+
+  function nodeFor(name, m) {
+    switch (name) {
+      case "esc":   return { t: "text", v: m[1] };
+      case "code":  return { t: "code", v: m[1] };
+      case "embed": return { t: "image", alt: (m[2] || m[1]).trim(), wiki: true };
+      case "image": return { t: "image", alt: m[1] || m[2] };
+      case "wiki":  return { t: "link", kind: "wiki", label: (m[2] || m[1]).trim(), href: m[1].trim() };
+      case "link":  return { t: "link", kind: "ext", label: m[1], href: m[2] };
+      case "math":  return { t: "math", v: m[1] };
+      case "tag":   return { t: "tag", v: m[1] };
+      default:      return { t: name, kids: parseInline(m[1] !== undefined ? m[1] : m[2]) };
+    }
+  }
+
+  /* A stand-in for the 120×80 image a real embed resolves to. */
+  var THUMB =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='80'%3E" +
+    "%3Crect width='120' height='80' fill='%23c3cfdd'/%3E%3Cpath d='M0 62L34 34 58 54 84 30 120 62Z' fill='%23879bb6'/%3E" +
+    "%3Ccircle cx='94' cy='22' r='9' fill='%23edd48b'/%3E%3C/svg%3E";
+
+  var TAGS = { strong: "strong", em: "em", del: "del", mark: "mark" };
+
+  /* ---- serialisers ---- */
+
+  function toPlain(nodes) {
+    return nodes.map(function (n) {
+      if (n.t === "text" || n.t === "code" || n.t === "math") return n.v;
+      if (n.t === "tag") return "#" + n.v;
+      if (n.t === "link") return n.label;
+      if (n.t === "image") return n.alt;
+      return toPlain(n.kids);
+    }).join("");
+  }
+
+  function toDom(nodes, live) {
+    var frag = document.createDocumentFragment();
+    nodes.forEach(function (n) {
+      if (n.t === "text") { frag.appendChild(document.createTextNode(n.v)); return; }
+      if (n.t === "code") { frag.appendChild(el("code", n.v)); return; }
+      if (n.t === "math") { frag.appendChild(el("span", n.v, "math")); return; }
+      if (n.t === "tag") { frag.appendChild(el("span", "#" + n.v, "tag")); return; }
+      if (n.t === "link") {
+        if (!live) { frag.appendChild(document.createTextNode(n.label)); return; }
+        var a = el("a", n.label, n.kind === "ext" ? "ext" : "wiki");
+        a.href = "#";
+        a.title = n.href;
+        a.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
+        frag.appendChild(a);
+        return;
+      }
+      if (n.t === "image") {
+        if (!live) { frag.appendChild(document.createTextNode(n.alt)); return; }
+        var img = document.createElement("img");
+        img.src = THUMB;
+        img.alt = n.alt;
+        frag.appendChild(img);
+        return;
+      }
+      var wrap = document.createElement(TAGS[n.t] || "span");
+      wrap.appendChild(toDom(n.kids, live));
+      frag.appendChild(wrap);
+    });
+    return frag;
+  }
+
+  function el(tag, text, cls) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  /* Fills `host` with one segment's text under `policy`. */
+  function paint(host, src, policy) {
+    if (policy === "verbatim") { host.appendChild(document.createTextNode(src)); return; }
+    var nodes = parseInline(src);
+    if (policy === "plain") { host.appendChild(document.createTextNode(toPlain(nodes))); return; }
+    host.appendChild(toDom(nodes, policy === "live"));
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Block syntax. The footer already strips this per kind; the trail
+   * calls stripBlockPrefix alone, which is why a callout crumb still
+   * reads "[!tip] …" and a table crumb still reads "| a | b |".
+   * ------------------------------------------------------------------ */
+
+  function stripBlockPrefix(line) {
+    return line.trim()
+      .replace(/^(?:>\s?)+/, "")
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/^(?:[-*+]|\d{1,9}[.)])(?:\s+|$)(?:\[[ xX]\](?:\s+|$))?/, "")
+      .trim();
+  }
+
+  var KIND_LABELS = {
+    heading: "Heading", paragraph: "Paragraph", bullet: "List item",
+    code: "Code block", table: "Table", callout: "Callout", quote: "Quote"
+  };
+
+  function stripPerKind(line, kind) {
+    var s = stripBlockPrefix(line);
+    if (kind === "callout") s = s.replace(/^\[![^\]]*\][-+]?\s*/, "").trim();
+    else if (kind === "table") s = s.replace(/^\|/, "").split(/(?<!\\)\|/)[0].replace(/\\\|/g, "|").trim();
+    else if (kind === "code") s = s.replace(/^(?:```|~~~)\s*[\w-]*\s*/, "").trim();
+    /* A crumb is never blank: a fence's info string is not a name for it. */
+    return s || KIND_LABELS[kind] || "";
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Markers
+   * ------------------------------------------------------------------ */
+
+  var SVG = "http://www.w3.org/2000/svg";
+
+  function svg(build) {
+    var s = document.createElementNS(SVG, "svg");
+    s.setAttribute("viewBox", "0 0 16 16");
+    s.setAttribute("aria-hidden", "true");
+    build(s);
+    return s;
+  }
+
+  function shape(parent, tag, attrs) {
+    var n = document.createElementNS(SVG, tag);
+    Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    parent.appendChild(n);
+    return n;
+  }
+
+  function stroked(parent, tag, attrs) {
+    attrs.fill = "none";
+    attrs.stroke = "currentColor";
+    attrs["stroke-width"] = "1.5";
+    attrs["stroke-linecap"] = "round";
+    attrs["stroke-linejoin"] = "round";
+    return shape(parent, tag, attrs);
+  }
+
+  var GLYPHS = {
+    bullet: function (s) { shape(s, "circle", { cx: 8, cy: 8, r: 3, fill: "currentColor" }); },
+    paragraph: function (s) { shape(s, "circle", { cx: 8, cy: 8, r: 3, fill: "currentColor" }); },
+    heading: function (s) {
+      shape(s, "rect", { x: 3, y: 2, width: 2, height: 12, fill: "currentColor" });
+      shape(s, "rect", { x: 11, y: 2, width: 2, height: 12, fill: "currentColor" });
+      shape(s, "rect", { x: 3, y: 7, width: 10, height: 2, fill: "currentColor" });
+    },
+    quote: function (s) {
+      shape(s, "circle", { cx: 5, cy: 5, r: 2, fill: "currentColor" });
+      shape(s, "rect", { x: 4, y: 5, width: 2, height: 4, fill: "currentColor" });
+      shape(s, "circle", { cx: 11, cy: 5, r: 2, fill: "currentColor" });
+      shape(s, "rect", { x: 10, y: 5, width: 2, height: 4, fill: "currentColor" });
+    },
+    callout: function (s) {
+      shape(s, "circle", { cx: 8, cy: 8, r: 6, fill: "currentColor" });
+      shape(s, "rect", { x: 7, y: 4, width: 2, height: 5, fill: "var(--recess)" });
+      shape(s, "rect", { x: 7, y: 10, width: 2, height: 2, fill: "var(--recess)" });
+    },
+    table: function (s) {
+      stroked(s, "rect", { x: 2, y: 2, width: 12, height: 12, rx: 1 });
+      stroked(s, "line", { x1: 2, y1: 8, x2: 14, y2: 8 });
+      stroked(s, "line", { x1: 8, y1: 2, x2: 8, y2: 14 });
+    },
+    code: function (s) {
+      stroked(s, "polyline", { points: "6,5 3,8 6,11" });
+      stroked(s, "polyline", { points: "10,5 13,8 10,11" });
+    },
+    task: function (s) {
+      stroked(s, "path", { d: "M2.8 2.8h10.4v10.4h-10.4z" });
+      stroked(s, "path", { d: "M5 8.2l2.4 2.4 4-4.8" });
+    },
+    taskOpen: function (s) { stroked(s, "path", { d: "M2.8 2.8h10.4v10.4h-10.4z" }); },
+    chevron: function (s) {
+      s.setAttribute("viewBox", "0 0 24 24");
+      stroked(s, "path", { d: "M9 5l7 7-7 7", "stroke-width": "2" });
+    },
+    zoomOut: function (s) {
+      stroked(s, "polyline", { points: "3,6.5 3,3 6.5,3" });
+      stroked(s, "line", { x1: 3, y1: 3, x2: 6.75, y2: 6.75 });
+      stroked(s, "polyline", { points: "13,9.5 13,13 9.5,13" });
+      stroked(s, "line", { x1: 13, y1: 13, x2: 9.25, y2: 9.25 });
+    }
+  };
+
+  function glyphFor(seg) {
+    if (seg.task === true) return GLYPHS.task;
+    if (seg.task === false) return GLYPHS.taskOpen;
+    return GLYPHS[seg.kind] || GLYPHS.bullet;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The corpus. Each chain is an ancestor path; `ref` is the referencing
+   * node the footer draws beneath it.
+   * ------------------------------------------------------------------ */
+
+  var CORPUS = [
+    {
+      caption: "Emphasis and code spans",
+      chain: [
+        { kind: "bullet", src: "- work" },
+        { kind: "heading", src: "## **Q3 planning** — *draft*" },
+        { kind: "bullet", src: "- the `--severity` flag, unset" }
+      ],
+      ref: "- decided against it in [[Aurora Dashboard]], see `sortStable`"
+    },
+    {
+      caption: "External link in an ancestor",
+      chain: [
+        { kind: "bullet", src: "- research" },
+        { kind: "bullet", src: "- see [the RFC](https://example.com/rfc-42) first" }
+      ],
+      ref: "- [[Aurora Dashboard]] follows [the same rule](https://example.com/rfc-42)"
+    },
+    {
+      caption: "Wikilink, alias, tag, highlight",
+      chain: [
+        { kind: "bullet", src: "- triage" },
+        { kind: "bullet", src: "- [[Aurora Dashboard|the dashboard]] #urgent" },
+        { kind: "bullet", src: "- ==needs review== before Friday" }
+      ],
+      ref: "- ping Maya about [[Aurora Dashboard]] #urgent"
+    },
+    {
+      caption: "Strikethrough, and emphasis wrapping a link",
+      chain: [
+        { kind: "bullet", src: "- roadmap" },
+        { kind: "bullet", src: "- ~~cancelled~~ moved to Q4" },
+        { kind: "quote", src: "> **bold with [a link](https://example.com) inside**" }
+      ],
+      ref: "- carried over from [[Aurora Dashboard]]"
+    },
+    {
+      caption: "An embedded image in the chain",
+      chain: [
+        { kind: "bullet", src: "- design" },
+        { kind: "bullet", src: "- current header ![shot](assets/header.png) as shipped" }
+      ],
+      ref: "- replaces the [[Aurora Dashboard]] header ![shot](assets/header.png)"
+    },
+    {
+      caption: "Math, percent signs, escaped asterisks",
+      chain: [
+        { kind: "bullet", src: "- stats" },
+        { kind: "bullet", src: "- $E = mc^2$ still holds" },
+        { kind: "bullet", src: "- 100% \\*not emphasis\\* and a * b * c" }
+      ],
+      ref: "- filed under [[Aurora Dashboard]]"
+    },
+    {
+      caption: "Task and ordered ancestors — state moves to the marker",
+      chain: [
+        { kind: "bullet", src: "- [x] **shipped** the flag", task: true },
+        { kind: "bullet", src: "10. **Tenth** item, *finally*", ordinal: "10." }
+      ],
+      ref: "- unblocks [[Aurora Dashboard]]"
+    },
+    {
+      caption: "Block syntax the trail still leaks",
+      trailOnly: true,
+      chain: [
+        { kind: "callout", src: "> [!tip] Field notes, **second pass**" },
+        { kind: "table", src: "| owner | **status** |" },
+        { kind: "code", src: "```js" }
+      ],
+      ref: "- referenced from [[Aurora Dashboard]]"
+    }
+  ];
+
+  /* ------------------------------------------------------------------ *
+   * Rendering the demo
+   * ------------------------------------------------------------------ */
+
+  var state = { trail: "verbatim", footer: "verbatim", compare: false, showSrc: true, blockStrip: false };
+  var POLICIES = ["verbatim", "plain", "flattened", "live"];
+  var POLICY_LABEL = { verbatim: "verbatim", plain: "plain", flattened: "flattened", live: "live" };
+
+  function segText(seg, surface) {
+    if (surface === "trail") {
+      return state.blockStrip ? stripPerKind(seg.src, seg.kind) : stripBlockPrefix(seg.src);
+    }
+    return stripPerKind(seg.src, seg.kind);
+  }
+
+  /* One lineage row: gutter marker, then a segment per ancestor. */
+  function lineageRow(chain, surface, policy) {
+    var row = el("div", undefined, "row is-lineage");
+
+    var marker = el("span", undefined, "marker");
+    marker.appendChild(svg(surface === "trail" ? GLYPHS.zoomOut : glyphFor(chain[0])));
+    row.appendChild(marker);
+
+    var content = el("span", undefined, "content");
+    row.appendChild(content);
+
+    var segs = surface === "trail"
+      ? [{ kind: "paragraph", src: "Weekly log", file: true }].concat(chain)
+      : chain.slice();
+
+    segs.forEach(function (seg, i) {
+      if (i > 0 && surface === "trail") {
+        var sep = el("span", undefined, "sep");
+        sep.setAttribute("aria-hidden", "true");
+        sep.appendChild(svg(GLYPHS.chevron));
+        content.appendChild(sep);
+      }
+      var s = el("span", undefined, "seg");
+      s.setAttribute("role", "link");
+      s.tabIndex = 0;
+      if (i > 0) {
+        if (seg.ordinal) {
+          s.appendChild(el("span", seg.ordinal, "seg-ord"));
+        } else {
+          var icon = el("span", undefined, "seg-icon");
+          icon.appendChild(svg(glyphFor(seg)));
+          s.appendChild(icon);
+        }
+      }
+      if (seg.file) s.appendChild(document.createTextNode(seg.src));
+      else paint(s, segText(seg, surface), policy);
+      content.appendChild(s);
+    });
+
+    return row;
+  }
+
+  /* The referencing node beneath a footer chain — always fully rendered. */
+  function referenceRow(src) {
+    var row = el("div", undefined, "row is-reference");
+    var marker = el("span", undefined, "marker");
+    marker.appendChild(svg(GLYPHS.bullet));
+    row.appendChild(marker);
+    var content = el("span", undefined, "content");
+    paint(content, stripBlockPrefix(src), "live");
+    row.appendChild(content);
+    return row;
+  }
+
+  function variantBlock(entry, surface, policy, labelled) {
+    var v = el("div", undefined, "variant");
+    v.dataset.policy = policy;
+    v.appendChild(el("span", labelled ? POLICY_LABEL[policy] : "", "vlabel"));
+    var body = el("div");
+    var chainHost = surface === "trail" ? el("div", undefined, "trail-wrap") : body;
+    chainHost.appendChild(lineageRow(entry.chain, surface, policy));
+    if (surface === "trail") body.appendChild(chainHost);
+    if (surface === "footer") body.appendChild(referenceRow(entry.ref));
+    v.appendChild(body);
+    return v;
+  }
+
+  function exampleBlock(entry, surface) {
+    var box = el("div", undefined, "example");
+    box.appendChild(el("div", entry.caption, "caption"));
+
+    if (state.showSrc) {
+      var src = el("div", undefined, "src");
+      entry.chain.forEach(function (seg) {
+        src.appendChild(el("span", seg.src, "seg-src"));
+      });
+      if (surface === "footer") src.appendChild(el("span", entry.ref, "seg-src"));
+      box.appendChild(src);
+    }
+
+    var canvas = el("div", undefined, "canvas");
+    if (state.compare) {
+      POLICIES.forEach(function (p) { canvas.appendChild(variantBlock(entry, surface, p, true)); });
+    } else {
+      canvas.appendChild(variantBlock(entry, surface, state[surface], false));
+    }
+    box.appendChild(canvas);
+    return box;
+  }
+
+  function renderExamples() {
+    [["trail", "trailExamples"], ["footer", "footerExamples"]].forEach(function (pair) {
+      var host = document.getElementById(pair[1]);
+      host.textContent = "";
+      CORPUS.forEach(function (entry) {
+        if (entry.trailOnly && pair[0] === "footer") return;
+        host.appendChild(exampleBlock(entry, pair[0]));
+      });
+    });
+  }
+
+  /* ---- controls ---- */
+
+  document.querySelectorAll(".seg-group").forEach(function (group) {
+    var target = group.dataset.target;
+    POLICIES.forEach(function (p) {
+      var b = el("button", POLICY_LABEL[p]);
+      b.type = "button";
+      b.dataset.value = p;
+      b.setAttribute("aria-pressed", String(state[target] === p));
+      b.addEventListener("click", function () {
+        state[target] = p;
+        group.querySelectorAll("button").forEach(function (other) {
+          other.setAttribute("aria-pressed", String(other.dataset.value === p));
+        });
+        renderExamples();
+      });
+      group.appendChild(b);
+    });
+  });
+
+  function syncGroups() {
+    document.querySelectorAll(".seg-group").forEach(function (g) {
+      g.dataset.disabled = String(state.compare);
+    });
+  }
+
+  document.getElementById("compare").addEventListener("change", function (e) {
+    state.compare = e.target.checked;
+    syncGroups();
+    renderExamples();
+  });
+
+  document.getElementById("showSrc").addEventListener("change", function (e) {
+    state.showSrc = e.target.checked;
+    renderExamples();
+  });
+
+  document.getElementById("blockStrip").addEventListener("change", function (e) {
+    state.blockStrip = e.target.checked;
+    renderExamples();
+  });
+
+  syncGroups();
+  renderExamples();
+})();
+</script>
