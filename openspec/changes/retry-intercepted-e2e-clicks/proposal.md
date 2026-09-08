@@ -21,12 +21,17 @@ change.
 ## What Changes
 
 - `clickClear` treats an intercepted click as retriable alongside a stale element
-  reference, inside the existing four-attempt bound and its existing pauses.
-- The retriable-failure decision moves into a named predicate so the two admitted failure
-  modes, and the reason each is admitted, sit in one place.
-- `00-smoke` gains a harness self-test that drives a real intercepted click through
-  `clickClear` and asserts both halves of the contract: the retry path runs, and a click
-  that stays blocked still fails as an interception rather than as a timeout.
+  reference, with the same pauses and the same re-query and re-centre.
+- The retry decision moves into `clickAttemptBudget`, which returns the number of attempts
+  a failure is worth — four for staleness, two for interception, none for anything else —
+  so each admitted mode carries its own bound and its own reason.
+- Interception gets two attempts and not four because of what an attempt costs there:
+  `docs/research/24-e2e-click-retry-costs.md` measures it at ~15 s, four of which overrun
+  the 60 s mocha per-test budget and replace the error naming the covering element with a
+  bare timeout.
+- `00-smoke` gains two harness self-tests: one on the budget itself, using the verbatim
+  errors each mode was observed with, and one that blocks a real click for the whole call
+  and asserts it still fails as an interception.
 
 ## Capabilities
 
@@ -44,7 +49,10 @@ so the change declares `skip_specs: true`.
 ## Impact
 
 - `e2e/helpers.ts` — `clickClear` and the new predicate beside it.
-- `e2e/specs/00-smoke.e2e.ts` — one added test, in the harness's own spec rather than in a
-  feature group, because what it verifies is the harness.
+- `e2e/specs/00-smoke.e2e.ts` — two added tests, in the harness's own spec rather than in a
+  feature group, because what they verify is the harness. The blocked-click one costs ~30 s,
+  in the smallest group and off the matrix's critical path.
+- `docs/research/24-e2e-click-retry-costs.md` — new, holding the figures both bounds rest
+  on.
 - No `src/` change, no plugin behaviour change, no change to any spec under
   `openspec/specs/`.

@@ -481,6 +481,44 @@ export async function dispatchSelectOnlyRanges(
 }
 
 /**
+ * How many attempts a failed click is worth, by failure mode — 0 for a failure
+ * that is simply real. Exactly two modes are retried, each for its own reason,
+ * and each with the bound its own cost allows; see
+ * `docs/research/24-e2e-click-retry-costs.md` for the figures behind the two
+ * numbers.
+ *
+ * A STALE element reference means the target was rebuilt between the query and
+ * the click — the race described on `clickClear` below, which re-querying
+ * answers. An attempt costs a query and a pause, so it gets four. Observed on
+ * CI on both platforms, and more often once the footer had controls that
+ * re-render it.
+ *
+ * An INTERCEPTED click means app chrome stood over the target: observed as the
+ * phone-viewport file-explorer drawer over the footer icon, on a tree that had
+ * already passed the full matrix twice. Note what does NOT fix it — WebdriverIO's
+ * own `click` already re-scrolls to centre and clicks again on this error,
+ * immediately, and that second click is the one that failed. What this loop adds
+ * over it is the pause, and settling chrome is a thing only time removes.
+ *
+ * That second click is also why interception gets two attempts and not four:
+ * chromedriver spends its own budget before refusing, so an attempt here costs
+ * seconds rather than milliseconds, and four of them overrun the mocha per-test
+ * timeout — turning a real failure that names the element covering the target
+ * into a bare timeout that names nothing. Two stays well inside the budget, and
+ * the first attempt's own wait already exceeds by far what settling chrome
+ * needs.
+ */
+export function clickAttemptBudget(error: unknown): number {
+  const message = String(error);
+  if (message.includes('stale')) return 4;
+  if (message.includes('intercepted')) return 2;
+  return 0;
+}
+
+/** Waited between attempts. A retry that does not wait is the one that already failed. */
+const CLICK_RETRY_PAUSE_MS = 250;
+
+/**
  * Scrolls `selector` clear of the app's fixed chrome and clicks it.
  *
  * `element.click()` scrolls too, but to the nearest edge — which on the mobile
@@ -495,18 +533,13 @@ export async function dispatchSelectOnlyRanges(
  * left the first handle pointing at a node no longer in the document — a "stale
  * element reference" that reads like a test bug and is really a race. Observed
  * on CI, on a commit whose only changes were documentation.
+ *
+ * Re-querying narrows that window without closing it — a render can start
+ * between the second query and the click as easily as between the first and the
+ * scroll — so the whole attempt is retried, as many times as
+ * `clickAttemptBudget` allows the failure and no more.
  */
 export async function clickClear(selector: string): Promise<void> {
-  // Retried, because re-querying after the scroll narrows the window and does
-  // not close it. The footer rebuilds its whole subtree on every render, and a
-  // render can start between the second query and the click as easily as
-  // between the first and the scroll — a scroll is itself one of the things
-  // that starts one, since CodeMirror rebuilding its viewport recreates the
-  // widget the footer lives in. Observed on CI on both platforms, and more
-  // often once the footer had controls that re-render it.
-  //
-  // Four attempts rather than one, and only for staleness: any other failure is
-  // a real one and is thrown on the spot.
   for (let attempt = 0; ; attempt++) {
     try {
       await (await $(selector)).scrollIntoView({ block: 'center' });
@@ -514,8 +547,8 @@ export async function clickClear(selector: string): Promise<void> {
       await (await $(selector)).click();
       return;
     } catch (error) {
-      if (attempt >= 3 || !String(error).includes('stale')) throw error;
-      await browser.pause(250);
+      if (attempt >= clickAttemptBudget(error) - 1) throw error;
+      await browser.pause(CLICK_RETRY_PAUSE_MS);
     }
   }
 }
