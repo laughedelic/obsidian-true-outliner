@@ -347,24 +347,29 @@ function drawnGuideDepths(
  * chrome already answers "where am I"), and a guide the reader asked to see
  * must not vanish because of either.
  */
-function visibilityContext(state: EditorState, modes: DecorationSource, facts: DocFacts): GuideVisibilityContext {
+function visibilityContext(
+  state: EditorState,
+  modes: DecorationSource,
+  facts: DocFacts,
+): GuideVisibilityContext {
   const needsCaret = modes.guideVisibility === 'cursor';
   return {
     visibility: modes.guideVisibility,
     hideSingleRoot: modes.guideHideSingleRoot,
     singleRoot: facts.singleRoot,
-    caretDepthsByLine: needsCaret ? caretDepths(state) : null,
+    caretDepthsByLine: needsCaret ? caretDepthsByLine(state) : null,
   };
 }
 
 const caretDepthsCache = new WeakMap<EditorState, ReadonlyMap<number, ReadonlySet<number>>>();
 
 /**
- * The primary caret's strict-ancestor depths, cached per state for the reason
- * the trail is: two consumers read it on the same render, and a CM6 state fixes
- * the document and the selection together.
+ * Per line, the depths at which that line is inside one of the primary caret's
+ * strict ancestors, cached per state for the reason the trail is: two consumers
+ * read it on the same render, and a CM6 state fixes the document and the
+ * selection together.
  */
-function caretDepths(state: EditorState): ReadonlyMap<number, ReadonlySet<number>> {
+function caretDepthsByLine(state: EditorState): ReadonlyMap<number, ReadonlySet<number>> {
   const cached = caretDepthsCache.get(state);
   if (cached) return cached;
   const head = state.selection.main.head;

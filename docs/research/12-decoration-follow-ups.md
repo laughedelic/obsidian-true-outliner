@@ -530,16 +530,35 @@ itself a nested list item.
 
 ### Layer configurability: everything optional except indentation
 
-Make most of the decoration system configurable and optional. Indentation is the one
-essential layer (though its **unit size should be configurable** — today it's the fixed
-`--to-decor-unit` fallback of 1.5rem); everything else should be independently
-switchable without breaking the indentation underneath:
+**Partly closed 2026-09-08** by `outline-appearance-settings`, which took the unit and the
+whole guide layer. What it did, and what it deliberately left:
 
-- **Guide lines and marker icons toggleable separately** — each layer off entirely, with
-  the others unaffected. (The gutter-reservation question resurfaces here: today the
+- **The unit is a preset ladder**, defaulting narrower on a phone or tablet. The rungs are
+  measured against the grid's floor on both device classes
+  ([22](22-outline-unit-width.md)), and a setting reaches the declaration through a property
+  of its own so a snippet still wins over it.
+- **The guide layer has an off state**, plus a cursor-scoped one and a qualifier that drops
+  the outermost guide under a single root. Turning it off also lifts the native-guide
+  suppression, since there is then nothing of ours for a native line to double up with.
+- **Guide thickness and intensity are presets** over declarations that hold every value, and
+  the accent's width follows the guide's.
+- **Still open**: everything about MARKERS below — the icon layer's own off switch and the
+  gutter-reservation question that comes with it, per-kind icons, style variants, and the
+  bullet-style set. The single-root qualifier also does not cascade: a single root with a
+  single child repeats the shape one level down and keeps its guide, deliberately, so the
+  visible ladder never depends on content several levels away. Whether that deeper case is
+  worth a rule of its own is unanswered.
+
+Make most of the decoration system configurable and optional. Indentation is the one
+essential layer; everything else should be independently switchable without breaking the
+indentation underneath:
+
+- **Marker icons toggleable as a layer** — off entirely, with the others unaffected. (The
+  gutter-reservation question resurfaces here: today the
   marker gutter is reserved unconditionally so `markerVisibility` never reflows text;
   turning icons off *as a layer* could legitimately drop the gutter too — a different
-  contract than hiding some icons, worth deciding explicitly.)
+  contract than hiding some icons, worth deciding explicitly.) Guides got their own off
+  switch above; the markers' is what is left.
 - **Which icons to show, and their style** — extend the existing `markerVisibility` axis
   toward per-kind selection, style variants, and possibly **custom icons per node kind**.
   Folds in the per-level heading markers idea (H1–H6, validated in the wild by
@@ -557,10 +576,9 @@ switchable without breaking the indentation underneath:
   confirmed effective in Live Preview, so a bullet-style setting is variables only. Folded
   into [16-native-list-decoration.md](16-native-list-decoration.md)'s phase 3 so lists and
   blocks get one marker-appearance surface rather than two.
-- **The indentation unit** gets its prerequisite from phase 1 there: `--to-decor-unit` has to
-  become a real declaration before it can be pushed into `--list-indent`. That change stops at
-  the declaration and leaves the unit fixed — making it user-configurable stays here, with the
-  rest of this entry.
+- **The indentation unit** got its prerequisite from phase 1 there — `--to-decor-unit` became a
+  real declaration before it could be pushed into `--list-indent` — and
+  `outline-appearance-settings` then made it a setting. Closed.
 
 User CSS snippets remain the escape hatch for anything finer-grained than whatever
 settings surface we commit to (design.md Non-Goals) — the settings axis should stay
@@ -569,8 +587,8 @@ small and opinionated rather than mirror every CSS knob.
 The `hierarchy-position-indicators` change took the first bite of this: its two settings
 (`guideHighlight`, `markerHighlight`) are independently switchable and its appearance
 is driven by `--to-decor-accent`/`--to-trail-width`, so retuning the look needs a snippet
-rather than another setting. The larger "every layer optional, indentation unit configurable"
-work above is untouched by it.
+rather than another setting. `outline-appearance-settings` took the second, above; what is
+left of "every layer optional" is the marker layer.
 
 ### Drawing the ancestor trail's segments along native list columns
 

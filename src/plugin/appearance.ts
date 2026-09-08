@@ -1,5 +1,6 @@
 /**
- * The appearance settings, published to the document as custom properties.
+ * What the settings publish to the DOCUMENT: three custom properties, and one
+ * class for the state where the guide layer draws nothing.
  *
  * This is the whole mechanism for the unit step, the guide's thickness and its
  * intensity: there is no decoration rebuild, no per-view sweep and no
@@ -22,6 +23,11 @@
  * `body` rather than the editor's own DOM, because the footer is not made of
  * `.cm-line`s and both surfaces inherit from there — the same reason the tokens
  * are declared at `body` in the first place.
+ *
+ * Guide VISIBILITY is otherwise not published here at all: which depths a line
+ * draws is decided where the gradient layers are built (`decorations.ts`). The
+ * one exception is the class below, which is a statement about the whole layer
+ * rather than about a line.
  */
 
 import {

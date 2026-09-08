@@ -124,6 +124,7 @@ describe('outline appearance settings', function () {
 
   it('moves the resolved token, on both surfaces, with no note touched', async function () {
     const before = await h.getBuffer();
+    let lightStrong = '';
 
     await set('outlineUnit', 'compact');
     const compact = await h.publishedUnit();
@@ -142,11 +143,20 @@ describe('outline appearance settings', function () {
     // of colour, not of weight.
     expect(await resolveLength('--to-trail-width')).toBe(medium);
 
-    await set('guideIntensity', 'subtle');
-    const subtle = alphaOf(await guideColor());
-    await set('guideIntensity', 'strong');
-    const strong = alphaOf(await guideColor());
-    expect(strong).toBeGreaterThan(subtle);
+    // Intensity is a proportion of the theme's own faint text, so the ordering
+    // has to hold in a light theme and a dark one, and the colour itself has to
+    // come from the theme rather than from us.
+    for (const dark of [false, true]) {
+      await h.setTheme(dark);
+      await set('guideIntensity', 'subtle');
+      const subtle = await guideColor();
+      await set('guideIntensity', 'strong');
+      const strong = await guideColor();
+      expect(alphaOf(strong)).toBeGreaterThan(alphaOf(subtle));
+      if (dark) expect(strong).not.toBe(lightStrong);
+      else lightStrong = strong;
+    }
+    await h.setTheme(false);
 
     // Nothing above is a document change.
     expect(await h.getBuffer()).toBe(before);
@@ -175,6 +185,11 @@ describe('outline appearance settings', function () {
   });
 
   it('reaches a second, inactive pane — which no decoration rebuild does', async function () {
+    // Desktop only, for the reason `IS_MOBILE_RUN` records about drag-based
+    // specs: a phone's workspace has no split to open, so under mobile
+    // emulation this would be measuring something that does not exist.
+    if (h.IS_MOBILE_RUN) this.skip();
+
     // `forceRedraw` (main.ts) applies a setting by toggling outline mode in the
     // ACTIVE view, so a second pane keeps rendering the old one until something
     // else wakes it. A property on `body` has no such limit: every pane

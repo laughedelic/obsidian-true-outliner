@@ -95,6 +95,15 @@ first, because the gutter's checkbox term is larger on mobile
 ([21-marker-text-gap.md](../../../docs/research/21-marker-text-gap.md)) and the floor moves with
 it. The specs state the invariant; the numbers land in the research note and then in the code.
 
+**Measured, and one rung lower than expected.** The floor is 22.0px on desktop and 24.4px on
+mobile, bound by a task's checkbox, so the ladder is `1.625rem` / `1.75rem` / `2rem` / `2.5rem`
+with `1.625rem` as the mobile default. `1.5rem` — the obvious bottom rung, and this layer's own
+previous default — puts a nested task's checkbox 0.4px left of its parent's text on mobile. The
+first measurement pass missed that by sweeping a fixture long enough that CodeMirror never
+rendered its task list; the e2e case, which re-derives the relationship per device class, is what
+caught it. Both are recorded in
+[22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md).
+
 ### D4 — The guide's own width becomes a declaration, and the accent follows it
 
 `GUIDE_WIDTH` (`chrome-line.ts`) is the last geometry constant in the chrome vocabulary held as a
@@ -204,6 +213,6 @@ that hand-sync is a known cost of the existing shape, not something this change 
 
 ## Open Questions
 
-- Whether the ladder gets a rung above `2rem`. Nothing wider has been rendered and read; the
-  measurement pass either endorses one or the ladder stops there. Neither answer changes a
-  requirement, a surface, or the task breakdown.
+- ~~Whether the ladder gets a rung above `2rem`.~~ **Answered by the measurement pass**:
+  `2.5rem` was rendered and read, is safe, and is offered as the wide rung. A four-deep list
+  spends real width on chrome there, which is the reader's choice to make and not a default.
