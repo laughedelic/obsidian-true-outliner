@@ -1,0 +1,18 @@
+manual pass: looks good. some adjustments:
+
+* ribbon can be edited manually, but status bar can't. so let's add a setting toggle to show the status bar chip: none, text (current), icon (what we have in the ribbon. make icon the default. we probably need another icon for the off state? I don't want to use highlight in the status bar (noisy). 
+* let's drop the toast notification. it was useful before, but now is redundant and a bit annoying.
+
+---
+
+Your branch was restacked into GitHub stack #82, check the remote branch and the PR state, and its history was rewritten (rebased in place, so this worktree is already correct and in sync — don't reset). Run `gh stack checkout <PR#>` once to pick up local stack tracking. From now on rebase with `gh stack rebase`, never plain `git rebase` — a hand rebase of one layer strands every layer above it.
+
+---
+
+<task-notification>
+<task-id>bgcthmq5o</task-id>
+<tool-use-id>toolu_01Laoi6R3gviaceXeiPhH8Kc</tool-use-id>
+<output-file>/private/tmp/claude-502/-Users-laughedelic-Code-obsidian-true-outliner/e4229cb5-cf73-4d17-abb7-bfc24905b7f4/tasks/bgcthmq5o.output</output-file>
+<status>completed</status>
+<summary>Background command "Narrow runs on the 10 edited specs" completed (exit code 0)</summary>
+</task-notification>

@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "6ca1eaeb9210",
+  "strategy": "manual-commit",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "e2e/helpers.ts",
+    "e2e/specs/10-outline-mode.e2e.ts",
+    "e2e/specs/11-outline-mode-surfaces.e2e.ts",
+    "e2e/specs/30-keyboard-grammar.e2e.ts",
+    "e2e/specs/50-decorations.e2e.ts",
+    "e2e/specs/51-guides-gradient.e2e.ts",
+    "e2e/specs/52-block-markers-icons.e2e.ts",
+    "e2e/specs/53-decoration-contracts.e2e.ts",
+    "e2e/specs/54-widget-rendered-lines.e2e.ts",
+    "e2e/specs/70-footer-enforcement.e2e.ts",
+    "e2e/specs/71-footer-lifecycle.e2e.ts",
+    "e2e/specs/75-footer-behaviour.e2e.ts",
+    "e2e/specs/80-outline-zoom.e2e.ts",
+    "openspec/changes/per-tab-outline-mode/specs/e2e-verification/spec.md",
+    "openspec/changes/per-tab-outline-mode/specs/outline-mode/spec.md",
+    "openspec/specs/e2e-verification/spec.md",
+    "openspec/specs/outline-mode/spec.md",
+    "src/plugin/main.ts",
+    "src/plugin/mode-registry.ts",
+    "styles.css",
+    "tests/plugin.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6c/a1eaeb9210/0/metadata.json",
+      "transcript": "/6c/a1eaeb9210/0/full.jsonl",
+      "compact_transcript": "/6c/a1eaeb9210/0/transcript.jsonl",
+      "content_hash": "/6c/a1eaeb9210/0/content_hash.txt",
+      "prompt": "/6c/a1eaeb9210/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 478720,
+    "cache_read_tokens": 13564188,
+    "output_tokens": 26267,
+    "api_call_count": 28
+  }
+}
