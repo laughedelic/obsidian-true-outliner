@@ -9,11 +9,16 @@
       `veto` and the reason each carries; verify both FAIL today, and that the first-node case
       fails as the measured whole-document `rewrite` rather than as a `pass`, which is what
       makes the deletion-path hazard visible in the test log.
-- [ ] 1.3 Add the negative controls that fix the shape of the fix: a case at a column INSIDE a
-      heading's `#` run asserting the edit stays `within-node-edit` and passes, and a case for
-      an existing list-item merge asserting its `rewrite` is unchanged. Negative control: both
-      must fail if the widening is written as "drop the kind test" instead of "admit
-      `heading`".
+- [ ] 1.3 Add a case at a column INSIDE a heading's `#` run asserting the edit stays
+      `within-node-edit` and passes, and a case for an existing list-item merge asserting its
+      `rewrite` is unchanged. These two are regression cover, NOT negative controls: measured,
+      both hold with the kind guards dropped entirely, so neither can detect that mistake.
+- [ ] 1.4 Add the control that does detect it: Backspace at the content start of an INDENTED
+      paragraph, through both gates, asserting `within-node-edit` and `pass`. Negative control:
+      it must fail — measured as `boundary-crossing-edit` and a `rewrite` merge into the
+      predecessor — if the widening is written as "drop the kind test" instead of "admit
+      `heading`", because `contentColumnCh` reads a paragraph's leading indentation as its
+      content prefix. This is the task that keeps the paragraph-indentation question closed.
 
 ## 2. Widen both gates together
 

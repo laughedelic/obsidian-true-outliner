@@ -34,8 +34,10 @@ read `{pass: 0, rewrite: 0, veto: 0}`: no verdict was computed at all.
 The same keypress behaves identically with and without a zoom scope active, so this is base
 editing behaviour rather than anything zoom introduces. Under a zoom rooted on that heading the
 visible scope collapses onto the one line, because `##Two` is a paragraph and owns no section —
-the symptom recorded alongside the zoom editing-boundary pass in `24-zoom-editing-boundary.md`,
-which leaves the fix to this change.
+the symptom recorded alongside the zoom editing-boundary pass in
+[PR #76](https://github.com/laughedelic/obsidian-true-outliner/pull/76), which leaves the fix to
+this change. That note is not on this branch, and nothing here depends on it: the trace below
+stands on its own.
 
 ## Where it leaves the funnel
 
@@ -106,6 +108,25 @@ Admitting `heading` alongside `list-item` at both gates — two conditions, noth
 Both vetoes come from rules already written: `mergeNodes` refuses to absorb a heading, and a
 heading with no content-space predecessor hits the first-node `veto-no-predecessor` branch. The
 existing unit suite — 1213 tests — passes unchanged under the widening.
+
+## Which controls detect a dropped kind guard
+
+The gates could equally be fixed by dropping the kind test rather than admitting `heading`
+beside `list-item` — every kind's content-start column is already computed correctly. The two
+obvious regression cases do not tell the two apart. Measured, with the guards dropped entirely:
+
+| gesture | admit `heading` | drop the kind test |
+| --- | --- | --- |
+| Backspace inside a heading's `#` run | `within-node-edit` / `pass` | `within-node-edit` / `pass` |
+| Backspace at a list item's content start | `boundary-crossing-edit` / `rewrite` | `boundary-crossing-edit` / `rewrite` |
+| Backspace at an INDENTED paragraph's content start | `within-node-edit` / `pass` | `boundary-crossing-edit` / `rewrite` |
+
+The `#`-run case is unmoved because `isContentStartCh` already rejects that column whatever the
+kind, and the list-item case is unmoved because it was admitted either way. Only the indented
+paragraph discriminates: `contentColumnCh` reads leading indentation as a content prefix, so
+`  indented para` resolves a content-start column at 2 and a dropped guard turns Backspace there
+into a merge into the predecessor. That is the case worth a test, and it is what keeps the
+paragraph-indentation question closed rather than silently answered.
 
 ## Heading content columns
 

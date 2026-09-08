@@ -46,6 +46,14 @@ question this change does not open. Admitting `heading` explicitly keeps the wid
 wide as the measurement that justifies it, and leaves the paragraph question visible for whoever
 opens it.
 
+The distinction needs a control, and the obvious two do not provide one: measured, a caret
+inside a heading's `#` run and an existing list-item merge both behave identically under either
+form of the widening, because the first is rejected by the column test whatever the kind and the
+second is admitted either way. Only an indented paragraph separates them — `contentColumnCh`
+reads its leading whitespace as a content prefix, so a dropped guard turns Backspace at its
+content start into a merge. The table is in the research note, and the task list carries that
+case as the control.
+
 **Reuse the veto rules already written; add no new ones.** `mergeNodes` already rejects any merge
 whose absorbed node is a heading, and the recognizer's existing first-node branch already covers
 a heading with no content-space predecessor. The two vetoes that result carry existing reasons
