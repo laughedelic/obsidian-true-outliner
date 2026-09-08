@@ -480,12 +480,39 @@ export async function dispatchSelectOnlyRanges(
   }, ranges);
 }
 
+/** The click failures worth another attempt, and nothing else. */
+export type ClickFailureMode = 'stale' | 'intercepted';
+
+/** Attempts each mode is worth, spent independently — see `spendClickAttempt`. */
+export const CLICK_ATTEMPTS: Record<ClickFailureMode, number> = { stale: 4, intercepted: 2 };
+
 /**
- * How many attempts a failed click is worth, by failure mode — 0 for a failure
- * that is simply real. Exactly two modes are retried, each for its own reason,
- * and each with the bound its own cost allows; see
- * `docs/research/29-e2e-click-retry-costs.md` for the figures behind the two
- * numbers.
+ * Which retriable failure this is, or `null` for one that is simply real.
+ *
+ * Both are matched on their full W3C error-code phrase rather than a word from
+ * it: `intercepted` alone would hand the expensive retry below to any unrelated
+ * message that happens to contain it, and the promise this helper makes is
+ * narrower than that.
+ */
+export function clickFailureMode(error: unknown): ClickFailureMode | null {
+  const message = String(error);
+  if (message.includes('stale element reference')) return 'stale';
+  if (message.includes('element click intercepted')) return 'intercepted';
+  return null;
+}
+
+/**
+ * Records one failed attempt against its mode and answers whether the click is
+ * worth another. Separate from `clickClear` so the whole retry decision, the
+ * bookkeeping included, can be driven directly — see `00-smoke`.
+ *
+ * The tally is PER MODE, not one running attempt count, because the two modes
+ * cost different things and a shared counter spends one mode's budget on the
+ * other. A click that goes stale twice and is then intercepted has used none of
+ * its interception budget, and must still get the waited retry that
+ * interception is admitted for. The overall bound stays finite at the sum of
+ * the two, and the worst case — four stale attempts and two intercepted ones —
+ * stays inside the mocha per-test budget.
  *
  * A STALE element reference means the target was rebuilt between the query and
  * the click — the race described on `clickClear` below, which re-querying
@@ -506,17 +533,42 @@ export async function dispatchSelectOnlyRanges(
  * timeout — turning a real failure that names the element covering the target
  * into a bare timeout that names nothing. Two stays well inside the budget, and
  * the first attempt's own wait already exceeds by far what settling chrome
- * needs.
+ * needs. The figures are in `docs/research/29-e2e-click-retry-costs.md`.
  */
-export function clickAttemptBudget(error: unknown): number {
-  const message = String(error);
-  if (message.includes('stale')) return 4;
-  if (message.includes('intercepted')) return 2;
-  return 0;
+export function spendClickAttempt(
+  spent: Record<ClickFailureMode, number>,
+  error: unknown,
+): boolean {
+  const mode = clickFailureMode(error);
+  if (mode === null) return false;
+  spent[mode] += 1;
+  return spent[mode] < CLICK_ATTEMPTS[mode];
 }
 
 /** Waited between attempts. A retry that does not wait is the one that already failed. */
 const CLICK_RETRY_PAUSE_MS = 250;
+
+/**
+ * Collapses the phone UI's left drawer if it is open.
+ *
+ * On the phone viewport the file explorer is a DRAWER, not a sidebar: open, it
+ * covers 327 of the 390 available pixels, including the centre of the editor
+ * where `clickClear` puts its target. It is open early in a session — measured
+ * open at (0, 0) 327x844 while `75-footer-behaviour` was clicking at (195, 412),
+ * `leftSplit.collapsed` reading false — and it closes on its own later, which is
+ * what made the resulting CI failure look like a race.
+ *
+ * It is not one. A drawer that is open is open, and no amount of waiting inside
+ * a single test closes it; the click has to be made against a workspace with the
+ * editor actually on screen. Nothing in this suite asserts the drawer's state,
+ * so collapsing it is free.
+ */
+async function collapseLeftDrawer(): Promise<void> {
+  await browser.executeObsidian(({ app }) => {
+    const left = app.workspace.leftSplit;
+    if (left && !left.collapsed) left.collapse();
+  });
+}
 
 /**
  * Scrolls `selector` clear of the app's fixed chrome and clicks it.
@@ -537,17 +589,19 @@ const CLICK_RETRY_PAUSE_MS = 250;
  * Re-querying narrows that window without closing it — a render can start
  * between the second query and the click as easily as between the first and the
  * scroll — so the whole attempt is retried, as many times as
- * `clickAttemptBudget` allows the failure and no more.
+ * `spendClickAttempt` allows each failure mode and no more.
  */
 export async function clickClear(selector: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
+  const spent: Record<ClickFailureMode, number> = { stale: 0, intercepted: 0 };
+  for (;;) {
     try {
+      if (IS_MOBILE_RUN) await collapseLeftDrawer();
       await (await $(selector)).scrollIntoView({ block: 'center' });
       await browser.pause(150);
       await (await $(selector)).click();
       return;
     } catch (error) {
-      if (attempt >= clickAttemptBudget(error) - 1) throw error;
+      if (!spendClickAttempt(spent, error)) throw error;
       await browser.pause(CLICK_RETRY_PAUSE_MS);
     }
   }

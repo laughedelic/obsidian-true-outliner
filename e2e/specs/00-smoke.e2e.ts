@@ -4,15 +4,24 @@
  * e2e/wdio.mobile-emulation.conf.mts silently running in desktop mode.
  */
 
-import { browser, expect } from '@wdio/globals';
+import { $, browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import {
   openNote,
   getBuffer,
   readVaultFile,
   clickClear,
-  clickAttemptBudget,
+  clickFailureMode,
+  spendClickAttempt,
+  CLICK_ATTEMPTS,
 } from '../helpers.js';
+
+/** The two errors, verbatim from the runs each mode was observed on. */
+const STALE = 'stale element reference: stale element not found in the current frame';
+const INTERCEPTED =
+  'WebDriverError: element click intercepted: Element <svg class="to-backlinks-icon"> is not' +
+  ' clickable at point (195, 412). Other element would receive the click:' +
+  ' <div class="nav-files-container node-insert-event">';
 
 const BLOCKER_ID = 'to-e2e-click-blocker';
 
@@ -42,26 +51,35 @@ describe('smoke', function () {
   /**
    * `clickClear` retries an intercepted click, because the interception that
    * broke `75-footer-behaviour` on CI was app chrome that a moment's wait
-   * removes. The flake does not reproduce on demand, so these two cover what
-   * can be pinned: that the decision admits the error CI actually reported, and
-   * that a click which stays blocked still fails as itself.
+   * removes. The flake does not reproduce on demand, so these cover what can be
+   * pinned: the decision, its bookkeeping, and the wiring between the two.
    */
-  it('budgets attempts by failure mode, from the errors CI reported', function () {
-    // Verbatim from the runs each mode was observed on.
-    expect(
-      clickAttemptBudget(
-        'stale element reference: stale element not found in the current frame',
-      ),
-    ).toBe(4);
-    expect(
-      clickAttemptBudget(
-        'WebDriverError: element click intercepted: Element <svg class="to-backlinks-icon">' +
-          ' is not clickable at point (195, 412). Other element would receive the click:' +
-          ' <div class="nav-files-container node-insert-event">',
-      ),
-    ).toBe(2);
-    // A real failure, retried none.
-    expect(clickAttemptBudget('no such element: Unable to locate element')).toBe(0);
+  it('classifies the failures CI reported, and nothing else', function () {
+    expect(clickFailureMode(STALE)).toBe('stale');
+    expect(clickFailureMode(INTERCEPTED)).toBe('intercepted');
+    expect(clickFailureMode('no such element: Unable to locate element')).toBe(null);
+    // The word alone is not the error: the phrase is what admits a retry.
+    expect(clickFailureMode('AssertionError: the request was intercepted by the proxy')).toBe(null);
+  });
+
+  /**
+   * The budgets are spent per mode, so a click that goes stale first arrives at
+   * an interception with its interception budget untouched. A single running
+   * attempt count gets this wrong in the direction that matters — it throws the
+   * interception without the waited retry the mode is admitted for.
+   */
+  it("spends each failure mode's budget separately", function () {
+    const spent = { stale: 0, intercepted: 0 };
+    // Stale up to its bound, which is the last one refused.
+    for (let i = 1; i < CLICK_ATTEMPTS.stale; i++) expect(spendClickAttempt(spent, STALE)).toBe(true);
+    expect(spendClickAttempt(spent, STALE)).toBe(false);
+    // Interception still has all of its own.
+    for (let i = 1; i < CLICK_ATTEMPTS.intercepted; i++) {
+      expect(spendClickAttempt(spent, INTERCEPTED)).toBe(true);
+    }
+    expect(spendClickAttempt(spent, INTERCEPTED)).toBe(false);
+    // A real failure is never worth an attempt, spent budget or not.
+    expect(spendClickAttempt({ stale: 0, intercepted: 0 }, 'no such element')).toBe(false);
   });
 
   /**
@@ -69,15 +87,17 @@ describe('smoke', function () {
    * the loop runs to its bound — no race to lose, unlike an uncover-on-a-timer
    * test, which a slow enough runner passes having exercised nothing.
    *
-   * The assertion is that the error survives the retries. Exhausting the bound
-   * is not free (`docs/research/29-e2e-click-retry-costs.md`), and a bound set
-   * too high spends the mocha budget instead, replacing an error that names the
-   * covering element with a timeout that names nothing. Mocha's own per-test
-   * timeout is the other half of the assertion: this test failing that way is
-   * the regression.
+   * A single blocked click is timed first, because the assertions that matter
+   * are both relative to it. `clickClear` must take longer than one attempt,
+   * which is what ties the loop to the budget above rather than leaving the two
+   * verified only in isolation; and it must still fail as an interception, not
+   * as a mocha timeout, which is the risk of retrying something this expensive
+   * at all (`docs/research/29-e2e-click-retry-costs.md`). Mocha's own per-test
+   * timeout is the other half of that second assertion.
    */
-  it('reports a permanently intercepted click as an interception', async function () {
+  it('retries a permanently intercepted click, then reports the interception', async function () {
     await openNote('Notes/Sourdough Log.md');
+    const target = '.workspace-leaf.mod-active .cm-content';
     await browser.executeObsidian((_ctx, id) => {
       const blocker = document.createElement('div');
       blocker.id = id;
@@ -85,17 +105,29 @@ describe('smoke', function () {
       document.body.append(blocker);
     }, BLOCKER_ID);
 
+    let oneAttempt = 0;
+    let elapsed = 0;
     let thrown: unknown;
     try {
-      await clickClear('.workspace-leaf.mod-active .cm-content');
-    } catch (error) {
-      thrown = error;
+      const started = Date.now();
+      await (await $(target)).click().catch(() => undefined);
+      oneAttempt = Date.now() - started;
+
+      const retried = Date.now();
+      try {
+        await clickClear(target);
+      } catch (error) {
+        thrown = error;
+      }
+      elapsed = Date.now() - retried;
     } finally {
       await browser.executeObsidian((_ctx, id) => {
         document.getElementById(id)?.remove();
       }, BLOCKER_ID);
     }
 
-    expect(String(thrown)).toContain('intercepted');
+    expect(String(thrown)).toContain('element click intercepted');
+    // More than one attempt's worth of work, measured against this machine's own.
+    expect(elapsed).toBeGreaterThan(oneAttempt * (CLICK_ATTEMPTS.intercepted - 0.5));
   });
 });

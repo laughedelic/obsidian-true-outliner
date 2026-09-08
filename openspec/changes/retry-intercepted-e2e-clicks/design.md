@@ -1,6 +1,7 @@
 ## Context
 
-See proposal.md — Why. One measurement shapes everything below. WebdriverIO's own
+See proposal.md — Why, including the correction: the observed failure is an open drawer, not
+a race, and the retry below is a safety net rather than the fix. One measurement shapes everything below. WebdriverIO's own
 `click` already handles interception, in `elementClick`
 (`node_modules/webdriverio/build/index.js`, the bundled
 `packages/webdriverio/src/commands/element/click.ts`): on an error whose message contains
@@ -16,8 +17,8 @@ pauses between attempts.
 
 **Goals:**
 
-- Admit interception to the existing retry loop on the same terms as staleness — same four
-  attempts, same pauses, same re-query and re-centre.
+- Admit interception to the existing retry loop — same pauses, same re-query and re-centre —
+  with the attempt bound its own cost allows rather than the one staleness uses.
 - Keep the loop's narrowness legible: a reader should find, next to the code, why exactly
   two failure modes are admitted and what disqualifies a third.
 - Bound the cost of the change with a measurement rather than an argument, since the whole
@@ -25,27 +26,53 @@ pauses between attempts.
 
 **Non-Goals:**
 
-- Dismissing the drawer, or waiting on app chrome to settle, before clicking. That would
-  couple the helper to Obsidian's phone layout for one observed obstruction, and the
-  next one would be a different element.
-- Any general retry-on-error. Every failure mode not named in the predicate keeps throwing
+- Waiting on app chrome to settle before clicking. Waiting is what the retry already does,
+  and the obstruction measured here does not settle.
+- Any general retry-on-error. Every failure mode the classifier does not name keeps throwing
   on its first occurrence.
 - Making the flake reproducible on demand. The drawer's position is a race, and the
   verification below is deliberately built not to depend on reproducing it.
 
 ## Decisions
 
-**A named predicate rather than a widened inline condition.** The condition becomes
-`isRetriableClickFailure(error)`, defined immediately above `clickClear`. Two entries in a
-disjunction is where an inline `||` starts hiding the reasoning, and the reasoning is the
-part worth keeping: each admitted mode carries its own sentence about why waiting helps.
-The alternative — a second `includes` in the `if` — keeps the diff smaller and puts the
-justification for both modes in one undifferentiated comment block.
+**Collapse the drawer, because it is not going to close itself.** Dismissing app chrome was a
+non-goal in the first draft, on the reasoning that it couples the helper to Obsidian's phone
+layout for one observed obstruction. The measurement removed the premise that made that
+reasoning apply: the drawer is not an obstruction passing through, it is a workspace left in
+a state where the editor is off screen, and `clickClear`'s stated job — put the target clear
+of the app's fixed chrome — already covers it. The alternative, collapsing it once in the
+mobile config's `before` hook, is cheaper but only correct while nothing reopens it; doing it
+per click is one round trip that does nothing when the drawer is already closed.
 
-**Match the message substring, as the existing condition does.** `element click
-intercepted` is the W3C error code phrase, and it is the same string WebdriverIO itself
-matches on. Matching `error.name` instead would be tighter but is not what the surrounding
-code does, and the observed error reaches us as a wrapped `WebDriverError` whose name is
+**Keep the interception retry anyway, and stop crediting it.** It no longer has the flake to
+justify it, and the honest options were to drop it or to keep it as a bounded safety net for
+the interceptions that are transient — a notice, a tooltip, a re-layout. It is kept, because
+the mechanism is already there for staleness and the marginal cost is two attempts on a class
+of failure that would otherwise fail outright. What changed is the claim: the change no
+longer says the retry fixes the observed CI failure, and the research note records why not.
+
+**The whole decision leaves the loop, bookkeeping included.** `clickFailureMode` names the
+failure, `CLICK_ATTEMPTS` gives each mode its bound, and `spendClickAttempt` records an
+attempt against its mode and answers whether another is owed; `clickClear` keeps three
+lines. Two things follow. The reasoning has somewhere to live — each admitted mode carries
+its own paragraph on why waiting helps it — and the decision becomes drivable directly,
+which is how the mixed-mode case below is tested at all, since a real browser cannot be made
+to fail stale and then intercepted on demand.
+
+**A tally per mode, not one running attempt count.** The first draft indexed attempts
+globally and compared that index against the failing mode's bound. It is wrong in the
+direction that matters: a click that goes stale twice and is then intercepted has spent
+none of its interception budget, yet a shared counter reads it as spent and throws the
+interception immediately — without the waited retry that interception is admitted for, which
+is the entire change. The overall bound stays finite at the sum of the two, and the worst
+case (four stale attempts and two intercepted) stays inside the mocha per-test budget.
+
+**Match the full error-code phrase, not a word from it.** `element click intercepted` and
+`stale element reference` are the W3C error-code phrases, and the former is the same string
+WebdriverIO itself matches on in `elementClick`. Matching bare `intercepted` would hand an
+expensive retry to any unrelated message containing the word — a real cost here, unlike a
+harmless over-match, since one wrong admission is ~15 s. Matching `error.name` instead would
+be tighter still, but the observed error arrives as a wrapped `WebDriverError` whose name is
 not the code.
 
 **A bound per mode, not one bound for both.** The change was drafted with four attempts for
@@ -63,17 +90,19 @@ before the loop's pause is reached, so attempt 1 clicks some 15 s after attempt 
 more settling time than transient chrome needs, and far more than the three extra attempts
 would have added in the mode where attempts are cheap.
 
-Expressing this as `clickAttemptBudget(error): number` rather than a predicate plus a lookup
-keeps one function answering one question, with `0` meaning "not retriable" and no separate
-boolean to keep in step with it.
+**Verify in three pieces, because no one test carries all of it.** Two are pure and instant,
+needing no session, since the spec imports the functions directly: the classifier against
+the verbatim errors each mode was observed with plus a message that merely contains the word
+`intercepted`, and the bookkeeping driven through a stale-then-intercepted sequence, which is
+the case a real browser cannot be made to produce.
 
-**Verify in two pieces, because one test cannot carry both halves.** The retry decision is
-pinned by asserting `clickAttemptBudget` against the verbatim errors each mode was observed
-with — exact, instant, and needing no session, since the function is pure and the spec
-imports it directly. What that cannot show is that the bound is survivable, so a second test
-covers a real target for the whole call, making every attempt refused deterministically, and
-asserts the failure still arrives as an interception. Mocha's own per-test timeout is the
-other half of that assertion: this test failing that way is the regression it exists for.
+Those two verify the decision in isolation, and on their own would still pass if `clickClear`
+never consulted it — the gap a review caught. So the third covers a real target for the whole
+call, making every attempt refused deterministically, and times a single blocked click first
+so both of its assertions are relative to what one attempt costs on that machine: the call
+must take more than one attempt's worth of work, which is what ties the loop to the budget,
+and must still fail as an interception rather than as a mocha timeout. Mocha's own per-test
+timeout is the other half of that second assertion.
 
 The tempting third design — cover the target and uncover it on a timer, so a later attempt
 succeeds — was rejected. It is unsound in the direction that matters: a runner slow enough
@@ -84,12 +113,16 @@ single non-retrying attempt.
 
 ## Risks / Trade-offs
 
+- **The drawer collapse has no deterministic negative control.** → The open state is itself
+  intermittent: two full-file mobile runs failed in a row, then one passed with the collapse
+  removed. The evidence is the probe taken at the refused click — `leftSplit.collapsed` false
+  and the drawer covering the click point — not a reproduced failure.
 - **A genuinely unclickable element now costs two attempts instead of one** — ~30 s rather
   than ~15 s before it reports. → Half the mocha budget, and the blocked-click self-test
   measures exactly this case on every run, on both platforms, so a future change to either
   bound or to chromedriver's own cost shows up as that test timing out rather than as a
   spec somewhere reporting a timeout instead of its real error.
-- **The predicate could admit a real defect that presents as interception** — a control
+- **The classifier could admit a real defect that presents as interception** — a control
   genuinely drawn under fixed chrome, say. → It still fails, with its own error, after the
   attempts are spent; the helper's leading comment already records that centring is what
   keeps a target out from under the header, so a target that is intercepted at centre on
