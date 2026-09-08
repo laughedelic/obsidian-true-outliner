@@ -44,6 +44,7 @@ describe('persisted plugin data', () => {
     const onDisk = {
       // Non-default on purpose, like the fields below it.
       outlineByDefault: false,
+      statusBarMode: 'text' as const,
       coexistenceWarned: true,
       debugCrossCheck: true,
       // Non-default on purpose: the assertion is that a stored value survives
@@ -79,6 +80,18 @@ describe('persisted plugin data', () => {
     // A non-boolean would otherwise decide every new tab's mode by truthiness.
     for (const bad of [0, 1, 'false', null, [], {}]) {
       expect(normalizePluginData({ outlineByDefault: bad }).outlineByDefault).toBe(true);
+    }
+  });
+
+  it('keeps the status bar chip in one of its three forms', () => {
+    // An unknown state would reach a settings dropdown with no matching option,
+    // and the renderer with no branch to take.
+    expect(normalizePluginData({}).statusBarMode).toBe('icon');
+    for (const good of ['none', 'text', 'icon'] as const) {
+      expect(normalizePluginData({ statusBarMode: good }).statusBarMode).toBe(good);
+    }
+    for (const bad of ['hidden', 'Icon', 7, null, true, {}]) {
+      expect(normalizePluginData({ statusBarMode: bad }).statusBarMode).toBe('icon');
     }
   });
 

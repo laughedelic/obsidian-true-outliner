@@ -80,9 +80,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
       await browser.pause(150);
       await h.screenshotFull(SCREENSHOT_DIR, `real-${slug}-dark`);
 
-      await h.toggleOutlineMode(); // leave mode off for other specs
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
+      await h.setOutlineMode(false);
     }
   });
 
@@ -126,9 +124,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     const deltaNestedDeep = deepRect.left - nestedRect.left;
     expect(deltaNestedDeep).toBeCloseTo(deltaTopNested, 1);
 
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     const topRectOff = await h.getLineRect(2);
     const nestedRectOff = await h.getLineRect(3);
     const deepRectOff = await h.getLineRect(4);
@@ -435,14 +431,9 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('a pure list is byte-identical to outline-mode-off with a position open', async function () {
     const note = 'Scratch/interior-position-pure-list.md';
     await outlineNote(note, '- foo\n  bar\n- next\n');
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     const off = await Promise.all([0, 1, 2].map(async (l) => (await h.getLineRect(l)).left));
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-
+    await h.setOutlineMode(true);
     await h.setCursor(0, '- foo'.length);
     await h.keys.shiftEnter();
     await browser.pause(150);

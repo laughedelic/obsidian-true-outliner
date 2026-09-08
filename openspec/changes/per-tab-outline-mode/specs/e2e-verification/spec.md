@@ -4,8 +4,8 @@
 
 ### Requirement: Outline mode e2e verification
 
-The harness SHALL verify outline-mode lifecycle end-to-end: toggling by command id shows a
-notice and leaves file bytes and mtime unchanged, from every view mode; the toggle acts on the
+The harness SHALL verify outline-mode lifecycle end-to-end: toggling by command id leaves file
+bytes and mtime unchanged, from every view mode; the toggle acts on the
 active tab only; the global default survives an app restart while a tab's manual state does
 not; a fresh install starts with the default on; no per-path mode state is stored; structural
 commands are gated per tab; the indicator surfaces state and toggle the active tab's mode and
@@ -15,8 +15,7 @@ over a manual off alike.
 #### Scenario: Toggle leaves file untouched
 
 - **WHEN** the toggle command runs on an open note and the buffer is saved
-- **THEN** a notice appears and the note's on-disk bytes and mtime equal their pre-toggle
-  values
+- **THEN** the note's on-disk bytes and mtime equal their pre-toggle values
 
 #### Scenario: Toggle is offered in reading view
 
@@ -69,8 +68,8 @@ over a manual off alike.
 - **WHEN** the status bar item and the ribbon icon are read and activated, on desktop and
   under mobile emulation, with two tabs in different states
 - **THEN** each states the active tab's mode before activation, toggles that tab on
-  activation, and both restate the mode when the active tab switches; on mobile no status bar
-  item exists
+  activation, and both restate the mode when the active tab switches; the status bar chip takes
+  each of its three configured forms; on mobile no status bar item exists
 
 #### Scenario: Toggling on from reading view enters editing
 

@@ -90,9 +90,7 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
       await browser.pause(150);
       await h.screenshotFull(SCREENSHOT_DIR, `real-${slug}-dark`);
 
-      await h.toggleOutlineMode(); // leave mode off for other specs
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
+      await h.setOutlineMode(false);
     }
   });
 

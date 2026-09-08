@@ -118,9 +118,16 @@ The plugin SHALL show the ACTIVE tab's outline state in the interface at all tim
 the two public indicator surfaces:
 
 - A status bar item (desktop), stating the active tab's state, that toggles that tab when
-  activated.
+  activated. What it renders SHALL be a setting — an icon (the default), the state in words, or
+  nothing — because Obsidian lets a user hide a ribbon icon from its own menu and offers no
+  equivalent for a plugin's status bar item, so declining this one has to be answerable in the
+  plugin's settings. Set to nothing it SHALL render nothing and SHALL leave the keyboard tab
+  order, and the mode SHALL remain reachable from every other surface.
 - A ribbon icon (desktop and mobile), whose appearance reflects the active tab's state, that
   toggles that tab when activated.
+
+Each indicator's state signal is visual, so each SHALL also carry it in its accessible state,
+and SHALL carry none when no markdown tab is active.
 
 Both indicators SHALL follow the active tab as it changes: switching tabs, and a tab switching
 between notes, update what they state, and at every point what they state SHALL be the active
@@ -133,11 +140,11 @@ toggle from reading view would override. They SHALL NOT report a mode when no ma
 active at all: that is a third thing to say, not a mode to guess at.
 
 The status bar item SHALL NOT be offered on mobile, where no status bar exists; the ribbon icon
-SHALL carry the indication there. The transient toggle notice SHALL remain on every toggle from
-every surface, as the immediate feedback on platforms or layouts where neither indicator is
-visible. No indicator or control SHALL be injected into Obsidian's
-own chrome — the view header mode switcher and the core status-bar edit-mode button are core UI
-and SHALL be untouched.
+SHALL carry the indication there. A toggle SHALL NOT raise a transient notice: the document
+visibly changes under a state both indicators already report, and a toast on top of that is a
+third report of the same fact delivered by interruption. No indicator or control SHALL be
+injected into Obsidian's own chrome — the view header mode switcher and the core status-bar
+edit-mode button are core UI and SHALL be untouched.
 
 #### Scenario: The indicators follow the active tab
 
@@ -149,20 +156,24 @@ and SHALL be untouched.
 
 - **WHEN** outline mode is on in the active tab and the status bar item is activated on
   desktop
-- **THEN** the item's stated state changes to off, that tab turns off, and a toggle notice
-  appears
+- **THEN** the item's stated state changes to off and that tab turns off
+
+#### Scenario: The status bar chip takes the form the setting asks for
+
+- **WHEN** the status bar setting is set to words, to an icon, and to nothing in turn
+- **THEN** the chip states the mode in words, states it with a distinct icon per state, and
+  renders nothing at all — and with nothing rendered it is not reachable by keyboard and the
+  mode is still toggled from the command and the ribbon
 
 #### Scenario: The ribbon icon reflects the mode and toggles the active tab
 
 - **WHEN** outline mode is off in the active tab and the ribbon icon is activated
-- **THEN** the icon's appearance changes to its on-state, that tab turns on, and a toggle
-  notice appears
+- **THEN** the icon's appearance changes to its on-state and that tab turns on
 
 #### Scenario: The indication exists on mobile
 
 - **WHEN** the plugin runs on mobile and the active tab's mode is toggled
-- **THEN** the ribbon icon reflects the new state and the toggle notice appears; no status
-  bar item is created
+- **THEN** the ribbon icon reflects the new state; no status bar item is created
 
 #### Scenario: The indicators state a reading-view tab's own state
 

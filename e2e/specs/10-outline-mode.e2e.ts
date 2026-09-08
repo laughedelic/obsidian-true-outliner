@@ -58,8 +58,7 @@ describe('outline mode', function () {
     const bytes = await h.readVaultFile(NOTE);
     const mtime = await h.statMtimeMs(NOTE);
 
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
+    await h.setOutlineMode(false);
     expect(await h.outlineModeOn()).toBe(false);
 
     // Give any (buggy) write a moment to land before we look.
@@ -67,8 +66,7 @@ describe('outline mode', function () {
     expect(await h.readVaultFile(NOTE)).toBe(bytes);
     expect(await h.statMtimeMs(NOTE)).toBe(mtime);
 
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
+    await h.setOutlineMode(true);
     expect(await h.outlineModeOn()).toBe(true);
     expect(await h.readVaultFile(NOTE)).toBe(bytes);
     expect(await h.statMtimeMs(NOTE)).toBe(mtime);

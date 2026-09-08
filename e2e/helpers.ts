@@ -946,6 +946,15 @@ export function editorIsSourceMode(): Promise<boolean> {
   });
 }
 
+/** Wait until the active tab reports `mode`, for an action that switches it. */
+export async function waitForViewMode(mode: 'source' | 'preview'): Promise<void> {
+  await browser.waitUntil(async () => (await viewMode()) === mode, {
+    timeout: waitBudget(4000),
+    interval: 50,
+    timeoutMsg: `the active tab never reached ${mode}`,
+  });
+}
+
 /** The active tab's view mode, as Obsidian reports it. */
 export function viewMode(): Promise<'source' | 'preview' | null> {
   return browser.executeObsidian(({ app, obsidian }) => {
@@ -980,14 +989,49 @@ export async function setViewMode(
 // ---- The mode indicators -------------------------------------------------
 
 /**
- * The status bar item's text, or `null` when no item exists — which is what
- * mobile is expected to report, since there is no status bar there.
+ * What the status bar chip is showing, or `null` when no item exists at all —
+ * which is what mobile reports, since there is no status bar there.
+ *
+ * `hidden` is the `none` setting: the element stays (`addStatusBarItem` has no
+ * counterpart) and draws nothing. Otherwise the chip is reported by its own
+ * form — the words it renders, or the id of the icon it renders — so a spec
+ * asserts what a reader sees rather than which branch produced it.
  */
 export function statusItemText(): Promise<string | null> {
   return browser.execute(() => {
     const el = document.querySelector('.true-outliner-mode-status');
-    return el ? (el.textContent ?? '') : null;
+    if (!el) return null;
+    if (el.classList.contains('true-outliner-mode-status-hidden')) return 'hidden';
+    const icon = el.querySelector('svg');
+    if (icon) {
+      // Lucide glyphs carry `lucide-<name>`; the class is the icon's identity.
+      const named = Array.from(icon.classList).find((c) => c.startsWith('lucide-'));
+      return named ? `icon:${named.slice('lucide-'.length)}` : 'icon:?';
+    }
+    return el.textContent ?? '';
   });
+}
+
+/** Can a keyboard reader reach the status bar chip? */
+export function statusItemTabbable(): Promise<boolean> {
+  return browser.execute(() => {
+    const el = document.querySelector('.true-outliner-mode-status');
+    return !!el && el.getAttribute('tabindex') === '0';
+  });
+}
+
+/** Set the status bar chip's form, through the plugin's own setter. */
+export async function setStatusBarMode(mode: 'none' | 'text' | 'icon'): Promise<void> {
+  await browser.executeObsidian(
+    async ({ plugins }, value) => {
+      await (
+        plugins.trueOutliner as never as {
+          setStatusBarMode(v: string): Promise<void>;
+        }
+      ).setStatusBarMode(value);
+    },
+    mode,
+  );
 }
 
 /** Does the ribbon icon carry its on-state? `null` when there is no icon. */
@@ -1087,9 +1131,23 @@ export async function setDefaultOutlineMode(on: boolean): Promise<void> {
 export async function setOutlineMode(on: boolean): Promise<void> {
   if ((await outlineModeOn()) === on) return;
   await toggleOutlineMode();
-  await waitForNotice(on ? 'Outline mode on' : 'Outline mode off');
-  await dismissNotices();
-  expect(await outlineModeOn()).toBe(on);
+  await waitForOutlineMode(on);
+}
+
+/**
+ * Wait until the ACTIVE tab reaches `on`, for an action whose effect on the
+ * mode is what a test is measuring.
+ *
+ * Settles on the STATE, not on a toast: the toggle stopped announcing itself
+ * once both indicators state it, and the state is the stronger wait anyway — a
+ * notice only ever said the command had run.
+ */
+export async function waitForOutlineMode(on: boolean): Promise<void> {
+  await browser.waitUntil(async () => (await outlineModeOn()) === on, {
+    timeout: waitBudget(4000),
+    interval: 50,
+    timeoutMsg: `outline mode never became ${on} in the active tab`,
+  });
 }
 
 // ---- Decorations (rendered layout) ----------------------------------------

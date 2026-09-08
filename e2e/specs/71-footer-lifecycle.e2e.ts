@@ -135,14 +135,10 @@ describe('spike S2: end-of-document block widget lifecycle', function () {
     await waitForWidgetCount(1);
 
     for (let i = 0; i < 10; i++) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
+      await h.setOutlineMode(false);
       await waitForWidgetCount(0);
 
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
+      await h.setOutlineMode(true);
       await waitForWidgetCount(1);
     }
   });

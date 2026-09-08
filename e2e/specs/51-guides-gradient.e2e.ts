@@ -103,9 +103,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       await browser.pause(150);
       await h.screenshotFull(SCREENSHOT_DIR, `real-${slug}-dark`);
 
-      await h.toggleOutlineMode(); // leave mode off for other specs
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
+      await h.setOutlineMode(false);
     }
   });
 

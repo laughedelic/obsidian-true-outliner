@@ -44,15 +44,15 @@ describe('outline mode surfaces', function () {
 
       // The second tab is active and off.
       expect(await h.ribbonIsOn()).toBe(false);
-      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('Outline off');
+      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('icon:align-left');
 
       await h.activateTab(0);
       expect(await h.ribbonIsOn()).toBe(true);
-      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('Outline on');
+      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('icon:list-tree');
 
       await h.activateTab(1);
       expect(await h.ribbonIsOn()).toBe(false);
-      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('Outline off');
+      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('icon:align-left');
     });
 
     it('ribbon icon toggles the active tab, and only it', async function () {
@@ -61,7 +61,7 @@ describe('outline mode surfaces', function () {
       expect(await h.ribbonIsOn()).toBe(true);
 
       await h.clickIndicator('ribbon');
-      await h.waitForNotice('Outline mode off');
+      await h.waitForOutlineMode(false);
       expect(await h.ribbonIsOn()).toBe(false);
       expect(await h.outlineModeOn()).toBe(false);
 
@@ -91,7 +91,7 @@ describe('outline mode surfaces', function () {
       expect(await h.viewMode()).toBe('preview');
 
       expect(await h.ribbonIsOn()).toBe(false);
-      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('Outline off');
+      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('icon:align-left');
     });
 
     it('claim no mode when no markdown tab is active', async function () {
@@ -99,7 +99,8 @@ describe('outline mode surfaces', function () {
       expect(await h.ribbonIsOn()).toBe(true);
 
       await h.closeAllTabs();
-      // A third thing to say, not a mode to guess at.
+      // A third thing to say, not a mode to guess at: the chip draws neither
+      // glyph rather than picking one.
       expect(await h.ribbonIsOn()).toBe(false);
       if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('');
     });
@@ -113,12 +114,52 @@ describe('outline mode surfaces', function () {
         return;
       }
 
-      expect(await h.statusItemText()).toBe('Outline on');
+      // The shipped default: an icon, and a DIFFERENT icon per state rather
+      // than the ribbon's colour accent, which would compete for attention in
+      // a bar shared with everything else.
+      expect(await h.statusItemText()).toBe('icon:list-tree');
       await h.clickIndicator('status');
-      await h.waitForNotice('Outline mode off');
-      expect(await h.statusItemText()).toBe('Outline off');
-      expect(await h.outlineModeOn()).toBe(false);
+      await h.waitForOutlineMode(false);
+      expect(await h.statusItemText()).toBe('icon:align-left');
       expect(await h.ribbonIsOn()).toBe(false);
+    });
+
+    it('status bar chip takes the form the setting asks for', async function () {
+      if (h.IS_MOBILE_RUN) this.skip(); // no status bar to shape
+      await h.openNote(NOTE);
+      try {
+        await h.setStatusBarMode('text');
+        expect(await h.statusItemText()).toBe('Outline on');
+        await h.setOutlineMode(false);
+        expect(await h.statusItemText()).toBe('Outline off');
+
+        await h.setStatusBarMode('icon');
+        expect(await h.statusItemText()).toBe('icon:align-left');
+        await h.setOutlineMode(true);
+        expect(await h.statusItemText()).toBe('icon:list-tree');
+
+        // `none` is the reason this setting exists: Obsidian can hide a ribbon
+        // icon from its own menu and offers nothing equivalent here.
+        await h.setStatusBarMode('none');
+        expect(await h.statusItemText()).toBe('hidden');
+      } finally {
+        await h.setStatusBarMode('icon');
+      }
+    });
+
+    it('a hidden chip is out of the tab order and still toggles from elsewhere', async function () {
+      if (h.IS_MOBILE_RUN) this.skip();
+      await h.openNote(NOTE);
+      try {
+        await h.setStatusBarMode('none');
+        expect(await h.statusItemTabbable()).toBe(false);
+        // The chip is gone, not the feature.
+        await h.setOutlineMode(false);
+        expect(await h.ribbonIsOn()).toBe(false);
+      } finally {
+        await h.setStatusBarMode('icon');
+        expect(await h.statusItemTabbable()).toBe(true);
+      }
     });
   });
 
@@ -147,8 +188,7 @@ describe('outline mode surfaces', function () {
       await h.setViewMode('preview');
 
       await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      expect(await h.viewMode()).toBe('source');
+      await h.waitForViewMode('source');
       expect(await h.outlineModeOn()).toBe(true);
       expect(await rendersOutline()).toBe(true);
     });
@@ -160,8 +200,7 @@ describe('outline mode surfaces', function () {
       await h.setViewMode('preview');
 
       await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      expect(await h.viewMode()).toBe('source');
+      await h.waitForViewMode('source');
       // The state's own `source` flag round-trips (docs/research/24), so the
       // pane comes back where it was rather than in whichever editing mode the
       // code would otherwise have picked.
@@ -176,8 +215,7 @@ describe('outline mode surfaces', function () {
       await h.setViewMode('preview');
 
       await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      expect(await h.viewMode()).toBe('source');
+      await h.waitForViewMode('source');
       expect(await h.outlineModeOn()).toBe(true);
       expect(await rendersOutline()).toBe(true);
 
@@ -193,8 +231,7 @@ describe('outline mode surfaces', function () {
       await h.setViewMode('preview');
 
       await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      expect(await h.viewMode()).toBe('source');
+      await h.waitForViewMode('source');
       expect(await h.outlineModeOn()).toBe(true);
       expect(await rendersOutline()).toBe(true);
     });
@@ -208,7 +245,6 @@ describe('outline mode surfaces', function () {
       await browser.pause(500);
       expect(await h.viewMode()).toBe('preview');
       expect(await h.outlineModeOn()).toBe(true);
-      expect(await h.noticeTexts()).not.toContain('Outline mode off');
     });
 
     it('switches only the ACTIVE pane', async function () {
@@ -219,8 +255,7 @@ describe('outline mode surfaces', function () {
       await h.setViewMode('preview');
 
       await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      expect(await h.viewMode()).toBe('source');
+      await h.waitForViewMode('source');
 
       // The first pane was not asked to leave reading view, and did not.
       await h.activateTab(0);

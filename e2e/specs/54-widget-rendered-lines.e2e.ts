@@ -433,9 +433,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
   it('outline mode off leaves no patch behind on a widget-rendered line', async function () {
     // The live-edit block above left a different note open.
     await openEmbedFixture();
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     await browser.pause(300);
 
     const embed = await h.getLineElementInfo(4);
@@ -443,9 +441,7 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     expect(embed.hasGuides).toBe(false);
     expect(embed.marginLeft).toBe(0);
 
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
+    await h.setOutlineMode(true);
     await browser.pause(300);
     expect((await h.getLineElementInfo(4)).hasMarker).toBe(true);
   });

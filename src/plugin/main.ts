@@ -9,6 +9,7 @@ import {
   PluginSettingTab,
   Setting,
   TFile,
+  setIcon,
   type Hotkey,
   type SettingDefinitionItem,
 } from 'obsidian';
@@ -30,6 +31,7 @@ import {
   type PluginData,
   type SegmentIcons,
   type SortOrder,
+  type StatusBarMode,
 } from './mode-registry';
 
 /** The `PluginData` keys the footer reads, so `setFooterSetting` can only be
@@ -75,6 +77,12 @@ import { parsedDoc } from './parsed-doc';
 import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
+
+const STATUS_BAR_MODE_LABELS: Record<StatusBarMode, string> = {
+  none: 'Nothing',
+  icon: 'An icon',
+  text: 'Words',
+};
 
 const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
   all: 'All eligible kinds (status quo)',
@@ -442,6 +450,18 @@ export default class TrueOutlinerPlugin extends Plugin {
     await this.saveData(this.data);
   }
 
+  get statusBarMode(): StatusBarMode {
+    return this.data.statusBarMode;
+  }
+
+  async setStatusBarMode(value: StatusBarMode): Promise<void> {
+    this.data.statusBarMode = value;
+    await this.saveData(this.data);
+    // The item is re-rendered rather than re-registered: `addStatusBarItem` has
+    // no counterpart, so `none` is the element rendering nothing.
+    this.refreshIndicators();
+  }
+
   get debugCrossCheck(): boolean {
     return this.data.debugCrossCheck;
   }
@@ -664,9 +684,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     cm.dispatch({
       effects: on ? [outlineToggled.of(true)] : [outlineToggled.of(false), zoomCleared.of(null)],
     });
-    // Kept on every surface: on mobile there is no status bar, and in a layout
-    // where the ribbon is hidden this is the only immediate feedback.
-    new Notice(on ? 'Outline mode on' : 'Outline mode off', 1500);
+    // No notice. The mode used to announce itself with one because nothing else
+    // said what had happened; the document now visibly changes under a state
+    // both indicators are already stating, so a toast on top of that is a third
+    // report of the same fact and it interrupts to deliver it.
     this.refreshIndicators();
   }
 
@@ -745,9 +766,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     const status = Platform.isMobile ? undefined : this.addStatusBarItem();
     if (status) {
       status.addClass('true-outliner-mode-status');
-      status.addClass('mod-clickable');
       status.setAttribute('role', 'button');
-      status.tabIndex = 0;
+      // `mod-clickable` and the tab stop are set per render, since the `none`
+      // setting has to take both away.
       this.registerDomEvent(status, 'click', () => this.toggleActiveTab());
       // A `div` with `role="button"` and a tab stop is reachable by keyboard
       // and, without this, does nothing when it gets there — the same
@@ -802,30 +823,57 @@ export default class TrueOutlinerPlugin extends Plugin {
    */
   private refreshIndicators(): void {
     const on = this.activeTabOutlineMode();
-    // The same words as the toggle notice, deliberately: the transient and the
-    // persistent statement of one fact should not be two vocabularies.
-    this.statusItem?.setText(on === undefined ? '' : on ? 'Outline on' : 'Outline off');
-    this.statusItem?.setAttribute(
+    this.renderStatusItem(on);
+    this.ribbonItem?.toggleClass('true-outliner-ribbon-on', on === true);
+    // Each indicator's state signal is visual — a colour on the ribbon, a glyph
+    // in the status bar — which a screen reader cannot see and which their
+    // unchanging labels do not say. `aria-pressed` is the one that carries it;
+    // REMOVED rather than set to a value when no markdown tab is active,
+    // because neither "pressed" nor "not pressed" is true of a control that is
+    // stating no mode at all — the third thing the spec says the indicators
+    // must be able to say.
+    for (const el of [this.ribbonItem, this.statusItem]) {
+      if (!el) continue;
+      if (on === undefined) el.removeAttribute('aria-pressed');
+      else el.setAttribute('aria-pressed', String(on));
+    }
+  }
+
+  /**
+   * The status bar chip, in whichever form the setting asks for.
+   *
+   * `none` renders nothing rather than unregistering: `addStatusBarItem` has no
+   * counterpart, so an empty, hidden element IS the off state. It keeps its
+   * label and `aria-pressed` all the same — a user who hid the chip did not ask
+   * to be lied to by an element still in the accessibility tree — and is taken
+   * out of the tab order, since there is nothing to see or press.
+   *
+   * `icon` uses the same `list-tree` glyph as the ribbon for ON, and a distinct
+   * glyph for OFF rather than the ribbon's colour accent. A tinted chip in the
+   * status bar competes with everything else in that bar for attention it does
+   * not deserve; two glyphs say the same thing quietly, and `align-left` — flat
+   * prose lines against `list-tree`'s branching ones — is the contrast that
+   * survives being small and monochrome.
+   */
+  private renderStatusItem(on: boolean | undefined): void {
+    const item = this.statusItem;
+    if (!item) return;
+    const mode = this.statusBarMode;
+    item.toggleClass('true-outliner-mode-status-hidden', mode === 'none');
+    item.toggleClass('mod-clickable', mode !== 'none');
+    if (mode === 'none') item.removeAttribute('tabindex');
+    else item.tabIndex = 0;
+
+    item.empty();
+    if (mode === 'text' && on !== undefined) {
+      item.setText(on ? 'Outline on' : 'Outline off');
+    } else if (mode === 'icon' && on !== undefined) {
+      setIcon(item, on ? 'list-tree' : 'align-left');
+    }
+    item.setAttribute(
       'aria-label',
       on === undefined ? 'Outline mode' : `Outline mode ${on ? 'on' : 'off'} — click to toggle`,
     );
-    this.ribbonItem?.toggleClass('true-outliner-ribbon-on', on === true);
-    // The ribbon's whole state signal is a color, which a screen reader cannot
-    // see and which its unchanging label does not say. `aria-pressed` is the
-    // one that carries it; REMOVED rather than set to a value when no markdown
-    // tab is active, because neither "pressed" nor "not pressed" is true of a
-    // control that is stating no mode at all — the third thing the spec says
-    // the indicators must be able to say.
-    if (this.ribbonItem) {
-      if (on === undefined) this.ribbonItem.removeAttribute('aria-pressed');
-      else this.ribbonItem.setAttribute('aria-pressed', String(on));
-    }
-    // Same three states for the status item, whose text already carries them
-    // for a sighted reader.
-    if (this.statusItem) {
-      if (on === undefined) this.statusItem.removeAttribute('aria-pressed');
-      else this.statusItem.setAttribute('aria-pressed', String(on));
-    }
   }
 
   /**
@@ -1178,6 +1226,11 @@ const SETTING_OUTLINE_BY_DEFAULT = {
   desc: 'Whether a note opens outlined or as stock Obsidian. Applies to notes opened from now on \u2014 in a new tab, or in an existing tab that switches to another note. It never retoggles a tab that is already open, the way Obsidian\u2019s own default view mode works. Toggle a single tab from the command palette (\u201cToggle outline mode\u201d), the editor right-click menu, the ribbon icon, or the status bar item.',
 } as const;
 
+const SETTING_STATUS_BAR_MODE = {
+  name: 'Show outline mode in the status bar',
+  desc: 'What the status bar shows for the active tab, and whether it shows anything at all. Obsidian can hide the ribbon icon from its own right-click menu but offers no equivalent for a plugin\u2019s status bar item, so this is where that chip is turned off. Desktop only \u2014 there is no status bar on mobile.',
+} as const;
+
 const SETTING_DEBUG_CROSSCHECK = {
   name: 'Debug: cross-check parser against metadata cache',
   desc: 'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
@@ -1257,6 +1310,15 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           type: 'toggle',
           key: 'outlineByDefault',
           defaultValue: DEFAULT_DATA.outlineByDefault,
+        },
+      },
+      {
+        ...SETTING_STATUS_BAR_MODE,
+        control: {
+          type: 'dropdown',
+          key: 'statusBarMode',
+          options: STATUS_BAR_MODE_LABELS,
+          defaultValue: DEFAULT_DATA.statusBarMode,
         },
       },
       {
@@ -1357,6 +1419,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     switch (key) {
       case 'outlineByDefault':
         return this.plugin.outlineByDefault;
+      case 'statusBarMode':
+        return this.plugin.statusBarMode;
       case 'debugCrossCheck':
         return this.plugin.debugCrossCheck;
       case 'backlinksFooter':
@@ -1388,6 +1452,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
     switch (key) {
       case 'outlineByDefault':
         await this.plugin.setOutlineByDefault(Boolean(value));
+        break;
+      case 'statusBarMode':
+        await this.plugin.setStatusBarMode(value as StatusBarMode);
         break;
       case 'debugCrossCheck':
         await this.plugin.setDebugCrossCheck(Boolean(value));
@@ -1435,6 +1502,15 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         toggle
           .setValue(this.plugin.outlineByDefault)
           .onChange((value) => void this.plugin.setOutlineByDefault(value)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_STATUS_BAR_MODE.name)
+      .setDesc(SETTING_STATUS_BAR_MODE.desc)
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOptions(STATUS_BAR_MODE_LABELS)
+          .setValue(this.plugin.statusBarMode)
+          .onChange((value) => void this.plugin.setStatusBarMode(value as StatusBarMode)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_DEBUG_CROSSCHECK.name)

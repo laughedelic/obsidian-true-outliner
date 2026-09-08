@@ -752,17 +752,13 @@ describe('outline zoom', function () {
     await openZoomable();
     await zoomAt(DOC, '## Mid');
     expect(await trail()).not.toEqual([]);
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     expect(await trail()).toEqual([]);
     // The stored anchor, not only the scope it would otherwise derive: gating
     // the DERIVED scope on outline mode is not the same as clearing what it is
     // derived FROM, and re-enabling mode used to walk straight back into the
     // zoom the user had already left.
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
+    await h.setOutlineMode(true);
     expect(await trail()).toEqual([]);
   });
 
@@ -789,10 +785,7 @@ describe('outline zoom', function () {
     // is per view now, so exit trigger 3 fires for the view whose mode turned
     // off and for no other: the first pane is still in outline mode, still
     // zoomed, and has been asked for nothing.
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
-
+    await h.setOutlineMode(false);
     const readTrails = () =>
       browser.executeObsidian(({ app, obsidian }) => {
         return app.workspace
@@ -820,9 +813,7 @@ describe('outline zoom', function () {
     // The toggled pane's anchor was CLEARED, not merely ungated, so turning it
     // back on revives nothing — while the untouched pane, which never lost its
     // scope, still has it.
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
+    await h.setOutlineMode(true);
     expect(await trail()).toEqual([]);
     expect((await readTrails()).filter((t) => t.length > 0).length).toBe(1);
 
@@ -1142,13 +1133,9 @@ describe('outline zoom', function () {
   it('offers its commands only in outline mode', async function () {
     await openZoomable();
     expect(await h.commandAvailable('zoom-in')).toBe(true);
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     expect(await h.commandAvailable('zoom-in')).toBe(false);
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
+    await h.setOutlineMode(true);
   });
 
   it('offers zoom-out and zoom-clear only while zoomed', async function () {

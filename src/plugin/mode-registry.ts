@@ -109,11 +109,28 @@ import type { GuideHighlight, MarkerHighlight } from "./decorate";
 export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = "full";
 export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = "current";
 
+/**
+ * How the status bar states the active tab's mode.
+ *
+ * A setting because the item cannot be dismissed the way the ribbon icon can:
+ * Obsidian lets a user hide a ribbon icon from its own context menu, and offers
+ * nothing equivalent for a plugin's status bar item, so "I don't want this one"
+ * has to be answerable here.
+ *
+ * `icon` by default — the same glyph the ribbon carries, so the two surfaces
+ * read as one control in two places, and narrower than a word in a bar where
+ * width is shared with everything else.
+ */
+export type StatusBarMode = "none" | "text" | "icon";
+export const DEFAULT_STATUS_BAR_MODE: StatusBarMode = "icon";
+
 export interface PluginData {
   /** The outline state every newly constructed editor starts in. The mode's
    * only persisted value: a tab's own state lives in CM6 state and dies with
    * it (`outline-state.ts`). */
   outlineByDefault: boolean;
+  /** See `StatusBarMode`. */
+  statusBarMode: StatusBarMode;
   coexistenceWarned: boolean;
   debugCrossCheck: boolean;
   /** Experiment 5a leaf-visibility round (see docs/research/07-decoration-
@@ -149,6 +166,7 @@ export interface PluginData {
 
 export const DEFAULT_DATA: PluginData = {
   outlineByDefault: true,
+  statusBarMode: DEFAULT_STATUS_BAR_MODE,
   coexistenceWarned: false,
   debugCrossCheck: false,
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
@@ -169,6 +187,11 @@ export const DEFAULT_DATA: PluginData = {
  * an array: adding a state to the type without adding it here is a compile
  * error, so the runtime check cannot fall behind the type it guards.
  */
+const KNOWN_STATUS_BAR_MODE: Record<StatusBarMode, true> = {
+  none: true,
+  text: true,
+  icon: true,
+};
 const KNOWN_MARKER_VISIBILITY: Record<MarkerVisibility, true> = {
   all: true,
   "with-children": true,
@@ -256,6 +279,11 @@ export function normalizePluginData(raw: unknown): PluginData {
     typeof value === "boolean" ? value : fallback;
   return {
     outlineByDefault: bool(stored.outlineByDefault, DEFAULT_DATA.outlineByDefault),
+    statusBarMode: oneOf(
+      KNOWN_STATUS_BAR_MODE,
+      stored.statusBarMode,
+      DEFAULT_DATA.statusBarMode,
+    ),
     coexistenceWarned: bool(
       stored.coexistenceWarned,
       DEFAULT_DATA.coexistenceWarned,

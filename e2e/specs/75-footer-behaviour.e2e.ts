@@ -99,9 +99,7 @@ describe('backlinks footer: behaviour', function () {
     await openFooter(TARGET);
     expect(await footerExists()).toBe(true);
 
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     await scrollToEnd();
     expect(await footerExists()).toBe(false);
 

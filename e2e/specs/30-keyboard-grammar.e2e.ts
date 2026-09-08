@@ -63,16 +63,12 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('Only.\n');
     await h.dismissNotices();
 
-    await h.toggleOutlineMode(); // off
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     await h.setCursor(0, 5);
     await h.keys.tab(); // stock: inserts whitespace
     expect(await h.getBuffer()).not.toBe('Only.\n');
 
-    await h.toggleOutlineMode(); // on again
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
+    await h.setOutlineMode(true);
     await h.setBuffer('Only.\n');
     await h.setCursor(0, 5);
     await h.keys.tab(); // grammar governs the very next keypress
