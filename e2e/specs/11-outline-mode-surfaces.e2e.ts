@@ -163,6 +163,40 @@ describe('outline mode surfaces', function () {
     });
   });
 
+  describe('the editor context menu', function () {
+    it('acts on the editor it was opened in, not the active tab', async function () {
+      // The one surface that deliberately targets a non-active split: the
+      // right-click is what names the editor meant, and in a split it is the
+      // only thing that does. Every other surface acts on the active tab.
+      await h.openNote(NOTE);
+      await h.openInNewTab(OTHER);
+      // Tab 1 is active; the menu is opened in tab 0.
+      expect(await h.markdownTabs()).toHaveLength(2);
+
+      const label = await h.invokeEditorMenuModeEntry(0);
+      expect(label).toContain('Disable outline mode'); // tab 0 is on, so it offers OFF
+      await browser.pause(300);
+
+      // The active tab, which nobody right-clicked, is untouched.
+      expect(await h.outlineModeOn()).toBe(true);
+      await h.activateTab(0);
+      expect(await h.outlineModeOn()).toBe(false);
+    });
+
+    it('states the mode of the editor it was opened in', async function () {
+      await h.openNote(NOTE);
+      await h.openInNewTab(OTHER);
+      await h.setOutlineMode(false); // tab 1, the active one, off
+
+      // Tab 0 is still on, so its own menu offers to disable — the label
+      // follows the right-clicked editor rather than the active tab's state.
+      expect(await h.invokeEditorMenuModeEntry(0)).toContain('Disable outline mode');
+      await browser.pause(300);
+      await h.activateTab(1);
+      expect(await h.outlineModeOn()).toBe(false);
+    });
+  });
+
   describe('the command from any view mode', function () {
     it('is offered in reading view, where no editor exists to offer it', async function () {
       await h.openNote(NOTE);

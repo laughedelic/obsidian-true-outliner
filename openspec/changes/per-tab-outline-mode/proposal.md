@@ -39,8 +39,11 @@ docs/research/24 records the surface research and the mode-shape decision this c
   second unrequested change.
 - **A visible indication in the main UI:** a plugin status bar item (desktop-only, public API)
   and a ribbon icon (both platforms), each stating the ACTIVE tab's state — updating as tabs
-  switch — and toggling that tab on click. The toast stays: on mobile it is the only immediate
-  feedback, since the status bar does not exist there (docs/research/24, table). The core chrome
+  switch — and toggling that tab on click. What the status bar chip renders is itself a setting
+  (an icon, the state in words, or nothing), because Obsidian can hide a ribbon icon from its own
+  menu and offers no equivalent for a plugin's status bar item. No toggle notice: with both
+  indicators stating the mode continuously and the document changing visibly under it, a toast
+  is a third report of the same fact delivered by interruption. The core chrome
   surfaces — the edit/source/reading switcher and the core status-bar pencil — are not publicly
   extensible and are left alone.
 

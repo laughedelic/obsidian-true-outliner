@@ -46,8 +46,7 @@ measurement of its own (D7), but only this one can change a design decision.
       new "not in outline mode". Verify: `npm test`; the off-mode e2e specs re-baselined in
       5.1 still pass
 - [x] 3.4 The toggle dispatch (D5): one path the command and both indicators call — effect
-      through the view registry, notice, and the zoom-clear effect co-dispatched on the OFF
-      direction. The mode-change cursor nudge and the all-leaf sweep retire with it;
+      through the view registry, and the zoom-clear effect co-dispatched on the OFF direction. The mode-change cursor nudge and the all-leaf sweep retire with it;
       `forceRedraw` stays for settings changes only. Verify: dev-vault pass — toggling one of
       two splits does not repaint the other, and a zoomed tab's zoom clears when it is toggled
       off; `npm test`

@@ -53,7 +53,7 @@ describe('outline mode', function () {
     await h.resetPluginState(); // back to the state the rest of the suite wants
   });
 
-  it('toggle shows a notice; file bytes and mtime untouched', async function () {
+  it('toggle raises no notice; file bytes and mtime untouched', async function () {
     await h.openNote(NOTE);
     const bytes = await h.readVaultFile(NOTE);
     const mtime = await h.statMtimeMs(NOTE);
@@ -70,6 +70,19 @@ describe('outline mode', function () {
     expect(await h.outlineModeOn()).toBe(true);
     expect(await h.readVaultFile(NOTE)).toBe(bytes);
     expect(await h.statMtimeMs(NOTE)).toBe(mtime);
+
+    // The mode used to announce itself with a toast and no longer does: both
+    // indicators state it continuously, and the document changes visibly under
+    // it. Asserted rather than left implicit, because a reintroduced notice is
+    // invisible to every other test here — none of them wait on one any more,
+    // so nothing else would notice it coming back. `toggleOutlineMode` arms the
+    // recorder before the command runs, so a notice that appeared and
+    // auto-dismissed between polls would still have been recorded.
+    // The RECORDED log, not the live DOM: a notice lives ~1.5s and a poll can
+    // miss it entirely, so reading what is on screen now would pass whether or
+    // not one had been raised.
+    const notices = await h.recordedNoticeTexts();
+    expect(notices.join('\n')).not.toContain('Outline mode');
   });
 
   it('the toggle acts on the active tab only', async function () {

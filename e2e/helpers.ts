@@ -1020,6 +1020,40 @@ export function statusItemTabbable(): Promise<boolean> {
   });
 }
 
+/**
+ * Invoke the editor context menu's outline-mode entry on the nth markdown tab,
+ * and report the label it carried.
+ *
+ * The menu is built the way Obsidian builds it — the `editor-menu` workspace
+ * event, with that leaf's own editor and view — so this exercises the plugin's
+ * real handler and the real targeting decision, not a shortcut into the toggle.
+ * A right-click cannot be synthesised onto a specific editor from here, and the
+ * event IS what a right-click produces.
+ *
+ * `menu.items` is not in the public typings but is stable, and a menu built for
+ * a test has no other way to be read; the harness already reaches for
+ * `app.commands` on the same terms.
+ */
+export function invokeEditorMenuModeEntry(tabIndex: number): Promise<string> {
+  return browser.executeObsidian(({ app, obsidian }, i) => {
+    const leaf = app.workspace.getLeavesOfType('markdown')[i];
+    if (!leaf) throw new Error(`no markdown tab at index ${i}`);
+    const view = leaf.view as InstanceType<typeof obsidian.MarkdownView>;
+    const menu = new obsidian.Menu();
+    app.workspace.trigger('editor-menu', menu, view.editor, view);
+    const items = (menu as unknown as { items: { titleEl?: HTMLElement; dom?: HTMLElement; callback?: () => void }[] })
+      .items;
+    const entry = items.find((it) => {
+      const text = (it.titleEl ?? it.dom)?.textContent ?? '';
+      return text.includes('outline mode');
+    });
+    if (!entry) throw new Error('no outline-mode entry in the editor menu');
+    const label = ((entry.titleEl ?? entry.dom)?.textContent ?? '').trim();
+    entry.callback?.();
+    return label;
+  }, tabIndex);
+}
+
 /** Set the status bar chip's form, through the plugin's own setter. */
 export async function setStatusBarMode(mode: 'none' | 'text' | 'icon'): Promise<void> {
   await browser.executeObsidian(
@@ -1093,10 +1127,14 @@ export async function clickIndicator(which: 'status' | 'ribbon'): Promise<void> 
   await browser.pause(200);
 }
 
-/** Toggle outline mode for the active tab via the real command. */
+/**
+ * Toggle outline mode for the active tab via the real command.
+ *
+ * Still arms the notice recorder, though the toggle no longer raises one: that
+ * is now what a spec asserting the ABSENCE of the retired notices needs, and
+ * arming after the fact could not see a notice that had already come and gone.
+ */
 export async function toggleOutlineMode(): Promise<void> {
-  // Armed BEFORE the toggle: the notice this produces lives ~1500ms, which a
-  // slow poll can miss entirely if recording only starts once someone waits.
   await armNoticeRecorder();
   await runCommand('toggle-outline-mode');
 }
@@ -1125,8 +1163,10 @@ export async function setDefaultOutlineMode(on: boolean): Promise<void> {
  * Arranges rather than asserts, because with the default on there is no state a
  * spec inherits for free: a note measuring STOCK behaviour has to turn its tab
  * off, where it used to get off by never toggling. Toggling only when the tab
- * is not already in `on` keeps a spec's notice expectations honest — a
- * redundant toggle would raise a notice nobody asked for.
+ * is not already in `on` keeps the arrangement from being an action: a
+ * redundant toggle would flip the mode away and back, dispatching two real
+ * transactions — and, on the OFF leg, clearing the tab's zoom scope, which a
+ * spec that only asked to be in the state it is already in never consented to.
  */
 export async function setOutlineMode(on: boolean): Promise<void> {
   if ((await outlineModeOn()) === on) return;

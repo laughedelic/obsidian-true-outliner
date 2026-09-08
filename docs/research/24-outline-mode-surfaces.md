@@ -149,12 +149,26 @@ SURVIVES a reading round-trip.
 
 ## The indicators, as built
 
-**Wording.** The status bar item states `Outline on` / `Outline off`, and blanks when no
-markdown tab is active — three states, because "no tab" is a different thing to say than "off"
-and an indicator that guessed would be stating a mode nothing is in. The same two words the
-toggle notice uses: the transient and the persistent statement of one fact should not be two
-vocabularies. The item reserves the width the two labels differ by, so the items beside it do
-not shift as the mode changes.
+**The status bar chip has three forms**, chosen by a setting: an icon (the default), the state
+in words (`Outline on` / `Outline off`), or nothing. It exists because Obsidian lets a user hide
+a ribbon icon from its own right-click menu and offers no equivalent for a plugin's status bar
+item, so declining that chip has to be answerable somewhere.
+
+In every form it distinguishes THREE states, not two: on, off, and no markdown tab active —
+"no tab" is a different thing to say than "off", and an indicator that guessed would be stating
+a mode nothing is in. In words mode it reserves the width the two labels differ by, so the
+items beside it do not shift as the mode changes.
+
+**The chip states OFF with a different glyph, not a tint.** `list-tree` for on — the ribbon's
+own icon, so the two surfaces read as one control in two places — and `align-left` for off:
+flat prose lines against branching ones, a contrast that survives being small and monochrome. A
+tinted chip would compete for attention with everything else in that bar, which the ribbon's
+accent does not have to do.
+
+**There is no toggle notice.** One was carried at first, on the reasoning that a mode change
+had to announce itself somewhere; once both indicators state the mode continuously and the
+document visibly changes under it, a toast is a third report of the same fact delivered by
+interruption. Removed after a manual pass said so.
 
 **The ribbon's on-state** is a color change to the theme's own `--text-accent`, not a second
 icon. The ribbon is a column of same-sized glyphs, so a swapped icon reads as a different
