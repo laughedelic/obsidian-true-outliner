@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "ec3f8804dbf8",
+  "strategy": "manual-commit",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/plugin/outline-state.ts",
+    "tests/outline-state.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ec/3f8804dbf8/0/metadata.json",
+      "transcript": "/ec/3f8804dbf8/0/full.jsonl",
+      "compact_transcript": "/ec/3f8804dbf8/0/transcript.jsonl",
+      "content_hash": "/ec/3f8804dbf8/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 86,
+    "cache_creation_tokens": 62487,
+    "cache_read_tokens": 10833142,
+    "output_tokens": 34635,
+    "api_call_count": 43
+  }
+}
