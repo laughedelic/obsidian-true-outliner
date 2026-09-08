@@ -197,6 +197,27 @@ body.is-mobile {
   ) !important;
 }
 
+/* Our own gradient draws every list level (`computeLineGuides` publishes their
+ * depths and `drawnGuideDepths` folds them in), so Obsidian's own line would
+ * double up on the same column. Only its BORDER goes: the `.cm-indent` spans
+ * still do the layout, and they exist only while the user's own "Show
+ * indentation guides" setting is on — which stays the user's to set.
+ *
+ * Gated on the layer drawing anything at all. With guide visibility off we draw
+ * no list-level line, so there is nothing for a native one to double up with
+ * and no reason to suppress it — the reader's own Obsidian setting governs
+ * again. The gate is the whole layer's state and never a per-line one: a
+ * suppression that flipped as the caret moved would make native guides appear
+ * and disappear under the reader, so the cursor-scoped mode keeps suppressing
+ * everywhere and simply draws fewer of its own. */
+body:not(.to-guides-off)
+  .markdown-source-view.mod-cm6
+  .cm-content
+  > .cm-line.to-decor-list {
+  --indentation-guide-width: 0px;
+  --indentation-guide-width-active: 0px;
+}
+
 /* List items: the SUPPLEMENTAL depth, the distance from the document root down
  * to the list's own root. `margin-left` is a box-model property native list
  * rendering does not otherwise use, so this contribution is additive on top of
@@ -240,14 +261,6 @@ body.is-mobile {
  */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
   --list-indent: var(--to-decor-unit);
-
-  /* Our own gradient draws every list level now (`computeLineGuides` publishes
-   * their depths and `activeGuideDepths` folds them in), so Obsidian's own line
-   * would double up on the same column. Only its BORDER goes: the `.cm-indent`
-   * spans still do the layout, and they exist only while the user's own "Show
-   * indentation guides" setting is on — which stays the user's to set. */
-  --indentation-guide-width: 0px;
-  --indentation-guide-width-active: 0px;
 
   /* A bullet is a marker like any other: same weight, same colour token, so a
    * snippet retunes lists and blocks together. 0.38em against Obsidian's 0.30em

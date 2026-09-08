@@ -682,6 +682,38 @@ describe('position indicators: current node and ancestor trail', function () {
       expect(await h.getLineChildComputedStyle(6, MARKER, 'color')).not.toBe(plainMarker);
     });
 
+    it('leaves cursor-scoped guides drawn where the accent trail is suppressed', async function () {
+      // The base layer's own `'cursor'` visibility reads the caret chain, and
+      // the accent trail is emptied in two cases that are statements about
+      // ACCENTS: both accent axes off, and a whole-subtree cover selected,
+      // where block chrome already answers "where am I". Neither may take the
+      // guides a reader asked to see with it.
+      const note = 'Scratch/pi-visibility-gate.md';
+      await h.createNote(note, STRUCTURED);
+      await ensureOutlineMode(note);
+      await setGuides('off');
+      await setMarkers('off');
+      await h.setPluginSetting('guideVisibility', 'cursor');
+      await h.setCursor(6, 2); // "Body of A." — inside Project and Section A
+      await browser.pause(300);
+      // Two ancestors, both drawn, none of them accented.
+      expect(await overlayLayers(6)).toBe(2);
+      expect(await overlayColors(6)).toHaveLength(1);
+      // The sibling section's own guide is gone from its subtree — the caret
+      // is not inside it — while Project's, which the caret IS inside, still
+      // runs down both sections. Two layers there normally, one now.
+      expect(await overlayLayers(15)).toBe(1);
+
+      await h.setSelection({ line: 6, ch: 0 }, { line: 7, ch: 0 });
+      await browser.pause(300);
+      expect(await h.getLineClassList(6)).toContain('to-decor-node-selected');
+      expect(await overlayLayers(6)).toBe(2);
+
+      await h.setCursor(6, 2);
+      await h.setPluginSetting('guideVisibility', 'all');
+      await browser.pause(250);
+    });
+
     it('draws one trail for multiple cursors, from the primary range', async function () {
       const note = 'Scratch/pi-multicursor.md';
       await h.createNote(note, STRUCTURED);

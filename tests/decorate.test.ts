@@ -6,9 +6,12 @@ import { encode } from '../src/encode';
 import { arbMarkdownText } from './generators';
 import { planKey } from '../src/plugin/grammar';
 import {
+  caretGuideDepths,
   computeLineGuides,
   computePositionTrail,
   decorate,
+  hasSingleRoot,
+  visibleGuideDepths,
   positionBisectsANode,
   resolvedOutline,
   materializeProbe,
@@ -637,6 +640,85 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       expect(g.get(4)?.guideDepths).toEqual([]);
       expect(g.get(4)?.listGuideDepths).toEqual([]);
     });
+  });
+});
+
+describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
+  /** Two sections, each with a child, so depth 0 belongs to two different
+   * ancestors — the case a set of depths alone cannot tell apart. */
+  const md = ['# One', '', 'under one', '', '# Two', '', 'under two', ''].join('\n');
+  const doc = parse(md);
+  const guides = new Map(computeLineGuides(doc).map((g) => [g.lineNumber, g]));
+  /** "under two" — inside `# Two`, which owns a guide at depth 0. */
+  const UNDER_TWO = 6;
+  /** "under one" — inside `# One`, which owns its own guide at depth 0. */
+  const UNDER_ONE = 2;
+
+  const ctx = (over: Partial<Parameters<typeof visibleGuideDepths>[1]> = {}) => ({
+    visibility: 'all' as const,
+    hideSingleRoot: false,
+    singleRoot: hasSingleRoot(doc),
+    caretDepthsByLine: null,
+    ...over,
+  });
+
+  const drawn = (line: number, over = {}): readonly number[] =>
+    visibleGuideDepths(guides.get(line)!.guideDepths, ctx(over), line);
+
+  it('draws every ancestor level by default', () => {
+    expect(drawn(UNDER_ONE)).toEqual([0]);
+    expect(drawn(UNDER_TWO)).toEqual([0]);
+  });
+
+  it('draws nothing at all when the layer is off', () => {
+    expect(drawn(UNDER_ONE, { visibility: 'off' })).toEqual([]);
+    expect(drawn(UNDER_TWO, { visibility: 'off' })).toEqual([]);
+  });
+
+  it('draws only the levels the cursor is inside — by ancestor, not by depth', () => {
+    // The caret is in "under two". Both rows carry a guide at depth 0, and only
+    // one of those depth-0 guides belongs to an ancestor of the caret's node. A
+    // filter keyed on depth alone would keep the sibling section's guide lit.
+    const caretDepthsByLine = caretGuideDepths(doc, UNDER_TWO);
+    expect(drawn(UNDER_TWO, { visibility: 'cursor', caretDepthsByLine })).toEqual([0]);
+    expect(drawn(UNDER_ONE, { visibility: 'cursor', caretDepthsByLine })).toEqual([]);
+  });
+
+  it('drops the outermost guide only where the document has a single root', () => {
+    // Two roots here, so the outermost guide names something: it is kept.
+    expect(drawn(UNDER_TWO, { hideSingleRoot: true })).toEqual([0]);
+
+    const single = parse(['# Title', '', '## Section', '', 'deep', ''].join('\n'));
+    const singleGuides = new Map(computeLineGuides(single).map((g) => [g.lineNumber, g]));
+    const deep = singleGuides.get(4)!;
+    expect(deep.guideDepths).toEqual([0, 1]);
+    const singleCtx = {
+      visibility: 'all' as const,
+      hideSingleRoot: true,
+      singleRoot: hasSingleRoot(single),
+      caretDepthsByLine: null,
+    };
+    // Only the outermost goes; a single chain below it keeps every level, so
+    // the ladder never depends on content several levels away.
+    expect(visibleGuideDepths(deep.guideDepths, singleCtx, 4)).toEqual([1]);
+  });
+
+  it('a single root with a single child keeps that child’s own guide', () => {
+    const single = parse(['# Title', '', '## Only', '', 'deep', ''].join('\n'));
+    expect(hasSingleRoot(single)).toBe(true);
+    const guide = computeLineGuides(single).find((g) => g.lineNumber === 4)!;
+    const out = visibleGuideDepths(
+      guide.guideDepths,
+      { visibility: 'all', hideSingleRoot: true, singleRoot: true, caretDepthsByLine: null },
+      4,
+    );
+    expect(out).toEqual([1]);
+  });
+
+  it('reports a single root for one top-level node, and not for two', () => {
+    expect(hasSingleRoot(parse('# Only\n\nbody\n'))).toBe(true);
+    expect(hasSingleRoot(doc)).toBe(false);
+    expect(hasSingleRoot(parse(''))).toBe(false);
   });
 });
 

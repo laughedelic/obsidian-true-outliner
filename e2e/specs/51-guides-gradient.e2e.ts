@@ -586,6 +586,191 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     expect(info.codeLeft - info.listLeft).toBeCloseTo(await h.publishedGutter(), 0);
   });
 
+  describe('which guides are drawn', function () {
+    // Two sections, each with a child of its own, so depth 0 belongs to two
+    // different ancestors — the case that tells "the levels the cursor is
+    // inside" apart from "the depths the cursor happens to sit at".
+    const NOTE = 'Scratch/decorations-guide-visibility.md';
+    const MD = ['# One', '', 'under one', '', '# Two', '', 'under two', ''].join('\n');
+    const UNDER_ONE = 2;
+    const UNDER_TWO = 6;
+
+    /** Gradient layers on a line's guide overlay. */
+    const layers = async (line: number): Promise<number> =>
+      gradientLayerCount(await h.getLinePseudoComputedStyle(line, 'background-image'));
+
+    /** Every geometry a visibility change must leave exactly where it was. */
+    const geometry = (line: number): Promise<Record<string, string>> =>
+      browser.executeObsidian(
+        ({ app, obsidian }, line: number) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cm = (view.editor as any).cm;
+          const el = cm.contentDOM.querySelectorAll(':scope > .cm-line')[line] as HTMLElement;
+          const cs = getComputedStyle(el);
+          const content = cm.contentDOM.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const text = range.getClientRects()[0];
+          return {
+            paddingLeft: cs.paddingLeft,
+            marginLeft: cs.marginLeft,
+            textIndent: cs.textIndent,
+            textX: text ? (text.left - content.left).toFixed(2) : 'none',
+          };
+        },
+        line,
+      );
+
+    before(async function () {
+      await h.createNote(NOTE, MD);
+      await ensureOutlineMode(NOTE);
+      await browser.pause(150);
+    });
+
+    afterEach(async function () {
+      await h.setPluginSetting('guideVisibility', 'all');
+      await h.setPluginSetting('guideHideSingleRoot', false);
+    });
+
+    it('draws every ancestor level by default', async function () {
+      expect(await layers(UNDER_ONE)).toBe(1);
+      expect(await layers(UNDER_TWO)).toBe(1);
+    });
+
+    it('draws only the levels the cursor is inside, by ancestor and not by depth', async function () {
+      await h.setCursorSettled(UNDER_TWO, 3);
+      await h.setPluginSetting('guideVisibility', 'cursor');
+      // Both rows carry a guide at depth 0, and only one of those depth-0
+      // guides belongs to an ancestor of the caret's own node.
+      expect(await layers(UNDER_TWO)).toBe(1);
+      expect(await layers(UNDER_ONE)).toBe(0);
+
+      // And it follows the caret, with no setting change in between.
+      await h.setCursorSettled(UNDER_ONE, 3);
+      await browser.pause(200);
+      expect(await layers(UNDER_ONE)).toBe(1);
+      expect(await layers(UNDER_TWO)).toBe(0);
+    });
+
+    it('draws none at all when the layer is off, and hands list levels back to Obsidian', async function () {
+      const listNote = 'Scratch/decorations-guide-visibility-list.md';
+      await h.createNote(listNote, ['# Section', '', '- top', '\t- nested', ''].join('\n'));
+      await ensureOutlineMode(listNote);
+      await h.setIndentGuides(true);
+      await browser.pause(150);
+
+      const nativeWidth = (line: number): Promise<string> =>
+        h.getLineComputedStyle(line, '--indentation-guide-width');
+      // While we draw a list level's guide, Obsidian's own is suppressed on
+      // that line so exactly one line renders per level.
+      expect((await nativeWidth(3)).trim()).toBe('0px');
+
+      await h.setPluginSetting('guideVisibility', 'off');
+      expect(await layers(2)).toBe(0);
+      expect(await layers(3)).toBe(0);
+      // Drawing nothing removes the reason to suppress: the reader's own
+      // Obsidian setting governs list levels again.
+      expect((await nativeWidth(3)).trim()).not.toBe('0px');
+
+      await h.setPluginSetting('guideVisibility', 'all');
+      expect((await nativeWidth(3)).trim()).toBe('0px');
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('drops the outermost guide only where the note has a single root', async function () {
+      // Two roots: the outermost guide names something, so it stays.
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      expect(await layers(UNDER_TWO)).toBe(1);
+
+      const single = 'Scratch/decorations-guide-single-root.md';
+      await h.createNote(single, ['# Title', '', '## Section', '', 'deep', ''].join('\n'));
+      await ensureOutlineMode(single);
+      await browser.pause(150);
+      // "deep" is inside both the title and the section; with one root the
+      // title's guide runs down every line and names nothing.
+      expect(await layers(4)).toBe(1);
+      await h.setPluginSetting('guideHideSingleRoot', false);
+      expect(await layers(4)).toBe(2);
+
+      // A second root brings it back, with nothing else changed.
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      expect(await layers(4)).toBe(1);
+      await h.setBuffer(
+        ['# Title', '', '## Section', '', 'deep', '', '# Second', '', 'body', ''].join('\n'),
+      );
+      await browser.pause(300);
+      expect(await layers(4)).toBe(2);
+
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('drops the zoom root’s own guide while zoomed, and keeps the levels inside it', async function () {
+      // A zoomed view has one root by construction — the scope is re-based so
+      // the zoom root renders at depth 0 — so the qualifier applies there for
+      // the same reason it applies to a single-rooted note: while zoomed into a
+      // node, its own guide down the whole view says nothing.
+      const zoomNote = 'Scratch/decorations-guide-zoom.md';
+      const md = ['# Root', '', '## Mid', '', 'inner para', '', '# Other', '', 'body', ''].join(
+        '\n',
+      );
+      await h.createNote(zoomNote, md);
+      await ensureOutlineMode(zoomNote);
+      await h.setCursorSettled(2, 6); // "## Mid"
+      await h.runCommand('zoom-in');
+      await browser.pause(300);
+
+      // Hidden lines are not rendered at all while zoomed, so the row is
+      // indexed among what the view actually draws — "## Mid", its gap, then
+      // "inner para".
+      const rendered = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (view.editor as any).cm;
+        return Array.from(
+          cm.contentDOM.querySelectorAll(':scope > .cm-line'),
+          (el) => (el as HTMLElement).textContent ?? '',
+        );
+      });
+      const inner = rendered.findIndex((t) => t.includes('inner para'));
+      expect(inner).toBeGreaterThan(-1);
+
+      // Zoomed into "## Mid": "inner para" is inside it, and inside nothing
+      // else the view renders.
+      expect(await layers(inner)).toBe(1);
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      expect(await layers(inner)).toBe(0);
+
+      await h.setPluginSetting('guideHideSingleRoot', false);
+      expect(await layers(inner)).toBe(1);
+      await h.runCommand('zoom-clear');
+      await browser.pause(200);
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('moves no line’s geometry under any visibility mode, or as the caret moves', async function () {
+      // Guides are painted, not laid out. Every mode, and every caret position
+      // within a mode, has to leave the grid exactly where it was.
+      await h.setCursorSettled(UNDER_TWO, 3);
+      const base = await geometry(UNDER_ONE);
+
+      for (const mode of ['cursor', 'off', 'all'] as const) {
+        await h.setPluginSetting('guideVisibility', mode);
+        expect(await geometry(UNDER_ONE)).toEqual(base);
+      }
+      await h.setPluginSetting('guideVisibility', 'cursor');
+      await h.setCursorSettled(UNDER_ONE, 3);
+      await browser.pause(200);
+      expect(await geometry(UNDER_ONE)).toEqual(base);
+
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      expect(await geometry(UNDER_ONE)).toEqual(base);
+    });
+  });
+
   it('the guide’s width is one declaration: the stripe, the accent and the overlay’s own paint area all follow it', async function () {
     // `GUIDE_WIDTH` used to be a JS literal, which meant the gradient was
     // built at one width while the rules around it assumed another the

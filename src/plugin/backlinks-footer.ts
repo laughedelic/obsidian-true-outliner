@@ -81,6 +81,7 @@ import {
   GROUP_HEIGHT_CSS,
   OVERALL_CAP_REFERENCES,
   type GroupHeight,
+  type GuideVisibility,
   type LineageSeparator,
   type OverallCap,
   type SegmentIcons,
@@ -113,6 +114,12 @@ export interface FooterSource {
   readonly backlinksSegmentIcons: SegmentIcons;
   readonly backlinksSeparator: LineageSeparator;
   readonly backlinksGuides: boolean;
+  /** The guide layer's own visibility. The footer keeps its own setting, and
+   * additionally draws nothing while the layer is off — that switch is a
+   * statement about the outline's chrome, not about one surface. Its other two
+   * states have no referent here: a footer has no caret, and every row's
+   * lineage begins at its source note's own root. */
+  readonly guideVisibility: GuideVisibility;
 }
 
 const refreshFooter = StateEffect.define<void>();
@@ -1303,13 +1310,15 @@ class FooterController {
     // reports `guideDepths` either way; this is the one site that declines to
     // draw them, so the model has one shape under test rather than one per
     // setting combination (design D7).
+    //
+    // Two conditions, not one: its own setting, and the guide layer being drawn
+    // at all. A reader who turned the layer off does not expect it here.
+    const drawsGuides = this.source.backlinksGuides && this.source.guideVisibility !== 'off';
     applyLineChrome(
       el,
       lineChrome(row.fact, {
         nativeBlocks: false,
-        ...(this.source.backlinksGuides
-          ? { guides: plainGuideBackground(row.guideDepths) }
-          : {}),
+        ...(drawsGuides ? { guides: plainGuideBackground(row.guideDepths) } : {}),
       }),
     );
 

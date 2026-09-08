@@ -600,11 +600,16 @@ export interface GuideVisibilityContext {
   /** Whether the document this line belongs to HAS exactly one root. */
   readonly singleRoot: boolean;
   /**
-   * The depths of the primary caret's strict ancestors, or `null` where there
-   * is no caret to read (the footer, or a state with no resolvable chain).
-   * Only `'cursor'` consults it.
+   * Per LINE, the depths at which that line is inside one of the primary
+   * caret's strict ancestors. `null` where there is no caret to read. Only
+   * `'cursor'` consults it.
+   *
+   * Keyed by line and not merely a set of depths, because a depth is not an
+   * identity: two sibling sections both own a guide at depth 0, and a set would
+   * keep the sibling's guide lit on every row of a subtree the caret is nowhere
+   * near. Built by `caretGuideDepths`.
    */
-  readonly caretDepths: ReadonlySet<number> | null;
+  readonly caretDepthsByLine: ReadonlyMap<number, ReadonlySet<number>> | null;
 }
 
 /**
@@ -623,6 +628,7 @@ export interface GuideVisibilityContext {
 export function visibleGuideDepths(
   depths: readonly number[],
   ctx: GuideVisibilityContext,
+  lineNumber: number,
 ): readonly number[] {
   if (ctx.visibility === 'off') return EMPTY_DEPTHS;
   // The outermost guide is dropped only where every line in the document is
@@ -632,9 +638,9 @@ export function visibleGuideDepths(
   // is the behaviour wanted there anyway.
   const dropRoot = ctx.hideSingleRoot && ctx.singleRoot;
   if (!dropRoot && ctx.visibility === 'all') return depths;
-  const caret = ctx.caretDepths;
+  const here = ctx.caretDepthsByLine?.get(lineNumber);
   return depths.filter(
-    (d) => !(dropRoot && d === 0) && (ctx.visibility !== 'cursor' || (caret?.has(d) ?? false)),
+    (d) => !(dropRoot && d === 0) && (ctx.visibility !== 'cursor' || (here?.has(d) ?? false)),
   );
 }
 
@@ -646,18 +652,30 @@ export function hasSingleRoot(doc: OutlineDoc): boolean {
 }
 
 /**
- * The depths of the strict ancestors of the node at `cursorLine` — the levels
- * the cursor is inside.
+ * Per line, the depths at which that line is inside one of the strict ancestors
+ * of the node at `cursorLine` — the levels the cursor is inside, on exactly the
+ * rows those levels cover.
  *
- * Shares `chainAtLine` with the accent trail, and deliberately not the trail
- * itself: the trail is suppressed in cases that are about accents (both accent
- * settings off, a selection covering whole nodes), and a guide the reader asked
- * to see must not vanish because of either.
+ * Built from `computePositionTrail`'s `'full'` state rather than from a second
+ * walk, because that state answers this exact question already: an ancestor's
+ * guide is active from the row after its own through its subtree's last content
+ * row, and stating that span twice is stating it twice.
+ *
+ * Reads the trail's WALK, never `computeTrail`'s gates. Those empty the trail
+ * in two cases that are statements about accents — both accent axes off, and a
+ * selection covering whole nodes — and a guide the reader asked to see must not
+ * vanish because of either.
  */
-export function caretAncestorDepths(doc: OutlineDoc, cursorLine: number): Set<number> {
-  const chain = chainAtLine(doc, cursorLine);
-  if (!chain || chain.length === 0) return new Set();
-  return new Set(chain.slice(0, -1).map((entry) => entry.depth));
+export function caretGuideDepths(
+  doc: OutlineDoc,
+  cursorLine: number,
+): Map<number, ReadonlySet<number>> {
+  const trail = computePositionTrail(doc, cursorLine, { guides: 'full', markers: 'off' });
+  const out = new Map<number, ReadonlySet<number>>();
+  for (const [line, fact] of trail.byLine) {
+    out.set(line, new Set(fact.accents.map((a) => a.depth)));
+  }
+  return out;
 }
 
 /** The two independent axes, read together on every recompute. */
@@ -959,4 +977,20 @@ export function zoomAwarePositionTrail(
   if (!scope) return computePositionTrail(doc, cursorLine, highlight);
   const trail = computePositionTrail(scope.document, cursorLine - scope.startLine, highlight);
   return shiftTrail(trail, scope.startLine);
+}
+
+/**
+ * `caretGuideDepths`, re-based against an active zoom scope — the same
+ * translation `zoomAwarePositionTrail` makes, and for the same reason.
+ */
+export function zoomAwareCaretDepths(
+  doc: OutlineDoc,
+  cursorLine: number,
+  scope: ZoomScope | null,
+): Map<number, ReadonlySet<number>> {
+  if (!scope) return caretGuideDepths(doc, cursorLine);
+  const local = caretGuideDepths(scope.document, cursorLine - scope.startLine);
+  // Only the LINE moves; the depths are already in the scope's own frame, the
+  // same one the guides this filters were computed in.
+  return new Map(Array.from(local, ([line, depths]) => [line + scope.startLine, depths]));
 }

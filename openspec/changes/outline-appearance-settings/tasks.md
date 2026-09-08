@@ -82,31 +82,31 @@
 
 ## 6. Guide visibility
 
-- [ ] 6.1 Teach `activeGuideDepths` (`src/plugin/decorations.ts`) the visibility mode, leaving
+- [x] 6.1 Teach `activeGuideDepths` (`src/plugin/decorations.ts`) the visibility mode, leaving
   `computeLineGuides` caret-free and its cache keyed on the document alone, and verify every level,
   the cursor's levels and none in `e2e/specs/51-guides-gradient.e2e.ts` — plus unit tests if the
   filter can be exported from a module free of CodeMirror imports, since nothing under `tests/`
   imports `decorations.ts` today. Negative control: return the unfiltered depths and confirm the
   cursor-scoped cases fail
-- [ ] 6.2 Carry the document's single-root fact through the doc-facts bundle in `decorations.ts`
+- [x] 6.2 Carry the document's single-root fact through the doc-facts bundle in `decorations.ts`
   (`decorate.ts` learns nothing about either setting) and drop depth 0 when the qualifier is on,
   and verify a single-root note, a two-root note, and a single root with a single child (which
   keeps its deeper guides) — negative control: derive the fact from the first line's guide depths
   instead of the root count and confirm the single-root-with-single-child case fails
-- [ ] 6.3 Verify the qualifier under an active zoom scope drops the zoom root's own guide and
+- [x] 6.3 Verify the qualifier under an active zoom scope drops the zoom root's own guide and
   leaves the levels inside it drawn (`e2e/specs/80-outline-zoom.e2e.ts` fixtures, asserted in
   `51-guides-gradient.e2e.ts`)
-- [ ] 6.4 Widen the caret-chain gate in `computeTrail` so cursor-scoped visibility has a chain with
+- [x] 6.4 Widen the caret-chain gate in `computeTrail` so cursor-scoped visibility has a chain with
   both accent settings `off` and under an escalated cover, keeping both suppressions attached to
   accents only, and verify accent behaviour is byte-identical before and after in
   `55-position-indicators.e2e.ts` — negative control: leave the gate unwidened and confirm the new
   cursor-scoped-with-accents-off case renders no guides
-- [ ] 6.5 Gate the native indent-guide suppression on the layer being drawn at all, and verify that
+- [x] 6.5 Gate the native indent-guide suppression on the layer being drawn at all, and verify that
   in the `none` mode a list line reports Obsidian's own guide width restored, while in every other
   mode it stays suppressed on every line regardless of the caret
-- [ ] 6.6 Verify no line's geometry moves under any visibility mode or as the caret moves — measure
+- [x] 6.6 Verify no line's geometry moves under any visibility mode or as the caret moves — measure
   a row's padding, margin, text start and marker centre with guides on, off, and cursor-scoped
-- [ ] 6.7 Measure the cost of a caret move under cursor-scoped visibility on the largest existing
+- [x] 6.7 Measure the cost of a caret move under cursor-scoped visibility on the largest existing
   fixture, and verify it stays in the same order as a caret move with accents on today (design
   Risks)
 

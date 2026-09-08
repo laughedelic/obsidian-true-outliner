@@ -93,13 +93,19 @@ import { coveredForestOf, coveredSubtreeRoots } from '../escalate';
 import type { LineRange } from '../line-pos';
 import { offsetToLinePos } from './cm-pos';
 import {
+  caretGuideDepths,
   computeLineGuides,
   computePositionTrail,
   decorate,
+  hasSingleRoot,
   materializeProbe,
   positionBisectsANode,
+  visibleGuideDepths,
+  zoomAwareCaretDepths,
   zoomAwarePositionTrail,
   type GuideHighlight,
+  type GuideVisibility,
+  type GuideVisibilityContext,
   type MarkerHighlight,
   type LineDecorationFact,
   type LineGuideFact,
@@ -130,6 +136,14 @@ interface DocFacts {
   readonly factsByLine: ReadonlyMap<number, LineDecorationFact>;
   readonly guides: readonly LineGuideFact[];
   readonly guidesByLine: ReadonlyMap<number, LineGuideFact>;
+  /**
+   * Whether the document these facts describe hangs off exactly one root — the
+   * condition under which the outermost guide names nothing, since every line
+   * is inside it. Carried with the facts rather than recomputed per line, and
+   * read from the SAME document the guides came from: under a zoom that is the
+   * re-rooted scope, which has one root by construction.
+   */
+  readonly singleRoot: boolean;
 }
 
 const docFactsCache = new WeakMap<Text, DocFacts>();
@@ -145,6 +159,7 @@ function docFacts(state: EditorState): DocFacts {
     factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
     guides,
     guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
+    singleRoot: hasSingleRoot(doc),
   };
   docFactsCache.set(state.doc, computed);
   return computed;
@@ -301,6 +316,68 @@ function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFa
 function activeGuideDepths(guide: LineGuideFact): readonly number[] {
   if (guide.listGuideDepths.length === 0) return guide.guideDepths;
   return [...guide.guideDepths, ...guide.listGuideDepths].sort((a, b) => a - b);
+}
+
+/**
+ * The depths a line DRAWS: the ancestors it carries, filtered by what the
+ * reader asked to see.
+ *
+ * One funnel for both call sites (the line decorations, and the widget-line
+ * patch that has to reproduce them on DOM a `Decoration.line` cannot reach), so
+ * the two cannot disagree about which guides exist — which would also make the
+ * accents disagree, since `accentsOn` clips them to the depths a line carries.
+ * That clip is why hiding a guide hides its accent for free, and why marker
+ * accents are untouched: they are not a treatment of a guide.
+ */
+function drawnGuideDepths(
+  guide: LineGuideFact,
+  ctx: GuideVisibilityContext,
+): readonly number[] {
+  return visibleGuideDepths(activeGuideDepths(guide), ctx, guide.lineNumber);
+}
+
+/**
+ * What the visibility filter needs for this state: the settings, the document's
+ * own single-root fact, and — only where the reader asked for the cursor's own
+ * levels — the caret's ancestor depths.
+ *
+ * The caret chain is read through its own path rather than off the accent
+ * trail. The trail is emptied in two cases that are statements about ACCENTS
+ * (both accent axes off, and a selection covering whole nodes, where block
+ * chrome already answers "where am I"), and a guide the reader asked to see
+ * must not vanish because of either.
+ */
+function visibilityContext(state: EditorState, modes: DecorationSource, facts: DocFacts): GuideVisibilityContext {
+  const needsCaret = modes.guideVisibility === 'cursor';
+  return {
+    visibility: modes.guideVisibility,
+    hideSingleRoot: modes.guideHideSingleRoot,
+    singleRoot: facts.singleRoot,
+    caretDepthsByLine: needsCaret ? caretDepths(state) : null,
+  };
+}
+
+const caretDepthsCache = new WeakMap<EditorState, ReadonlyMap<number, ReadonlySet<number>>>();
+
+/**
+ * The primary caret's strict-ancestor depths, cached per state for the reason
+ * the trail is: two consumers read it on the same render, and a CM6 state fixes
+ * the document and the selection together.
+ */
+function caretDepths(state: EditorState): ReadonlyMap<number, ReadonlySet<number>> {
+  const cached = caretDepthsCache.get(state);
+  if (cached) return cached;
+  const head = state.selection.main.head;
+  const cursorLine = state.doc.lineAt(head).number - 1;
+  // A provisional position stands for a node that is not in the buffer yet, so
+  // the chain is read from the tree that position resolves to — the same
+  // document `factsFor` hands the guides on that render.
+  const provisional = provisionalAt(state);
+  const depths = provisional
+    ? caretGuideDepths(provisional.doc, cursorLine)
+    : zoomAwareCaretDepths(parsedDoc(state.doc).doc, cursorLine, zoomScope(state));
+  caretDepthsCache.set(state, depths);
+  return depths;
 }
 
 /**
@@ -466,6 +543,7 @@ function baseFacts(state: EditorState): DocFacts {
     factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
     guides,
     guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
+    singleRoot: hasSingleRoot(scope.document),
   };
   zoomedFactsCache.set(state, computed);
   return computed;
@@ -492,6 +570,7 @@ function factsFor(state: EditorState): DocFacts {
       factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
       guides,
       guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
+      singleRoot: hasSingleRoot(provisional.doc),
     };
   } else {
     const base = baseFacts(state);
@@ -691,6 +770,11 @@ export interface DecorationSource {
   readonly markerHighlight: MarkerHighlight;
   /** How much of the ancestor guides to accent, if any. */
   readonly guideHighlight: GuideHighlight;
+  /** Which of a line's ancestor guides are drawn at all. A different axis from
+   * `guideHighlight`, which treats guides that ARE drawn. */
+  readonly guideVisibility: GuideVisibility;
+  /** Drop the outermost guide while the document has exactly one root. */
+  readonly guideHideSingleRoot: boolean;
 }
 
 const EMPTY_POSITION_TRAIL: PositionTrail = {
@@ -1043,7 +1127,9 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // and a bisected node's displaced lines take the facts they had. Every OTHER
   // gap line still keeps the guide-only decoration: this layer renders where the
   // user currently is, not every blank line in the document.
-  const { factsByLine, guides } = factsFor(state);
+  const facts = factsFor(state);
+  const { factsByLine, guides } = facts;
+  const visibility = visibilityContext(state, modes, facts);
   const trail = positionTrail(state, modes);
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
@@ -1052,7 +1138,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const from = state.doc.line(guide.lineNumber + 1).from; // CM6 lines are 1-indexed
     const lineTrail = trail.byLine.get(guide.lineNumber);
     const fact = factsByLine.get(guide.lineNumber);
-    const depths = activeGuideDepths(guide);
+    const depths = drawnGuideDepths(guide, visibility);
     if (guide.isGapLine && !fact) {
       if (!hasOverlay(depths)) continue; // nothing to draw
       builder.add(from, from, gapLineDecoration(depths, lineTrail));
@@ -2500,7 +2586,9 @@ class MarginCompensation implements PluginValue {
     // same overlay a plain one does, or a displaced line would move here while
     // its plain neighbour did not (`decorate-widget-rendered-lines`' own rule,
     // applied to this change's facts).
-    const { factsByLine, guidesByLine } = factsFor(this.view.state);
+    const facts = factsFor(this.view.state);
+    const { factsByLine, guidesByLine } = facts;
+    const visibility = visibilityContext(this.view.state, this.modes, facts);
     const nativeBasePx = this.nativeMarginBasePx();
     const selectedLineTargets = selectedLineRootTargets(this.view.state);
     // Position indicators reach widget atoms the same way everything else
@@ -2705,7 +2793,7 @@ class MarginCompensation implements PluginValue {
 
         const guide = guidesByLine.get(lineNumber);
         const lineTrail = trail.byLine.get(lineNumber);
-        const depths = guide ? activeGuideDepths(guide) : [];
+        const depths = guide ? drawnGuideDepths(guide, visibility) : [];
         if (guide && hasOverlay(depths)) {
           el.classList.add('to-decor-guides');
           el.style.setProperty('--to-guides', guideBackground(depths, lineTrail));

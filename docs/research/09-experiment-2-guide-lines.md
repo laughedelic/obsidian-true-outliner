@@ -404,3 +404,24 @@ Two rules move with the width once it is a declaration, and both are load-bearin
   guide, both terms resolve to the same thickness and the literal stops being the guard it looks
   like. Confirmed by restoring the old formula and watching the new e2e case fail at a 3px guide
   with the trail pinned to 1px, which is the only arrangement that tells the two formulas apart.
+
+### What cursor-scoped visibility costs
+
+Drawing only the levels the cursor is inside makes the guide background
+caret-dependent, which is a fair thing to be suspicious of: a caret move now changes
+what most of the viewport paints, where before it changed only the accents.
+
+Measured on a 720-line document (120 sections, each with a subsection and a paragraph, so
+every body row carries two ancestor guides), 20 caret moves each landing in a different
+section, timed around the dispatch and a forced layout read:
+
+| Mode | 20 caret moves |
+| --- | ---: |
+| Every level, accents on (the status quo) | 211ms |
+| The cursor's levels, accents on | 182ms |
+| The cursor's levels, accents off | 196ms |
+
+The same order, and if anything slightly cheaper: the caret chain the filter reads is the
+walk the accent trail already runs, and the filter then leaves FEWER gradient layers to
+build on most rows. Nothing here justifies a cache beyond the per-state one the trail
+already has.
