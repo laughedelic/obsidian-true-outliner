@@ -56,17 +56,16 @@ async function set(key: string, value: unknown): Promise<void> {
  * A setting change or a caret move can scroll it back out, and on a phone-sized
  * viewport it takes more than one pass to reach the end of a long note. */
 async function scrollToFooter(): Promise<void> {
-  for (let i = 0; i < 5; i++) {
-    await browser.executeObsidian(() => {
+  for (let i = 0; i < 3; i++) {
+    const there = await browser.executeObsidian(() => {
       const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
       if (s) s.scrollTop = s.scrollHeight;
+      return !!document.querySelector('.workspace-leaf.mod-active .to-backlinks-row');
     });
-    await browser.pause(400);
-    const there = await browser.execute(
-      () => !!document.querySelector('.workspace-leaf.mod-active .to-backlinks-row'),
-    );
     if (there) return;
+    await browser.pause(400);
   }
+  await browser.pause(400);
 }
 
 /** `shape()`, with the footer scrolled into existence first. */
@@ -88,12 +87,18 @@ async function footerShape(): Promise<Shape> {
  * agreeing reads is the settle condition.
  */
 async function settledGuideRows(): Promise<number> {
+  // Scrolled once, then polled WITHOUT scrolling again: the footer stays in the
+  // DOM as long as the view does not move, and re-scrolling per poll is what
+  // pushed this past mocha's per-test timeout on CI's mobile runner. Bounded by
+  // a deadline rather than an iteration count, for the same reason.
+  await scrollToFooter();
   let last = -1;
-  for (let i = 0; i < 20; i++) {
-    const now = (await footerShape()).guideRows;
-    if (now === last) return now;
+  const deadline = Date.now() + 6000;
+  while (Date.now() < deadline) {
+    const now = (await shape())?.guideRows ?? -1;
+    if (now > 0 && now === last) return now;
     last = now;
-    await browser.pause(500);
+    await browser.pause(400);
   }
   return last;
 }
