@@ -8,7 +8,7 @@ plugin whose whole claim is that every block is a node, "some nodes collapse" is
 of the abstraction.
 
 The mechanism turned out to be open. Measured against a real instance
-([24-fold-mechanics.md](../../../docs/research/24-fold-mechanics.md)), Obsidian's fold IS
+([28-fold-mechanics.md](../../../docs/research/28-fold-mechanics.md)), Obsidian's fold IS
 CodeMirror's fold: the state is `@codemirror/language`'s, and what is foldable comes from a
 `foldService` facet that already holds three providers and accepts a fourth. One provider that
 answers from our tree makes every node with children foldable, makes Obsidian's own fold command
@@ -32,7 +32,7 @@ engine, and none of which writes to the note.
   repositioned chevron already share.
 - **A folded node reads as folded.** The marker itself carries the state: the kind's own glyph,
   solid, with the count of hidden descendants after the node's text. Chosen from a rendered
-  mockup ([24-fold-marker-mockup.html](../../../docs/research/24-fold-marker-mockup.html)) against
+  mockup ([28-fold-marker-mockup.html](../../../docs/research/28-fold-marker-mockup.html)) against
   six alternatives — halos, outlines and underlines all read as either too heavy at 14px or
   inconsistent across the marks, and the count is the only candidate that says how much is
   hidden rather than merely that something is.

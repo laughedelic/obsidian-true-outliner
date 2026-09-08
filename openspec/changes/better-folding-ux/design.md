@@ -1,7 +1,7 @@
 ## Context
 
 See proposal.md — Why. What decides this design is one measurement:
-[docs/research/24-fold-mechanics.md](../../../docs/research/24-fold-mechanics.md). Obsidian's fold
+[docs/research/28-fold-mechanics.md](../../../docs/research/28-fold-mechanics.md). Obsidian's fold
 is CodeMirror's fold, behind a `foldService` facet that already holds three providers and takes a
 fourth; a provider that answers from our tree makes any node foldable, makes Obsidian's own
 `editor:toggle-fold` work on it, and makes the fold persist and restore per file. The chevron is
@@ -172,7 +172,7 @@ and the marker gutter's width is derived from the marks it must hold
 move every line. That rules out anything drawn around the glyph before taste enters.
 
 Seven candidates were drawn against every foldable mark at real geometry in
-[`24-fold-marker-mockup.html`](../../../docs/research/24-fold-marker-mockup.html) and reviewed
+[`28-fold-marker-mockup.html`](../../../docs/research/28-fold-marker-mockup.html) and reviewed
 rendered. **Chosen: solid glyph plus the hidden-descendant count.**
 
 *Why not the others.* The halo (Logseq's answer,

@@ -11,7 +11,7 @@ The variant SHALL NOT change the mark's box, since the marker gutter is derived 
 must hold and a folded mark is not a wider one, and it SHALL be legible in both themes.
 
 The choice is recorded rather than left open: six alternatives were drawn against every mark at
-real geometry in `docs/research/24-fold-marker-mockup.html`. Everything drawn AROUND the glyph
+real geometry in `docs/research/28-fold-marker-mockup.html`. Everything drawn AROUND the glyph
 either crowds it — the gutter is 14px and the fold affordance already shares it — or has to change
 shape per kind to avoid cropping a wide glyph, which makes one state read as several. The weight
 change is the only treatment every mark can carry identically, including a bullet, which is

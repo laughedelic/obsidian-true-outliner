@@ -134,7 +134,7 @@ a control Obsidian deliberately does not give it.
 ## The folded-node indication
 
 Candidate treatments for a folded node's marker are drawn side by side, at the plugin's own
-geometry and in both themes, in [24-fold-marker-mockup.html](24-fold-marker-mockup.html) — open
+geometry and in both themes, in [28-fold-marker-mockup.html](28-fold-marker-mockup.html) — open
 it in a browser. It is a mockup, not a measurement: what it settles is which treatment to build.
 
 **Settled: the kind's own glyph in a solid weight, plus the count of hidden descendants.**

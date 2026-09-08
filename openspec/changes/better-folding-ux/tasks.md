@@ -7,7 +7,7 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       from the cached parse for EVERY node with children. Verify through a probe spec that
       `foldable()` returns our range on a heading, on each list notation (bullet, ordered, task)
       and on a paragraph with attached children — the same instrument
-      `docs/research/24-fold-mechanics.md` used, which is `browser.executeObsidian` against the
+      `docs/research/28-fold-mechanics.md` used, which is `browser.executeObsidian` against the
       CM6 exports reached from the plugin instance
 - [ ] 1.2 **What survives our `null`.** Declining to answer is not a veto: `foldable()` falls
       through to the providers below us and then to syntax folding. Probe every atom kind — code
@@ -34,7 +34,7 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       Atoms are covered by 1.2, not here: we answer `null` for them, so what matters is what
       the editor still does underneath us, not what changes. Any divergence that is not clearly an improvement is a reason to
       narrow D1's precedence, and that decision belongs here, not in review
-- [ ] 1.5 Verdict appended to `docs/research/24-fold-mechanics.md` under a dated heading: what
+- [ ] 1.5 Verdict appended to `docs/research/28-fold-mechanics.md` under a dated heading: what
       held, what did not, and whether D1 stands as written
 
 ## 2. Fold model
@@ -89,14 +89,14 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       node containing folded children, group-move a mixed selection, indent and outdent a folded
       node. Negative control — dropping the reapply must fail the move test while leaving the
       indent test passing, which is exactly the asymmetry
-      `docs/research/24-fold-mechanics.md` measured
+      `docs/research/28-fold-mechanics.md` measured
 - [ ] 4.3 One undo step still means one: a folded node moved and undone restores text, selection
       and fold together, with no intermediate state where the text has moved back and the fold has
       not. `structural-history-integration` is the contract this must not break
 
 ## 5. Affordance and folded-state chrome
 
-- [x] 5.1 Folded-marker treatment chosen from `docs/research/24-fold-marker-mockup.html`: the
+- [x] 5.1 Folded-marker treatment chosen from `docs/research/28-fold-marker-mockup.html`: the
       kind's own glyph in a solid weight, plus the count. Design D6 records why the six
       alternatives lost
 - [ ] 5.2 The solid-weight folded marker in `decorations.ts` + `styles.css`: same glyph, same box,
