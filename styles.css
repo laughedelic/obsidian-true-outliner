@@ -72,8 +72,10 @@ body {
    * (docs/research/22-outline-unit-width.md). A rung is named by its
    * DECLARATION and never by its length, so a preset and the default that
    * happens to share its value are one number rather than two that agree until
-   * someone edits one. `1.375rem` is not among them: it sits exactly on the
-   * mobile floor, where a child's mark begins where its parent's text does. */
+   * someone edits one. `1.5rem` — this layer's own previous default — is not
+   * among them: measured, a nested task's checkbox begins 0.4px LEFT of its
+   * parent's text there on mobile, where the floor is 24.4px against desktop's
+   * 22.0px. */
   --to-unit-compact: 1.625rem;
   --to-unit-standard: 1.75rem;
   --to-unit-roomy: 2rem;

@@ -52,13 +52,29 @@ async function set(key: string, value: unknown): Promise<void> {
 }
 
 /** The footer is a block widget at the end of the note, and CodeMirror renders
- * the viewport — so it exists in the DOM only while the view is scrolled to it. */
+ * the viewport — so it exists in the DOM only while the view is scrolled to it.
+ * A setting change or a caret move can scroll it back out, and on a phone-sized
+ * viewport it takes more than one pass to reach the end of a long note. */
 async function scrollToFooter(): Promise<void> {
-  await browser.executeObsidian(() => {
-    const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
-    if (s) s.scrollTop = s.scrollHeight;
-  });
-  await browser.pause(700);
+  for (let i = 0; i < 5; i++) {
+    await browser.executeObsidian(() => {
+      const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
+      if (s) s.scrollTop = s.scrollHeight;
+    });
+    await browser.pause(400);
+    const there = await browser.execute(
+      () => !!document.querySelector('.workspace-leaf.mod-active .to-backlinks-row'),
+    );
+    if (there) return;
+  }
+}
+
+/** `shape()`, with the footer scrolled into existence first. */
+async function footerShape(): Promise<Shape> {
+  await scrollToFooter();
+  const s = await shape();
+  if (!s) throw new Error('no footer rendered');
+  return s;
 }
 
 describe('the footer’s appearance settings', function () {
@@ -152,7 +168,7 @@ describe('the footer’s appearance settings', function () {
     // it whatever the editor is doing, and does not repaint as the caret moves.
     await set('backlinksGuides', true);
     await set('guideVisibility', 'cursor');
-    const before = (await shape())!.guideRows;
+    const before = (await footerShape()).guideRows;
     expect(before).toBeGreaterThan(0);
 
     // Plain `setCursor`: the caret-placement policy corrects a position at a
@@ -163,8 +179,7 @@ describe('the footer’s appearance settings', function () {
     // measure.
     await h.setCursor(0, 0);
     await browser.pause(300);
-    await scrollToFooter();
-    expect((await shape())!.guideRows).toBe(before);
+    expect((await footerShape()).guideRows).toBe(before);
 
     await set('guideVisibility', 'all');
     await set('backlinksGuides', false);
@@ -176,6 +191,7 @@ describe('the footer’s appearance settings', function () {
     // implementation. Asserted against the RESOLVED values a row renders with,
     // in case some rule ever scopes one of them to the editor.
     await set('backlinksGuides', true);
+    await scrollToFooter();
 
     /** A footer row's own resolved chrome. */
     const rowChrome = (): Promise<{ unit: number; guide: number; inset: number }> =>
@@ -204,6 +220,7 @@ describe('the footer’s appearance settings', function () {
     const base = await rowChrome();
     await set('outlineUnit', 'wide');
     await set('guideThickness', 'medium');
+    await scrollToFooter();
     const after = await rowChrome();
     // Relationships, not pixels: a wider step is wider on this surface too, and
     // the group's own inset — stated from the unit rather than copied from a
