@@ -18,8 +18,9 @@ The zoom veto SHALL be evaluated only where a verdict is already being computed,
 change which transactions are classified as boundary-crossing. An edit that is never enforced
 today — within-node authoring, gap editing, a deletion at a programmatic gap-line caret — is not
 enforced while zoomed either. This is a deliberate limit rather than a claim that such an edit
-cannot reach the scope: changing a descendant heading's marker is within-node authoring and DOES
-change which nodes the root's subtree contains. What it cannot do is alter content the user
+cannot reach the scope: this capability's own "Editing a heading's own marker characters stays
+ordinary" scenario keeps a marker edit native and lets the heading's level change as the parse
+sees it, and a level change DOES change which nodes the zoom root's subtree contains. What it cannot do is alter content the user
 cannot see, so the visible range narrows honestly rather than the document changing behind it.
 
 Where the existing rules ALREADY veto an edit, their reason SHALL be preserved rather than

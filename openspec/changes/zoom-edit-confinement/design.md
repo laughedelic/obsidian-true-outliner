@@ -116,7 +116,9 @@ Two related shapes are worth naming, because they bound the guarantee rather tha
 Changing a descendant heading's marker from `###` to `#`, and typing one character into an `hr`
 (`***`) so it stops parsing as one — `zoom-state.ts` already records the latter as measured — both
 change tree membership from a single line. Neither reaches this check, because `classify.ts` reads
-them as within-node authoring and no verdict is computed at all. That is a deliberate limit, and
+them as within-node authoring and no verdict is computed at all — for the marker case that is not
+an accident of classification but a stated rule, which `node-edit-enforcement` carries as
+"Editing a heading's own marker characters stays ordinary". That is a deliberate limit, and
 the `node-edit-enforcement` delta states it: such an edit can narrow what the root's subtree
 contains, but it cannot alter content the user cannot see, so the visible range narrows honestly
 instead of the document changing behind it. What these two DO establish is that no cheaper textual
