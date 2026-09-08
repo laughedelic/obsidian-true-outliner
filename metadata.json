@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "01M20YH5WKR5642KFE1GMGM90H",
+  "strategy": "manual-commit",
+  "branch": "fix/heading-content-start-backspace",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/25-heading-content-start-backspace.md",
+    "openspec/changes/fix-heading-content-start-backspace/design.md",
+    "openspec/changes/fix-heading-content-start-backspace/tasks.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 126112,
+    "cache_read_tokens": 1321076,
+    "output_tokens": 7092,
+    "api_call_count": 9
+  }
+}
