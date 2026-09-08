@@ -99,14 +99,15 @@ long note's leftmost column busy — and in the common shape where a whole note 
 - **Modified**: `styles.css` (the chrome-token declarations gain settings-fed defaults and a
   device-class default for the unit); `src/plugin/chrome-line.ts` (`GUIDE_WIDTH` becomes a
   property reference); `src/plugin/chrome-tokens.ts` (one more name in `CHROME_VARS`, no numeric
-  siblings); `src/plugin/decorate.ts` (`computeLineGuides` learns the visibility mode and the
-  single-root qualifier); `src/plugin/decorations.ts` (the caret chain's gate widens for
-  cursor-scoped visibility); `src/plugin/mode-registry.ts` and `src/plugin/main.ts` (five settings,
-  their validation, and the property publication on `body`); `src/plugin/backlinks-footer.ts`
+  siblings); `src/plugin/decorations.ts` (the visibility filter, the document's single-root fact,
+  and a widened caret-chain gate — the guide walk in `decorate.ts` stays settings- and caret-free
+  so its per-document cache still holds); `src/plugin/mode-registry.ts` and `src/plugin/main.ts`
+  (five settings, their validation, and the property publication on `body`); `src/plugin/backlinks-footer.ts`
   (the master off).
 - **Tests**: `58-unit-override.e2e.ts` grows the settings-vs-snippet precedence case;
-  `51-guides-gradient.e2e.ts` grows the visibility modes; a mobile-emulation run covers the device
-  default. Unit tests cover `computeLineGuides` under each mode and the qualifier.
+  `51-guides-gradient.e2e.ts` grows the visibility modes and the single-root qualifier — in e2e
+  because nothing under `tests/` imports `decorations.ts`, where both now live; a mobile-emulation
+  run covers the device default.
 - **Risk**: bounded by the floor. A narrower unit is the one direction that can break a column —
   a child's mark must still begin right of its parent's text — which is why the ladder's lowest
   rung is measured on both device classes before it ships rather than reasoned about.

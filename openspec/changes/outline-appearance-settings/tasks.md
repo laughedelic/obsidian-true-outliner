@@ -29,8 +29,11 @@
 - [ ] 2.2 Point `--to-trail-width` at `var(--to-guide-width)` and `--to-stripe-bleed` at the max of
   both widths, and verify with an existing guide fixture that an accented guide measures the same
   width as an unaccented one and that a depth-0 guide paints its full width — negative control:
-  restore the `max(1px, …)` bleed and confirm the depth-0 guide measures half width at the
-  thickest preset
+  hold the guide at its thickest preset while pinning `--to-trail-width` back to `1px` from a
+  stylesheet, and confirm the depth-0 guide measures half width under the old
+  `max(1px, var(--to-trail-width))` bleed and full width under the new one. Restoring the old
+  formula alone proves nothing once the trail defaults to the guide's width: both then resolve to
+  the same 3px, and only a diverging trail width shows that the guide's own width participates
 - [ ] 2.3 Verify `e2e/specs/51-guides-gradient.e2e.ts` and `55-position-indicators.e2e.ts` still
   pass unchanged with the width published rather than spelled (`npm run test:e2e:narrow --
   51-guides-gradient`, then `55-position-indicators`)
@@ -45,8 +48,10 @@
 - [ ] 3.2 Publish the resolved choices as `--to-set-*` properties on `document.body`, writing a
   property only where the reader has chosen a non-default, and verify by inspecting the element
   that the default state leaves no property behind
-- [ ] 3.3 Remove every published property and class on plugin unload, and verify a disable/enable
-  cycle leaves `body` with no `--to-set-*` property and the grid at its default
+- [ ] 3.3 Remove every published property and class on plugin unload, and verify from non-default
+  choices that the DISABLED midpoint leaves `body` with no `--to-set-*` property and the grid at
+  Obsidian's own rendering, and that re-enabling republishes the saved choices — starting from
+  defaults exercises no cleanup at all, since there is nothing published to remove
 - [ ] 3.4 Spell each token in `styles.css` as `var(--to-set-…, <default>)` — unit, guide width,
   guide intensity — keeping each declaration single and at `body`, and verify a stylesheet
   override at `body` still wins over a published setting (design D1)
@@ -78,12 +83,16 @@
 ## 6. Guide visibility
 
 - [ ] 6.1 Teach `activeGuideDepths` (`src/plugin/decorations.ts`) the visibility mode, leaving
-  `computeLineGuides` caret-free, and verify unit tests in `tests/decorate.test.ts` cover every
-  level, the cursor's levels and none — negative control: return the unfiltered depths and confirm
-  the cursor-scoped cases fail
-- [ ] 6.2 Carry the document's single-root fact through the doc-facts bundle and drop depth 0 when
-  the qualifier is on, and verify unit tests cover a single-root note, a two-root note, and a
-  single root with a single child (which keeps its deeper guides)
+  `computeLineGuides` caret-free and its cache keyed on the document alone, and verify every level,
+  the cursor's levels and none in `e2e/specs/51-guides-gradient.e2e.ts` — plus unit tests if the
+  filter can be exported from a module free of CodeMirror imports, since nothing under `tests/`
+  imports `decorations.ts` today. Negative control: return the unfiltered depths and confirm the
+  cursor-scoped cases fail
+- [ ] 6.2 Carry the document's single-root fact through the doc-facts bundle in `decorations.ts`
+  (`decorate.ts` learns nothing about either setting) and drop depth 0 when the qualifier is on,
+  and verify a single-root note, a two-root note, and a single root with a single child (which
+  keeps its deeper guides) — negative control: derive the fact from the first line's guide depths
+  instead of the root count and confirm the single-root-with-single-child case fails
 - [ ] 6.3 Verify the qualifier under an active zoom scope drops the zoom root's own guide and
   leaves the levels inside it drawn (`e2e/specs/80-outline-zoom.e2e.ts` fixtures, asserted in
   `51-guides-gradient.e2e.ts`)

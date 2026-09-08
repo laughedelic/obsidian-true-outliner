@@ -198,7 +198,7 @@ that hand-sync is a known cost of the existing shape, not something this change 
 - **Lifting native-guide suppression while the layer is off flips a second thing** → suppression
   is lifted only in the master `off` mode, never per line, so Obsidian's own setting governs
   exactly when we draw nothing and nothing flickers as the caret moves.
-- **Six more controls on a tab that already has eleven** → they are the axes asked for, and the
+- **Five more controls on a tab that already has eleven** → they are the axes asked for, and the
   hue and per-level knobs stay with the snippet route, which is what keeps this from becoming a
   mirror of the stylesheet.
 
