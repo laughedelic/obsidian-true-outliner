@@ -90,7 +90,17 @@ before the loop's pause is reached, so attempt 1 clicks some 15 s after attempt 
 more settling time than transient chrome needs, and far more than the three extra attempts
 would have added in the mode where attempts are cheap.
 
-**Verify in three pieces, because no one test carries all of it.** Two are pure and instant,
+**Verify the drawer fix by forcing the state, not by waiting for it.** The workspace state
+that produced the CI failure is intermittent, and a first draft of this section conceded that
+the collapse could therefore only be justified by the probe taken at the refused click. That
+was wrong: `leftSplit.expand()` opens the drawer on demand under emulation, so `00-smoke`
+puts the workspace into the failing state deliberately, asserts the drawer really is over the
+click point, and requires the click to land in the editor anyway. The click targets a text
+line rather than `.cm-content`, whose centre in that note is the backlinks footer widget — a
+click there lands without focusing anything, which would have made the assertion measure the
+wrong thing.
+
+**Verify the retry in three more pieces, because no one test carries all of it.** Two are pure and instant,
 needing no session, since the spec imports the functions directly: the classifier against
 the verbatim errors each mode was observed with plus a message that merely contains the word
 `intercepted`, and the bookkeeping driven through a stale-then-intercepted sequence, which is
@@ -113,10 +123,10 @@ single non-retrying attempt.
 
 ## Risks / Trade-offs
 
-- **The drawer collapse has no deterministic negative control.** → The open state is itself
-  intermittent: two full-file mobile runs failed in a row, then one passed with the collapse
-  removed. The evidence is the probe taken at the refused click — `leftSplit.collapsed` false
-  and the drawer covering the click point — not a reproduced failure.
+- **The drawer's open state is intermittent in the wild**, so a run that passes proves
+  little. → It does not have to be waited for: `leftSplit.expand()` opens it on demand under
+  emulation, so `00-smoke` forces the state and asserts the click lands anyway. Removing the
+  collapse fails that test every run.
 - **A genuinely unclickable element now costs two attempts instead of one** — ~30 s rather
   than ~15 s before it reports. → Half the mocha budget, and the blocked-click self-test
   measures exactly this case on every run, on both platforms, so a future change to either
@@ -131,6 +141,8 @@ single non-retrying attempt.
   not ours to fix.** → It is not asserted as a figure anywhere in the code; the test simply
   runs to completion inside mocha's budget. If chromedriver's cost rises, the test fails
   loudly and the bound is re-derived from a fresh measurement rather than from this one.
-- **The `intercepted` and `stale` substrings could match an unrelated message.** → Both are
-  W3C error-code phrases, and `intercepted` is the same string WebdriverIO itself matches on
-  in `elementClick`. A false match costs one extra attempt, not a wrong result.
+- **A message could still contain a whole error-code phrase without being that error.** →
+  Unlikely enough to accept, having tightened the match from a bare word: `element click
+  intercepted` is the same phrase WebdriverIO matches on in `elementClick`. The cost of a
+  false match is bounded — extra attempts, then the real error — but it is not trivial at
+  ~15 s each, which is why the phrase and not the word.

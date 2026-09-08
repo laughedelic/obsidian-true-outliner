@@ -7,6 +7,7 @@
 import { $, browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import {
+  IS_MOBILE_RUN,
   openNote,
   getBuffer,
   readVaultFile,
@@ -49,10 +50,17 @@ describe('smoke', function () {
   });
 
   /**
-   * `clickClear` retries an intercepted click, because the interception that
-   * broke `75-footer-behaviour` on CI was app chrome that a moment's wait
-   * removes. The flake does not reproduce on demand, so these cover what can be
-   * pinned: the decision, its bookkeeping, and the wiring between the two.
+   * `clickClear` does two separate things to get its target clickable, and these
+   * cover them separately.
+   *
+   * It collapses the phone UI's left drawer, which is what actually broke
+   * `75-footer-behaviour` on CI: measured simply open across both attempts, not
+   * an obstruction passing through. That is the last test below, and it forces
+   * the state rather than waiting for it.
+   *
+   * It also retries an intercepted click, for the obstructions that ARE passing
+   * through. That is a safety net rather than the fix, and the first three tests
+   * cover its decision, its bookkeeping, and the wiring between the two.
    */
   it('classifies the failures CI reported, and nothing else', function () {
     expect(clickFailureMode(STALE)).toBe('stale');
@@ -129,5 +137,54 @@ describe('smoke', function () {
     expect(String(thrown)).toContain('element click intercepted');
     // More than one attempt's worth of work, measured against this machine's own.
     expect(elapsed).toBeGreaterThan(oneAttempt * (CLICK_ATTEMPTS.intercepted - 0.5));
+  });
+
+  /**
+   * The drawer fix, made deterministic. The state that produced the CI failure
+   * is intermittent, so this puts the workspace into it deliberately —
+   * `leftSplit.expand()` opens the drawer under emulation, as
+   * `docs/research/24-outline-mode-surfaces.md` measured — and then asserts the
+   * click lands anyway. Without the collapse, `clickClear` spends its whole
+   * interception budget here and throws.
+   *
+   * Mobile only: on the desktop viewport the left split is a sidebar beside the
+   * editor, not a drawer over it, so there is nothing in the way to clear.
+   */
+  it('collapses the phone drawer that would otherwise take the click', async function () {
+    if (!IS_MOBILE_RUN) this.skip();
+    await openNote('Notes/Sourdough Log.md');
+    await browser.executeObsidian(({ app }) => app.workspace.leftSplit.expand());
+    await browser.pause(400);
+
+    // The premise, asserted rather than assumed: the drawer is over the point
+    // `clickClear` is about to aim at.
+    const covering = await browser.executeObsidian(() => {
+      const hit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      return hit?.closest('.workspace-drawer.mod-left') !== null;
+    });
+    expect(covering).toBe(true);
+
+    // A text line, not `.cm-content`: this note's content centre is the
+    // backlinks footer widget, and clicking a widget lands without focusing the
+    // editor — which would make the assertion below measure the wrong thing.
+    await clickClear('.workspace-leaf.mod-active .cm-line');
+
+    const collapsed = await browser.executeObsidian(
+      ({ app }) => app.workspace.leftSplit.collapsed,
+    );
+    expect(collapsed).toBe(true);
+
+    // The click reached the editor, not merely "did not throw". Waited for
+    // rather than read once: CM6 sets the class from its own focus handler, a
+    // tick or two after the pointer event.
+    await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(
+          () =>
+            document.activeElement?.closest('.workspace-leaf.mod-active .cm-content') !== null &&
+            document.activeElement?.closest('.workspace-drawer') === null,
+        ),
+      { timeout: 4000, timeoutMsg: 'the click did not land in the editor' },
+    );
   });
 });

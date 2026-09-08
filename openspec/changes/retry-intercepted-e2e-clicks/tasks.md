@@ -12,8 +12,11 @@
       `leftSplit.collapsed` is false and the drawer covers the click point, unchanged across
       both attempts. Collapse it in `clickClear` on mobile runs; verified with two clean
       `npm run test:e2e:narrow -- 75-footer-behaviour --mobile` runs, back to ~52 s from the
-      ~80 s the exhausted retry cost. No deterministic negative control: the open state is
-      intermittent, and a run with the collapse removed passed.
+      ~80 s the exhausted retry cost.
+- [x] 2.1 Cover the collapse deterministically rather than relying on the intermittent state:
+      a mobile-only `00-smoke` test that calls `leftSplit.expand()`, asserts the drawer is
+      over the click point, and requires `clickClear` to land the click in the editor.
+      Negative control: removing the collapse fails it with the interception, every run.
 
 ## 3. Widen the retry loop
 
@@ -45,6 +48,8 @@
 
 - [x] 5.1 `npm run test:e2e:narrow -- 75-footer-behaviour --mobile` — 20 passing twice over,
       including the test that flaked on CI.
-- [x] 5.2 `npm run test:e2e:narrow -- 00-smoke` desktop and mobile — 6 passing each.
+- [x] 5.2 `npm run test:e2e:narrow -- 00-smoke` — 7 passing on mobile, 6 plus one skipped on
+      desktop, where the left split is a sidebar beside the editor rather than a drawer over
+      it.
 - [x] 5.3 `npm test` (1216 passing), `npm run build`, `npm run build:e2e`, `npm run lint`.
 - [x] 5.4 `openspec validate retry-intercepted-e2e-clicks --strict`

@@ -65,6 +65,14 @@ it. So `clickClear` collapses it before clicking on mobile runs, and the retry i
 should have been described as from the start: a bounded safety net for interceptions that
 genuinely are transient, not the fix for this one.
 
-The open state is itself intermittent — observed failing two full-file mobile runs in a row,
-then passing one with the collapse removed — so there is no deterministic negative control
-for the collapse. The evidence is the probe above, taken at the failing click.
+The open state is intermittent in the wild, but it does not have to be waited for: a review
+pointed out that `leftSplit.expand()` opens the drawer on demand under emulation, as
+`24-outline-mode-surfaces.md` had already measured. `00-smoke` therefore forces it and asserts
+the click lands anyway, which gives the collapse the deterministic control this note first
+said it could not have — with the collapse removed, the drawer takes the click and the test
+fails with the interception, every run.
+
+One caveat on the figures above: the per-refusal cost is not constant. Refusals against a
+`.cm-line` behind the drawer came back in ~1.5–2 s, against ~7.5 s for the `.cm-content`
+measurement. The bound rests on the slower case, which is the one that reached the mocha
+budget.

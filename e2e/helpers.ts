@@ -520,14 +520,21 @@ export function clickFailureMode(error: unknown): ClickFailureMode | null {
  * CI on both platforms, and more often once the footer had controls that
  * re-render it.
  *
- * An INTERCEPTED click means app chrome stood over the target: observed as the
- * phone-viewport file-explorer drawer over the footer icon, on a tree that had
- * already passed the full matrix twice. Note what does NOT fix it — WebdriverIO's
- * own `click` already re-scrolls to centre and clicks again on this error,
- * immediately, and that second click is the one that failed. What this loop adds
- * over it is the pause, and settling chrome is a thing only time removes.
+ * An INTERCEPTED click says only that something else would receive the click.
+ * It is admitted for the case where that something is passing through — a
+ * notice, a tooltip, a re-layout mid-render — which a wait clears and a bare
+ * re-click does not: WebdriverIO's own `click` already re-scrolls to centre and
+ * clicks again on this error, immediately, and that immediate second click is
+ * the one CI recorded failing. The pause is what this loop adds over it.
  *
- * That second click is also why interception gets two attempts and not four:
+ * The obstruction that prompted all of this is NOT such a case, and the retry is
+ * not what fixes it: the phone UI's left drawer was measured simply open, across
+ * both attempts, and is collapsed outright by `collapseLeftDrawer` below. This
+ * mode stays admitted for the transient obstructions, on the understanding that
+ * a persistent one still fails — see the addendum in
+ * `docs/research/29-e2e-click-retry-costs.md`.
+ *
+ * WebdriverIO's extra click is also why interception gets two attempts and not four:
  * chromedriver spends its own budget before refusing, so an attempt here costs
  * seconds rather than milliseconds, and four of them overrun the mocha per-test
  * timeout — turning a real failure that names the element covering the target
