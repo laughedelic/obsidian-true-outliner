@@ -17,11 +17,15 @@ re-parsed, ALL THREE hold —
 
 1. the text outside the zoom root's subtree is byte-identical to what it was before;
 2. everything the change inserts lies inside the root's subtree as it stands after the change;
-3. the zoom root is still the same node — the node beginning on its own first line holds the same
-   position in the tree. A first line that resolves to NO node is the root having been removed
-   outright, which is the automatic exit's business and SHALL NOT be treated as an escape;
-   otherwise deleting the subtree of a root that ends the document would be refused while the
-   same deletion anywhere else succeeded.
+3. the zoom root has not been REPLACED — either the node beginning on its own first line holds
+   the same position in the tree, or no node begins there at all. Only a DIFFERENT node
+   resolving there fails this clause.
+
+Clause (3) is stated that way on purpose. "No node begins there" is the root having been removed
+outright, which is the automatic exit's business rather than an escape, and folding it into the
+clause is what keeps the rule from depending on how much document follows the root: read as
+"a node must resolve", it would refuse the whole-subtree deletion of a root that ENDS the document
+while allowing the identical deletion anywhere else.
 
 Each clause is load-bearing and none subsumes another. Deleting one line break can absorb a whole
 hidden node into the subtree while changing nothing but that break, which only (1) catches. A

@@ -37,8 +37,9 @@ changed POSITIONS — before-state or after-state — survives all the measured 
 ### D1: The rule is the invariant, not a comparison of positions
 
 An edit is inside the scope when, after the change, (1) the text outside the root's subtree is
-byte-identical, (2) everything inserted lies inside the root's new subtree, and (3) the root is
-still the same node.
+byte-identical, (2) everything inserted lies inside the root's new subtree, and (3) the root has
+not been REPLACED — either the same node still begins on its first line, or no node does, which is
+the root being deleted outright and is the exit's business rather than an escape (see D7).
 
 Every simpler formulation was tried against docs/research/24's tables and each fails a measured
 row. "Changed positions inside the before-cover" fails X2 — one insertion offset, two structural

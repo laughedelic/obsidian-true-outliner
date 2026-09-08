@@ -1,9 +1,11 @@
 ## 1. The predicate
 
 - [ ] 1.1 Add `editEscapes(scope, after, inserted)` to `src/zoom.ts` beside `operandEscapes` and
-  `splitEscapes`, implementing design D1's three clauses in D-order (identity first, per the
-  short-circuit in Risks); verify with unit tests in `tests/zoom.test.ts` covering one row per
-  clause taken from docs/research/24 — B1 for clause 1, G1 for clause 2, R4 for clause 3.
+  `splitEscapes`, implementing design D1's three clauses in this evaluation order: clause 3
+  first, then clause 1, then clause 2. Clause 3 is first because the other two need the after-cover
+  and the after-cover needs a surviving root (design Risks), and because its "no node resolves"
+  arm answers "inside" outright. Verify with unit tests in `tests/zoom.test.ts` covering one row
+  per clause taken from docs/research/24 — B1 for clause 1, G1 for clause 2, R4 for clause 3.
 - [ ] 1.2 Add the root-identity helper (design D2) reading `findPath`, and verify a unit test
   distinguishes an unwrapped list root from the child that inherits its line — the negative
   control is replacing the path comparison with `startLine` equality, which must make it fail.
