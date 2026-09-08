@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "550645b76805",
+  "strategy": "manual-commit",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/24-outline-mode-surfaces.md",
+    "e2e/helpers.ts",
+    "openspec/changes/per-tab-outline-mode/design.md",
+    "openspec/changes/per-tab-outline-mode/specs/outline-mode/spec.md",
+    "openspec/changes/per-tab-outline-mode/tasks.md",
+    "openspec/specs/outline-mode/spec.md",
+    "src/plugin/decorations.ts",
+    "src/plugin/main.ts",
+    "src/plugin/outline-state.ts",
+    "tests/outline-state.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/55/0645b76805/0/metadata.json",
+      "transcript": "/55/0645b76805/0/full.jsonl",
+      "compact_transcript": "/55/0645b76805/0/transcript.jsonl",
+      "content_hash": "/55/0645b76805/0/content_hash.txt",
+      "prompt": "/55/0645b76805/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 27647,
+    "cache_read_tokens": 8818767,
+    "output_tokens": 21350,
+    "api_call_count": 19
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "550645b76805",
+  "session_id": "e4229cb5-cf73-4d17-abb7-bfc24905b7f4",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-08T17:09:54.610821Z",
+  "branch": "feat/per-tab-outline-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/24-outline-mode-surfaces.md",
+    "e2e/helpers.ts",
+    "openspec/changes/per-tab-outline-mode/design.md",
+    "openspec/changes/per-tab-outline-mode/specs/outline-mode/spec.md",
+    "openspec/changes/per-tab-outline-mode/tasks.md",
+    "openspec/specs/outline-mode/spec.md",
+    "src/plugin/decorations.ts",
+    "src/plugin/main.ts",
+    "src/plugin/outline-state.ts",
+    "tests/outline-state.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "4949dfa8866e",
+  "checkpoint_transcript_start": 1227,
+  "transcript_lines_at_start": 1227,
+  "compact_transcript_start": 249,
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 27647,
+    "cache_read_tokens": 8818767,
+    "output_tokens": 21350,
+    "api_call_count": 19
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-openspec-apply-change-2026-09-08T02:51:45.734248Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "openspec-apply-change"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "5e820074c7ef",
+      "timestamp": "2026-09-08T02:51:45.734248Z",
+      "native": {
+        "command": "/openspec-apply-change"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/openspec-apply-change",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01EzGKGD3BWF6k2FxhJoyv7U",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "openspec-sync-specs"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "4949dfa8866e",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1085,
+        "end": 1086,
+        "entry_ids": [
+          "453dfbdf-df1a-470c-bcf2-7d2871fb4e02"
+        ],
+        "tool_use_id": "toolu_01EzGKGD3BWF6k2FxhJoyv7U"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01EzGKGD3BWF6k2FxhJoyv7U"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: openspec-sync-specs",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-08T17:09:54.50246Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 59,
+    "total_committed": 0,
+    "total_lines_changed": 59,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 300,
+      "user_lines_removed": 59,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.json": 84,
+        "docs/research/24-outline-mode-surfaces.md": 23,
+        "e2e/helpers.ts": 31,
+        "openspec/changes/per-tab-outline-mode/design.md": 15,
+        "openspec/changes/per-tab-outline-mode/specs/outline-mode/spec.md": 17,
+        "openspec/changes/per-tab-outline-mode/tasks.md": 7,
+        "openspec/specs/outline-mode/spec.md": 17,
+        "src/plugin/decorations.ts": 39,
+        "src/plugin/main.ts": 28,
+        "src/plugin/outline-state.ts": 24,
+        "tests/outline-state.test.ts": 15
+      },
+      "user_removed_per_file": {
+        "docs/research/24-outline-mode-surfaces.md": 11,
+        "e2e/helpers.ts": 13,
+        "openspec/changes/per-tab-outline-mode/design.md": 9,
+        "openspec/changes/per-tab-outline-mode/specs/outline-mode/spec.md": 4,
+        "openspec/specs/outline-mode/spec.md": 4,
+        "src/plugin/decorations.ts": 1,
+        "src/plugin/main.ts": 2,
+        "src/plugin/outline-state.ts": 15
+      }
+    }
+  ]
+}
