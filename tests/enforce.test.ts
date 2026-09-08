@@ -11,7 +11,7 @@ import {
   subtreeCoverOf,
 } from '../src/escalate';
 import { nodeAtLine } from '../src/locate';
-import type { TransactionClass } from '../src/classify';
+import { classify, type TransactionClass, type TransactionFacts } from '../src/classify';
 import { arbTree } from './generators';
 import { rangesEqual } from '../src/line-pos';
 
@@ -21,6 +21,30 @@ function applyVerdict(md: string, verdict: Verdict): string {
   if (verdict.kind !== 'rewrite') throw new Error(`expected rewrite, got ${verdict.kind}`);
   const lines = md === '' ? [] : md.split('\n');
   return applyEdits(lines, verdict.edits).join('\n');
+}
+
+/**
+ * One single-character Backspace at `line`/`ch`, put through the SAME two gates
+ * the editor puts it through: classification first, then the verdict for
+ * whatever class that produced. The design's claim that the two gates are a
+ * matched pair is only checkable end to end — a shape the classifier excludes
+ * has no meaningful verdict of its own, because the verdict layer is never
+ * asked about it.
+ */
+function backspaceThroughBothGates(md: string, line: number, ch: number): Verdict {
+  const doc = parse(md);
+  const facts: TransactionFacts = {
+    userEvent: 'delete.backward',
+    isComposition: false,
+    changedLineSpans: [
+      { fromLine: line, toLine: line, insertedText: '', fromCh: ch - 1, toCh: ch,
+        rangeEnd: { line, ch } },
+    ],
+    cursorBefore: { line, ch },
+  };
+  const edit: EditFact = { from: pos(line, ch - 1), to: pos(line, ch), insert: '',
+    cursorBefore: pos(line, ch) };
+  return computeVerdict(classify(facts, doc), doc, edit);
 }
 
 const ALL_CLASSES: readonly TransactionClass[] = [
@@ -290,6 +314,52 @@ describe('computeVerdict: boundary merges (D4)', () => {
     const doc = parse(md);
     const edit: EditFact = { from: pos(1, 0), to: pos(2, 0), insert: '', cursorBefore: pos(2, 0) };
     expect(computeVerdict('boundary-crossing-edit', doc, edit).kind).toBe('veto');
+  });
+
+  it('marker-space Backspace at a HEADING\'s content start vetoes, keeping its section anchor', () => {
+    // The keypress this change exists for. It used to leave `##Two` — a
+    // paragraph where a heading was — because the marker-space shape was
+    // written for list items alone. `mergeNodes` already refuses to absorb a
+    // heading, so the veto needed no new rule, only a gate that let the
+    // transaction reach it.
+    const md = '# One\n\npara one\n\n## Two\n\npara two\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(4, 2), to: pos(4, 3), insert: '', cursorBefore: pos(4, 3) };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(verdict).toEqual({ kind: 'veto', reason: 'merge-not-expressible' });
+  });
+
+  it('the same keypress on a heading with no predecessor vetoes rather than deleting the document', () => {
+    // The first node has no content-space predecessor, so the recognizer takes
+    // its first-node branch. Without the verdict layer's own gate widened the
+    // edit reaches the DELETION path instead, where a one-character range reads
+    // as covering the heading's whole subtree — measured as a rewrite removing
+    // every line of this document.
+    const md = '# One\n\npara one\n\n## Two\n\npara two\n';
+    const doc = parse(md);
+    const edit: EditFact = { from: pos(0, 1), to: pos(0, 2), insert: '', cursorBefore: pos(0, 2) };
+    const verdict = computeVerdict('boundary-crossing-edit', doc, edit);
+    expect(verdict).toEqual({ kind: 'veto', reason: 'no-following-neighbor' });
+  });
+
+  // The two shapes below are excluded by the CLASSIFIER, not by the verdict
+  // layer: handed a boundary-crossing class they would never receive, both
+  // route to the deletion path and rewrite. So they are asked through both
+  // gates, which is the only question with an answer — and the only one the
+  // keypress itself poses.
+  it('a column INSIDE a heading\'s `#` run is ordinary marker editing, through both gates', () => {
+    // Deleting one `#` out of `##` demotes the heading and leaves it a heading.
+    const md = '# One\n\npara one\n\n## Two\n\npara two\n';
+    expect(backspaceThroughBothGates(md, 4, 2)).toEqual({ kind: 'pass' });
+  });
+
+  it('an INDENTED paragraph\'s content start is not a marker column, through both gates', () => {
+    // The control separating "admit `heading`" from "drop the kind test":
+    // `contentColumnCh` reads leading indentation as a content prefix, so this
+    // column looks exactly like a marker column to `isContentStartCh`. Only the
+    // kind test keeps the keypress from merging into the predecessor.
+    const md = 'para one\n\n  indented para\n';
+    expect(backspaceThroughBothGates(md, 2, 2)).toEqual({ kind: 'pass' });
   });
 
   it('a deletion confined inside a multi-blank-line gap passes (no merge, no cover deletion)', () => {
