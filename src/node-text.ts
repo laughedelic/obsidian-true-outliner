@@ -143,32 +143,6 @@ export function nodeContent(
 }
 
 /**
- * A node's identifying text — the same per-kind content every other surface
- * quotes, taken from its first line, falling back to its kind when nothing
- * survives, and marked with an ellipsis when the node has more of its own to
- * say.
- *
- * A label that silently drops continuation lines claims to BE the node's text,
- * and a multi-line paragraph named by its opening clause reads as a complete,
- * oddly abrupt sentence. The ellipsis is the difference between shortening and
- * misquoting.
- *
- * On the node's own line count, not on rendered width: this answers "is there
- * more of this node", which a layout has no opinion about. A label the row
- * cannot fit is the stylesheet's problem and gets its own ellipsis from the
- * browser.
- *
- * The kind fallback exists because a bare `-` or an empty heading is a real
- * thing to have in a document, and a blank crumb is both unreadable and
- * unclickable. It takes no ellipsis: it is a name for the node, not a quotation
- * from it, so there is nothing it could be cutting short.
- */
-export function nodeLabel(node: OutlineNode): string {
-  const content = segmentContent(node);
-  return content.shortened === true ? `${content.markdown}…` : content.markdown;
-}
-
-/**
  * What one element of a lineage chain says — a footer lineage segment or a zoom
  * breadcrumb, which are the same thing about different chains.
  *
@@ -177,6 +151,10 @@ export function nodeLabel(node: OutlineNode): string {
  * blank segment is both unreadable and unclickable. That name is rendered as
  * TEXT, not markdown — it is a name for the node rather than a quotation from
  * it, which is also why it carries no shortening mark.
+ *
+ * The MARK for a shortened segment is `shortened`, drawn by whatever renders the
+ * row: kept out of `markdown` so it is never parsed, and never lands inside a
+ * link the node's own text opened.
  */
 export function segmentContent(node: OutlineNode): NodeContent {
   const content = nodeContent(node, undefined, { firstLineOnly: true });

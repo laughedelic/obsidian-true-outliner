@@ -134,35 +134,37 @@ already there. The footer passes its existing one. `ZoomTrailWidget` creates a `
 `toDOM` and unloads it in `destroy`, which is the lifecycle CM6 already gives a widget — not the
 plugin's own `Component`, which would hold every trail ever built until unload.
 
-### D6. Rendering is async, and what a segment shows meanwhile is open
+### D6. Rendering is async; the segment starts empty and fills, and that is free
 
-`MarkdownRenderer.render` resolves after the row exists, and a CM6 `WidgetType.toDOM` must
-return synchronously. The footer already lives with this: rendered content gets its own span,
-filled when the promise settles.
+`MarkdownRenderer.render` resolves after the row exists, and a CM6
+`WidgetType.toDOM` must return synchronously. The footer already lives with this: rendered
+content gets its own span, filled when the promise settles.
 
-An earlier draft of this decision said the pending fallback was "the segment's plain text —
-which the parse already produces". That is not available. D4 replaces `text` with `markdown`
-plus `render`, and the only thing that turns markdown into plain text correctly is the parse
-itself, which is the asynchronous step being waited on (D2). Deriving it synchronously would
-mean the regex stripper D2 rules out, and showing the raw `markdown` in the meantime would flash
-exactly the source characters this change exists to remove.
+An earlier draft said the pending fallback was "the segment's plain text — which the parse
+already produces". That is not available. D4 replaces `text` with `markdown` plus `render`, and
+the only thing that turns markdown into plain text correctly is the parse itself, which is the
+asynchronous step being waited on (D2). Deriving it synchronously would mean the regex stripper
+D2 rules out, and showing the raw `markdown` in the meantime would flash exactly the source
+characters this change exists to remove.
 
-So the real options are two, and they differ by a fact not yet measured:
+So the question was whether the empty-then-fill frame is short enough and rare enough to leave
+alone, or whether the model has to carry a plain-text field cached at build time. Measured
+rather than argued, Obsidian 1.13.7:
 
-**Option A — the segment starts empty and fills on settle.** Correct at every frame; the cost is
-a trail or lineage row whose text appears a beat after its markers. Acceptable only if that beat
-is short and rare. It is plausibly both: the trail widget is keyed (D9), so it is rebuilt when
-the chain changes rather than on every keystroke.
+| | |
+| --- | --- |
+| One inline string through `MarkdownRenderer.render`, 30 samples | median **0.3ms**, p90 **0.7ms**, max **3.8ms** |
+| Frames sampled with the trail mounted, crumb text empty | **0 of 40** |
+| Trail widget rebuilds over 20 keystrokes inside the zoomed subtree | **0**, same DOM node throughout |
 
-**Option B — the model carries a synchronous plain-text field alongside `markdown`,** produced by
-the same parse, cached at build time rather than at paint time. Removes the empty frame at the
-cost of parsing in the view model, which is where `footer-model.ts` deliberately does no DOM work
-today.
+A render settles inside a single frame, an order of magnitude under one, so the empty state is
+never painted; and the widget key (D9) means typing does not re-enter this path at all. **The
+segment starts empty and fills on settle.** A cached plain-text field would be a cache for a gap
+that does not exist, paid for by parsing in a view model that deliberately does no DOM work.
 
-**How to choose:** measure how long `MarkdownRenderer.render` actually takes for one inline
-string in the e2e harness, and how often the trail widget is rebuilt during ordinary typing. If
-the gap is sub-frame, A is free and B is a cache nobody needs. That measurement is a task, not a
-judgement call — the same discipline the rest of this change followed.
+The measurement is worth keeping because it is the assumption that would break first: a future
+segment carrying something heavier than one line of inline markdown — a transclusion, say —
+would not settle in a frame, and the empty state would start showing.
 
 ### D7. A chain drops media; a reference row constrains it
 

@@ -153,6 +153,26 @@ export interface LineageSegment {
   readonly ordinal?: string | undefined;
 }
 
+/**
+ * The widget's identity: every field of every segment that changes what is
+ * DRAWN.
+ *
+ * Segment text alone is not enough, and shipping that way meant a task
+ * ancestor could be ticked without its crumb's checkbox following — same label,
+ * different marker, so `eq()` said equal and CodeMirror kept the old DOM. The
+ * render mode makes it worse, since one string can go from plain to rendered.
+ *
+ * Node ids stay OUT, and that is not an oversight: `model.ts`'s global counter
+ * hands out fresh ids on every reparse, so keying on them would rebuild the row
+ * on every keystroke. It is the same reason the activation handler below
+ * resolves an ancestor by its POSITION rather than by a captured id.
+ */
+export function lineageKey(segments: readonly LineageSegment[]): string {
+  return segments
+    .map((s) => [s.markdown, s.render, s.kind, s.task ?? '', s.ordinal ?? '', s.shortened ?? ''].join('\u0000'))
+    .join('\u0001');
+}
+
 /** `Notes/Sub/Thing.md` -> `{ name: 'Thing', folder: 'Notes/Sub' }`. */
 export function splitPath(path: string): { name: string; folder: string } {
   const slash = path.lastIndexOf('/');

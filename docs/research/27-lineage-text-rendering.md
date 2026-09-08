@@ -46,19 +46,28 @@ and disagree about what a node's text is.
 
 ## Three findings the reports did not name
 
-### The trail leaks block syntax the footer strips
+### The trail's naming rule had drifted from the footer's — latently
 
-`nodeLabel` calls `stripBlockPrefix` alone, while the footer routes each kind through
-`calloutTextOf`, `tableTextOf` or `codeLineOf`. A trail crumb therefore keeps what a footer row
-drops:
+`nodeLabel` called `stripBlockPrefix` alone, while the footer routed each kind through
+`calloutTextOf`, `tableTextOf` or `codeLineOf`. Called on the same node the two disagreed:
 
-| Ancestor source | Footer row | Trail crumb |
+| Ancestor source | Footer row | `nodeLabel` |
 | --- | --- | --- |
 | `> [!tip] Field notes` | `Field notes` | `[!tip] Field notes` |
 | `\| owner \| status \|` | `owner` | `\| owner \| status \|` |
 | ` ```js ` | the fence's first real line | ` ```js ` |
 
-A callout can hold children, so a callout ancestor is a crumb a real vault produces.
+**Not reachable through either surface today, and that is worth stating plainly** rather than
+leaving the table to imply otherwise. A crumb and a footer lineage segment are both ANCESTORS,
+and in this model an atom kind never has children: `parse` gives a callout its inner lines as its
+own lines, and a list following a fence or a table is that block's sibling, not its child
+(measured). So a callout, table or code block cannot be an ancestor, and none of the divergence
+above can appear on screen.
+
+What the drift was, then, is a second implementation of one rule, agreeing with the first only
+by not being reachable — which is the state a change to the tree model would have ended without
+warning. Unifying them is the fix whether or not the symptom was visible; claiming a visible
+symptom would not be.
 
 ### The two surfaces disagree about truncation
 

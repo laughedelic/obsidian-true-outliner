@@ -7,6 +7,15 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 
 const TARGET = 'Projects/Aurora Dashboard.md';
+/**
+ * The note the ORGANIC material points at (`test-vault/Backlinks/Severity
+ * rollout diary.md` and `Long chain, long names.md`).
+ *
+ * A target of its own, because `Aurora Dashboard` is what the generated
+ * backlink hub points at: 100+ machine-written notes whose ancestors are plain
+ * prose, which cap out the footer before any hand-written chain reaches it.
+ */
+const ORGANIC = 'Projects/Severity rollout.md';
 
 /**
  * The footer lives at `doc.length`, and CodeMirror virtualises: in a document
@@ -127,5 +136,134 @@ describe('backlinks footer: first render', function () {
       async () => (await dump()).some((l) => l.startsWith('head') && l.includes('0 references')),
       { timeout: 8000, timeoutMsg: 'no empty-state header' },
     );
+  });
+
+  /**
+   * A lineage row is inline CONTENT, not a source string.
+   *
+   * Asserted on the row's DOM rather than on its text, because the defect this
+   * closes was invisible to `textContent`: `**bold**` reads as `**bold**`
+   * either way, and what changed is that a `<strong>` exists now. Every
+   * assertion below names an element or a computed property, never a glyph
+   * width — CI's fonts are not macOS's.
+   */
+  it('renders a lineage segment as inline content, not as markdown source', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const seen = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const segs = Array.from(root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-seg'));
+          if (segs.length === 0) return null;
+          const html = segs.map((s) => s.innerHTML).join('');
+          const text = segs.map((s) => (s as HTMLElement).innerText).join(' ');
+          return {
+            strong: segs.some((s) => s.querySelector('strong') !== null),
+            em: segs.some((s) => s.querySelector('em') !== null),
+            code: segs.some((s) => s.querySelector('code') !== null),
+            anchors: segs.some((s) => s.querySelector('a') !== null),
+            // The source characters the defect showed. `innerText`, so a `**`
+            // that only exists inside an attribute does not count.
+            asterisks: /\*\*/.test(text),
+            brackets: /\]\(http/.test(text),
+            wikibrackets: /\[\[/.test(text),
+            html,
+          };
+        }),
+      { timeout: 12000, timeoutMsg: 'no lineage segments rendered' },
+    );
+
+    // A bold ancestor produces <strong>, a linked one <a>, a code span <code>.
+    expect(seen!.strong).toBe(true);
+    expect(seen!.anchors).toBe(true);
+    expect(seen!.code).toBe(true);
+    // And none of the source characters survive into what the reader sees.
+    expect(seen!.asterisks).toBe(false);
+    expect(seen!.brackets).toBe(false);
+    expect(seen!.wikibrackets).toBe(false);
+  });
+
+  /**
+   * The chain and the reference beneath it are both quotations of node text, so
+   * the same syntax has to produce the same ELEMENTS in both. What may differ is
+   * how those elements are drawn, and one thing that must: a chain carries no
+   * media (design D1).
+   */
+  it('gives a lineage row and a reference row the same elements for the same syntax', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const shape = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const tags = (sel: string): string[] => {
+            const out = new Set<string>();
+            root.querySelectorAll(sel).forEach((el) => {
+              el.querySelectorAll('strong, em, code, a, mark, del, img').forEach((n) =>
+                out.add(n.tagName.toLowerCase()),
+              );
+            });
+            return [...out].sort();
+          };
+          const lineage = tags('.to-backlinks-row.is-lineage .to-backlinks-content');
+          const reference = tags('.to-backlinks-row.is-reference .to-backlinks-content');
+          if (lineage.length === 0 || reference.length === 0) return null;
+          return { lineage, reference };
+        }),
+      { timeout: 12000, timeoutMsg: 'no rows to compare' },
+    );
+
+    // The syntaxes the organic fixture places in BOTH roles, deliberately, so
+    // this compares the two renderers rather than whichever elements the vault
+    // happens to contain. Comparing the two UNIONS would do the latter: it
+    // fails the moment an ancestor carries a highlight no leaf happens to.
+    for (const tag of ['strong', 'code', 'a']) {
+      expect(shape!.lineage).toContain(tag);
+      expect(shape!.reference).toContain(tag);
+    }
+    // The one asymmetry, stated as itself: a chain is not a weaker renderer,
+    // only a quieter one, and media is the single thing it does not inherit.
+    expect(shape!.lineage).not.toContain('img');
+  });
+
+  /**
+   * An embed in a chain becomes its alt text; an embed in a reference row stays
+   * and is bounded instead. Height as a RELATIONSHIP — a row is about as tall as
+   * a line of its own text — never as a pixel count.
+   */
+  it('keeps media out of a chain and bounded in a reference row', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const measured = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const rows = Array.from(root.querySelectorAll('.to-backlinks-row')) as HTMLElement[];
+          if (rows.length === 0) return null;
+          const heights = rows.map((r) => r.getBoundingClientRect().height);
+          const line = parseFloat(getComputedStyle(rows[0]!).lineHeight || '0');
+          return {
+            chainImages: root.querySelectorAll('.to-backlinks-row.is-lineage img').length,
+            tallest: Math.max(...heights),
+            line,
+          };
+        }),
+      { timeout: 12000, timeoutMsg: 'no rows measured' },
+    );
+
+    expect(measured!.chainImages).toBe(0);
+    // Generous: a row may wrap to a few lines. What this rules out is an image
+    // at natural size, which was multiples of this.
+    expect(measured!.tallest).toBeLessThan(measured!.line * 8);
   });
 });

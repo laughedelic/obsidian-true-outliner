@@ -140,7 +140,14 @@ export function renderLineageContent(
     // left is INLINE content, and it reaches the DOM through the same renderer a
     // node row uses — `appendText` here is what put `**bold**` in a crumb with
     // its asterisks (docs/research/27).
-    options.renderSegment(seg, segment);
+    //
+    // Into its OWN span, empty at the point the renderer gets it. The renderer
+    // unwraps the document `MarkdownRenderer` answers with — a `<p>` around one
+    // line — and that unwrapping only fires when the wrapper is the element's
+    // ONLY child. Handed the segment itself, which already holds the kind icon,
+    // it found two children and left the paragraph in place: a block element
+    // inside a row, which is the one thing a row may not contain.
+    options.renderSegment(seg.createSpan(), segment);
     // The shortening mark sits OUTSIDE the rendered content, so it is never
     // parsed as markdown and never lands inside a link the node's text opened.
     if (segment.shortened === true) seg.appendText('…');

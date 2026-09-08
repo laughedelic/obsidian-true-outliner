@@ -1155,6 +1155,138 @@ describe('outline zoom', function () {
     expect(await h.commandAvailable('zoom-out')).toBe(false);
     expect(await h.commandAvailable('zoom-clear')).toBe(false);
   });
+
+  /**
+   * A crumb carries none of the block syntax that encodes its node's place.
+   *
+   * The reachable kinds only. An atom — callout, table, fenced code — never has
+   * children in this model (measured: `parse` gives a callout its inner lines as
+   * its OWN lines, not as a subtree), so it can never be an ancestor and never a
+   * crumb. What CAN be one is a heading, a quote, a task and an ordered item,
+   * and each of those carries syntax the label must not.
+   */
+  it('leaves no block syntax in a crumb, whatever the ancestor kind', async function () {
+    const md = [
+      '# A heading ancestor',
+      '',
+      '> a quoted ancestor',
+      '',
+      '- [x] a task ancestor',
+      '  1. an ordered ancestor',
+      '     - the leaf',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, 'the leaf');
+    const crumbs = await trail();
+    expect(crumbs.length).toBeGreaterThan(1);
+    const joined = crumbs.join(' ');
+    // The heading's hashes, the task's box and the ordered item's number are
+    // notation: they belong to the marker, never to the text.
+    expect(joined).not.toContain('#');
+    expect(joined).not.toContain('[x]');
+    expect(joined).not.toContain('[ ]');
+    expect(joined).not.toMatch(/(^|\s)1\.\s/);
+    // What the ancestors SAY still survives the stripping.
+    expect(joined).toContain('a task ancestor');
+  });
+
+  /**
+   * The crumb renders its markdown, and does not show its source. Asserted on
+   * the DOM, because `**bold**` and a `<strong>` have the same `textContent`.
+   */
+  it('renders a crumb as inline content, not as markdown source', async function () {
+    const md = [
+      '- ancestor **bold** with `code` and [a link](https://example.com)',
+      '\t- the leaf',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, 'the leaf');
+    const shape = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const el = view?.containerEl.querySelector('.to-zoom-trail');
+      if (!el) return null;
+      return {
+        strong: el.querySelector('.to-backlinks-seg strong') !== null,
+        code: el.querySelector('.to-backlinks-seg code') !== null,
+        anchor: el.querySelector('.to-backlinks-seg a') !== null,
+        blocks: el.querySelectorAll('.to-backlinks-seg p, .to-backlinks-seg ul, .to-backlinks-seg li').length,
+        text: (el as HTMLElement).innerText,
+      };
+    });
+    expect(shape).not.toBe(null);
+    expect(shape!.strong).toBe(true);
+    expect(shape!.code).toBe(true);
+    expect(shape!.anchor).toBe(true);
+    // A row may hold no block-level element, and the renderer's own `<p>` is one.
+    expect(shape!.blocks).toBe(0);
+    expect(shape!.text).not.toContain('**');
+    expect(shape!.text).not.toContain('](http');
+  });
+
+  /**
+   * A link inside a crumb is a second destination competing with the crumb's
+   * own. The link wins where the event starts on it; the crumb wins everywhere
+   * else. Asserted as BEHAVIOUR — did the view re-root — rather than by reading
+   * the guard, because the guard the design first relied on lived on the
+   * footer's row and never ran here at all (design D8).
+   */
+  it('lets a link inside a crumb take its own click, without re-rooting', async function () {
+    const md = [
+      '# Top',
+      '',
+      '- ancestor with [a link](https://example.com)',
+      '\t- the leaf',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, 'the leaf');
+    const before = await trail();
+
+    // The anchor itself. Its own navigation is Obsidian's business and is
+    // suppressed here; what this asserts is that the SEGMENT did not also act.
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const a = view?.containerEl.querySelector('.to-zoom-trail .to-backlinks-seg a') as HTMLElement | null;
+      if (!a) throw new Error('no link inside a crumb');
+      a.addEventListener('click', (e) => e.preventDefault(), { once: true });
+      a.click();
+    });
+    await browser.pause(250);
+    expect(await trail()).toEqual(before);
+
+    // The same segment's own text still activates it, so the guard has not
+    // made the crumb inert — which is the failure mode a target check invites.
+    await clickCrumb(1);
+    await browser.pause(250);
+    expect((await trail()).length).toBeLessThan(before.length);
+  });
+
+  it('lets a link inside a crumb take its own Enter, without re-rooting', async function () {
+    const md = [
+      '# Top',
+      '',
+      '- ancestor with [a link](https://example.com)',
+      '\t- the leaf',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, 'the leaf');
+    const before = await trail();
+
+    // A rendered anchor is focusable, and its own Enter bubbles to the segment
+    // around it — so keydown needs the same guard the click has.
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const a = view?.containerEl.querySelector('.to-zoom-trail .to-backlinks-seg a') as HTMLElement | null;
+      if (!a) throw new Error('no link inside a crumb');
+      a.focus();
+      a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    });
+    await browser.pause(250);
+    expect(await trail()).toEqual(before);
+  });
 });
 
 /**

@@ -14,9 +14,12 @@ render mode — so `lineage-row.ts` does the only thing a bare string permits, `
 
 Measurement (docs/research/27) found three further defects behind the two reported symptoms:
 
-- **The trail leaks block syntax the footer strips.** `nodeLabel` calls `stripBlockPrefix`
-  alone, so a callout crumb reads `[!tip] Field notes`, a table crumb `| owner | status |`, and
-  a code-block crumb ` ```js `. The footer routes each of those kinds through its own stripper.
+- **The trail's naming rule had drifted from the footer's.** `nodeLabel` called
+  `stripBlockPrefix` alone where the footer routes each kind through its own stripper, so on the
+  same callout the two answered `[!tip] Field notes` and `Field notes`. Latent rather than
+  visible: an atom kind never has children in this model, so a callout, table or code block can
+  never be an ancestor and the divergence cannot reach a crumb — a second implementation of one
+  rule, agreeing with the first only by being unreachable.
 - **The two surfaces disagree about truncation.** `nodeLabel` marks a multi-line node with `…`;
   the footer's lineage segment does not. One shared rendering primitive, two rules.
 - **An image embed renders at natural size inside a footer reference row**, with no CSS

@@ -13,7 +13,7 @@ import {
   splitEscapes,
   resolveZoom,
 } from '../src/zoom';
-import { nodeContent, nodeLabel, segmentContent, stripBlockPrefix } from '../src/node-text';
+import { nodeContent, segmentContent, stripBlockPrefix } from '../src/node-text';
 import { documentLineCount } from '../src/locate';
 import { itemContentIsEmpty, markerPrefixCh } from '../src/ops';
 import { decorate, computeLineGuides } from '../src/plugin/decorate';
@@ -161,7 +161,7 @@ describe('resolveZoom: what the scope is', () => {
   });
 });
 
-describe('nodeLabel: what a crumb is called', () => {
+describe('segmentContent: what a crumb is called', () => {
   it('strips the block syntax that encodes the node place', () => {
     expect(stripBlockPrefix('## Mid')).toBe('Mid');
     expect(stripBlockPrefix('  - [ ] todo')).toBe('todo');
@@ -172,14 +172,14 @@ describe('nodeLabel: what a crumb is called', () => {
   it('falls back to the kind when nothing survives', () => {
     const doc = parse('# Top\n\n-\n');
     const bare = walk(doc.children).find((n) => n.kind === 'list-item')!;
-    expect(nodeLabel(bare)).toBe('List item');
+    expect(segmentContent(bare).markdown).toBe('List item');
   });
 
   it('never returns an empty label, for any node in any document', () => {
     fc.assert(
       fc.property(arbMarkdownText, (md) => {
         for (const node of walk(parse(md).children)) {
-          expect(nodeLabel(node).length).toBeGreaterThan(0);
+          expect(segmentContent(node).markdown.length).toBeGreaterThan(0);
         }
       }),
       { numRuns: 200 },
@@ -233,7 +233,7 @@ describe('nodeLabel: what a crumb is called', () => {
     );
     for (const node of walk(doc.children)) {
       if (!['callout', 'table', 'code'].includes(node.kind)) continue;
-      const label = nodeLabel(node);
+      const label = segmentContent(node).markdown;
       expect(label, node.kind).not.toMatch(/^\[!/);
       expect(label, node.kind).not.toContain('|');
       expect(label, node.kind).not.toMatch(/^(?:```|~~~)/);

@@ -33,11 +33,12 @@ join between one ancestor and the next is the only thing distinguishing them.
 Each segment SHALL be activatable: activating an ancestor segment SHALL make that ancestor the
 zoom root; activating the file segment SHALL clear the zoom entirely, as the marker does.
 
-A crumb's label SHALL be derived by the SAME rule a backlinks footer lineage segment's is —
-per node kind, not by a weaker rule of the trail's own. A callout ancestor's crumb SHALL NOT
-carry its `[!type]` token, a table ancestor's SHALL NOT carry its pipes, and a fenced-code
-ancestor's SHALL NOT carry its fence: the crumb's marker already names the kind, and the label
-is what the node SAYS. A node with MORE lines than the one shown SHALL be marked as shortened,
+A crumb's label SHALL be derived by the SAME rule a backlinks footer lineage segment's is — per
+node kind, not by a weaker rule of the trail's own. No block syntax SHALL survive into a crumb:
+not a heading's `#`, a quote's `>`, a task's `[ ]` or an ordered item's number, each of which the
+marker already carries. The rule SHALL cover every kind, including those that cannot currently
+BE an ancestor because an atom has no children — a second implementation that agrees only by
+being unreachable is what this requirement exists to prevent. A node with MORE lines than the one shown SHALL be marked as shortened,
 so a label never claims to be the whole of what it names. A node whose label would be empty
 SHALL fall back to a label naming its kind, so no segment is ever blank; that fallback is a name
 rather than a quotation and takes no such mark.
@@ -69,8 +70,9 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
   heading
 
 #### Scenario: A crumb carries no block syntax
-- **WHEN** the zoom root sits under a callout, and elsewhere under a table row
-- **THEN** neither crumb shows the callout's `[!type]` token nor the table's pipes
+- **WHEN** the zoom root sits under a heading, a quote, a task and an ordered item
+- **THEN** no crumb shows a `#`, a `>`, a `[ ]` or the ordered item's number, and each still
+  shows what its node says
 
 #### Scenario: A crumb renders its inline markdown
 - **WHEN** an ancestor's text carries emphasis, a code span and a link

@@ -34,9 +34,9 @@
       (design D5)
 - [x] 4.2 The footer passes its existing renderer; `renderContent` becomes the shared entry
 - [x] 4.3 `ZoomTrailWidget` creates a `Component` in `toDOM` and unloads it in `destroy`
-- [ ] 4.4 Measure `MarkdownRenderer.render`'s settle time for one inline string, and how often
-      the trail widget rebuilds during ordinary typing — then choose D6's option A or B and
-      record it in design.md. The fallback the first draft assumed does not exist
+- [x] 4.4 Measured: median 0.3ms / p90 0.7ms per inline render, 0 empty frames of 40, 0 widget
+      rebuilds over 20 keystrokes inside the subtree. D6 takes option A — start empty, fill on
+      settle — with the figures recorded in design.md
 - [x] 4.5 Move the activation guard into `lineage-row.ts` (design D8): a click whose target is
       inside a link or button does not activate the segment, and neither does an `Enter` raised
       on a focusable element inside one
@@ -72,39 +72,42 @@
 Every judgement in D1 was made against a synthetic corpus. The manual pass has to be made
 against notes that read like notes, or the treatment is only known to work on a matrix.
 
-- [ ] 6.1 Add vault notes carrying the D1 corpus in ORGANIC prose — links, tags, highlights,
+- [x] 6.1 Add vault notes carrying the D1 corpus in ORGANIC prose — links, tags, highlights,
       code spans, an image embed, math, escaped characters — sitting where they naturally fall,
       not one per line. New files rather than edits to the existing `Backlinks/` fixtures, whose
       exact text `tests/footer-model.test.ts` asserts
-- [ ] 6.2 Cover both surfaces from the same material: chains deep enough to zoom into for the
+- [x] 6.2 Cover both surfaces from the same material: chains deep enough to zoom into for the
       trail, and references to a shared target for the footer
-- [ ] 6.3 Include the ancestor kinds the trail leaked — a callout with children, a table, a
-      fenced code block — since those are the crumbs no synthetic case proved in place
-- [ ] 6.4 Include the cases that only misbehave at length: a chain wide enough to wrap, an
+- [x] 6.3 Include the atom kinds as REFERENCE rows — callout, table, fenced code. They cannot be
+      ancestors (an atom has no children in this model, measured), so the crumb cases the plan
+      first named do not exist; what is real is a reference sitting inside one
+- [x] 6.4 Include the cases that only misbehave at length: a chain wide enough to wrap, an
       ancestor whose text is one long link, and an ancestor with several links on one line
-- [ ] 6.5 Confirm `scripts/gen-backlink-hub.mjs` and `scripts/check-vault-drift.mjs` are
+- [x] 6.5 Confirm `scripts/gen-backlink-hub.mjs` and `scripts/check-vault-drift.mjs` are
       unaffected, and that `npm test` still passes against the extended vault
 
 ## 7. Verification
 
-- [ ] 7.1 `e2e/specs/73-footer-render.e2e.ts`: a lineage row whose ancestors carry emphasis, a
+- [x] 7.1 `e2e/specs/73-footer-render.e2e.ts`: a lineage row whose ancestors carry emphasis, a
       code span, an external link, a wikilink and an image renders per D1 — asserted on the
       row's DOM, not on its text
-- [ ] 7.2 The same spec asserts a lineage row and the reference row beneath it produce the same
+- [x] 7.2 The same spec asserts a lineage row and the reference row beneath it produce the same
       ELEMENTS for the same syntax, and differ only in colour and in media
-- [ ] 7.3 `e2e/specs/80-outline-zoom.e2e.ts`: a callout, table and code-block ancestor's crumb
-      carries no block syntax
-- [ ] 7.4 The same spec asserts a crumb renders inline markdown per D1
-- [ ] 7.5 A link inside a crumb takes the click where the pointer is on it, and the crumb takes
+- [x] 7.3 `e2e/specs/80-outline-zoom.e2e.ts`: no block syntax survives into a crumb, over the
+      kinds that can actually be ancestors — heading, quote, task, ordered item
+- [x] 7.4 The same spec asserts a crumb renders inline markdown per D1
+- [x] 7.5 A link inside a crumb takes the click where the pointer is on it, and the crumb takes
       it everywhere else — asserted as behaviour on BOTH surfaces, since the guard the first
       draft relied on never ran for zoom (design D8)
-- [ ] 7.5a `Enter` on a link focused inside a segment follows the link and does not also
+- [x] 7.5a `Enter` on a link focused inside a segment follows the link and does not also
       activate the segment
-- [ ] 7.5b Toggling a task ancestor's checkbox while zoomed updates that crumb's marker —
-      the widget-key regression D9 describes
-- [ ] 7.6 An ancestor carrying an image embed renders its alt text, and the row's height is a
+- [x] 7.5b The widget key separates two states differing only in a field the row draws
+      (`tests/zoom-state.test.ts`), with a negative control. Asserted on the KEY rather than by
+      toggling a checkbox through the UI: the claim IS the key, and the e2e route pinned the
+      harness as much as the rule
+- [x] 7.6 An ancestor carrying an image embed renders its alt text, and the row's height is a
       line of text
-- [ ] 7.7 Negative controls for 7.1 and 7.3: disable the fix, confirm each fails
+- [x] 7.7 Negative controls for 7.1 and 7.3: disable the fix, confirm each fails
 - [ ] 7.8 Full sweep in CI on the checkpoint push
 
 ## 8. Land
