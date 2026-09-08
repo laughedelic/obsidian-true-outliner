@@ -22,7 +22,6 @@
 
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
-import type { ModeSource } from './keymap';
 import { zoomScope } from './zoom-scope';
 import { hiddenOffsetRanges } from './zoom-offsets';
 
@@ -52,8 +51,8 @@ import { hiddenOffsetRanges } from './zoom-offsets';
 const hiddenHead = Decoration.replace({ block: true });
 const hiddenTail = Decoration.replace({ block: true, inclusiveStart: false });
 
-function compute(state: EditorState, modes: ModeSource): DecorationSet {
-  const scope = zoomScope(state, modes);
+function compute(state: EditorState): DecorationSet {
+  const scope = zoomScope(state);
   if (!scope) return Decoration.none;
   const ranges = hiddenOffsetRanges(state.doc, scope);
   if (ranges.length === 0) return Decoration.none;
@@ -78,16 +77,16 @@ function compute(state: EditorState, modes: ModeSource): DecorationSet {
  */
 export const ZOOMED_CLASS = 'to-zoomed';
 
-export function zoomDecorationsExtension(modes: ModeSource): Extension {
+export function zoomDecorationsExtension(): Extension {
   const field = StateField.define<DecorationSet>({
-    create: (state) => compute(state, modes),
-    update: (_value, tr) => compute(tr.state, modes),
+    create: (state) => compute(state),
+    update: (_value, tr) => compute(tr.state),
     provide: (f) => EditorView.decorations.from(f),
   });
   return [
     field,
     EditorView.editorAttributes.of((view) =>
-      zoomScope(view.state, modes) ? { class: ZOOMED_CLASS } : null,
+      zoomScope(view.state) ? { class: ZOOMED_CLASS } : null,
     ),
   ];
 }

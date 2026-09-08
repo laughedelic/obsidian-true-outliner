@@ -27,11 +27,7 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 describe('outline decorations: contracts (nested editors, non-mutation)', function () {
@@ -106,11 +102,8 @@ describe('outline decorations: contracts (nested editors, non-mutation)', functi
 
     // Two full recomputes (off → on), the exact path with no document
     // change of its own — only the cursor-nudge dispatch.
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
+    await h.setOutlineMode(true);
     await browser.pause(150);
 
     // No document mutation and no cursor movement from the recomputes.

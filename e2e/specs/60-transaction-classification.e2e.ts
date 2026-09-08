@@ -20,11 +20,7 @@ const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await h.resetStats();
 }
 
@@ -166,11 +162,7 @@ describe('transaction classification: Phase A evidence', function () {
   it('nested per-cell table editor: typing, selecting, and dragging inside a cell has no enforcement effect', async function () {
     const note = 'Scratch/classification-nested.md';
     await h.createNote(note, '# Section\n\n| a | b |\n| --- | --- |\n| word | two |\n');
-    if (!(await h.isOutlineMode(note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await browser.pause(150);
     await h.resetStats();
 
@@ -213,17 +205,13 @@ describe('transaction classification: Phase A evidence', function () {
     const offNote = 'Scratch/mutation-off.md';
 
     await h.createNote(onNote, md);
-    if (!(await h.isOutlineMode(onNote))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await h.setSelection({ line: 0, ch: 6 }, { line: 2, ch: 6 });
     await browser.keys(Key.Backspace);
     const onResult = await h.getBuffer();
 
     await h.createNote(offNote, md);
-    expect(await h.isOutlineMode(offNote)).toBe(false);
+    await h.setOutlineMode(false);
     await h.setSelection({ line: 0, ch: 6 }, { line: 2, ch: 6 });
     await browser.keys(Key.Backspace);
     const offResult = await h.getBuffer();
@@ -259,6 +247,24 @@ describe('transaction classification: Phase A evidence', function () {
     const stress = lines.join('\n') + '\n';
     await outlineNote(stress);
     await browser.pause(200); // let the initial parse/cache settle
+
+    // A few driven edits BEFORE the measurement, and the reset after them, so
+    // what this samples is steady-state classification rather than a document
+    // still warming up. The budget is a per-keystroke contract, and a handful
+    // of first-touch samples on a 2000-line note is not what it is about.
+    //
+    // `outlineNote` resets the stats already, but it does so the moment the
+    // mode flips. That used to be several hundred milliseconds of settling
+    // later, because reaching outline mode meant waiting on a toast; the toast
+    // is gone and the wait is now a state poll, so the window this measures
+    // began arriving earlier and closer to the note's own warm-up. Leaning on
+    // an unrelated delay was never the intent — this states the settle
+    // instead, and does not depend on how fast the toggle returns.
+    for (let i = 0; i < 3; i++) {
+      await h.setCursor(i * 4 + 2, 5);
+      await h.keys.type('w');
+    }
+    await h.resetStats();
 
     // Drive typing across several sections.
     for (let i = 0; i < 20; i++) {

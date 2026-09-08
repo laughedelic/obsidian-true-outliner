@@ -2,8 +2,8 @@
  * CM6 adapter for outline mode's decorations. All the pure computation
  * (depth/supplementalDepth, per-line guide depths) lives in decorate.ts;
  * this module only turns those facts into CM6 decorations/DOM, gated
- * per-editor on outline mode via the public `editorInfoField` — same
- * gating pattern as keymap.ts's grammarExtension.
+ * per-editor on the outline-mode state field (`outline-state.ts`) — the same
+ * gate keymap.ts's grammarExtension reads.
  *
  * Two mechanisms, because Obsidian renders lines two different ways in Live
  * Preview. Which mechanism a line needs is decided by its RENDERED FORM, not
@@ -107,7 +107,7 @@ import {
   type PositionTrailFact,
   type TrailExtent,
 } from './decorate';
-import type { ModeSource } from './keymap';
+import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
 import { isNestedEditor } from './nested-editor';
 
@@ -448,10 +448,10 @@ function computeProvisional(state: EditorState): Provisional | null {
  */
 const zoomedFactsCache = new WeakMap<EditorState, DocFacts>();
 
-function baseFacts(state: EditorState, modes: DecorationSource): DocFacts {
+function baseFacts(state: EditorState): DocFacts {
   const cached = zoomedFactsCache.get(state);
   if (cached) return cached;
-  const scope = zoomScope(state, modes);
+  const scope = zoomScope(state);
   if (!scope) return docFacts(state);
 
   const offset = scope.startLine;
@@ -473,14 +473,14 @@ function baseFacts(state: EditorState, modes: DecorationSource): DocFacts {
 
 const overlayCache = new WeakMap<EditorState, DocFacts>();
 
-function factsFor(state: EditorState, modes: DecorationSource): DocFacts {
+function factsFor(state: EditorState): DocFacts {
   const cached = overlayCache.get(state);
   if (cached) return cached;
 
   const provisional = provisionalAt(state);
   let computed: DocFacts;
   if (!provisional) {
-    computed = baseFacts(state, modes);
+    computed = baseFacts(state);
   } else if (provisional.joins) {
     const facts = decorate(provisional.doc);
     // The row is one of a node's own lines in the resolved outline, so the
@@ -494,7 +494,7 @@ function factsFor(state: EditorState, modes: DecorationSource): DocFacts {
       guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
     };
   } else {
-    const base = baseFacts(state, modes);
+    const base = baseFacts(state);
     const facts = [...base.facts, provisional.fact].sort((a, b) => a.lineNumber - b.lineNumber);
     // Guides still come from the document as it actually is — the position adds
     // no depth to any line — but its row counts as content for where a guide
@@ -554,7 +554,7 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
     return computePositionTrail(provisional.doc, cursorLine, highlight);
   }
   const { doc } = parsedDoc(state.doc);
-  return zoomAwarePositionTrail(doc, cursorLine, zoomScope(state, modes), highlight);
+  return zoomAwarePositionTrail(doc, cursorLine, zoomScope(state), highlight);
 }
 
 /**
@@ -575,7 +575,7 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
  *
  * The settings are checked separately because they live outside the state, and
  * that check is DEFENSIVE rather than load-bearing today: `forceRedraw`
- * (main.ts) applies a settings change by dispatching a cursor transaction, so
+ * (main.ts) applies a settings change by dispatching two mode transactions, so
  * the next render always arrives on a new state and misses this cache anyway.
  * Deliberately kept, and deliberately noted as untested — deleting it fails
  * nothing in the suite, precisely because `forceRedraw` makes the case
@@ -678,12 +678,13 @@ function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: b
 export type { MarkerVisibility } from './mode-registry';
 import type { MarkerVisibility } from './mode-registry';
 
-/** Anything that can supply decorations needs to say which notes are in
- * outline mode (ModeSource) and which nodes get a marker at all — a real
- * Obsidian setting, read fresh on every recompute so switching it live (no
- * rebuild) takes effect on the very next transaction, the same way toggling
- * outline mode already does (see main.ts's refreshDecorations). */
-export interface DecorationSource extends ModeSource {
+/** The settings a decoration recompute reads. Outline mode is NOT among them:
+ * it is per-editor state, read from the state each builder already holds
+ * (`isOutlineMode`). These are real Obsidian settings, read fresh on every
+ * recompute so switching one live takes effect on the very next transaction —
+ * which for a setting whose output can be byte-identical is what main.ts's
+ * `forceRedraw` exists to guarantee. */
+export interface DecorationSource {
   readonly markerVisibility: MarkerVisibility;
   /** Which markers to accent (hierarchy-position-indicators). Read fresh per
    * recompute, same as the settings above. */
@@ -963,8 +964,7 @@ class MarkerWidget extends WidgetType {
 }
 
 function computeMarkers(state: EditorState, modes: DecorationSource): DecorationSet {
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return Decoration.none;
+  if (!isOutlineMode(state)) return Decoration.none;
 
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
@@ -972,7 +972,7 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
   // line it stands for would carry, under the same eligibility and visibility
   // gates — and so is the marker a bisected node's displaced line must NOT carry.
   // `factsFor` answers both.
-  const { facts } = factsFor(state, modes);
+  const { facts } = factsFor(state);
   for (const fact of facts) {
     // List items keep their fully native marker, untouched (same exclusion
     // guides already use); continuation lines never repeat the marker. The
@@ -1030,8 +1030,7 @@ function gapLineDecoration(depths: readonly number[], lineTrail?: PositionTrailF
 }
 
 function computeDecorations(state: EditorState, modes: DecorationSource): DecorationSet {
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return Decoration.none;
+  if (!isOutlineMode(state)) return Decoration.none;
 
   // computeLineGuides is a strict superset of decorate() by line coverage
   // (every line decorate() covers, plus gap-only lines) — iterate it as
@@ -1044,7 +1043,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // and a bisected node's displaced lines take the facts they had. Every OTHER
   // gap line still keeps the guide-only decoration: this layer renders where the
   // user currently is, not every blank line in the document.
-  const { factsByLine, guides } = factsFor(state, modes);
+  const { factsByLine, guides } = factsFor(state);
   const trail = positionTrail(state, modes);
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
@@ -1187,17 +1186,14 @@ const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
  * target is just its own line's shift, i.e. the rectangle starts at the
  * root's own box with no further leftward reach.
  */
-function selectedLineRootTargets(
-  state: EditorState,
-  modes: DecorationSource,
-): ReadonlyMap<number, string> {
+function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string> {
   const { doc } = parsedDoc(state.doc);
   // `baseFacts`, not `factsFor`: a provisional position requires a single empty
   // cursor and a cover requires a non-empty one, so the two cannot coexist and
   // routing this through the overlay would imply a case that cannot happen.
   // Still zoom-aware, though — the chrome's left edge is derived from depth, and
   // an unrebased depth would sit the highlight off its own text while zoomed.
-  const { factsByLine } = baseFacts(state, modes);
+  const { factsByLine } = baseFacts(state);
   const totalLines = state.doc.lines;
   const targets = new Map<number, string>();
   for (const selRange of state.selection.ranges) {
@@ -1280,15 +1276,14 @@ function allRangesCovered(state: EditorState): boolean {
   return sawNonEmpty;
 }
 
-function computeSelectionDecorations(state: EditorState, modes: DecorationSource): DecorationSet {
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return Decoration.none;
+function computeSelectionDecorations(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
 
   const totalLines = state.doc.lines;
   // Raw facts here too, for the reason `selectedLineRootTargets` states.
-  const { factsByLine } = baseFacts(state, modes);
+  const { factsByLine } = baseFacts(state);
   const builder = new RangeSetBuilder<Decoration>();
-  const targets = Array.from(selectedLineRootTargets(state, modes).entries()).sort((a, b) => a[0] - b[0]);
+  const targets = Array.from(selectedLineRootTargets(state).entries()).sort((a, b) => a[0] - b[0]);
   for (const [line, rootTarget] of targets) {
     if (line >= totalLines) continue; // stale, defensive only
     const from = state.doc.line(line + 1).from; // CM6 lines are 1-indexed
@@ -1563,13 +1558,12 @@ export { ONE_SPACE_MARKER_CLASS } from './chrome-line';
 /** `1.`, `12)` — the run a mark covers, with its offset in the line. */
 const ORDERED_DIGITS_RE = /^([ \t]*)(\d{1,9}[.)])/;
 
-function computeOrderedDigits(state: EditorState, modes: DecorationSource): DecorationSet {
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return Decoration.none;
+function computeOrderedDigits(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
 
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
-  const { facts } = factsFor(state, modes);
+  const { facts } = factsFor(state);
   for (const fact of facts) {
     // Exactly "list-item first line" — a continuation line repeats no marker,
     // and no other kind has one of this shape.
@@ -1623,7 +1617,7 @@ class OrderedDigitsPlugin implements PluginValue {
 
   private compute(): DecorationSet {
     if (isNestedEditor(this.view)) return Decoration.none;
-    return computeOrderedDigits(this.view.state, this.modes);
+    return computeOrderedDigits(this.view.state);
   }
 }
 
@@ -1765,7 +1759,15 @@ class SelectionDecorationPlugin implements PluginValue {
    */
   update(update: ViewUpdate): void {
     this.decorations = this.compute();
-    if (update.selectionSet && !this.mouseDown) this.applyFocusPolicy();
+    // A mode change is an exit like any other, and it is not a selection
+    // change: the cover survives the toggle untouched, so `selectionSet` is
+    // false and the policy would never see the edge. It used to, only because
+    // turning the mode off also nudged the cursor from outside CM6; with the
+    // mode in editor state that nudge is gone and this is what carries it.
+    // Left out, the editor stays blurred with no way back — the document key
+    // path correctly declines, being off-mode, so nothing restores focus.
+    const modeChanged = isOutlineMode(update.startState) !== isOutlineMode(update.state);
+    if ((update.selectionSet || modeChanged) && !this.mouseDown) this.applyFocusPolicy();
   }
 
   destroy(): void {
@@ -1775,8 +1777,7 @@ class SelectionDecorationPlugin implements PluginValue {
   }
 
   private isOutlineNote(): boolean {
-    const path = this.view.state.field(editorInfoField, false)?.file?.path;
-    return !isNestedEditor(this.view) && !!path && this.modes.isOutline(path);
+    return !isNestedEditor(this.view) && isOutlineMode(this.view.state);
   }
 
   /**
@@ -1944,16 +1945,37 @@ class SelectionDecorationPlugin implements PluginValue {
     // `editorAttributes` facet in `decorationsExtension` for why writing it
     // imperatively flickered.
     if (!this.isOutlineNote()) return Decoration.none;
-    return computeSelectionDecorations(this.view.state, this.modes);
+    return computeSelectionDecorations(this.view.state);
   }
 }
 
 class MarginCompensation implements PluginValue {
+  /** A scheduled retry for a measurement that ran before layout, so a second
+   * one is never queued on top of it. */
+  private remeasure = 0;
+  /** Watches a HIDDEN view for the moment it gets a box; see `scheduleRemeasure`. */
+  private visibility: ResizeObserver | undefined;
+  private destroyed = false;
+
   constructor(
     private readonly view: EditorView,
     private readonly modes: DecorationSource,
   ) {
     this.apply();
+    // One deferred pass, always. The constructor runs before the view has any
+    // `.cm-line` DOM at all, so the measurements below find nothing to measure
+    // — and nothing brings them back on a view that opens already decorated:
+    // `docViewUpdate` fires when a decoration source's OUTPUT differs, and this
+    // one's output was already correct on the first render.
+    //
+    // Measured on a note opened in outline mode: `--to-marker-icon-size` was
+    // published (it is written unconditionally) while `--to-space-advance` and
+    // `--to-chevron-dead-right` were not, and both appeared the instant any
+    // transaction arrived. Before the mode became editor state that transaction
+    // was guaranteed, because reaching outline mode meant toggling into it; a
+    // note outlined from construction has no such event, so the gap became
+    // reachable exactly when the default started outlining every note that opens.
+    this.scheduleRemeasure();
   }
 
   docViewUpdate(): void {
@@ -1961,7 +1983,95 @@ class MarginCompensation implements PluginValue {
   }
 
   destroy(): void {
+    this.destroyed = true;
+    if (this.remeasure) {
+      (this.view.dom.ownerDocument.defaultView ?? window).cancelAnimationFrame(this.remeasure);
+    }
+    this.visibility?.disconnect();
+    this.visibility = undefined;
     this.clearAll();
+  }
+
+  /**
+   * Run `apply` again on the next frame.
+   *
+   * Called once from the constructor, for the reason given there, and again
+   * from `apply` itself whenever a measurement reports `not-laid-out` — an
+   * element it FOUND and could not measure, because the browser had not laid
+   * the view out yet. `measureChevron` and `measureSpaceAdvance` both read a
+   * rect and both decline a zero-width one rather than publish a nonsense
+   * length, so that state has to be retried rather than accepted.
+   *
+   * Deliberately not "retry while the value is unpublished": a note with no
+   * list and no foldable block has nothing to measure at all and never
+   * publishes either, and re-arming on that would hold a frame callback open
+   * for as long as the note is. The `not-laid-out` answer is the one that says
+   * another frame will help — and only when the VIEW itself has a box, since a
+   * hidden one measures zero indefinitely rather than for a frame.
+   */
+  private scheduleRemeasure(): void {
+    if (this.remeasure || this.destroyed) return;
+    // A HIDDEN view measures zero forever, not for one frame. An inactive tab
+    // and the editor retained behind reading view are both display:none, and
+    // retrying those on the frame clock would burn a callback per hidden
+    // outlined editor for as long as it stays hidden — which is indefinitely.
+    // Waiting for a box is the browser's own job, so it is asked rather than
+    // polled; the observer fires exactly once, when the view is shown.
+    if (this.view.dom.getBoundingClientRect().width === 0) {
+      this.observeVisibility();
+      return;
+    }
+    // The view's OWN window, not this realm's: a pop-out window has its own
+    // frame clock, and a callback scheduled here would run against the wrong
+    // one (`zoom-click.ts` makes the same realm check, for the same reason).
+    const win = this.view.dom.ownerDocument.defaultView ?? window;
+    this.remeasure = win.requestAnimationFrame(() => {
+      this.remeasure = 0;
+      if (!this.destroyed) this.measureAfterLayout();
+    });
+  }
+
+  /**
+   * Measure once, when a hidden view is next given a box.
+   *
+   * A `ResizeObserver` rather than a poll or a CM6 hook: showing a tab is a
+   * layout event and this is the API for one, and it self-terminates — it
+   * disconnects on the first non-zero box, so a view that is shown and hidden
+   * repeatedly costs one observer per unmeasured state rather than one per
+   * cycle. Observing `view.dom` and writing only custom properties to it cannot
+   * loop: a custom property changes no box.
+   */
+  /**
+   * Just the two rect-reading measurements, and a retry if they still cannot
+   * run.
+   *
+   * NOT a full `apply()`. This path exists for one reason — `measureChevron`
+   * and `measureSpaceAdvance` need a laid-out DOM and the constructor has none
+   * — and re-running the whole patch to recover two custom properties does far
+   * more than that reason asks: margins, facts, per-line chevron rows and the
+   * widget sweep all recompute, on every editor construction, when
+   * `docViewUpdate` already drives them off real renders. Doing only what was
+   * missed keeps this off the note-open path, where the cost lands on the
+   * largest notes.
+   */
+  private measureAfterLayout(): void {
+    if (!isOutlineMode(this.view.state) || isNestedEditor(this.view)) return;
+    const chevron = this.measureChevron();
+    const advance = this.measureSpaceAdvance();
+    if (chevron === 'not-laid-out' || advance === 'not-laid-out') this.scheduleRemeasure();
+  }
+
+  private observeVisibility(): void {
+    if (this.visibility || this.destroyed) return;
+    const win = this.view.dom.ownerDocument.defaultView;
+    if (!win?.ResizeObserver) return; // no observer available: the next update measures
+    this.visibility = new win.ResizeObserver(() => {
+      if (this.destroyed || this.view.dom.getBoundingClientRect().width === 0) return;
+      this.visibility?.disconnect();
+      this.visibility = undefined;
+      this.measureAfterLayout();
+    });
+    this.visibility.observe(this.view.dom);
   }
 
   /**
@@ -2126,7 +2236,7 @@ class MarginCompensation implements PluginValue {
     }
   }
 
-  private measureChevron(): void {
+  private measureChevron(): 'not-laid-out' | 'done' {
     // From a BLOCK line's chevron, because the block rule is the only consumer.
     // Measured, the wrapper's width is not a property of the chevron but of the
     // line it sits on: 15px on a heading or paragraph, 30.8px on a list item
@@ -2142,14 +2252,16 @@ class MarginCompensation implements PluginValue {
       '.cm-line.to-decor-block .cm-fold-indicator .collapse-indicator',
     );
     const glyph = wrapper?.querySelector('svg');
-    if (!wrapper || !glyph) return;
+    if (!wrapper || !glyph) return 'done'; // no chevron in view: nothing to measure
     const wrapperRect = wrapper.getBoundingClientRect();
     const glyphRect = glyph.getBoundingClientRect();
-    if (wrapperRect.width === 0 || glyphRect.width === 0) return;
+    // Found, but the browser has not laid it out yet — see `scheduleRemeasure`.
+    if (wrapperRect.width === 0 || glyphRect.width === 0) return 'not-laid-out';
     const deadRight = `${(wrapperRect.right - glyphRect.right).toFixed(1)}px`;
-    if (deadRight === this.lastDeadRight) return;
+    if (deadRight === this.lastDeadRight) return 'done';
     this.lastDeadRight = deadRight;
     this.view.dom.setCssProps({ '--to-chevron-dead-right': deadRight });
+    return 'done';
   }
 
   /**
@@ -2257,6 +2369,19 @@ class MarginCompensation implements PluginValue {
    * needed no value at all. The CSS fallback (`0.26em`) reproduces the bundled
    * font's measurement to within 0.03px and covers the first paint only.
    */
+  /**
+   * The document the view actually lives in.
+   *
+   * `Range` and `TreeWalker` are created BY a document and are scoped to it, so
+   * the global `document` is the wrong one for a note opened in a pop-out
+   * window — the measurement below would be built against a document that does
+   * not contain the node it is measuring. Same realm check `zoom-click.ts`
+   * makes for `Element`, and `scheduleRemeasure` for the frame clock.
+   */
+  private get doc(): Document {
+    return this.view.dom.ownerDocument;
+  }
+
   /** The space Obsidian leaves after a rendered checkbox, when one is in view. */
   private taskLabelSpace(): Node | null {
     const label = this.view.contentDOM.querySelector<HTMLElement>(
@@ -2269,7 +2394,7 @@ class MarginCompensation implements PluginValue {
       const found =
         node.nodeType === Node.TEXT_NODE
           ? node
-          : document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
+          : this.doc.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
       if (found?.nodeValue) text = found;
     }
     // Only a leading space is ours to absorb; anything else means Obsidian
@@ -2292,7 +2417,7 @@ class MarginCompensation implements PluginValue {
       '.cm-line.to-decor-list:not(.HyperMD-task-line) .cm-formatting-list',
     );
     for (const span of Array.from(spans)) {
-      const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
+      const walker = this.doc.createTreeWalker(span, NodeFilter.SHOW_TEXT);
       let last: Node | null = null;
       for (let node = walker.nextNode(); node; node = walker.nextNode()) last = node;
       if (last?.nodeValue === ' ') return last;
@@ -2300,18 +2425,19 @@ class MarginCompensation implements PluginValue {
     return null;
   }
 
-  private measureSpaceAdvance(): void {
+  private measureSpaceAdvance(): 'not-laid-out' | 'done' {
     const text = this.taskLabelSpace() ?? this.markerTrailingSpace();
-    if (!text) return;
-    const range = document.createRange();
+    if (!text) return 'done'; // no qualifying marker in view: nothing to measure
+    const range = this.doc.createRange();
     range.setStart(text, 0);
     range.setEnd(text, 1);
     const width = range.getBoundingClientRect().width;
-    if (width === 0) return;
+    if (width === 0) return 'not-laid-out';
     const advance = `${width.toFixed(2)}px`;
-    if (advance === this.lastSpaceAdvance) return;
+    if (advance === this.lastSpaceAdvance) return 'done';
     this.lastSpaceAdvance = advance;
     this.view.dom.setCssProps({ '--to-space-advance': advance });
+    return 'done';
   }
 
   /**
@@ -2345,11 +2471,10 @@ class MarginCompensation implements PluginValue {
   }
 
   private apply(): void {
-    const path = this.view.state.field(editorInfoField, false)?.file?.path;
-    // See isNestedEditor's own doc comment — a nested per-cell editor
-    // shares this.modes.isOutline's own path with the real top-level note,
-    // so that check alone can't exclude it; only the DOM-level one can.
-    if (!path || !this.modes.isOutline(path) || isNestedEditor(this.view)) {
+    // See isNestedEditor's own doc comment — a nested per-cell editor holds an
+    // outline-mode field of its own, so the mode check alone can't exclude it;
+    // only the DOM-level one can.
+    if (!isOutlineMode(this.view.state) || isNestedEditor(this.view)) {
       this.clearAll();
       return;
     }
@@ -2361,18 +2486,23 @@ class MarginCompensation implements PluginValue {
     // there; same target here for consistency). Re-measured every render,
     // so a theme switch mid-session corrects on the next update.
     this.view.dom.setCssProps({ '--to-marker-icon-size': MARKER_ICON_CSS });
-    this.measureChevron();
+    const chevron = this.measureChevron();
     this.measureChevronRows();
-    this.measureSpaceAdvance();
+    const advance = this.measureSpaceAdvance();
     this.measureSelectionColor();
+    // Only when a measurement FOUND its element and the browser had not laid it
+    // out — see `scheduleRemeasure`. Not "the value is still unpublished": a
+    // note with no list and no foldable block never publishes either, and
+    // retrying on that would re-arm a frame callback for the life of the view.
+    if (chevron === 'not-laid-out' || advance === 'not-laid-out') this.scheduleRemeasure();
 
     // `factsFor`, not `docFacts`: a line Obsidian renders as a widget takes the
     // same overlay a plain one does, or a displaced line would move here while
     // its plain neighbour did not (`decorate-widget-rendered-lines`' own rule,
     // applied to this change's facts).
-    const { factsByLine, guidesByLine } = factsFor(this.view.state, this.modes);
+    const { factsByLine, guidesByLine } = factsFor(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
-    const selectedLineTargets = selectedLineRootTargets(this.view.state, this.modes);
+    const selectedLineTargets = selectedLineRootTargets(this.view.state);
     // Position indicators reach widget atoms the same way everything else
     // does — through this imperative patch, since a CM6 decoration has no
     // effect on them at all (module doc comment).
@@ -2814,7 +2944,7 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // composes with the theme's own classes instead of racing them.
     EditorView.editorAttributes.of((view) =>
       !isNestedEditor(view) &&
-      isOutlineView(view, modes) &&
+      isOutlineMode(view.state) &&
       allRangesCovered(view.state)
         ? { class: BLOCK_SELECTING_CLASS }
         : null,
@@ -2822,10 +2952,4 @@ export function decorationsExtension(modes: DecorationSource): Extension {
   ];
 }
 
-/** Whether `view`'s file is an outline-mode note. The state-only half of
- * `SelectionDecorationPlugin.isOutlineNote`, split out so the facet above can
- * ask the same question without a plugin instance. */
-function isOutlineView(view: EditorView, modes: DecorationSource): boolean {
-  const path = view.state.field(editorInfoField, false)?.file?.path;
-  return !!path && modes.isOutline(path);
-}
+

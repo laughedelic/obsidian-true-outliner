@@ -18,11 +18,7 @@ const CLASS = 'to-decor-node-selected';
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 /**
@@ -320,7 +316,7 @@ describe('escalated-selection-decoration', function () {
   it('off-mode note renders no chrome, even for a selection that would otherwise match', async function () {
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await h.createNote(NOTE, md);
-    expect(await h.isOutlineMode(NOTE)).toBe(false);
+    await h.setOutlineMode(false);
     await h.setSelection({ line: 0, ch: 0 }, { line: 0, ch: 'First paragraph.'.length });
     expect(await h.getLineClassList(0)).not.toContain(CLASS);
   });
@@ -422,7 +418,7 @@ describe('escalated-selection-decoration: native selection suppression (user rev
     if (h.IS_MOBILE_RUN) this.skip();
     const md = 'First paragraph.\n\nSecond paragraph.\n';
     await h.createNote(NOTE, md);
-    expect(await h.isOutlineMode(NOTE)).toBe(false);
+    await h.setOutlineMode(false);
     await h.mouseDragSelect({ line: 0, ch: 6 }, { line: 2, ch: 6 });
     expect(/rgba?\([^)]*,\s*0\)$/.test(await nativeSelectionBackground())).toBe(false);
   });

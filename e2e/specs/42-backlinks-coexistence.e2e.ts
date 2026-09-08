@@ -55,11 +55,7 @@ function suppressed(): Promise<{ present: boolean; matches: boolean }> {
 
 async function openInOutline(notePath: string): Promise<void> {
   await h.openNote(notePath);
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await browser.executeObsidian(() => {
     const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
     if (s) s.scrollTop = s.scrollHeight;
@@ -108,7 +104,7 @@ describe('coexistence with core backlinks', function () {
   it('does not reach a note the plugin is not decorating', async function () {
     await h.openNote(PLAIN);
     await browser.pause(900);
-    expect(await h.isOutlineMode(PLAIN)).toBe(false);
+    await h.setOutlineMode(false);
     // No footer in this view, so the rule's `:has()` cannot hold whatever the
     // setting says.
     expect((await suppressed()).matches).toBe(false);

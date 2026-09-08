@@ -23,11 +23,7 @@ const NOTE = 'Scratch/selection-structural-ops.md';
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await h.setBuffer(content);
 }
 

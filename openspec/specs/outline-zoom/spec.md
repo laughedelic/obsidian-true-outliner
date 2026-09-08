@@ -468,7 +468,10 @@ triggers:
 2. A change touches any position outside the visible range as that range stood before the change.
    This covers history transactions, which bypass enforcement entirely; writes from sync or
    another application; and edits dispatched from another pane onto the same file.
-3. Outline mode is switched off for the file.
+3. Outline mode is switched off in the view holding the zoom. Trigger 3 fires for that view and
+   for no other: the mode is a per-tab state, so a second view on the same file keeps both its
+   own mode and its own scope, which is the same per-view shape this capability's own scope model
+   has.
 
 Each trigger SHALL clear the STORED anchor, not merely suppress the scope it would otherwise
 derive: leaving the anchor in place behind a gate that only currently reads false is what let a
@@ -493,12 +496,16 @@ zoom.
 - **THEN** the zoom stays exactly as it was
 
 #### Scenario: Turning outline mode off clears the zoom
-- **WHEN** the user disables outline mode for the file while zoomed
-- **THEN** the whole document renders as stock Obsidian, with no zoom and no breadcrumb trail
+- **WHEN** the user turns outline mode off in a zoomed tab
+- **THEN** that tab renders as stock Obsidian, with no zoom and no breadcrumb trail
+
+#### Scenario: Another view on the same file keeps its zoom
+- **WHEN** two tabs show the same file, each zoomed, and the user turns outline mode off in one
+- **THEN** the other tab keeps its own outline mode and its own zoom, unchanged
 
 #### Scenario: Re-enabling outline mode does not revive a cleared zoom
-- **WHEN** the user disables outline mode while zoomed, then re-enables it
-- **THEN** the file opens unzoomed — trigger 3 clears the stored anchor itself, not only the
+- **WHEN** the user turns outline mode off in a zoomed tab, then turns it back on
+- **THEN** that tab is unzoomed — trigger 3 clears the stored anchor itself, not only the
   scope it would otherwise still derive
 
 ### Requirement: Zoom is per editor view and is never persisted

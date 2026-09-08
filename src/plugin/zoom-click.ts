@@ -45,13 +45,12 @@
 
 import { ViewPlugin, type EditorView, type PluginValue } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
-import { editorInfoField } from 'obsidian';
 import { resolveZoom } from '../zoom';
 import { parsedDoc } from './parsed-doc';
 import { isNestedEditor } from './nested-editor';
 import { OWN_CHROME_CLASS } from './chrome-line';
 import { zoomTo } from './zoom-state';
-import type { ModeSource } from './keymap';
+import { isOutlineMode } from './outline-state';
 
 /**
  * What counts as a node's mark.
@@ -82,10 +81,7 @@ class ZoomClickPlugin implements PluginValue {
   /** A press this gesture took, until its own trailing events are spent. */
   private consuming = false;
 
-  constructor(
-    private readonly view: EditorView,
-    private readonly modes: ModeSource,
-  ) {
+  constructor(private readonly view: EditorView) {
     this.Element = view.dom.ownerDocument.defaultView?.Element ?? Element;
     // No realm check needed on `event` itself: a listener registered for
     // `'pointerdown'` is only ever invoked with a `PointerEvent`, whichever
@@ -152,8 +148,7 @@ class ZoomClickPlugin implements PluginValue {
     // (`chrome-line.ts`), which is exactly the question being asked here.
     if (mark.closest(`.${OWN_CHROME_CLASS}`)) return;
     if (isNestedEditor(this.view)) return;
-    const path = this.view.state.field(editorInfoField, false)?.file?.path;
-    if (!path || !this.modes.isOutline(path)) return;
+    if (!isOutlineMode(this.view.state)) return;
 
     let pos: number;
     try {
@@ -187,6 +182,6 @@ class ZoomClickPlugin implements PluginValue {
   }
 }
 
-export function zoomClickExtension(modes: ModeSource): Extension {
-  return ViewPlugin.define((view) => new ZoomClickPlugin(view, modes));
+export function zoomClickExtension(): Extension {
+  return ViewPlugin.define((view) => new ZoomClickPlugin(view));
 }

@@ -53,11 +53,7 @@ async function setFooter(on: boolean): Promise<void> {
 }
 
 async function ensureOutlineMode(notePath: string): Promise<void> {
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
 }
 
 function widgetCount(): Promise<number> {
@@ -202,14 +198,10 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
 
     // Off-mode is the plugin's hard boundary everywhere else; the spike must not
     // be the one layer that ignores it.
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     expect(await widgetCount()).toBe(0);
 
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
+    await h.setOutlineMode(true);
     await setFooter(false);
   });
 

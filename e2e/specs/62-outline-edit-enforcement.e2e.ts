@@ -18,11 +18,7 @@ const NOTE = 'Scratch/enforcement.md';
 
 async function outlineNote(content: string): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await h.resetStats();
 }
 
@@ -163,7 +159,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     // the on-mode scenario just above, same input, no orphan line.
     const offNote = 'Scratch/orphan-gap-off.md';
     await h.createNote(offNote, 'Alpha one.\n\nBravo two.\n\nCharlie three.\n');
-    expect(await h.isOutlineMode(offNote)).toBe(false);
+    await h.setOutlineMode(false);
     await h.setSelection({ line: 0, ch: 0 }, { line: 1, ch: 0 });
     await browser.keys(Key.Backspace);
     expect(await h.getBuffer()).toBe('\nBravo two.\n\nCharlie three.\n');
@@ -433,17 +429,13 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     const offNote = 'Scratch/paste-off.md';
 
     await h.createNote(onNote, md);
-    if (!(await h.isOutlineMode(onNote))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await h.setCursor(0, 5);
     await h.pasteText('more\ncontinuation\nlines');
     const onResult = await h.getBuffer();
 
     await h.createNote(offNote, md);
-    expect(await h.isOutlineMode(offNote)).toBe(false);
+    await h.setOutlineMode(false);
     await h.setCursor(0, 5);
     await h.pasteText('more\ncontinuation\nlines');
     const offResult = await h.getBuffer();
@@ -457,11 +449,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     const offNote = 'Scratch/paste-single-off.md';
 
     await h.createNote(onNote, md);
-    if (!(await h.isOutlineMode(onNote))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await h.setCursor(0, 5);
     await h.pasteText('SINGLE');
     const onResult = await h.getBuffer();
@@ -534,7 +522,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     // by 60-transaction-classification's own off-vs-on comparison).
     const offNote = 'Scratch/pass-through-off.md';
     await h.createNote(offNote, 'First.\n\nSecond.\n');
-    expect(await h.isOutlineMode(offNote)).toBe(false);
+    await h.setOutlineMode(false);
     await h.setSelection({ line: 0, ch: 3 }, { line: 2, ch: 3 });
     await browser.keys(Key.Backspace);
     expect(await h.getBuffer()).toBe('Firond.\n'); // stock character splice

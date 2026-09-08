@@ -94,11 +94,7 @@ export async function readStable<T>(read: () => Promise<T>, baseDeadlineMs = 800
 /** Open a note in outline mode and bring its footer's header on screen. */
 export async function openFooter(notePath: string): Promise<void> {
   await h.openNote(notePath);
-  if (!(await h.isOutlineMode(notePath))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await scrollToFooter();
   await settle();
 }

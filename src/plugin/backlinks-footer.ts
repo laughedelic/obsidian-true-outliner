@@ -42,7 +42,7 @@ import {
   getAllTags,
   type App,
 } from 'obsidian';
-import type { ModeSource } from './keymap';
+import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
 import { buildMarkerIcon } from './decorations';
@@ -91,13 +91,15 @@ import { nodeStartLine } from '../locate';
 
 export const FOOTER_CLASS = 'to-backlinks';
 
-export interface FooterSource extends ModeSource {
+export interface FooterSource {
   readonly app: App;
   readonly backlinks: BacklinkIndex;
   /** Whether the footer renders at all. */
   readonly backlinksFooter: boolean;
   /** Bumped when something outside editor state changes what the footer would
-   * show — outline mode, the setting, or the index. See `refreshBridge`. */
+   * show — the setting, or the index. Outline mode is no longer one of them:
+   * it lives in editor state now, so a mode toggle is a transaction the
+   * footer's own field recomputes on. See `refreshBridge`. */
   readonly footerRevision: number;
   /** Group order. Plugin data rather than per-note view state: its values are
    * note-independent, so a reader who wants source-name order wants it in
@@ -1791,8 +1793,9 @@ class BacklinksFooterWidget extends WidgetType {
 function compute(state: EditorState, source: FooterSource): DecorationSet {
   if (!source.backlinksFooter) return Decoration.none;
   if (state.field(nestedEditorField, false) === true) return Decoration.none;
+  if (!isOutlineMode(state)) return Decoration.none;
   const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !source.isOutline(path)) return Decoration.none;
+  if (!path) return Decoration.none;
 
   return Decoration.set([
     Decoration.widget({
@@ -1809,7 +1812,7 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
     // and a block replacement swallows a widget anchored there, so the footer
     // would silently vanish on zoom. Re-anchoring is the only available fix —
     // measured in docs/research/23, which also rules out shortening that range.
-    }).range(contentEndAnchor(state, source)),
+    }).range(contentEndAnchor(state)),
   ]);
 }
 

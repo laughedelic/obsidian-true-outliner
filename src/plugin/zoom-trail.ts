@@ -33,14 +33,13 @@ import { lineChrome, applyLineChrome, OWN_CHROME_CLASS } from './chrome-line';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
-import type { ModeSource } from './keymap';
 import type { LineageSeparator, SegmentIcons } from './mode-registry';
 
 export const TRAIL_CLASS = 'to-zoom-trail';
 
 /** The trail reads the SAME appearance settings the footer's own lineage rows
  * read, so one choice governs both surfaces. */
-export interface ZoomTrailSource extends ModeSource {
+export interface ZoomTrailSource {
   readonly backlinksSegmentIcons: SegmentIcons;
   readonly backlinksSeparator: LineageSeparator;
 }
@@ -152,7 +151,7 @@ class ZoomTrailWidget extends WidgetType {
     // Chrome, not a rendering of the zoom root's line: the widget-line patch
     // reads this class and leaves everything but the theme's base margin alone.
     const el = createDiv({ cls: `${TRAIL_CLASS} ${OWN_CHROME_CLASS}` });
-    const scope = zoomScope(view.state, this.modes);
+    const scope = zoomScope(view.state);
     if (!scope) return el;
 
     const row = el.createDiv({ cls: 'to-backlinks-row' });
@@ -207,7 +206,7 @@ class ZoomTrailWidget extends WidgetType {
         // so the crumb goes dead; the POSITION still names the same ancestor,
         // because the label that kept this widget alive is that ancestor's.
         const index = segments.indexOf(segment);
-        const current = zoomScope(view.state, this.modes);
+        const current = zoomScope(view.state);
         const ancestor = current?.trail[index - 1]; // -1: index 0 is the file
         if (!ancestor) return;
         const { doc } = parsedDoc(view.state.doc);
@@ -226,7 +225,7 @@ class ZoomTrailWidget extends WidgetType {
 }
 
 function compute(state: EditorState, modes: ZoomTrailSource): DecorationSet {
-  const scope = zoomScope(state, modes);
+  const scope = zoomScope(state);
   if (!scope) return Decoration.none;
   const file = state.field(editorInfoField, false)?.file;
   const name = file ? splitPath(file.path).name : 'Note';

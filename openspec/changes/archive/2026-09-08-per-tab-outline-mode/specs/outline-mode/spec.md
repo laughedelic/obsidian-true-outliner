@@ -1,12 +1,7 @@
-# outline-mode Specification
+# outline-mode Delta
 
-## Purpose
-Defines outline mode: a per-tab, UI-only state that decides whether a note is rendered and
-edited as an outline, initialized from one global default and never modifying note content or
-metadata. The default is persisted; a tab's own state is not persisted anywhere, and the mode is
-surfaced wherever the user is — a command available in every view mode, a settings toggle, a
-status bar item and a ribbon icon.
-## Requirements
+## ADDED Requirements
+
 ### Requirement: Per-tab outline state with a global default
 
 Outline mode SHALL be a per-tab state. Every editor SHALL initialize its outline state from one
@@ -241,6 +236,8 @@ the active one SHALL NOT be switched by either direction.
 - **THEN** that second pane remains in reading view, and shows the outline when the user
   switches it to editing themselves
 
+## MODIFIED Requirements
+
 ### Requirement: Mode gates structural commands
 
 Structural editing commands and the keyboard grammar SHALL be active only in an editor view
@@ -259,3 +256,24 @@ binding declining, leaving stock editor behavior byte-for-byte.
 - **WHEN** any grammar-bound key (Tab, Shift+Tab, Enter, Shift+Enter) is pressed in a note
   whose tab is not in outline mode
 - **THEN** the editor behaves exactly as stock Obsidian
+
+## REMOVED Requirements
+
+### Requirement: Per-note outline mode toggle
+**Reason**: The toggle is no longer per-note — the mode is a per-tab state with a global
+default, and the requirement's name and body both assert the per-note shape ("toggles outline
+mode for the active markdown note").
+
+**Migration**: "The toggle works from any view mode" carries the command's guarantees (active
+tab only, UI-only, in force within the command's own turn); "Per-tab outline state with a
+global default" carries what it means to be on or off.
+
+### Requirement: Mode persistence in plugin data
+**Reason**: Its whole subject is the per-path store — "remembered per note in the plugin data
+store (keyed by file path)", with rename migration and delete pruning. The per-tab model has
+one persisted value (the default) and no per-path entries, so the requirement is replaced
+rather than amended.
+
+**Migration**: Persistence of the default — across restarts, and the absence of any per-path
+or per-tab state — is stated in "Per-tab outline state with a global default"; the store's
+drop of retired per-path data is pinned by `e2e-verification`'s scenarios.

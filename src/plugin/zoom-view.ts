@@ -37,14 +37,12 @@ import { containsPos } from '../zoom';
 import { offsetToLinePos } from './cm-pos';
 import { zoomAnchorField } from './zoom-state';
 import { zoomScope } from './zoom-scope';
-import type { ModeSource } from './keymap';
 
 class ZoomViewPlugin implements PluginValue {
   private anchor: number | null;
 
   constructor(
     private readonly view: EditorView,
-    private readonly modes: ModeSource,
   ) {
     this.anchor = view.state.field(zoomAnchorField, false) ?? null;
   }
@@ -62,7 +60,7 @@ class ZoomViewPlugin implements PluginValue {
   }
 
   private settle(previous: number | null): void {
-    const scope = zoomScope(this.view.state, this.modes);
+    const scope = zoomScope(this.view.state);
     const caret = this.caretTarget(scope);
     const unfold = scope ? this.unfoldInside(scope) : [];
     if (caret !== null || unfold.length > 0) {
@@ -133,6 +131,6 @@ class ZoomViewPlugin implements PluginValue {
   }
 }
 
-export function zoomViewExtension(modes: ModeSource): Extension {
-  return ViewPlugin.define((view) => new ZoomViewPlugin(view, modes));
+export function zoomViewExtension(): Extension {
+  return ViewPlugin.define((view) => new ZoomViewPlugin(view));
 }

@@ -64,6 +64,7 @@ import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
 import { zoomScope } from "./zoom-scope";
 import { isNestedEditor } from "./nested-editor";
+import { isOutlineMode } from "./outline-state";
 import type { EditorChange } from "./dispatch";
 import {
   abandonEdit,
@@ -73,13 +74,9 @@ import {
   provisionalCleanup,
 } from "./provisional-cleanup";
 
-export interface ModeSource {
-  isOutline(path: string): boolean;
-}
-
-function makeHandler(modes: ModeSource, key: GrammarKey) {
+function makeHandler(key: GrammarKey) {
   return (view: EditorView): boolean => {
-    if (!outlinePathOf(modes, view)) return false;
+    if (!outlinePathOf(view)) return false;
 
     // Multi-cursor: decline (design D7). This handler plans from
     // `selection.main` alone and dispatches ONE cursor, so acting would
@@ -131,7 +128,7 @@ function makeHandler(modes: ModeSource, key: GrammarKey) {
       startLine === undefined
         ? undefined
         : { line: startLine.number - 1, ch: sel.from - startLine.from },
-      zoomScope(view.state, modes),
+      zoomScope(view.state),
     );
 
     if (outcome === null) {
@@ -320,9 +317,9 @@ function notAnOutlineGesture(
  * second time. They are exact covers by construction, so escalation would be
  * an identity anyway; the annotation choice keeps it from being asked.
  */
-function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
+function makeExtendHandler(direction: ExtendDirection) {
   return (view: EditorView): boolean => {
-    if (!outlinePathOf(modes, view)) return false;
+    if (!outlinePathOf(view)) return false;
 
     const doc = view.state.doc;
     const { doc: outlineDoc } = parsedDoc(doc);
@@ -350,7 +347,7 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
     // `outline-zoom` D7: the scope bounds the SEQUENCE. A press with nowhere
     // left to go inside it reports null, which this adapter already handles by
     // leaving that range alone.
-    const next = extendSelections(outlineDoc, before, direction, zoomScope(view.state, modes)?.cover);
+    const next = extendSelections(outlineDoc, before, direction, zoomScope(view.state)?.cover);
 
     // Every range is ours and every one has run out of sequence. CONSUME the
     // key: the selection must stay unchanged, and falling through would let
@@ -411,16 +408,16 @@ function makeExtendHandler(modes: ModeSource, direction: ExtendDirection) {
  * (unchanged), not swept into whole-document selection — each range's own
  * ladder is independent (design.md D5).
  */
-function makeSelectAllHandler(modes: ModeSource) {
+function makeSelectAllHandler() {
   return (view: EditorView): boolean => {
-    if (!outlinePathOf(modes, view)) return false;
+    if (!outlinePathOf(view)) return false;
 
     const doc = view.state.doc;
     const { doc: outlineDoc } = parsedDoc(doc);
     const before = view.state.selection.ranges.map((range) =>
       toLineRange(doc, range),
     );
-    const scope = zoomScope(view.state, modes);
+    const scope = zoomScope(view.state);
     const next = nextRungs(outlineDoc, before, scope?.cover);
     // Falling through to native Select All would select the hidden content the
     // scope exists to keep out of reach, so while zoomed the ladder consumes the
@@ -455,20 +452,16 @@ function makeSelectAllHandler(modes: ModeSource) {
  * EVERY binding in `grammarExtension` must gate through this, not just the
  * motion ones. That was the original defect and it has now bitten twice: the
  * structural keys (Tab/Shift-Tab/Alt-Arrow/Enter) and Mod-A each kept a private
- * `editorInfoField` + `isOutline` check that looked equivalent and was not.
+ * mode check that looked equivalent and was not.
  * Measured inside `.cm-embed-block`: Alt-ArrowUp raised the "Nothing above to
  * move past." outline rejection; Mod-A on a cell reading `- word` selected only
  * `word`, treating the user's literal text as a list marker; Home, Right and
  * ArrowDown all reported invoked AND consumed.
  */
-function outlinePathOf(
-  modes: ModeSource,
-  view: EditorView,
-): string | undefined {
+function outlinePathOf(view: EditorView): string | undefined {
   if (isNestedEditor(view)) return undefined;
-  const info = view.state.field(editorInfoField, false);
-  const path = info?.file?.path;
-  return path && modes.isOutline(path) ? path : undefined;
+  if (!isOutlineMode(view.state)) return undefined;
+  return view.state.field(editorInfoField, false)?.file?.path;
 }
 
 /**
@@ -489,7 +482,6 @@ function outlinePathOf(
  */
 function dispatchCursor(
   view: EditorView,
-  modes: ModeSource,
   offset: number,
   scrollIntoView = true,
 ): boolean {
@@ -502,7 +494,7 @@ function dispatchCursor(
   // Here rather than in each handler because this is the single point every
   // motion lands through, and a confinement rule copied per key is a rule with
   // five chances to be forgotten.
-  const scope = zoomScope(view.state, modes);
+  const scope = zoomScope(view.state);
   if (scope) {
     const cover = scope.cover;
     const line = view.state.doc.lineAt(offset).number - 1;
@@ -572,9 +564,9 @@ function probed(key: string, run: (view: EditorView) => boolean) {
   };
 }
 
-function makeHorizontalHandler(modes: ModeSource, direction: "left" | "right") {
+function makeHorizontalHandler(direction: "left" | "right") {
   return (view: EditorView): boolean => {
-    if (!outlinePathOf(modes, view)) return false;
+    if (!outlinePathOf(view)) return false;
     const sel = soleCursor(view);
     if (!sel) return false;
 
@@ -632,14 +624,14 @@ function makeHorizontalHandler(modes: ModeSource, direction: "left" | "right") {
         // stock motion among them, which is exactly how a caret would step
         // past the boundary into hidden content the refusal was meant to keep
         // it out of.
-        dispatchCursor(view, modes, linePosToOffset(doc, { line: pos.line, ch }));
+        dispatchCursor(view, linePosToOffset(doc, { line: pos.line, ch }));
         return true;
       }
       // Native motion left the line although the planner did not expect it to:
       // fall through and trust the planner.
     }
 
-    dispatchCursor(view, modes, linePosToOffset(doc, target));
+    dispatchCursor(view, linePosToOffset(doc, target));
     return true;
   };
 }
@@ -705,9 +697,9 @@ const tickCounter = EditorView.updateListener.of((update) => {
   }
 });
 
-function makeVerticalHandler(modes: ModeSource, forward: boolean) {
+function makeVerticalHandler(forward: boolean) {
   return (view: EditorView): boolean => {
-    if (!outlinePathOf(modes, view)) return false;
+    if (!outlinePathOf(view)) return false;
     const sel = soleCursor(view);
     if (!sel) return false;
 
@@ -757,7 +749,7 @@ function makeVerticalHandler(modes: ModeSource, forward: boolean) {
       // A refused move (outside the zoom scope) must NOT record a goal column:
       // the caret has not moved, so the column it would carry to the next press
       // is the one it already has.
-      if (!dispatchCursor(view, modes, offset)) return false;
+      if (!dispatchCursor(view, offset)) return false;
       // Read the tick AFTER dispatching: `view.dispatch` applies synchronously,
       // so the listener has already counted our own change by now.
       verticalGoalColumn.set(view, {
@@ -891,9 +883,9 @@ function makeVerticalHandler(modes: ModeSource, forward: boolean) {
  * Chrome correction applies to Home only: a marker or a continuation line's
  * alignment is always a line PREFIX, never a suffix, so End needs none.
  */
-function makeHomeEndHandler(modes: ModeSource, forward: boolean) {
+function makeHomeEndHandler(forward: boolean) {
   return (view: EditorView): boolean => {
-    if (!outlinePathOf(modes, view)) return false;
+    if (!outlinePathOf(view)) return false;
     // Handles a NON-EMPTY single range too, unlike the other motion handlers,
     // because declining left the caret on a non-addressable position. Measured:
     // on an escalated boundary-crossing selection, whose head is the last node's
@@ -935,7 +927,7 @@ function makeHomeEndHandler(modes: ModeSource, forward: boolean) {
     // A non-empty range must always be dispatched, even when the computed target
     // equals the head: the dispatch is what collapses it.
     if (!sel.empty || target.line !== raw.line || target.ch !== raw.ch) {
-      return dispatchCursor(view, modes, linePosToOffset(doc, target));
+      return dispatchCursor(view, linePosToOffset(doc, target));
     }
     return true; // consume either way — a further press at the outer rung does nothing
   };
@@ -948,25 +940,25 @@ function makeHomeEndHandler(modes: ModeSource, forward: boolean) {
  * the guard is "this exact place, from this exact keypress, still on top of the
  * history", not "the caret is on a blank line".
  */
-function makeCancelHandler(modes: ModeSource, forward: boolean) {
+function makeCancelHandler(forward: boolean) {
   return (view: EditorView): boolean => {
-    if (!outlinePathOf(modes, view)) return false;
+    if (!outlinePathOf(view)) return false;
     return cancelOnDelete(view, forward);
   };
 }
 
-export function grammarExtension(modes: ModeSource): Extension {
+export function grammarExtension(): Extension {
   return [
     tickCounter,
     // Gated on outline mode per update: the listener is installed in every
     // editor view, so without this it would act on stock editing too.
-    provisionalCleanup((view) => outlinePathOf(modes, view) !== undefined),
+    provisionalCleanup((view) => outlinePathOf(view) !== undefined),
     Prec.highest(
       keymap.of([
-        { key: "Backspace", run: makeCancelHandler(modes, false) },
-        { key: "Delete", run: makeCancelHandler(modes, true) },
-        { key: "Tab", run: probed("Tab", makeHandler(modes, "indent")) },
-        { key: "Shift-Tab", run: makeHandler(modes, "outdent") },
+        { key: "Backspace", run: makeCancelHandler(false) },
+        { key: "Delete", run: makeCancelHandler(true) },
+        { key: "Tab", run: probed("Tab", makeHandler("indent")) },
+        { key: "Shift-Tab", run: makeHandler("outdent") },
         // Move up/down are deliberately NOT bound here. Tab/Enter must live in
         // this keymap because they have to beat stock Obsidian behavior
         // (list indent, list continuation) at `Prec.highest`. Move has no stock
@@ -976,35 +968,35 @@ export function grammarExtension(modes: ModeSource): Extension {
         // not rebindable, not removable. It now ships as a default hotkey on
         // the `move-node-up`/`move-node-down` commands instead (see main.ts),
         // which is also what obsidian-outliner and Logseq use (Mod+Shift+Arrow).
-        { key: "Enter", run: makeHandler(modes, "split") },
-        { key: "Shift-Enter", run: makeHandler(modes, "continue") },
-        { key: "Mod-a", run: makeSelectAllHandler(modes) },
+        { key: "Enter", run: makeHandler("split") },
+        { key: "Shift-Enter", run: makeHandler("continue") },
+        { key: "Mod-a", run: makeSelectAllHandler() },
         {
           key: "Shift-ArrowUp",
-          run: probed("Shift-Up", makeExtendHandler(modes, "up")),
+          run: probed("Shift-Up", makeExtendHandler("up")),
         },
         {
           key: "Shift-ArrowDown",
-          run: probed("Shift-Down", makeExtendHandler(modes, "down")),
+          run: probed("Shift-Down", makeExtendHandler("down")),
         },
         {
           key: "ArrowLeft",
-          run: probed("Left", makeHorizontalHandler(modes, "left")),
+          run: probed("Left", makeHorizontalHandler("left")),
         },
         {
           key: "ArrowRight",
-          run: probed("Right", makeHorizontalHandler(modes, "right")),
+          run: probed("Right", makeHorizontalHandler("right")),
         },
         {
           key: "ArrowUp",
-          run: probed("Up", makeVerticalHandler(modes, false)),
+          run: probed("Up", makeVerticalHandler(false)),
         },
         {
           key: "ArrowDown",
-          run: probed("Down", makeVerticalHandler(modes, true)),
+          run: probed("Down", makeVerticalHandler(true)),
         },
-        { key: "Home", run: probed("Home", makeHomeEndHandler(modes, false)) },
-        { key: "End", run: probed("End", makeHomeEndHandler(modes, true)) },
+        { key: "Home", run: probed("Home", makeHomeEndHandler(false)) },
+        { key: "End", run: probed("End", makeHomeEndHandler(true)) },
       ]),
     ),
   ];

@@ -18,11 +18,7 @@ const NOTE = 'Scratch/grammar.md';
 /** Scratch note with outline mode ON, buffer + cursor arranged. */
 async function grammarNote(content: string, line: number, ch: number): Promise<void> {
   await h.createNote(NOTE, content);
-  if (!(await h.isOutlineMode(NOTE))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   // Settled, not just set: a task line's checkbox widget mounts after this and
   // moves the caret if it wins the race (see the helper). Every test here
   // presses a key from the position this sets, so it has to be a fact.
@@ -30,11 +26,7 @@ async function grammarNote(content: string, line: number, ch: number): Promise<v
 }
 
 async function modeOff(): Promise<void> {
-  if (await h.isOutlineMode(NOTE)) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(false);
 }
 
 describe('keyboard grammar', function () {
@@ -71,16 +63,12 @@ describe('keyboard grammar', function () {
     expect(await h.getBuffer()).toBe('Only.\n');
     await h.dismissNotices();
 
-    await h.toggleOutlineMode(); // off
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     await h.setCursor(0, 5);
     await h.keys.tab(); // stock: inserts whitespace
     expect(await h.getBuffer()).not.toBe('Only.\n');
 
-    await h.toggleOutlineMode(); // on again
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
+    await h.setOutlineMode(true);
     await h.setBuffer('Only.\n');
     await h.setCursor(0, 5);
     await h.keys.tab(); // grammar governs the very next keypress

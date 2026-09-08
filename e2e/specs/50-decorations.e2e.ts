@@ -37,10 +37,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('screenshots every fixture with outline mode on, light and dark', async function () {
     for (const fixture of ALL_DECORATION_FIXTURES) {
       await createFixture(fixture, h.createNote);
-      if (!(await h.isOutlineMode(fixture.note))) {
-        await h.toggleOutlineMode();
-        await h.waitForNotice('Outline mode on');
-      }
+      await h.setOutlineMode(true);
       await h.dismissNotices();
       // `settleMs` covers a fixture whose own rendering is ASYNCHRONOUS —
       // an embed resolves its link and renders another note, and a shorter
@@ -72,10 +69,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     ];
     for (const note of REAL_NOTES) {
       await h.openNote(note);
-      if (!(await h.isOutlineMode(note))) {
-        await h.toggleOutlineMode();
-        await h.waitForNotice('Outline mode on');
-      }
+      await h.setOutlineMode(true);
       await h.dismissNotices();
 
       const slug = note.replace(/[\/ ]/g, '-').replace(/\.md$/, '');
@@ -86,9 +80,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
       await browser.pause(150);
       await h.screenshotFull(SCREENSHOT_DIR, `real-${slug}-dark`);
 
-      await h.toggleOutlineMode(); // leave mode off for other specs
-      await h.waitForNotice('Outline mode off');
-      await h.dismissNotices();
+      await h.setOutlineMode(false);
     }
   });
 
@@ -96,11 +88,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     await h.setTheme(false);
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'heading-then-list')!;
     await h.createNote(fixture.note, fixture.md);
-    if (!(await h.isOutlineMode(fixture.note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
 
     // Lines: 0 "# Section", 1 blank, 2 "- top item", 3 "  - nested item",
     // 4 "    - deeply nested item".
@@ -136,9 +124,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     const deltaNestedDeep = deepRect.left - nestedRect.left;
     expect(deltaNestedDeep).toBeCloseTo(deltaTopNested, 1);
 
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     const topRectOff = await h.getLineRect(2);
     const nestedRectOff = await h.getLineRect(3);
     const deepRectOff = await h.getLineRect(4);
@@ -149,11 +135,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('wide-numbering: no marker/text overlap across the 9->10 digit-width boundary', async function () {
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'wide-numbering')!;
     await h.createNote(fixture.note, fixture.md);
-    if (!(await h.isOutlineMode(fixture.note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     // Line 8 is "9. nine", line 9 is "10. ten" — a flat list, so every item is
     // on the same column, and the question is what the extra digit does.
     //
@@ -190,11 +172,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('multiline continuation: continuation lines indent identically to the node’s first line', async function () {
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'multiline-continuation')!;
     await h.createNote(fixture.note, fixture.md);
-    if (!(await h.isOutlineMode(fixture.note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     // Lines: 0 "A paragraph that keeps going", 1 "onto a second visual
     // line...", 2 blank, 3 "- A list item that also", 4 "  keeps going...".
     const paraFirst = parseFloat(await h.getLineComputedStyle(0, 'padding-left'));
@@ -216,11 +194,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     // experiment first shipped.
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'widget-atoms')!;
     await h.createNote(fixture.note, fixture.md);
-    if (!(await h.isOutlineMode(fixture.note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await browser.pause(150);
 
     const tableWrapperMargin = parseFloat(
@@ -263,11 +237,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     // worse with more leading spaces. Regression fixture for that bug.
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'space-indented-paragraph')!;
     await h.createNote(fixture.note, fixture.md);
-    if (!(await h.isOutlineMode(fixture.note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await browser.pause(150);
 
     // Lines: 0 "Unindented sibling.", 1 blank, 2 " One leading space.",
@@ -293,11 +263,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('fold indicator on a parent list item does not collide with decorated content', async function () {
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'heading-then-list')!;
     await h.createNote(fixture.note, fixture.md);
-    if (!(await h.isOutlineMode(fixture.note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     // "- top item" (line 2) has a child ("nested item"), so Obsidian renders
     // a fold/collapse indicator on it (`.cm-fold-indicator`, confirmed
     // against a live build — the one native element that already burned an
@@ -318,11 +284,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('Enter’s provisional position puts the caret at the new node’s own column', async function () {
     const note = 'Scratch/provisional-enter.md';
     await h.createNote(note, '# Heading\n\npara\n\nnext\n');
-    if (!(await h.isOutlineMode(note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     // Where a real depth-1 paragraph's text sits.
     const realX = (await h.posToCoords(2, 0)).left;
 
@@ -343,11 +305,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('Shift+Enter’s provisional position stays inside the list block', async function () {
     const note = 'Scratch/provisional-shift-enter.md';
     await h.createNote(note, '# Heading\n\n- alpha\n  - beta\n');
-    if (!(await h.isOutlineMode(note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     const itemLeft = (await h.getLineRect(3)).left;
 
     await h.setCursor(3, '  - beta'.length);
@@ -365,11 +323,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('typing on Enter’s provisional position does not move the line', async function () {
     const note = 'Scratch/provisional-no-jump.md';
     await h.createNote(note, '# Heading\n\npara\n\nnext\n');
-    if (!(await h.isOutlineMode(note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await h.setCursor(2, 'para'.length);
     await h.keys.enter();
     await browser.pause(150);
@@ -389,11 +343,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
     // where Enter's is replaced by a new node's.
     const note = 'Scratch/provisional-no-jump-continuation.md';
     await h.createNote(note, '# Heading\n\n- alpha\n  - beta\n');
-    if (!(await h.isOutlineMode(note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await h.setCursor(3, '  - beta'.length);
     await h.keys.shiftEnter();
     await browser.pause(150);
@@ -415,11 +365,7 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
 
   async function outlineNote(note: string, md: string): Promise<void> {
     await h.createNote(note, md);
-    if (!(await h.isOutlineMode(note))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
   }
 
   it('a bisected item’s second line does not move', async function () {
@@ -485,14 +431,9 @@ describe('outline decorations: experiment 1 (additive indentation)', function ()
   it('a pure list is byte-identical to outline-mode-off with a position open', async function () {
     const note = 'Scratch/interior-position-pure-list.md';
     await outlineNote(note, '- foo\n  bar\n- next\n');
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode off');
-    await h.dismissNotices();
+    await h.setOutlineMode(false);
     const off = await Promise.all([0, 1, 2].map(async (l) => (await h.getLineRect(l)).left));
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-
+    await h.setOutlineMode(true);
     await h.setCursor(0, '- foo'.length);
     await h.keys.shiftEnter();
     await browser.pause(150);

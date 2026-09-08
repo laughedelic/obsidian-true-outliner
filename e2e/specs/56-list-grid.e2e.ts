@@ -212,12 +212,7 @@ let seq = 0;
 async function open(md: string, mode: 'on' | 'off' = 'on'): Promise<LineGeometry[]> {
   const note = `Scratch/list-grid-${++seq}.md`;
   await h.createNote(note, md);
-  const on = await h.isOutlineMode(note);
-  if ((mode === 'on') !== on) {
-    await h.toggleOutlineMode();
-    await browser.pause(200);
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(mode === 'on');
   await browser.pause(300);
   return geometry();
 }

@@ -62,11 +62,7 @@ describe('the footer’s appearance settings', function () {
     });
 
     await h.openNote(TARGET);
-    if (!(await h.isOutlineMode(TARGET))) {
-      await h.toggleOutlineMode();
-      await h.waitForNotice('Outline mode on');
-      await h.dismissNotices();
-    }
+    await h.setOutlineMode(true);
     await browser.executeObsidian(() => {
       const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
       if (s) s.scrollTop = s.scrollHeight;

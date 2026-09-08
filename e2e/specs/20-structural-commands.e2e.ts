@@ -11,11 +11,7 @@ import { REJECTION_MESSAGES } from '../../src/plugin/messages';
 /** Create a scratch note with outline mode on and the cursor placed. */
 async function outlineNote(content: string, line: number, ch: number): Promise<void> {
   await h.createNote('Scratch/structural.md', content);
-  if (!(await h.isOutlineMode('Scratch/structural.md'))) {
-    await h.toggleOutlineMode();
-    await h.waitForNotice('Outline mode on');
-    await h.dismissNotices();
-  }
+  await h.setOutlineMode(true);
   await h.setCursor(line, ch);
 }
 
