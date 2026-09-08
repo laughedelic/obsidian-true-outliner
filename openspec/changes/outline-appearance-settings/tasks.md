@@ -1,32 +1,32 @@
 ## 1. Measure the ladder before choosing it
 
-- [ ] 1.1 Measure the grid's floor (`gutter + widest ink-left`) on desktop and under mobile
+- [x] 1.1 Measure the grid's floor (`gutter + widest ink-left`) on desktop and under mobile
   emulation, against a fixture carrying a task list, an ordered list and a nested bullet list —
   the marks the gutter is derived from — and verify the two device classes report different
   floors, since the checkbox term differs by platform
   ([21-marker-text-gap.md](../../../docs/research/21-marker-text-gap.md))
-- [ ] 1.2 Render the candidate rungs (`1.5rem`, `1.75rem`, `2rem`, plus one wider candidate) across
+- [x] 1.2 Render the candidate rungs (`1.5rem`, `1.75rem`, `2rem`, plus one wider candidate) across
   the fixture corpus in both bundled themes and both device classes, and verify by screenshot
   which read as a ladder and which spend real width on chrome — the same pass
   [22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md) records for the
   current default
-- [ ] 1.3 Render the candidate guide thicknesses (`1px`, `2px`, `3px`) and intensities (subtle,
+- [x] 1.3 Render the candidate guide thicknesses (`1px`, `2px`, `3px`) and intensities (subtle,
   normal, strong) over the same corpus in both themes, and verify the top thickness still reads
   as a guide beside a marker rather than as a bar
-- [ ] 1.4 Record 1.1–1.3 as an addendum to `docs/research/22-outline-unit-width.md` (unit) and
+- [x] 1.4 Record 1.1–1.3 as an addendum to `docs/research/22-outline-unit-width.md` (unit) and
   `docs/research/09-experiment-2-guide-lines.md` (appearance), and verify each preset the code
   will offer has a figure behind it, including the bottom rung's clearance on both device classes
-- [ ] 1.5 Confirm which classes Obsidian actually puts on `body` for each device class, including
+- [x] 1.5 Confirm which classes Obsidian actually puts on `body` for each device class, including
   under `app.emulateMobile()` in the mobile e2e configuration, and verify the class the
   device-class default keys on is present there — the branch is untestable if it is not
 
 ## 2. The guide's width becomes a declaration
 
-- [ ] 2.1 Replace `GUIDE_WIDTH` in `src/plugin/chrome-line.ts` with a reference to a new
+- [x] 2.1 Replace `GUIDE_WIDTH` in `src/plugin/chrome-line.ts` with a reference to a new
   `--to-guide-width` property declared once in `styles.css`'s chrome-token block, add its name to
   `CHROME_VARS`, and verify no numeric sibling remains by grepping for a literal width in
   `chrome-line.ts`, `chrome-tokens.ts` and `decorations.ts`
-- [ ] 2.2 Point `--to-trail-width` at `var(--to-guide-width)` and `--to-stripe-bleed` at the max of
+- [x] 2.2 Point `--to-trail-width` at `var(--to-guide-width)` and `--to-stripe-bleed` at the max of
   both widths, and verify with an existing guide fixture that an accented guide measures the same
   width as an unaccented one and that a depth-0 guide paints its full width — negative control:
   hold the guide at its thickest preset while pinning `--to-trail-width` back to `1px` from a
@@ -34,7 +34,7 @@
   `max(1px, var(--to-trail-width))` bleed and full width under the new one. Restoring the old
   formula alone proves nothing once the trail defaults to the guide's width: both then resolve to
   the same 3px, and only a diverging trail width shows that the guide's own width participates
-- [ ] 2.3 Verify `e2e/specs/51-guides-gradient.e2e.ts` and `55-position-indicators.e2e.ts` still
+- [x] 2.3 Verify `e2e/specs/51-guides-gradient.e2e.ts` and `55-position-indicators.e2e.ts` still
   pass unchanged with the width published rather than spelled (`npm run test:e2e:narrow --
   51-guides-gradient`, then `55-position-indicators`)
 

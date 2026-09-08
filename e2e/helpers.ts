@@ -1346,6 +1346,35 @@ export function publishedUnit(): Promise<number> {
   });
 }
 
+/**
+ * Apply (or remove) a stylesheet the way a user's CSS snippet applies one: a
+ * `<style>` element appended to the head, so it lands AFTER the plugin's own
+ * sheet and wins at equal specificity.
+ *
+ * A `<style>` element rather than an inline style on the element under test:
+ * an inline style beats every stylesheet rule at any specificity, so it would
+ * prove only that `var()` works — not that a snippet can retune what the plugin
+ * declares, which is the supported adjustment several specs exist to hold.
+ *
+ * `id` names the override so a spec can replace or drop its own without
+ * disturbing another's; `css` of `null` removes it.
+ */
+export async function applyStyleOverride(id: string, css: string | null): Promise<void> {
+  await browser.execute(
+    (id: string, css: string | null) => {
+      document.getElementById(id)?.remove();
+      if (css === null) return;
+      const style = document.createElement('style');
+      style.id = id;
+      style.textContent = css;
+      document.head.appendChild(style);
+    },
+    id,
+    css,
+  );
+  await browser.pause(200);
+}
+
 /** Set the app-wide color scheme by toggling the body theme classes. */
 export async function setTheme(dark: boolean): Promise<void> {
   await browser.execute((dark) => {

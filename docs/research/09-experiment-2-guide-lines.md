@@ -362,3 +362,45 @@ blockquote-coexistence, margin-compensation, gap-continuity, and table (computed
 the fix) regression tests. The manual-scrollbar-interaction side is, by nature, not something an
 automated e2e assertion can fully substitute for — the computed-style test is a floor, not a
 replacement for a periodic real-vault spot check if this area is touched again later.
+
+## Appearance: thickness and intensity as presets (2026-09-08)
+
+The gradient technique fixed the guide's width at `1px` and its colour at 60% of the theme's own
+faint text, both chosen the way most of this layer's early numbers were chosen: they worked.
+`outline-appearance-settings` makes both settable, which means picking rungs rather than one
+value, and the width in particular had a prerequisite — it was a JS literal (`GUIDE_WIDTH`), the
+one geometry constant in the chrome vocabulary that was not a published property. A stripe is
+centred on its column by subtracting half its own width, so a literal there is a value two
+computations must agree on and only one of them can follow an override.
+
+**Rendered 8 September 2026**, Obsidian 1.13.7, both bundled themes, against
+`Notes/List decoration demo.md`.
+
+| Thickness | Reading |
+| --- | --- |
+| **`1px`** | **The default.** A hairline; at a four-deep nesting the ladder reads without competing with the bullets it comes out of. |
+| **`2px`** | **Offered.** Clearly heavier and still a line. Legible against a light theme's own faint text, where `1px` at a low intensity can disappear. |
+| `3px` | Rejected. Beside a bullet's dot and a `0.85rem` marker icon it reads as a bar rather than a guide — the levels stop looking like a ladder and start looking like columns. |
+
+| Intensity | Reading |
+| --- | --- |
+| `35%` | Offered as the subtle rung. Traceable in both themes; visibly quieter than the default. |
+| **`60%`** | **The default**, unchanged. |
+| `100%` | Offered as the strong rung — the theme's own `--text-faint` at full strength. Comparable in weight to a bullet's dot in dark, and no louder than the text it sits beside in light. |
+
+Intensity is a percentage over `--text-faint` rather than a colour, so both rungs resolve from
+whatever theme is running and neither can be wrong in one mode and right in the other. A hue
+remains the stylesheet's to change, which is what keeps this a two-rung dropdown rather than a
+colour picker.
+
+Two rules move with the width once it is a declaration, and both are load-bearing:
+
+- **`--to-trail-width` defaults to it.** This file's own rule is that an accent is a change of
+  colour and not of weight; a second literal only holds that at the one thickness it was written
+  for.
+- **The overlay's leftward bleed becomes the max of both.** It exists so a depth-0 stripe, centred
+  on the row box's own left edge, is not clipped to the half that falls inside it. Its old
+  `max(1px, var(--to-trail-width))` covered only the accent — with the trail now following the
+  guide, both terms resolve to the same thickness and the literal stops being the guard it looks
+  like. Confirmed by restoring the old formula and watching the new e2e case fail at a 3px guide
+  with the trail pinned to 1px, which is the only arrangement that tells the two formulas apart.

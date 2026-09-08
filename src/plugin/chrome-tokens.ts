@@ -93,6 +93,7 @@ export const CHROME_VARS = {
   markerGap: '--to-marker-gap',
   markerIcon: '--to-marker-icon-size',
   guideColor: '--to-guide-color',
+  guideWidth: '--to-guide-width',
   accent: '--to-decor-accent',
   trailWidth: '--to-trail-width',
 } as const;

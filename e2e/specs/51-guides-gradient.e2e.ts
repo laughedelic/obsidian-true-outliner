@@ -585,4 +585,86 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // it is derived from the marks it holds (docs/research/21-marker-text-gap.md).
     expect(info.codeLeft - info.listLeft).toBeCloseTo(await h.publishedGutter(), 0);
   });
+
+  it('the guide’s width is one declaration: the stripe, the accent and the overlay’s own paint area all follow it', async function () {
+    // `GUIDE_WIDTH` used to be a JS literal, which meant the gradient was
+    // built at one width while the rules around it assumed another the
+    // moment either moved. Now it is a property, and three things have to
+    // follow it at once: the stripe the gradient paints, the accent's width
+    // (an accent is a change of colour, not of weight), and the overlay's
+    // leftward paint bleed — without which a depth-0 stripe, centred on this
+    // box's own left edge, loses the half that falls outside it.
+    const note = 'Scratch/decorations-guide-width.md';
+    await h.createNote(note, '# Parent\n\nchild\n');
+    await ensureOutlineMode(note);
+    await browser.pause(150);
+
+    /** A length-valued custom property, RESOLVED the way layout resolves it. */
+    const resolve = (prop: string): Promise<number> =>
+      browser.execute((p: string) => {
+        const probe = document.createElement('div');
+        probe.style.cssText = `position:absolute;visibility:hidden;height:0;width:var(${p});`;
+        document.body.appendChild(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        return +width.toFixed(2);
+      }, prop);
+
+    /** The overlay's own border box: `left`, and the transparent bleed border. */
+    const overlay = (): Promise<{ left: number; bleed: number; stripeStart: number }> =>
+      browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (view.editor as any).cm;
+        const line = cm.contentDOM.querySelectorAll(':scope > .cm-line')[2] as HTMLElement;
+        const cs = getComputedStyle(line, '::after');
+        return {
+          left: parseFloat(cs.left) || 0,
+          bleed: parseFloat(cs.borderLeftWidth) || 0,
+          stripeStart: parseFloat(cs.backgroundPosition) || 0,
+        };
+      });
+
+    const base = { width: await resolve('--to-guide-width'), trail: await resolve('--to-trail-width') };
+    const baseOverlay = await overlay();
+    // The accent is the guide's own width, so entering a subtree recolours a
+    // column without thickening it.
+    expect(base.trail).toBe(base.width);
+    // The bleed covers the widest stripe the overlay carries — at minimum the
+    // half of a depth-0 stripe that falls left of this box's own edge.
+    expect(baseOverlay.bleed).toBeGreaterThanOrEqual(base.width / 2);
+
+    // A snippet thickens the guide. Everything derived from it moves together.
+    await h.applyStyleOverride('to-guide-width-probe', 'body { --to-guide-width: 3px; }');
+    const thick = { width: await resolve('--to-guide-width'), trail: await resolve('--to-trail-width') };
+    const thickOverlay = await overlay();
+    expect(thick.width).toBe(3);
+    expect(thick.trail).toBe(3);
+    expect(thickOverlay.bleed).toBeGreaterThanOrEqual(thick.width / 2);
+    // The gradient is built in JS from the same property: a stripe is centred
+    // on its column, so widening it by `d` starts it `d / 2` further left.
+    // Asserted as the DIFFERENCE, never as a pixel — the column itself depends
+    // on the unit and the theme.
+    expect(baseOverlay.stripeStart - thickOverlay.stripeStart).toBeCloseTo(
+      (thick.width - base.width) / 2,
+      1,
+    );
+
+    // The negative control for the bleed, and the reason it is stated as a max
+    // of BOTH widths. With the trail pinned narrow, an accent-only bleed
+    // (`max(1px, var(--to-trail-width))`, what this rule used to say) resolves
+    // to 1px — less than half the guide — and clips the depth-0 stripe. The
+    // guide's own width has to be in the maximum for this to hold.
+    await h.applyStyleOverride(
+      'to-guide-width-probe',
+      'body { --to-guide-width: 3px; --to-trail-width: 1px; }',
+    );
+    const parted = await overlay();
+    expect(await resolve('--to-trail-width')).toBe(1);
+    expect(parted.bleed).toBeGreaterThanOrEqual(3 / 2);
+    expect(parted.bleed).toBe(3);
+
+    await h.applyStyleOverride('to-guide-width-probe', null);
+    expect(await resolve('--to-guide-width')).toBe(base.width);
+  });
 });

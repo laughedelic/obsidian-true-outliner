@@ -61,12 +61,24 @@ body {
   --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
   --to-decor-accent: var(--text-accent);
 
+  /* A guide stripe's own width. Declared here rather than spelled where a
+   * stripe is built, for the reason the unit above records: the gradient and
+   * the position that centres it on the column are built in JS
+   * (`chrome-line.ts`), and a number there could not follow this declaration —
+   * the stripe would paint at one width while the centring assumed another.
+   * `GUIDE_WIDTH` is the only way JS refers to it, and carries no fallback. */
+  --to-guide-width: 1px;
+
   /* Same width as an unaccented guide, so an accent is purely a change of
    * colour: the line does not thicken as the caret moves into a subtree, and an
    * accented guide sits on exactly the columns and weight the unaccented one
    * did. A heavier value reads as emphasis-by-weight and makes the accented
-   * column visibly jump; retune with a snippet if that is wanted. */
-  --to-trail-width: 1px;
+   * column visibly jump; retune with a snippet if that is wanted.
+   *
+   * Stated as the guide's own width rather than as a second `1px`: the two must
+   * agree at every thickness, and a literal only agrees at the one it was
+   * written for. */
+  --to-trail-width: var(--to-guide-width);
 }
 
 /*
@@ -647,9 +659,13 @@ body {
    * both by default): `left` moves the border edge out by the bleed and the
    * border puts the padding edge back where it was, so every coordinate
    * decorations.ts computes still means exactly what it meant. Sized from the
-   * widest stripe this overlay can carry, so a snippet that thickens the trail
-   * cannot reintroduce the clip. */
-  --to-stripe-bleed: max(1px, var(--to-trail-width, 1px));
+   * widest stripe this overlay can carry — the guide's own width and the
+   * accent's, which are the same value until a snippet parts them — so neither
+   * a thickened guide nor a thickened trail can reintroduce the clip. An
+   * earlier `max(1px, …)` covered only the trail: once the two agree by
+   * default, both terms resolve to the same thickness and the literal silently
+   * stopped being the guard it looks like. */
+  --to-stripe-bleed: max(var(--to-guide-width), var(--to-trail-width));
   left: calc(-1 * var(--to-own-shift, 0px) - var(--to-stripe-bleed));
   border-left: var(--to-stripe-bleed) solid transparent;
   right: 0;

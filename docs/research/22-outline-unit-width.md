@@ -36,6 +36,10 @@ The floor is well clear. A child's mark must begin right of its parent's text, w
 `unit > gutter + widest ink-left` — about 22px at the derived gutter. The previous default sat
 2px above that; the new one sits 6px above it. Widening only increases the margin.
 
+That 22px is arithmetic from the widest mark the gutter is sized for. Measured per device class
+later, the binding mark turns out to be a narrower one and the floor differs between desktop and
+mobile — see "A preset ladder, and the floor on two device classes" below.
+
 ## The override, and why it needed a test rather than a fix
 
 Overriding `--to-decor-unit` the way a snippet would already retargeted everything, before this
@@ -82,3 +86,55 @@ published property the chevron's clearance is exactly what it was.
 That is the change's own thesis arriving as evidence. A spelled unit is inert until the
 declaration moves, and then it is wrong. The two specs that held one — this and
 `56-list-grid.e2e.ts` — now read the value the document publishes.
+
+## A preset ladder, and the floor on two device classes
+
+`outline-unit-width` left the unit a single derived default with a snippet as the only way to
+retune it, and called a setting an explicit non-goal. `outline-appearance-settings` takes that
+back up, which means the ladder's rungs have to be chosen against the floor rather than against
+taste alone — and the floor is not one number, because the gutter it is built from is not
+([21](21-marker-text-gap.md) derives the gutter from the marks it must hold, and one of those
+marks is sized by the platform).
+
+**Measured 8 September 2026**, Obsidian 1.13.7, bundled theme, 16px root font, against
+`Notes/List decoration demo.md` — a fixture carrying a task list, an ordered list and four levels
+of bullets. Desktop is the 1024×800 window the e2e harness runs; mobile is the same build under
+`app.emulateMobile()` at 390×844.
+
+The floor is stated as a relationship rather than a length: **a child's mark must begin right of
+its parent's text.** Measured directly as the tightest gap in the fixture between a parent row's
+first text ink and a child row's leftmost mark ink, at each candidate step.
+
+| Unit | Step | Desktop clearance | Mobile clearance |
+| --- | ---: | ---: | ---: |
+| `1.375rem` | 22px | +1.21px | **0.00px** |
+| **`1.5rem`** | 24px | +3.21px | +2.00px |
+| `1.625rem` | 26px | +5.21px | +4.00px |
+| **`1.75rem`** | 28px | +7.21px | +6.00px |
+| `2rem` | 32px | +11.21px | +10.00px |
+| `2.5rem` | 40px | +19.21px | +18.00px |
+
+Clearance is linear in the unit, so each column names its own floor: **20.79px on desktop, 22.0px
+on mobile.** The difference is exactly the gutter's: 14px against 15.2px, from a checkbox Obsidian
+sizes at 16px on desktop and `calc(16px * 1.15)` = 18.4px on mobile.
+
+Two things in that table are worth keeping.
+
+**The binding mark is ours, not the checkbox.** Every tightest gap was reported against a
+block-marker icon, not against a task's checkbox — the icon is `0.85rem` centred on its column, so
+6.79px of it falls left of that column, and it beats every native mark in the fixture. The
+checkbox still sets the floor indirectly, through the gutter it widens.
+
+**`1.375rem` is excluded by measurement, not by preference.** It sits exactly ON the mobile floor:
+a child's mark begins where its parent's text does, which is the one arrangement the grid does not
+survive. The ladder therefore starts at `1.5rem` — the pre-widening default, which clears both
+floors — and the setting offers `1.5rem`, `1.75rem` (the desktop default), `2rem` and `2.5rem`.
+
+**The mobile default is `1.5rem`.** On a 390px viewport the step is not a matter of taste: at
+`1.75rem` the fixture's four-deep wrapped item takes six rows, at `1.5rem` five. The ladder still
+reads as a ladder at the narrower step, and the row it gives back is real text.
+
+`2.5rem` was rendered and read alongside the rest rather than assumed. On a desktop window a
+four-deep list at that step spends real width on chrome — more than [the reading above](#what-was-measured-and-what-was-chosen)
+found at `2rem` — but nothing about it is unsafe, and it is offered as a choice rather than
+proposed as a default.
