@@ -307,7 +307,7 @@ document.getElementById('grid').innerHTML =
   TREATMENTS.map(([cls, name, sub], i) => `
     <tr class="${cls} ${i === 0 ? 'ref' : ''} ${cls === 't-count' ? 'chosen' : ''}">
       <td class="name"><b>${name}</b><span>${sub}</span></td>
-      ${KEYS.map((k) => `<td class="k">${markHtml(k)}${
+      ${KEYS.map((k) => `<td class="k">${markHtml(k, { folded: i !== 0 })}${
         cls === 't-count' ? '<span class="count">5</span>' : ''
       }</td>`).join('')}
     </tr>`).join('') +

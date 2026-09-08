@@ -4,7 +4,8 @@ Initial research for the **obsidian-true-outliner** project — an Obsidian plug
 the editor into a true outliner experience (Logseq / Workflowy / Roam-class), built cleanly
 on public plugin APIs.
 
-Research date: July 2026.
+Research began July 2026 and continues alongside the work; each document dates its own
+measurements, and a note written against a live Obsidian says which build it was measured on.
 
 ## Documents
 
