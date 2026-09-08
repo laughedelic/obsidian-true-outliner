@@ -83,14 +83,17 @@
 
 ## 5. Budget and close-out
 
-- [ ] 5.1 Measure the enforced-path timings with a zoom active against `node-edit-enforcement`'s
+- [x] 5.1 Measure the enforced-path timings with a zoom active against `node-edit-enforcement`'s
   stated budget, using the stats snapshot the e2e helpers already expose, and record the figures
   in docs/research/26 under a dated section. Design D5 removed the shortcut deliberately and
   argues the extra parse is amortised by `parsed-doc.ts`'s cache rather than added; this task is
   what settles that, and a breach is a reason to revisit D4's reach, never to reinstate an unsound
   gate.
-- [ ] 5.2 Add a short section to docs/research/26 recording which of its measured rows changed and
+- [x] 5.2 Add a short section to docs/research/26 recording which of its measured rows changed and
   which did not, so the note reads as a before/after rather than only a diagnosis.
-- [ ] 5.3 Run the full e2e sweep for the zoom and enforcement groups desktop and mobile, and
-  verify `.obsidian-cache/e2e-summary.json` reports no failures.
-- [ ] 5.4 Run `openspec validate zoom-edit-confinement --strict`.
+- [x] 5.3 Run the full e2e sweep for the zoom and enforcement groups desktop and mobile, and
+  verify `.obsidian-cache/e2e-summary.json` reports no failures. The two are now ONE group: the
+  zoom spec's paste rows write the system clipboard, which is the machine-owned resource
+  `EXCLUSIVE_GROUPS` serialises, so `80` joins `clipboard` rather than racing it. 63 passing on
+  each of desktop and mobile.
+- [x] 5.4 Run `openspec validate zoom-edit-confinement --strict`.

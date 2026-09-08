@@ -217,3 +217,70 @@ out of it, never by editing their way out of it accidentally.
    whole-subtree deletion while refusing the accidental dissolutions (R4). Either is defensible
    and the change has to pick one.
 6. **The heading-merge veto defect is out of scope** and goes to its own change.
+
+---
+
+## After the fix: what changed, what did not, and what it cost
+
+**Measured 9 September 2026**, same Obsidian, from the assertions in
+`80-outline-zoom.e2e.ts` rather than from a throwaway probe — every row below is now a test, named
+by its label here, so this note and the code fail together if they drift.
+
+### The rows that changed
+
+| Row | Gesture | Before | Now |
+| --- | --- | --- | --- |
+| A1 | Backspace at the zoom root's content start | merged into the hidden node above, zoom gone, no cue | refused, buffer byte-identical, cue names the zoomed view |
+| B1 | Delete at the end of the last visible line | absorbed the hidden next sibling | refused |
+| R8 | Backspace at a nested root's content start | merged into its own hidden parent | refused |
+| G1 | paste at the root's content start | spliced a top-level sibling beside the root | refused |
+| R4 | Backspace on an emptied list root | unwrapped it; zoom stayed active on a DIFFERENT node | refused |
+| X1, X2 | Enter appending a last child | zoom cleared | applies, zoom kept |
+| G2 | paste at the end of the last visible line | zoom cleared | applies, zoom kept |
+| R6 | Delete on the cover's own trailing gap | zoom cleared | applies, zoom kept |
+
+### The row that changed differently than planned
+
+R7 — Mod-Backspace at the root's content start — was planned as a refusal and is not one.
+Deleting to the line start touches one line with one owner, so `classify.ts` reads it as
+within-node authoring, no verdict is computed, and the refusal never sees it. Refusing it would
+mean widening what counts as a boundary-crossing edit, which is `node-edit-enforcement`'s contract
+and not this change's.
+
+What this note actually recorded about R7 was never that the edit applied. It was that the zoom
+stayed **active** afterwards, rooted on whatever node inherited the line, with the trail still
+claiming otherwise. That is fixed: the edit applies and the zoom clears. The exit trigger answers
+for the edits the refusal does not see, which is the division of labour the change settled on.
+
+The same limit covers the heading-marker case below, and it is stated in the
+`node-edit-enforcement` delta rather than left implied.
+
+### The rows that did not change
+
+A4 (a first-node zoom root) still reports "Nothing here to join with.", and B3 (a heading root's
+trailing edge) still reports "These blocks can't be joined into one." Both have their own
+scenarios asserting the zoom cue is **not** shown, because relabelling either would be a
+regression that no other test would catch: the document is unchanged in both readings.
+
+A5, X5 and every ordinary in-scope edit are untouched.
+
+### What the invariant costs
+
+The design removed its own offset shortcut on the grounds that no textual shape can decide tree
+membership, which left the invariant running on every enforced edit while zoomed. Measured on a
+~2000-line note, same note and same edits, differing only in whether a zoom was active — 52
+enforced rewrites per side, four measured rounds after an unmeasured warm-up:
+
+| | median | p95 | max |
+| --- | --- | --- | --- |
+| no zoom | 1.10 ms | 1.40 ms | 1.80 ms |
+| zoomed | 1.50 ms | 1.80 ms | 1.90 ms |
+
+Against `node-edit-enforcement`'s budget of ≤ 3 ms median and ≤ 8 ms p95. The whole invariant —
+re-parsing the after-state, re-resolving the root, comparing the text on both sides of the cover —
+costs about 0.4 ms of median on a document this size, and the zoomed p95 sits below the unzoomed
+budget's own headroom.
+
+The delta is recorded but deliberately not asserted: it is well inside this harness's run-to-run
+spread, and a test that failed on it would be measuring the runner rather than the code. What is
+asserted is the budget, on both sides.

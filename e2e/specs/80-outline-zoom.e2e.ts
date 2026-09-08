@@ -1394,3 +1394,111 @@ describe('outline zoom: editing at the boundary', function () {
     });
   });
 });
+
+/**
+ * The cost of judging the invariant on the enforced path
+ * (`node-edit-enforcement`'s budget, applied with a zoom active).
+ *
+ * Design D5 deliberately removed the offset shortcut that would have kept this
+ * off the common path, on the grounds that no textual shape can decide tree
+ * membership. The argument that the parse is affordable is that
+ * `parsed-doc.ts` caches on CM6's immutable `Text`, so parsing the after-state
+ * is a parse the NEXT transaction would have paid anyway. This is the test that
+ * settles the argument; the shape mirrors 62's own perf case so the two numbers
+ * are comparable.
+ */
+describe('outline zoom: the enforced path with a zoom active', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+  });
+
+  it('stays within the enforcement budget on a ~2000-line note', async function () {
+    const lines: string[] = [];
+    for (let i = 0; i < 400; i++) {
+      lines.push(`## Section ${i}`, '', `Paragraph text for section ${i}, some words here.`, '');
+    }
+    const stress = lines.join('\n') + '\n';
+    await h.createNote(NOTE, stress);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.setBuffer(stress);
+    await browser.pause(200);
+
+    // Zoom into a section near the MIDDLE, so both hidden spans are large —
+    // clause 2 compares the text on either side of the cover, and a zoom at
+    // either end would leave one of them empty and measure the easy case.
+    // Every edit below is INSIDE the zoomed section, so each one runs the whole
+    // invariant and is allowed — the expensive path, not the short-circuit.
+    async function driveOneRound(): Promise<void> {
+      for (let i = 0; i < 8; i++) {
+        await h.setCursorSettled(802, 0);
+        await browser.keys(['Backspace']); // merges the paragraph into its heading
+        await h.keys.undo();
+        await browser.pause(20);
+      }
+      for (let i = 0; i < 5; i++) {
+        await h.setCursorSettled(802, 5);
+        await h.pasteText('Pasted one.\n\nPasted two.');
+        await h.keys.undo();
+        await browser.pause(20);
+      }
+    }
+
+    /** Four measured rounds, for the reason 62's own perf case records: at two,
+     * p95 sits close enough to the maximum that one GC pause becomes the
+     * statistic. One unmeasured round first, to settle JIT and GC. */
+    async function measure(): Promise<h.StatsSnapshot> {
+      await driveOneRound();
+      await h.resetStats();
+      await driveOneRound();
+      await driveOneRound();
+      await driveOneRound();
+      await driveOneRound();
+      return h.getStats();
+    }
+
+    // The baseline is the SAME note and the SAME edits with no zoom, so the two
+    // numbers differ in one thing only. Without it a single figure inside the
+    // budget says nothing about what the invariant costs, which is the question
+    // D5 left open.
+    const unzoomed = await measure();
+
+    // Zoom into a section near the MIDDLE, so both hidden spans are large —
+    // clause 2 compares the text on either side of the cover, and a zoom at
+    // either end would leave one of them empty and measure the easy case.
+    await h.setCursorSettled(800, 0);
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+    expect((await trail()).length).toBeGreaterThan(0);
+
+    // Every edit is INSIDE the zoomed section, so each one runs the whole
+    // invariant and is allowed — the expensive path, not the short-circuit.
+    const zoomed = await measure();
+
+    for (const snap of [unzoomed, zoomed]) {
+      const t = snap.timing['boundary-crossing-edit'];
+      if (t && t.count > 0) {
+        expect(t.median).toBeLessThanOrEqual(3);
+        expect(t.p95).toBeLessThanOrEqual(8);
+      }
+      for (const kind of ['pass', 'rewrite', 'veto']) {
+        const vt = snap.verdictTiming[kind];
+        if (!vt || vt.count === 0) continue;
+        expect(vt.median).toBeLessThanOrEqual(3);
+        expect(vt.p95).toBeLessThanOrEqual(8);
+      }
+    }
+
+    // Recorded rather than only asserted, so docs/research/26 carries figures a
+    // run reproduces instead of a claim. Deliberately NOT asserted as a delta:
+    // the difference between the two is well inside this harness's run-to-run
+    // spread, and a test that failed on it would be measuring the runner.
+    // eslint-disable-next-line no-console
+    console.log('[zoom-budget]', JSON.stringify({
+      unzoomed: unzoomed.timing['boundary-crossing-edit'],
+      zoomed: zoomed.timing['boundary-crossing-edit'],
+    }));
+  });
+});
