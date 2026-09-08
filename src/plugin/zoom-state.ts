@@ -49,7 +49,6 @@ export const zoomAnchorField = StateField.define<number | null>({
     // need.
     const bounds = tr.docChanged ? visibleBounds?.(tr.startState, value) : undefined;
     const mapped = mapAnchor(value, tr);
-    if (mapped === null) return null;
     if (tr.docChanged && bounds) {
       const footprint = footprintOf(tr.changes, tr.state.doc, bounds, value);
       // Trigger 1a: the root's WHOLE subtree was deleted, not merely edited.
@@ -193,7 +192,7 @@ export function setChangeEscapesResolver(
   changeEscapes = resolve;
 }
 
-function mapAnchor(anchor: number, tr: Transaction): number | null {
+function mapAnchor(anchor: number, tr: Transaction): number {
   if (!tr.docChanged) return anchor;
   return tr.changes.mapPos(anchor, 1);
 }

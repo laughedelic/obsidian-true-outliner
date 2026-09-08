@@ -93,7 +93,7 @@ export function resolveZoom(doc: OutlineDoc, anchorLine: number): ZoomScope | nu
     depth,
     path,
     cover,
-    trail: ancestorsOf(doc, root),
+    trail: ancestorsOf(doc, path),
     hidden,
     document: subtreeDocument(root),
   };
@@ -134,13 +134,14 @@ export function reresolveZoom(doc: OutlineDoc, scope: ZoomScope): ZoomScope | nu
 /**
  * A node's ancestors, outermost first.
  *
- * Read off `findPath` rather than by a second walk: the path IS the ancestor
- * chain expressed as indices, and deriving it twice is how two answers to one
- * question start disagreeing.
+ * Takes the path rather than looking it up: the path IS the ancestor chain
+ * expressed as indices, and deriving it twice is how two answers to one
+ * question start disagreeing. It used to call `findPath` itself, which was
+ * harmless until the scope started carrying the path too — at which point the
+ * same walk ran twice on every resolution, and this comment argued against
+ * exactly what the code beside it was doing.
  */
-function ancestorsOf(doc: OutlineDoc, node: OutlineNode): OutlineNode[] {
-  const path = findPath(doc, node.id);
-  if (!path) return [];
+function ancestorsOf(doc: OutlineDoc, path: NodePath): OutlineNode[] {
   const out: OutlineNode[] = [];
   for (let i = 1; i < path.length; i++) {
     const ancestor = nodeAt(doc, path.slice(0, i));
