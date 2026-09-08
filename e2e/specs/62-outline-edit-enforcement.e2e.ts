@@ -704,7 +704,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
    */
 
   /**
-   * The user-visible defect the whole change exists to fix (docs/research/13,
+   * The user-visible defect the whole change exists to fix (docs/research/selection-follow-ups,
    * "deleting a node that follows a table strands undo").
    *
    * Asserting the caret's coordinates alone would be an outcome test that
@@ -755,7 +755,7 @@ describe('node-edit-enforcement: Phase C evidence', function () {
     // requirement: still infeasible — no W3C Actions API primitive fires
     // HTML5 DragEvents, and CM6 renders drop targets only inside a live
     // contentEditable surface WebDriver cannot script drag payloads into
-    // (docs/research/13's own known-limitation note). Carried as a
+    // (docs/research/selection-follow-ups's own known-limitation note). Carried as a
     // scripted manual-pass scenario (recorded in the change's verification
     // notes, task 5.2), not silently skipped.
     this.skip();

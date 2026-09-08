@@ -715,7 +715,7 @@ describe('grammar planner: a structural key acts on the node a position is insid
     // line below it, and the after-resolution is deliberately not consulted for
     // a mapped position that has left the place's own line. Measured, asserted
     // so a future fix has to change it on purpose, and recorded in
-    // docs/research/12 beside the indent case this change does close.
+    // docs/research/decoration-follow-ups beside the indent case this change does close.
     expect(caretAfter(open, { line: 2, ch: 4 }, 'outdent')).toEqual({ line: 3, ch: 0 });
   });
 

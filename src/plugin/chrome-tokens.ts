@@ -36,7 +36,7 @@
  * its text was to begin on. A space's advance varies with the reader's font,
  * which is why this sits clear of it rather than on it.
  *
- * Argued once, in docs/research/21-marker-text-gap.md.
+ * Argued once, in docs/research/marker-text-gap.md.
  */
 export const MARKER_GAP_REM = 0.375;
 
@@ -74,7 +74,7 @@ export const MARKER_ICON_REM = 0.85;
  * ordered number. Its ink is a glyph's width, unknowable before layout, so it
  * cannot be a term here; the guarantee it gets instead is the floor its own box
  * mechanism sets (one space's advance), which is what keeps it on the shared
- * column. docs/research/21-marker-text-gap.md records both halves.
+ * column. docs/research/marker-text-gap.md records both halves.
  */
 export const MARKER_GUTTER_CSS =
   `calc(max(${MIN_MARK_INK_REM}rem, var(--checkbox-size, 1rem) / 2) + ${MARKER_GAP_REM}rem)`;

@@ -11,7 +11,7 @@
  * that binding Home in the plugin's own Prec.highest keymap actually wins
  * the key exactly once, rather than double-firing alongside Obsidian's own
  * (unannotated, `programmatic`-classified) Home dispatch — the same stats-
- * counter technique docs/research/04's Q19/Q21 already used.
+ * counter technique docs/research/open-questions's Q19/Q21 already used.
  */
 
 import { browser, expect } from '@wdio/globals';
@@ -37,7 +37,7 @@ describe('content-space-caret', function () {
   });
 
   it('0.5: a single Home press lands at content start and the position holds (no native double-fire corrupting it)', async function () {
-    // Measured (see docs/research/04): a real-keyboard-driven selection
+    // Measured (see docs/research/open-questions): a real-keyboard-driven selection
     // change in this Obsidian version is always followed ~10ms later by an
     // unrelated `programmatic` transaction (confirmed independently of this
     // change, via a DECLINED key that falls through to 100% stock CM6) —
@@ -62,7 +62,7 @@ describe('content-space-caret', function () {
     });
 
     it('A2 - down over a short node, three presses: goal column approximately survives', async function () {
-      // Measured (see docs/research/04): the goal column is tracked as a
+      // Measured (see docs/research/open-questions): the goal column is tracked as a
       // PIXEL offset, not a character count (this handler intercepts the
       // key itself rather than delegating to `@codemirror/commands`'
       // cursorLineDown, so it has to re-derive column intent itself — see
@@ -85,7 +85,7 @@ describe('content-space-caret', function () {
     });
 
     it('A6 - down through a soft-wrapped (no real newline) long paragraph progresses row by row, then crosses to the next node', async function () {
-      // Real-vault finding (docs/research/04 Q24): an earlier fix that
+      // Real-vault finding (docs/research/open-questions Q24): an earlier fix that
       // resolved vertical motion's target line by walking raw document
       // line NUMBERS broke this entirely — a wrapped paragraph is ONE raw
       // line, so that approach jumped straight over every wrapped row to
@@ -180,7 +180,7 @@ describe('content-space-caret', function () {
       expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
     });
 
-    it('B6 - right crossing into a checkbox list item lands on its content start and holds there (checkbox syntax is content, matching C8; see docs/research/04 Q25 for the widget-mount interference this guards against)', async function () {
+    it('B6 - right crossing into a checkbox list item lands on its content start and holds there (checkbox syntax is content, matching C8; see docs/research/open-questions Q25 for the widget-mount interference this guards against)', async function () {
       await outlineNote('- alpha\n- [ ] beta gamma\n');
       await h.setCursor(0, '- alpha'.length);
       await h.keys.right();
@@ -197,7 +197,7 @@ describe('content-space-caret', function () {
   // our handler doing the work. Three successive rewrites of the Home/End
   // logic passed every outcome test in this file while, on the reporter's own
   // Obsidian build, Home was never routed to our keymap at all
-  // (docs/research/04 Q27). These tests assert the mechanism instead.
+  // (docs/research/open-questions Q27). These tests assert the mechanism instead.
   // ---------------------------------------------------------------------------
   describe('keymap liveness (mechanism, not outcome)', function () {
     it('every bound motion key is actually ROUTED to this plugin\'s keymap and consumed', async function () {
@@ -283,7 +283,7 @@ describe('content-space-caret', function () {
       // without a DOM-ancestry guard the handlers moved the caret by outline
       // rules through a document that is only the cell's raw text. Measured
       // before the guard: Home, Right and ArrowDown all invoked AND consumed
-      // with focus inside `.cm-embed-block` (docs/research/04 Q27).
+      // with focus inside `.cm-embed-block` (docs/research/open-questions Q27).
       await outlineNote('# S\n\n| a | b |\n| --- | --- |\n| word | 2 |\n');
       await h.clickTableCell();
       await h.resetMotionCounts();
@@ -480,7 +480,7 @@ describe('content-space-caret', function () {
       // (`moveToLineBoundary(..., includeWrap: true)`). One rung drops that
       // entirely: the target comes from the parsed line, so a caret deep in a
       // wrapped line jumps all the way out to the line's own content start in
-      // a single press. See docs/research/04 Q26 for why the geometry went.
+      // a single press. See docs/research/open-questions Q26 for why the geometry went.
       const longCont = Array.from({ length: 30 }, (_, i) => `w${i}`).join(' ');
       await outlineNote('- first\n- next\n');
       await h.setCursor(0, 'first'.length + 2);
@@ -496,7 +496,7 @@ describe('content-space-caret', function () {
       expect(await h.getCursor()).toEqual({ line: 1, ch: 2 }); // stays
     });
 
-    it('C9 - the user-reported shape: a hard-break multiline node whose last line ALSO soft-wraps — Home lands on that raw line\'s start in ONE press and stays (docs/research/04 Q26)', async function () {
+    it('C9 - the user-reported shape: a hard-break multiline node whose last line ALSO soft-wraps — Home lands on that raw line\'s start in ONE press and stays (docs/research/open-questions Q26)', async function () {
       // This is the scenario that retired escalation altogether. Under the
       // ladder it read as "Home gets stuck mid-paragraph": the presses meant
       // different things depending on where the previous one had left the
@@ -540,7 +540,7 @@ describe('content-space-caret', function () {
     });
 
     it("C8 - a checkbox list item (`- [ ] text`) is treated as an ordinary list item — checkbox syntax is content, not a second layer of chrome — and the dispatched position survives Obsidian's checkbox-widget mount", async function () {
-      // Measured (docs/research/04 Q25): a checkbox renders as an
+      // Measured (docs/research/open-questions Q25): a checkbox renders as an
       // interactive widget in Live Preview, and its mount dispatches a
       // selection change of Obsidian's OWN — no userEvent, no annotations,
       // traced to app.js — that moves the caret back to column 0, onto the

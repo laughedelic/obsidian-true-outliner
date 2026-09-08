@@ -1,6 +1,6 @@
 ## Context
 
-`outdent(doc, nodeId)` in [src/ops.ts](../../../src/ops.ts) implements the non-heading
+`outdent(doc, nodeId)` in [src/ops.ts](../../../../src/ops.ts) implements the non-heading
 brother→uncle move (heading outdent is a separate, unaffected level-shift path). Current
 surgery, roughly:
 
@@ -15,7 +15,7 @@ Only the outdented node itself (`index`) is removed from `parent`'s children; ev
 after it (`index + 1..`) stays under `parent`. `moved` (the re-encoded outdented node, with
 its own pre-existing `children` carried over unchanged) is spliced in as `parent`'s next
 sibling under `grandParent`. The result: the node's former following siblings stay attached to
-`parent` instead of following the node out — see docs/research/04-open-questions.md Q17 for
+`parent` instead of following the node out — see docs/research/open-questions.md Q17 for
 the concrete repro (`- p\n\t- x\n\t- y\n\t- z\n`, outdenting `x`).
 
 `document-tree-mapping` (Q2) already defines a "Context-determined encoding on reparent" rule

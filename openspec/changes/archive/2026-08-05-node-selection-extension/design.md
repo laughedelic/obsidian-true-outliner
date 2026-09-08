@@ -161,7 +161,7 @@ ranges and leaned on rarity; both were wrong, and the measurement is recorded he
 argument is not re-derived from the same mistake.
 
 *Revisit trigger:* if the transition from per-cursor to block semantics reads as abrupt in real
-use, the fix is a mode flag, which is the modal block-selection work docs/research/13 already
+use, the fix is a mode flag, which is the modal block-selection work docs/research/selection-follow-ups already
 files. Not pre-solved here.
 
 ### D5. Extension dispatches exact covers
@@ -306,7 +306,7 @@ faster or less visible would be the cover-up; not leaving the mode is the fix.
 *Relation to D4 and to the change's out-of-scope list.* Two different things are called "mode"
 and only one is ruled out. D4 says no STORED modal state is needed to tell a block selection from
 a multi-cursor one — that stands, and this mode is derived, so it introduces none. What
-docs/research/13 files as "modal block-level keyboard selection" is the stored kind, with entry
+docs/research/selection-follow-ups files as "modal block-level keyboard selection" is the stored kind, with entry
 and exit gestures and `Cmd`-click cherry-picking; still out of scope. The proposal's out-of-scope
 entry is split accordingly rather than left to imply this is forbidden.
 
@@ -382,7 +382,7 @@ it rewrites.
 **It did not end the reported flicker, and this decision does not claim it did.** Two causes of a
 visibly wrong frame on ENTERING the mode were found and removed — the clobbered class here, and
 the blur landing after a paint in the previous amendment — and a third remains, still visible and
-not yet understood. It is filed in docs/research/13 with what has been ruled out, the leading
+not yet understood. It is filed in docs/research/selection-follow-ups with what has been ruled out, the leading
 untested hypothesis (Obsidian's own Live Preview re-render landing a frame after the blur, which
 this policy cannot reach), and the instrument that would distinguish them. The spec requires only
 what is verified: marker continuity, and the blur preceding the next paint.
@@ -516,7 +516,7 @@ requires.
 - **Someone relied on `⇧↓` grabbing two tight-list items in one press** → that was an artifact,
   not a feature; one press per node is the point of the change.
 - **A selection restored by undo or redo need not be a cover at all, which D3's stateless walk
-  assumes it is.** Found during `minimal-changesets-for-structural-ops` (docs/research/04 Q29
+  assumes it is.** Found during `minimal-changesets-for-structural-ops` (docs/research/open-questions Q29
   and its follow-on). `@codemirror/commands` dispatches history transactions with
   `filter: false`, and CM6's `resolveTransaction` honours that by skipping `filterTransaction`
   entirely — so **the escalation filter provably never observes an undo or a redo**. What

@@ -10,7 +10,7 @@ related, separately-tracked mechanism (keeping Live Preview's rendered appearanc
 intact while a block-covering selection is active, via blurring and a keyboard-replay
 recovery path) is implemented alongside this capability but deliberately not codified
 here as a formal requirement — it was validated manually rather than through automated
-coverage; see `docs/research/13` for its full investigation, known limitations, and
+coverage; see `docs/research/selection-follow-ups` for its full investigation, known limitations, and
 deferred follow-ups (IME composition; Tab/Shift-Tab/Cmd+Up-Down needing
 selection-aware behavior for multi-node operands).
 ## Requirements

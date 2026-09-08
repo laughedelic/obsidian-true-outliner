@@ -343,7 +343,7 @@ function crossesViaChromeDeletion(
  * deletion` D1) — even though its raw line span (`spanCrossesBoundary`) falls
  * inside a single node. Reuses `escalate.ts`'s exported `coveredSubtreeRoots`
  * rather than a second cover computation (the duplication hazard recorded in
- * docs/research/04 Q18/Q19). Needs `rangeEnd` (the untruncated end position);
+ * docs/research/open-questions Q18/Q19). Needs `rangeEnd` (the untruncated end position);
  * without it, this never matches — the conservative default for pre-Phase
  * C-amendment callers.
  */

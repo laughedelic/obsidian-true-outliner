@@ -6,7 +6,7 @@ tree, indentation guides that fill only the gaps Obsidian's native list guides d
 cover, and per-kind block markers — all strictly read-only rendering, scoped to
 outline-mode notes in Live Preview, and byte-identical to stock Obsidian everywhere else.
 Architecture and rationale: the outline-decorations change's design.md (see
-`docs/research/07`–`12` for the experiment series it distills).
+`docs/research/decoration-experiments-plan`–`12` for the experiment series it distills).
 ## Requirements
 ### Requirement: Decorations are scoped to outline mode
 The decoration layer SHALL be registered as CodeMirror extensions via
@@ -813,7 +813,7 @@ editing and asserts, via computed styles, zero padding/margin/marker on the nest
 editor's own line while the outer note's decorations stay active). The requirement was
 originally surfaced indirectly by a flaky marker-visibility test traced to this exact
 leak — see
-[docs/research/10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md#follow-up-round-4-a-genuine-architectural-bug-found-via-a-flaky-test--decorations-leaking-into-obsidians-own-nested-per-cell-editors).
+[docs/research/experiment-5-block-markers.md](../../../docs/research/experiment-5-block-markers.md#follow-up-round-4-a-genuine-architectural-bug-found-via-a-flaky-test--decorations-leaking-into-obsidians-own-nested-per-cell-editors).
 
 ### Requirement: Decorations never mutate document state
 The decoration layer SHALL be a pure rendering projection: it SHALL NOT dispatch any
@@ -1011,7 +1011,7 @@ own text metric, and is not claimed here. On a list continuation position spanni
 one nesting level, stock Obsidian measures a caret at the end of an indent run by that run's
 text rather than by the width of the span containing it, so the caret still shifts as the
 first character lands — byte-identical with this plugin disabled, measured and recorded in
-`docs/research/12-decoration-follow-ups.md`.
+`docs/research/decoration-follow-ups.md`.
 Closing it would mean overriding the width of DOM this layer does not own, which is a change
 of its own.
 

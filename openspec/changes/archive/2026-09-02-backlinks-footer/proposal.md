@@ -8,8 +8,8 @@ it; structured backlinks is the first feature that turns that model outward, sho
 notes' structure inside this one.
 
 This is the layer named in the README's vision and deferred as post-v1 in
-`docs/research/04-open-questions.md` Q10. The design round that precedes it is recorded in
-`docs/research/18-structured-backlinks.md` (D1–D17), which this change implements the core of.
+`docs/research/open-questions.md` Q10. The design round that precedes it is recorded in
+`docs/research/structured-backlinks.md` (D1–D17), which this change implements the core of.
 
 ## What Changes
 
@@ -27,9 +27,10 @@ This is the layer named in the README's vision and deferred as post-v1 in
 - **Reuse of the existing decoration layer, not a second renderer.** The footer derives its
   chrome from the same `decorate(doc): LineDecorationFact[]` the editor uses, fed the projected
   tree. Depth, kind, marker, guide columns and atom/list-item handling come from one place.
-- **A spike series** (`docs/research/19-*`) run before the footer is built, following the
-  ground rules of the decoration-experiments series: isolated prototypes, a shared fixture
-  corpus, a mandatory real-vault pass, verdicts recorded before moving on.
+- **A spike series** (`docs/research/backlinks-footer-spikes.md`) run before the footer is
+  built, following the ground rules of the decoration-experiments series: isolated
+  prototypes, a shared fixture corpus, a mandatory real-vault pass, verdicts recorded
+  before moving on.
 - Read-only. No editing of referencing blocks, no writes to other files (D2).
 - Not in this change: filter chips, sort, volume caps, the incompleteness cue, settings, the
   core-backlinks coexistence toggle. Those are `backlinks-controls`.

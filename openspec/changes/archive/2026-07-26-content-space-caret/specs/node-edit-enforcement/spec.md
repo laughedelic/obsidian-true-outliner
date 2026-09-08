@@ -13,7 +13,7 @@ the gap itself, stays native — is REMOVED as an in-mode escape hatch, because
 precondition can no longer occur. Deliberate whitespace authoring remains fully
 available by toggling outline mode off for the note, which is already how this plugin
 offers raw character-level editing. This was the resolution anticipated when the gap
-escape hatch was first written (`docs/research/13`, "Gap-line cursor transparency": *the
+escape hatch was first written (`docs/research/selection-follow-ups`, "Gap-line cursor transparency": *the
 escape hatch stays the mode toggle, not an in-outline-mode exception*).
 
 Off-mode notes are unaffected in every respect: gap lines are ordinary text there, and

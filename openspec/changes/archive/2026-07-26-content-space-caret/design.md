@@ -4,7 +4,7 @@ Chrome transparency arrived in this project as an *editing* principle
 (`node-edit-enforcement` D9): an edit expressing a content-level intent is interpreted in
 content space, with gap lines and marker internals maintained by the system rather than
 addressed by the user. The caret itself was left in raw character space, deliberately — the
-completion was filed in docs/research/13 with a specific risk (CM6's goal-column tracking)
+completion was filed in docs/research/selection-follow-ups with a specific risk (CM6's goal-column tracking)
 and a specific instruction: prototype vertical motion first, do not decide from code review.
 
 A real-Obsidian probe pass (2026-07-25, all frames recorded in [examples.md](examples.md))
@@ -62,11 +62,11 @@ escalation geometry while caret motion does not depend on either.
 - Keyboard selection extension (Shift+Arrow) — its own change, `node-selection-extension`.
 - Structural keys over multi-node selections (Tab indenting only the last node). Edit
   semantics, and it wants a settled operand definition first.
-- The two-transaction escalation flash (docs/research/13). Its mechanism is understood and
+- The two-transaction escalation flash (docs/research/selection-follow-ups). Its mechanism is understood and
   its fix touches two shipped contracts; it deserves its own pass.
 - Enter/Backspace edge cases, including Enter on an empty list item.
 - Modal block-selection state, folding, zoom.
-- Reopening whether a heading's `#` should be direct-edit-prohibited (docs/research/04 Q17,
+- Reopening whether a heading's `#` should be direct-edit-prohibited (docs/research/open-questions Q17,
   parked deliberately).
 
 ## Decisions
@@ -99,7 +99,7 @@ are different positions, though both are "skip the gap").
 exactly the list of keys bound" only holds if the binding actually wins the key. Home's
 `programmatic` classification is evidence Obsidian is not routing it through a stock CM6
 command, which raises both "does our binding see it at all" and the double-fire mode
-docs/research/13 records (`runScopeHandlers` matching while the native default still ran).
+docs/research/selection-follow-ups records (`runScopeHandlers` matching while the native default still ran).
 Measured 2026-07-25 by instrumenting the keydown path: Home is NOT prevented at
 document-capture and IS prevented by the time it passes `contentDOM` — a profile identical to
 ArrowLeft's, a known CM6 command. So nothing consumes Home ahead of the contentDOM stage, and
@@ -171,7 +171,7 @@ shorter marker line still lands on content." The distinction above preserves it.
 Both corrections reuse CM6's own goal column rather than recomputing a column from the
 corrected position.
 
-*Why:* docs/research/13's recorded risk is specifically that snapping recomputes the *next*
+*Why:* docs/research/selection-follow-ups's recorded risk is specifically that snapping recomputes the *next*
 move's goal column from the snapped position, drifting over consecutive presses. Two
 measurements bound that risk. CM6's goal column already survives gap lines today (measured:
 column 7 restored after passing over one), and the drift mechanism is a property of
@@ -200,7 +200,7 @@ geometry — the target comes from the parsed line, so soft wrapping is irreleva
 For a list item's continuation line the content start is its alignment column, not column 0 —
 continuation-line alignment whitespace is marker chrome like any other.
 
-*Revised twice, both times after real-vault use (see `docs/research/04` Q25 and Q26).* This
+*Revised twice, both times after real-vault use (see `docs/research/open-questions` Q25 and Q26).* This
 decision originally read "escalate, with adjacent-rung collapse": first press the current visual
 row's boundary, second the whole node's. A third rung (the raw line's own boundary) was then
 added to serve a continuation line that itself wraps, then removed again for costing an extra
@@ -237,7 +237,7 @@ Escape changes nothing and the SECOND collapses to the head edge — which lands
 also changes nothing. So the original probe reading ("Escape does nothing") and the hands-on
 report ("collapses to an edge, direction-dependent") are both partly right, and neither is the
 whole behavior. The two-press oddity is plausibly the blur-based chrome mechanism consuming
-the first Escape — the same mechanism `docs/research/13` records as hard to reason about, and
+the first Escape — the same mechanism `docs/research/selection-follow-ups` records as hard to reason about, and
 which a fix on another branch (`4e6b0ef`, not on main) touches.
 
 *What this does not change:* the decision. Whatever Escape does natively, it can land the
@@ -264,11 +264,11 @@ trailing gap is skipped. This follows the existing model, where an atom is opaqu
 
 - `node-selection-enforcement`'s "cursors are never moved by this layer, including on gap
   lines" is reversed for outline mode. It was signed up for in Phase B, backed by a property
-  test, and docs/research/13 already recorded that extending enforcement from edits to caret
+  test, and docs/research/selection-follow-ups already recorded that extending enforcement from edits to caret
   placement "deserves its own design pass." This is that pass.
 - `node-edit-enforcement`'s gap-line editing escape hatch ("cursor deliberately left on the
   gap, editing it, stays native") becomes unreachable, because the caret can no longer be put
-  there. The escape hatch becomes the outline-mode toggle, exactly as docs/research/13
+  there. The escape hatch becomes the outline-mode toggle, exactly as docs/research/selection-follow-ups
   anticipated.
 
 ### D10. The preamble is out of jurisdiction, explicitly
@@ -325,5 +325,5 @@ key outside outline mode, so notes without the mode are unaffected at all times.
 - ~~Should Home's first rung be the visual row or the logical line, on a genuinely wrapped
   paragraph? D5 recommends the row; only hands-on use decides.~~ **ANSWERED by hands-on use, and
   it dissolved the question: neither, because there are no rungs.** The logical (raw) line is the
-  single target, and Home does not escalate at all — see D5 as revised, and `docs/research/04`
+  single target, and Home does not escalate at all — see D5 as revised, and `docs/research/open-questions`
   Q26. Reaching a block's own start is deferred to its own future binding.

@@ -1,13 +1,13 @@
 # Decoration lessons: cross-experiment findings
 
 The accumulated non-obvious findings from the whole decoration-experiments series
-(Experiments [1](08-experiment-1-additive-indentation.md),
-[2a/2b](09-experiment-2-guide-lines.md), and [5a/5b](10-experiment-5-block-markers.md)), plus
+(Experiments [experiment-1-additive-indentation.md](experiment-1-additive-indentation.md),
+[2a/2b](experiment-2-guide-lines.md), and [5a/5b](experiment-5-block-markers.md)), plus
 the ones the backlinks-footer spike series turned up about rendering the same chrome on a
-SECOND surface ([19-backlinks-footer-spikes.md](19-backlinks-footer-spikes.md)) —
+SECOND surface ([backlinks-footer-spikes.md](backlinks-footer-spikes.md)) —
 carried forward the same way the original postmortem's own "carried-forward technical
 findings" section was meant to be used
-([06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md), which
+([outline-decorations-postmortem.md](outline-decorations-postmortem.md), which
 remains its own separate reference for the pre-experiment failure). **Read this before
 building anything that touches decorations, CM6 extensions, or Obsidian's native
 rendering** — every entry below is a mistake that was actually made (often shipped) at
@@ -310,7 +310,7 @@ finding came from.
 ## Native chrome: retargeting rather than replacing
 
 Findings from `lists-on-the-outline-grid` (measurements:
-[16-native-list-decoration.md](16-native-list-decoration.md)).
+[native-list-decoration.md](native-list-decoration.md)).
 
 - **Look for the variable before building the mechanism.** Two probes concluded that native
   list columns could only be FOLLOWED, by per-item pixel measurement, and planned a second

@@ -173,7 +173,7 @@ function escalateSelection(
  * Cursor placement resolution for a FOREIGN selection-only dispatch that
  * classifies `programmatic` (no `userEvent` at all, no changes).
  *
- * Measured (docs/research/04 Q25): pressing Home on a checkbox list item
+ * Measured (docs/research/open-questions Q25): pressing Home on a checkbox list item
  * lands our own dispatch correctly on content start, and Obsidian core then
  * issues a SEPARATE, later selection-only dispatch that moves the caret back
  * to column 0 — onto the `- ` marker, the exact position this change makes

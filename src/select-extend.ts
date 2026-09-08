@@ -9,7 +9,7 @@
  * escalate.ts's `forestCoverOf`/`coveredForestOf`/`subtreeCoverOf`; this file
  * adds no cover math of its own, and is the fifth consumer of that one
  * computation (`selection-as-subtree-set` D4, and the two silently-stale
- * duplicate incidents in docs/research/04 Q18/Q19).
+ * duplicate incidents in docs/research/open-questions Q18/Q19).
  *
  * Stateless: the next selection is a function of the current one and the
  * document. No press count, no stored head node, no extension origin. What

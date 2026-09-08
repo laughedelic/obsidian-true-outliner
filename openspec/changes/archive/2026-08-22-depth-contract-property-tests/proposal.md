@@ -7,7 +7,7 @@ property — an encode/parse instability breaks it — but it never compares the
 the SURGERY tree the operation's algebra built. Every operation that emits markdown re-parsing to
 a different tree than its algebra produced passes it unnoticed.
 
-Three pre-existing bugs were sitting in that blind spot (docs/research/04-open-questions.md Q33).
+Three pre-existing bugs were sitting in that blind spot (docs/research/open-questions.md Q33).
 One is fixed (PR #51); the remaining two are stacked on top of this change. The technique that
 found all of them is the reusable part: assert what an operation PROMISES, not that it
 round-trips. The most load-bearing promise a structural operation makes is the subject's

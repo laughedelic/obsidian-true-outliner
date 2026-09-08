@@ -1,6 +1,6 @@
 /*
  * Outline mode decorations — additive-only indentation (Experiment 1, see
- * docs/research/08-experiment-1-additive-indentation.md and the postmortem
+ * docs/research/experiment-1-additive-indentation.md and the postmortem
  * it links). `rem`, not `em`: custom properties resolve at the point of use,
  * so an `em`-based unit would inflate under a heading's larger font-size —
  * exactly the bug that shipped last time.
@@ -71,10 +71,10 @@ body {
 
 /*
  * `--to-marker-gutter` (Experiment 5a, see
- * docs/research/10-experiment-5-block-markers.md): an additive reservation for
+ * docs/research/experiment-5-block-markers.md): an additive reservation for
  * a per-kind block marker icon, on top of the existing depth-based
  * indentation. Its VALUE is derived from the marks it has to hold rather than
- * chosen (chrome-tokens.ts, docs/research/21-marker-text-gap.md), so no rule
+ * chosen (chrome-tokens.ts, docs/research/marker-text-gap.md), so no rule
  * here may restate it — a literal copy goes stale the first time that
  * derivation is re-run. Applies to every non-list-item line (block and
  * atom alike) — list items reserve nothing, since they keep their fully
@@ -154,7 +154,7 @@ body {
 }
 
 /*
- * LIST GEOMETRY (lists-on-the-outline-grid, docs/research/16). Everything here
+ * LIST GEOMETRY (lists-on-the-outline-grid, docs/research/native-list-decoration). Everything here
  * hangs off `to-decor-list`, a class the decoration puts on LIST-ITEM LINES
  * ONLY, so both gates — outline mode, and "lists only" — come from the
  * decoration itself and these rules need no second condition. Outline mode off
@@ -276,7 +276,7 @@ body {
  * above it. Measured before this rule existed at all: 4.38px RIGHT of it under
  * a bullet and 8.56px right under `1. `, Obsidian sizing that span from the
  * whitespace rather than from the marker it is meant to sit under — the
- * long-standing misalignment `docs/research/12` records as unclosable without
+ * long-standing misalignment `docs/research/decoration-follow-ups` records as unclosable without
  * exactly this override.
  *
  * It also removes this layer's dependence on the user's "Show indentation
@@ -574,7 +574,7 @@ body {
 /*
  * Guide lines (Experiment 2b) — CSS stacked-gradient technique
  * (@replit/codemirror-indentation-markers), see
- * docs/research/09-experiment-2-guide-lines.md. decorations.ts merges a
+ * docs/research/experiment-2-guide-lines.md. decorations.ts merges a
  * `--to-guides` custom property (a comma-joined list of repeating-linear-
  * gradient layers, one per active ancestor depth) into the same line that
  * already carries `--to-depth`/`--to-supp-depth` — a single `::before`
@@ -675,7 +675,7 @@ body {
  *
  * Both accent variables resolve from the active theme, so a snippet can
  * retune color and weight with no plugin setting and no geometry change —
- * the theming pattern docs/research/12 recommends, and the same pair
+ * the theming pattern docs/research/decoration-follow-ups recommends, and the same pair
  * Logseq's own bullet_threading.css exposes. They are declared in the chrome
  * token layer at the top of this file, not here, because the footer draws the
  * same accents and a token scoped to one surface is not a shared vocabulary.
@@ -713,7 +713,7 @@ body {
  * never reflow a single character, which is a property of what these rules
  * are allowed to set rather than something a test has to keep watch over.
  * The native bullet is confirmed present even while the caret sits on its own
- * line (docs/research/14); the caret is not what swaps it for raw text.
+ * line (docs/research/experiment-position-indicators); the caret is not what swaps it for raw text.
  */
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-current .to-decor-marker-icon,
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-ancestor .to-decor-marker-icon {
@@ -938,7 +938,7 @@ body {
  * omission: a 13.6px outline glyph in the text flow and a 6px dot in a flex box
  * do not read as aligned at the same numeric offset, and the heading case has
  * no single CSS anchor that serves both. See the change's spec for what is
- * required and `docs/research/16` for the measurements.
+ * required and `docs/research/native-list-decoration` for the measurements.
  */
 .to-decor-marker-icon {
   display: inline-block;
@@ -1084,7 +1084,7 @@ body {
  * "this whole node is selected" indication for a selection that
  * `coveredSubtreeRoots` (escalate.ts) recognizes as covering a whole node's
  * subtree — distinct from CM6's own character-level selection highlight.
- * See docs/research/13's "Escalated-selection visual treatment" and this
+ * See docs/research/selection-follow-ups's "Escalated-selection visual treatment" and this
  * change's design.md.
  *
  * A `::before` overlay, not `background-color` on the line itself: setting
@@ -1334,7 +1334,7 @@ body {
  * selectors above was considered and rejected (design.md D-C).
  *
  * Carded, not flowing: at full note width the identical chrome would otherwise
- * make another note's tree read as part of this one (docs/research/18, D6).
+ * make another note's tree read as part of this one (docs/research/structured-backlinks, D6).
  */
 /*
  * Rendered content, not source text.
@@ -1517,7 +1517,7 @@ body {
 
 /* A note nothing links to still ends predictably: one quiet line where the
  * populated header would be, rather than the section appearing and vanishing as
- * a note gains its first reference (docs/research/18, D9). */
+ * a note gains its first reference (docs/research/structured-backlinks, D9). */
 /*
  * Inset so the card's own contents land on the outline's SECOND column.
  *
@@ -1624,7 +1624,7 @@ body {
  * It used to be a flex container with a fixed-width marker cell and its own
  * `margin-inline-start`. That is what put its bullets off the editor's column
  * and left it with no guides at all: a second layout answering the same
- * question differently (docs/research/19, S4).
+ * question differently (docs/research/backlinks-footer-spikes, S4).
  */
 .to-backlinks-row {
   padding: 0.1rem 0;
@@ -1658,7 +1658,7 @@ body {
 
 /* Markers are NOTATION, not emphasis: a node's marker says what kind of node it
  * is and nothing else, so a lineage segment and a reference of the same kind
- * are drawn identically. Only the text separates them (docs/research/18, D4).
+ * are drawn identically. Only the text separates them (docs/research/structured-backlinks, D4).
  * The icon itself is `.to-decor-marker-icon`, shared with the editor — sized,
  * shifted and coloured by that rule, not by this one. */
 .to-backlinks-content {
@@ -2539,7 +2539,7 @@ body {
  * A count sentence alone is too quiet for a section a reader scrolls past, so
  * an omission is marked three ways: a rung where the missing rows would have
  * stood, the sentence, and a fade on the last card so the list is visibly
- * running off rather than ending (docs/research/18, D10).
+ * running off rather than ending (docs/research/structured-backlinks, D10).
  */
 
 /* The rung IS the cap's control — it says how much is hidden and reveals it,

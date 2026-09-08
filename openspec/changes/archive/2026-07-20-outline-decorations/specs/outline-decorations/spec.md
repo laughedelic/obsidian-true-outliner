@@ -287,7 +287,7 @@ editing and asserts, via computed styles, zero padding/margin/marker on the nest
 editor's own line while the outer note's decorations stay active; added by hardening task
 4.1). The requirement was originally surfaced indirectly by a flaky marker-visibility
 test traced to this exact leak — see
-[docs/research/10-experiment-5-block-markers.md](../../../../../docs/research/10-experiment-5-block-markers.md#follow-up-round-4-a-genuine-architectural-bug-found-via-a-flaky-test--decorations-leaking-into-obsidians-own-nested-per-cell-editors).
+[docs/research/experiment-5-block-markers.md](../../../../../../docs/research/experiment-5-block-markers.md#follow-up-round-4-a-genuine-architectural-bug-found-via-a-flaky-test--decorations-leaking-into-obsidians-own-nested-per-cell-editors).
 
 ### Requirement: Decorations never mutate document state
 The decoration layer SHALL be a pure rendering projection: it SHALL NOT dispatch any

@@ -5,10 +5,10 @@ measurement of its own (D7), but only this one can change a design decision.
 
 - [x] 1.1 Dev-vault probe: for a `MarkdownView` switched to reading view, record `getState()`
       for both histories — last in Live Preview, and last in the source editor — and what
-      `setState({ mode: 'source' })` alone does in each. Amend docs/research/24's open question
+      `setState({ mode: 'source' })` alone does in each. Amend docs/research/outline-mode-surfaces's open question
       1 with the measured answer and the verdict for D6's default. Task 4.4 waits on this; if
       the encoding is not round-trippable at all, STOP and revise D6 before building the entry.
-      **Measured** (docs/research/24, "Measured"): the state round-trips and the `source`
+      **Measured** (docs/research/outline-mode-surfaces, "Measured"): the state round-trips and the `source`
       default is unreachable, so D6 stands with that clause dropped. The same probe answered
       open question 4 (no public event fires on an in-leaf mode switch — D7 no longer needs
       one) and found that a reading round-trip does NOT rebuild the editor state, which moved
@@ -62,7 +62,7 @@ measurement of its own (D7), but only this one can change a design decision.
       `active-leaf-change`/`file-open`, which 1.1 measured to be the complete set — an in-leaf
       mode switch fires nothing and changes nothing; `styles.css` under namespaced classes.
       The status text wording and the ribbon on-state treatment are settled by a visual pass and
-      recorded in docs/research/24. Verify: two tabs in different states — both indicators
+      recorded in docs/research/outline-mode-surfaces. Verify: two tabs in different states — both indicators
       restate on tab switch; the screenshot lands in 24
 - [x] 4.3 The settings tab (D8): declarative `getSettingDefinitions()` toggle plus the
       pre-1.13 `display()` fallback, in sync, with search wording stating "new tabs only" and

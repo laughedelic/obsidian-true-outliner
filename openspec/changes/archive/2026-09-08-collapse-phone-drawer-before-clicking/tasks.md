@@ -1,7 +1,7 @@
 ## 1. Diagnose before fixing
 
 - [x] 1.1 Reproduce the CI interception under mobile emulation and probe the workspace at the
-      refused click; record in `docs/research/29-e2e-click-retry-costs.md` that
+      refused click; record in `docs/research/e2e-click-retry-costs.md` that
       `leftSplit.collapsed` is false and the drawer covers the click point, unchanged across
       attempts.
 - [x] 1.2 Measure what retrying an intercepted click would cost — one attempt against a

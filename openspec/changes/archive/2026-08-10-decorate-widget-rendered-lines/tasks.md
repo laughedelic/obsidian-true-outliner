@@ -12,7 +12,7 @@ Nothing in section 3 starts until this section's findings are written down.
       for each of the four placements: the rendered element's tag/classes, whether it is a
       direct child of `.cm-content`, its `parentElement` chain up to `.cm-content`, and what
       `posAtDOM` resolves it to. Record the results in the change (a short findings note in
-      this file or `docs/research/12`'s entry).
+      this file or `docs/research/decoration-follow-ups`'s entry).
 - [x] 1.3 Repeat 1.2 with the cursor ON each embed line, recording what actually changes.
       (Written expecting the line to revert to a plain `.cm-line`, which would have been the
       reference the widget state must reproduce. Measured otherwise — see Findings 2: the
@@ -27,7 +27,7 @@ Nothing in section 3 starts until this section's findings are written down.
 
 ### Findings (Obsidian 1.13.4, installer 1.5.8, darwin — probe run 2026-08-06)
 
-Two premises inherited from `docs/research/12`'s entry are **wrong on this version**, and
+Two premises inherited from `docs/research/decoration-follow-ups`'s entry are **wrong on this version**, and
 both were written as inference rather than measurement:
 
 1. **`WIDGET_ATOM_SELECTOR` does not match a wiki embed at all.** Measured over the embed
@@ -132,7 +132,7 @@ Per project practice: a new assertion that passes before the fix proves nothing.
       scenario this task was written for — it triggers renders by moving the cursor, which
       never makes the EMBEDDED note's own subtree re-render. Forcing that (editing the
       embedded note from another pane) stays deferred and is recorded as such in
-      `docs/research/12-decoration-follow-ups.md`; the test name says "repeated renders", not
+      `docs/research/decoration-follow-ups.md`; the test name says "repeated renders", not
       "re-render", so the suite does not claim the deferred coverage.
 - [x] 4.5 `markerVisibility` across all three settings on the embed fixture: the reserved
       gutter is constant and only icon presence changes, same invariant as every other kind.
@@ -180,7 +180,7 @@ Measured causes, both of them flaws in this change's own reasoning rather than i
 ## 5. Close out
 
 - [x] 5.1 Remove the "Wiki-embed blocks bypass decoration entirely" entry from
-      `docs/research/12-decoration-follow-ups.md`, and record anything the measurement pass
+      `docs/research/decoration-follow-ups.md`, and record anything the measurement pass
       turned up that is worth keeping (e.g. an unresolved async-re-render behavior) as a new
       parking-lot entry rather than losing it.
 - [x] 5.2 Update the `decorations.ts` module doc comment where it describes the widget path

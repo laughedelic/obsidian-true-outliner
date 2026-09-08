@@ -258,7 +258,7 @@ describe('forestCoverOf: the geometry (selection-as-subtree-set D2)', () => {
   });
 });
 
-describe('escalateRange: cross-node escalation includes the reached node\'s owned gap (escalate-include-owned-gap, docs/research/13)', () => {
+describe('escalateRange: cross-node escalation includes the reached node\'s owned gap (escalate-include-owned-gap, docs/research/selection-follow-ups)', () => {
   it('reaching a node\'s content via a cross-node drag is enough, no second drag onto its gap needed', () => {
     // A node's owned gap spans two blank lines; the drag stops mid-content
     // in the second node, never touching its gap at all.
@@ -517,7 +517,7 @@ describe('escalateRange: downward closure and contiguity (selection-as-subtree-s
   });
 });
 
-describe('coveredSubtreeRoots: escalated-selection-decoration query (docs/research/13)', () => {
+describe('coveredSubtreeRoots: escalated-selection-decoration query (docs/research/selection-follow-ups)', () => {
   // H
   //  - Para one.       (leaf)
   //  - Para two.        -> item -> child   (nested: a naked list after a

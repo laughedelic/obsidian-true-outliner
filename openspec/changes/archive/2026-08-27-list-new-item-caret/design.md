@@ -391,7 +391,7 @@ content end coincide and the exception is a no-op by construction.
 None left open. The one this change carried is answered below, and recorded where the defect
 lives rather than here.
 
-- **The caret on a whitespace-only continuation line** — `docs/research/12` recorded it as the
+- **The caret on a whitespace-only continuation line** — `docs/research/decoration-follow-ups` recorded it as the
   second, still-open offset of the same family, and its number was stale in an unknown
   direction because `lists-on-the-outline-grid` had since given `.cm-hmd-list-indent` a STATED
   width. Measured (task 7): the sign has flipped. The stated width is 44px against the

@@ -148,7 +148,7 @@
 
 - [x] 6.1 No manual action needed — delta specs absorb into main specs at the
       standard archive step.
-- [x] 6.2 Updated `docs/research/04-open-questions.md` Q17: marked the heading-Enter
+- [x] 6.2 Updated `docs/research/open-questions.md` Q17: marked the heading-Enter
       finding as resolved, pointing at this change, and updated the section's intro
       paragraph (both Q17 findings are now fixed, not pending). Left the D13-adjacent
       "heading marker direct-edit protection" note untouched, per Q17's own framing.

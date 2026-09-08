@@ -1,13 +1,13 @@
 # Experiment 2: guide lines — 2a vs. 2b head to head (2026-07-13)
 
 Part of the decoration-experiments series — see the
-[hub](07-decoration-experiments-plan.md) for ground rules, fixture corpus, and the overall
+[hub](decoration-experiments-plan.md) for ground rules, fixture corpus, and the overall
 results table. Both implementations were built against the same corpus, deliberately
 without picking a favorite in advance; both earned a "keep" on capability, and **2b won
 the head-to-head** on code size and mechanism simplicity (see the bottom-line comparison
 inside 2b's results below). Experiment 5's markers build on 2b. Prerequisite:
-[Experiment 1](08-experiment-1-additive-indentation.md). Cross-experiment lessons:
-[11-decoration-lessons.md](11-decoration-lessons.md).
+[Experiment 1](experiment-1-additive-indentation.md). Cross-experiment lessons:
+[decoration-lessons.md](decoration-lessons.md).
 
 ## Design (from the plan)
 
@@ -74,7 +74,7 @@ all — entirely deferred to native — while `heading-then-list` keeps exactly 
 public `Editor` API — `EditorTransaction` exposes no `effects` field, and reaching into
 `(editor as any).cm.dispatch()` is exactly the private-API surface this project's own
 research already flags to avoid outside registered extensions
-([03-obsidian-api-feasibility.md](03-obsidian-api-feasibility.md)). Used per-instance state
+([obsidian-api-feasibility.md](obsidian-api-feasibility.md)). Used per-instance state
 comparison instead (`ViewPlugin`/`StateField` each remember the outline-mode flag they last
 saw and compare on every transaction — cheap, since it's just a boolean read, not a
 reparse): functionally identical gate (`docChanged || viewportChanged || mode-just-toggled`),

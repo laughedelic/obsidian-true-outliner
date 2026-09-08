@@ -425,7 +425,7 @@ describe('the outline unit is one declaration the whole grid follows', function 
 
   it('leaves a mark’s distance from its own text alone', async function () {
     // The gutter is derived from the marks it holds, not from the unit
-    // (docs/research/21). Widening a level must not touch it — the two are
+    // (docs/research/marker-text-gap). Widening a level must not touch it — the two are
     // independent, and a change that moved both would be an indentation change
     // wearing a gutter change's clothes.
     await openFixture('unit-override-gap');

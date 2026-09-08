@@ -4,7 +4,7 @@
  * that a visible line's chrome survives the hiding, and that the backlinks
  * footer does too.
  *
- * Three harness facts the spike paid for (docs/research/23), which every
+ * Three harness facts the spike paid for (docs/research/zoom-hiding-mechanism), which every
  * assertion here is written around:
  *
  * - Park the caret OFF a line before reading it. With the caret on it, Live
@@ -75,7 +75,7 @@ function renderedLines(): Promise<string[]> {
     // `posAtDOM` happily resolves it — to the first position of the range it
     // HIDES, which put `# Top` in this list on the first attempt. Filtering to
     // real lines is also why this spec's fixtures carry no widget-rendered
-    // atoms: a span of those reports zero cm-lines (docs/research/23), and the
+    // atoms: a span of those reports zero cm-lines (docs/research/zoom-hiding-mechanism), and the
     // assertion for that case counts widgets instead.
     for (const child of Array.from(content.querySelectorAll('.cm-line'))) {
       try {
@@ -549,7 +549,7 @@ describe('outline zoom', function () {
     const unit = await h.publishedUnit();
 
     // A NON-boundary line: the trail widget is attributed to the zoom root's
-    // own line by `posAtDOM` (docs/research/23), so the root itself cannot be
+    // own line by `posAtDOM` (docs/research/zoom-hiding-mechanism), so the root itself cannot be
     // measured through this helper. `- one` is the root's first child.
     await zoomAt(DOC, '## Mid');
     await h.setCursorSettled(6, 0);
@@ -687,7 +687,7 @@ describe('outline zoom', function () {
     await zoomAt(DOC, '## Mid');
     await browser.pause(400);
     // The trailing hidden range ends at doc.length, where the footer used to
-    // anchor; it now anchors at the visible end (D12, docs/research/23).
+    // anchor; it now anchors at the visible end (D12, docs/research/zoom-hiding-mechanism).
     expect(await footerPresent()).toBe(true);
   });
 

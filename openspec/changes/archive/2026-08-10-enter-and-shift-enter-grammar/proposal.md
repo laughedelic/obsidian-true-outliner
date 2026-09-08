@@ -5,7 +5,7 @@ they are the least designed part of the grammar: each shipped as a side effect o
 about something else. Nobody has asked what the two keys mean across the whole document.
 
 A catalogue of 49 cursor positions, run through the real planner rather than read off the
-spec (2026-08-06, `docs/research/15-enter-and-shift-enter-catalogue.md`), found three
+spec (2026-08-06, `docs/research/enter-and-shift-enter-catalogue.md`), found three
 failures a user can feel:
 
 - **Enter at a node's content start moves the user's own text.** On a list item WITH
@@ -167,7 +167,7 @@ stock rather than silently discarding every secondary range, as it does today.
   item parses as that item's content while a tab-indented fence parses as its child, because
   `QUOTE_RE` accepts up to three spaces and `FENCE_OPEN_RE` accepts tabs. Real, recorded in
   the catalogue, and a parser change rather than a keyboard one.
-- **The decoration consequences**, both filed in `docs/research/12-decoration-follow-ups.md`:
+- **The decoration consequences**, both filed in `docs/research/decoration-follow-ups.md`:
   a non-list-item child of a list item is indented twice (our depth padding plus its own
   literal whitespace), and a provisional line has no decoration facts, so the caret visibly
   jumps left until the first character is typed.

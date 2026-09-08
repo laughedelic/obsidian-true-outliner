@@ -162,7 +162,7 @@ avoid it almost everywhere by living inside registered extensions (a `ViewPlugin
 
 ## Addendum: the universal isomorphic outline view (post-alignment)
 
-The 2026-07-12 alignment (see [04-open-questions.md](04-open-questions.md), Q2) widened the
+The 2026-07-12 alignment (see [open-questions.md](open-questions.md), Q2) widened the
 document model from "lists" to the **full markdown block tree** — headings, paragraphs, code
 fences, quotes, tables *and* list items are all nodes; the outline is a toggleable editor UI
 over any note, with a lossless (isomorphic) round-trip. Feasibility notes for that vision:

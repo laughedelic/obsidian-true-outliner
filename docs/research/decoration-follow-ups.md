@@ -50,7 +50,7 @@ point.
 ### A non-list-item child of a list item is indented twice
 
 Found while cataloguing Enter/Shift+Enter (2026-08-06,
-`15-enter-and-shift-enter-catalogue.md` E10/E11), from a real-vault report that indented
+`enter-and-shift-enter-catalogue.md` E10/E11), from a real-vault report that indented
 text under a list item renders misaligned.
 
 The two indentation regimes disagree for exactly one shape. `styles.css` applies our
@@ -455,7 +455,7 @@ defect.
 
 ### A done task's strikethrough starts on the marker's own trailing space
 
-Found while deriving the marker gutter ([21](21-marker-text-gap.md)). Obsidian tokenises
+Found while deriving the marker gutter ([marker-text-gap.md](marker-text-gap.md)). Obsidian tokenises
 `- [ ] ` so that the space between `]` and the text is the first character of the CONTENT
 span, not of the marker — which is why the task label carries a `min-width` of "the gutter,
 less one space" to put the text on the column at all. A completed task's `line-through`
@@ -474,7 +474,7 @@ fixes.
 
 ### A tab-separated list marker's text does not follow the gutter
 
-Also from [21](21-marker-text-gap.md). The one-space sizing rules are gated on
+Also from [marker-text-gap.md](marker-text-gap.md). The one-space sizing rules are gated on
 `to-decor-marker-1sp`, deliberately: on `-\tfoo` or `-  foo` the padding they add lands on
 top of whitespace that is already there and pushes the item's own text off its column. So a
 tab-separated item's text sits where its literal whitespace puts it, and does not move with
@@ -555,7 +555,7 @@ switchable without breaking the indentation underneath:
 - **List bullets belong on the same appearance surface** — Obsidian exposes
   `--list-bullet-size`/`-radius`/`-border`/`-transform` and `--list-marker-color`, all
   confirmed effective in Live Preview, so a bullet-style setting is variables only. Folded
-  into [16-native-list-decoration.md](16-native-list-decoration.md)'s phase 3 so lists and
+  into [native-list-decoration.md](native-list-decoration.md)'s phase 3 so lists and
   blocks get one marker-appearance surface rather than two.
 - **The indentation unit** gets its prerequisite from phase 1 there: `--to-decor-unit` has to
   become a real declaration before it can be pushed into `--list-indent`. That change stops at
@@ -587,7 +587,7 @@ of whatever whitespace the file contains). What is left is per-item measurement 
 absolutely-positioned overlays — obsidian-outliner's technique, and Experiment 2a's, which 2b
 deliberately replaced with the measurement-free gradient the whole decoration layer now rests on.
 Measurements and the full argument:
-[14-experiment-position-indicators.md](14-experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns).
+[experiment-position-indicators.md](experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns).
 Pairs naturally with the "native list decoration experiments" entry below — both are about owning
 list geometry rather than deferring to it.
 
@@ -600,7 +600,7 @@ answered without one, later in the same change: the spans do not, but the single
 `.cm-hmd-list-indent` WRAPPER around them does, and stating its width from the item's own depth
 puts two- and three-space levels on the grid too. See that change's design D9.
 
-**Amended 2026-08-20** ([16-native-list-decoration.md](16-native-list-decoration.md)): the
+**Amended 2026-08-20** ([native-list-decoration.md](native-list-decoration.md)): the
 blocker above holds only while native list columns are taken as given. They are not — they are
 computed from `--list-indent`, which we can set to our own unit, and once every list level sits
 on `depth × unit` the existing gradient can draw list segments with no measurement and no second
@@ -615,7 +615,7 @@ Concrete interaction ideas on top of the existing "marker as a click target" dir
   `hierarchy-position-indicators` change, in the form that turned out to matter more: the
   highlight follows the CARET rather than the pointer, since the question users actually
   have is "where am I", not "what is under my mouse". See
-  [14-experiment-position-indicators.md](14-experiment-position-indicators.md). A
+  [experiment-position-indicators.md](experiment-position-indicators.md). A
   pointer-driven version is still unbuilt and still gated on the same caveats below.
 - ~~**Click on a marker → zoom into that node**~~ — **done** (`outline-zoom`, D15). What the
   caveats below turned out to be worth, measured 5 September 2026 against Obsidian 1.13.7:
@@ -738,7 +738,7 @@ pure `decorate()`/`computeLineGuides()` layer does.
   native hang was a given to compensate for; the change states the hang itself from
   `(depth − supplementalDepth) × unit + gutter`, so there is no residual margin left to shrink.
   Original framing:
-  [10-experiment-5-block-markers.md](10-experiment-5-block-markers.md#open-question-shrinking-only-our-own-added-list-margin).
+  [experiment-5-block-markers.md](experiment-5-block-markers.md#open-question-shrinking-only-our-own-added-list-margin).
 - **Native list decoration experiments** — **DONE** (`lists-on-the-outline-grid`). List levels
   step by the outline unit, our own gradient draws every level, the caret trail reaches into
   lists, the bullet sits on its own column at a marker's weight, and the hanging indent is
@@ -746,7 +746,7 @@ pure `decorate()`/`computeLineGuides()` layer does.
   left are listed at the end of this entry.
 
   **Researched and planned 2026-08-20**:
-  [16-native-list-decoration.md](16-native-list-decoration.md). Obsidian computes list
+  [native-list-decoration.md](native-list-decoration.md). Obsidian computes list
   columns from public CSS variables (`--list-indent`, `--indentation-guide-editing-indent`,
   the `--list-bullet-*` set), so the columns can be *set* onto our own decoration grid
   instead of measured and followed. Measured: one variable puts every tab- or 4-space-indented
@@ -763,7 +763,7 @@ pure `decorate()`/`computeLineGuides()` layer does.
   blank lines) coexists with editing on those positions, and interacts with the guide
   continuity work (`computeLineGuides` deliberately covers gap lines — collapsed gaps
   change that geometry). **Scope boundary decided 2026-07-21** (node-edit-enforcement's
-  second manual pass, docs/research/13's "Gap-line cursor transparency" entry): this is
+  second manual pass, docs/research/selection-follow-ups's "Gap-line cursor transparency" entry): this is
   *visual* hiding only — the text on disk is untouched either way, same additive-only
   discipline as the rest of decorations. **Not in scope, here or anywhere near-term**:
   auto-correcting or preventing the user from *creating* extra blank lines (e.g. an
@@ -821,7 +821,7 @@ fix, one more kind to cover.
   something is hidden beneath it. Deliberately left out of `backlinks-footer`, which is
   about the rendering model — this one is interaction, and fixing it properly means
   touching fold chrome the editor already owns, so it belongs with that chrome rather
-  than beside it. `docs/research/18` D7 is the design decision it has to satisfy; the
+  than beside it. `docs/research/structured-backlinks` D7 is the design decision it has to satisfy; the
   footer's current implementation is `to-backlinks-fold` in `backlinks-footer.ts` and the
   rule of the same name in `styles.css`, both of which should end up deleted rather than
   fixed in place.
@@ -904,7 +904,7 @@ fix, one more kind to cover.
   `setBacklinksFooter` each `await this.saveData(...)` before calling
   `forceRedraw()`, which is the shape `toggleMode` was fixed out of when it
   turned out to be putting the whole outline's paint behind disk latency
-  (docs/research/11, "Verification and process discipline"). The reordering is
+  (docs/research/decoration-lessons, "Verification and process discipline"). The reordering is
   the same one: `this.data` is already mutated before the await, so the redraw
   can happen first and the write can settle after it. Left alone because a
   settings toggle repainting a moment late is not the defect the mode toggle

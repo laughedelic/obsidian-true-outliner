@@ -7,8 +7,8 @@ mode, and an editable mirrors view), and the one technique that would give perfe
 price the project has publicly promised not to pay.
 
 Written after `backlinks-footer` landed, from measurements taken during it. The spike series
-itself is [19-backlinks-footer-spikes.md](19-backlinks-footer-spikes.md); the design decisions
-behind the backlinks layer are [18-structured-backlinks.md](18-structured-backlinks.md).
+itself is [backlinks-footer-spikes.md](backlinks-footer-spikes.md); the design decisions
+behind the backlinks layer are [structured-backlinks.md](structured-backlinks.md).
 
 ## Why the editor's decorations were not readily reusable
 
@@ -23,7 +23,7 @@ all of which cost real work on the footer:
    makes possible — or build a renderer that never existed.
 2. **Part of the chrome is measured, not computed.** Obsidian's native padding, the fold
    chevron's vertical delta, the accent's stop point: read live, per line, because no CSS
-   expression for them exists (docs/research/14, finding 5, and 16 on list geometry). Those
+   expression for them exists (docs/research/experiment-position-indicators, finding 5, and 16 on list geometry). Those
    measurements are driven by a `ViewPlugin` on CM6's update cycle. A surface with no editor
    behind it gets none of them, and has to either not need them or measure its own.
 3. **The content arrives from a different renderer.** The editor decorates SOURCE TEXT; the
@@ -59,7 +59,7 @@ cheapest surface. That does not hold, and the mistake is worth keeping visible.
 
 Reading mode must be FAITHFUL — it is the document, and a heading there is a heading. The footer
 must not be: its job is to index mentions, and reproducing each kind's typography makes it read
-as a scrapbook of other documents (docs/research/18, D18). The two surfaces want opposite things
+as a scrapbook of other documents (docs/research/structured-backlinks, D18). The two surfaces want opposite things
 at the content layer, so nothing about *how a quote or a callout renders* transfers between them.
 
 What genuinely transfers is the layer above: the chrome contract in `chrome-line.ts` — depth,
@@ -98,7 +98,7 @@ Known unknowns, to be spiked rather than assumed:
   what the fallback is, decides whether the surface can be complete or only best-effort.
 - **Re-render cadence.** Reading mode re-renders sections independently; the chrome has to
   survive that without a `MutationObserver`, for the reason recorded in
-  [11-decoration-lessons.md](11-decoration-lessons.md).
+  [decoration-lessons.md](decoration-lessons.md).
 - **Guides across blocks.** A guide is continuous down a subtree; in reading mode consecutive
   siblings are separate post-processor calls with no shared box to paint in.
 
@@ -183,7 +183,7 @@ inside our surface.
 > Public APIs only: built on Obsidian's documented editor and plugin APIs, no monkey-patching
 > private internals, so it stays compatible and passes the community plugin safety bar honestly.
 
-[03-obsidian-api-feasibility.md](03-obsidian-api-feasibility.md) records that the community
+[obsidian-api-feasibility.md](obsidian-api-feasibility.md) records that the community
 policies do not *explicitly* ban private-API use, but that monkey-patching internals is what
 review flags. So this is not a matter of taste to be settled in passing — adopting the technique
 means either revising that promise or scoping it (for example, to an optional feature that

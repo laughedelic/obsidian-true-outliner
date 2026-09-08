@@ -3,7 +3,7 @@
 A block selection is not an operand. With a cover spanning several sibling subtrees, Tab
 indents exactly one node — the one under the selection's HEAD — and leaves the rest where
 they were. Shift+Tab and the move commands do the same. Filed from real-vault use on
-2026-07-24 (`docs/research/13-selection-follow-ups.md`, Track 2) with the user's own
+2026-07-24 (`docs/research/selection-follow-ups.md`, Track 2) with the user's own
 framing that it needs real design rather than a quick patch, and left open ever since.
 
 Both entry points ignore the selection by construction, for different reasons:
@@ -98,7 +98,7 @@ feature: selecting three items and pressing Tab visibly moves one of them.
 - Tests: `tests/ops.test.ts`, `tests/closure.test.ts` (the sequential-composition property),
   `tests/grammar.test.ts`, `tests/caret-placement.test.ts`, and
   `e2e/specs/20-structural-commands.e2e.ts` / `30-keyboard-grammar.e2e.ts`.
-- `docs/research/13-selection-follow-ups.md`: the Track 2 entry this change closes.
+- `docs/research/selection-follow-ups.md`: the Track 2 entry this change closes.
 
 A pre-existing bug in `indent` was found while measuring the operand rules and is fixed
 separately in PR #51: `destinationIndent` ignored the destination parent's marker width, so an

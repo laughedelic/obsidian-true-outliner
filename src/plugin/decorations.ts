@@ -225,7 +225,7 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
  * visibly meets the thing it is pointing at.
  *
  * Where that marker is cannot be written as a CSS length. Measured
- * (docs/research/14, finding 5): a marker's top edge sits at its line's
+ * (docs/research/experiment-position-indicators, finding 5): a marker's top edge sits at its line's
  * CONTENT-box top, so its center is `padding-top + iconSize / 2` down from the
  * row — and `padding-top` is Obsidian's, varying by kind (0 on a paragraph,
  * 16px on a heading) with no way to read it into a `calc`. A fixed 50% of the
@@ -549,7 +549,7 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
     // closes — it needs an empty caret resting on a blank gap line inside the
     // zoomed subtree, a transient position rather than the ordinary
     // caret-follows-a-node case that function fixes. Diagnosed with a fix
-    // sketch in docs/research/12 ("A provisional position inside a zoomed
+    // sketch in docs/research/decoration-follow-ups ("A provisional position inside a zoomed
     // subtree renders its trail at the source document's depth").
     return computePositionTrail(provisional.doc, cursorLine, highlight);
   }
@@ -580,7 +580,7 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
  * Deliberately kept, and deliberately noted as untested — deleting it fails
  * nothing in the suite, precisely because `forceRedraw` makes the case
  * unreachable. It stops being unreachable the moment `forceRedraw` is replaced
- * by a real refresh API, which docs/research/12 explicitly contemplates; the
+ * by a real refresh API, which docs/research/decoration-follow-ups explicitly contemplates; the
  * three lines are the difference between that swap being safe and it silently
  * serving a stale trail.
  *
@@ -661,7 +661,7 @@ function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: b
 
 // ---- Block markers (Experiment 5a: icon markers) ---------------------------
 //
-// See docs/research/10-experiment-5-block-markers.md (Experiment 5/5a). A
+// See docs/research/experiment-5-block-markers.md (Experiment 5/5a). A
 // small, distinct, self-drawn SVG icon per node kind, rendered on a node's
 // own first line only (never a list item — the native bullet/number already
 // does that job, same exclusion guides already use).
@@ -1076,7 +1076,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
 
 // ---- Escalated-selection chrome (selection-visual-treatment) ---------------
 //
-// docs/research/13's "Escalated-selection visual treatment": when the
+// docs/research/selection-follow-ups's "Escalated-selection visual treatment": when the
 // current selection covers a whole node/subtree (per escalate.ts's
 // `coveredSubtreeRoots` — a stateless, geometric query, not a flag threaded
 // from the transaction filter; see design.md), every line that cover spans
@@ -1801,7 +1801,7 @@ class SelectionDecorationPlugin implements PluginValue {
   }
 
   /**
-   * EXPERIMENTAL, manual-testing-only hypothesis (docs/research/13's
+   * EXPERIMENTAL, manual-testing-only hypothesis (docs/research/selection-follow-ups's
    * "Escalated-selection visual treatment" follow-ups): a real, manual
    * "click outside the text area" after a block-covering selection already
    * returns Live Preview to its fully native rendered form (confirmed by
@@ -1809,7 +1809,7 @@ class SelectionDecorationPlugin implements PluginValue {
    * chased individually (list bullets, task checkboxes, code-fence badges,
    * callout widgets, wiki-link aliases) is just Obsidian's OWN correct
    * rendering once unfocused, not something to re-derive piecemeal (see
-   * docs/research/13 for that abandoned approach's full history).
+   * docs/research/selection-follow-ups for that abandoned approach's full history).
    *
    * This reproduces that SAME transition programmatically: right after a
    * drag settles into a whole-block cover, blur the content DOM — the same
@@ -2148,7 +2148,7 @@ class MarginCompensation implements PluginValue {
    * box width) against its own painted `<svg>` — NOT the `.cm-fold-indicator`
    * wrapper, which is a zero-width anchor whose rect is technically true but
    * practically useless (the measure-the-glyph-not-the-wrapper lesson,
-   * 11-decoration-lessons.md). A width DIFFERENCE is translation-invariant,
+   * decoration-lessons.md). A width DIFFERENCE is translation-invariant,
    * so measuring an already-transformed chevron still yields the correct
    * dead space — no untransformed-position bookkeeping needed. When no
    * chevron is currently rendered (nothing foldable in the viewport), the
@@ -2204,7 +2204,8 @@ class MarginCompensation implements PluginValue {
    * The wrapper is an `inline-block` sized to the icon; the SVG inside it is an
    * inline box that gets baseline-aligned WITHIN that wrapper, so it renders
    * offset downward and overflowing (measured: wrapper top 0 / glyph top 4.4 on
-   * a paragraph row, 16 / 24.9 on an H2 — see docs/research/14, finding 6). The
+   * a paragraph row, 16 / 24.9 on an H2 — see
+   * docs/research/experiment-position-indicators, finding 6). The
    * wrapper's box is therefore not where the user sees the marker, and aiming
    * at it lands the segment near the glyph's TOP edge rather than its middle.
    */

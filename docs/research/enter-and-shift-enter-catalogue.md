@@ -505,7 +505,7 @@ item with content column 2, but `LIST_CONT_RE` in `grammar.ts` requires whitespa
 marker, so Shift+Enter writes a column-0 line. Typing there makes a TOP-LEVEL paragraph, so the
 position belongs to no node and nothing downstream can repair it. Found by the differential
 property test in `tests/decorate.test.ts`, which pins it; recorded in
-[docs/research/12-decoration-follow-ups.md](12-decoration-follow-ups.md).
+[docs/research/decoration-follow-ups.md](decoration-follow-ups.md).
 
 ### C3. Atoms, gaps, preamble ✅ — declined.
 
@@ -659,7 +659,7 @@ Enter's provisional position from Shift+Enter's, and a narrower gap was chosen i
 withdrawn when it turned out to need editor state (that change's design.md D1). What was real
 in the complaint — debris from an unused keypress — is answered by undoing the keypress rather
 than by writing less. And the decoration half of E10/E11 is not a split defect at all; both
-decoration findings are recorded in `12-decoration-follow-ups.md`.
+decoration findings are recorded in `decoration-follow-ups.md`.
 
 ## Where S10 and E10 finally landed (`decorate-provisional-positions`, 2026-08-10)
 
@@ -671,7 +671,7 @@ the same `supplementalDepth` contribution the line gets once text lands, so it r
 the list block instead of at the list's parent column. One residual is NOT ours and stays
 open: a caret at the end of a list-indent run measures by the run's own text rather than by
 the fixed width Obsidian gives the span containing it, byte-identical with the plugin
-disabled. Measured, and recorded in `12-decoration-follow-ups.md`.
+disabled. Measured, and recorded in `decoration-follow-ups.md`.
 
 **E10's other half.** Building the rendering rule turned up an encoding defect underneath it,
 which the catalogue's own entry could not have seen: the routing landed the position in the

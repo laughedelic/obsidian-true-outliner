@@ -50,13 +50,13 @@ snippet.
 **Non-Goals:**
 
 - Interaction. Hover behavior, click-to-zoom, and click-to-fold stay in the
-  `docs/research/12-decoration-follow-ups.md` parking lot — `MarkerWidget` is
+  `docs/research/decoration-follow-ups.md` parking lot — `MarkerWidget` is
   `pointer-events: none` today and guides are pseudo-elements with no hit area, both of which
   need their own careful pass against CM6 focus handling.
 - Reading view. Outline mode is Live Preview only; this layer inherits that.
 - Breadcrumbs, zoom, or any non-decorative "where am I" affordance.
 - Changing indentation, the marker gutter, guide geometry, or native list metrics.
-- RTL correctness beyond what the base layer already has (the standing RTL gap in doc 12 covers
+- RTL correctness beyond what the base layer already has (the standing RTL gap in docs/research/decoration-follow-ups covers
   this layer too).
 
 ## Decisions
@@ -134,7 +134,7 @@ The columns and extents are `background-position`/`background-size` arithmetic o
 module already computes — no overlay divs, no per-depth DOM. The one exception is where the
 arriving segment STOPS: a marker's centre is `padding-top + iconSize / 2` down its row, and that
 padding is Obsidian's, varying by kind with no way to read it into a `calc`. `MarginCompensation`
-measures the glyph per arriving row and publishes `--to-accent-stop` (see docs/research/14,
+measures the glyph per arriving row and publishes `--to-accent-stop` (see docs/research/experiment-position-indicators,
 findings 5 and 6).
 
 **Reworked after the first real-note review.** The original built the Logseq shape literally: an
@@ -165,12 +165,12 @@ run of accented bullets even though nothing can be drawn between them.
 Mechanism explored and REJECTED by the experiment phase: **style the native `.cm-indent`
 spans**. Obsidian emits one per list indentation level inside the line, and its `::before` is
 where the native indent guide draws (`obsidian-outliner` disables exactly that selector when it
-substitutes its own guides — see `docs/research/06`). Their widths *are* the native per-level
+substitutes its own guides — see `docs/research/outline-decorations-postmortem`). Their widths *are* the native per-level
 widths, so accenting the nth such span puts the accent on the native column with **no
 measurement at all**. The bullet uses the same family of hooks (`.list-bullet::after`, the
 element `obsidian-outliner` restyles rather than replaces).
 
-Measuring it killed it (docs/research/14, finding 3): `.cm-indent` spans do NOT correspond to list
+Measuring it killed it (docs/research/experiment-position-indicators, finding 3): `.cm-indent` spans do NOT correspond to list
 levels — 2-space indentation emits none at all for a genuine level — and the columns track the
 rendered width of whatever whitespace the file contains, so there is no constant per-level step to
 measure either. Both cheap approaches are out.
@@ -200,10 +200,10 @@ every ancestor. A node is never both roles, so the two can never collide on one 
 marker axis is separate from the guide axis is what makes markers-only reachable — the rendering
 a plain list depends on (decision 5).
 
-**The list-item hazard this decision expected did not materialise.** `docs/research/13` had
+**The list-item hazard this decision expected did not materialise.** `docs/research/selection-follow-ups` had
 established that a list marker's round bullet comes from a `.list-bullet` span present **only in
 the hidden/rendered form**, which suggested the one line we most want to accent might have no
-bullet element at all. Measured (docs/research/14, finding 1): a plain caret does NOT trigger
+bullet element at all. Measured (docs/research/experiment-position-indicators, finding 1): a plain caret does NOT trigger
 that swap — `.list-bullet` survives on the caret's own line, and the raw-text form belongs to the
 block-selection reveal path, which is a state where indicators are suppressed anyway (decision
 2). So the accent targets `.list-bullet::after` directly and no revealed-text fallback is
@@ -219,7 +219,7 @@ where a bullet's dot is a `::after` background (finding 4). Both are targeted.
 accent's line width — set to the same `1px` an unaccented guide uses, so an accent is purely a
 change of colour and the column neither thickens nor shifts as the caret moves into a subtree — mirroring `bullet_threading.css`'s own
 `--ls-block-bullet-active-color` / `--ls-block-bullet-threading-width` pair and the
-custom-property theming pattern doc 12 recommends copying from `obsidian-lapel`. Nothing is
+custom-property theming pattern docs/research/decoration-follow-ups recommends copying from `obsidian-lapel`. Nothing is
 hardcoded, and a snippet can retune the look without the plugin growing settings for it.
 
 Note that the guide `::after` currently carries `opacity: 0.6` for the whole pseudo-element,
@@ -268,7 +268,7 @@ change's blast radius.
 - **Depending on DOM we do not own (`.cm-indent`, `.list-bullet`) is theme-fragile** → confirm
   presence and behavior live before building on it (decision 5); degrade to "no accent on list
   levels" rather than to a misaligned line; sweep the bundled themes plus Minimal and Catppuccin,
-  the same probe shape doc 12 records; no `!important` escalation — the project already carries a
+  the same probe shape docs/research/decoration-follow-ups records; no `!important` escalation — the project already carries a
   case study of a plugin drowning in ~890 of them.
 - **Live Preview markup reveal changes the current line's own DOM** (decision 6) → the one line
   the marker accent targets is the least stable line in the document. Handle both mounted forms;
@@ -318,7 +318,7 @@ later reader needs:
 - **Do the elbows work?** ❌ No, and they are gone — see decision 4. The first real-note review
   is what settled it; the shape that replaced them is simpler and reaches further.
 - **Do the two DOM bets hold?** ✅ Both settled by live probe before anything was built on them
-  (`docs/research/14`). The list bullet survives the caret sitting on its own line, so the
+  (`docs/research/experiment-position-indicators`). The list bullet survives the caret sitting on its own line, so the
   marker accent needs no dual-form handling. `.cm-indent` spans exist per level and are
   paintable, but their native guide column is 24px off the parent bullet's — which is why list
   levels ship as the spec's permitted omission rather than a misaligned segment.
@@ -334,5 +334,5 @@ Still open, deliberately:
 - **Drawing segments along native list columns.** The one piece of the proposal not built (the
   ancestor markers there ARE accented — only the lines between them are missing). What it needs
   is written up in
-  [docs/research/14](../../../docs/research/14-experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns)
+  [docs/research/experiment-position-indicators](../../../../docs/research/experiment-position-indicators.md#deferred-drawing-segments-along-native-list-columns)
   with the measurements already taken.

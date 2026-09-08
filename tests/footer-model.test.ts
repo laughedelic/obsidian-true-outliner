@@ -46,7 +46,7 @@ describe('footer model', () => {
     // The note's opening PARAGRAPH is part of the lineage, because in this tree
     // model a paragraph owns the list that follows it. Structurally right, and
     // a real consequence for the footer: a lineage can begin with prose rather
-    // than with a heading or a bullet. See docs/research/17 (Q34), which asks
+    // than with a heading or a bullet. See docs/research/list-paragraph-mapping (Q34), which asks
     // whether the attachment rule should hold at all.
     expect(render(rowsFor('Backlinks/Deep chain.md'))).toEqual([
       '~ Planning notes for the week. One thread runs deep on purpose. > work > Aurora dashboard — severity-first rollout > prototype review, second pass with Maya and Priya > open questions before Wednesday',

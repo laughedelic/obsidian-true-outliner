@@ -1,7 +1,7 @@
 ## Why
 
 Redo after any structural operation puts the cursor in the wrong place — reported three
-times across manual passes (docs/research/04-open-questions.md Q18, Q19, Q20) and twice
+times across manual passes (docs/research/open-questions.md Q18, Q19, Q20) and twice
 carried forward unfixed because the mechanism was misdiagnosed. The root cause is now
 confirmed by a standalone pure-CodeMirror reproduction and by manual verification in a
 real vault: CodeMirror's history never records the semantically-chosen cursor our
@@ -71,6 +71,6 @@ follow-up investigations; correcting it is part of this change.
   deletions/merges, structural paste, and type-over now restores the operation's own
   cursor. Undo behavior is unchanged (it already restored the pre-edit cursor
   correctly). Undo step count per operation is unchanged (verified: one).
-- **Docs**: `docs/research/04-open-questions.md` (Q19 correction, Q20 resolution).
+- **Docs**: `docs/research/open-questions.md` (Q19 correction, Q20 resolution).
 - **Dependencies**: none added. The mechanism uses documented CodeMirror behavior only —
   no private APIs, no history-internals access.

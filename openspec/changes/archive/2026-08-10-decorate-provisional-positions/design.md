@@ -44,7 +44,7 @@ Three constraints shape the fix:
 - Making a provisional position addressable. `content-space-caret` is unchanged: no user
   gesture reaches one, and only the plugin's own dispatch parks the caret there.
 - Collapsing or hiding gap lines, and the rest of the parking lot's gap-line family
-  (`docs/research/12-decoration-follow-ups.md`).
+  (`docs/research/decoration-follow-ups.md`).
 - Replicating Obsidian's native list metrics. Our contribution stays additive.
 
 ## Decisions
@@ -161,7 +161,7 @@ rule assumed for that line.
   "one level to the left"), but in a PURE list that margin is 0, so if Obsidian renders a
   whitespace-only line differently from a real continuation line there is a residual we have
   not measured. → Measure it first (task 1), against the column the same text occupies once
-  typed. If a residual exists, record it in `docs/research/12-decoration-follow-ups.md` rather
+  typed. If a residual exists, record it in `docs/research/decoration-follow-ups.md` rather
   than replicating native list metrics, which the decoration layer deliberately never does.
 - **An extra parse on caret moves onto a blank line.** → Only on blank lines, cached per
   editor state, and skipped entirely by a leading `trim()` test on the caret's line.

@@ -161,7 +161,7 @@ describe('5.3 inverse laws', () => {
   });
 
   it('outdent with following siblings still closes (parse(encode(surgery)) round-trips)', () => {
-    // docs/research/04-open-questions.md Q17: outdenting a node with
+    // docs/research/open-questions.md Q17: outdenting a node with
     // following siblings under the same parent used to drop them instead of
     // re-parenting them — regression coverage for closure on that path.
     const doc = parse('- p\n\t- x\n\t- y\n\t- z\n');

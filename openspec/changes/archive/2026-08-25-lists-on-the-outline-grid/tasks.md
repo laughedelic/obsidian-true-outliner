@@ -10,7 +10,7 @@
       x-height: on an H1 the icon went from 8.45px above its text-rect centre to 2.96px below
       it, under the heading's own glyphs. So the bullet takes the optical centre and the block
       icon keeps `baseline`; they differ by ~7px on a body row. Design D6a, the delta spec and
-      the proposal all state the per-kind rule; `docs/research/12`'s "vertical-alignment
+      the proposal all state the per-kind rule; `docs/research/decoration-follow-ups`'s "vertical-alignment
       polish" entry carries the remaining question of whether that difference reads as wrong.
 - [x] 1.3 Declare `--to-decor-unit` as a real value rather than a CSS fallback, so
       `--list-indent` and everything else read one number. No user setting in this change.
@@ -74,7 +74,7 @@
       since every line of a list item carries `to-decor-list` and only the first spends the
       gutter on a marker. Caught by review after 3.10 shipped without the term and put every
       continuation on the marker's column, 20px left of the row above. Closes
-      `docs/research/12`'s "a list item's continuation line does not align with the item's own
+      `docs/research/decoration-follow-ups`'s "a list item's continuation line does not align with the item's own
       content", which was diagnosed as needing exactly this override plus a per-line
       measurement — the override is the same, the measurement is not needed.
 - [x] 3.11 Bring a task item's text onto the shared text column: the space Obsidian leaves after
@@ -104,12 +104,12 @@
 
 - [x] 5.1 Fold the two delta specs into `openspec/specs/` on archive; until then keep them
       accurate as the implementation settles.
-- [x] 5.2 Update `docs/research/12-decoration-follow-ups.md`: close "shrinking only our own
+- [x] 5.2 Update `docs/research/decoration-follow-ups.md`: close "shrinking only our own
       added list margin", "drawing the ancestor trail's segments along native list columns",
       and the "native list decoration experiments" entry; retarget the vertical-alignment entry
       at task 1.2.
 - [x] 5.3 Add the carried-forward findings from
-      `docs/research/16-native-list-decoration.md` to `docs/research/11-decoration-lessons.md`:
+      `docs/research/native-list-decoration.md` to `docs/research/decoration-lessons.md`:
       look for the variable before building the mechanism; override the variable the consuming
       rule reads, not an intermediate one; Obsidian's list hang is a cached measurement whose
       cache ignores attributes; `--list-indent` is `em`-based so anything of ours flowing into
@@ -140,7 +140,7 @@
       several read theme variables (`--checkbox-size`, `--list-bullet-end-padding`). Rather than
       re-run it, third-party theme support is out of scope for this change. Recorded as
       unverified rather than checked off: what the grid does under Minimal is simply not known
-      at this point. `docs/research/12`'s Minimal entry keeps the standing question.
+      at this point. `docs/research/decoration-follow-ups`'s Minimal entry keeps the standing question.
 - [x] 6.7 Real-vault pass by hand over `test-vault/`, including
       `Notes/List decoration demo.md`. This is the gate, not the fixtures — every bug in this
       layer's history was found here and none by the synthetic corpus, and it held again here:

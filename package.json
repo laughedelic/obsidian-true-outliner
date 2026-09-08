@@ -10,7 +10,7 @@
     "build": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src tests",
+    "lint": "eslint src tests && node scripts/check-research-index.mjs",
     "dev": "node esbuild.config.mjs",
     "build:plugin": "node esbuild.config.mjs production",
     "vault:install": "node esbuild.config.mjs production --dev",

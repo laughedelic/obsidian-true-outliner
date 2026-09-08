@@ -1,15 +1,15 @@
 # The outline unit: a wider default, and an override that is guaranteed
 
 `--to-decor-unit` is one tree level's worth of horizontal distance — the only number any
-layer may derive a column from ([08](08-experiment-1-additive-indentation.md)). It had been
+layer may derive a column from ([experiment-1-additive-indentation.md](experiment-1-additive-indentation.md)). It had been
 `1.5rem` since Experiment 1, chosen the way the marker gutter was chosen before
-[21](21-marker-text-gap.md) derived it: it worked.
+[marker-text-gap.md](marker-text-gap.md) derived it: it worked.
 
 Two things happen here. The default widens, and the property's adjustability stops being an
 accident.
 
 **Measured 2 September 2026**, Obsidian 1.13.7, both bundled themes, 16px root font, against
-the gutter [21](21-marker-text-gap.md) derived (`0.875rem`).
+the gutter [marker-text-gap.md](marker-text-gap.md) derived (`0.875rem`).
 
 ## Why it wanted widening
 
@@ -70,7 +70,7 @@ So the work was not to build the adjustment but to hold it:
   a number and a string for a caller that never arrived. A number cannot follow an override, so
   the first caller to position something from one would have left that piece on the old grid
   while every other layer moved — the same shape as the stale gutter fallback
-  [21](21-marker-text-gap.md) found in the footer's heading, caught before it happened.
+  [marker-text-gap.md](marker-text-gap.md) found in the footer's heading, caught before it happened.
 
 ## What the widening surfaced
 

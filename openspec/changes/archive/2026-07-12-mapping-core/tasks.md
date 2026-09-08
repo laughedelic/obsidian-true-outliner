@@ -56,7 +56,7 @@
 ## 6. Wrap-up
 
 - [x] 6.1 Evaluate the two provisional rules against test findings; record outcomes (keep /
-  revise / needs-config) in docs/research/04-open-questions.md
+  revise / needs-config) in docs/research/open-questions.md
 - [x] 6.2 Write library README (API surface, guarantees, dialect notes) and resolve the two
   design open questions (indentation unit inference; heading move semantics) or log them
   for the CM6 change

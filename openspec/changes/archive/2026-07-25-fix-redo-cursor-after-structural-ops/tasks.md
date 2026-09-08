@@ -102,7 +102,7 @@
 
 ## 6. Documentation
 
-- [x] 6.1 Correct Q19 in `docs/research/04-open-questions.md`. → Flagged in place with a
+- [x] 6.1 Correct Q19 in `docs/research/open-questions.md`. → Flagged in place with a
       pointer to the new Q21 rather than rewritten, so the record of what was believed
       (and how it misdirected Q20) survives.
 - [x] 6.2 Resolve Q20 and write Q21: root cause, the CM6 6.10.2 version boundary, BOTH

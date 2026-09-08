@@ -5,7 +5,7 @@
 Phases A+B (`outline-selection-enforcement`, archived 2026-07-20) built and validated
 the choke point: a `transactionFilter` classifies every transaction (six classes,
 default-permit), and boundary-crossing user *selections* escalate to whole sibling
-subtrees. Phase A's findings (docs/research/04 Q14) materially de-risk this change:
+subtrees. Phase A's findings (docs/research/open-questions Q14) materially de-risk this change:
 
 - All driven user mutation paths arrive through the filter with usable provenance;
   external reconciliation is annotated `set` (classifier already tightened).
@@ -27,8 +27,8 @@ text drop mid-node, and deletions over selections the filter never escalated
 (programmatically restored ones — passed through by spec).
 
 Scope guard: selection-UX threads (Select All ladder, modal block selection,
-bullet-click, block-selection rendering — docs/research/13 Track 2) are a separate
-future change; visual gap treatment is decoration territory (docs/research/12); the
+bullet-click, block-selection rendering — docs/research/selection-follow-ups Track 2) are a separate
+future change; visual gap treatment is decoration territory (docs/research/decoration-follow-ups); the
 drag-from-inside-a-rendered-widget limitation is native and out of jurisdiction.
 
 ## Goals / Non-Goals
@@ -51,7 +51,7 @@ drag-from-inside-a-rendered-widget limitation is native and out of jurisdiction.
 - No enforcement of *within-node* edits: typing markdown syntax that changes a node's
   kind or creates structure is authoring, not violation.
 - No attempt to intercept DOM-level selections inside rendered widgets (native
-  limitation, docs/research/13).
+  limitation, docs/research/selection-follow-ups).
 
 ## Decisions
 
@@ -224,7 +224,7 @@ indentation, marker character, and the single space after it — anything before
 `contentColumnCh`) is redirected to the marker's content-start column instead,
 regardless of which gesture produced it (Left arrow, Home, a mouse click, Up/Down
 landing on a shorter marker line). Precedent: obsidian-outliner's "stick cursor to
-content." Scoped to LIST MARKERS only, deliberately not gap lines (see docs/research/13's
+content." Scoped to LIST MARKERS only, deliberately not gap lines (see docs/research/selection-follow-ups's
 "Gap-line cursor transparency" entry for why that's a separate, larger, deferred
 piece — vertical goal-column risk, click-position ambiguity, and a real invariant
 to reverse rather than narrow).
@@ -239,7 +239,7 @@ this change for it, per the A+B/D10/D11 amendment precedent of touching whicheve
 capability a manual-pass finding actually lands in.
 
 **Not in scope, anywhere near this change**: preventing or auto-collapsing extra
-blank lines the user types (docs/research/12's own scope note on this) — that is
+blank lines the user types (docs/research/decoration-follow-ups's own scope note on this) — that is
 auto-correcting keystrokes as they happen, not cursor placement, and carries the
 same "surprising rewrite" risk D5's paste heuristic already treats as the thing to
 avoid.
@@ -351,7 +351,7 @@ kept current).
   skipped (no-silent-caps rule).
 - **[Trailing-gap deletion surprises]** Removing a node now visibly removes its
   following blank line. → It is the model's ownership semantics becoming honest;
-  manual pass judges feel; visual gap cues remain parked in docs/research/12.
+  manual pass judges feel; visual gap cues remain parked in docs/research/decoration-follow-ups.
 
 ## Migration Plan
 
@@ -361,7 +361,7 @@ filter adapter to Phase A+B behavior (classification + selection only); the pure
 and verdict module are inert without the adapter wiring. No settings-schema or
 file-format changes. Findings that falsify a design hypothesis (paste heuristic, merge
 algebra cases, perf on the enforced path) are recorded here and in
-docs/research/04/13 before the change is archived, per series discipline.
+docs/research/open-questions/13 before the change is archived, per series discipline.
 
 ## Open Questions
 
@@ -370,7 +370,7 @@ docs/research/04/13 before the change is archived, per series discipline.
   list-item←list-item (same bullet/ordered family) join; every cross-kind pair, heading
   absorption, atoms, and either side having children reject. Finding: the
   paragraph←paragraph row is real (property/unit-tested) but organically unreachable as
-  an enforced rewrite through live typing — see docs/research/04 Q15.
+  an enforced rewrite through live typing — see docs/research/open-questions Q15.
 - **Paste ambiguity boundary** (D5) ✅ SHIPPED and TIGHTENED from real-vault
   evidence: the original "more than one top-level parsed block" rule was widened
   by `isStructuralBlockSequence` (D15) to also catch a single top-level block that
@@ -395,18 +395,18 @@ docs/research/04/13 before the change is archived, per series discipline.
 
 Five real-vault manual-pass rounds (D9-D16) found and fixed every reachable bug this
 change's scope covers; the amendment discipline held throughout (docs before code,
-each round's findings recorded here and in docs/research/04 as Q15-Q20 before the
+each round's findings recorded here and in docs/research/open-questions as Q15-Q20 before the
 next implementation pass). Two findings are explicitly OUT of this change's scope,
 by the owner's own go-ahead, and carried forward rather than fixed here:
 
 - `outdent`'s following-siblings gap — a pre-existing, foundational
-  `mapping-core` behavior with a wide blast radius (docs/research/04 Q17,
+  `mapping-core` behavior with a wide blast radius (docs/research/open-questions Q17,
   tasks.md 8.2).
 - Heading Enter-splitting — a pre-existing `outline-keyboard-grammar` behavior
-  (docs/research/04 Q17, tasks.md 8.3).
+  (docs/research/open-questions Q17, tasks.md 8.3).
 
 A third finding — the redo-cursor bug — was investigated as far as this change's
 own code paths go (Q19 empirically confirmed undo/redo never reach
 `transactionFilter`, so the cause is outside this change entirely) and then spun
 out as its own separate investigation once further testing showed it takes more
-than one wrong-landing shape (docs/research/04 Q20).
+than one wrong-landing shape (docs/research/open-questions Q20).

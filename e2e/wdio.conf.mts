@@ -17,7 +17,7 @@ const root = path.resolve(e2eDir, '..');
  * `./obsidian-target.mts`, shared with the mobile config so the two cannot
  * drift apart again.
  *
- * Why the version matters (docs/research/04 Q21, Q27): a user-reported
+ * Why the version matters (docs/research/open-questions Q21, Q27): a user-reported
  * redo-cursor bug went unreproducible for three rounds because the behavior
  * causing it entered `@codemirror/commands` 6.10.2 and the newest STABLE
  * Obsidian bundles an older CM6 while the reporter was on a 1.13.x beta. Later,

@@ -1,6 +1,6 @@
 ## Context
 
-See proposal.md — Why. The evidence base is `docs/research/15-enter-and-shift-enter-catalogue.md`:
+See proposal.md — Why. The evidence base is `docs/research/enter-and-shift-enter-catalogue.md`:
 49 cursor positions run through `planKey` and `splitNode` themselves, with the resulting tree
 re-parsed and printed, so every claim below is a measurement rather than a reading of the code.
 

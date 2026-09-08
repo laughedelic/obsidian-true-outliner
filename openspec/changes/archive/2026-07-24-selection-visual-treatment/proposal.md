@@ -4,7 +4,7 @@ Node-selection-enforcement escalates boundary-crossing selections to whole-node/
 coverage, but the result still renders as stock character-level highlight — there's no
 visual cue that a selection is "this whole node," only that some text got wider. The
 real-vault manual pass that validated escalation flagged this gap explicitly and the
-enforcement change's design.md scoped it out deliberately (docs/research/13). It matters
+enforcement change's design.md scoped it out deliberately (docs/research/selection-follow-ups). It matters
 now because escalated selections are already the operand of shipped structural edits
 (node-edit-enforcement) and will become more frequent once keyboard/mouse gestures for
 single-node selection land, so the mismatch between "what's selected" and "what's shown"

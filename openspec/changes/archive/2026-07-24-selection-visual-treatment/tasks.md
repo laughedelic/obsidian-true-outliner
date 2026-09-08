@@ -63,9 +63,9 @@
       leaf-match reads as signal, not noise) — see design.md's "Open Questions —
       resolved." Surfaced one real, previously-unanticipated finding at the time: a
       table's own chrome box was only as wide as its rendered content, a visible
-      "notch" — initially parked in docs/research/12's "Known gaps," then actually
+      "notch" — initially parked in docs/research/decoration-follow-ups's "Known gaps," then actually
       FIXED (not just diagnosed) by section 6 below as a side effect of the
-      root-anchoring redesign; the docs/research/12 entry was removed once resolved.
+      root-anchoring redesign; the docs/research/decoration-follow-ups entry was removed once resolved.
 
 ## 5. Validation
 
@@ -174,12 +174,12 @@ gap-line escalation question.
         existing e2e infrastructure, activated via `obsidianPage.setTheme('Minimal')`):
         boxed atoms (callouts, code blocks) overflow the reading column once indented at
         all — a base-indentation issue (`MarginCompensation`), not this change's own
-        scope. Full diagnosis in docs/research/12's "Known gaps."
+        scope. Full diagnosis in docs/research/decoration-follow-ups's "Known gaps."
       - A same-node selection reaching a node's own text doesn't yet include that node's
         owned trailing gap — only dragging INTO the gap does. This is
         `node-selection-enforcement`'s own escalation math (`D4`'s
         `subtreeContentEnd`), a different capability's spec — not touched here. Full
-        diagnosis in docs/research/13's "Escalation math re-examination candidate."
+        diagnosis in docs/research/selection-follow-ups's "Escalation math re-examination candidate."
 - [x] 7.5 Re-ran full unit suite, typecheck, lint, and the targeted e2e specs
       (63/50/51/52) plus a dedicated visual pass across four fixtures (top-level,
       nested-heading-with-marker, table, and the full mixed H1>H2>H3>{list,blockquote,
@@ -267,7 +267,7 @@ code-fence badges, callout titles) and to add a wiki-link-specific rule. Validat
 still growing (aliased wiki links, underline loss, blockquote content sticking to the
 border) with no sign it would stop — full detail of everything found and fixed along the
 way (exact class names, every regression, the reasoning behind each exclusion) is
-preserved in docs/research/13-selection-follow-ups.md's "Live Preview raw-markdown
+preserved in docs/research/selection-follow-ups.md's "Live Preview raw-markdown
 reveal during block selection" section, not repeated here.
 
 ## 11. Reverted the CSS approach; kept a blur-based approach instead
@@ -284,7 +284,7 @@ reveal during block selection" section, not repeated here.
       `formattingMarkDisplay`/`waitForFormattingMark` helpers from
       `63-selection-visual-treatment.e2e.ts`, and the matching spec.md requirement.
 - [x] 11.3 Recorded the full investigation (both attempts, every regression found, the
-      reasoning behind each) in docs/research/13-selection-follow-ups.md, and condensed
+      reasoning behind each) in docs/research/selection-follow-ups.md, and condensed
       design.md's own decision section to a short pointer there.
 - [x] 11.4 Confirmed working by the user in their real vault: dragging over blocks shows
       only the selection background as a visual change, staying fully rendered
@@ -338,7 +338,7 @@ reveal during block selection" section, not repeated here.
       keymap's own commands (likely extending to Shift-Tab and Cmd+Up/Down too), not
       something the keyboard-recovery work introduced, and needs its own design
       (what should a structural command do when the operand is "several whole
-      subtrees," not one cursor). Filed in docs/research/13-selection-follow-ups.md's
+      subtrees," not one cursor). Filed in docs/research/selection-follow-ups.md's
       Track 2 for a future selection-UX change.
 - [x] 12.5 Documented three known, accepted residual limitations, none observed in
       practice: a multi-pane conflict if two outline-mode panes are both blurred/
@@ -348,7 +348,7 @@ reveal during block selection" section, not repeated here.
       full `63-selection-visual-treatment` e2e spec (19 passing) after the fix — no
       regressions.
 - [x] 12.7 Updated design.md's Goals/Decisions/Risks and
-      docs/research/13-selection-follow-ups.md to reflect the mechanism as confirmed
+      docs/research/selection-follow-ups.md to reflect the mechanism as confirmed
       working, not merely "kept, still being refined" — this is the checkpoint to
       commit from.
 
@@ -387,7 +387,7 @@ reveal during block selection" section, not repeated here.
 - [x] 13.4 Re-ran full unit suite (287 passed), typecheck (main + e2e), lint, and the
       full `63-selection-visual-treatment` e2e spec (19 passing) after 13.1/13.2 — no
       regressions.
-- [x] 13.5 Updated design.md and docs/research/13-selection-follow-ups.md with both
+- [x] 13.5 Updated design.md and docs/research/selection-follow-ups.md with both
       fixes and the IME limitation — this is the checkpoint to commit from.
 
 ## 14. Final fix: keyboard-selection typing correctness, checkpoint
@@ -419,5 +419,5 @@ reveal during block selection" section, not repeated here.
       border, code-block tint, Live Preview stays rendered including keyboard
       parity and multi-pane correctness) or deliberately deferred with full
       diagnosis recorded (IME composition; Tab/Shift-Tab/Cmd+Up-Down multi-node
-      structural behavior, filed in docs/research/13-selection-follow-ups.md's
+      structural behavior, filed in docs/research/selection-follow-ups.md's
       Track 2 for its own future change). Ready to archive.

@@ -11,7 +11,7 @@ for that scope, preserving the copied content's own relative nesting exactly reg
 target's depth relative to the original." For a payload rooted at a heading, that promise has
 no implementation behind it, because a heading's depth is carried by its `#` count while a list
 item's is carried by indentation. The two regimes were identified as far back as Q2 in
-docs/research/04 and the asymmetry was never resolved for the paste path.
+docs/research/open-questions and the asymmetry was never resolved for the paste path.
 
 This is a re-encoding problem, not a selection problem. It was raised during the discussion that
 produced `selection-as-subtree-set`, and confirmed there to be independent of it: the payload is

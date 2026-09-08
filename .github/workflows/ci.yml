@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
   # Runs use the latest Obsidian; this pins an older build when chasing a
-  # version-specific bug (docs/research/04 Q21, Q27). It cannot reach an
+  # version-specific bug (docs/research/open-questions Q21, Q27). It cannot reach an
   # insider build — this workflow holds no Catalyst credentials.
   workflow_dispatch:
     inputs:

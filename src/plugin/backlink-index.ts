@@ -34,7 +34,7 @@ import { SourceTreeCache } from './source-tree-cache';
  * `note` and `anchor` split on WHAT is addressed — the whole note, or a node
  * inside it. `embed` and `property` split on HOW it is written. The taxonomy
  * deliberately flattens two axes into one list because that is how a reader
- * thinks about them; see docs/research/18, D14.
+ * thinks about them; see docs/research/structured-backlinks, D14.
  */
 export type ReferenceKind = 'note' | 'anchor' | 'embed' | 'property';
 
@@ -58,7 +58,7 @@ export interface BacklinkReference {
 export interface SourceSummary {
   readonly path: string;
   readonly count: number;
-  /** Last-modified time, for the default sort (docs/research/18, D15). From the
+  /** Last-modified time, for the default sort (docs/research/structured-backlinks, D15). From the
    * vault's own file record, which is already in memory — no read. */
   readonly mtime: number;
 }
@@ -112,7 +112,7 @@ export interface PlacedReference {
    * reference list) disagree with which rows a kind filter admitted — the
    * count said a group had an embed, the row for it did not match "Embed"
    * because its FIRST recorded reference happened to be a plain link. Found
-   * in review; recorded as a known gap in docs/research/12 before
+   * in review; recorded as a known gap in docs/research/decoration-follow-ups before
    * `backlinks-controls` existed to fix it.
    */
   readonly kinds: ReadonlySet<ReferenceKind>;

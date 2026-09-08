@@ -9,7 +9,7 @@ variant — paragraph, list item, and code block past a table, table past a para
 directions, and both the raw source form `| a | b |` and the padded form Obsidian's table
 widget rewrites the source into. `editsToChanges` agrees with `applyEdits` on all of them.
 Instrumenting `cm.dispatch` with a stack-trace-recording monkey-patch (the technique in
-`docs/research/04` Q25) placed the corruption INSIDE the outer `EditorState.update`: the
+`docs/research/open-questions` Q25) placed the corruption INSIDE the outer `EditorState.update`: the
 prepared document already contained the blank line before our transaction was applied. So it
 is neither an async race with the widget's own reformat nor the nested per-cell `EditorView`
 writing back — every traced dispatch had `nested: false`.
@@ -45,7 +45,7 @@ along the wrong axis, which is what motivated this design.
   from it — the host's widgets, cursor mapping, undo history — reads the truth.
 - One rule at the existing choke point, general over node kind, nesting depth, and direction.
 - No loss of the minimality the existing requirement already guarantees.
-- A regression test that can fail, per `docs/research/04` Q28.
+- A regression test that can fail, per `docs/research/open-questions` Q28.
 
 **Non-Goals:**
 

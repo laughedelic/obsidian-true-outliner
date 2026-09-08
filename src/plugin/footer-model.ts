@@ -435,14 +435,14 @@ export function buildRows(
         // is an atom kind — a lineage row is never a callout box.
         fact: rowFact(row.kind, row.depth),
         // First line only: continuation lines are context for reading a node,
-        // not for naming it (docs/research/18, D5).
+        // not for naming it (docs/research/structured-backlinks, D5).
         segments: row.elements.map((n) => {
           visible.add(n.id);
           const task = taskStateOf(n);
           const ordinal = ordinalOf(n);
           return {
             // First line only: continuation lines are context for reading a
-            // node, not for naming it (docs/research/18, D5).
+            // node, not for naming it (docs/research/structured-backlinks, D5).
             text: stripBlockPrefix(n.lines[0] ?? ''),
             nodeId: n.id,
             kind: n.kind,

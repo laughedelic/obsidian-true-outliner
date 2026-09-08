@@ -2,7 +2,7 @@
 
 An ordered list misnumbers when its FIRST item is removed. Measured directly against
 `deleteSubtrees`, with no keyboard grammar involved
-(`docs/research/15-enter-and-shift-enter-catalogue.md`, section C2, 2026-08-09):
+(`docs/research/enter-and-shift-enter-catalogue.md`, section C2, 2026-08-09):
 
 ```
 delete the first two of 1,2,3   →  "3. c"          (expected "1. c")

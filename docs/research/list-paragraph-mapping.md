@@ -5,16 +5,16 @@ picking it up later needs no re-discovery: what the rule is, what it costs, the 
 readings, what other formats and tools do, and the two measurements that already rule one
 candidate out.
 
-Registered in the decision log as [Q34](04-open-questions.md). The change that prompted it,
+Registered in the decision log as [Q34](open-questions.md). The change that prompted it,
 `reorder-absorption`, deliberately does not answer it — it refuses the one gesture the current
 rule cannot encode, and says in its own comments that it expects to be deleted by whatever this
 question settles.
 
-Cross-references: [04-open-questions.md](04-open-questions.md) Q2 follow-ups 1 and 3 (the rule's
+Cross-references: [open-questions.md](open-questions.md) Q2 follow-ups 1 and 3 (the rule's
 original decision and the mapping-core verdict on it), and
-[05-org-mode-comparison.md](05-org-mode-comparison.md).
+[org-mode-comparison.md](org-mode-comparison.md).
 
-`16-native-list-decoration.md` arrives with the `lists-on-the-outline-grid` change and is not on
+`native-list-decoration.md` arrives with the `lists-on-the-outline-grid` change and is not on
 this branch. Its geometry measurements are what rule out candidate B, so §6 reproduces the two
 that carry the argument — the indent-span mechanism and the bullet-column table — rather than
 citing a document a reader here cannot open. Every other reference to it is context, not

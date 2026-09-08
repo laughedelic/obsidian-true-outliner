@@ -24,7 +24,7 @@ filtering disabled, so the enforcement funnel provably never observes an undo or
 
 Architecture and rationale: the `fix-redo-cursor-after-structural-ops` and
 `minimal-changesets-for-structural-ops` design.md files; evidence and findings:
-`docs/research/04-open-questions.md` Q18–Q21 and Q29. Where the caret should go in the
+`docs/research/open-questions.md` Q18–Q21 and Q29. Where the caret should go in the
 first place — as opposed to how it survives history — is being consolidated by the
 `caret-placement-policy` change.
 ## Requirements

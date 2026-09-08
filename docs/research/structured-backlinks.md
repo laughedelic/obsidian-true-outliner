@@ -1,7 +1,7 @@
 # Structured backlinks: prior art, API constraints, and design decisions
 
 The backlinks layer named in the README's vision and deferred as post-v1 in
-[04-open-questions.md](04-open-questions.md) (Q10). This doc records what the reference
+[open-questions.md](open-questions.md) (Q10). This doc records what the reference
 outliners do, what Obsidian's public API actually permits, and the decisions taken in the
 design round that produced the interactive prototype. It is a **pre-change** record: once a
 change exists, its specs are the source of truth for behavior.
@@ -39,7 +39,7 @@ Three findings carry into our design:
 
 - **Nobody in the Obsidian ecosystem has done the editable half.** Roam and Logseq's actual
   differentiator is that the references section is a live editing surface into other files.
-  [02-obsidian-plugin-landscape.md](02-obsidian-plugin-landscape.md) already flags this as
+  [obsidian-plugin-landscape.md](obsidian-plugin-landscape.md) already flags this as
   the open opportunity; we deliberately do not take it in the first cut (D2).
 - **Tana collapses backlinks and mirrors into one primitive** — a reference *is* a mirror of
   the node. Worth keeping the data model shaped so mirrors can later be a rendering mode of
@@ -72,7 +72,7 @@ Everything the feature needs is nonetheless public:
 | Render node content | `MarkdownRenderer.render(app, md, el, sourcePath, component)` |
 | Navigate on click | `workspace.openLinkText(...)` |
 | Hover preview | `registerHoverLinkSource` |
-| An in-document footer in the editing view | `registerEditorExtension` + `Decoration.widget({block: true})` at `state.doc.length`, `side: -1`, **provided from a `StateField`** — CodeMirror rejects block decorations from a `ViewPlugin` (measured: docs/research/17, S1) |
+| An in-document footer in the editing view | `registerEditorExtension` + `Decoration.widget({block: true})` at `state.doc.length`, `side: -1`, **provided from a `StateField`** — CodeMirror rejects block decorations from a `ViewPlugin` (measured: docs/research/list-paragraph-mapping, S1) |
 
 The block-widget footer is proven: `influx` anchors exactly that way, from a `StateField`
 (`src/cm6/StatefulDecorationSet.tsx` — the class name says so, and S1 later found out the hard
@@ -504,7 +504,7 @@ contract publishes `--to-*` custom properties, so a CSS snippet already covers t
 ## Open questions
 
 The first three are answered — by the spike series
-([19](19-backlinks-footer-spikes.md)) and by building the change. Kept with their answers
+([backlinks-footer-spikes.md](backlinks-footer-spikes.md)) and by building the change. Kept with their answers
 rather than deleted, since two of them were answered differently from how they were asked.
 The fourth is open, and is recorded with what has been measured so far.
 

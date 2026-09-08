@@ -85,7 +85,7 @@ line today:
 
 > **Carried reservation, with the evidence for it.** Column preservation across skipped
 > gaps is the one rule here adopted on precedent (Logseq behaves this way) rather than
-> from a felt problem, and docs/research/13 records a concrete drift risk: snapping the
+> from a felt problem, and docs/research/selection-follow-ups records a concrete drift risk: snapping the
 > landing position on every vertical move recomputes the *next* move's goal column from
 > the snapped position rather than from the user's actual motion. Two measurements make
 > this less alarming than it reads. First, CM6's goal column already survives gap lines
@@ -96,7 +96,7 @@ line today:
 > already chose for an independent reason (see C2's Home inconsistency). It remains
 > something to feel out in real navigation, not to settle from reasoning.
 >
-> **Post-implementation update (2026-07-25, see H5 and docs/research/04 Q24).** Felt
+> **Post-implementation update (2026-07-25, see H5 and docs/research/open-questions Q24).** Felt
 > out in real navigation as promised: the reservation was right to carry. The frames
 > above hold exactly for a direct one-gap crossing; chasing the goal column through a
 > node SHORTER than it (this frame's own `Hi`) can land one character off on the far
@@ -321,7 +321,7 @@ paragraph. The line and the node are then different things.
 The press lands at the continuation line's own content column, not at column 0 —
 alignment whitespace is marker chrome like any other.
 
-> **Revised after real-vault use (2026-07-26, `docs/research/04` Q26).** This example
+> **Revised after real-vault use (2026-07-26, `docs/research/open-questions` Q26).** This example
 > originally showed the second press climbing to the node's own start on line 1. Home no
 > longer escalates at all; see C6's note. Reaching a block's start is deferred to its own
 > future binding.
@@ -351,7 +351,7 @@ Alpha o|ne.
 `Home` reaches content start and a second press does nothing — which is true of every
 node, not just this one: Home and End are a single step within the caret's own raw line.
 
-> **Revised after real-vault use (2026-07-26, `docs/research/04` Q26).** This example
+> **Revised after real-vault use (2026-07-26, `docs/research/open-questions` Q26).** This example
 > originally described a two-rung ladder (line boundary, then node boundary) that
 > "collapsed" for single-line nodes, and an open detail recommending the *visual* row as
 > the first rung so long wrapped paragraphs would behave natively.
@@ -426,7 +426,7 @@ Unlike a list marker, `#` is text the user writes and edits directly. This is al
 shipped position: `clampCursorToContent` is list-item-only by construction, and
 `progressive-select-all` already specifies column 0 as a heading's content-start rung.
 Whether headings should eventually get the same prohibition is a question deliberately
-parked in docs/research/04 (Q17) — this change does not reopen it.
+parked in docs/research/open-questions (Q17) — this change does not reopen it.
 
 ### F2 — motion across a heading's gap
 
@@ -595,6 +595,6 @@ column through a node SHORTER than it (A2's `Hi`) can land a character off on th
 side, under a non-monospace font — the goal column is a pixel offset, not a character
 count, re-derived on a line whose glyphs render at a very slightly different average
 width. Direct single-gap crossings, document-edge landings, and marker clamps all land
-pixel-exact. See docs/research/04 Q24 for the full account, including a coordinate-space
+pixel-exact. See docs/research/open-questions Q24 for the full account, including a coordinate-space
 bug this same testing caught and fixed (`view.lineBlockAt`'s document-relative
 coordinates were briefly mixed with `posAtCoords`'s viewport-relative ones).

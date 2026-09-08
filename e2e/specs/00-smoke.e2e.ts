@@ -36,7 +36,7 @@ describe('smoke', function () {
    * The drawer fix, made deterministic. The state that produced the CI failure
    * is intermittent, so this puts the workspace into it deliberately —
    * `leftSplit.expand()` opens the drawer under emulation, as
-   * `docs/research/24-outline-mode-surfaces.md` measured — and then asserts the
+   * `docs/research/outline-mode-surfaces.md` measured — and then asserts the
    * click lands anyway. Without the collapse, `clickClear` throws the
    * interception here — an intercepted click is not retried.
    *

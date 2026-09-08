@@ -5,10 +5,10 @@
 Phase A confirmed the transaction-filter choke point live (all driven mutation paths
 observed, programmatic/remote provenance reliable including the `set`-annotation
 finding, timings an order of magnitude under budget, nested-editor degeneracy holds —
-docs/research/04 Q14), and Phase B made boundary-crossing *selections* structurally
+docs/research/open-questions Q14), and Phase B made boundary-crossing *selections* structurally
 valid. But document *edits* still splice at character level: the funnel counts
 `boundary-crossing-edit` transactions and passes them through, a block-level copy
-pasted mid-node merges into the surrounding paragraph (docs/research/13, Track 1), and
+pasted mid-node merges into the surrounding paragraph (docs/research/selection-follow-ups, Track 1), and
 Backspace/Delete at node boundaries join nodes with no structural mediation — the
 grammar binds neither key. This change is Phase C, the last pillar of the defining
 invariant: every *mutation* respects node boundaries, closing the loop the manifest
@@ -45,11 +45,11 @@ opened.
   both shapes are safe for rewritten transactions.)
 - **Explicitly out of scope:** selection-UX work (progressive Select All ladder, modal
   block selection, bullet-click selection, block-selection rendering — Track 2 of
-  docs/research/13, its own later change); visual gap treatment (docs/research/12);
+  docs/research/selection-follow-ups, its own later change); visual gap treatment (docs/research/decoration-follow-ups);
   the known native limitation of drags starting inside rendered widgets. *(Amendment
   2026-07-21, second manual pass)*: gap-line cursor/vertical-navigation transparency
   and visual gap hiding/collapsing are ALSO explicitly deferred — filed together with
-  Track 2 (docs/research/13) since both are cursor/selection-level UX work sharing the
+  Track 2 (docs/research/selection-follow-ups) since both are cursor/selection-level UX work sharing the
   same escalation core, not edit rewriting. Marker-transparent cursor placement (D13)
   is narrower and ships in this change; the gap-line case does not.
 

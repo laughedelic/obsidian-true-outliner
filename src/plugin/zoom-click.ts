@@ -2,7 +2,7 @@
  * Zoom by clicking a node's mark — the outliner gesture, alongside the command.
  *
  * `outline-zoom` first listed this as out of scope, gated on two caveats
- * docs/research/12 had been carrying. Measured, one is real and the other is
+ * docs/research/decoration-follow-ups had been carrying. Measured, one is real and the other is
  * worse than it read:
  *
  * - `pointer-events: none` on the marker is real, and is why a click never

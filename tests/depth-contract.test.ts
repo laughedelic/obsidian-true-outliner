@@ -11,7 +11,7 @@
  * comparison against the SURGERY tree the algebra built. An operation whose
  * emitted markdown re-parses to a different tree than its own surgery produced
  * satisfies closure and is still wrong. Asserting what the operation PROMISES is
- * what closes the gap (docs/research/04-open-questions.md Q33).
+ * what closes the gap (docs/research/open-questions.md Q33).
  *
  * ## Why the subject is tracked by label
  *

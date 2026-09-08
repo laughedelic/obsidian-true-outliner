@@ -73,7 +73,7 @@ export function zoomScope(state: EditorState): ZoomScope | null {
  * replacement swallows a `side: -1` widget anchored there.
  *
  * Re-anchoring is the only available fix, and that is a measurement rather than
- * a preference (docs/research/23): shortening the hidden range cannot work,
+ * a preference (docs/research/zoom-hiding-mechanism): shortening the hidden range cannot work,
  * because a document ending in a newline has an empty final line whose start IS
  * `doc.length`, so the two candidate endpoints are the same position and no
  * position strictly inside the range leaves the anchor outside it.

@@ -42,7 +42,7 @@
 - [x] 3.1 Run the full test suite (`ops.test.ts`, `closure.test.ts`, and any other affected
       unit suites) and confirm all pass, including the new tests from section 1. (806/806 pass.)
 - [x] 3.2 Re-run the outline-edit-enforcement e2e scenario that originally surfaced this gap
-      (merge → split → outdent interaction, docs/research/04-open-questions.md Q17) and
+      (merge → split → outdent interaction, docs/research/open-questions.md Q17) and
       confirm the outdented remainder now restores the expected sibling/children structure.
       **Not done in this session** — that finding came from a manual real-vault pass in the
       Obsidian app, which this session has no way to drive; the root-cause bug (outdent
@@ -50,7 +50,7 @@
       `closure.test.ts` regression tests using the exact Q17 repro, but the specific
       merge→split→outdent surfacing path itself hasn't been re-walked by hand. Needs a manual
       pass before considering this fully closed.
-- [x] 3.3 Update docs/research/04-open-questions.md Q17 to mark the outdent finding as
+- [x] 3.3 Update docs/research/open-questions.md Q17 to mark the outdent finding as
       resolved (with a pointer to this change), leaving the heading Enter-handling finding
       open as its own separate item.
 

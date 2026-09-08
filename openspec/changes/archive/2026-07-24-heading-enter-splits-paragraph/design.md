@@ -117,7 +117,7 @@ Accepted as-is rather than special-cased back to the old blank-line count: forci
 byte parity with the old ad hoc `insertionPlan` insertion would mean re-introducing a
 heading-specific exception into the very code path this change exists to unify, which
 defeats the point. The extra blank line(s) are the same "minimal-edit tradeoff" the project
-already accepts elsewhere (`docs/research/04-open-questions.md` Q2's loose-list precedent)
+already accepts elsewhere (`docs/research/open-questions.md` Q2's loose-list precedent)
 in exchange for reusing already-vetted, invariant-preserving shared logic instead of a
 one-off insertion that never reasoned about gap ownership at all.
 
@@ -134,7 +134,7 @@ single node on re-parse, discarding the split.
 This exact shape — a paragraph-kind parent's existing children starting with a
 paragraph-kind node — cannot happen for non-heading parents in the current model: Q2's
 context-determined-encoding rule means paragraph-under-paragraph always encodes as a
-LIST ITEM, never a bare paragraph (`docs/research/04-open-questions.md` Q2, "indenting
+LIST ITEM, never a bare paragraph (`docs/research/open-questions.md` Q2, "indenting
 paragraph B under paragraph A turns B into a list item"). So this is a latent gap in the
 2026-07-21 children-branch code, unreachable until now — but it is the PRIMARY case for
 headings, since "heading directly followed by a paragraph" (no intervening list) is
@@ -302,7 +302,7 @@ No data migration — this is pure editing-gesture behavior in the CM6 keymap la
 persisted state, no markdown files affected until a user actually presses Enter
 mid-heading. Ship as a normal change: implement, add unit/property/e2e coverage, run the
 full suite, manual-vault-pass per the project's standing practice for structural-op
-changes (`docs/research/04-open-questions.md`'s recurring "measure twice" discipline for
+changes (`docs/research/open-questions.md`'s recurring "measure twice" discipline for
 foundational grammar changes). No feature flag — Enter's behavior for every other kind
 already works this way; this closes the one remaining gap.
 

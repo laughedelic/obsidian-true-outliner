@@ -4,7 +4,7 @@
 
 The enforcement (invariant) layer is the third pillar of the decided v1 core (grammar +
 node selection + structure invariants, Q4) and the only one with no code behind it. The
-feasibility research (docs/research/03) bet the architecture on a CM6 `transactionFilter`
+feasibility research (docs/research/obsidian-api-feasibility) bet the architecture on a CM6 `transactionFilter`
 as a single choke point — every document/selection mutation, from every source, flows
 through one funnel where it can be classified and normalized. That bet has never been
 exercised inside a real Obsidian editor, and the decoration experiments taught us that
@@ -170,7 +170,7 @@ aren't history events), no observable intermediate state.
   construction. (Block-wise *keyboard extension* of an escalated multi-range
   selection is a modal-behavior question deferred to a future selection-UX change —
   a track kept deliberately separate from Phase C's edit rewriting; see
-  docs/research/13-selection-follow-ups.md.)
+  docs/research/selection-follow-ups.md.)
 
 ### D5. Jurisdiction: preamble and whole-document selections pass through
 
@@ -241,7 +241,7 @@ test rather than a one-off manual observation.
   → Phase A records observed annotations per source in the change docs; tighten
   classifier as evidence dictates. **Materialized once, already fixed**: external
   `Vault.process` reconciliation arrives annotated `"set"` (not annotation-less as
-  assumed) — see Open Questions and docs/research/04 Q14. The opposite direction of
+  assumed) — see Open Questions and docs/research/open-questions Q14. The opposite direction of
   this risk (undo dispatching WITH a plugin-own-shaped annotation) was also checked
   and does not occur — undo bypasses the filter entirely.
 - **[Filter ordering vs other plugins]** Other plugins' transactionFilters/extenders may
@@ -262,7 +262,7 @@ Purely additive extension registration; no file-format, settings-schema, or comm
 changes. Rollback = unregister the extension (revert the `main.ts` wiring); documents
 are untouched by construction (Phase A never alters text; Phase B alters only
 selection). Phase A findings that falsify an assumption get recorded in this design doc
-and docs/research/04 before Phase B ships, per the experiment-series discipline.
+and docs/research/open-questions before Phase B ships, per the experiment-series discipline.
 
 ## Open Questions
 
@@ -279,7 +279,7 @@ and docs/research/04 before Phase B ships, per the experiment-series discipline.
   re-normalized"): there is no transaction here to touch in the first place. Neither
   finding required a default-permit compromise; the classifier's conservative default
   already covered both correctly before the `"set"` tightening, and correctly covers
-  undo's absence by construction (nothing to misclassify). See docs/research/04 Q14.
+  undo's absence by construction (nothing to misclassify). See docs/research/open-questions Q14.
 - ~~Does live-drag escalation feel right, or should escalation land on pointer-up
   only?~~ **ANSWERED (real-vault manual pass, 2026-07-20).** Both halves confirmed:
   the functional half by e2e (`61-selection-enforcement.e2e.ts`, "live drag
@@ -291,13 +291,13 @@ and docs/research/04 before Phase B ships, per the experiment-series discipline.
   strength (contrast Logseq's sticky block-mode). Three follow-up findings from the
   same pass — widget-internal drags (native limitation), single-node selection via a
   gap-line trigger, uniform multi-range escalation — are recorded in
-  docs/research/13-selection-follow-ups.md as candidate amendments, not defects.
+  docs/research/selection-follow-ups.md as candidate amendments, not defects.
 - Real per-transaction parse cost distribution at real note sizes — is incremental
   reuse needed at all? **ANSWERED, budget met without incremental reuse.** On a
   synthetic ~1600-line stress note (400 sections, headings+paragraphs), driving both
   real typing (20 edits) and real mouse-drag selections (10 boundary-crossing drags)
   through the actual registered filter, every observed class's median stayed ≤ 1ms
   and p95 ≤ 8ms (this session's measured numbers; exact figures recorded in
-  docs/research/04 Q14 — re-measure on CI-class hardware before treating as final).
+  docs/research/open-questions Q14 — re-measure on CI-class hardware before treating as final).
   Full re-parse per doc version, cached by `Text` identity, is sufficient; the D7
   incremental-reuse fallback is not needed for this note size class.

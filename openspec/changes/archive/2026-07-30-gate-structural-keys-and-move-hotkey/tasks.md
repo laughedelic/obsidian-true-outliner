@@ -42,7 +42,7 @@
       of the design decision that is easy to regress silently.
 - [x] 3.5 Negative-control each: restore the gate / the old binding and confirm each test
       fails. This repo has shipped tests that could not fail
-      (`docs/research/04` Q28), and two of the tests above were caught this way before
+      (`docs/research/open-questions` Q28), and two of the tests above were caught this way before
       landing.
 
 ## 4. Specs and docs
@@ -53,4 +53,4 @@
 - [x] 4.2 Reconcile with `caret-placement-policy`, which landed first and wrote text
       against the removed binding: retarget its Alt+Arrow heading scenario to the command,
       and fix the stale comment in `src/caret-policy.ts`.
-- [x] 4.3 Record the finding in `docs/research/13-selection-follow-ups.md`.
+- [x] 4.3 Record the finding in `docs/research/selection-follow-ups.md`.

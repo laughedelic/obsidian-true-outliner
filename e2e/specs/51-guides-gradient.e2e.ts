@@ -1,6 +1,6 @@
 /**
  * Outline-decorations Experiment 2b (guide lines via CSS stacked-gradient)
- * — see docs/research/09-experiment-2-guide-lines.md. Head-to-head
+ * — see docs/research/experiment-2-guide-lines.md. Head-to-head
  * alternative to Experiment 2a (pixel-measured overlay), NOT a fallback:
  * screenshots every fixture in the shared corpus, in both bundled themes
  * (ground rule #2), plus targeted computed-style assertions — reading the
@@ -180,7 +180,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // hold simultaneously; a human has also confirmed live, in a real
     // running vault, that the scrollbar itself (trackpad swipe,
     // click-drag) still works with no visual or usability defects — see
-    // docs/research/09-experiment-2-guide-lines.md.
+    // docs/research/experiment-2-guide-lines.md.
     const fixture = ALL_DECORATION_FIXTURES.find((f) => f.label === 'widget-atoms')!;
     await h.createNote(fixture.note, fixture.md);
     await ensureOutlineMode(fixture.note);
@@ -582,7 +582,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // list item at the same nominal depth.
     expect(info.codeLeft).toBeGreaterThan(info.listLeft);
     // Exactly one gutter, read from the published property rather than spelled:
-    // it is derived from the marks it holds (docs/research/21-marker-text-gap.md).
+    // it is derived from the marks it holds (docs/research/marker-text-gap.md).
     expect(info.codeLeft - info.listLeft).toBeCloseTo(await h.publishedGutter(), 0);
   });
 });

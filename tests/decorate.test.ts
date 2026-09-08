@@ -1587,7 +1587,7 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
     // that position makes a TOP-LEVEL paragraph, so the position stands for no
     // continuation and the gate stays shut. The node below it stays displaced.
     // A buffer defect, out of this change's scope (proposal.md — Non-Goals) and
-    // recorded in docs/research/12.
+    // recorded in docs/research/decoration-follow-ups.
     const md = ['-', '\ttab lead', ''].join('\n');
     const open = openPositionAt(md, 0)!;
     expect(open).toBe(['-', '', '\ttab lead', ''].join('\n'));

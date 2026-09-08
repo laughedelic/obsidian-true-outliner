@@ -253,7 +253,7 @@ toggles the task, and this gesture SHALL NOT contest that click. A task SHALL re
 the command, the context menu, and a hotkey — the same three entry points every node has — so the
 gap is a missing FOURTH way in for one kind, not a node this feature cannot reach at all. Giving a
 task a click-to-zoom affordance without breaking its checkbox is open, and recorded in
-docs/research/12 rather than decided here.
+docs/research/decoration-follow-ups rather than decided here.
 
 The click SHALL NOT also do what a click there would otherwise do: it SHALL NOT place the caret,
 begin a selection, or fold the node. The caret SHALL move to the new zoom root, since the node

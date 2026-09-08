@@ -220,7 +220,7 @@ const siblings = (r: Reading): Mark[] => {
  * All four qualifying marks, siblings at one depth.
  *
  * The paragraph comes LAST deliberately: a list following a paragraph is that
- * paragraph's child (docs/research/17), so a leading paragraph would put the
+ * paragraph's child (docs/research/list-paragraph-mapping), so a leading paragraph would put the
  * three list items one level deeper than the mark they are being compared with.
  */
 const FOUR_MARKS = [

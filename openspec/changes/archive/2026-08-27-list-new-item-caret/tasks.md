@@ -17,7 +17,7 @@
       Obsidian leaves the cursor layer empty and the browser draws the caret from the DOM
       selection, so it was read through `coordsAtPos`, which agrees with that selection's own
       rect to the hundredth of a pixel (design D6).
-- [x] 1.4 Record all three in `docs/research/12-decoration-follow-ups.md` alongside the
+- [x] 1.4 Record all three in `docs/research/decoration-follow-ups.md` alongside the
       measurement table this change already carries, whichever way they come out. A measurement
       that decided a design is worth as much as one that found a defect.
 
@@ -194,13 +194,13 @@
 
 - [x] 7.1 Measure the caret on a whitespace-only continuation line now that
       `.cm-hmd-list-indent` carries a stated width — the second offset
-      `docs/research/12-decoration-follow-ups.md` records as still open, whose recorded number
+      `docs/research/decoration-follow-ups.md` records as still open, whose recorded number
       predates that width and is stale in an unknown direction.
 - [x] 7.2 The lever does not reach it: the stated width is NARROWER than the whitespace's own
       text (44px against 48.38px), so the caret overshoots its column by 4.38px where the old
       entry recorded it falling 19.25px short. Closing it means making `.cm-indent` and
       `.cm-indent-spacing` sum to the hang, not adding a box to the run. Recorded in
-      `docs/research/12-decoration-follow-ups.md`, with the sign change called out.
+      `docs/research/decoration-follow-ups.md`, with the sign change called out.
 
 ## 8. The gate
 

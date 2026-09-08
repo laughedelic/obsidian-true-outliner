@@ -216,8 +216,9 @@ describe('position indicators: current node and ancestor trail', function () {
       await h.setCursor(11, 9); // "    - two", the deepest list item
       await browser.pause(250);
 
-      // docs/research/14: the bullet element survives the caret sitting on its
-      // own line — the raw-text swap belongs to the block-selection reveal path.
+      // docs/research/experiment-position-indicators: the bullet element survives
+      // the caret sitting on its own line — the raw-text swap belongs to the
+      // block-selection reveal path.
       const current = await h.getLineChildComputedStyle(11, BULLET, 'background-color', '::after');
       const sibling = await h.getLineChildComputedStyle(10, BULLET, 'background-color', '::after');
       expect(current).toBeTruthy();
@@ -630,7 +631,8 @@ describe('position indicators: current node and ancestor trail', function () {
       // The path reaches the row, the bullet is accented, and the list level
       // now carries a segment of its own — every layer still at a multiple of
       // the decoration unit, because a list level IS one of those columns now.
-      // This used to assert the opposite (docs/research/14's deliberate gap).
+      // This used to assert the opposite — the deliberate gap in
+      // docs/research/experiment-position-indicators.
       expect(await h.getLineClassList(11)).toContain('to-decor-current-native');
       const positions = await h.getLinePseudoComputedStyle(11, 'background-position');
       expect(await overlayLayers(11)).toBe(5);

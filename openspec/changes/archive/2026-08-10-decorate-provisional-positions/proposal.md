@@ -20,7 +20,7 @@ Two consequences, both reported from real-vault use and both measured:
   line jumps right.
 
 This is the parking lot's "A provisional (gap) line has no decoration facts, so the caret
-visibly jumps" (`docs/research/12-decoration-follow-ups.md`, catalogue S10), graduated to its
+visibly jumps" (`docs/research/decoration-follow-ups.md`, catalogue S10), graduated to its
 own change as that file's standing instruction requires. Its open question — which depth a
 gap line should take — is answered here by not asking it: the layer renders what the parse
 would make of the line if a character were typed there, which is the same reading

@@ -115,7 +115,7 @@ describe('deleteSubtrees: ordered runs renumber from the run’s pre-removal sta
     return text;
   }
 
-  // The two measurements the catalogue recorded (15-enter-and-shift-enter-catalogue,
+  // The two measurements the catalogue recorded (enter-and-shift-enter-catalogue,
   // C2). Asserting the whole document, not the marker digits: the point is that the
   // renumbering moved nothing else.
   it('removing the head of 1,2,3 renumbers the survivor to 1', () => {

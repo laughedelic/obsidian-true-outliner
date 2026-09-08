@@ -115,6 +115,11 @@ per-group matrix — CI already gives that; this path exists for a headless run,
 - **Deferred ideas go to the parking lots** under `docs/research/`, not into new OpenSpec changes.
 - **Read the relevant `docs/research/` notes before touching decorations, selection, or CM6
   extensions.** They exist so a diagnosis is not paid for twice.
+- **A research note is named for its subject, with no numeric prefix**, and takes exactly one row
+  in `docs/research/index.md` — the file and that row are the whole of adding a note. The index
+  merges by union (`.gitattributes`), so branches adding notes in parallel do not conflict over
+  it, and `npm run lint` checks the rows against the directory. Cite a note by its path
+  (`docs/research/open-questions` Q26), never by a number.
 
 ## Agent files
 

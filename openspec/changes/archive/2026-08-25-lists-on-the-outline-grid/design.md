@@ -1,7 +1,7 @@
 ## Context
 
 See proposal.md for motivation, and
-[docs/research/16-native-list-decoration.md](../../../docs/research/16-native-list-decoration.md)
+[docs/research/native-list-decoration.md](../../../../docs/research/native-list-decoration.md)
 for the measurements every decision below rests on — taken live against Obsidian 1.13.4 in the
 e2e harness, then reviewed by hand in a demo build whose two experimental settings this change
 removes.
@@ -53,7 +53,7 @@ Four properties of Obsidian's own list rendering shape the approach, all confirm
   part, and it is the same one the Risks section made.
 - Turning the unit into a user setting. It becomes a single declared value so `--list-indent`
   can read it, which is the prerequisite; exposing it belongs with the wider
-  layer-configurability item in `docs/research/12`.
+  layer-configurability item in `docs/research/decoration-follow-ups`.
 
 ## Decisions
 
@@ -218,7 +218,7 @@ box is where they sit: `.cm-formatting-list-ol`'s box is the text row, whose cen
 already shares, while the digits rest on the baseline about 1.7px lower — where the bullet
 beside them sits. Reading ink out of a text run needs font metrics no rect exposes. Anchoring to
 the span would state a number that is not the mark's centre, so nothing is stated; recorded as a
-follow-up in `docs/research/12`.
+follow-up in `docs/research/decoration-follow-ups`.
 
 ### D8a — Measure a value from the kind of element the rule consuming it applies to
 
@@ -279,7 +279,7 @@ bullet/number/checkbox; a continuation has no marker and belongs under the item'
 line already knows which it is: `hasNativeMarker` is exactly "list-item first line" and had no
 consumer until now, so it becomes `--to-list-marker-cols`.
 
-This also closes a long-standing entry in `docs/research/12` — "a list item's continuation line
+This also closes a long-standing entry in `docs/research/decoration-follow-ups` — "a list item's continuation line
 does not align with the item's own content" — which had been diagnosed as unclosable precisely
 because closing it "would mean overriding the width of `.cm-hmd-list-indent` … from a live
 measurement of the marker beside it". The override is the same one; the measurement is not
@@ -331,7 +331,7 @@ two kinds do not share a vertical rule.
 
 Both are resolved by making the column — horizontal and vertical — one value that the guide
 gradient, the marker offset and the accent layers all derive from, rather than three call sites
-that agree by convention. This is the standing rule doc 11 draws from Experiment 5b's three
+that agree by convention. This is the standing rule docs/research/decoration-lessons draws from Experiment 5b's three
 near-identical bugs: when two things must move together, make it impossible to change one
 without the other.
 
@@ -388,7 +388,7 @@ the general defect in place and needs another patch the next time a setting is r
   here rather than deleted because the risk as written was real and its accepted mitigation
   (document it, and offer a normalize-indentation command later) was the wrong answer: the
   right one was another look at what Obsidian's DOM offers, which is the lesson
-  `docs/research/16` already states as "look for the variable before building the mechanism".
+  `docs/research/native-list-decoration` already states as "look for the variable before building the mechanism".
 - **We now override native list chrome, the surface the original postmortem blames for most of
   the earlier failure.** → The overrides are variables Obsidian itself exposes plus one stated
   hang, not a fight with its box model; every one is verified by measurement and by a
@@ -398,7 +398,7 @@ the general defect in place and needs another patch the next time a setting is r
   `--list-edit-offset` margin on list lines, which our own `margin-left !important` replaces.
   → **Accepted, unverified.** Third-party theme support was descoped by the maintainer during
   the review round, so the Minimal pass was not run against the final rules. What the grid does
-  under Minimal is not known; `docs/research/12`'s Minimal entry carries the question forward.
+  under Minimal is not known; `docs/research/decoration-follow-ups`'s Minimal entry carries the question forward.
   The bundled themes are covered by the screenshot pass and by `56-list-grid`'s both-themes
   case.
 - **Three existing trail tests assert the behaviour being removed** ("runs the segment at the

@@ -8,33 +8,9 @@ Research date: July 2026.
 
 ## Documents
 
-| Doc | Contents |
-| --- | --- |
-| [01-outliner-landscape.md](01-outliner-landscape.md) | What a "true outliner" is: the reference apps, the catalog of defining behaviors, lessons (good and bad) from each app |
-| [02-obsidian-plugin-landscape.md](02-obsidian-plugin-landscape.md) | Existing Obsidian plugins in this space, how they work, and the gap analysis |
-| [03-obsidian-api-feasibility.md](03-obsidian-api-feasibility.md) | Can the experience be built on public APIs only? Architecture options, guidelines/scorecard constraints, verdict |
-| [04-open-questions.md](04-open-questions.md) | Decisions that need alignment before any planning/spec work |
-| [05-org-mode-comparison.md](05-org-mode-comparison.md) | Where our mapping algebra aligns with / diverges from org-mode, the closest living reference system |
-| [06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md) | Postmortem on the failed `outline-decorations` visual-chrome attempt: what was tried, why the CSS-override strategy kept breaking, and why the testing approach gave false confidence |
-| [07-decoration-experiments-plan.md](07-decoration-experiments-plan.md) | **Hub** for the decoration-experiments series (informed by prior-art research: obsidian-outliner, Logseq, Silverbullet): ground rules, shared fixture corpus, final results table with verdicts, the two never-triggered experiments, and the map to the per-experiment docs below |
-| [08-experiment-1-additive-indentation.md](08-experiment-1-additive-indentation.md) | Experiment 1: additive-only indentation — design, results, 3 real-vault bugs. **Kept**; the foundation for everything after |
-| [09-experiment-2-guide-lines.md](09-experiment-2-guide-lines.md) | Experiment 2: guide lines — 2a (pixel-measured overlay) vs. 2b (CSS stacked-gradient) head to head. **2b chosen** |
-| [10-experiment-5-block-markers.md](10-experiment-5-block-markers.md) | Experiment 5: per-kind block markers — 5a (SVG icons, DOM mechanism) vs. 5b (CSS shapes → uniform dot) head to head. **5a chosen**; includes the comparison verdict and the 5a hardening checklist |
-| [11-decoration-lessons.md](11-decoration-lessons.md) | Accumulated cross-experiment findings (CSS cascade/box model, CodeMirror 6, Obsidian internals, verification discipline) — read before touching decorations or CM6 extensions |
-| [12-decoration-follow-ups.md](12-decoration-follow-ups.md) | **Parking lot** for decoration work deliberately deferred: diagnosed gaps, mechanisms that work but have better shapes known, and design ideas. Items land here with enough diagnosis that picking one up later needs no re-discovery |
-| [13-selection-follow-ups.md](13-selection-follow-ups.md) | The same, for selection: what `selection-as-subtree-set`, `node-selection-extension` and `selection-aware-structural-ops` left open — modal block selection, cherry-picking, and moving a node into its parent's sibling |
-| [14-experiment-position-indicators.md](14-experiment-position-indicators.md) | Experiment: showing where the cursor sits in the outline — guide and marker highlighting, the axes they split on, and what real use settled |
-| [15-enter-and-shift-enter-catalogue.md](15-enter-and-shift-enter-catalogue.md) | Measured catalogue of Enter / Shift+Enter across 49 cursor positions, the ten defects it found, and what the `enter-and-shift-enter-grammar` change did with each. A **pre-change** record: read the specs for current behavior |
-| [16-native-list-decoration.md](16-native-list-decoration.md) | How Obsidian actually computes list geometry in Live Preview (public CSS variables, the `.cm-indent` quantizer, the cached hanging-indent measurement), what a measurement pass validated about retargeting it onto our own decoration grid, and the phased plan for bringing list decoration up to the level of the other kinds |
-| [17-list-paragraph-mapping.md](17-list-paragraph-mapping.md) | **Open question** (Q34): should a list following a paragraph be that paragraph's child? The attachment rule's cost measured, the four candidate readings, what other formats and outliners do, why the indentation encoding is ruled out, and how to pick the question up |
-| [18-structured-backlinks.md](18-structured-backlinks.md) | The structured-backlinks layer (README vision, Q10): prior art across Roam/Logseq/Tana/Orca and the three Obsidian attempts, what the public API does and does not permit (core backlinks have **no** public surface at all), and the seventeen design decisions taken against the interactive prototype — plus what is still open |
-| [19-backlinks-footer-spikes.md](19-backlinks-footer-spikes.md) | **Hub** for the backlinks-footer spike series: ground rules (inherited from 07), the shared fixture corpus and what each fixture is diagnostic for, and the results table — including S1, which may veto the footer surface outright |
-| [20-surfaces-and-embedding.md](20-surfaces-and-embedding.md) | Where the outline can be drawn and what each way costs: why the editor's chrome was not readily reusable, the seam between the two renderers, the public `getSectionInfo` route to reading mode, and the embedded-real-editor technique — **recorded, not proposed** — with the eight non-public touchpoints it needs and the README promise that decides it |
-| [21-marker-text-gap.md](21-marker-text-gap.md) | The one measurement pass behind `--to-marker-gutter`: what each qualifying mark's ink actually reaches, why a multi-digit ordered number is excluded, the floor the one-space sizing rules already imposed on the stated gap, the argument for the gap that was chosen, and the three stale-value defects the derivation exposed |
-| [22-outline-unit-width.md](22-outline-unit-width.md) | The level-to-level unit: why it widened once the gutter tightened, the four candidates measured and read, and how an override of its single declaration went from an incidental property to a stated contract with a test — plus the spelled unit the widening flushed out of an e2e spec |
-| [23-zoom-hiding-mechanism.md](23-zoom-hiding-mechanism.md) | `outline-zoom`'s gate: block-level replace decorations measured against a real instance before the design was built on them — what held (hiding, boundary arithmetic, widget atoms, visible-line chrome, `showPanel`), the design claim that did not (confinement is not free), and the footer fix that turned out to be the only possible one |
-| [24-outline-mode-surfaces.md](24-outline-mode-surfaces.md) | Outline mode as an explicit state: the public-API verdict for every indicator surface (status bar desktop-only, ribbon both platforms, switcher and core status-bar pencil not extensible), the decision — revised mid-planning — to make the mode per-tab with a global default, and the alternatives rejected with their costs |
-| [29-e2e-click-retry-costs.md](29-e2e-click-retry-costs.md) | What a refused click costs in the e2e harness: why an intercepted click is not retried (four attempts sit on the mocha timeout, and WebdriverIO already re-clicks without waiting), and the probe showing the obstruction behind the CI flake was the phone drawer simply open rather than chrome passing through |
+The note index lives in [index.md](index.md) — every note, in reading order, with a line on
+what it holds. A new note is a new file plus one row there; nothing else in the directory
+moves.
 
 ## TL;DR
 
@@ -83,14 +59,14 @@ Research date: July 2026.
    recomputed from the new context (nearest-sibling type — so paragraphs round-trip and
    nested-list docs never flatten). A list after a paragraph is that paragraph's children
    (provisional); leaf blocks are atoms. Org-mode alignment/divergence:
-   [05-org-mode-comparison.md](05-org-mode-comparison.md).
+   [org-mode-comparison.md](org-mode-comparison.md).
 6. **Everything else**: build fresh (existing plugins as references only); interop/degradation
    guarantees are hard invariants; mobile-safe from day 1, desktop-tested for v1.0; vim out of
    scope v1; tasks are plain content v1; CM6-native undo v1; toggle state in plugin data.
 
 All pre-planning questions are decided; Q10 (backlinks placement) was deferred as post-v1 and is
-now answered in [18-structured-backlinks.md](18-structured-backlinks.md) — an in-document footer
-first, sidebar pane later. Decision log: [04-open-questions.md](04-open-questions.md).
+now answered in [structured-backlinks.md](structured-backlinks.md) — an in-document footer
+first, sidebar pane later. Decision log: [open-questions.md](open-questions.md).
 
 ## Where this project starts from
 

@@ -299,7 +299,7 @@ function liveRecord(view: EditorView): CreatedPlace | undefined {
  *
  * The RENDERING layer can live with that (`decorate-provisional-positions` D5
  * takes the truthful reading either way, and the cost is recorded in
- * docs/research/12). An OPERATION cannot: measured, Tab with the caret on the
+ * docs/research/decoration-follow-ups). An OPERATION cannot: measured, Tab with the caret on the
  * gap between `para` and `last` treated the two paragraphs as one node and
  * indented both. So the operation path asks this instead, which is the same
  * "told apart by whether a structural keypress of ours created the position"
