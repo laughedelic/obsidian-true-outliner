@@ -12,7 +12,7 @@ implemented in `renderContent`, which only ever sees node rows. Nothing routes a
 through it, and nothing can: `LineageSegment` carries `text: string` — a bare string with no
 render mode — so `lineage-row.ts` does the only thing a bare string permits, `appendText`.
 
-Measurement (docs/research/24) found three further defects behind the two reported symptoms:
+Measurement (docs/research/27) found three further defects behind the two reported symptoms:
 
 - **The trail leaks block syntax the footer strips.** `nodeLabel` calls `stripBlockPrefix`
   alone, so a callout crumb reads `[!tip] Field notes`, a table crumb `| owner | status |`, and

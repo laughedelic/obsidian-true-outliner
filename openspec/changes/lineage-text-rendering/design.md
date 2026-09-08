@@ -6,7 +6,7 @@ implemented for reference rows, and the two surfaces that quote an ancestor CHAI
 brought under it — the backlinks footer's lineage rows and zoom's breadcrumb trail both reach
 the DOM through `appendText`.
 
-docs/research/24 measures what that produces, per node kind, on both surfaces, in a live
+docs/research/27 measures what that produces, per node kind, on both surfaces, in a live
 Obsidian. The five defects it records all come from one structural fact: `LineageSegment` is
 `{ text: string }`, so a lineage segment cannot be handed to `renderContent` even in principle,
 and the two answers to "what does this node say" — `contentOf` per kind, `nodeLabel` first-line
