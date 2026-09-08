@@ -32,9 +32,12 @@ position. A deliberate whole-subtree deletion is meant to succeed, and without c
 refused twice over. Clause 0 is a fact about the CHANGE rather than about the after-state, which
 is exactly why it can be answered when the other two cannot.
 
-**Clause 1 says OWNS, not "begins on".** The distinction decides a real case: a Backspace that
-empties the zoom root's own line leaves that line owned by the node ABOVE it, which is a different
-position and must be refused, while nothing begins on it at all.
+**Clause 1 resolves the line by OWNERSHIP**, the way every other line-to-node question in this
+system is asked. Both readings refuse the same edits — a Backspace that empties the zoom root's
+own line leaves nothing beginning there and the node above owning it, which fails the clause as a
+differing position under one reading and as an unresolvable root under the other — so this is a
+consistency requirement rather than a behavioural one, and it is stated so that an implementation
+does not have to rediscover that the two agree.
 
 Neither remaining clause subsumes the other. Deleting one line break can absorb a whole hidden
 node into the subtree while changing nothing but that break, which only clause 2 catches; a

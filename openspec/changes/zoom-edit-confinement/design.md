@@ -67,10 +67,14 @@ but it is not identity — after an unwrap a DIFFERENT node begins on the same l
 exactly the measured retarget (docs/research/26, R4).
 
 The line is resolved by OWNERSHIP, the way `nodeAtLine` resolves every other line-to-node question
-in this codebase, not by "which node begins here". R7 is why: a Mod-Backspace that empties the
-root's own line leaves nothing beginning there, and the line is owned by the node above — a
-different position, and a refusal. Asking which node BEGINS there would find nothing and let it
-through.
+in this codebase, rather than by "which node begins here".
+
+An earlier draft claimed R7 turns on that choice — a Mod-Backspace that empties the root's own line
+leaves nothing beginning there — and a negative control run against the real predicate says it does
+not. Both readings refuse R7: ownership finds the node ABOVE, at a differing position, and
+"begins here" finds nothing at all, which the predicate already treats as a vanished root. The
+choice is consistency with the rest of the codebase, not behaviour, and the draft's stronger claim
+is withdrawn rather than left standing as a reason nobody can reproduce.
 
 `findPath` already exists and already backs the ancestor trail. The path of the node beginning on
 the anchor's line is parse-independent, and it is stable under every in-scope edit: an enforced

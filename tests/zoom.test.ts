@@ -7,6 +7,7 @@ import {
   containsPos,
   containsRange,
   isDirectChild,
+  editEscapes,
   operandEscapes,
   parentOf,
   splitEscapes,
@@ -619,5 +620,141 @@ describe('the clamp is what makes the anchor safe (D4 retarget property)', () =>
     // Still line 1's owner, but no longer a node STARTING there — which is
     // exactly the condition `setStillRootedResolver` clears the zoom on.
     expect(reresolved.startLine).not.toBe(1);
+  });
+});
+
+/**
+ * `editEscapes` against the measured catalogue (docs/research/26).
+ *
+ * Every row here is a row of that note, named by its label there, so a
+ * disagreement between the note and the code is visible as a failing test
+ * rather than as prose drifting from behaviour.
+ */
+describe('editEscapes', () => {
+  const LIST = '- alpha\n- beta\n  - beta child\n- gamma\n';
+  /** The scope for `- beta` in `LIST` — hidden siblings on both sides. */
+  const betaScope = () => {
+    const doc = parse(LIST);
+    const scope = resolveZoom(doc, 1);
+    if (!scope) throw new Error('no scope');
+    return { doc, scope };
+  };
+
+  /** `editEscapes` with the root's own line unmoved and the cover intact —
+   * the shape every row but the deletions takes. */
+  const judge = (afterText: string, at = { anchorLine: 1, coverRemoved: false }) => {
+    const { doc, scope } = betaScope();
+    return editEscapes(doc, scope, parse(afterText), at);
+  };
+
+  describe('clause 0 — a whole-subtree deletion is not an escape', () => {
+    // D7, and the case an offset rule and an identity rule BOTH get wrong.
+    it('allows the deletion when a sibling slides up into the root line (E2)', () => {
+      const { doc, scope } = betaScope();
+      const after = parse('- alpha\n- gamma\n');
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, coverRemoved: true })).toBe(false);
+
+      // NEGATIVE CONTROL: without clause 0 this refuses, because `- gamma` now
+      // occupies the root's line and its subtree swallows text that used to be
+      // outside the cover.
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, coverRemoved: false })).toBe(true);
+    });
+
+    it('allows the deletion when the root ENDED the document (E2 at the end)', () => {
+      const doc = parse('- alpha\n- beta\n  - beta child\n');
+      const scope = resolveZoom(doc, 1);
+      if (!scope) throw new Error('no scope');
+      const after = parse('- alpha\n');
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, coverRemoved: true })).toBe(false);
+
+      // NEGATIVE CONTROL, and a DIFFERENT failure from the row above: here the
+      // trailing blank line is owned by `- alpha`, so it is the identity clause
+      // that refuses. One row alone would not show that clause 0 is load-bearing
+      // for both reasons.
+      expect(editEscapes(doc, scope, after, { anchorLine: 1, coverRemoved: false })).toBe(true);
+    });
+  });
+
+  describe('clause 1 — the root must still be the root', () => {
+    it('refuses an unwrap that re-parents the children (R4)', () => {
+      // `- beta` emptied then unwrapped: `  - beta child` inherits the line,
+      // under `- alpha`. Nothing outside the cover changed, so only identity
+      // catches this.
+      expect(judge('- alpha\n  - beta child\n- gamma\n')).toBe(true);
+    });
+
+    it('refuses when the root line is emptied (R7)', () => {
+      // Nothing begins on line 1 now; the blank line is owned by `- alpha`.
+      // Refused either way a resolver could read it — as a differing position
+      // under ownership, or as no root at all under "begins here" — so this
+      // covers the row without resting on which reading is used.
+      expect(judge('- alpha\n\n  - beta child\n- gamma\n')).toBe(true);
+    });
+  });
+
+  describe('clause 2 — nothing outside the subtree may change', () => {
+    it('refuses a merge that absorbs the hidden next sibling (B1)', () => {
+      // One line break removed, and a whole hidden node disappears into the
+      // subtree. The changed range is a single character; the size of the
+      // removal is not the question.
+      expect(judge('- alpha\n- beta\n  - beta childgamma\n')).toBe(true);
+    });
+
+    it('refuses a merge into the hidden previous sibling (X4)', () => {
+      expect(judge('- alphabeta\n  - beta child\n- gamma\n', {
+        anchorLine: 0,
+        coverRemoved: false,
+      })).toBe(true);
+    });
+
+    it('refuses a paste spliced beside the root (G1)', () => {
+      // Every hidden BYTE is untouched — `- alpha` and `- gamma` are exactly
+      // as they were — and the paste still lands outside the subtree.
+      expect(judge('- alpha\n- beta\n  - beta child\n- p\n  - q\n- gamma\n')).toBe(true);
+    });
+  });
+
+  describe('the allowed side', () => {
+    it('allows an appended last child (X2)', () => {
+      expect(judge('- alpha\n- beta\n  - beta child\n  - \n- gamma\n')).toBe(false);
+    });
+
+    it('allows typing into the root (X5)', () => {
+      expect(judge('- alpha\n- betaX\n  - beta child\n- gamma\n')).toBe(false);
+    });
+
+    it('allows an in-scope merge between two visible nodes (A5)', () => {
+      expect(judge('- alpha\n- betabeta child\n- gamma\n')).toBe(false);
+    });
+
+    it('allows deleting the cover’s own trailing gap line (R6)', () => {
+      const doc = parse('# One\n\npara one\n\n## Two\n\npara two\n\n## Three\n\npara three\n');
+      const scope = resolveZoom(doc, 4);
+      if (!scope) throw new Error('no scope');
+      const after = parse('# One\n\npara one\n\n## Two\n\npara two\n## Three\n\npara three\n');
+      expect(editEscapes(doc, scope, after, { anchorLine: 4, coverRemoved: false })).toBe(false);
+    });
+
+    it('allows an append when the cover ends on a trailing gap (X1)', () => {
+      const doc = parse('# One\n\npara one\n\n## Two\n\npara two\n\n## Three\n\npara three\n');
+      const scope = resolveZoom(doc, 4);
+      if (!scope) throw new Error('no scope');
+      const after = parse('# One\n\npara one\n\n## Two\n\npara two\n\n\n\n## Three\n\npara three\n');
+      expect(editEscapes(doc, scope, after, { anchorLine: 4, coverRemoved: false })).toBe(false);
+    });
+  });
+
+  describe('no offset shortcut stands in front of the invariant (D5)', () => {
+    it('refuses a top-level heading spliced STRICTLY inside the cover', () => {
+      // The reachable counter-example to the rejected gate: every changed
+      // position lies between the cover's endpoints, no hidden byte moves, and
+      // the pasted `# H1` still ends `## Two`'s section — so `para two` and
+      // everything after leave the root's subtree.
+      const doc = parse('# One\n\n## Two\n\npara two\n\nmore\n\n## Three\n');
+      const scope = resolveZoom(doc, 2);
+      if (!scope) throw new Error('no scope');
+      const after = parse('# One\n\n## Two\n\npara two\n\n# H1\n\nmore\n\n## Three\n');
+      expect(editEscapes(doc, scope, after, { anchorLine: 2, coverRemoved: false })).toBe(true);
+    });
   });
 });

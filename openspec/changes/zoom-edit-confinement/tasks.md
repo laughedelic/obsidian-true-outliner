@@ -1,26 +1,26 @@
 ## 1. The predicate
 
-- [ ] 1.1 Add `editEscapes` to `src/zoom.ts` beside `operandEscapes` and `splitEscapes`,
+- [x] 1.1 Add `editEscapes` to `src/zoom.ts` beside `operandEscapes` and `splitEscapes`,
   implementing design D1's clauses in the order it states: clause 0 (the change removed the root's
   whole cover) short-circuits to INSIDE, then clause 1 (identity), then clause 2 (the text outside
   the subtree). Verify with unit tests in `tests/zoom.test.ts` covering one row per clause from
   docs/research/26 — E2 for clause 0, R4 for clause 1, B1 for clause 2.
-- [ ] 1.2 Add the root-identity helper (design D2) reading `findPath`, resolving the root's first
-  line by OWNERSHIP (`nodeAtLine`), and verify two unit tests: an unwrapped list root is
-  distinguished from the child that inherits its line (negative control: replacing the path
-  comparison with `startLine` equality must make it fail), and R7 — a Mod-Backspace that empties
-  the root's line — is refused because the line is owned by the node above (negative control:
-  asking which node BEGINS on the line must make it pass the edit).
-- [ ] 1.3 Add unit tests for the ALLOWED side — an appended last child, a paste spliced inside the
+- [x] 1.2 Add the root-identity helper (design D2) reading `findPath`, resolving the root's first
+  line by OWNERSHIP (`nodeAtLine`), and verify an unwrapped list root is distinguished from the
+  child that inherits its line — the negative control is replacing the path comparison with
+  `startLine` equality, which must make it fail. Cover R7 (a Mod-Backspace that empties the root's
+  line) as a refusal too, but do NOT claim ownership is what refuses it: measured, "begins on the
+  line" refuses it as well, by finding no root at all.
+- [x] 1.3 Add unit tests for the ALLOWED side — an appended last child, a paste spliced inside the
   subtree, a deletion of the cover's own trailing gap line, a merge between two visible nodes,
   typing into the root — and verify each is judged inside; the negative control is computing
   clause 2's after-cover from the BEFORE parse, which must make the append cases fail.
-- [ ] 1.4 Verify the invariant has NO offset shortcut in front of it (design D5) with a unit test
+- [x] 1.4 Verify the invariant has NO offset shortcut in front of it (design D5) with a unit test
   for the reachable counter-example: a structural paste of a top-level heading spliced strictly
   between the cover's endpoints, which leaves the text after the splice outside the root's
   subtree. The negative control is adding back the strictly-inside early return, which must make
   this test pass the edit.
-- [ ] 1.5 Verify clause 0 on both shapes a whole-subtree deletion takes (design D7): a root with a
+- [x] 1.5 Verify clause 0 on both shapes a whole-subtree deletion takes (design D7): a root with a
   following sibling, where clause 2 would otherwise fail because the sibling moves inside the
   cover, and a root that ENDS the document, where clause 1 would otherwise fail because the
   trailing blank line is owned by the node above. The negative control is removing clause 0, which
