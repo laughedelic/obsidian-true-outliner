@@ -121,6 +121,13 @@ describe('the footer’s appearance settings', function () {
     await h.dismissNotices();
   });
 
+  // The last two cases measure the small target instead; the hub comes back
+  // once, here, so the file stays order-independent without paying for a
+  // reopen inside a case that is not about it.
+  after(async function () {
+    await showHubFooter();
+  });
+
   it('defaults to every ancestor named, nothing between them, and no guides', async function () {
     const s = await shape();
     expect(s).not.toBeNull();
@@ -212,7 +219,6 @@ describe('the footer’s appearance settings', function () {
 
     await set('guideVisibility', 'all');
     await set('backlinksGuides', false);
-    await showHubFooter();
   });
 
   it('takes the unit, the thickness and the intensity the editor takes', async function () {
@@ -263,6 +269,5 @@ describe('the footer’s appearance settings', function () {
     await set('outlineUnit', 'auto');
     await set('guideThickness', 'hairline');
     await set('backlinksGuides', false);
-    await showHubFooter();
   });
 });
