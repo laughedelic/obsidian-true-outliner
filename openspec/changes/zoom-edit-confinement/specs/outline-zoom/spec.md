@@ -122,11 +122,19 @@ inside the scope however far down the document the text lands.
   presses Delete, with a node below the subtree that the zoom hides
 - **THEN** the document is unchanged, the zoom stays, and the cue is shown
 
-#### Scenario: A deletion into chrome at the scope's edge is refused whatever produced it
-- **WHEN** a gesture other than Backspace produces the same escaping edit — a whole-word deletion
-  backward from the zoom root's content start, say
+#### Scenario: An escaping edit is refused whatever gesture produced it
+- **WHEN** a gesture other than Backspace produces the same escaping change — a selection spanning
+  the root's leading boundary and deleted, say
 - **THEN** it is refused identically, because the judgement is over the resulting change and not
   over which key was pressed
+
+#### Scenario: An edit enforcement never sees dissolves the root by exiting, not by refusing
+- **WHEN** a change the enforcement layer does not judge leaves a DIFFERENT node where the zoom
+  root's first line began — deleting to the line start empties the root's own line, and one line
+  with one owner is within-node authoring
+- **THEN** the edit applies and the zoom CLEARS, rather than staying active on a node the user
+  never zoomed into. Such an edit cannot reach content outside the subtree, which is why it is not
+  refused; what it can do is dissolve the root, and that is the automatic exit's business
 
 #### Scenario: Deleting the cover's own trailing gap is allowed
 - **WHEN** the caret sits on the blank line the zoom root's own subtree cover includes and the

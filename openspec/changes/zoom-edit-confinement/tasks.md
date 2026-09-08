@@ -62,19 +62,22 @@
 
 ## 4. Behaviour in a real Obsidian
 
-- [ ] 4.1 Turn docs/research/26's refusal rows into `e2e/specs/80-outline-zoom.e2e.ts` scenarios —
-  Backspace at the root's content start, Delete at the end of the last visible line,
-  Mod-Backspace at the root's content start, Backspace at a nested root's content start into its
-  hidden parent, an escaping paste, and the unwrap of an emptied list root — asserting for each
-  that the buffer is byte-identical, the trail is unchanged, and the cue names the zoomed view.
-- [ ] 4.2 Turn the ALLOWED rows into scenarios in the same spec — the appended last child with and
+- [x] 4.1 Turn docs/research/26's refusal rows into `e2e/specs/80-outline-zoom.e2e.ts` scenarios —
+  Backspace at the root's content start, Delete at the end of the last visible line, Backspace at
+  a nested root's content start into its hidden parent, an escaping paste, and the unwrap of an
+  emptied list root — asserting for each that the buffer is byte-identical, the trail is
+  unchanged, and the cue names the zoomed view. R7 (Mod-Backspace) is NOT among them: measured, it
+  is within-node authoring, so no verdict is computed and the refusal never sees it. It gets its
+  own scenario asserting the zoom CLEARS rather than retargeting — which is the defect that row
+  actually recorded.
+- [x] 4.2 Turn the ALLOWED rows into scenarios in the same spec — the appended last child with and
   without a trailing gap in the cover, the in-scope paste, the deletion of the cover's own
   trailing gap line (measured as R6, which today wrongly exits), the in-scope merge, typing into
   the root — asserting the edit applied AND the zoom survived. The negative
   control for the whole group is reverting task 3.1, which must make every one of them fail.
-- [ ] 4.3 Verify the boundary rows are identical on the mobile config (`--mobile`), since the
+- [x] 4.3 Verify the boundary rows are identical on the mobile config (`--mobile`), since the
   refusal path is keyboard-driven and the cue is a Notice.
-- [ ] 4.4 Verify a heading zoom root's trailing edge still reports the inexpressible-merge cue
+- [x] 4.4 Verify a heading zoom root's trailing edge still reports the inexpressible-merge cue
   rather than the zoom cue, so the accidental protection docs/research/26 records is not silently
   replaced by the new one.
 
