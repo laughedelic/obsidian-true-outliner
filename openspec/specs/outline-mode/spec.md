@@ -111,10 +111,18 @@ the two public indicator surfaces:
 
 Both indicators SHALL follow the active tab as it changes: switching tabs, and a tab switching
 between notes, update what they state, and at every point what they state SHALL be the active
-tab's own current state. The status bar item SHALL NOT be offered on mobile, where no status
-bar exists; the ribbon icon SHALL carry the indication there. The transient toggle notice SHALL
-remain on every toggle from every surface, as the immediate feedback on platforms or layouts
-where neither indicator is visible. No indicator or control SHALL be injected into Obsidian's
+tab's own current state.
+
+That state is the tab's own in EVERY view mode, reading view included: a pane keeps its editor
+across a view-mode switch, so a tab showing reading view still has a state, and what the
+indicators report there is that state — the one its own editing modes are in, and the one an ON
+toggle from reading view would override. They SHALL NOT report a mode when no markdown tab is
+active at all: that is a third thing to say, not a mode to guess at.
+
+The status bar item SHALL NOT be offered on mobile, where no status bar exists; the ribbon icon
+SHALL carry the indication there. The transient toggle notice SHALL remain on every toggle from
+every surface, as the immediate feedback on platforms or layouts where neither indicator is
+visible. No indicator or control SHALL be injected into Obsidian's
 own chrome — the view header mode switcher and the core status-bar edit-mode button are core UI
 and SHALL be untouched.
 
@@ -142,6 +150,17 @@ and SHALL be untouched.
 - **WHEN** the plugin runs on mobile and the active tab's mode is toggled
 - **THEN** the ribbon icon reflects the new state and the toggle notice appears; no status
   bar item is created
+
+#### Scenario: The indicators state a reading-view tab's own state
+
+- **WHEN** a tab is switched off outline mode and then switched to reading view
+- **THEN** both indicators state that tab as off — the state it holds and would return to —
+  rather than reporting the global default or claiming nothing
+
+#### Scenario: Neither indicator claims a mode with no markdown tab active
+
+- **WHEN** the active view is not a markdown note
+- **THEN** the status bar item states no mode and the ribbon icon carries no on-state
 
 #### Scenario: Core chrome is untouched
 

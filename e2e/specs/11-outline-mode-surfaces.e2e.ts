@@ -70,6 +70,40 @@ describe('outline mode surfaces', function () {
       expect(await h.ribbonIsOn()).toBe(true);
     });
 
+    it('state a reading-view tab’s own state, not the default', async function () {
+      // A pane keeps its editor across a view-mode switch, so a tab in reading
+      // view still HAS a state and the indicators report that one — the state
+      // its editing modes are in, and the state an ON toggle from reading view
+      // would override. Reporting the global default instead would be a
+      // different claim, and wrong for exactly this tab.
+      await h.setDefaultOutlineMode(true);
+      await h.openNote(NOTE);
+      await h.setOutlineMode(false);
+      await h.setViewMode('preview');
+      expect(await h.viewMode()).toBe('preview');
+
+      // Round-tripped through a second tab, so the indicators actually RE-READ
+      // while this tab is in reading view. Without it they would still be
+      // showing what they last computed in an editing mode — the same answer,
+      // arrived at without consulting anything, which is not the claim.
+      await h.openInNewTab(OTHER);
+      await h.activateTab(0);
+      expect(await h.viewMode()).toBe('preview');
+
+      expect(await h.ribbonIsOn()).toBe(false);
+      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('Outline off');
+    });
+
+    it('claim no mode when no markdown tab is active', async function () {
+      await h.openNote(NOTE);
+      expect(await h.ribbonIsOn()).toBe(true);
+
+      await h.closeAllTabs();
+      // A third thing to say, not a mode to guess at.
+      expect(await h.ribbonIsOn()).toBe(false);
+      if (!h.IS_MOBILE_RUN) expect(await h.statusItemText()).toBe('');
+    });
+
     it('status bar item exists and toggles on desktop, and does not exist on mobile', async function () {
       await h.openNote(NOTE);
       if (h.IS_MOBILE_RUN) {

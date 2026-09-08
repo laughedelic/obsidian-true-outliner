@@ -73,7 +73,7 @@ over a manual off alike.
 - **WHEN** the plugin loads with no stored plugin data and a note is opened
 - **THEN** the note is in outline mode without any toggle having been invoked
 
-#### Scenario: Rename follows, delete prunes
+#### Scenario: Rename and delete leave the store with nothing to follow or prune
 
 - **WHEN** notes are opened, renamed, and deleted with the default on, and the plugin data
   store is read after each
