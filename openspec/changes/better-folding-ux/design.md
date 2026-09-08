@@ -87,12 +87,35 @@ the minimal-change dispatch and the undo history never see it.
 *Escalation to the nearest ancestor with children* (spec: "Three commands…") is resolved by
 walking the node path from the caret's node upward — the path is already in hand from the parse.
 
-### D4. Fold state through a structural op is re-derived, not mapped
+### D4. Fold state through a structural op is re-derived, and the mapping is RELATIVE
 
-Measured: an indent preserves a fold because it rewrites only indentation prefixes; a move
-destroys it because a range whose ends are inside deleted text cannot map. So the operation
-records the fold state of the operand's subtree BEFORE the change as node paths (not offsets),
-and re-applies it AFTER, from the paths the operation's own result already reports.
+Measured: an indent preserves a fold because it rewrites only indentation prefixes; a move destroys
+it because a range whose ends are inside deleted text cannot map. So the operation records the fold
+state of the operand's subtree BEFORE the change and re-applies it AFTER.
+
+*What it records, precisely.* `OpOutput` cannot be asked "where did node N go": `finalize`
+re-parses, so ids are regenerated, and the output carries an `anchor` (one line/column) and a
+`span` (the whole-subtree cover of every subject, in the result) — no per-root paths
+(`src/ops.ts`). So the mapping is relative, in two steps:
+
+1. Before the change, for each folded node inside an operand root's subtree, record its path
+   RELATIVE to that root — indices into successive `children` arrays — and the root's own index
+   within the operand forest.
+2. After the change, re-parse (which the dispatch already does), take the subtree roots covered by
+   `span` in document order — `span` is an exact whole-subtree cover, which is what makes this
+   well-defined — and match them to the pre-operation roots by index. Then walk each recorded
+   relative path from its new root.
+
+This holds because indent, outdent and move relocate a subtree without reordering what is inside
+it. Where an operation DOES change the operand's internal shape — an outdent adopting following
+siblings is the case in the corpus — a recorded path may not resolve, and an unresolved path
+drops its fold rather than guessing at a neighbour. Dropping a fold is recoverable in one
+keystroke; folding the wrong node is a silent lie about what is on screen.
+
+*Alternative rejected:* extending `OpOutput` with per-root result paths. It is the cleaner shape
+and it is a change to the mapping core's public output for a presentation concern; the relative
+mapping needs nothing the output does not already state. Worth revisiting if a second consumer
+ever wants the same thing.
 
 *Alternative rejected:* making the move emit an edit shape CM6 can map a fold through (e.g. moving
 the boundary lines only). That is a change to `ops.ts`'s minimal changesets for a presentation
@@ -100,7 +123,25 @@ concern, and `minimal-change-dispatch` exists to keep those changesets aligned w
 with the fold layer.
 
 *Placement:* in the same dispatch that applies the operation, so one transaction carries the edit,
-the selection and the fold effects, and one undo restores all three.
+the selection and the fold effects — see D4a for what that does and does not buy.
+
+### D4a. Undo needs `invertedEffects`, not just one transaction
+
+Putting the fold effects in the edit's own transaction makes them arrive together; it does NOT
+make them undoable. CM6's history records effects only through the `invertedEffects` facet, and
+neither `foldEffect` nor `unfoldEffect` registers one — they define mapping, not inversion. Undo
+would restore the text and leave the fold layer wherever mapping happened to put it, which is the
+same class of defect D4 exists to fix, one keystroke later.
+
+So the plugin registers `invertedEffects` for the fold effects it dispatches: a fold inverts to an
+unfold of the mapped range and vice versa. This is the mechanism CM6 documents for exactly this
+case, it costs one facet registration, and it makes redo work by the same route — which is worth
+saying out loud, because a fix aimed at undo alone tends to leave redo asserting nothing.
+
+The scope is deliberately narrow: effects THIS plugin dispatches as part of an operation. A fold a
+user makes on their own is not part of any edit and has nothing to invert; nothing about ordinary
+folding enters the history. `structural-history-integration` is the spec this has to compose
+with, and its "one undo step per operation" contract is what the same-transaction dispatch keeps.
 
 ### D5. Our own affordance is a widget in the marker column, not a second gutter
 
@@ -206,9 +247,10 @@ and its folded treatment — not the fold state itself, which stays the footer's
   → Fold state is keyed by path from the operation's own result, which is the same source the
   caret placement uses; if the result reports no path for an operand, its fold is dropped rather
   than guessed.
-- **Fold state is not undo state.** Undoing a move restores the text; the fold effects dispatched
-  with it are not themselves undoable. → Dispatching them in the same transaction is what makes
-  the pair behave as one step; verified by an e2e that folds, moves, undoes and reads both.
+- **Fold state is not undo state by default.** Undoing a move restores the text; a fold effect
+  dispatched with it is not inverted by CM6's history on its own. → D4a registers
+  `invertedEffects` for the effects we dispatch, and an e2e that folds, moves, undoes AND redoes
+  reads both text and fold state at each step.
 
 ## Open Questions
 

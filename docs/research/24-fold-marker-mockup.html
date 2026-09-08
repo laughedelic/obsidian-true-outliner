@@ -159,9 +159,11 @@
   .row.h1 .txt { font-size: 1.22rem; font-weight: 650; letter-spacing: -0.01em; }
   .row.h2 .txt { font-size: 1.06rem; font-weight: 620; }
   .row.done .txt { color: var(--muted); text-decoration: line-through; }
+  /* The painted guides stay inert, as they are in the editor; only the hit
+     bands inside them take the pointer. */
   .guides { position: absolute; inset: 0; pointer-events: none; }
   .guides i { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--faint) 60%, transparent); }
-  .hit { position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -6px; border-radius: 3px; cursor: pointer; }
+  .hit { position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -6px; border-radius: 3px; cursor: pointer; pointer-events: auto; }
   .hit.show { background: color-mix(in srgb, var(--accent) 15%, transparent); outline: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); }
   /* The fold chevron, in the slot Obsidian's own is transformed into: left of
      the marker, in the gutter, not in the text column. Hover-revealed while

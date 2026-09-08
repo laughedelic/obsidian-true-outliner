@@ -12,8 +12,14 @@ zoom and a reload.
 In outline mode, EVERY node with at least one child SHALL be foldable, whatever its kind. Three
 kinds can hold children: a heading, a list item in any of its notations (bullet, ordered, task),
 and a paragraph carrying children through the attachment rule. An atom — a table, a code fence, a
-callout, a quote, raw HTML, a rule — is never a parent in the tree, and SHALL therefore never be
-foldable. A node with no children SHALL NOT be foldable.
+callout, a quote, raw HTML, a rule — is never a parent in the tree, so the plugin SHALL offer no
+outline fold on one. A node with no children SHALL NOT be foldable.
+
+This is a rule about what WE offer, not a veto over Obsidian. Declining to answer for a line
+leaves the question to the providers below us, and for at least one atom kind — a raw HTML block,
+measured — Obsidian's own folding still reports a fold there. Such a fold is Obsidian's, it is
+left alone, and no affordance of ours SHALL appear for it: our affordance follows OUR rule, not
+whatever the editor happens to consider foldable.
 
 A fold SHALL hide from the end of the node's own last line through the end of its last
 descendant's last line. A node's own trailing gap and the gap owned by its last descendant SHALL
@@ -41,6 +47,11 @@ govern Obsidian's own folding, and an outline node folds because it has children
 - **WHEN** a table is followed by a list at the same level
 - **THEN** the list is the table's SIBLING, the table has no children, and no fold affordance
   appears beside it
+
+#### Scenario: A native fold on an atom is left alone
+- **WHEN** a note contains a raw HTML block, which Obsidian's own folding reports as foldable
+- **THEN** the plugin draws no affordance beside it and does not fold it, and whatever Obsidian
+  does there is unchanged
 
 #### Scenario: A heading folds its whole subtree
 - **WHEN** a heading with nested headings and lists beneath it is folded
@@ -72,9 +83,11 @@ Under a selection covering several subtrees, a command SHALL act on every covere
 matching how the structural commands read a selection. A command SHALL be UNAVAILABLE when the
 selection holds more than one range.
 
-Folding SHALL NOT move the caret, and SHALL NOT change the document. A caret inside the range a
-fold is about to hide SHALL move to the folded node's own line, since a caret in hidden text is
-unreachable.
+Folding SHALL NOT change the document. It SHALL NOT move the caret EITHER, with one exception,
+stated here so no two entry points read it differently: when the caret sits inside the range the
+fold is about to hide — which includes the case where the command escalated to an ancestor and the
+caret is in a descendant — it SHALL move to the folded node's own line, because a caret in hidden
+text is unreachable. A caret anywhere else SHALL be left exactly where it is.
 
 #### Scenario: Toggle from a leaf folds the branch above it
 - **WHEN** the caret is in a childless list item nested under a parent that has children, and
@@ -124,11 +137,17 @@ A foldable node SHALL offer a fold affordance beside its marker, in the marker g
 on hover for an unfolded node and remaining visible while the node is folded — a folded node's
 only route back must not be hidden behind a hover.
 
-The affordance SHALL sit in the same position for every kind. Where Obsidian already paints its
-own fold chevron — heading and list lines — that chevron SHALL be it; where it paints none, which
-today is the paragraph, the plugin SHALL draw its own in the same place, behaving identically.
-The rule SHALL be stated as "wherever Obsidian paints none", not as "on paragraphs": which lines
-Obsidian decorates is internal to Obsidian and may change.
+The affordance SHALL be offered on exactly the lines the rule above makes foldable, and on no
+others. Where Obsidian already paints its own fold chevron on such a line — heading and list lines
+— that chevron SHALL be it; where it paints none, the plugin SHALL draw its own in the same place,
+behaving identically. The condition SHALL be "a node WE make foldable, with no native chevron on
+its line", not a kind: which lines Obsidian decorates is internal to Obsidian, may change, and —
+per the requirement above — may cover lines we offer no fold on at all.
+
+It follows that if Obsidian stops painting a chevron on heading or list lines — because a user
+turned "Fold heading" or "Fold indent" off, or because its rule changes — those lines receive the
+plugin's own affordance under the same condition, and folding stays available by pointer for every
+node with children. That is the whole reason the condition is written this way.
 `outline-decorations` states how both are positioned and how a folded one is drawn.
 
 A click on the affordance SHALL toggle the node's fold and SHALL NOT place the caret, begin a

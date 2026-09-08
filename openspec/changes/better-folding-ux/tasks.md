@@ -6,24 +6,35 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 - [ ] 1.1 Throwaway `foldService` provider registered at `Prec.high` in the dev vault, answering
       from the cached parse for EVERY node with children. Verify through a probe spec that
       `foldable()` returns our range on a heading, on each list notation (bullet, ordered, task)
-      and on a paragraph with attached children, and returns `null` on an atom, which can never
-      be a parent — the same instrument
+      and on a paragraph with attached children — the same instrument
       `docs/research/24-fold-mechanics.md` used, which is `browser.executeObsidian` against the
       CM6 exports reached from the plugin instance
-- [ ] 1.2 **The settings question.** Turn Obsidian's "Fold heading" and "Fold indent" OFF and
+- [ ] 1.2 **What survives our `null`.** Declining to answer is not a veto: `foldable()` falls
+      through to the providers below us and then to syntax folding. Probe every atom kind — code
+      fence, table, callout, quote, raw HTML, rule — and record which the editor still calls
+      foldable. Measured already for the PR-review pass: raw HTML is one, and no chevron is
+      painted for it. The rule that follows is stated in `outline-folding` and
+      `outline-decorations` — our affordance follows OUR fold, never the editor's — so this task
+      is the test that keeps it, plus a check that nothing we draw appears on such a line
+
+- [ ] 1.3 **The settings question.** Turn Obsidian's "Fold heading" and "Fold indent" OFF and
       re-run 1.1's fold path through the affordance, `editor:toggle-fold`, and a direct
-      `foldEffect`. Record which of the three still works. If the native paths gate on the
-      settings, the spec's "Folding works with Obsidian's own fold settings off" scenario is
-      satisfied by our own commands and the native chevron degrades — say so in the note rather
-      than discovering it in review
-- [ ] 1.3 **What we take over.** Diff native fold extents against ours across the `test-vault/`
+      `foldEffect`. Record which of the three still works.
+
+      If the native chevron or its click path gates on those settings, the affordance does NOT
+      degrade: `outline-decorations`' condition is "a node we make foldable, with no native
+      chevron", so heading and list lines fall to the plugin's own affordance exactly as a
+      paragraph does, and section 5.4 covers them. What this task settles is whether that path is
+      exercised in the default configuration or only in a non-default one — which decides whether
+      5.4's e2e needs a settings-off run
+- [ ] 1.4 **What we take over.** Diff native fold extents against ours across the `test-vault/`
       corpus: heading sections (with and without a trailing gap), nested lists, a list under a
       paragraph, ordered lists, tasks.
 
-      Atoms are not in the diff and do not need to be: `parse` gives them no children, so
-      `foldable()` returns `null` and nothing changes for them. Any divergence that is not clearly an improvement is a reason to
+      Atoms are covered by 1.2, not here: we answer `null` for them, so what matters is what
+      the editor still does underneath us, not what changes. Any divergence that is not clearly an improvement is a reason to
       narrow D1's precedence, and that decision belongs here, not in review
-- [ ] 1.4 Verdict appended to `docs/research/24-fold-mechanics.md` under a dated heading: what
+- [ ] 1.5 Verdict appended to `docs/research/24-fold-mechanics.md` under a dated heading: what
       held, what did not, and whether D1 stands as written
 
 ## 2. Fold model
@@ -62,16 +73,26 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 
 ## 4. Fold state through structural operations
 
-- [ ] 4.1 Capture-and-reapply in the structural dispatch path (D4): fold state of the operand's
-      subtree recorded as node paths before the change, re-applied from the operation's own
-      result paths, in the SAME transaction as the edit and the selection
+- [ ] 4.1 Capture-and-reapply in the structural dispatch path (D4): each folded node recorded as
+      a path RELATIVE to its operand root plus that root's index in the forest, re-applied after
+      the change against the roots covered by `OpOutput.span` in document order. `OpOutput` has no
+      per-root result paths and `finalize` regenerates ids, so nothing here may assume node
+      identity survives. An unresolved path drops its fold; unit-test that case directly, with an
+      outdent that adopts following siblings as the fixture
+- [ ] 4.1a `invertedEffects` registration for the fold effects the plugin dispatches (D4a) —
+      a fold inverts to an unfold of the mapped range and back. Without it CM6's history restores
+      the text and leaves the fold layer where mapping put it. Verify with an e2e that folds,
+      moves, undoes and REDOES, asserting text and fold state after each step; negative control —
+      removing the facet registration must fail the undo assertion while the same-transaction
+      dispatch still passes its "one undo step" check
 - [ ] 4.2 E2E per scenario in the `editor-structural-commands` delta: move a folded node, move a
       node containing folded children, group-move a mixed selection, indent and outdent a folded
       node. Negative control — dropping the reapply must fail the move test while leaving the
       indent test passing, which is exactly the asymmetry
       `docs/research/24-fold-mechanics.md` measured
-- [ ] 4.3 Undo after a move restores both the text and the fold state as one step. Verify by
-      folding, moving, undoing, and reading both
+- [ ] 4.3 One undo step still means one: a folded node moved and undone restores text, selection
+      and fold together, with no intermediate state where the text has moved back and the fold has
+      not. `structural-history-integration` is the contract this must not break
 
 ## 5. Affordance and folded-state chrome
 
@@ -123,10 +144,15 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 - [ ] 8.1 Row fold state keyed by node id in `ViewState`, so a row that HAS a subtree keeps its
       affordance after expansion (D9) — the `truncatable` shape, for the same reason
 - [ ] 8.2 Delete `to-backlinks-fold` and its `styles.css` rule; the row's affordance becomes the
-      editor's fold chrome, and a folded row's marker takes the folded treatment from 5.2
-- [ ] 8.3 E2E per the `backlinks-footer` delta: an expanded row folds again, and a folded row is
-      distinguishable from a leaf. Negative control — restoring the `foldedCount > 0` condition
-      must fail the fold-again test
+      editor's fold chrome, and a folded row's marker takes the folded treatment from 5.2. The
+      chrome is what changes, never the semantics: the control stays a real `button` with an
+      accessible label and an `aria-expanded` that tracks BOTH states, since a footer row has no
+      keyboard command behind it the way an editor line does
+- [ ] 8.3 E2E per the `backlinks-footer` delta: an expanded row folds again, a folded row is
+      distinguishable from a leaf, and the control is reachable by Tab and operable by Enter and
+      Space with `aria-expanded` correct in both states. Negative controls — restoring the
+      `foldedCount > 0` condition must fail the fold-again test, and swapping the `button` for a
+      non-interactive element must fail the keyboard test
 
 ## 9. Editing grammar
 

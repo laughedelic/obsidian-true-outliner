@@ -36,14 +36,19 @@ fold affordance SHALL still be offered — the setting governs the kind mark, no
 - **WHEN** the marker-visibility setting hides markers and a node is folded
 - **THEN** the hidden count and the fold affordance are still shown
 
-### Requirement: A foldable line Obsidian paints no chevron on receives ours
+### Requirement: A node we make foldable, with no native chevron, receives our own
 
 Obsidian paints its fold indicator on heading and list lines by a rule of its own, which takes no
-notice of what the editor reports as foldable. A foldable line it paints none on — today that is
-the paragraph carrying attached children, the only other kind that can hold any — SHALL receive a
-fold affordance drawn by the plugin, in the marker gutter, at the position the native chevron is
-transformed onto for the kinds that have one. The condition SHALL be the absence of a native
-chevron rather than the node's kind, since Obsidian's rule is its own to change.
+notice of what the editor reports as foldable. A line carrying a node `outline-folding` makes
+foldable, with no native chevron on it — today the paragraph with attached children, and heading
+or list lines whenever Obsidian's own rule declines them — SHALL receive a fold affordance drawn
+by the plugin, in the marker gutter, at the position the native chevron is transformed onto for
+the lines that have one.
+
+The condition SHALL be that pairing — our fold, no native chevron — rather than the node's kind or
+the editor's own notion of foldability. Kind is wrong because Obsidian's rule is its own to
+change; the editor's notion is wrong because it covers lines we deliberately offer no fold on,
+such as a raw HTML block.
 
 Both affordances SHALL behave identically: revealed on hover while unfolded, persistent while
 folded, one click to toggle, and never two of them on one line.
@@ -52,6 +57,7 @@ folded, one click to toggle, and never two of them on one line.
 - **WHEN** a note contains a foldable heading, a foldable list item and a foldable paragraph
 - **THEN** each line offers exactly one fold affordance, and all three sit in the same column
 
-#### Scenario: An unfoldable line gets none
-- **WHEN** a table, which can hold no children, is hovered
-- **THEN** no fold affordance appears beside its marker
+#### Scenario: A line we offer no fold on gets none
+- **WHEN** a table is hovered, and when a raw HTML block Obsidian's own folding would fold is
+  hovered
+- **THEN** no fold affordance appears beside either marker

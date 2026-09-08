@@ -117,6 +117,20 @@ fence and after a quote puts each list at SIBLING level, never inside. So an ato
 state to draw and no affordance to offer, and the "fold anything" ambition reduces to one missing
 kind — the paragraph, which is exactly the kind Obsidian paints no chevron on.
 
+### Declining is not a veto
+
+A `foldService` provider that returns `null` does not make a line unfoldable — `foldable()` simply
+asks the next provider, and then syntax folding. Measured across every atom kind in one note (code
+fence, table, callout, quote, raw HTML, rule), the editor still reports exactly one of them as
+foldable: a **raw HTML block** (`<div>` … `</div>`). No chevron is painted for it, consistent with
+the finding above that the indicator follows Obsidian's own heading/list rule.
+
+So "an atom is never foldable" is true of OUR rule and false of the editor's, and the two have to
+be kept apart in the specs: the plugin offers no fold on an atom and draws no affordance there,
+while whatever Obsidian does inside an atom's own notation is left alone. Anything that keyed our
+affordance off `foldable()` rather than off our own answer would have surfaced that HTML fold with
+a control Obsidian deliberately does not give it.
+
 ## The folded-node indication
 
 Candidate treatments for a folded node's marker are drawn side by side, at the plugin's own
