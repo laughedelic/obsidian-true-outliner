@@ -128,9 +128,10 @@ So the treatment is:
 | --- | --- |
 | **Colour** | none. Links and tags take the row's own colour, which is what keeps a chain reading as context |
 | **Link, at rest** | underlined, so it is findable without hovering to discover it |
-| **Link, on hover** | the underline thickens; the colour does not move — a link dimmer than its neighbours is an affordance hiding from the pointer |
+| **Hover** | colour shifts, nothing underlines. The segment's hover is the same shift and the row's only hover signal — an underline there is the mark a link owns, and a segment wearing it reads as one big link |
 | **Cursor** | `alias` (the platform's curled arrow, "this leaves here") on an external link; `pointer` on an internal one and on the crumb itself |
 | **Tag** | a step of ink from the ROW's colour toward the text colour, filling on hover. Not a chip — a pill is a second object in a line that is one |
+| **Highlight** | muted toward transparent, hue kept. At full strength it is the loudest mark on a dim line — the accent problem again, in the one channel that is only colour |
 | **Media** | not rendered in a chain at all; the segment keeps the alt text |
 
 The tag colour is `color-mix` on `currentColor` rather than a token, and that is not a
@@ -139,7 +140,11 @@ trail's at `--text-muted`, so a fixed token picked for one leaves the tag invisi
 other. Relative to the row, both resolve — footer `rgb(141,148,159)` → tag `rgb(89,94,103)`,
 trail `rgb(91,100,112)` → tag `rgb(62,68,77)`.
 
-Media is the one thing a chain does not inherit from a reference row. A reference row keeps its
+A reference row keeps its highlight at full strength: it is a quotation, not context. The
+prototype's highlight example now carries one in both rows, one line apart, so the two
+intensities can be read against each other rather than described.
+
+Media is the other thing a chain does not inherit from a reference row. A reference row keeps its
 embed, bounded by the stylesheet, because that row is a quotation and the embed is part of what
 the node says; a chain is one line of context, and there is no size at which an image belongs in
 it. Alt text rather than nothing, because a segment emptied of its only content is blank and

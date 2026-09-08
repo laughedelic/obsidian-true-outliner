@@ -41,16 +41,19 @@
 
 ## 5. The subdued treatment
 
-- [ ] 5.1 A lineage row's links take the row's own colour, underlined at rest, with the
-      underline thickening on hover and the colour not moving (design D1)
+- [ ] 5.1 A lineage row's links take the row's own colour, underlined at rest (design D1)
+- [ ] 5.1a Hover — on a link or on a segment — shifts colour only. Remove the lineage row's
+      existing hover underline: on this row an underline means "link" and nothing else
 - [ ] 5.2 An external link takes the `alias` cursor and an internal one `pointer`, so the two
       destinations differ before the click rather than after it
 - [ ] 5.3 A tag steps toward the text colour from the ROW's own colour — `color-mix` on
       `currentColor`, not a fixed token, since the footer's lineage is faint and the trail's is
       muted — and fills on hover
-- [ ] 5.4 Bound media inside a reference row in `styles.css` (design D7); the chain needs no
+- [ ] 5.4 Mute a highlight inside a lineage row, keeping its hue; a reference row keeps its own
+      at full strength
+- [ ] 5.5 Bound media inside a reference row in `styles.css` (design D7); the chain needs no
       rule, since nothing reaches it
-- [ ] 5.5 Check both treatments in a light and a dark theme, and against a community theme that
+- [ ] 5.6 Check every treatment in a light and a dark theme, and against a community theme that
       redefines `--text-faint`
 
 ## 6. Verification

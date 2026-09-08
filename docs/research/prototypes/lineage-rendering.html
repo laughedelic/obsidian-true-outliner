@@ -397,8 +397,12 @@
   .seg-ord { margin-inline-end: 0.3em; color: var(--mark); font-variant-numeric: tabular-nums; }
 
   .seg[role="link"] { cursor: pointer; border-radius: 3px; }
+
+  /* Hover shifts the COLOUR and nothing else. An underline here would be the
+   * one signal a link already owns, worn by a whole segment — so hovering an
+   * ancestor made the ancestor look like a link, and a link inside it
+   * indistinguishable from the segment carrying it. */
   .seg[role="link"]:hover { color: var(--ink-muted); }
-  .row.is-lineage .seg[role="link"]:hover { text-decoration: underline; text-underline-offset: 2px; }
 
   /* trail chrome */
 
@@ -478,6 +482,13 @@
   }
 
   .quiet .tag:hover { background: var(--rule); color: var(--ink); }
+
+  /* A highlight at full strength is the loudest thing on a dim line — the same
+   * problem the link accent had, in the one channel that is pure colour. Muted
+   * toward transparent rather than replaced: it keeps the hue that says
+   * "highlight" and loses the shout. A reference row keeps its own at full
+   * strength, being a quotation rather than context. */
+  .quiet mark { background: color-mix(in srgb, var(--hl) 40%, transparent); }
   .content .math { font-family: var(--mono); font-size: 0.9em; font-style: italic; }
   .content img { vertical-align: middle; border-radius: 3px; }
 
@@ -589,9 +600,10 @@
       <h2>Backlinks footer</h2>
       <span class="where">src/plugin/lineage-row.ts · footer-model.ts</span>
       <p>
-        Each chain is shown with the reference row it leads to. That row already renders
-        inline markdown in full, which is what makes the verbatim lineage above it read as
-        a defect rather than as a choice.
+        Each chain is shown with the reference row it leads to. That row renders inline
+        markdown in full, at full strength — which is what makes the verbatim lineage above
+        it read as a defect, and what the subdued chain is calibrated against. The highlight
+        example carries one in both rows, so the two intensities sit together.
       </p>
     </div>
     <div class="examples" id="footerExamples"></div>
@@ -883,7 +895,7 @@
         { kind: "bullet", src: "- [[Aurora Dashboard|the dashboard]] #urgent" },
         { kind: "bullet", src: "- ==needs review== before Friday" }
       ],
-      ref: "- ping Maya about [[Aurora Dashboard]] #urgent"
+      ref: "- ping Maya about [[Aurora Dashboard]] #urgent, ==before Friday=="
     },
     {
       caption: "Strikethrough, and emphasis wrapping a link",

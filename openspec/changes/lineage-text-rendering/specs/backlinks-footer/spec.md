@@ -134,14 +134,21 @@ The affordance SHALL be carried by three channels that spend no colour:
 - **The cursor.** An external link SHALL take the cursor the platform uses for leaving the
   current context, and an internal one the same cursor the surrounding segment takes, so the two
   destinations are distinguishable BEFORE the click rather than after it.
-- **Hover**, which SHALL strengthen the underline without moving the colour. A link drawn
-  dimmer than the words beside it is an affordance hiding from the pointer.
+- **Hover**, which SHALL shift the colour toward the text colour and SHALL NOT add or change an
+  underline. A segment's own hover SHALL do the same, and SHALL be the row's only hover signal:
+  on this row an underline means "link" and nothing else, so a segment wearing one under the
+  pointer makes the ancestor read as a link and hides the boundary of any link inside it.
 
 A tag SHALL render as a word carrying a step more ink than the row around it, filling on hover,
 rather than as a chip — a pill is a second object in a line that is one. That step SHALL be
 taken from the ROW's own colour rather than from a fixed value, because the footer's lineage and
 zoom's trail are dimmed to different degrees and a value chosen for one leaves the tag
 unreadable on the other.
+
+A highlight SHALL be drawn at reduced strength in a lineage row, keeping its hue. At full
+strength it is the loudest mark on a row whose dimness is what makes it read as context — the
+same inversion the colour accent causes, in the one channel that is only colour. A reference row
+SHALL keep its highlight at full strength, being a quotation rather than context.
 
 Embedded media SHALL NOT render in a lineage row at all. A chain is one line, and there is no
 size at which an image belongs in it; the segment SHALL keep the embed's alt text, which is what
@@ -161,6 +168,18 @@ win where the pointer is on it and the segment SHALL win everywhere else.
 - **WHEN** the pointer rests on an external link inside a lineage segment, and then on the
   segment's own text
 - **THEN** the cursor differs between the two
+
+#### Scenario: Hover never underlines a segment
+
+- **WHEN** the pointer rests on a lineage segment, and then on a link inside one
+- **THEN** the segment's own hover changes only its colour, and the only underline anywhere on
+  the row is the link's own
+
+#### Scenario: A highlight is quieter in a chain than in a reference
+
+- **WHEN** an ancestor and the reference beneath it both carry a highlight
+- **THEN** the reference's is drawn at full strength and the ancestor's at reduced strength, and
+  both keep the highlight hue
 
 #### Scenario: A tag reads against its row
 

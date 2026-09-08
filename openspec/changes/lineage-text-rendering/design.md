@@ -49,13 +49,22 @@ Three channels carry the affordance instead, none of which spends colour:
 - **The cursor.** An external link takes the platform's `alias` cursor — the curled arrow that
   already means "this leaves here" — and an internal one takes `pointer`, the same as the crumb
   around it. This is the channel that distinguishes the two destinations at zero cost in ink.
-- **Hover.** The underline thickens; the colour does not move. A link dimmed relative to the
-  words beside it would be an affordance hiding from the pointer.
+- **Hover.** The colour shifts toward the text colour; no underline appears or changes. The
+  segment's hover is the same shift, and it is the ONLY hover signal on the row — an underline
+  there would be the one mark a link already owns, worn by a whole segment, which makes an
+  ancestor look like a link and a link inside it indistinguishable from the segment carrying
+  it. Underlines mean "link" on this row and nothing else.
 
 A tag renders as a word with a little more ink than the row around it, filling on hover. Not as
 a chip: a pill is a second object in a line that is one. Its colour is a step from the ROW's own
 colour toward the text colour rather than a fixed token, because the footer's lineage is faint
 and the trail's is muted — a token chosen for one leaves the tag invisible on the other.
+
+A highlight is muted too, toward transparent rather than replaced. At full strength it is the
+loudest thing on a dim line, which is the accent problem again in the one channel that is pure
+colour; mixed down it keeps the hue that says "highlight" and loses the shout. A reference row
+keeps its own at full strength, being a quotation rather than context — the two sit together in
+the prototype's highlight example, one row apart.
 
 **Media does not render in a chain.** A crumb is one line, and an image is not text. Its alt
 text is what the node says, so the segment keeps that; dropping it outright can leave a crumb
