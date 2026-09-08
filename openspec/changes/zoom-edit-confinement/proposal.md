@@ -30,12 +30,12 @@ it is being used as the primary answer for user edits it was never shaped to jud
   leave the document unchanged and show the `would-leave-zoom-scope` cue the structural layer
   already uses. The two layers then agree on one judgement rather than each having its own, which
   is the argument `outline-zoom` already makes for the keyboard and the palette.
-- **The escape test is the scope's invariant, judged over the AFTER state.** With the change
-  applied and the document re-parsed: the text outside the zoom root's subtree is byte-identical,
-  everything inserted lies inside the root's subtree as it now stands, and the root is still the
-  same node. Not a comparison of changed POSITIONS — every such formulation fails a measured row,
-  including after-state ones (docs/research/26: one keystroke removes a single line break and a
-  whole hidden node is absorbed by it).
+- **The escape test is the scope's invariant, judged over the AFTER state**, and asked in one
+  order: a change that removed the root's whole subtree is not an escape at all; otherwise the node
+  owning the root's first line must still hold the root's position in the tree, and the text
+  outside the root's subtree must be byte-identical. Not a comparison of changed POSITIONS — every
+  such formulation fails a measured row, including after-state ones (docs/research/26: one
+  keystroke removes a single line break and a whole hidden node is absorbed by it).
 - **In-scope appends keep the zoom.** Enter at the end of the last visible line, and a structural
   paste there, stop clearing a scope they never left.
 - **The zoom root is identified, not merely located.** A surviving node that merely starts on the

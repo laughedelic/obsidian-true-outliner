@@ -12,27 +12,39 @@ actually be dispatched, which is the only one of the three that exists as a conc
 They SHALL agree on the ground, and each SHALL be stated in terms of it — a predicate that admits
 a result the invariant forbids is a defect in that predicate, not a second rule.
 
-The invariant: content is inside the scope when, with the change applied and the document
-re-parsed, ALL THREE hold —
+The invariant, asked in this order:
 
-1. the text outside the zoom root's subtree is byte-identical to what it was before;
-2. everything the change inserts lies inside the root's subtree as it stands after the change;
-3. the zoom root has not been REPLACED — either the node beginning on its own first line holds
-   the same position in the tree, or no node begins there at all. Only a DIFFERENT node
-   resolving there fails this clause.
+0. **Did the change remove the zoom root's WHOLE subtree cover?** If so it is not an escape, and
+   neither clause below is asked. The root was deleted outright and the automatic exit owns what
+   happens next.
+1. Otherwise the root SHALL NOT have been REPLACED: the node that OWNS the root's own first line
+   holds the same position in the tree that the root held.
+2. And the text outside the zoom root's subtree — the root re-resolved on that line — SHALL be
+   byte-identical to what it was before.
 
-Clause (3) is stated that way on purpose. "No node begins there" is the root having been removed
-outright, which is the automatic exit's business rather than an escape, and folding it into the
-clause is what keeps the rule from depending on how much document follows the root: read as
-"a node must resolve", it would refuse the whole-subtree deletion of a root that ENDS the document
-while allowing the identical deletion anywhere else.
+**Clause 0 is asked first because the other two cannot be asked at all once the root is gone.**
+Both of them begin by locating the root on its own first line, and a deletion of the whole subtree
+leaves some OTHER node occupying that line — a following sibling sliding up, or, at the end of a
+document, the node above owning the trailing blank line. Whichever it is gets mistaken for the
+root, and the two clauses then compare against the wrong subtree: clause 2 sees the sibling move
+from outside the cover to inside it and reports changed text, and clause 1 sees a different tree
+position. A deliberate whole-subtree deletion is meant to succeed, and without clause 0 it is
+refused twice over. Clause 0 is a fact about the CHANGE rather than about the after-state, which
+is exactly why it can be answered when the other two cannot.
 
-Each clause is load-bearing and none subsumes another. Deleting one line break can absorb a whole
-hidden node into the subtree while changing nothing but that break, which only (1) catches. A
-paste can leave every hidden byte untouched and still add a sibling beside the root, which only
-(2) catches. A Backspace can dissolve the root without touching a byte outside it, which only (3)
-catches. A rule stated as "the changed positions lie inside the cover" fails all three ways, and
-a rule stated over before-state positions cannot decide the question at all, because the same
+**Clause 1 says OWNS, not "begins on".** The distinction decides a real case: a Backspace that
+empties the zoom root's own line leaves that line owned by the node ABOVE it, which is a different
+position and must be refused, while nothing begins on it at all.
+
+Neither remaining clause subsumes the other. Deleting one line break can absorb a whole hidden
+node into the subtree while changing nothing but that break, which only clause 2 catches; a
+Backspace can dissolve the root without touching a byte outside it, which only clause 1 catches.
+Clause 2 also covers everything an "inserted content landed outside the subtree" clause would:
+content inserted outside the subtree necessarily changes the text outside it, so such a clause
+could never be the one to fail and is not stated.
+
+A rule stated as "the changed positions lie inside the cover" fails every one of these ways, and a
+rule stated over before-state positions cannot decide the question at all, because the same
 insertion offset yields content inside the subtree or outside it depending only on what is
 inserted.
 
