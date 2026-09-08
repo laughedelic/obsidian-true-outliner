@@ -1,30 +1,13 @@
 /**
- * Pipeline smoke: Obsidian boots, plugin loads, buffer mirrors disk, and the
+ * Pipeline smoke: Obsidian boots, plugin loads, buffer mirrors disk, the
  * platform mode matches what this wdio config asked for — a guard against
- * e2e/wdio.mobile-emulation.conf.mts silently running in desktop mode.
+ * e2e/wdio.mobile-emulation.conf.mts silently running in desktop mode — and a
+ * click on the phone viewport reaches the editor rather than the drawer over it.
  */
 
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
-import {
-  IS_MOBILE_RUN,
-  openNote,
-  getBuffer,
-  readVaultFile,
-  clickClear,
-  clickFailureMode,
-  spendClickAttempt,
-  CLICK_ATTEMPTS,
-} from '../helpers.js';
-
-/** The two errors, verbatim from the runs each mode was observed on. */
-const STALE = 'stale element reference: stale element not found in the current frame';
-const INTERCEPTED =
-  'WebDriverError: element click intercepted: Element <svg class="to-backlinks-icon"> is not' +
-  ' clickable at point (195, 412). Other element would receive the click:' +
-  ' <div class="nav-files-container node-insert-event">';
-
-const BLOCKER_ID = 'to-e2e-click-blocker';
+import { IS_MOBILE_RUN, openNote, getBuffer, readVaultFile, clickClear } from '../helpers.js';
 
 describe('smoke', function () {
   it('boots with the plugin loaded', async function () {
@@ -50,102 +33,12 @@ describe('smoke', function () {
   });
 
   /**
-   * `clickClear` does two separate things to get its target clickable, and these
-   * cover them separately.
-   *
-   * It collapses the phone UI's left drawer, which is what actually broke
-   * `75-footer-behaviour` on CI: measured simply open across both attempts, not
-   * an obstruction passing through. That is the last test below, and it forces
-   * the state rather than waiting for it.
-   *
-   * It also retries an intercepted click, for the obstructions that ARE passing
-   * through. That is a safety net rather than the fix, and the first three tests
-   * cover its decision, its bookkeeping, and the wiring between the two.
-   */
-  it('classifies the failures CI reported, and nothing else', function () {
-    expect(clickFailureMode(STALE)).toBe('stale');
-    expect(clickFailureMode(INTERCEPTED)).toBe('intercepted');
-    expect(clickFailureMode('no such element: Unable to locate element')).toBe(null);
-    // The word alone is not the error: the phrase is what admits a retry.
-    expect(clickFailureMode('AssertionError: the request was intercepted by the proxy')).toBe(null);
-  });
-
-  /**
-   * The budgets are spent per mode, so a click that goes stale first arrives at
-   * an interception with its interception budget untouched. A single running
-   * attempt count gets this wrong in the direction that matters — it throws the
-   * interception without the waited retry the mode is admitted for.
-   */
-  it("spends each failure mode's budget separately", function () {
-    const spent = { stale: 0, intercepted: 0 };
-    // Stale up to its bound, which is the last one refused.
-    for (let i = 1; i < CLICK_ATTEMPTS.stale; i++) expect(spendClickAttempt(spent, STALE)).toBe(true);
-    expect(spendClickAttempt(spent, STALE)).toBe(false);
-    // Interception still has all of its own.
-    for (let i = 1; i < CLICK_ATTEMPTS.intercepted; i++) {
-      expect(spendClickAttempt(spent, INTERCEPTED)).toBe(true);
-    }
-    expect(spendClickAttempt(spent, INTERCEPTED)).toBe(false);
-    // A real failure is never worth an attempt, spent budget or not.
-    expect(spendClickAttempt({ stale: 0, intercepted: 0 }, 'no such element')).toBe(false);
-  });
-
-  /**
-   * The target is covered for the WHOLE call, so every attempt is refused and
-   * the loop runs to its bound — no race to lose, unlike an uncover-on-a-timer
-   * test, which a slow enough runner passes having exercised nothing.
-   *
-   * A single blocked click is timed first, because the assertions that matter
-   * are both relative to it. `clickClear` must take longer than one attempt,
-   * which is what ties the loop to the budget above rather than leaving the two
-   * verified only in isolation; and it must still fail as an interception, not
-   * as a mocha timeout, which is the risk of retrying something this expensive
-   * at all (`docs/research/29-e2e-click-retry-costs.md`). Mocha's own per-test
-   * timeout is the other half of that second assertion.
-   */
-  it('retries a permanently intercepted click, then reports the interception', async function () {
-    await openNote('Notes/Sourdough Log.md');
-    const target = '.workspace-leaf.mod-active .cm-content';
-    await browser.executeObsidian((_ctx, id) => {
-      const blocker = document.createElement('div');
-      blocker.id = id;
-      blocker.setAttribute('style', 'position:fixed;inset:0;z-index:99999');
-      document.body.append(blocker);
-    }, BLOCKER_ID);
-
-    let oneAttempt = 0;
-    let elapsed = 0;
-    let thrown: unknown;
-    try {
-      const started = Date.now();
-      await (await browser.$(target)).click().catch(() => undefined);
-      oneAttempt = Date.now() - started;
-
-      const retried = Date.now();
-      try {
-        await clickClear(target);
-      } catch (error) {
-        thrown = error;
-      }
-      elapsed = Date.now() - retried;
-    } finally {
-      await browser.executeObsidian((_ctx, id) => {
-        document.getElementById(id)?.remove();
-      }, BLOCKER_ID);
-    }
-
-    expect(String(thrown)).toContain('element click intercepted');
-    // More than one attempt's worth of work, measured against this machine's own.
-    expect(elapsed).toBeGreaterThan(oneAttempt * (CLICK_ATTEMPTS.intercepted - 0.5));
-  });
-
-  /**
    * The drawer fix, made deterministic. The state that produced the CI failure
    * is intermittent, so this puts the workspace into it deliberately —
    * `leftSplit.expand()` opens the drawer under emulation, as
    * `docs/research/24-outline-mode-surfaces.md` measured — and then asserts the
-   * click lands anyway. Without the collapse, `clickClear` spends its whole
-   * interception budget here and throws.
+   * click lands anyway. Without the collapse, `clickClear` throws the
+   * interception here — an intercepted click is not retried.
    *
    * Mobile only: on the desktop viewport the left split is a sidebar beside the
    * editor, not a drawer over it, so there is nothing in the way to clear.
