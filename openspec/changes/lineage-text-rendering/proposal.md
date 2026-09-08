@@ -73,3 +73,5 @@ chain at all: a crumb is one line, and the alt text is what the node says.
   media inside a reference row.
 - `tests/footer-model.test.ts`, `tests/zoom.test.ts`, `e2e/specs/73-footer-render.e2e.ts`,
   `e2e/specs/80-outline-zoom.e2e.ts`.
+- `test-vault/` — new notes carrying this corpus in organic prose, so the manual pass judges the
+  treatment on notes that read like notes rather than on a matrix.

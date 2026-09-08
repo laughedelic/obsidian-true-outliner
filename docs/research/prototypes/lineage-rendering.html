@@ -401,8 +401,12 @@
   /* Hover shifts the COLOUR and nothing else. An underline here would be the
    * one signal a link already owns, worn by a whole segment — so hovering an
    * ancestor made the ancestor look like a link, and a link inside it
-   * indistinguishable from the segment carrying it. */
-  .seg[role="link"]:hover { color: var(--ink-muted); }
+   * indistinguishable from the segment carrying it.
+   *
+   * The destination is a step from the ROW's own colour, for the reason the tag
+   * rule below records: a fixed token is a no-op on whichever surface already
+   * sits at it, and the trail already sits at the muted one. */
+  .seg[role="link"]:hover { color: color-mix(in srgb, currentColor 45%, var(--ink) 55%); }
 
   /* trail chrome */
 

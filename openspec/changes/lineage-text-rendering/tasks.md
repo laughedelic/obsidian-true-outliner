@@ -44,6 +44,9 @@
 - [ ] 5.1 A lineage row's links take the row's own colour, underlined at rest (design D1)
 - [ ] 5.1a Hover — on a link or on a segment — shifts colour only. Remove the lineage row's
       existing hover underline: on this row an underline means "link" and nothing else
+- [ ] 5.1b The hover destination is a step from the ROW's own colour, not a fixed token — the
+      same rule the tag colour follows and for the same reason. Caught in the prototype, where
+      a fixed `--text-muted` hover was invisible on the trail, which already sits there
 - [ ] 5.2 An external link takes the `alias` cursor and an internal one `pointer`, so the two
       destinations differ before the click rather than after it
 - [ ] 5.3 A tag steps toward the text colour from the ROW's own colour — `color-mix` on
@@ -56,25 +59,44 @@
 - [ ] 5.6 Check every treatment in a light and a dark theme, and against a community theme that
       redefines `--text-faint`
 
-## 6. Verification
+## 6. Organic vault material for the manual pass
 
-- [ ] 6.1 `e2e/specs/73-footer-render.e2e.ts`: a lineage row whose ancestors carry emphasis, a
+Every judgement in D1 was made against a synthetic corpus. The manual pass has to be made
+against notes that read like notes, or the treatment is only known to work on a matrix.
+
+- [ ] 6.1 Add vault notes carrying the D1 corpus in ORGANIC prose — links, tags, highlights,
+      code spans, an image embed, math, escaped characters — sitting where they naturally fall,
+      not one per line. New files rather than edits to the existing `Backlinks/` fixtures, whose
+      exact text `tests/footer-model.test.ts` asserts
+- [ ] 6.2 Cover both surfaces from the same material: chains deep enough to zoom into for the
+      trail, and references to a shared target for the footer
+- [ ] 6.3 Include the ancestor kinds the trail leaked — a callout with children, a table, a
+      fenced code block — since those are the crumbs no synthetic case proved in place
+- [ ] 6.4 Include the cases that only misbehave at length: a chain wide enough to wrap, an
+      ancestor whose text is one long link, and an ancestor with several links on one line
+- [ ] 6.5 Confirm `scripts/gen-backlink-hub.mjs` and `scripts/check-vault-drift.mjs` are
+      unaffected, and that `npm test` still passes against the extended vault
+
+## 7. Verification
+
+- [ ] 7.1 `e2e/specs/73-footer-render.e2e.ts`: a lineage row whose ancestors carry emphasis, a
       code span, an external link, a wikilink and an image renders per D1 — asserted on the
       row's DOM, not on its text
-- [ ] 6.2 The same spec asserts a lineage row and the reference row beneath it produce the same
+- [ ] 7.2 The same spec asserts a lineage row and the reference row beneath it produce the same
       ELEMENTS for the same syntax, and differ only in colour and in media
-- [ ] 6.3 `e2e/specs/80-outline-zoom.e2e.ts`: a callout, table and code-block ancestor's crumb
+- [ ] 7.3 `e2e/specs/80-outline-zoom.e2e.ts`: a callout, table and code-block ancestor's crumb
       carries no block syntax
-- [ ] 6.4 The same spec asserts a crumb renders inline markdown per D1
-- [ ] 6.5 A link inside a crumb takes the click where the pointer is on it, and the crumb takes
+- [ ] 7.4 The same spec asserts a crumb renders inline markdown per D1
+- [ ] 7.5 A link inside a crumb takes the click where the pointer is on it, and the crumb takes
       it everywhere else — the `closest('a, button')` guard asserted as behaviour, not read
-- [ ] 6.6 An ancestor carrying an image embed renders its alt text, and the row's height is a
+- [ ] 7.6 An ancestor carrying an image embed renders its alt text, and the row's height is a
       line of text
-- [ ] 6.7 Negative controls for 6.1 and 6.3: disable the fix, confirm each fails
-- [ ] 6.8 Full sweep in CI on the checkpoint push
+- [ ] 7.7 Negative controls for 7.1 and 7.3: disable the fix, confirm each fails
+- [ ] 7.8 Full sweep in CI on the checkpoint push
 
-## 7. Land
+## 8. Land
 
-- [ ] 7.1 Manual pass in a real vault, both surfaces, on the note that produced the report
-- [ ] 7.2 `openspec sync` the two delta specs into the main specs
-- [ ] 7.3 Archive the change and bump the version
+- [ ] 8.1 Manual pass over the organic notes from section 6, both surfaces, in a light and a
+      dark theme — plus the real note that produced the report
+- [ ] 8.2 `openspec sync` the two delta specs into the main specs
+- [ ] 8.3 Archive the change and bump the version
