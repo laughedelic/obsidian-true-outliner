@@ -58,12 +58,14 @@ construction already drops unknown keys on the first save, so an upgrading vault
 
 Consequences worth naming:
 
-- **The per-tab state is ephemeral by mechanism.** It lives in the editor view (the same shape
-  `outline-zoom` gives its scope: per view, never persisted), so it dies not only when the tab
-  closes but also when the tab switches notes or round-trips through reading view — the editor
-  is rebuilt in those cases, and the fresh one initializes from the default. "Until it's
-  closed" is only approximately achievable; strictly tab-scoped persistence needs leaf-keyed
-  state outside the editor and was rejected.
+- **The per-tab state is ephemeral by mechanism.** It lives in the editor state (the same shape
+  `outline-zoom` gives its scope: per view, never persisted), so it dies when the tab closes and
+  when the tab switches notes — Obsidian rebuilds the editor state in both cases, and the fresh
+  one initializes from the default. A reading-view round-trip does NOT, which this section
+  originally assumed it would; the editor survives it. See "Measured" below, which is where that
+  came from and which supersedes the assumption. "Until it's closed" is only approximately
+  achievable either way; strictly tab-scoped persistence needs leaf-keyed state outside the
+  editor and was rejected.
 - **No per-file memory at all.** A note reopened later starts from the default every time; a
   remembered opt-out would be an explicit-off list with its own rename/delete hygiene — the
   next number in this series if real use demands it.
@@ -164,8 +166,18 @@ Obsidian's own `emulateMobile()`, the call still returns a live element and the 
 status bar still renders it, so an ungated registration would ship an item onto a platform with
 nowhere to put it. Gated on `Platform.isMobile`, which is the one-line fallback the design named.
 
-**The ribbon on mobile is present but not clickable from a test.** The mobile shell renders it
-inside `.side-dock-ribbon.mod-left.workspace-drawer-ribbon`, which is `display: none` with a
-zero-sized box, and `leftSplit.expand()` does not reveal it. That is Obsidian's own drawer
-rather than our surface, so the mobile e2e activates the icon with a dispatched click — which
-still exercises the handler the requirement is about — and the desktop run keeps the real one.
+**The ribbon on mobile is present but not clickable from a test, and that is the emulator.**
+The mobile shell renders it inside `.side-dock-ribbon.mod-left.workspace-drawer-ribbon`.
+Measured: `leftSplit.expand()` DOES open the drawer (`display: none` → `flex`), and the ribbon
+column inside it stays `display: none` with a zero-sized box either way. The emulation run is
+the desktop Electron app in a phone viewport, not the Capacitor app whose drawer actually
+renders that row, so there is no visible mobile control for the harness to reach.
+
+The e2e helper therefore checks for a box rather than branching on platform — a real click
+wherever one is possible, a dispatched click only where it is not, so the coverage upgrades
+itself the day a build renders the row. The dispatched click still exercises the handler the
+requirement is about, and the mobile spec separately asserts the icon exists and carries its
+state, so a surface that went missing fails rather than passing quietly.
+
+**Left to a manual pass:** that a real mobile user can see the ribbon icon and press it. No run
+in this harness covers it, for the reason above.

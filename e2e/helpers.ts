@@ -1004,29 +1004,47 @@ const INDICATOR_SELECTORS = {
 } as const;
 
 /**
- * Activate an indicator the way a user does — a real click on the element.
+ * Activate an indicator the way a user does — a real click on the element,
+ * after opening the sidebar that holds it if it is closed.
  *
- * Under mobile emulation the ribbon is reached through a dispatched click
- * instead, because a WebDriver click needs a visible target and the ribbon has
- * none there: measured, the mobile shell renders it inside
- * `.side-dock-ribbon.mod-left.workspace-drawer-ribbon`, which is `display: none`
- * with a zero-sized box, and `leftSplit.expand()` does not reveal it. That is
- * Obsidian's own drawer, not our surface; what the spec asks of us is that
- * activating the icon toggles the active tab, and a dispatched click exercises
- * exactly the handler that has to do it. The desktop run keeps the real click,
- * so the ordinary path is still measured as a user performs it.
+ * The ribbon falls back to a dispatched click when, and only when, the element
+ * has no box to click. That is not a shortcut taken by platform: it is CHECKED,
+ * so a run where the icon is reachable always gets the real gesture and this
+ * upgrades itself if a future Obsidian or emulator renders one.
+ *
+ * Where it currently applies is the mobile-emulation run, and the reason is
+ * Obsidian's shell rather than our surface. Measured: `leftSplit.expand()` does
+ * open the mobile drawer (`display: none` → `flex`), but the drawer's own
+ * ribbon column — `.side-dock-ribbon.mod-left.workspace-drawer-ribbon` — stays
+ * `display: none` with a zero-sized box either way. The emulator is the desktop
+ * Electron app in a phone viewport, not the Capacitor app whose drawer actually
+ * renders that row, so there is no visible mobile control for this harness to
+ * reach. The dispatched click still exercises the handler the requirement is
+ * about, and the mobile spec separately asserts the icon EXISTS and carries its
+ * state — a surface that went missing fails there rather than passing here.
+ * What no run in this harness can cover is that a real mobile user can see and
+ * press it; that is a manual check, recorded in docs/research/24.
  */
 export async function clickIndicator(which: 'status' | 'ribbon'): Promise<void> {
   await armNoticeRecorder();
   const selector = INDICATOR_SELECTORS[which];
+  if (which === 'ribbon') {
+    // What a user does to reach it, on either platform.
+    await browser.executeObsidian(({ app }) => {
+      (app.workspace as unknown as { leftSplit?: { expand(): void } }).leftSplit?.expand();
+    });
+    await browser.pause(300);
+  }
   const el = browser.$(selector);
   if (!(await el.isExisting())) throw new Error(`no ${which} indicator to click`);
-  if (IS_MOBILE_RUN && which === 'ribbon') {
+  const size = await el.getSize();
+  if (size.width > 0 && size.height > 0) {
+    await el.click();
+  } else {
+    if (which === 'status') throw new Error('the status bar item exists but has no box to click');
     await browser.execute((sel: string) => {
       (document.querySelector(sel) as HTMLElement | null)?.click();
     }, selector);
-  } else {
-    await el.click();
   }
   await browser.pause(200);
 }

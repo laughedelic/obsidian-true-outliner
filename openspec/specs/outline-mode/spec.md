@@ -70,10 +70,17 @@ independently of each other.
 
 ### Requirement: The toggle works from any view mode
 
-The plugin SHALL provide a command (and the existing editor context-menu entry) that toggles
-outline mode for the ACTIVE tab. The command SHALL be available wherever a markdown file is
-the active view, in every view mode — Live Preview, source editor, and reading view — rather
-than only where an editor exists. It SHALL NOT be offered when no markdown file is active.
+The plugin SHALL provide a command that toggles outline mode for the ACTIVE tab. The command
+SHALL be available wherever a markdown file is the active view, in every view mode — Live
+Preview, source editor, and reading view — rather than only where an editor exists. It SHALL
+NOT be offered when no markdown file is active.
+
+The editor context-menu entry SHALL toggle the editor it was opened in, which need not be the
+active tab: the right-click that opened it is what names the editor meant, and in a split it
+is the only thing that does. Its label SHALL state that editor's current state.
+
+Every other surface — the command, the status bar item, the ribbon icon — acts on the active
+tab.
 
 In an editing mode, toggling SHALL flip the active editor's state and re-render it within the
 command's own turn. In reading view, the toggle's ON direction is the reading-view entry
@@ -93,6 +100,12 @@ Toggling SHALL leave every file's bytes and modification time unchanged.
   other notes
 - **THEN** the other tabs' states are unchanged, and a note opened in a new tab afterwards
   follows the default
+
+#### Scenario: The context menu acts on the editor it was opened in
+
+- **WHEN** the editor context menu is opened in a split that is not the active tab and its
+  outline-mode entry is chosen
+- **THEN** that split's mode flips and the active tab's is unchanged
 
 #### Scenario: Toggling leaves the file untouched
 

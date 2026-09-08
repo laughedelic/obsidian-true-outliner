@@ -1953,6 +1953,8 @@ class MarginCompensation implements PluginValue {
   /** A scheduled retry for a measurement that ran before layout, so a second
    * one is never queued on top of it. */
   private remeasure = 0;
+  /** Watches a HIDDEN view for the moment it gets a box; see `scheduleRemeasure`. */
+  private visibility: ResizeObserver | undefined;
   private destroyed = false;
 
   constructor(
@@ -1985,6 +1987,8 @@ class MarginCompensation implements PluginValue {
     if (this.remeasure) {
       (this.view.dom.ownerDocument.defaultView ?? window).cancelAnimationFrame(this.remeasure);
     }
+    this.visibility?.disconnect();
+    this.visibility = undefined;
     this.clearAll();
   }
 
@@ -2002,10 +2006,21 @@ class MarginCompensation implements PluginValue {
    * list and no foldable block has nothing to measure at all and never
    * publishes either, and re-arming on that would hold a frame callback open
    * for as long as the note is. The `not-laid-out` answer is the one that says
-   * another frame will help.
+   * another frame will help — and only when the VIEW itself has a box, since a
+   * hidden one measures zero indefinitely rather than for a frame.
    */
   private scheduleRemeasure(): void {
     if (this.remeasure || this.destroyed) return;
+    // A HIDDEN view measures zero forever, not for one frame. An inactive tab
+    // and the editor retained behind reading view are both display:none, and
+    // retrying those on the frame clock would burn a callback per hidden
+    // outlined editor for as long as it stays hidden — which is indefinitely.
+    // Waiting for a box is the browser's own job, so it is asked rather than
+    // polled; the observer fires exactly once, when the view is shown.
+    if (this.view.dom.getBoundingClientRect().width === 0) {
+      this.observeVisibility();
+      return;
+    }
     // The view's OWN window, not this realm's: a pop-out window has its own
     // frame clock, and a callback scheduled here would run against the wrong
     // one (`zoom-click.ts` makes the same realm check, for the same reason).
@@ -2014,6 +2029,29 @@ class MarginCompensation implements PluginValue {
       this.remeasure = 0;
       if (!this.destroyed) this.apply();
     });
+  }
+
+  /**
+   * Measure once, when a hidden view is next given a box.
+   *
+   * A `ResizeObserver` rather than a poll or a CM6 hook: showing a tab is a
+   * layout event and this is the API for one, and it self-terminates — it
+   * disconnects on the first non-zero box, so a view that is shown and hidden
+   * repeatedly costs one observer per unmeasured state rather than one per
+   * cycle. Observing `view.dom` and writing only custom properties to it cannot
+   * loop: a custom property changes no box.
+   */
+  private observeVisibility(): void {
+    if (this.visibility || this.destroyed) return;
+    const win = this.view.dom.ownerDocument.defaultView;
+    if (!win?.ResizeObserver) return; // no observer available: the next update measures
+    this.visibility = new win.ResizeObserver(() => {
+      if (this.destroyed || this.view.dom.getBoundingClientRect().width === 0) return;
+      this.visibility?.disconnect();
+      this.visibility = undefined;
+      this.apply();
+    });
+    this.visibility.observe(this.view.dom);
   }
 
   /**

@@ -74,6 +74,21 @@ describe('outlineModeField: the per-tab mode', () => {
     expect(isOutlineMode(second)).toBe(true);
   });
 
+  it('binds each extension to its OWN source, not to whichever loaded last', () => {
+    // A module-level handle would make the second call retarget the first
+    // extension's editors too. The plugin loads once, so nothing in the app
+    // would have seen it — but a shared mutable that is only correct because
+    // there happens to be one caller is a trap for the second one, and this
+    // suite is already that second caller.
+    const openOutlined = load(settings(true));
+    const openStock = load(settings(false));
+    expect(isOutlineMode(openOutlined())).toBe(true);
+    expect(isOutlineMode(openStock())).toBe(false);
+    // And again in the other order, so neither is merely "whichever ran last".
+    expect(isOutlineMode(openStock())).toBe(false);
+    expect(isOutlineMode(openOutlined())).toBe(true);
+  });
+
   it('reads as off in an editor the field was never installed in', () => {
     // Anything the plugin's extensions did not reach: no gate should open there,
     // and asking for an absent field must not throw either.

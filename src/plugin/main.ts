@@ -747,8 +747,18 @@ export default class TrueOutlinerPlugin extends Plugin {
       status.addClass('true-outliner-mode-status');
       status.addClass('mod-clickable');
       status.setAttribute('role', 'button');
-      status.setAttribute('tabindex', '0');
+      status.tabIndex = 0;
       this.registerDomEvent(status, 'click', () => this.toggleActiveTab());
+      // A `div` with `role="button"` and a tab stop is reachable by keyboard
+      // and, without this, does nothing when it gets there — the same
+      // equivalent the footer's composite rows build for themselves
+      // (`backlinks-footer.ts`'s `makeDisclosure`). `preventDefault` because
+      // Space would otherwise scroll the page as well.
+      this.registerDomEvent(status, 'keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        this.toggleActiveTab();
+      });
       this.statusItem = status;
     }
 
@@ -800,6 +810,22 @@ export default class TrueOutlinerPlugin extends Plugin {
       on === undefined ? 'Outline mode' : `Outline mode ${on ? 'on' : 'off'} — click to toggle`,
     );
     this.ribbonItem?.toggleClass('true-outliner-ribbon-on', on === true);
+    // The ribbon's whole state signal is a color, which a screen reader cannot
+    // see and which its unchanging label does not say. `aria-pressed` is the
+    // one that carries it; REMOVED rather than set to a value when no markdown
+    // tab is active, because neither "pressed" nor "not pressed" is true of a
+    // control that is stating no mode at all — the third thing the spec says
+    // the indicators must be able to say.
+    if (this.ribbonItem) {
+      if (on === undefined) this.ribbonItem.removeAttribute('aria-pressed');
+      else this.ribbonItem.setAttribute('aria-pressed', String(on));
+    }
+    // Same three states for the status item, whose text already carries them
+    // for a sighted reader.
+    if (this.statusItem) {
+      if (on === undefined) this.statusItem.removeAttribute('aria-pressed');
+      else this.statusItem.setAttribute('aria-pressed', String(on));
+    }
   }
 
   /**
@@ -1149,7 +1175,7 @@ export default class TrueOutlinerPlugin extends Plugin {
 
 const SETTING_OUTLINE_BY_DEFAULT = {
   name: 'Open new tabs in outline mode',
-  desc: 'Whether a note opens outlined or as stock Obsidian. Applies to new tabs only — it never retoggles a tab that is already open, the way Obsidian\u2019s own default view mode works. Toggle a single tab from the command palette (\u201cToggle outline mode\u201d), the editor right-click menu, the ribbon icon, or the status bar item.',
+  desc: 'Whether a note opens outlined or as stock Obsidian. Applies to notes opened from now on \u2014 in a new tab, or in an existing tab that switches to another note. It never retoggles a tab that is already open, the way Obsidian\u2019s own default view mode works. Toggle a single tab from the command palette (\u201cToggle outline mode\u201d), the editor right-click menu, the ribbon icon, or the status bar item.',
 } as const;
 
 const SETTING_DEBUG_CROSSCHECK = {

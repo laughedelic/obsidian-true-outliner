@@ -133,19 +133,25 @@ the tab is in. The staleness this decision originally hedged against cannot aris
 label would require a mode change with no event, and a mode change is either a dispatch through
 the toggle path or a fresh `EditorState`, and both are covered.
 
-`addStatusBarItem()` is registered unconditionally (documented as unavailable on mobile,
-asserted by the mobile e2e; a `Platform.isMobile` gate is the one-line fallback). The ribbon
-icon is `list-tree` — the menu entry's icon — with a class-reflecting on-state; both click into
-the same toggle path as the command. Wording and on-state treatment are one visual pass in the
-tasks, recorded in docs/research/24, the way the decoration experiments settled theirs.
+`addStatusBarItem()` is gated on `Platform.isMobile`. It was to be registered unconditionally,
+on the grounds that a platform with no status bar would simply have no item — measured under
+Obsidian's own `emulateMobile()`, that is false: the call still returns a live element and the
+desktop shell still renders it, so the gate the risk table held as a fallback is what ships. The
+ribbon icon is `list-tree` — the menu entry's icon — with a class-reflecting on-state, and
+carries the indication alone on mobile; both click into the same toggle path as the command.
+Because that on-state is a colour, each indicator also carries `aria-pressed`, removed rather
+than set when no markdown tab is active: neither value is true of a control stating no mode.
+Wording and on-state treatment are one visual pass in the tasks, recorded in
+docs/research/24, the way the decoration experiments settled theirs.
 
 ### D8. The settings toggle sets the default, and nothing else
 
 Declarative `getSettingDefinitions()` toggle plus the pre-1.13 `display()` fallback, kept in
 sync; the setter persists and does NOT sweep open tabs — the spec states "changing it SHALL
 NOT retoggle already-open tabs", and per D4 there is nothing to sweep: future constructions
-pick the new value up at `init`. Discoverable wording states the semantics ("new tabs only")
-and names the other surfaces.
+pick the new value up at `init`. Discoverable wording states the semantics — notes opened from
+now on, in a new tab OR in an existing tab that switches notes, since both build a fresh editor
+state — and names the other surfaces.
 
 ### D9. Upgrade is the allow-list doing its job; downgrade degrades to stock, not to breakage
 
@@ -164,8 +170,8 @@ the rollback story is written rather than discovered.
 - [Reading-mode `setState` behaves differently from its documented encoding] → measured by task
   1 before the entry was built: it round-trips, and the `source` default it might have needed
   turned out to be unreachable. The same measurement moved D4's reset boundary.
-- [`addStatusBarItem` renders on mobile emulators despite the docs] → the mobile e2e asserts
-  absence; the `Platform.isMobile` gate is the one-line fallback.
+- [`addStatusBarItem` renders on mobile emulators despite the docs] → measured true, so the
+  `Platform.isMobile` gate shipped rather than staying a fallback (D7).
 - [Two tabs on one file can differ] → the model the scenario asked for, and the per-view shape
   zoom already ships; the indicators state the active tab, so the difference is never hidden.
 - [The upgrade flip outlines every newly opened note] → deliberate and one settings toggle

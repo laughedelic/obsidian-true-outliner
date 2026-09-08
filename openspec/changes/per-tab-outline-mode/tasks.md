@@ -119,3 +119,10 @@ measurement of its own (D7), but only this one can change a design decision.
       Purpose change (design.md, Migration Plan). Verify: the main spec states the per-tab
       model end to end, and `openspec status` reports the change ready to archive
 - [x] 6.2 `openspec validate per-tab-outline-mode --strict`
+- [ ] 6.3 `openspec archive per-tab-outline-mode`, so the change leaves the active tree once
+      its specs are synced
+- [ ] 6.4 `npm version minor` — minor, not patch: the mode's shape changes and the per-file
+      store retires, so an upgrading install behaves differently on its next file open. Both
+      6.3 and 6.4 land on this branch before the merge, per design.md's Migration Plan; the
+      version bump is what makes CI cut a release from the squashed merge commit, so it is
+      held until the change is ready to merge rather than run alongside the rest

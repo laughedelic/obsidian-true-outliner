@@ -30,20 +30,11 @@ import {
 /** Turn this view's outline mode on or off. */
 export const outlineToggled = StateEffect.define<boolean>();
 
-/**
- * Where a newly constructed editor's mode comes from.
- *
- * Injected rather than imported, for `zoom-state.ts`'s reason: the default is a
- * plugin setting and this module must stay free of `obsidian` to remain
- * reachable from the unit suite. Read at `create` — the setting is live, not
- * captured, so a tab constructed after the setting changed picks up the new
- * value and one constructed before keeps the old one, which is the whole of
- * "changing it touches future opens only" (design D8).
- */
-let readDefault: (() => boolean) | undefined;
-
 export const outlineModeField = StateField.define<boolean>({
-  create: () => readDefault?.() ?? false,
+  // Only ever the fallback: `outlineStateExtension` supplies the real
+  // initializer through `init`, and an editor that somehow got the bare field
+  // should open no gate.
+  create: () => false,
   update(value, tr) {
     for (const effect of tr.effects) if (effect.is(outlineToggled)) return effect.value;
     return value;
@@ -68,7 +59,25 @@ export function isOutlineMode(state: EditorState): boolean {
   return state.field(outlineModeField, false) ?? false;
 }
 
+/**
+ * The field, with a new editor's mode bound to `source`'s live default.
+ *
+ * `init` rather than a module-level handle, so the binding belongs to THIS
+ * extension: a module-level one is shared, and a second call would silently
+ * retarget every editor built from the first extension too. The plugin only
+ * calls this once, so nothing observed that — but a shared mutable that is only
+ * correct because there happens to be one caller is a trap for the second one,
+ * and the unit suite is already a second caller.
+ *
+ * The default is READ, not captured: `init` runs per `EditorState.create`, so a
+ * tab constructed after the setting changed picks up the new value and one
+ * constructed before keeps the old one, which is the whole of "changing it
+ * touches future opens only" (design D8).
+ *
+ * The source is injected rather than imported, for `zoom-state.ts`'s reason:
+ * the default is a plugin setting, and this module must stay free of `obsidian`
+ * to remain reachable from the unit suite.
+ */
 export function outlineStateExtension(source: { readonly outlineByDefault: boolean }): Extension {
-  readDefault = () => source.outlineByDefault;
-  return outlineModeField;
+  return outlineModeField.init(() => source.outlineByDefault);
 }
