@@ -14,6 +14,30 @@ import * as h from '../helpers.js';
 /** Referenced from `Backlinks/Deep chain.md`, so its footer carries lineage. */
 const TARGET = 'Projects/Aurora Dashboard.md';
 
+/**
+ * A second target whose whole footer is a few dozen rows rather than the hub's
+ * few hundred.
+ *
+ * The two cases that compare a measurement to another measurement use this one.
+ * The footer paints what it knows and fills the rest in as it resolves, so on
+ * the hub a count taken now and a count taken a moment later are both true and
+ * different — measured on CI, 597 rows against 646. That is the fill, not the
+ * thing those cases mean to assert. A footer small enough to finish rendering
+ * removes the race rather than waiting it out.
+ *
+ * `Backlinks/Family tree.md` and `Backlinks/Kinds gallery.md` reference it, so
+ * it still carries deep lineage — rows with ancestors above them, which is what
+ * a guide needs to exist at all.
+ */
+const SMALL_TARGET = 'Backlinks/Reference target.md';
+
+/** Open a target and put its footer on screen. */
+async function openFooterOf(note: string): Promise<void> {
+  await h.openNote(note);
+  await h.setOutlineMode(true);
+  await scrollToFooter();
+}
+
 interface Shape {
   lineageRows: number;
   segIcons: number;
@@ -93,12 +117,12 @@ async function settledGuideRows(): Promise<number> {
   // a deadline rather than an iteration count, for the same reason.
   await scrollToFooter();
   let last = -1;
-  const deadline = Date.now() + 6000;
+  const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
     const now = (await shape())?.guideRows ?? -1;
     if (now > 0 && now === last) return now;
     last = now;
-    await browser.pause(400);
+    await browser.pause(300);
   }
   return last;
 }
@@ -205,6 +229,7 @@ describe('the footer’s appearance settings', function () {
     // has no caret of its own, and every row's lineage begins at its source
     // note's own root. So a footer row draws one guide per ancestor row above
     // it whatever the editor is doing, and does not repaint as the caret moves.
+    await openFooterOf(SMALL_TARGET);
     await set('backlinksGuides', true);
     await set('guideVisibility', 'cursor');
     const before = await settledGuideRows();
@@ -226,6 +251,7 @@ describe('the footer’s appearance settings', function () {
 
     await set('guideVisibility', 'all');
     await set('backlinksGuides', false);
+    await openFooterOf(TARGET);
   });
 
   it('takes the unit, the thickness and the intensity the editor takes', async function () {
@@ -233,8 +259,8 @@ describe('the footer’s appearance settings', function () {
     // this is consistency by construction rather than by a second
     // implementation. Asserted against the RESOLVED values a row renders with,
     // in case some rule ever scopes one of them to the editor.
+    await openFooterOf(SMALL_TARGET);
     await set('backlinksGuides', true);
-    await scrollToFooter();
 
     /** A footer row's own resolved chrome, once there is a row to read it from. */
     const rowChrome = async (): Promise<{ unit: number; guide: number; inset: number }> => {
@@ -276,5 +302,6 @@ describe('the footer’s appearance settings', function () {
     await set('outlineUnit', 'auto');
     await set('guideThickness', 'hairline');
     await set('backlinksGuides', false);
+    await openFooterOf(TARGET);
   });
 });
