@@ -51,6 +51,16 @@ async function set(key: string, value: unknown): Promise<void> {
   await browser.pause(700);
 }
 
+/** The footer is a block widget at the end of the note, and CodeMirror renders
+ * the viewport — so it exists in the DOM only while the view is scrolled to it. */
+async function scrollToFooter(): Promise<void> {
+  await browser.executeObsidian(() => {
+    const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
+    if (s) s.scrollTop = s.scrollHeight;
+  });
+  await browser.pause(700);
+}
+
 describe('the footer’s appearance settings', function () {
   before(async function () {
     await obsidianPage.resetVault();
@@ -63,11 +73,8 @@ describe('the footer’s appearance settings', function () {
 
     await h.openNote(TARGET);
     await h.setOutlineMode(true);
-    await browser.executeObsidian(() => {
-      const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
-      if (s) s.scrollTop = s.scrollHeight;
-    });
-    await browser.pause(1500);
+    await scrollToFooter();
+    await browser.pause(800);
   });
 
   afterEach(async function () {
@@ -121,5 +128,92 @@ describe('the footer’s appearance settings', function () {
 
     await set('backlinksGuides', false);
     expect((await shape())!.guideRows).toBe(0);
+  });
+
+  it('draws none while the guide layer itself is off, and returns when it comes back', async function () {
+    // Two conditions, not one. Turning the layer off is a statement about the
+    // outline's chrome rather than about one surface, and a reader who turned
+    // guides off does not expect them under the note either.
+    await set('backlinksGuides', true);
+    expect((await shape())!.guideRows).toBeGreaterThan(0);
+
+    await set('guideVisibility', 'off');
+    expect((await shape())!.guideRows).toBe(0);
+
+    await set('guideVisibility', 'all');
+    expect((await shape())!.guideRows).toBeGreaterThan(0);
+    await set('backlinksGuides', false);
+  });
+
+  it('keeps its own rows’ guides while the editor draws only the cursor’s levels', async function () {
+    // The two caret- and document-scoped modes have no referent here: a footer
+    // has no caret of its own, and every row's lineage begins at its source
+    // note's own root. So a footer row draws one guide per ancestor row above
+    // it whatever the editor is doing, and does not repaint as the caret moves.
+    await set('backlinksGuides', true);
+    await set('guideVisibility', 'cursor');
+    const before = (await shape())!.guideRows;
+    expect(before).toBeGreaterThan(0);
+
+    // Plain `setCursor`: the caret-placement policy corrects a position at a
+    // heading's very start, which `setCursorSettled` would report as a failure
+    // to hold — irrelevant here, where only the MOVE matters. The move scrolls
+    // the caret into view and the footer out of it, and CodeMirror renders the
+    // viewport, so it has to be scrolled back before there is anything to
+    // measure.
+    await h.setCursor(0, 0);
+    await browser.pause(300);
+    await scrollToFooter();
+    expect((await shape())!.guideRows).toBe(before);
+
+    await set('guideVisibility', 'all');
+    await set('backlinksGuides', false);
+  });
+
+  it('takes the unit, the thickness and the intensity the editor takes', async function () {
+    // Chrome vocabulary is declared at `body`, which both surfaces inherit, so
+    // this is consistency by construction rather than by a second
+    // implementation. Asserted against the RESOLVED values a row renders with,
+    // in case some rule ever scopes one of them to the editor.
+    await set('backlinksGuides', true);
+
+    /** A footer row's own resolved chrome. */
+    const rowChrome = (): Promise<{ unit: number; guide: number; inset: number }> =>
+      browser.execute(() => {
+        const row = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-row',
+        );
+        if (!row) throw new Error('no footer row');
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:absolute;visibility:hidden;height:0;';
+        row.appendChild(probe);
+        const width = (expr: string): number => {
+          probe.style.width = expr;
+          return +probe.getBoundingClientRect().width.toFixed(2);
+        };
+        const unit = width('var(--to-decor-unit)');
+        const guide = width('var(--to-guide-width)');
+        probe.remove();
+        const group = document.querySelector<HTMLElement>(
+          '.workspace-leaf.mod-active .to-backlinks-group',
+        );
+        const inset = group ? parseFloat(getComputedStyle(group).paddingLeft) || 0 : 0;
+        return { unit, guide, inset };
+      });
+
+    const base = await rowChrome();
+    await set('outlineUnit', 'wide');
+    await set('guideThickness', 'medium');
+    const after = await rowChrome();
+    // Relationships, not pixels: a wider step is wider on this surface too, and
+    // the group's own inset — stated from the unit rather than copied from a
+    // row — moves with it.
+    expect(after.unit).toBeGreaterThan(base.unit);
+    expect(after.guide).toBeGreaterThan(base.guide);
+    expect(after.inset).toBeGreaterThan(base.inset);
+
+    await set('outlineUnit', 'auto');
+    await set('guideThickness', 'hairline');
+    await set('backlinksGuides', false);
   });
 });

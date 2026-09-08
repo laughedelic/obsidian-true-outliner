@@ -75,10 +75,10 @@
 
 ## 5. Guide appearance
 
-- [ ] 5.1 Wire the thickness and intensity settings through publication, and verify in the editor
+- [x] 5.1 Wire the thickness and intensity settings through publication, and verify in the editor
   and the footer that every guide's rendered width and colour follow, with no line's text or
   marker moving — assert the relationship between the two surfaces' values, not absolute widths
-- [ ] 5.2 Verify a thickness or intensity change reaches a second open pane and an open footer
+- [x] 5.2 Verify a thickness or intensity change reaches a second open pane and an open footer
   without touching a note and without `forceRedraw` — negative control: route the change through
   `forceRedraw` instead and confirm the second pane's assertion fails
 
@@ -114,11 +114,11 @@
 
 ## 7. The footer follows
 
-- [ ] 7.1 Draw no footer guides while the layer is off, leaving the footer's own setting otherwise
+- [x] 7.1 Draw no footer guides while the layer is off, leaving the footer's own setting otherwise
   in charge, and verify in `e2e/specs/79-footer-appearance.e2e.ts` that the guide-row count goes to
   zero and returns — negative control: read only the footer's own setting and confirm the case
   fails
-- [ ] 7.2 Verify a footer row's guides do not change as the caret moves under cursor-scoped
+- [x] 7.2 Verify a footer row's guides do not change as the caret moves under cursor-scoped
   visibility, and that unit, thickness and intensity changes do reach the footer
 
 ## 8. The settings tab
@@ -126,7 +126,7 @@
 - [x] 8.1 Add the five controls to `getSettingDefinitions()` and to the pre-1.13 `display()`
   fallback, with the plugin's accessor pair for each, and verify both surfaces render the same
   controls with the same labels
-- [ ] 8.2 Verify each control's change applies live in an open note (`e2e/specs/41-backlinks-
+- [x] 8.2 Verify each control's change applies live in an open note (`e2e/specs/41-backlinks-
   settings.e2e.ts`'s settings-driving helper is the existing pattern), appearance without a
   decoration rebuild and visibility with one
 

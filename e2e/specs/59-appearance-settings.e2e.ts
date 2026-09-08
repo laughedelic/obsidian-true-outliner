@@ -88,6 +88,12 @@ describe('outline appearance settings', function () {
 
   afterEach(async function () {
     await h.applyStyleOverride('appearance-spec-override', null);
+    // Every setting here is global and persisted, so one test's choice is the
+    // next one's starting point — and a test that begins by setting the value
+    // it means to change measures nothing.
+    await set('outlineUnit', 'auto');
+    await set('guideThickness', 'hairline');
+    await set('guideIntensity', 'normal');
   });
 
   after(async function () {
@@ -166,6 +172,49 @@ describe('outline appearance settings', function () {
     );
     expect(await resolveLength('--to-guide-width')).toBe(5);
     expect(await guideColor()).toBe('rgb(1, 2, 3)');
+  });
+
+  it('reaches a second, inactive pane — which no decoration rebuild does', async function () {
+    // `forceRedraw` (main.ts) applies a setting by toggling outline mode in the
+    // ACTIVE view, so a second pane keeps rendering the old one until something
+    // else wakes it. A property on `body` has no such limit: every pane
+    // inherits it, and the change lands on the next style recalculation.
+    await browser.executeObsidian(async ({ app, obsidian }) => {
+      const leaf = app.workspace.getLeaf('split');
+      const file = app.vault.getAbstractFileByPath('Notes/Edge Case Zoo.md');
+      if (file instanceof obsidian.TFile) await leaf.openFile(file);
+    });
+    await browser.pause(800);
+
+    /** The guide width each open editor resolves, in DOM order. */
+    const perPane = (): Promise<number[]> =>
+      browser.execute(() => {
+        const panes = Array.from(document.querySelectorAll<HTMLElement>('.cm-content'));
+        return panes.map((pane) => {
+          const probe = document.createElement('div');
+          probe.style.cssText =
+            'position:absolute;visibility:hidden;height:0;width:var(--to-guide-width);';
+          pane.appendChild(probe);
+          const width = +probe.getBoundingClientRect().width.toFixed(2);
+          probe.remove();
+          return width;
+        });
+      });
+
+    const before = await perPane();
+    expect(before.length).toBeGreaterThan(1); // two panes, or this proves nothing
+    await set('guideThickness', 'medium');
+    const after = await perPane();
+    expect(after.length).toBe(before.length);
+    // EVERY pane, not just the one the settings tab was opened over.
+    for (const [i, width] of after.entries()) expect(width).toBeGreaterThan(before[i]!);
+
+    await set('guideThickness', 'hairline');
+    await browser.executeObsidian(({ app }) => {
+      const leaves = app.workspace.getLeavesOfType('markdown');
+      if (leaves.length > 1) leaves[leaves.length - 1]!.detach();
+    });
+    await browser.pause(400);
   });
 
   it('clears what it published on unload, and republishes the saved choices on enable', async function () {
