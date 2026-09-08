@@ -19,7 +19,6 @@ import type { OpOutput } from '../ops';
 import type { OpResult } from '../result';
 import { applyEdits } from '../result';
 import {
-  OutlineModeRegistry,
   DEFAULT_DATA,
   normalizePluginData,
   type GroupHeight,
@@ -60,13 +59,14 @@ import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
+import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
 import { zoomDecorationsExtension } from './zoom-decorations';
 import { zoomTrailExtension } from './zoom-trail';
 import { zoomViewExtension } from './zoom-view';
 import { viewFor } from './view-registry';
 import { zoomScope } from './zoom-scope';
-import { zoomAnchorField, zoomCleared, zoomTo } from './zoom-state';
+import { zoomCleared, zoomTo } from './zoom-state';
 import { operandEscapes, parentOf, reresolveZoom, resolveZoom } from '../zoom';
 import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
@@ -182,9 +182,8 @@ export default class TrueOutlinerPlugin extends Plugin {
   private data: PluginData = { ...DEFAULT_DATA };
   /** Which notes reference which — see backlink-index.ts. */
   readonly backlinks = new BacklinkIndex(this.app);
-  private registry!: OutlineModeRegistry;
   /** Public so the e2e harness can read classification evidence the same
-   * way it already reads `isOutline` (design.md D8). */
+   * way it already reads the mode (design.md D8). */
   readonly stats = new TransactionStats();
 
   /**
@@ -209,19 +208,17 @@ export default class TrueOutlinerPlugin extends Plugin {
   override async onload(): Promise<void> {
     this.showDevBuildStamp();
     this.data = normalizePluginData(await this.loadData());
-    this.registry = new OutlineModeRegistry(async (paths) => {
-      this.data.outlinePaths = paths;
-      await this.saveData(this.data);
-    });
-    this.registry.hydrate(this.data.outlinePaths);
 
+    // `checkCallback`, not `editorCheckCallback`: the mode is a property of the
+    // TAB, and a tab in reading view has no editor to hand the latter. Offered
+    // wherever a markdown file is the active view, in every view mode.
     this.addCommand({
       id: 'toggle-outline-mode',
       name: 'Toggle outline mode',
-      editorCheckCallback: (checking, _editor, ctx) => {
-        const path = ctx.file?.path;
-        if (!path) return false;
-        if (!checking) void this.toggleMode(path);
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view?.file) return false;
+        if (!checking) this.toggleActiveTab();
         return true;
       },
     });
@@ -255,22 +252,21 @@ export default class TrueOutlinerPlugin extends Plugin {
       'zoom-out',
       'Zoom out one level',
       (view) => this.zoomOutFrom(view),
-      (view) => zoomScope(view.state, this) !== null,
+      (view) => zoomScope(view.state) !== null,
     );
     this.addZoomCommand(
       'zoom-clear',
       'Zoom out fully',
       (view) => {
-        if (zoomScope(view.state, this) === null) return false;
+        if (zoomScope(view.state) === null) return false;
         view.dispatch({ effects: zoomCleared.of(null) });
         return true;
       },
-      (view) => zoomScope(view.state, this) !== null,
+      (view) => zoomScope(view.state) !== null,
     );
 
     this.registerEvent(
       this.app.vault.on('rename', (file, oldPath) => {
-        if (file instanceof TFile) void this.registry.handleRename(oldPath, file.path);
         // The index keys sources by path, so a rename is a removal plus an add;
         // leaving the old key would report references from a file that is gone.
         this.backlinks.removeSource(oldPath);
@@ -321,24 +317,23 @@ export default class TrueOutlinerPlugin extends Plugin {
       }),
     );
     this.registerEvent(
-      this.app.vault.on('delete', (file) => {
-        if (file instanceof TFile) void this.registry.handleDelete(file.path);
-      }),
-    );
-    this.registerEvent(
       this.app.workspace.on('editor-menu', (menu, _editor, info) => {
         const path = info.file?.path;
         if (!path || !path.endsWith('.md')) return;
-        const on = this.registry.isOutline(path);
+        const view = viewFor(info);
+        // The menu names THIS editor's state, not the active tab's: the
+        // right-click that opened it is what decides which editor is meant, and
+        // in a split it need not be the active one.
+        const on = !!view && isOutlineMode(view.state);
         menu.addItem((item) =>
           item
             .setTitle(on ? 'Disable outline mode' : 'Enable outline mode')
             .setIcon('list-tree')
-            .onClick(() => void this.toggleMode(path)),
+            .onClick(() => {
+              if (view) this.setOutlineMode(view, !on);
+            }),
         );
-        if (!on) return;
-        const view = viewFor(info);
-        if (!view) return;
+        if (!on || !view) return;
         menu.addItem((item) =>
           item
             .setTitle('Zoom in to node')
@@ -347,7 +342,7 @@ export default class TrueOutlinerPlugin extends Plugin {
               this.zoomInFrom(view);
             }),
         );
-        if (zoomScope(view.state, this) === null) return;
+        if (zoomScope(view.state) === null) return;
         menu.addItem((item) =>
           item
             .setTitle('Zoom out fully')
@@ -369,7 +364,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     // extensions that READ the scope are registered after the state that holds
     // it and the reading order matches the dependency.
     this.registerEditorExtension(zoomStateExtension());
-    this.registerEditorExtension(grammarExtension(this));
+    // Before every extension that GATES on the mode, so the field it reads is
+    // installed by the time their own `create` runs.
+    this.registerEditorExtension(outlineStateExtension(this));
+    this.registerEditorExtension(grammarExtension());
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
     // Registered LAST among the decoration producers: it is the only block
@@ -380,10 +378,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     // among the decoration producers: these are the two block-decoration
     // sources, and keeping them adjacent and last makes any interaction with
     // the established layers attributable to them.
-    this.registerEditorExtension(zoomDecorationsExtension(this));
+    this.registerEditorExtension(zoomDecorationsExtension());
     this.registerEditorExtension(zoomTrailExtension(this));
-    this.registerEditorExtension(zoomClickExtension(this));
-    this.registerEditorExtension(zoomViewExtension(this));
+    this.registerEditorExtension(zoomClickExtension());
+    this.registerEditorExtension(zoomViewExtension());
     // A footer's unfolded state belongs to the reading, not to the note: when
     // its tab closes, the state goes with it. `layout-change` is the event that
     // fires for a closed tab; the leaves still open name what to keep.
@@ -400,7 +398,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // Re-asserts the cursor of operations that CHOOSE one (move, split, merge,
     // paste, structural delete) so redo restores it — history recomputes a
     // cursor by mapping, which cannot reproduce a choice (history-caret.ts).
-    this.registerEditorExtension(historyCaretExtension(this));
+    this.registerEditorExtension(historyCaretExtension());
 
     this.addCommand({
       id: 'print-transaction-stats',
@@ -412,6 +410,8 @@ export default class TrueOutlinerPlugin extends Plugin {
     });
 
     this.addSettingTab(new TrueOutlinerSettingTab(this.app, this));
+
+    this.registerIndicators();
 
     this.app.workspace.onLayoutReady(() => {
       void this.warnAboutConflicts();
@@ -426,8 +426,19 @@ export default class TrueOutlinerPlugin extends Plugin {
     });
   }
 
-  isOutline(path: string): boolean {
-    return this.registry.isOutline(path);
+  get outlineByDefault(): boolean {
+    return this.data.outlineByDefault;
+  }
+
+  /**
+   * Persists the default. Deliberately touches no open tab: each holds its own
+   * state and `outlineModeField.create` reads this value live, so the next
+   * editor state built picks the new value up and every existing one keeps
+   * what it has (design D8).
+   */
+  async setOutlineByDefault(value: boolean): Promise<void> {
+    this.data.outlineByDefault = value;
+    await this.saveData(this.data);
   }
 
   get debugCrossCheck(): boolean {
@@ -464,7 +475,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // it — which left a second split's footer showing a setting that had been
     // turned off.
     nudgeFooters(this.app);
-    await this.forceRedraw();
+    this.forceRedraw();
   }
 
   /**
@@ -555,7 +566,7 @@ export default class TrueOutlinerPlugin extends Plugin {
   async setMarkerVisibility(value: MarkerVisibility): Promise<void> {
     this.data.markerVisibility = value;
     await this.saveData(this.data);
-    await this.forceRedraw();
+    this.forceRedraw();
   }
 
   get guideHighlight(): GuideHighlight {
@@ -565,7 +576,7 @@ export default class TrueOutlinerPlugin extends Plugin {
   async setGuideHighlight(value: GuideHighlight): Promise<void> {
     this.data.guideHighlight = value;
     await this.saveData(this.data);
-    await this.forceRedraw();
+    this.forceRedraw();
   }
 
   get markerHighlight(): MarkerHighlight {
@@ -575,32 +586,34 @@ export default class TrueOutlinerPlugin extends Plugin {
   async setMarkerHighlight(value: MarkerHighlight): Promise<void> {
     this.data.markerHighlight = value;
     await this.saveData(this.data);
-    await this.forceRedraw();
+    this.forceRedraw();
   }
 
   /**
-   * A plain cursor nudge (what `refreshDecorations` uses for the mode
-   * toggle) forces `computeDecorations`/`computeMarkers` to recompute, but
-   * doesn't reliably reach `MarginCompensation` — a ViewPlugin with no
-   * decorations of its own, whose `docViewUpdate` hook only fires when
-   * SOME decoration source's output actually differs (CM6's own doc
-   * comment: "due to content, decoration, or viewport changes"). For a
-   * note containing only widget-replaced atoms (table/callout/hr/html —
-   * `computeMarkers` deliberately skips these; `computeDecorations` doesn't
-   * read `markerVisibility` at all), changing the setting produces
-   * byte-identical StateField output, so CM6 correctly sees no diff and
-   * never re-fires `docViewUpdate` — confirmed live: a table-only note's
-   * marker visibility silently failed to update until this fix.
+   * Two GENUINELY different decoration outputs in one turn, so a settings
+   * change lands even where its own output would be byte-identical.
    *
-   * Toggling outline mode off then immediately back on (via the registry
-   * directly, not `toggleMode` — no user-facing Notice for an internal
-   * refresh) guarantees two GENUINELY different decoration outputs
-   * (`Decoration.none` vs. the real thing) regardless of note content,
-   * which CM6 always detects as a real change — reliably triggering
-   * `docViewUpdate` twice, with the second pass reading the just-saved
-   * setting. Both toggles are public-API-only (an `Editor.setCursor` per
-   * step, same trick `refreshDecorations` already uses) — no private CM6
-   * access, consistent with this project's own public-API-only bar.
+   * A plain cursor nudge forces `computeDecorations`/`computeMarkers` to
+   * recompute, but doesn't reliably reach `MarginCompensation` — a ViewPlugin
+   * with no decorations of its own, whose `docViewUpdate` hook only fires when
+   * SOME decoration source's output actually differs (CM6's own doc comment:
+   * "due to content, decoration, or viewport changes"). For a note containing
+   * only widget-replaced atoms (table/callout/hr/html — `computeMarkers`
+   * deliberately skips these; `computeDecorations` doesn't read
+   * `markerVisibility` at all), changing the setting produces byte-identical
+   * StateField output, so CM6 correctly sees no diff and never re-fires
+   * `docViewUpdate` — confirmed live: a table-only note's marker visibility
+   * silently failed to update until this fix.
+   *
+   * Flipping the mode field off and immediately back on guarantees the two
+   * outputs differ (`Decoration.none` vs. the real thing) regardless of note
+   * content, which CM6 always detects — firing `docViewUpdate` twice, the
+   * second pass reading the just-saved setting. Two separate dispatches, not
+   * one: a single transaction carrying both effects ends on the same value it
+   * started from and produces one output, which is the whole thing this
+   * defeats. No Notice and no indicator refresh: this is an internal repaint,
+   * not a user-visible mode change, which is why it does not go through
+   * `setOutlineMode`.
    *
    * `app.workspace.updateOptions()` — Obsidian's public "editor-extension-
    * affecting settings changed" API, and the obvious-looking replacement —
@@ -620,86 +633,154 @@ export default class TrueOutlinerPlugin extends Plugin {
    * setting live, so there is no diff for CM6 to see. Those same e2e tests
    * stay as the regression net for this scenario.
    */
-  private async forceRedraw(): Promise<void> {
+  private forceRedraw(): void {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    const path = view?.file?.path;
-    if (!view || !path || !this.registry.isOutline(path)) return; // nothing rendered to refresh
-    // Off and back on within one turn. `toggle` decides synchronously (see its
-    // own comment), so the note is never left rendering as a stock note while a
-    // write settles — the two passes are what this method needs, not a visible
-    // interval between them. The transient "off" reaches no file: the registry
-    // orders its writes and snapshots each at write time, so both of these
-    // record the state this turn ends in.
-    const off = this.registry.toggle(path); // off
-    view.editor.setCursor(view.editor.getCursor());
-    const on = this.registry.toggle(path); // back on, now reading the new setting
-    view.editor.setCursor(view.editor.getCursor());
-    await Promise.all([off.saved, on.saved]);
+    const cm = view ? viewFor(view) : undefined;
+    if (!cm || !isOutlineMode(cm.state)) return; // nothing rendered to refresh
+    cm.dispatch({ effects: outlineToggled.of(false) });
+    cm.dispatch({ effects: outlineToggled.of(true) });
   }
 
   /**
-   * Everything a reader sees happens before this function first yields: the
-   * mode is in force, the notice is up, the footers are nudged and the note is
-   * repainted, and only then is the write awaited. Awaiting the write first put
-   * the whole redraw behind disk latency, and `refreshDecorations` is the only
-   * thing that makes the decorations recompute at all.
+   * The one path every mode change goes through — the command, the editor
+   * context menu, the status bar item and the ribbon icon.
+   *
+   * The dispatch IS the repaint. Every gate and decoration reads the field from
+   * the state it already holds, so they all recompute because this transaction
+   * moved it; there is no sweep, no cursor nudge and no `forceRedraw` here, and
+   * none of the mode's consequences wait on anything. That is what moving the
+   * mode into CM6 state bought.
+   *
+   * Turning OFF clears this view's zoom in the SAME transaction, so the anchor
+   * is gone rather than merely ungated (`outline-zoom` exit trigger 3). Left
+   * uncleared it would survive the toggle inert — `computeScope` gates on the
+   * mode — and revive the moment the mode came back, restoring a zoom the user
+   * never asked to keep. This view only: the mode is per view now, so a second
+   * pane on the same file keeps both its own mode and its own scope.
    */
-  private async toggleMode(path: string): Promise<void> {
-    const { on, saved } = this.registry.toggle(path);
-    this.footerRev++;
+  private setOutlineMode(cm: EditorView, on: boolean): void {
+    cm.dispatch({
+      effects: on ? [outlineToggled.of(true)] : [outlineToggled.of(false), zoomCleared.of(null)],
+    });
+    // Kept on every surface: on mobile there is no status bar, and in a layout
+    // where the ribbon is hidden this is the only immediate feedback.
     new Notice(on ? 'Outline mode on' : 'Outline mode off', 1500);
-    // The same note can be open in more than one split. Every footer for this
-    // path has just become wrong, and — while mode is turning OFF — so has
-    // every one of those panes' own zoom, if it had one; both are reached in
-    // every pane, not only the active one.
-    nudgeFooters(this.app);
-    this.refreshDecorations(path, on);
-    // Awaited last rather than dropped: the command site `void`s this promise,
-    // so a rejected write surfaces exactly as it did before.
-    await saved;
+    this.refreshIndicators();
   }
 
   /**
-   * Toggling outline mode doesn't itself dispatch a CM6 transaction, so
-   * decorationsExtension's StateField never gets a chance to recompute.
-   * Nudging the cursor to its own position is a real (public-API) dispatch
-   * that forces the recompute without changing anything visible.
+   * Flip the ACTIVE tab, from whatever view mode it is in.
    *
-   * Turning mode OFF also clears any zoom on EVERY pane showing this file, not
-   * only the active one — the same `getLeavesOfType('markdown')` sweep
-   * `nudgeFooters` already runs, for the same reason: `outline-zoom`'s own
-   * "Zoom is per editor view" requirement lets two panes on one file hold
-   * different scopes, so turning outline mode off for the FILE has to reach
-   * every view showing it, not whichever one happened to be active when the
-   * command ran. `zoomAnchorField`'s own `update()` cannot host this check
-   * itself: the module is deliberately kept free of `obsidian`
-   * (`zoom-state.ts`'s own comment says why), and "is this file in outline
-   * mode" is an instance method on the registry, not something a resolver
-   * installed once at module load can answer the way the other exit triggers
-   * do. Left uncleared, the anchor survives the toggle inert — `computeScope`
-   * already gates on outline mode, so the zoom has no visible effect while
-   * mode is off — and reactivates the moment mode comes back, reviving a zoom
-   * the user never asked to keep, in whichever pane still held one.
-   *
-   * Read the FIELD directly below, never `zoomScope`: that derived read is the
-   * very gate this comment just described, so by the time `outlineModeOn` is
-   * false it always answers null and a check against it would never find
-   * anything to clear.
+   * The direction is read from the tab's own field even in reading view: the
+   * leaf keeps its editor across a view-mode switch (docs/research/24), so the
+   * state is there to read and the toggle means the same thing in every mode.
    */
-  private refreshDecorations(path: string, outlineModeOn: boolean): void {
-    for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
-      const view = leaf.view;
-      if (!(view instanceof MarkdownView) || view.file?.path !== path) continue;
-      const cm = viewFor(view);
-      // The RAW anchor, not `zoomScope`: that already gates on outline mode,
-      // so by the time this runs (mode is already off in the registry) it
-      // always answers null — checking it here would never find anything to
-      // clear, which is exactly the bug this exists to fix.
-      if (!outlineModeOn && cm?.state.field(zoomAnchorField, false) != null) {
-        cm.dispatch({ effects: zoomCleared.of(null) });
-      }
-      view.editor.setCursor(view.editor.getCursor());
+  private toggleActiveTab(): void {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view?.file) return;
+    const cm = viewFor(view);
+    if (!cm) return;
+    const on = !isOutlineMode(cm.state);
+    if (view.getMode() === 'preview') {
+      // OFF from reading view does nothing: nothing is outlined there, so the
+      // only thing switching the pane would achieve is a change the user did
+      // not ask for.
+      if (on) void this.enterOutlineFromReading(view);
+      return;
     }
+    this.setOutlineMode(cm, on);
+  }
+
+  /**
+   * Turn the mode on from a pane showing reading view, which renders no outline
+   * — so the pane switches to an editing mode as part of the same gesture
+   * (design D6).
+   *
+   * `mode: 'source'` over the state's OWN spread. Measured (docs/research/24):
+   * the reading-view state carries the `source` flag the pane was last editing
+   * under, so spreading it lands the pane back in its own editing mode —
+   * Live Preview or the source editor — rather than in whichever one this code
+   * would otherwise have to pick. A pane with no editing history reports
+   * `source: false` itself.
+   *
+   * The mode is then set explicitly rather than left to the field: the pane
+   * keeps its editor across the switch, so the field still holds whatever it
+   * held — off because the default is off, or off because the user turned this
+   * tab off earlier — and an explicit request for the outline wins over both.
+   */
+  private async enterOutlineFromReading(view: MarkdownView): Promise<void> {
+    await view.setState({ ...view.getState(), mode: 'source' }, { history: false });
+    // Re-resolved rather than carried across the `await`: the leaf reuses its
+    // editor today, and re-asking costs nothing if it ever stops.
+    const cm = viewFor(view);
+    if (cm) this.setOutlineMode(cm, true);
+  }
+
+  /** The status bar item, absent on mobile where there is no status bar. */
+  private statusItem: HTMLElement | undefined;
+  /** The ribbon icon's element, whose class carries the on-state. */
+  private ribbonItem: HTMLElement | undefined;
+
+  /**
+   * The two indicator surfaces, both stating the ACTIVE tab's mode and both
+   * toggling that tab (design D7).
+   *
+   * Registered unconditionally. `addStatusBarItem` is documented as
+   * unavailable on mobile and returns nothing usable there; the mobile e2e
+   * asserts the item's absence rather than this code guessing at the platform.
+   *
+   * Refreshed from `active-leaf-change` and `file-open`, which between them
+   * cover every transition that can change the answer — measured
+   * (docs/research/24): an in-leaf mode switch fires no public event, and needs
+   * none, because it does not change the tab's mode. The remaining way the mode
+   * moves is a dispatch through `setOutlineMode`, which refreshes at its own
+   * site.
+   */
+  private registerIndicators(): void {
+    const status = this.addStatusBarItem();
+    if (status) {
+      status.addClass('true-outliner-mode-status');
+      status.addClass('mod-clickable');
+      status.setAttribute('role', 'button');
+      status.setAttribute('tabindex', '0');
+      this.registerDomEvent(status, 'click', () => this.toggleActiveTab());
+      this.statusItem = status;
+    }
+
+    // `list-tree`, the same icon the context-menu entry carries, so the two
+    // entry points to one gesture look like one gesture.
+    this.ribbonItem = this.addRibbonIcon('list-tree', 'Toggle outline mode', () =>
+      this.toggleActiveTab(),
+    );
+
+    const refresh = (): void => this.refreshIndicators();
+    this.registerEvent(this.app.workspace.on('active-leaf-change', refresh));
+    this.registerEvent(this.app.workspace.on('file-open', refresh));
+    // The first paint: `onload` runs with tabs already open, and no event is
+    // coming for a leaf that was already active.
+    this.app.workspace.onLayoutReady(() => this.refreshIndicators());
+  }
+
+  /**
+   * Restate both indicators from the active tab.
+   *
+   * `undefined` where no markdown tab is active at all — a graph view, the
+   * empty state — which is a third thing to say, not a mode to guess at: the
+   * status text goes blank and the ribbon drops its on-state, so neither
+   * surface claims a mode nothing is in.
+   */
+  private refreshIndicators(): void {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const cm = view?.file ? viewFor(view) : undefined;
+    const on = cm ? isOutlineMode(cm.state) : undefined;
+    // The same words as the toggle notice, deliberately: the transient and the
+    // persistent statement of one fact should not be two vocabularies.
+    this.statusItem?.setText(on === undefined ? '' : on ? 'Outline on' : 'Outline off');
+    this.statusItem?.setAttribute(
+      'aria-label',
+      on === undefined ? 'Outline mode' : `Outline mode ${on ? 'on' : 'off'} — click to toggle`,
+    );
+    this.ribbonItem?.toggleClass('true-outliner-ribbon-on', on === true);
   }
 
   /**
@@ -775,7 +856,8 @@ export default class TrueOutlinerPlugin extends Plugin {
    */
   /**
    * A zoom command: outline-mode-gated, and routed to the live `EditorView`
-   * through the registry (design D5).
+   * through the registry (`outline-zoom` design D5) — which is also where the
+   * mode itself is read from.
    *
    * `editorCheckCallback` rather than `editorCallback`, so the command is
    * absent from the palette outside outline mode instead of present and inert —
@@ -797,10 +879,8 @@ export default class TrueOutlinerPlugin extends Plugin {
       id,
       name,
       editorCheckCallback: (checking, _editor, ctx) => {
-        const path = ctx.file?.path;
-        if (!path || !this.registry.isOutline(path)) return false;
         const view = viewFor(ctx);
-        if (!view) return false;
+        if (!view || !isOutlineMode(view.state)) return false;
         if (checking) return available(view);
         return act(view);
       },
@@ -858,7 +938,7 @@ export default class TrueOutlinerPlugin extends Plugin {
   /** One level out: the root's parent becomes the root, and a top-level root
    * clears the zoom — so the gesture always has an effect while zoomed. */
   private zoomOutFrom(view: EditorView): boolean {
-    const scope = zoomScope(view.state, this);
+    const scope = zoomScope(view.state);
     if (!scope) return false;
     const parent = parentOf(scope);
     if (!parent) {
@@ -887,8 +967,11 @@ export default class TrueOutlinerPlugin extends Plugin {
       name,
       ...(hotkeys ? { hotkeys } : {}),
       editorCheckCallback: (checking, editor, ctx) => {
-        const path = ctx.file?.path;
-        if (!path || !this.registry.isOutline(path)) return false;
+        // Through the view registry, which is the only public route to the
+        // state the mode now lives in — and side-effect-free, as `checking`
+        // requires (design D3).
+        const cm = viewFor(ctx);
+        if (!cm || !isOutlineMode(cm.state)) return false;
         // Multi-cursor: unavailable, matching the keymap's own decline
         // (`selection-structural-ops`). Acting would silently discard every
         // range but one, and the two entry points must answer alike.
@@ -942,7 +1025,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // so the two entry points cannot disagree about it — the divergence
     // `selection-structural-ops` exists to prevent.
     const view = viewFor(ctx);
-    const scope = view ? zoomScope(view.state, this) : null;
+    const scope = view ? zoomScope(view.state) : null;
     // Re-resolved against `doc`, the fresh parse this command just made —
     // `scope` was built from the live editor's own cached parse, a DIFFERENT
     // parse object even when the text agrees, and `parse()` allocates every
@@ -1045,6 +1128,11 @@ export default class TrueOutlinerPlugin extends Plugin {
   }
 }
 
+const SETTING_OUTLINE_BY_DEFAULT = {
+  name: 'Open new tabs in outline mode',
+  desc: 'Whether a note opens outlined or as stock Obsidian. Applies to new tabs only — it never retoggles a tab that is already open, the way Obsidian\u2019s own default view mode works. Toggle a single tab from the command palette (\u201cToggle outline mode\u201d), the editor right-click menu, the ribbon icon, or the status bar item.',
+} as const;
+
 const SETTING_DEBUG_CROSSCHECK = {
   name: 'Debug: cross-check parser against metadata cache',
   desc: 'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
@@ -1118,6 +1206,14 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
    */
   override getSettingDefinitions(): SettingDefinitionItem[] {
     return [
+      {
+        ...SETTING_OUTLINE_BY_DEFAULT,
+        control: {
+          type: 'toggle',
+          key: 'outlineByDefault',
+          defaultValue: DEFAULT_DATA.outlineByDefault,
+        },
+      },
       {
         ...SETTING_DEBUG_CROSSCHECK,
         control: { type: 'toggle', key: 'debugCrossCheck', defaultValue: false },
@@ -1214,6 +1310,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
    * decoration refresh on change). */
   override getControlValue(key: string): unknown {
     switch (key) {
+      case 'outlineByDefault':
+        return this.plugin.outlineByDefault;
       case 'debugCrossCheck':
         return this.plugin.debugCrossCheck;
       case 'backlinksFooter':
@@ -1243,6 +1341,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
 
   override async setControlValue(key: string, value: unknown): Promise<void> {
     switch (key) {
+      case 'outlineByDefault':
+        await this.plugin.setOutlineByDefault(Boolean(value));
+        break;
       case 'debugCrossCheck':
         await this.plugin.setDebugCrossCheck(Boolean(value));
         break;
@@ -1282,6 +1383,14 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
   /** Pre-1.13 fallback only — see getSettingDefinitions() above. */
   override display(): void {
     this.containerEl.empty();
+    new Setting(this.containerEl)
+      .setName(SETTING_OUTLINE_BY_DEFAULT.name)
+      .setDesc(SETTING_OUTLINE_BY_DEFAULT.desc)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.outlineByDefault)
+          .onChange((value) => void this.plugin.setOutlineByDefault(value)),
+      );
     new Setting(this.containerEl)
       .setName(SETTING_DEBUG_CROSSCHECK.name)
       .setDesc(SETTING_DEBUG_CROSSCHECK.desc)

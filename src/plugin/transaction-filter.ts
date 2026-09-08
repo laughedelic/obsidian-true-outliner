@@ -26,7 +26,7 @@ import {
 } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { indentUnit } from '@codemirror/language';
-import { editorInfoField, Notice } from 'obsidian';
+import { Notice } from 'obsidian';
 import type { OutlineDoc } from '../model';
 import { encodeLines } from '../encode';
 import { classify, type ChangedLineSpan, type TransactionFacts } from '../classify';
@@ -40,13 +40,13 @@ import type { Edit, RejectionReason } from '../result';
 import { applyEdits } from '../result';
 import { editsToChanges } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
-import type { ModeSource } from './keymap';
+import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
 import { isNestedTransaction } from './nested-editor';
 import type { TransactionStats } from './stats';
 
-export interface ClassificationSource extends ModeSource {
+export interface ClassificationSource {
   readonly debugCrossCheck: boolean;
 }
 
@@ -257,11 +257,12 @@ export function transactionFilterExtension(
   stats: TransactionStats,
 ): Extension {
   const filter = EditorState.transactionFilter.of((tr) => {
-    const path = tr.startState.field(editorInfoField, false)?.file?.path;
-    if (!path || !source.isOutline(path)) return tr; // off-mode: byte-for-byte stock, nothing recorded
+    // Off-mode: byte-for-byte stock, nothing recorded.
+    if (!isOutlineMode(tr.startState)) return tr;
 
-    // A nested per-cell table editor resolves to the SAME host file, so without
-    // this it would be enforced as if its tiny document were the outline. See
+    // A nested per-cell table editor holds an outline-mode field of its own, so
+    // without this it would be enforced as if its tiny document were the
+    // outline. See
     // nested-editor.ts: a cell whose text starts with `- ` parses as a list
     // item, and stock motion inside it was being clamped off the "marker".
     // `isNestedTransaction` also covers the flag's own startup window, where the
@@ -290,7 +291,7 @@ export function transactionFilterExtension(
         outlineDoc,
         tr.startState.doc,
         tr,
-        zoomScope(tr.startState, source)?.cover,
+        zoomScope(tr.startState)?.cover,
       );
       if (escalated) result = [tr, { selection: escalated }];
     } else if (cls === 'programmatic' && userEvent === undefined && changedLineSpans.length === 0) {

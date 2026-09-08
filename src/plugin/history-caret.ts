@@ -57,28 +57,23 @@
 
 import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type PluginValue, type ViewUpdate } from '@codemirror/view';
-import { editorInfoField } from 'obsidian';
 import { needsRecording } from './record-decision';
 import { isNestedEditor } from './nested-editor';
-import type { ModeSource } from './keymap';
+import { isOutlineMode } from './outline-state';
 
 /** Measured on `- a` / `- b`: without this, move → undo → redo left the caret
  * on `- a` at every depth, where the operation had put it on the moved `- b`. */
 class SemanticCursorRecorder implements PluginValue {
   private destroyed = false;
 
-  constructor(
-    private readonly view: EditorView,
-    private readonly modes: ModeSource,
-  ) {}
+  constructor(private readonly view: EditorView) {}
 
   update(update: ViewUpdate): void {
     if (!update.docChanged) return;
     const relevant = update.transactions.some((tr) => needsRecording(tr));
     if (!relevant) return;
 
-    const path = update.state.field(editorInfoField, false)?.file?.path;
-    if (!path || !this.modes.isOutline(path)) return;
+    if (!isOutlineMode(update.state)) return;
     if (isNestedEditor(this.view)) return;
 
     // The exact state this recording is FOR. Anything landing first owns the
@@ -116,6 +111,6 @@ class SemanticCursorRecorder implements PluginValue {
  * Self-terminating: the re-assertion it dispatches is selection-only, so it can
  * never satisfy this plugin's own `docChanged` trigger and re-enter.
  */
-export function historyCaretExtension(modes: ModeSource): Extension {
-  return ViewPlugin.define((view) => new SemanticCursorRecorder(view, modes));
+export function historyCaretExtension(): Extension {
+  return ViewPlugin.define((view) => new SemanticCursorRecorder(view));
 }

@@ -14,109 +14,13 @@ import {
   splitNode,
 } from '../src/ops';
 import { applyEdits, diffLines, type Edit } from '../src/result';
-import {
-  DEFAULT_DATA,
-  OutlineModeRegistry,
-  normalizePluginData,
-} from '../src/plugin/mode-registry';
+import { DEFAULT_DATA, normalizePluginData } from '../src/plugin/mode-registry';
 import { nodeAtLine } from '../src/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
 import { planKey } from '../src/plugin/grammar';
 import { REJECTION_MESSAGES } from '../src/plugin/messages';
 import { compareWithSections, topLevelSpans } from '../src/plugin/crosscheck';
 import { arbTree } from './generators';
-
-describe('mode registry', () => {
-  const make = () => {
-    const saves: string[][] = [];
-    const registry = new OutlineModeRegistry((paths) => {
-      saves.push(paths);
-      return Promise.resolve();
-    });
-    return { registry, saves };
-  };
-
-  it('toggles, persists, and hydrates', async () => {
-    const { registry, saves } = make();
-    // Read back before either write is awaited: the mode a toggle reports is in
-    // force immediately, and only the record of it is asynchronous.
-    const first = registry.toggle('a.md');
-    expect(first.on).toBe(true);
-    expect(registry.isOutline('a.md')).toBe(true);
-    await first.saved;
-    expect(saves.at(-1)).toEqual(['a.md']);
-    const second = registry.toggle('a.md');
-    expect(second.on).toBe(false);
-    expect(registry.isOutline('a.md')).toBe(false);
-    await second.saved;
-    expect(saves.at(-1)).toEqual([]);
-
-    const { registry: rehydrated } = make();
-    rehydrated.hydrate(['x.md', 'y.md']);
-    expect(rehydrated.isOutline('y.md')).toBe(true);
-  });
-
-  it('never stores a state that a later toggle in the same turn replaced', async () => {
-    // `forceRedraw`'s shape: flip a note off and back on within one turn, so the
-    // decorations recompute twice. Both writes are in flight over one file, and
-    // the first describes a state that was never meant to outlive the turn.
-    const saves: string[][] = [];
-    let call = 0;
-    const persist = async (paths: string[]): Promise<void> => {
-      // The first write finishes last — the completion order a concurrent pair
-      // gives no guarantee about, and the one that loses the note its mode.
-      // Counted in microtask turns rather than milliseconds, so the ordering is
-      // decided by the code under test and not by a timer.
-      const turns = call++ === 0 ? 5 : 0;
-      for (let i = 0; i < turns; i++) await Promise.resolve();
-      saves.push(paths);
-    };
-    const registry = new OutlineModeRegistry(persist);
-    registry.hydrate(['a.md']);
-
-    const off = registry.toggle('a.md');
-    const on = registry.toggle('a.md');
-    expect(off.on).toBe(false);
-    expect(on.on).toBe(true);
-    await Promise.all([off.saved, on.saved]);
-
-    expect(registry.isOutline('a.md')).toBe(true);
-    expect(saves.at(-1)).toEqual(['a.md']); // what a restart would read back
-    expect(saves).not.toContainEqual([]); // the transient state is never stored
-  });
-
-  it('reports a failed write without blocking the next one', async () => {
-    const saves: string[][] = [];
-    let fail = true;
-    const registry = new OutlineModeRegistry((paths) => {
-      if (fail) {
-        fail = false;
-        return Promise.reject(new Error('disk full'));
-      }
-      saves.push(paths);
-      return Promise.resolve();
-    });
-
-    await expect(registry.toggle('a.md').saved).rejects.toThrow('disk full');
-    await registry.toggle('b.md').saved;
-    expect(saves).toEqual([['a.md', 'b.md']]);
-  });
-
-  it('rename migrates state; delete prunes; no-ops save nothing', async () => {
-    const { registry, saves } = make();
-    await registry.toggle('old.md').saved;
-    await registry.handleRename('old.md', 'new.md');
-    expect(registry.isOutline('old.md')).toBe(false);
-    expect(registry.isOutline('new.md')).toBe(true);
-    const savesBefore = saves.length;
-    await registry.handleRename('unrelated.md', 'other.md');
-    await registry.handleDelete('unrelated.md');
-    expect(saves.length).toBe(savesBefore); // untouched paths don't churn the store
-    await registry.handleDelete('new.md');
-    expect(registry.isOutline('new.md')).toBe(false);
-    expect(saves.at(-1)).toEqual([]);
-  });
-});
 
 describe('persisted plugin data', () => {
   it('drops a key it does not know, so a retired setting stays retired', () => {
@@ -138,7 +42,8 @@ describe('persisted plugin data', () => {
 
   it('keeps every known value it is given', () => {
     const onDisk = {
-      outlinePaths: ['a.md'],
+      // Non-default on purpose, like the fields below it.
+      outlineByDefault: false,
       coexistenceWarned: true,
       debugCrossCheck: true,
       // Non-default on purpose: the assertion is that a stored value survives
@@ -159,20 +64,42 @@ describe('persisted plugin data', () => {
   });
 
   it('fills in a key the file does not have, rather than leaving it undefined', () => {
-    const normalized = normalizePluginData({ outlinePaths: ['a.md'] });
-    expect(normalized.outlinePaths).toEqual(['a.md']);
+    const normalized = normalizePluginData({ outlineByDefault: false });
+    expect(normalized.outlineByDefault).toBe(false);
     expect(normalized.markerVisibility).toBe(DEFAULT_DATA.markerVisibility);
     expect(normalized.guideHighlight).toBe(DEFAULT_DATA.guideHighlight);
   });
 
+  it('opens new tabs in outline mode unless the file says otherwise', () => {
+    // The default decides what a fresh install does and what an upgrading one
+    // does on its next file open, so it is asserted rather than inherited.
+    expect(normalizePluginData({}).outlineByDefault).toBe(true);
+    expect(normalizePluginData({ outlineByDefault: false }).outlineByDefault).toBe(false);
+    expect(normalizePluginData({ outlineByDefault: true }).outlineByDefault).toBe(true);
+    // A non-boolean would otherwise decide every new tab's mode by truthiness.
+    for (const bad of [0, 1, 'false', null, [], {}]) {
+      expect(normalizePluginData({ outlineByDefault: bad }).outlineByDefault).toBe(true);
+    }
+  });
+
+  it('drops a previous version\u2019s per-path outline store', () => {
+    // `outlinePaths` was the per-note mode registry `per-tab-outline-mode`
+    // retired. There is no migration: the allow-list drops the key, and the
+    // next save writes a file without it. Asserted here rather than left to the
+    // generic unknown-key case, because this key held real user state and its
+    // disappearance is the change's only data consequence.
+    const normalized = normalizePluginData({
+      outlinePaths: ['a.md', 'b.md'],
+      outlineByDefault: false,
+    });
+    expect(normalized).not.toHaveProperty('outlinePaths');
+    expect(normalized.outlineByDefault).toBe(false);
+  });
+
   it('falls back per field when a stored value has the wrong type', () => {
     // `data.json` is a plain file a user can edit and an older build can have
-    // written, so a field can hold anything. Measured before this check
-    // existed: `outlinePaths: 42` makes `hydrate`'s `new Set(paths)` throw out
-    // of `onload`, so the plugin does not load at all.
-    for (const bad of [42, 'note.md', null, {}, true]) {
-      expect(normalizePluginData({ outlinePaths: bad }).outlinePaths).toEqual([]);
-    }
+    // written, so a field can hold anything and an unchecked one reaches
+    // whatever consumes it.
     expect(normalizePluginData({ coexistenceWarned: 'yes' }).coexistenceWarned).toBe(false);
     expect(normalizePluginData({ debugCrossCheck: 1 }).debugCrossCheck).toBe(false);
     // an unknown enum state reaches a settings dropdown with no matching option
@@ -189,21 +116,6 @@ describe('persisted plugin data', () => {
     expect(normalizePluginData({ guideHighlight: 'toString' }).guideHighlight).toBe(
       DEFAULT_DATA.guideHighlight,
     );
-  });
-
-  it('keeps the good entries when only some of outlinePaths are bad', () => {
-    // One bad entry should cost that note's state, not every note's.
-    expect(normalizePluginData({ outlinePaths: ['a.md', 3, null, 'b.md'] }).outlinePaths).toEqual([
-      'a.md',
-      'b.md',
-    ]);
-  });
-
-  it('never hands back the shared default array', () => {
-    const first = normalizePluginData({});
-    first.outlinePaths.push('a.md');
-    expect(normalizePluginData({}).outlinePaths).toEqual([]);
-    expect(DEFAULT_DATA.outlinePaths).toEqual([]);
   });
 
   it('answers with defaults for no stored data at all', () => {

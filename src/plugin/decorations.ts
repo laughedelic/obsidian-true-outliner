@@ -107,7 +107,7 @@ import {
   type PositionTrailFact,
   type TrailExtent,
 } from './decorate';
-import type { ModeSource } from './keymap';
+import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
 import { isNestedEditor } from './nested-editor';
 
@@ -448,10 +448,10 @@ function computeProvisional(state: EditorState): Provisional | null {
  */
 const zoomedFactsCache = new WeakMap<EditorState, DocFacts>();
 
-function baseFacts(state: EditorState, modes: DecorationSource): DocFacts {
+function baseFacts(state: EditorState): DocFacts {
   const cached = zoomedFactsCache.get(state);
   if (cached) return cached;
-  const scope = zoomScope(state, modes);
+  const scope = zoomScope(state);
   if (!scope) return docFacts(state);
 
   const offset = scope.startLine;
@@ -473,14 +473,14 @@ function baseFacts(state: EditorState, modes: DecorationSource): DocFacts {
 
 const overlayCache = new WeakMap<EditorState, DocFacts>();
 
-function factsFor(state: EditorState, modes: DecorationSource): DocFacts {
+function factsFor(state: EditorState): DocFacts {
   const cached = overlayCache.get(state);
   if (cached) return cached;
 
   const provisional = provisionalAt(state);
   let computed: DocFacts;
   if (!provisional) {
-    computed = baseFacts(state, modes);
+    computed = baseFacts(state);
   } else if (provisional.joins) {
     const facts = decorate(provisional.doc);
     // The row is one of a node's own lines in the resolved outline, so the
@@ -494,7 +494,7 @@ function factsFor(state: EditorState, modes: DecorationSource): DocFacts {
       guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
     };
   } else {
-    const base = baseFacts(state, modes);
+    const base = baseFacts(state);
     const facts = [...base.facts, provisional.fact].sort((a, b) => a.lineNumber - b.lineNumber);
     // Guides still come from the document as it actually is — the position adds
     // no depth to any line — but its row counts as content for where a guide
@@ -554,7 +554,7 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
     return computePositionTrail(provisional.doc, cursorLine, highlight);
   }
   const { doc } = parsedDoc(state.doc);
-  return zoomAwarePositionTrail(doc, cursorLine, zoomScope(state, modes), highlight);
+  return zoomAwarePositionTrail(doc, cursorLine, zoomScope(state), highlight);
 }
 
 /**
@@ -683,7 +683,7 @@ import type { MarkerVisibility } from './mode-registry';
  * Obsidian setting, read fresh on every recompute so switching it live (no
  * rebuild) takes effect on the very next transaction, the same way toggling
  * outline mode already does (see main.ts's refreshDecorations). */
-export interface DecorationSource extends ModeSource {
+export interface DecorationSource {
   readonly markerVisibility: MarkerVisibility;
   /** Which markers to accent (hierarchy-position-indicators). Read fresh per
    * recompute, same as the settings above. */
@@ -963,8 +963,7 @@ class MarkerWidget extends WidgetType {
 }
 
 function computeMarkers(state: EditorState, modes: DecorationSource): DecorationSet {
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return Decoration.none;
+  if (!isOutlineMode(state)) return Decoration.none;
 
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
@@ -972,7 +971,7 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
   // line it stands for would carry, under the same eligibility and visibility
   // gates — and so is the marker a bisected node's displaced line must NOT carry.
   // `factsFor` answers both.
-  const { facts } = factsFor(state, modes);
+  const { facts } = factsFor(state);
   for (const fact of facts) {
     // List items keep their fully native marker, untouched (same exclusion
     // guides already use); continuation lines never repeat the marker. The
@@ -1030,8 +1029,7 @@ function gapLineDecoration(depths: readonly number[], lineTrail?: PositionTrailF
 }
 
 function computeDecorations(state: EditorState, modes: DecorationSource): DecorationSet {
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return Decoration.none;
+  if (!isOutlineMode(state)) return Decoration.none;
 
   // computeLineGuides is a strict superset of decorate() by line coverage
   // (every line decorate() covers, plus gap-only lines) — iterate it as
@@ -1044,7 +1042,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // and a bisected node's displaced lines take the facts they had. Every OTHER
   // gap line still keeps the guide-only decoration: this layer renders where the
   // user currently is, not every blank line in the document.
-  const { factsByLine, guides } = factsFor(state, modes);
+  const { factsByLine, guides } = factsFor(state);
   const trail = positionTrail(state, modes);
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
@@ -1187,17 +1185,14 @@ const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
  * target is just its own line's shift, i.e. the rectangle starts at the
  * root's own box with no further leftward reach.
  */
-function selectedLineRootTargets(
-  state: EditorState,
-  modes: DecorationSource,
-): ReadonlyMap<number, string> {
+function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string> {
   const { doc } = parsedDoc(state.doc);
   // `baseFacts`, not `factsFor`: a provisional position requires a single empty
   // cursor and a cover requires a non-empty one, so the two cannot coexist and
   // routing this through the overlay would imply a case that cannot happen.
   // Still zoom-aware, though — the chrome's left edge is derived from depth, and
   // an unrebased depth would sit the highlight off its own text while zoomed.
-  const { factsByLine } = baseFacts(state, modes);
+  const { factsByLine } = baseFacts(state);
   const totalLines = state.doc.lines;
   const targets = new Map<number, string>();
   for (const selRange of state.selection.ranges) {
@@ -1280,15 +1275,14 @@ function allRangesCovered(state: EditorState): boolean {
   return sawNonEmpty;
 }
 
-function computeSelectionDecorations(state: EditorState, modes: DecorationSource): DecorationSet {
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return Decoration.none;
+function computeSelectionDecorations(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
 
   const totalLines = state.doc.lines;
   // Raw facts here too, for the reason `selectedLineRootTargets` states.
-  const { factsByLine } = baseFacts(state, modes);
+  const { factsByLine } = baseFacts(state);
   const builder = new RangeSetBuilder<Decoration>();
-  const targets = Array.from(selectedLineRootTargets(state, modes).entries()).sort((a, b) => a[0] - b[0]);
+  const targets = Array.from(selectedLineRootTargets(state).entries()).sort((a, b) => a[0] - b[0]);
   for (const [line, rootTarget] of targets) {
     if (line >= totalLines) continue; // stale, defensive only
     const from = state.doc.line(line + 1).from; // CM6 lines are 1-indexed
@@ -1563,13 +1557,12 @@ export { ONE_SPACE_MARKER_CLASS } from './chrome-line';
 /** `1.`, `12)` — the run a mark covers, with its offset in the line. */
 const ORDERED_DIGITS_RE = /^([ \t]*)(\d{1,9}[.)])/;
 
-function computeOrderedDigits(state: EditorState, modes: DecorationSource): DecorationSet {
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return Decoration.none;
+function computeOrderedDigits(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
 
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
-  const { facts } = factsFor(state, modes);
+  const { facts } = factsFor(state);
   for (const fact of facts) {
     // Exactly "list-item first line" — a continuation line repeats no marker,
     // and no other kind has one of this shape.
@@ -1623,7 +1616,7 @@ class OrderedDigitsPlugin implements PluginValue {
 
   private compute(): DecorationSet {
     if (isNestedEditor(this.view)) return Decoration.none;
-    return computeOrderedDigits(this.view.state, this.modes);
+    return computeOrderedDigits(this.view.state);
   }
 }
 
@@ -1775,8 +1768,7 @@ class SelectionDecorationPlugin implements PluginValue {
   }
 
   private isOutlineNote(): boolean {
-    const path = this.view.state.field(editorInfoField, false)?.file?.path;
-    return !isNestedEditor(this.view) && !!path && this.modes.isOutline(path);
+    return !isNestedEditor(this.view) && isOutlineMode(this.view.state);
   }
 
   /**
@@ -1944,7 +1936,7 @@ class SelectionDecorationPlugin implements PluginValue {
     // `editorAttributes` facet in `decorationsExtension` for why writing it
     // imperatively flickered.
     if (!this.isOutlineNote()) return Decoration.none;
-    return computeSelectionDecorations(this.view.state, this.modes);
+    return computeSelectionDecorations(this.view.state);
   }
 }
 
@@ -2345,11 +2337,10 @@ class MarginCompensation implements PluginValue {
   }
 
   private apply(): void {
-    const path = this.view.state.field(editorInfoField, false)?.file?.path;
-    // See isNestedEditor's own doc comment — a nested per-cell editor
-    // shares this.modes.isOutline's own path with the real top-level note,
-    // so that check alone can't exclude it; only the DOM-level one can.
-    if (!path || !this.modes.isOutline(path) || isNestedEditor(this.view)) {
+    // See isNestedEditor's own doc comment — a nested per-cell editor holds an
+    // outline-mode field of its own, so the mode check alone can't exclude it;
+    // only the DOM-level one can.
+    if (!isOutlineMode(this.view.state) || isNestedEditor(this.view)) {
       this.clearAll();
       return;
     }
@@ -2370,9 +2361,9 @@ class MarginCompensation implements PluginValue {
     // same overlay a plain one does, or a displaced line would move here while
     // its plain neighbour did not (`decorate-widget-rendered-lines`' own rule,
     // applied to this change's facts).
-    const { factsByLine, guidesByLine } = factsFor(this.view.state, this.modes);
+    const { factsByLine, guidesByLine } = factsFor(this.view.state);
     const nativeBasePx = this.nativeMarginBasePx();
-    const selectedLineTargets = selectedLineRootTargets(this.view.state, this.modes);
+    const selectedLineTargets = selectedLineRootTargets(this.view.state);
     // Position indicators reach widget atoms the same way everything else
     // does — through this imperative patch, since a CM6 decoration has no
     // effect on them at all (module doc comment).
@@ -2814,7 +2805,7 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // composes with the theme's own classes instead of racing them.
     EditorView.editorAttributes.of((view) =>
       !isNestedEditor(view) &&
-      isOutlineView(view, modes) &&
+      isOutlineMode(view.state) &&
       allRangesCovered(view.state)
         ? { class: BLOCK_SELECTING_CLASS }
         : null,
@@ -2822,10 +2813,4 @@ export function decorationsExtension(modes: DecorationSource): Extension {
   ];
 }
 
-/** Whether `view`'s file is an outline-mode note. The state-only half of
- * `SelectionDecorationPlugin.isOutlineNote`, split out so the facet above can
- * ask the same question without a plugin instance. */
-function isOutlineView(view: EditorView, modes: DecorationSource): boolean {
-  const path = view.state.field(editorInfoField, false)?.file?.path;
-  return !!path && modes.isOutline(path);
-}
+

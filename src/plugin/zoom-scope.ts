@@ -18,23 +18,22 @@ import {
 } from './zoom-state';
 import { parsedDoc } from './parsed-doc';
 import { nestedEditorField } from './nested-editor';
-import type { ModeSource } from './keymap';
+import { isOutlineMode } from './outline-state';
 
 /**
  * The scope for this state, or null when there is no zoom — or when zoom has no
  * business here.
  *
- * Gated on outline mode and on NOT being a nested per-cell editor, through the
- * same state-level route `transaction-filter.ts` uses: a nested editor resolves
- * to the same host `MarkdownFileInfo`, so `editorInfoField` alone cannot tell
- * them apart and would let a zoom scope loose inside a table cell.
+ * Gated on outline mode and on NOT being a nested per-cell editor. The nested
+ * check is its own: a nested editor holds an outline-mode field like any other
+ * editor, so the mode alone cannot tell them apart and would let a zoom scope
+ * loose inside a table cell.
  */
-function computeScope(state: EditorState, modes: ModeSource): ZoomScope | null {
+function computeScope(state: EditorState): ZoomScope | null {
   const anchor = state.field(zoomAnchorField, false);
   if (anchor === null || anchor === undefined) return null;
   if (state.field(nestedEditorField, false)) return null;
-  const path = state.field(editorInfoField, false)?.file?.path;
-  if (!path || !modes.isOutline(path)) return null;
+  if (!isOutlineMode(state)) return null;
   if (anchor < 0 || anchor > state.doc.length) return null;
   const { doc } = parsedDoc(state.doc);
   return resolveZoom(doc, state.doc.lineAt(anchor).number - 1);
@@ -56,10 +55,10 @@ function computeScope(state: EditorState, modes: ModeSource): ZoomScope | null {
  */
 const scopeCache = new WeakMap<EditorState, { scope: ZoomScope | null }>();
 
-export function zoomScope(state: EditorState, modes: ModeSource): ZoomScope | null {
+export function zoomScope(state: EditorState): ZoomScope | null {
   const cached = scopeCache.get(state);
   if (cached) return cached.scope;
-  const scope = computeScope(state, modes);
+  const scope = computeScope(state);
   scopeCache.set(state, { scope });
   return scope;
 }
@@ -85,8 +84,8 @@ export function zoomScope(state: EditorState, modes: ModeSource): ZoomScope | nu
  * replacement covers. Naming the visible range's end directly is what the
  * anchor always meant, and it no longer depends on how the hidden side is cut.
  */
-export function contentEndAnchor(state: EditorState, modes: ModeSource): number {
-  const scope = zoomScope(state, modes);
+export function contentEndAnchor(state: EditorState): number {
+  const scope = zoomScope(state);
   if (!scope) return state.doc.length;
   return state.doc.line(Math.min(scope.cover.end.line + 1, state.doc.lines)).to;
 }

@@ -1,7 +1,13 @@
 /**
- * Per-note outline-mode state, persisted in the plugin data store (decision
- * log Q2.6: files stay clean — no frontmatter, no markers). Pure module: the
- * plugin injects persistence, so this is unit-testable without Obsidian.
+ * Everything the plugin persists, and the one function that reads it back
+ * safely. Pure module — no `obsidian` import — so the whole shape is
+ * unit-testable.
+ *
+ * Outline mode itself is NOT here: it is a per-tab CM6 state
+ * (`outline-state.ts`), and what survives a restart is only the default a new
+ * tab starts from (`outlineByDefault`). The per-path store this file used to
+ * own retired with `per-tab-outline-mode`; `normalizePluginData`'s allow-list
+ * is what drops its key from an upgrading install's `data.json`.
  *
  * `MarkerVisibility` lives here (not decorations.ts, which imports `obsidian`
  * for `editorInfoField`) specifically so this module can stay pure — it's
@@ -104,7 +110,10 @@ export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = "full";
 export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = "current";
 
 export interface PluginData {
-  outlinePaths: string[];
+  /** The outline state every newly constructed editor starts in. The mode's
+   * only persisted value: a tab's own state lives in CM6 state and dies with
+   * it (`outline-state.ts`). */
+  outlineByDefault: boolean;
   coexistenceWarned: boolean;
   debugCrossCheck: boolean;
   /** Experiment 5a leaf-visibility round (see docs/research/07-decoration-
@@ -139,7 +148,7 @@ export interface PluginData {
 }
 
 export const DEFAULT_DATA: PluginData = {
-  outlinePaths: [],
+  outlineByDefault: true,
   coexistenceWarned: false,
   debugCrossCheck: false,
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
@@ -228,12 +237,14 @@ const oneOf = <T extends string>(
  *
  * Every value is TYPE-CHECKED, not just picked. `data.json` is a plain file a
  * user can edit and an older build can have written, so a field can hold
- * anything: measured, `outlinePaths: 42` makes `hydrate`'s `new Set(paths)`
- * throw out of `onload` and the plugin never loads at all, while
- * `outlinePaths: "note.md"` quietly becomes one outline path per CHARACTER, and
- * an unknown enum state reaches a settings dropdown with no matching option. A
- * field that fails its check falls back to its default; it is not repaired and
- * not carried through.
+ * anything, and an unchecked one reaches whatever consumes it: an unknown enum
+ * state arrives at a settings dropdown with no matching option, and a
+ * non-boolean default would decide every new tab's mode by truthiness. The
+ * retired `outlinePaths` was the sharpest case measured — `42` made its
+ * `new Set(paths)` throw out of `onload` so the plugin never loaded at all, and
+ * `"note.md"` quietly became one outline path per CHARACTER. A field that fails
+ * its check falls back to its default; it is not repaired and not carried
+ * through.
  *
  * Unrecognized keys are dropped on the first save. Nothing is migrated: a
  * retired setting's values map onto whatever behaviour replaced it, which is
@@ -244,13 +255,7 @@ export function normalizePluginData(raw: unknown): PluginData {
   const bool = (value: unknown, fallback: boolean): boolean =>
     typeof value === "boolean" ? value : fallback;
   return {
-    // Filtered rather than rejected wholesale: a file that picked up one bad
-    // entry should lose that note's state, not every note's.
-    outlinePaths: Array.isArray(stored.outlinePaths)
-      ? stored.outlinePaths.filter(
-          (path): path is string => typeof path === "string",
-        )
-      : [...DEFAULT_DATA.outlinePaths],
+    outlineByDefault: bool(stored.outlineByDefault, DEFAULT_DATA.outlineByDefault),
     coexistenceWarned: bool(
       stored.coexistenceWarned,
       DEFAULT_DATA.coexistenceWarned,
@@ -306,87 +311,4 @@ export function normalizePluginData(raw: unknown): PluginData {
       DEFAULT_DATA.backlinksGuides,
     ),
   };
-}
-
-export class OutlineModeRegistry {
-  private paths = new Set<string>();
-  /** The write queue's tail, so the next write starts after this one lands. */
-  private writing: Promise<void> = Promise.resolve();
-
-  constructor(private readonly persist: (paths: string[]) => Promise<void>) {}
-
-  hydrate(paths: readonly string[]): void {
-    this.paths = new Set(paths);
-  }
-
-  isOutline(path: string): boolean {
-    return this.paths.has(path);
-  }
-
-  /**
-   * Flips `path`'s mode and reports the state in force from here on, with the
-   * write that will cover it still in flight.
-   *
-   * Synchronous in what it decides, asynchronous only in what it stores. The
-   * mode IS this object's own `Set`; `data.json` is where that set survives a
-   * restart, and no reader of the mode consults the file. Reporting the new
-   * state only once the write resolved put every visible consequence of a
-   * toggle behind disk latency, which is a real wait rather than a theoretical
-   * one: a mode change dispatches no CM6 transaction of its own, so the editor
-   * repaints only when the plugin nudges it, and that nudge waited on the
-   * write.
-   *
-   * `saved` resolves once the stored set is at least as NEW as this call — not
-   * once `on` in particular is on disk. Each write snapshots the set as it
-   * stands when it runs (`save`), so a later toggle whose own write is still
-   * queued behind this one is stored in its place; the file is never left
-   * holding a state older than this call, and may hold a newer one. Awaiting it
-   * is therefore a claim about freshness rather than about a value: what it is
-   * good for is knowing the file has caught up, and surfacing a failed write to
-   * whoever asked for the toggle.
-   */
-  toggle(path: string): { on: boolean; saved: Promise<void> } {
-    const on = !this.paths.has(path);
-    if (on) this.paths.add(path);
-    else this.paths.delete(path);
-    return { on, saved: this.save() };
-  }
-
-  async handleRename(oldPath: string, newPath: string): Promise<void> {
-    if (!this.paths.has(oldPath)) return;
-    this.paths.delete(oldPath);
-    this.paths.add(newPath);
-    await this.save();
-  }
-
-  async handleDelete(path: string): Promise<void> {
-    if (!this.paths.delete(path)) return;
-    await this.save();
-  }
-
-  snapshot(): string[] {
-    return [...this.paths].sort();
-  }
-
-  /**
-   * Queues a write of the mode set, ordered against every other write and
-   * carrying the state in force when it RUNS rather than when it was asked for.
-   *
-   * Both properties are load-bearing now that a toggle returns before its write
-   * lands. `forceRedraw` flips a note off and back on within one turn to make
-   * the decorations recompute twice, so two writes are in flight over one file
-   * and one of them describes a state that was never meant to outlive the turn.
-   * Unordered, whichever finishes last wins, and the note can come back from a
-   * restart with outline mode off while memory says it is on. Snapshotting late
-   * goes further than ordering alone: a queued write records where the set
-   * ended up, so the transient state is not stored at all.
-   *
-   * A failed write is reported to whoever asked for it and does not poison the
-   * queue — the next write starts from the caught tail.
-   */
-  private save(): Promise<void> {
-    const done = this.writing.then(() => this.persist(this.snapshot()));
-    this.writing = done.catch(() => undefined);
-    return done;
-  }
 }

@@ -2871,3 +2871,37 @@ body {
    * decoration layer already uses where a native rule would otherwise win. */
   display: none !important;
 }
+
+/*
+ * ===========================================================================
+ * Mode indicators — the status bar item and the ribbon icon
+ * ===========================================================================
+ *
+ * Both state the ACTIVE tab's outline mode and toggle that tab
+ * (`per-tab-outline-mode` design D7). Obsidian's own chrome is untouched: these
+ * are a plugin status bar item and a plugin ribbon icon, both public API, and
+ * nothing here selects a core element.
+ */
+
+/* `mod-clickable` already gives Obsidian's own status-bar hover and cursor;
+ * this only reserves the width the two labels differ by, so the items to its
+ * left do not shift as the mode changes. */
+.true-outliner-mode-status {
+  display: inline-block;
+  min-width: 5.5em;
+  text-align: center;
+}
+
+/*
+ * The on-state, as a color change rather than a second icon: the ribbon is a
+ * column of same-sized glyphs, so a swapped icon reads as a different control
+ * while a tinted one reads as the same control in a different state. The accent
+ * is the theme's own, so it means "on" in whatever palette the user runs.
+ */
+.true-outliner-ribbon-on {
+  color: var(--text-accent);
+}
+
+.true-outliner-ribbon-on:hover {
+  color: var(--text-accent-hover);
+}
