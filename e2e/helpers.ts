@@ -1715,9 +1715,27 @@ export async function screenshotFull(dir: string, name: string): Promise<void> {
 
 // ---- Notices --------------------------------------------------------------
 
+/**
+ * Notices the PLUGIN raised.
+ *
+ * Obsidian's own chrome is filtered out, and the assertion this protects is why:
+ * `expect(await noticeTexts()).toEqual([])` means "our grammar produced no cue",
+ * not "the application was silent" — which no test can control. Obsidian shows
+ * "Indexing vault…" while it builds its index, and on a loaded CI runner with a
+ * vault this size that notice is still up when the first specs run. It failed
+ * exactly that way (desktop/keyboard-grammar, run 34272902522), on an assertion
+ * about a Tab keypress that had nothing to do with indexing.
+ *
+ * Matched narrowly, by the one notice text Obsidian is known to raise here. A
+ * broader filter would risk swallowing a plugin notice a test means to catch,
+ * which is the failure this helper exists to detect.
+ */
+const OBSIDIAN_OWN_NOTICES = [/^Indexing vault/i];
+
 export async function noticeTexts(): Promise<string[]> {
   const notices = browser.$$('.notice');
-  return notices.map((n) => n.getText());
+  const texts = await notices.map((n) => n.getText());
+  return texts.filter((t) => !OBSIDIAN_OWN_NOTICES.some((re) => re.test(t.trim())));
 }
 
 /**
