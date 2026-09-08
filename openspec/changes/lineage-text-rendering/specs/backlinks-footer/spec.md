@@ -8,11 +8,13 @@ removed before its content is rendered, so no heading, list, blockquote, table, 
 block is produced.
 
 This rule SHALL govern EVERY row that quotes node text, a lineage row's segments included. A
-lineage segment and a node row naming the same node SHALL treat that node's inline syntax the
-same way; neither SHALL show markdown source where the other renders it.
+lineage segment and a node row naming the same node SHALL produce the same elements for the same
+syntax; neither SHALL show markdown source where the other renders it. How those elements are
+DRAWN may differ between the two, and does — see the lineage treatment below.
 
-Embedded media SHALL NOT set a row's height. A row is a line in an index of mentions, and an
-image rendered at its natural size is the reproduction this requirement exists to prevent.
+Embedded media SHALL NOT set a reference row's height. A row is a line in an index of mentions,
+and an image rendered at its natural size is the reproduction this requirement exists to
+prevent.
 
 Kind SHALL be expressed once, by the row's marker. A row SHALL NOT additionally carry the
 typography of its kind: no heading sizes, no callout box, no quote bar, no table frame.
@@ -32,12 +34,12 @@ only the cell the reference sits in.
   fenced code block
 - **THEN** no row in the footer contains a heading, blockquote, list, table or code-block element
 
-#### Scenario: A lineage row and its reference row agree
+#### Scenario: A lineage row and its reference row produce the same elements
 
 - **WHEN** a reference's ancestors carry emphasis, a code span, an external link and a wikilink,
   and the referencing node carries the same
-- **THEN** the lineage row and the reference row beneath it treat that syntax identically, and
-  neither shows its source characters
+- **THEN** the lineage row and the reference row beneath it produce the same elements for that
+  syntax, and neither shows its source characters
 
 #### Scenario: An embedded image does not set a row's height
 
@@ -114,3 +116,67 @@ it, and SHALL NOT take the shortened mark.
 
 - **WHEN** the same node appears both as a footer lineage segment and as a zoom trail crumb
 - **THEN** the two carry the same text and the same shortened mark
+
+### Requirement: A lineage row renders live, and spends no colour on it
+
+A lineage row's content SHALL render as inline markdown, with its links and tags remaining
+separately activatable — an ancestor's links are part of what that ancestor says, and a chain
+that removes them misquotes it.
+
+That content SHALL take NO colour accent. A lineage row is context, drawn dimmer than the
+reference it leads to, and a theme-accented link inside it is the loudest thing on the line —
+which inverts the emphasis the row's own colour establishes.
+
+The affordance SHALL be carried by three channels that spend no colour:
+
+- **An underline present at rest**, drawn in the row's own colour. A link revealed only under
+  the pointer is one the reader must go looking for.
+- **The cursor.** An external link SHALL take the cursor the platform uses for leaving the
+  current context, and an internal one the same cursor the surrounding segment takes, so the two
+  destinations are distinguishable BEFORE the click rather than after it.
+- **Hover**, which SHALL strengthen the underline without moving the colour. A link drawn
+  dimmer than the words beside it is an affordance hiding from the pointer.
+
+A tag SHALL render as a word carrying a step more ink than the row around it, filling on hover,
+rather than as a chip — a pill is a second object in a line that is one. That step SHALL be
+taken from the ROW's own colour rather than from a fixed value, because the footer's lineage and
+zoom's trail are dimmed to different degrees and a value chosen for one leaves the tag
+unreadable on the other.
+
+Embedded media SHALL NOT render in a lineage row at all. A chain is one line, and there is no
+size at which an image belongs in it; the segment SHALL keep the embed's alt text, which is what
+the node says, rather than dropping it and risking a blank segment.
+
+Where a link inside a segment and the segment itself both claim a pointer event, the link SHALL
+win where the pointer is on it and the segment SHALL win everywhere else.
+
+#### Scenario: A link in a lineage row takes no accent colour
+
+- **WHEN** an ancestor's text carries an external link and a wikilink
+- **THEN** both render as links in the lineage row's own colour, underlined, and neither is
+  drawn in the theme's link colour
+
+#### Scenario: The two destinations differ before the click
+
+- **WHEN** the pointer rests on an external link inside a lineage segment, and then on the
+  segment's own text
+- **THEN** the cursor differs between the two
+
+#### Scenario: A tag reads against its row
+
+- **WHEN** an ancestor's text carries a tag
+- **THEN** the tag is drawn with more ink than the segment's own text on both the footer's
+  lineage and zoom's trail, despite the two rows being dimmed differently
+
+#### Scenario: An image embed does not render in a chain
+
+- **WHEN** an ancestor's text carries an image embed
+- **THEN** the segment shows the embed's alt text, no image element is produced, and the row is
+  one line of text tall
+
+#### Scenario: A link inside a segment wins its own click
+
+- **WHEN** the user clicks a link inside a lineage segment
+- **THEN** that link is followed, and the segment's own action does not also fire
+- **WHEN** the user clicks the segment's text beside it
+- **THEN** the segment's own action fires

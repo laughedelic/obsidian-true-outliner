@@ -243,7 +243,9 @@
   }
 
   .legend .name.verbatim { color: var(--warn); }
-  .legend .name.plain, .legend .name.flat, .legend .name.live { color: var(--accent); }
+  .legend .name.plain, .legend .name.flat, .legend .name.live { color: var(--ink-muted); }
+  .legend .name.subdued { color: var(--accent); }
+  .legend > div.chosen { box-shadow: inset 3px 0 0 var(--accent); }
   .legend .what { font-size: 0.8rem; color: var(--ink-muted); line-height: 1.4; }
 
   /* ---- surface panels ---- */
@@ -423,7 +425,7 @@
   }
 
   .content mark { background: var(--hl); color: inherit; border-radius: 2px; padding: 0 0.1em; }
-  .content a { color: var(--accent); text-decoration: none; }
+  .content a { color: var(--accent); text-decoration: none; cursor: pointer; }
   .content a:hover { text-decoration: underline; }
   .content a.ext::after { content: "↗"; font-size: 0.8em; margin-inline-start: 0.1em; }
   .content .tag {
@@ -433,6 +435,49 @@
     padding: 0 0.4em;
     font-size: 0.86em;
   }
+
+  /*
+   * The subdued treatment: everything stays live and separately clickable, and
+   * none of it takes a colour accent. In a lineage row the accent was the
+   * loudest thing on the line — a chain is context, and a coloured link inside
+   * it out-shouted the reference it leads to.
+   *
+   * What replaces colour is the underline (present at rest, so a link is
+   * findable without hovering to discover it) and the CURSOR, which is the one
+   * channel that costs the row no ink at all. `alias` is the curled arrow the
+   * platform already uses for "this leaves here".
+   */
+  .quiet a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: currentColor;
+    text-decoration-thickness: from-font;
+    text-underline-offset: 0.18em;
+  }
+
+  /* The underline thickens; the colour does not move. A link dimmer than the
+   * words beside it would be an affordance that hides from the pointer. */
+  .quiet a:hover { text-decoration-thickness: 2px; }
+  .quiet a.ext { cursor: alias; }
+  .quiet a.ext::after { content: none; }
+  .quiet a.wiki { cursor: pointer; }
+
+  /* A tag is a jump AND a word in the sentence, so it reads as text with a
+   * little more ink rather than as a chip — the pill was a second object in a
+   * line that is one. The hover fill is what says it is operable. */
+  .quiet .tag {
+    /* A step toward the ink from whatever the ROW is, not a fixed colour: the
+     * footer's lineage is faint and the trail's is muted, and a token picked
+     * for one leaves the tag invisible against the other. */
+    color: color-mix(in srgb, currentColor 55%, var(--ink) 45%);
+    background: none;
+    border-radius: 3px;
+    padding: 0 0.15em;
+    font-size: 1em;
+    cursor: pointer;
+  }
+
+  .quiet .tag:hover { background: var(--rule); color: var(--ink); }
   .content .math { font-family: var(--mono); font-size: 0.9em; font-style: italic; }
   .content img { vertical-align: middle; border-radius: 3px; }
 
@@ -478,8 +523,11 @@
     <p class="lede">
       Both surfaces that quote an ancestor chain — the zoom breadcrumb trail and the
       backlinks footer's lineage rows — currently put the node's raw source into the DOM
-      with <code>appendText</code>. Everything below is that same corpus under four
-      candidate policies, so the choice can be made by looking rather than by arguing.
+      with <code>appendText</code>. Everything below is that same corpus under five
+      policies. <strong>subdued</strong> is the one we are taking: live and separately
+      clickable, with the colour accent dropped so the chain stays context, and no image
+      embeds in a one-line row. Switch either surface to <code>verbatim</code> to see what
+      ships today.
     </p>
   </header>
 
@@ -495,7 +543,7 @@
     <div class="control checks">
       <label><input type="checkbox" id="compare"> Compare all four at once</label>
       <label><input type="checkbox" id="showSrc" checked> Show the source lines</label>
-      <label><input type="checkbox" id="blockStrip"> Per-kind block stripping in trail crumbs <span class="proposed">proposed</span></label>
+      <label><input type="checkbox" id="blockStrip"> Per-kind block stripping in trail crumbs <span class="proposed">part of the fix</span></label>
     </div>
   </div>
 
@@ -511,6 +559,11 @@
     <div>
       <span class="name flat">flattened</span>
       <span class="what">Rendered, but links and embeds collapse to their text. One click target per crumb.</span>
+    </div>
+    <div class="chosen">
+      <span class="name subdued">subdued &nbsp;chosen</span>
+      <span class="what">Live and separately clickable, with no colour accent — an underline and the
+        cursor carry the affordance. Tags take a shade more ink and fill on hover. No images.</span>
     </div>
     <div>
       <span class="name live">live</span>
@@ -546,11 +599,13 @@
 
   <p class="note">
     <strong>What this prototype is not.</strong> The inline parser here is a stand-in,
-    written to make the policies comparable. The real implementation would run Obsidian's
-    own <code>MarkdownRenderer</code> once and let the policy decide what to keep from its
+    written to make the policies comparable. The real implementation runs Obsidian's own
+    <code>MarkdownRenderer</code> once and lets the policy decide what to keep from its
     output — which is also why <em>plain</em> is not a regex stripper: taking
     <code>textContent</code> from a real parse is the only way escapes, nested emphasis and
-    bracket-bearing code spans come out right.
+    bracket-bearing code spans come out right. The reference row under each footer chain
+    stays fully live throughout, since that is what it already does and what a chain is being
+    compared against.
   </p>
 </div>
 
@@ -630,7 +685,7 @@
     }).join("");
   }
 
-  function toDom(nodes, live) {
+  function toDom(nodes, opts) {
     var frag = document.createDocumentFragment();
     nodes.forEach(function (n) {
       if (n.t === "text") { frag.appendChild(document.createTextNode(n.v)); return; }
@@ -638,7 +693,7 @@
       if (n.t === "math") { frag.appendChild(el("span", n.v, "math")); return; }
       if (n.t === "tag") { frag.appendChild(el("span", "#" + n.v, "tag")); return; }
       if (n.t === "link") {
-        if (!live) { frag.appendChild(document.createTextNode(n.label)); return; }
+        if (!opts.links) { frag.appendChild(document.createTextNode(n.label)); return; }
         var a = el("a", n.label, n.kind === "ext" ? "ext" : "wiki");
         a.href = "#";
         a.title = n.href;
@@ -647,7 +702,9 @@
         return;
       }
       if (n.t === "image") {
-        if (!live) { frag.appendChild(document.createTextNode(n.alt)); return; }
+        /* Never in a chain: a crumb is one line, and an image is not text. Its
+           alt is what the node SAYS, so the crumb keeps that rather than a gap. */
+        if (!opts.images) { frag.appendChild(document.createTextNode(n.alt)); return; }
         var img = document.createElement("img");
         img.src = THUMB;
         img.alt = n.alt;
@@ -655,7 +712,7 @@
         return;
       }
       var wrap = document.createElement(TAGS[n.t] || "span");
-      wrap.appendChild(toDom(n.kids, live));
+      wrap.appendChild(toDom(n.kids, opts));
       frag.appendChild(wrap);
     });
     return frag;
@@ -668,12 +725,23 @@
     return e;
   }
 
+  /* What each policy keeps from the one parse. `accent` is purely visual: the
+     same live links, drawn in the row's own colour instead of the theme's. */
+  var POLICY = {
+    plain:     { links: false, images: false },
+    flattened: { links: false, images: false },
+    subdued:   { links: true,  images: false, quiet: true },
+    live:      { links: true,  images: true }
+  };
+
   /* Fills `host` with one segment's text under `policy`. */
   function paint(host, src, policy) {
     if (policy === "verbatim") { host.appendChild(document.createTextNode(src)); return; }
     var nodes = parseInline(src);
     if (policy === "plain") { host.appendChild(document.createTextNode(toPlain(nodes))); return; }
-    host.appendChild(toDom(nodes, policy === "live"));
+    var opts = POLICY[policy];
+    if (opts.quiet) host.classList.add("quiet");
+    host.appendChild(toDom(nodes, opts));
   }
 
   /* ------------------------------------------------------------------ *
@@ -867,9 +935,12 @@
    * Rendering the demo
    * ------------------------------------------------------------------ */
 
-  var state = { trail: "verbatim", footer: "verbatim", compare: false, showSrc: true, blockStrip: false };
-  var POLICIES = ["verbatim", "plain", "flattened", "live"];
-  var POLICY_LABEL = { verbatim: "verbatim", plain: "plain", flattened: "flattened", live: "live" };
+  var state = { trail: "subdued", footer: "subdued", compare: false, showSrc: true, blockStrip: true };
+  var POLICIES = ["verbatim", "plain", "flattened", "subdued", "live"];
+  var POLICY_LABEL = {
+    verbatim: "verbatim", plain: "plain", flattened: "flattened",
+    subdued: "subdued", live: "live"
+  };
 
   function segText(seg, surface) {
     if (surface === "trail") {

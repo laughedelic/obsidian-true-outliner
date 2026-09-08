@@ -87,44 +87,63 @@ of the first's rules. `node-text.ts`'s own header already anticipated this — i
 `stripBlockPrefix` needed a second caller — but only the prefix rule moved, not the per-kind
 table above it.
 
-## The four candidate policies
+## The candidate policies
 
-All four go through the same parse. This matters: "strip it" is not a cheaper alternative to
+All go through the same parse. This matters: "strip it" is not a cheaper alternative to
 "render it", because a regex inline-stripper is a second markdown parser and gets escapes,
 nested emphasis and bracket-bearing code spans wrong. Taking `textContent` from a real parse is
-the only correct way to reach plain text. One mechanism; the policy is a knob on its output.
+the only correct way to reach plain text, and dropping media means removing elements from a real
+fragment. One mechanism; the policy is a serialiser over its output.
 
-| Policy | What survives | Cost |
+| Policy | What survives | Verdict |
 | --- | --- | --- |
 | `verbatim` | everything, as characters | what ships today |
-| `plain` | text only | emphasis and structure a reader uses to recognise an ancestor are gone |
-| `flattened` | emphasis, code spans, marks, tags; links and embeds collapse to their text | one click target per crumb; nothing block-shaped can enter a row |
-| `live` | everything, rendered | a crumb gains a second, competing destination; images enter a one-line row |
+| `plain` | text only | rejected — loses the emphasis a reader uses to recognise an ancestor, at no saving |
+| `flattened` | emphasis, code spans, marks, tags; links and embeds collapse to their text | rejected — an ancestor's links are part of what it says |
+| `subdued` | everything live, drawn without colour accent; no media | **chosen** |
+| `live` | everything, rendered with the theme's accents | rejected — the accent out-shouts the reference the chain leads to |
 
-The interactive comparison is [prototypes/lineage-rendering.html](prototypes/lineage-rendering.html),
-which draws one corpus — emphasis, code spans, external links, wikilinks with and without
-aliases, tags, highlights, strikethrough, an image embed, math, escaped asterisks, task and
-ordered ancestors, and the three block-syntax leaks — under all four policies, per surface. It
-opens in today's state so the defect is the first thing visible. Its inline parser is a
-stand-in for `MarkdownRenderer`, written so the policies are comparable.
+[prototypes/lineage-rendering.html](prototypes/lineage-rendering.html) draws one corpus —
+emphasis, code spans, external links, wikilinks with and without aliases, tags, highlights,
+strikethrough, an image embed, math, escaped asterisks, task and ordered ancestors, and the
+three block-syntax leaks — under all five, on both surfaces. Its inline parser is a stand-in for
+`MarkdownRenderer`, written so the policies are comparable.
 
-## What the comparison is for
+## What settled it
 
-The open decision is what lineage keeps, and it is genuinely a product call rather than an
-implementation one. The argument each way, stated so the prototype can be read against it:
+Logseq renders both of these surfaces — its zoom breadcrumb and its linked references — and
+takes essentially the `live` route with the colour removed. That is the resolution neither of
+the two candidates we had reached, and it dissolves the argument between them.
 
-**For `flattened`.** A crumb is a `role="link"` whose whole purpose is re-rooting the view on
-that ancestor. A rendered link inside it is a second destination competing with the first, and
-the footer's existing `closest('a, button')` guard resolves that collision by letting the inner
-link win — so the crumb quietly stops doing the one thing it advertises. Images have the same
-problem in a blunter form: a one-line breadcrumb is not a place a 400px image can go.
+The disagreement was over whether a crumb may contain a live link. `flattened` said no, because
+a crumb is a `role="link"` and an inner link is a second destination competing with the first.
+`live` said yes, because an ancestor's links are part of what that ancestor says, and both rows
+are quotations. Both are right, and the collision they argue about is a *legibility* problem
+rather than a structural one: nothing about a themed link inside a dim chain tells the reader
+which of the two targets is under the pointer. Give that its own channel and the objection goes.
 
-**For `live`.** Consistency is the complaint being answered. A lineage row and the reference row
-beneath it are both quotations of node text, and any difference between them has to earn itself.
-`flattened` is a third rendering mode to specify, test and explain, on top of the two D18
-already names.
+So the treatment is:
 
-Neither argument is settled by reasoning about it, which is what the prototype is for.
+| | |
+| --- | --- |
+| **Colour** | none. Links and tags take the row's own colour, which is what keeps a chain reading as context |
+| **Link, at rest** | underlined, so it is findable without hovering to discover it |
+| **Link, on hover** | the underline thickens; the colour does not move — a link dimmer than its neighbours is an affordance hiding from the pointer |
+| **Cursor** | `alias` (the platform's curled arrow, "this leaves here") on an external link; `pointer` on an internal one and on the crumb itself |
+| **Tag** | a step of ink from the ROW's colour toward the text colour, filling on hover. Not a chip — a pill is a second object in a line that is one |
+| **Media** | not rendered in a chain at all; the segment keeps the alt text |
+
+The tag colour is `color-mix` on `currentColor` rather than a token, and that is not a
+refinement. Measured in the prototype: the footer's lineage sits at `--text-faint` and the
+trail's at `--text-muted`, so a fixed token picked for one leaves the tag invisible against the
+other. Relative to the row, both resolve — footer `rgb(141,148,159)` → tag `rgb(89,94,103)`,
+trail `rgb(91,100,112)` → tag `rgb(62,68,77)`.
+
+Media is the one thing a chain does not inherit from a reference row. A reference row keeps its
+embed, bounded by the stylesheet, because that row is a quotation and the embed is part of what
+the node says; a chain is one line of context, and there is no size at which an image belongs in
+it. Alt text rather than nothing, because a segment emptied of its only content is blank and
+therefore unclickable — the failure the empty-label fallback already exists to prevent.
 
 ## Unaffected
 

@@ -31,47 +31,61 @@ and the two answers to "what does this node say" — `contentOf` per kind, `node
 
 ## Decisions
 
-### D1. What a lineage row keeps — open, with two candidates
+### D1. A lineage row renders live, and takes no colour accent from it
 
-Deliberately unresolved. Both candidates render through Obsidian's own parser; they differ only
-in what they keep from its output, so the mechanism is settled and only the policy is not.
+Settled against `docs/research/prototypes/lineage-rendering.html` and against Logseq, which
+solves the same problem on the same two surfaces.
 
-`docs/research/prototypes/lineage-rendering.html` draws one corpus — emphasis, code spans,
-external links, wikilinks with and without aliases, tags, highlights, strikethrough, an image
-embed, math, escaped asterisks, task and ordered ancestors, and the three block-syntax leaks —
-under both candidates plus today's behaviour and a plain-text variant, on both surfaces.
+A lineage row's content renders as inline markdown in full. Links stay live and separately
+activatable, and so do tags — a chain is made of real nodes, and their links are real links.
+What changes is that **none of it takes a colour accent**. In a lineage row the accent was the
+loudest thing on the line: a chain is dim on purpose, and a theme-coloured link inside it
+out-shouts the reference the chain leads to.
 
-**Option A — flattened.** Emphasis, code spans, highlights, strikethrough and tags render;
-links and embeds collapse to their own text. A crumb is a `role="link"` whose entire purpose is
-re-rooting the view on that ancestor, and a rendered link inside it is a second destination
-competing with the first — one the footer's existing `closest('a, button')` guard resolves in
-the inner link's favour, so the crumb quietly stops doing what it advertises. Images are the
-same problem in a blunter form: a one-line breadcrumb is not a place an image can go. Cost: a
-third rendering mode to specify, test and explain, alongside the `code` and `text` modes the
-requirement already names.
+Three channels carry the affordance instead, none of which spends colour:
 
-**Option B — live.** A lineage row renders exactly as a reference row does. Consistency is the
-complaint being answered, both rows are quotations of node text, and any difference between
-them has to earn itself. Cost: the nested-link collision above is accepted rather than avoided,
-and it is real — a chain of five ancestors can hold five competing destinations.
+- **An underline, present at rest.** A link that only reveals itself under the pointer is a link
+  the reader has to go looking for. It is drawn in the row's own colour.
+- **The cursor.** An external link takes the platform's `alias` cursor — the curled arrow that
+  already means "this leaves here" — and an internal one takes `pointer`, the same as the crumb
+  around it. This is the channel that distinguishes the two destinations at zero cost in ink.
+- **Hover.** The underline thickens; the colour does not move. A link dimmed relative to the
+  words beside it would be an affordance hiding from the pointer.
 
-Whichever is chosen applies to BOTH surfaces. A crumb and a footer segment naming the same node
-saying different things is the defect this change exists to remove, and reintroducing it along
-a different axis would be worse than either option.
+A tag renders as a word with a little more ink than the row around it, filling on hover. Not as
+a chip: a pill is a second object in a line that is one. Its colour is a step from the ROW's own
+colour toward the text colour rather than a fixed token, because the footer's lineage is faint
+and the trail's is muted — a token chosen for one leaves the tag invisible on the other.
 
-`plain` — text only — is measured in the prototype and not proposed. It answers the reports but
-throws away the emphasis a reader uses to recognise an ancestor, and it costs no less than the
-other two: reaching correct plain text still means parsing.
+**Media does not render in a chain.** A crumb is one line, and an image is not text. Its alt
+text is what the node says, so the segment keeps that; dropping it outright can leave a crumb
+blank and therefore unclickable, which is the failure the empty-label fallback exists to
+prevent. This is the one thing a chain does not inherit from a reference row, and it is a
+property of the row's shape rather than a second rendering policy.
+
+**Rejected, recorded.** `flattened` — links collapsed to their text — was the alternative and
+loses more than the nested-target collision costs: an ancestor's links are part of what that
+ancestor says, and a chain that quietly removes them misquotes it. `plain` answers the reports
+and throws away the emphasis a reader uses to recognise an ancestor, at no saving, since
+reaching correct plain text still means parsing.
+
+**The nested-target collision is accepted and bounded.** A crumb is a `role="link"`, and a live
+link inside it is a second destination. The footer's existing `closest('a, button')` guard
+already resolves this the right way — the inner link wins where the pointer is actually on it,
+the crumb wins everywhere else — and the cursor tells the reader which one they are about to
+get before they click. What made this a real risk under an unstyled render was that nothing
+distinguished the two; the cursor is that distinction.
 
 ### D2. One parse; the policy is a serialiser over its output
 
-A regex inline-stripper is a second markdown parser, and it gets escapes, nested emphasis and
-bracket-bearing code spans wrong. Every option above therefore runs
-`MarkdownRenderer.render` once and decides what to keep from the result — plain text is
-`textContent` of a real parse, flattening is unwrapping the elements a crumb must not contain.
+Every candidate in D1, the rejected ones included, runs `MarkdownRenderer.render` once and
+decides what to keep from the result. A regex inline-stripper would be a second markdown parser,
+and it gets escapes, nested emphasis and bracket-bearing code spans wrong — reaching correct
+plain text means `textContent` of a real parse, and dropping media means removing elements from
+a real fragment.
 
-This is also why D1 can stay open past implementation of everything else: the mechanism is the
-same under either answer, and the policy is one function over a rendered fragment.
+So D1's answer is one function over a rendered fragment, and the same mechanism serves both
+surfaces. What a chain keeps is a policy, not a parser.
 
 ### D3. The per-kind content rule moves to `node-text.ts`
 
@@ -120,8 +134,14 @@ widget does the same: `toDOM` returns a complete row whose segment texts fill in
 after. A crumb that is briefly empty is not acceptable, so the fallback while the promise is
 pending is the segment's plain text — which the parse already produces.
 
-### D7. Media is constrained in CSS, not removed in the model
+### D7. A chain drops media; a reference row constrains it
 
-An image that reaches a row under option B is bounded by the row's own line height rather than
-stripped out. The model says what a node says; how much room a row gives it is the stylesheet's
-question, and the same constraint then covers reference rows, which have the defect today.
+Two different answers, because the two rows are different shapes.
+
+In a **chain**, media does not render at all (D1): the serialiser keeps the alt text. A chain is
+one line of dim context, and there is no size at which an image belongs in it.
+
+In a **reference row**, media renders and the stylesheet bounds it. That row is a quotation of
+the node, and an embed is part of what the node says — the defect there is only that it sets the
+row's height, which is the stylesheet's question rather than the model's. Removing it in the
+model would take a quotation's content away to fix a layout problem.

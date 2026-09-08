@@ -38,15 +38,18 @@ implementations, `contentOf` in `footer-model.ts` (per kind) and `nodeLabel` in 
   renderer injected so the module stays DOM-only and free of the footer's `MarkdownRenderer` and
   `Component` plumbing.
 - **Truncation becomes one rule**, applied wherever a chain element is quoted.
-- **Nothing block-shaped enters a row**, images included — closing the `<img>` case the
-  requirement already forbids in words.
+- **Nothing block-shaped enters a row.** Media is dropped to its alt text in a chain and bounded
+  by the stylesheet in a reference row, closing the `<img>` case the requirement already forbids
+  in words.
 
-**What a lineage row KEEPS is deliberately left open** as design D1, with two candidates and an
-interactive comparison of all four options built against one corpus
-(`docs/research/prototypes/lineage-rendering.html`). The two candidates differ in whether a
-crumb may contain a live link, and that trades a real consistency argument against a real
-competing-destination argument. Choosing it by reasoning is what produced the current
-inconsistency.
+**What a lineage row keeps** is design D1, settled against the interactive comparison in
+`docs/research/prototypes/lineage-rendering.html` and against Logseq, which solves the same
+problem on the same two surfaces. A chain renders live — links and tags stay separately
+activatable — and takes **no colour accent**, because in a dim context row the accent was the
+loudest thing on the line. An underline present at rest, the platform's `alias` cursor for an
+external link, and a hover that thickens the underline carry the affordance instead. A tag
+takes a step of ink from the row's own colour and fills on hover. Media does not render in a
+chain at all: a crumb is one line, and the alt text is what the node says.
 
 ## Capabilities
 
@@ -66,6 +69,7 @@ inconsistency.
 - `src/plugin/backlinks-footer.ts` — supplies its renderer; `renderContent` becomes shared.
 - `src/plugin/zoom-trail.ts` — supplies a renderer, owning a `Component` across `toDOM` /
   `destroy`.
-- `styles.css` — the constraint on media inside a row.
+- `styles.css` — the subdued link, tag and cursor treatment for a lineage row, and the bound on
+  media inside a reference row.
 - `tests/footer-model.test.ts`, `tests/zoom.test.ts`, `e2e/specs/73-footer-render.e2e.ts`,
   `e2e/specs/80-outline-zoom.e2e.ts`.

@@ -43,9 +43,17 @@ so a label never claims to be the whole of what it names. A node whose label wou
 SHALL fall back to a label naming its kind, so no segment is ever blank; that fallback is a name
 rather than a quotation and takes no such mark.
 
-A crumb's label SHALL be rendered as inline content by the same rule the backlinks footer's rows
-follow, and SHALL NOT reach the reader as markdown source. A crumb SHALL NOT contain block-level
-elements, and embedded media SHALL NOT set the trail's height.
+A crumb's label SHALL be rendered as inline content and SHALL NOT reach the reader as markdown
+source. A crumb SHALL NOT contain block-level elements, and no embedded media SHALL render in
+one.
+
+The trail SHALL take the backlinks footer's lineage treatment for that content, not one of its
+own: live and separately activatable links and tags, no colour accent, and the underline, cursor
+and hover channels that treatment defines. The two surfaces draw the same primitive, and a crumb
+that accented its links while a footer segment did not would reintroduce along a second axis
+exactly the disagreement this requirement removes. The trail's own row colour is its own — it
+sits level with the note it heads, where the footer's lineage is fainter — and the treatment is
+defined relative to the row's colour so that both resolve correctly.
 
 The file SHALL be a segment of the trail rather than a heading above it, because the note's title
 is hidden while zoomed and naming the note twice is what hiding it avoids. This also means the
@@ -67,8 +75,17 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 
 #### Scenario: A crumb renders its inline markdown
 - **WHEN** an ancestor's text carries emphasis, a code span and a link
-- **THEN** the crumb shows none of that syntax as source characters, and treats it exactly as a
-  footer lineage segment naming the same node does
+- **THEN** the crumb shows none of that syntax as source characters, and produces the same
+  elements a footer lineage segment naming the same node produces
+
+#### Scenario: A crumb's link is live and unaccented
+- **WHEN** an ancestor's text carries a link
+- **THEN** the link is separately activatable, drawn in the trail's own colour rather than the
+  theme's link colour, and activating it does not also re-root the view on that ancestor
+
+#### Scenario: An image embed does not render in a crumb
+- **WHEN** an ancestor's text carries an image embed
+- **THEN** the crumb shows the embed's alt text and the trail stays one line of text tall
 
 #### Scenario: Activating a crumb zooms to that ancestor
 - **WHEN** the user activates the second crumb of a three-crumb trail
