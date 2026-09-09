@@ -218,7 +218,8 @@ function subjectSpan(
 // ---------------------------------------------------------------- headings
 
 function shiftHeadingLevels(node: OutlineNode, delta: number): OutlineNode {
-  const self = node.kind === 'heading' ? headingWithLevel(node, (node.level ?? 1) + delta) : node;
+  const self =
+    node.kind === 'heading' ? headingWithLevel(node, (node.level ?? 1) + delta) : node;
   return { ...self, children: self.children.map((child) => shiftHeadingLevels(child, delta)) };
 }
 
@@ -328,7 +329,9 @@ const isOrderedItem = (n: OutlineNode): boolean =>
   n.kind === 'list-item' && n.listStyle?.type === 'ordered';
 
 /** The maximal runs of consecutive ordered items, with where each begins. */
-function orderedRuns(nodes: readonly OutlineNode[]): { at: number; run: readonly OutlineNode[] }[] {
+function orderedRuns(
+  nodes: readonly OutlineNode[],
+): { at: number; run: readonly OutlineNode[] }[] {
   const runs: { at: number; run: readonly OutlineNode[] }[] = [];
   let i = 0;
   while (i < nodes.length) {
@@ -577,7 +580,9 @@ function indentSurgery(
   // there so the node lands in the target's own section, not a child's.
   const firstSubheading = target.children.findIndex((child) => child.kind === 'heading');
   const insertIndex =
-    target.kind === 'heading' && firstSubheading !== -1 ? firstSubheading : target.children.length;
+    target.kind === 'heading' && firstSubheading !== -1
+      ? firstSubheading
+      : target.children.length;
 
   const newKind = isContent(node)
     ? encodingKindAtDestination({
@@ -651,13 +656,7 @@ function outdentSurgery(
   const grandPath = parentPath.slice(0, -1);
   const parentIndex = parentPath[parentPath.length - 1]!;
   const grandParent = grandPath.length === 0 ? undefined : nodeAt(doc, grandPath)!;
-  if (
-    grandPath.length > 0 &&
-    grandParent!.kind === 'heading' &&
-    node.kind !== 'paragraph' &&
-    node.kind !== 'list-item' &&
-    !isAtom(node)
-  ) {
+  if (grandPath.length > 0 && grandParent!.kind === 'heading' && node.kind !== 'paragraph' && node.kind !== 'list-item' && !isAtom(node)) {
     return reject('not-expressible-under-target');
   }
   const grandSiblings = childrenAt(doc, grandPath);
@@ -879,7 +878,9 @@ export function indentGroups(
   groups: readonly (readonly number[])[],
   fallbackIndentUnit?: string,
 ): OpResult<OpOutput> {
-  return applyGroups(doc, groups, (current, id) => indentSurgery(current, id, fallbackIndentUnit));
+  return applyGroups(doc, groups, (current, id) =>
+    indentSurgery(current, id, fallbackIndentUnit),
+  );
 }
 
 export function outdentGroups(
@@ -887,7 +888,9 @@ export function outdentGroups(
   groups: readonly (readonly number[])[],
   fallbackIndentUnit?: string,
 ): OpResult<OpOutput> {
-  return applyGroups(doc, groups, (current, id) => outdentSurgery(current, id, fallbackIndentUnit));
+  return applyGroups(doc, groups, (current, id) =>
+    outdentSurgery(current, id, fallbackIndentUnit),
+  );
 }
 
 export function moveGroupsUp(
@@ -1049,7 +1052,11 @@ export function isContentStartCh(line: string, ch: number): boolean {
  * has bails out when the boundary already carries a gap, which this one now
  * does.
  */
-function insertEmptyBefore(doc: OutlineDoc, path: NodePath, node: OutlineNode): OpResult<OpOutput> {
+function insertEmptyBefore(
+  doc: OutlineDoc,
+  path: NodePath,
+  node: OutlineNode,
+): OpResult<OpOutput> {
   const parentPath = path.slice(0, -1);
   const index = path[path.length - 1]!;
 
@@ -1092,9 +1099,7 @@ function insertEmptyBefore(doc: OutlineDoc, path: NodePath, node: OutlineNode): 
   let surgery: OutlineDoc;
   if (index > 0) {
     surgery = updateSiblings(doc, parentPath, (nodes) =>
-      nodes.map((n, i) =>
-        i === index - 1 ? appendFinalGap(appendFinalGap(n, positionIndent)) : n,
-      ),
+      nodes.map((n, i) => (i === index - 1 ? appendFinalGap(appendFinalGap(n, positionIndent)) : n)),
     );
   } else if (parentPath.length > 0) {
     const parentIndex = parentPath[parentPath.length - 1]!;
@@ -1133,12 +1138,12 @@ export function splitNode(
   /**
    * True when this node's children are HIDDEN from the reader — folded.
    *
-   * It inverts the content-adjacent rule below. That rule puts the remainder
-   * where the split point visually is, directly above the existing children,
-   * because a sibling would jump the caret over a subtree the reader can see.
-   * When the subtree is not on screen, the same reasoning gives the opposite
-   * answer: a first child would put the new node inside content the reader has
-   * hidden, which is the one place they were not looking.
+   * It inverts the two branches below that place the new node where the
+   * existing children are. Both are there for the same reason — a sibling
+   * would jump the caret over a subtree the reader can see — and when that
+   * subtree is not on screen the same reasoning gives the opposite answer: the
+   * new node would land inside content the reader has hidden, which is the one
+   * place they were not looking.
    *
    * A parameter rather than a fold lookup, because this layer has no view: what
    * is folded is a property of an editor, and the caller is the only thing that
@@ -1303,9 +1308,8 @@ export function splitNode(
 
   // `!collapsed`: for a folded node the gap-widening position is the wrong
   // answer for the same reason the first-child branch above is — both put the
-  // new position where the node's hidden children are, and the reader cannot
-  // see either. A folded node at its own end takes the SIBLING path below,
-  // which is the only one that lands after the subtree.
+  // new position among the node's hidden children. A folded node at its own end
+  // takes the SIBLING path below, the only one that lands after the subtree.
   if (!collapsed && emptyRemainder && (node.kind !== 'list-item' || node.children.length > 0)) {
     // END of a node whose destination scope's kind has no empty encoding: no
     // empty-paragraph encoding exists, so widen the gap and put the cursor on
@@ -1452,10 +1456,7 @@ export function unwrapListItem(doc: OutlineDoc, nodeId: number): OpResult<OpOutp
   const replacement = ['', ...node.trailingGap];
 
   const withoutNode = updateSiblings(doc, parentPath, (nodes) =>
-    renumberOrderedAgainst(
-      nodes,
-      nodes.filter((_, i) => i !== index),
-    ),
+    renumberOrderedAgainst(nodes, nodes.filter((_, i) => i !== index)),
   );
   let surgery: OutlineDoc;
   if (index > 0) {
@@ -1562,10 +1563,7 @@ interface ResolvedGroup {
  * `nodeIds` order doesn't matter; anything else (a missing id, siblings
  * under different parents, a gap in the run) is rejected, no partial
  * application. */
-function resolveContiguousGroup(
-  doc: OutlineDoc,
-  nodeIds: readonly number[],
-): OpResult<ResolvedGroup> {
+function resolveContiguousGroup(doc: OutlineDoc, nodeIds: readonly number[]): OpResult<ResolvedGroup> {
   if (nodeIds.length === 0) return reject('empty-selection');
   const paths: NodePath[] = [];
   for (const id of nodeIds) {
@@ -1640,10 +1638,7 @@ export function deleteSubtreeGroups(
   // Same-parent groups must be removed in ONE filtering pass — a second
   // `updateSiblings` call at the same path would see indices already
   // shifted by the first.
-  const byParent = new Map<
-    string,
-    { parentPath: NodePath; ranges: { lo: number; hi: number }[] }
-  >();
+  const byParent = new Map<string, { parentPath: NodePath; ranges: { lo: number; hi: number }[] }>();
   for (const g of resolved) {
     const key = g.parentPath.join('/');
     const entry = byParent.get(key) ?? { parentPath: g.parentPath, ranges: [] };
@@ -1787,7 +1782,8 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
   const firstIndex = path[path.length - 1]!;
   const secondParentPath = nextPath.slice(0, -1);
   const secondIndex = nextPath[nextPath.length - 1]!;
-  const secondIsFirstChild = arraysEqual(secondParentPath, path) && secondIndex === 0;
+  const secondIsFirstChild =
+    arraysEqual(secondParentPath, path) && secondIndex === 0;
 
   // second's children re-parent under the merged node: shift from second's
   // child column to first's, preserving internal structure; when second was
@@ -2036,7 +2032,10 @@ export function insertSubtrees(
   if (position === 'after') {
     const carriedGap = subtreeFinalNode(anchor).trailingGap;
     finalAnchor = stripFinalGap(anchor);
-    finalReencoded = [...reencoded.slice(0, lastIdx), setFinalGap(reencoded[lastIdx]!, carriedGap)];
+    finalReencoded = [
+      ...reencoded.slice(0, lastIdx),
+      setFinalGap(reencoded[lastIdx]!, carriedGap),
+    ];
   } else {
     finalReencoded = [...reencoded.slice(0, lastIdx), stripFinalGap(reencoded[lastIdx]!)];
   }
