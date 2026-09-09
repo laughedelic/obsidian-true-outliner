@@ -69,10 +69,15 @@ every layer live in its own worktree, and nothing needs setting up before sessio
 Detach the other worktrees around the restack instead:
 
 ```bash
-node scripts/stack-park.mjs park     # refuses while any of them is dirty
+node scripts/stack-park.mjs park     # one stack only; refuses while any is dirty
 gh stack sync
 node scripts/stack-park.mjs unpark
 ```
+
+It parks the stack the current branch belongs to, and takes a stack number when
+standing on the trunk with more than one recorded. `unpark` refuses in turn if a
+parked worktree has picked up changes or commits meanwhile — those sit on a
+detached HEAD, and restoring over them would strand them.
 
 **Land a stack whole.** `gh stack merge --yes --squash` squash-merges every layer in one
 all-or-nothing operation, so nothing is restacked between merges. Merging the bottom layer
