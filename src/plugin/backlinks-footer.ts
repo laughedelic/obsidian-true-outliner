@@ -1335,7 +1335,13 @@ class FooterController {
         marker: segmentMarker,
         glyph: segmentGlyph,
         separatorGlyph,
-        renderSegment: (target, segment) => this.renderSegment(target, segment, sourcePath),
+        // Collected, not discarded. `render()` measures every group's height
+        // once `pending` settles, to decide caps and "show more" — so a lineage
+        // row still filling in at that point is measured empty, and the numbers
+        // come from heights that no longer exist a frame later.
+        renderSegment: (target, segment) => {
+          pending.push(this.renderSegment(target, segment, sourcePath));
+        },
         onActivate: (segment, event) => this.open(event, sourcePath, segment.nodeId),
       });
       return;
@@ -1449,15 +1455,14 @@ class FooterController {
   /** One lineage segment's own content, by the same rule and the same renderer
    * a node row's takes — minus its media, which is the one thing a chain does
    * not inherit from a quotation (design D1). */
-  private renderSegment(el: HTMLElement, segment: LineageSegment, sourcePath: string): void {
-    void renderInline(
-      this.source.app,
-      el,
-      segment,
-      sourcePath,
-      this.component,
-      { media: false },
-    );
+  private renderSegment(
+    el: HTMLElement,
+    segment: LineageSegment,
+    sourcePath: string,
+  ): Promise<void> {
+    return renderInline(this.source.app, el, segment, sourcePath, this.component, {
+      media: false,
+    });
   }
 
   /**

@@ -1962,7 +1962,7 @@ body {
  * quotation and the embed is part of what the node says. Left unbounded it
  * rendered at natural size, which is the reproduction D18 exists to rule out.
  */
-.to-backlinks-content :is(img, video, canvas, svg.excalidraw-svg) {
+.to-backlinks-content :is(img, video, audio, iframe, canvas, svg.excalidraw-svg) {
   max-height: 1.4em;
   width: auto;
   vertical-align: text-bottom;

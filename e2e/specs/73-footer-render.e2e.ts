@@ -252,8 +252,20 @@ describe('backlinks footer: first render', function () {
           if (rows.length === 0) return null;
           const heights = rows.map((r) => r.getBoundingClientRect().height);
           const line = parseFloat(getComputedStyle(rows[0]!).lineHeight || '0');
+          // The fixture puts an embed in a real ANCESTOR — a list item with a
+          // child that references the target. Without that this assertion was
+          // vacuous: the vault's only other image sits in a callout, and an
+          // atom never has children, so no chain could carry it and
+          // `chainImages === 0` held whether or not media was ever dropped.
+          const chainText = Array.from(
+            root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-content'),
+          )
+            .map((el) => (el as HTMLElement).innerText)
+            .join(' ');
           return {
             chainImages: root.querySelectorAll('.to-backlinks-row.is-lineage img').length,
+            chainKeptAltText: chainText.includes('the hover mock'),
+            chainShowsEmbedSource: /!\[|hover-mock\.png/.test(chainText),
             tallest: Math.max(...heights),
             line,
           };
@@ -262,6 +274,10 @@ describe('backlinks footer: first render', function () {
     );
 
     expect(measured!.chainImages).toBe(0);
+    // …and the alt text is what stands in its place, since a segment emptied of
+    // its only content would be blank and unclickable.
+    expect(measured!.chainKeptAltText).toBe(true);
+    expect(measured!.chainShowsEmbedSource).toBe(false);
     // Generous: a row may wrap to a few lines. What this rules out is an image
     // at natural size, which was multiples of this.
     expect(measured!.tallest).toBeLessThan(measured!.line * 8);
@@ -417,22 +433,27 @@ describe('backlinks footer: first render', function () {
             probe.remove();
             const box = icon.getBoundingClientRect();
             const fs = parseFloat(getComputedStyle(seg).fontSize);
-            return { offsetEm: (box.bottom - base) / fs, sizeEm: box.height / fs };
+            return { offsetEm: (box.bottom - base) / fs, sizePx: box.height };
           };
           const out = segs.map(read).filter(Boolean);
-          return out.length > 0 ? out : null;
+          // The row's own gutter marker, which every mark in the footer matches.
+          const marker = root.querySelector('.to-backlinks-row.is-lineage > .to-decor-marker-icon');
+          if (!marker || out.length === 0) return null;
+          return { icons: out, markerPx: marker.getBoundingClientRect().height };
         }),
       { timeout: 12000, timeoutMsg: 'no segment icon to measure' },
     );
 
-    for (const m of marks!) {
+    for (const m of marks!.icons) {
       // On the line, not below it. Centred on the x-height midline instead the
       // box dipped 0.17em under the baseline, which is what reads as "the icons
       // sit lower than the text".
       expect(Math.abs(m!.offsetEm)).toBeLessThan(0.1);
-      // And sized from the row, so a chain's marks shrink with a chain's text.
-      expect(m!.sizeEm).toBeGreaterThan(0.6);
-      expect(m!.sizeEm).toBeLessThan(1);
+      // One size for every mark in the footer, gutter and inline alike — in
+      // PIXELS, because that is what the contract is about. An `em` range
+      // against the chain's own smaller text passes whether or not the size is
+      // compensated, which is the assertion this replaces.
+      expect(Math.abs(m!.sizePx - marks!.markerPx)).toBeLessThan(0.5);
     }
   });
 });

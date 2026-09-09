@@ -230,6 +230,14 @@ class ZoomTrailWidget extends WidgetType {
       // drawn the same way. Resolves after `toDOM` has returned, which is why
       // the row is built complete without it (design D6).
       renderSegment: (target, segment) => {
+        // The file crumb is a NAME, not node content. `text` mode decodes HTML
+        // entities — which is right for an HTML block's text, the only thing
+        // the model ever gives that mode, and wrong for a note called
+        // `R&D &amp; notes`, which would lose its own characters.
+        if (segment.nodeId === FILE_SEGMENT_ID) {
+          target.setText(segment.markdown);
+          return;
+        }
         // No editor info means no app to render through — the same defensive
         // branch the note's own name takes above. Plain text rather than
         // nothing: a blank crumb is unclickable.
@@ -277,7 +285,10 @@ function compute(state: EditorState, modes: ZoomTrailSource): DecorationSet {
   if (!scope) return Decoration.none;
   const file = state.field(editorInfoField, false)?.file;
   const name = file ? splitPath(file.path).name : 'Note';
-  const key = lineageKey(segmentsFor(name, scope.trail));
+  // The icon setting changes what the row DRAWS, so it is part of the widget's
+  // identity: without it, turning icons off nudged every editor while `eq()`
+  // still said equal and CodeMirror kept the old marks.
+  const key = `${modes.backlinksSegmentIcons}\u0002${lineageKey(segmentsFor(name, scope.trail))}`;
   // `side: -1`, and the sign is not a preference. At a line's start a block
   // widget sorts above the line with a negative side and INSIDE it with a
   // positive one, which splits the root line in two and puts the trail between

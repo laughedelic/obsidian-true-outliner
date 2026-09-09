@@ -225,6 +225,35 @@ describe('segmentContent: what a crumb is called', () => {
     }
   });
 
+  /**
+   * The shortening mark, which is now ONE rule across both surfaces — the
+   * footer's segments used to carry none while zoom's crumbs appended an
+   * ellipsis. It lives on the content rather than in the text so it is never
+   * parsed as markdown, which is exactly why nothing about the rendered string
+   * would catch it going wrong.
+   */
+  it('marks a segment as shortened only when the node has more to say', () => {
+    const doc = parse(
+      [
+        '- one line only',
+        '- a first line',
+        '  a continuation of it',
+        '-',
+        '',
+      ].join('\n'),
+    );
+    const items = walk(doc.children).filter((n) => n.kind === 'list-item');
+    const [single, multi, empty] = items;
+
+    expect(segmentContent(single!).shortened).toBeFalsy();
+    expect(segmentContent(multi!).shortened).toBe(true);
+    // The kind fallback is a NAME for the node, not a quotation from it, so it
+    // has nothing it could be cutting short — even though the node it names
+    // may well have more lines.
+    expect(segmentContent(empty!).markdown).toBe('List item');
+    expect(segmentContent(empty!).shortened).toBe(false);
+  });
+
   it('leaves no block syntax in a crumb, whatever the ancestor kind', () => {
     // The three the trail leaked, named as the shapes rather than as strings:
     // a callout token, a table's pipes, a fence.

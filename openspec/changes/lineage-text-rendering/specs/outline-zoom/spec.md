@@ -57,9 +57,10 @@ The trail SHALL take the backlinks footer's lineage treatment for that content i
 respect, not one of its own: live and separately activatable links and tags, no colour accent, and the underline, cursor
 and hover channels that treatment defines. The two surfaces draw the same primitive, and a crumb
 that accented its links while a footer segment did not would reintroduce along a second axis
-exactly the disagreement this requirement removes. The trail's own row colour is its own — it
-sits level with the note it heads, where the footer's lineage is fainter — and the treatment is
-defined relative to the row's colour so that both resolve correctly.
+exactly the disagreement this requirement removes. The two differ in SIZE and not in colour: the trail sits level with the
+note it heads while a footer chain is smaller than the mention it leads to, and both are drawn
+in the same dimmed lineage colour. The treatment is defined relative to whatever the row's own
+colour is, so it resolves correctly on either.
 
 The file SHALL be a segment of the trail rather than a heading above it, because the note's title
 is hidden while zoomed and naming the note twice is what hiding it avoids. This also means the
