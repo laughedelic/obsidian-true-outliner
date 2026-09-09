@@ -128,8 +128,13 @@ describe('the overall cap and the per-note bound', function () {
       const index = plugin.backlinks;
       const placed: string[] = [];
       const original = index.place.bind(index);
+      // FOR THIS TARGET. `place` is called for whatever target the index is
+      // working on, and the vault has more than one with sources of its own —
+      // so an unfiltered spy compared placements made for another note against
+      // the groups shown for this one, and reported the difference as a cap
+      // that placed what it did not admit.
       index.place = (t: string, s: string) => {
-        placed.push(s);
+        if (t === target) placed.push(s);
         return original(t, s);
       };
       try {
