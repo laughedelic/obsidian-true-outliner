@@ -317,8 +317,12 @@ describe('backlinks footer: first render', function () {
           const refMark = one('.to-backlinks-row.is-reference .to-backlinks-content mark');
           const refContent = one('.to-backlinks-row.is-reference .to-backlinks-content');
           const linTag = one('.to-backlinks-row.is-lineage .to-backlinks-content a.tag');
+          const linStrong = one('.to-backlinks-row.is-lineage .to-backlinks-content strong');
           const refTag = one('.to-backlinks-row.is-reference .to-backlinks-content a.tag');
-          if (!lineage || !linCode || !linMark || !refMark || !refContent || !linTag || !refTag) {
+          if (
+            !lineage || !linCode || !linMark || !refMark || !refContent || !linTag || !refTag ||
+            !linStrong
+          ) {
             return null;
           }
           return {
@@ -334,6 +338,7 @@ describe('backlinks footer: first render', function () {
             referenceSize: num(getComputedStyle(refContent).fontSize),
             lineageTagSize: num(getComputedStyle(linTag).fontSize),
             referenceTagSize: num(getComputedStyle(refTag).fontSize),
+            lineageStrongColour: getComputedStyle(linStrong).color,
           };
         }),
       { timeout: 12000, timeoutMsg: 'no styled row to measure' },
@@ -367,5 +372,15 @@ describe('backlinks footer: first render', function () {
     expect(seen!.lineageSize).toBeLessThan(seen!.referenceSize);
     expect(seen!.lineageTagSize).toBeLessThan(seen!.lineageSize);
     expect(seen!.lineageTagSize).toBeLessThan(seen!.referenceTagSize);
+    // Nothing inside a row outgrows the row, whatever the theme asks for.
+    // Catppuccin sets `--tag-size` to an absolute 16px, which made a tag larger
+    // than the reference row it sits in.
+    expect(seen!.referenceTagSize).toBeLessThan(seen!.referenceSize);
+
+    // Emphasis in a chain carries weight, never colour. Several themes draw
+    // `<strong>` in an accent — measured, Catppuccin blue and Things pink —
+    // which puts the loudest thing on the line inside the row whose job is to
+    // be quiet.
+    expect(seen!.lineageStrongColour).toBe(seen!.rowColour);
   });
 });

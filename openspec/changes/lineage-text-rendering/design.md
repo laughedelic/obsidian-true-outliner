@@ -67,20 +67,33 @@ resolved to 0.16 and read as no highlight at all — and a theme that leaves the
 makes the whole `color-mix` invalid, which cancels the background outright. The prototype that
 set the number used an OPAQUE swatch and had neither failure available to it.
 
-So a chain draws the theme's own highlight at a share of its strength, with a literal fallback
-so no theme can cancel it — and lifts its ink to meet it.
+So the footer draws the highlight itself, from a fixed low tint rather than from the theme.
 
-Both, because measurement says neither is enough. A chain's `--text-faint` over the default
-highlight composites to **1.01:1**, the floor: the ink and the tinted ground land at the same
-luminance. Any yellow tint raises that ground toward faint ink, so softening alone cannot
-recover a chain's own 2.9:1; and lifting the ink to `--text-normal` alone makes a highlighted
-run as loud as the mention the chain leads to. Together — 60% of the theme's highlight, ink 60%
-of the way from the row's colour to normal — the chain measures 3.94:1 dark and 6.34:1 light,
-against a reference row's 4.09 and 13.44.
+`--text-highlight-bg` cannot be the source. Measured across four installed themes it is four
+different things — undefined (so `<mark>` falls back to the browser's opaque `rgb(255,255,0)`),
+fully transparent (Things, Cupertino: a highlight that renders as ordinary text, which is
+exactly the "completely cancelled" reported from manual use), opaque and LIGHT (Catppuccin,
+where light ink on it measures 1.14:1), and translucent yellow (the default and AnuPpuccin,
+where it works). Nothing built on it behaves the same in all four, which is why this rule was
+reported broken twice from two different themes. No theme styles `<mark>` inside our rows
+either — bare, all four give black on yellow — so there is nothing here to defer to.
 
-Relative on both sides, so a theme moves them together rather than needing a second set of
-values. The remaining quieting a chain needs it already has: its text is dimmer AND smaller than
-the mention it leads to.
+A fixed tint keeps the composited ground close to the row's own background, which is the ground
+the theme already guarantees its own text colour against. A chain takes 40% of it and lifts its
+ink besides, since a chain's text is faint enough that even a small tint erases it: measured at
+full strength and unlifted, `--text-faint` over the default highlight is **1.01:1**, the floor.
+Across all four themes the result is 4.16–6.22:1 in a chain and 3.73–4.21:1 in a reference row.
+
+Two more rules come from the same measurements, and both generalise past the theme that
+exposed them:
+
+- **Emphasis in a chain carries weight, never colour.** Several themes draw `<strong>` in an
+  accent — Catppuccin blue, Things pink — which is the accent problem arriving through a channel
+  this design did not open, in the row whose whole job is to be quiet.
+- **Nothing inside a row outgrows the row.** A size token is not guaranteed to be relative:
+  Catppuccin sets `--tag-size` to an absolute `16px`, which made a tag larger than the reference
+  row holding it. Sizes taken from tokens are capped against the row's own scale, keeping a
+  theme's intent where it asks for something smaller.
 
 A chain also reads at less than full size — a rule tried and removed before this change, on the
 grounds that colour alone said "context" and a size compounded with the row's own. What changed

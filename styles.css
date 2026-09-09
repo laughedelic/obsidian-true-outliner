@@ -1782,6 +1782,19 @@ body {
 }
 
 /*
+ * Emphasis carries WEIGHT in a chain, never colour.
+ *
+ * Several themes colour `<strong>` — measured, Catppuccin draws it blue and
+ * Things pink — which in a lineage row is the accent problem again arriving
+ * through a channel we did not open: the loudest thing on the line becomes a
+ * bold ancestor, in a row whose whole job is to be quiet. The bold itself
+ * stays; only the colour is declined.
+ */
+.to-backlinks-row.is-lineage .to-backlinks-content :is(strong, em, b, i, del, s) {
+  color: inherit;
+}
+
+/*
  * The cursor is what tells the two destinations apart before the click rather
  * than after it: a crumb re-roots the view or opens the source note, a link
  * inside it leaves for somewhere else entirely. `alias` is the curled arrow the
@@ -1805,7 +1818,6 @@ body {
   /* The app's own tag size, for the reason code takes the app's own code size:
    * `inherit` left a chain's tags LARGER than the reference row's below them,
    * which Obsidian had already sized down to `--tag-size`. */
-  font-size: var(--tag-size, 0.875em);
 }
 
 .to-backlinks-row.is-lineage .to-backlinks-content a.tag:hover {
@@ -1822,18 +1834,27 @@ body {
  * highlight inside a row came out black on a dark theme, in a row whose text is
  * otherwise `--text-faint`. Measured, muted or not: the colour was never ours.
  */
+/*
+ * A highlight the footer draws itself.
+ *
+ * `--text-highlight-bg` cannot be the source. Measured across four installed
+ * themes it is four different things: undefined (so `<mark>` falls back to the
+ * browser's opaque `rgb(255,255,0)`), fully transparent (Things, Cupertino — a
+ * highlight that renders as ordinary text), opaque and LIGHT (Catppuccin, where
+ * light ink on it measures 1.14:1), and translucent yellow (the default and
+ * AnuPpuccin, where it works). Nothing built on it behaves the same in all
+ * four, which is why this rule was reported broken twice from two different
+ * themes.
+ *
+ * No theme styles `<mark>` inside our rows either — bare, every one of the four
+ * gives black on yellow — so there is nothing here to defer to. A fixed, low
+ * tint is the one construction that behaves identically everywhere: it keeps
+ * the composited ground close to the row's own background, which is the ground
+ * the theme already guarantees its text colour is legible against.
+ */
 .to-backlinks-content mark {
   color: inherit;
-  /* And the app's own highlight, not the browser's. Unset, `<mark>` fell back
-   * to `background: Mark` — opaque `rgb(255, 255, 0)`, measured — which is a
-   * harsher yellow than anything else in the note.
-   *
-   * With a literal fallback, because a `var()` that resolves to nothing makes
-   * the whole declaration invalid and the highlight disappears rather than
-   * degrading. A theme that does not define this token is not a theme we can
-   * see from here, so the fallback is the only thing standing between it and a
-   * highlight that reads as ordinary text. */
-  background: var(--text-highlight-bg, rgba(255, 208, 0, 0.4));
+  background: rgba(255, 208, 0, 0.4);
 }
 
 
@@ -1862,7 +1883,7 @@ body {
  * undefined from invalidating the declaration and cancelling the highlight.
  */
 .to-backlinks-row.is-lineage .to-backlinks-content mark {
-  background: color-mix(in srgb, var(--text-highlight-bg, rgba(255, 208, 0, 0.4)) 60%, transparent);
+  background: rgba(255, 208, 0, 0.16);
   color: color-mix(in srgb, currentColor 40%, var(--text-normal) 60%);
 }
 
@@ -1876,8 +1897,26 @@ body {
  * code span. `.to-backlinks-code` already did this for a code ROW; this is the
  * same rule for a span inside any row.
  */
+/*
+ * A tag scales with the row it is in.
+ *
+ * Capped, because a size token is not guaranteed to be relative: Catppuccin
+ * sets `--tag-size` to an absolute 16px, which made a tag larger than the
+ * reference row it sits in and larger still than a chain's smaller text. `min`
+ * keeps a theme's intent where it asks for something smaller and refuses one
+ * that would break the row's scale.
+ *
+ * On every row, not just a chain: the reference row's tags are Obsidian's own
+ * and take the same token.
+ */
+.to-backlinks-content a.tag {
+  font-size: min(var(--tag-size, 0.875em), 0.875em);
+}
+
 .to-backlinks-content code {
-  font-size: var(--code-size);
+  /* Capped for the reason the tag size is — a theme may define this one in
+   * absolute units too, and nothing inside a row may outgrow the row. */
+  font-size: min(var(--code-size, 0.875em), 0.875em);
 }
 
 /*

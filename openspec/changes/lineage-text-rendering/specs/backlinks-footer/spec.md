@@ -158,8 +158,20 @@ absent — while the opacity involved looks unremarkable.
 Where a row's own text colour cannot meet that against its highlight, the row SHALL soften the
 highlight and lift the text TOGETHER. Neither alone suffices: any tint raises the ground toward
 faint ink, and lifting the ink to full strength alone makes a highlighted run in a chain as loud
-as the mention it leads to. Both SHALL be expressed relative to the theme's own colours, so the
-two move together when the theme changes.
+as the mention it leads to.
+
+The highlight's own colour SHALL NOT be derived from a theme token. Such a token is variously
+undefined, fully transparent, opaque and light, or translucent — measured across four themes,
+all four — and a rule built on it renders as a browser default, as nothing at all, or as
+illegible depending on which theme is loaded.
+
+Emphasis inside a lineage row SHALL carry weight and not colour, whatever a theme gives it
+elsewhere. A theme that accents `<strong>` otherwise puts the loudest mark on the page inside
+the row that exists to be quiet.
+
+No element inside a row SHALL be drawn larger than that row's own text. Where a size comes from
+a theme token it SHALL be capped against the row's scale, because a token is not guaranteed to
+be relative and an absolute one breaks the row it lands in.
 
 A lineage row's content SHALL be drawn at less than the size of the reference it leads to, and
 everything inside it — code spans, tags — SHALL be sized relative to the CHAIN rather than to
@@ -204,8 +216,13 @@ implementation.
 #### Scenario: A chain is smaller than the reference it leads to
 
 - **WHEN** a lineage row and its reference row both carry a tag
-- **THEN** the chain's text is smaller than the reference's, and the chain's tag is smaller than
-  the reference's tag rather than larger
+- **THEN** the chain's text is smaller than the reference's, the chain's tag is smaller than the
+  reference's tag rather than larger, and neither tag is larger than the row holding it
+
+#### Scenario: A theme's emphasis colour does not reach a chain
+
+- **WHEN** the active theme draws bold text in an accent colour
+- **THEN** a bold ancestor in a lineage row is still drawn in that row's own text colour
 
 #### Scenario: A tag reads against its row
 
