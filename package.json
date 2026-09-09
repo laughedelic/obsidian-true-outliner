@@ -47,6 +47,7 @@
     "obsidian": "^1.13.1",
     "typescript": "~5.9.0",
     "typescript-eslint": "^8.63.0",
+    "vite": "^8.2.2",
     "vitest": "^5.0.0",
     "wdio-obsidian-reporter": "^3.1.1",
     "wdio-obsidian-service": "^3.1.1",
