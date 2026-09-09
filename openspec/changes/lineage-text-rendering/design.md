@@ -82,7 +82,16 @@ A fixed tint keeps the composited ground close to the row's own background, whic
 the theme already guarantees its own text colour against. A chain takes 40% of it and lifts its
 ink besides, since a chain's text is faint enough that even a small tint erases it: measured at
 full strength and unlifted, `--text-faint` over the default highlight is **1.01:1**, the floor.
-Across all four themes the result is 4.16–6.22:1 in a chain and 3.73–4.21:1 in a reference row.
+Both numbers are set by a sweep rather than by taste, across five themes in both schemes. A
+reference row needs the tint at **0.3** to clear **4.5:1**, the ratio WCAG asks of normal-size
+text — at 0.4 it sat at 3.73:1, which is what an earlier pass shipped. At the chain's 40% of
+that tint its ink has to travel **80%** of the way to the theme's normal text: 3.49:1 at 60%,
+4.82:1 at 80%. Worst case across all ten combinations is **4.82:1** in a chain and **4.94:1** in
+a reference row.
+
+The 20% of the row's own colour left in the chain's ink is what keeps a highlighted run reading
+as part of the chain rather than as the mention it leads to; a reference row uses the theme's
+normal text and is brighter for it.
 
 Two more rules come from the same measurements, and both generalise past the theme that
 exposed them:

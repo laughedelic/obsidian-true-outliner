@@ -379,8 +379,12 @@ describe('backlinks footer: first render', function () {
     // mattered and asserting it hid the real defect: the chain's faint ink on
     // the default highlight composited to 1.01:1 — the floor, where the text is
     // not dim but absent — while its alpha looked perfectly reasonable.
-    expect(seen!.linMarkContrast).toBeGreaterThan(3);
-    expect(seen!.refMarkContrast).toBeGreaterThan(3);
+    // 4.5:1, the ratio WCAG asks of normal-size text — not a floor picked to
+    // sit just above whatever the code happens to produce. Swept across five
+    // themes in both schemes, the worst cases are 4.82 (chain) and 4.94
+    // (reference); a 0.4 tint left a reference row at 3.73.
+    expect(seen!.linMarkContrast).toBeGreaterThanOrEqual(4.5);
+    expect(seen!.refMarkContrast).toBeGreaterThanOrEqual(4.5);
 
     // A chain reads at less than full size, and everything inside it scales
     // with the chain rather than with the row — a tag sized against the row

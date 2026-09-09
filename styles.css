@@ -1888,7 +1888,11 @@ body {
  */
 .to-backlinks-content mark {
   color: inherit;
-  background: rgba(255, 208, 0, 0.4);
+  /* 0.3, not 0.4, and the number is a contrast floor rather than a taste. Swept
+   * across five themes in both schemes, a 0.4 tint left a reference row's
+   * highlighted text at 3.73:1 — under the 4.5:1 WCAG asks of normal text —
+   * while 0.3 lands at 4.94:1 worst case and stays plainly visible. */
+  background: rgba(255, 208, 0, 0.3);
 }
 
 
@@ -1917,8 +1921,14 @@ body {
  * undefined from invalidating the declaration and cancelling the highlight.
  */
 .to-backlinks-row.is-lineage .to-backlinks-content mark {
-  background: rgba(255, 208, 0, 0.16);
-  color: color-mix(in srgb, currentColor 40%, var(--text-normal) 60%);
+  /* 40% of the base tint, and ink 80% of the way to the theme's normal text.
+   * Both numbers are the same sweep: at this tint the chain's ink reaches
+   * 3.49:1 at 60% and 4.82:1 at 80%, worst case across five themes in both
+   * schemes. 100% would clear it further and is what a reference row uses —
+   * the 20% of the row's own colour left here is what keeps a highlighted run
+   * reading as part of the chain rather than as the mention it leads to. */
+  background: rgba(255, 208, 0, 0.12);
+  color: color-mix(in srgb, currentColor 20%, var(--text-normal) 80%);
 }
 
 /*

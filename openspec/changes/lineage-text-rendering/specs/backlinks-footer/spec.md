@@ -177,10 +177,15 @@ the same row sat at 0.06em, which is one row drawn to two midlines. The editor's
 keep the x-height rule, and that difference is the requirement rather than a drift — a marker
 there hangs in its own gutter with no text on its line to be read against.
 
-Every mark in a row SHALL be drawn at ONE size, whatever that row's text size is. A mark is
-notation, and a chain that shrinks its text SHALL NOT shrink its marks with it: the gutter
-marker's size feeds the marker column's own placement, so a per-row size moves the column that
-every row shares.
+Every GLYPH mark in a row — the gutter marker and the kind icons inline in a chain — SHALL be
+drawn at one size, whatever that row's text size is. A glyph mark is notation, and a chain that
+shrinks its text SHALL NOT shrink those with it: the gutter marker's size feeds the marker
+column's own placement, so a per-row size moves the column every row shares.
+
+A mark that is a NUMBER — an ordered item's ordinal, in the gutter or inline in a chain — is
+text rather than a glyph, and SHALL take its row's own text size. Sized to match the glyph marks
+it would be drawn larger than the words beside it in a chain, which is the opposite of reading
+as one line.
 
 No other element inside a row SHALL be drawn larger than that row's own text. Where a size comes from
 a theme token it SHALL be capped against the row's scale, because a token is not guaranteed to
@@ -235,8 +240,8 @@ implementation.
 #### Scenario: A row's marks share one midline and one size
 
 - **WHEN** a lineage row draws its gutter marker and the icons inline beside its text
-- **THEN** all of them are centred on the same midline as that text, and all are the same size
-  as one another and as the marks on every other row in the footer
+- **THEN** all of them are centred on the same midline as that text, and the glyph marks are the
+  same size as one another and as those on every other row in the footer
 
 #### Scenario: A theme's emphasis colour does not reach a chain
 

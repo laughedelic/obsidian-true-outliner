@@ -288,7 +288,14 @@ function compute(state: EditorState, modes: ZoomTrailSource): DecorationSet {
   // The icon setting changes what the row DRAWS, so it is part of the widget's
   // identity: without it, turning icons off nudged every editor while `eq()`
   // still said equal and CodeMirror kept the old marks.
-  const key = `${modes.backlinksSegmentIcons}\u0002${lineageKey(segmentsFor(name, scope.trail))}`;
+  // The FULL path, not the name: `MarkdownRenderer` resolves a crumb's relative
+  // links against it, so a note moved to another folder keeping its basename
+  // renders different links from an unchanged key.
+  const key = [
+    modes.backlinksSegmentIcons,
+    file?.path ?? '',
+    lineageKey(segmentsFor(name, scope.trail)),
+  ].join('\u0002');
   // `side: -1`, and the sign is not a preference. At a line's start a block
   // widget sorts above the line with a negative side and INSIDE it with a
   // positive one, which splits the root line in two and puts the trail between

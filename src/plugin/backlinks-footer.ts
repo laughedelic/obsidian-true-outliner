@@ -1705,14 +1705,25 @@ export async function renderInline(
  * become an `<img>` the row has already been drawn.
  */
 function dropMedia(el: HTMLElement): void {
-  const media = el.querySelectorAll('img, video, audio, iframe, svg, .internal-embed');
+  // NOT a bare `svg`. Obsidian renders inline math as an SVG inside its MathJax
+  // container, and math is inline content this rule is required to keep — a
+  // chain carrying `$E = mc^2$` would have lost the formula entirely. Only the
+  // SVG that IS a drawing is media; `canvas` joins it, as the row's own bound
+  // already recognised.
+  const media = el.querySelectorAll(
+    'img, video, audio, iframe, canvas, svg.excalidraw-svg, .internal-embed',
+  );
   media.forEach((node) => {
-    const alt =
-      node.getAttribute('alt') ??
-      node.getAttribute('src') ??
-      node.getAttribute('title') ??
-      '';
-    node.replaceWith(alt.trim());
+    // An attribute that is present but empty is absent for this purpose:
+    // `getAttribute('alt')` answers `''` for `alt=""`, which `??` accepts, so
+    // an image whose alt is empty replaced itself with nothing — and a segment
+    // whose only content was that image became blank and still focusable,
+    // which is the failure the fallback chain exists to prevent.
+    const first = (...values: Array<string | null>): string =>
+      values.find((v) => v !== null && v.trim().length > 0)?.trim() ?? '';
+    node.replaceWith(
+      first(node.getAttribute('alt'), node.getAttribute('src'), node.getAttribute('title')),
+    );
   });
 }
 
