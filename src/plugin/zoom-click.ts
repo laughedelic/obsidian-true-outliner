@@ -47,6 +47,9 @@ import { ViewPlugin, type EditorView, type PluginValue } from '@codemirror/view'
 import type { Extension } from '@codemirror/state';
 import { resolveZoom } from '../zoom';
 import { parsedDoc } from './parsed-doc';
+import { ancestryAtLine } from './fold-model';
+import { GUIDES_CLASS } from './chrome-line';
+import { toggleGuideAt } from './fold-commands';
 import { isNestedEditor } from './nested-editor';
 import { OWN_CHROME_CLASS } from './chrome-line';
 import { zoomTo } from './zoom-state';
@@ -65,8 +68,7 @@ import { isOutlineMode } from './outline-state';
  * spans that too, and swallowing a click there would take a position the reader
  * was aiming the caret at.
  */
-const MARK_SELECTOR =
-  '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
+const MARK_SELECTOR = '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
 
 /** The events a handled press has to swallow, in the order they arrive. */
 const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
@@ -124,6 +126,36 @@ class ZoomClickPlugin implements PluginValue {
     if (event.type === 'click') this.consuming = false;
   }
 
+  /**
+   * The guide half of the gesture. Returns whether it acted, so the caller
+   * takes the press only when it did — a miss has to stay an ordinary click.
+   */
+  private handleGuide(event: MouseEvent, target: Element | null): boolean {
+    if (isNestedEditor(this.view)) return false;
+    if (!isOutlineMode(this.view.state)) return false;
+    const lineEl = target?.closest<HTMLElement>('.cm-line');
+    if (!lineEl) return false;
+    // A guide is drawn only when guides are drawn: an affordance that
+    // disappears with a display setting cannot be the only route to an
+    // operation, and this one is not — the commands and the per-node control
+    // remain.
+    if (!lineEl.classList.contains(GUIDES_CLASS)) return false;
+    let pos: number;
+    try {
+      pos = this.view.posAtDOM(lineEl);
+    } catch {
+      return false;
+    }
+    const lineNumber = this.view.state.doc.lineAt(pos).number - 1;
+    const { doc } = parsedDoc(this.view.state.doc);
+    const chain = ancestryAtLine(doc, lineNumber);
+    const depth = chain.length - 1;
+    if (depth < 1) return false;
+    const column = guideHit(this.view, lineEl, event.clientX, depth);
+    if (column === null) return false;
+    return toggleGuideAt(this.view, lineNumber, column);
+  }
+
   private handle(event: MouseEvent): void {
     // A fresh gesture starting is also the only reliable point to notice a
     // PREVIOUS one that dragged off the mark and never produced its `click` —
@@ -141,7 +173,19 @@ class ZoomClickPlugin implements PluginValue {
     // comment on pop-out windows.
     const target = event.target instanceof this.Element ? event.target : null;
     const mark = target?.closest<HTMLElement>(MARK_SELECTOR);
-    if (!mark) return;
+    // No mark under the press: the other thing this gutter offers is a guide
+    // column, which folds the branch it belongs to. Marks win, because a mark
+    // is the smaller target and the more specific claim — and because the two
+    // gestures have to be ordered somewhere, which is why they share a listener
+    // rather than racing in two.
+    if (!mark) {
+      if (this.handleGuide(event, target)) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.consuming = true;
+      }
+      return;
+    }
     // The trail and the footer draw marks of their own inside `.cm-content` and
     // answer their own clicks — the trail's mark zooms OUT, and a footer row
     // navigates. Both already declare that they are not lines
@@ -180,6 +224,45 @@ class ZoomClickPlugin implements PluginValue {
       selection: { anchor: rootStart },
     });
   }
+}
+
+/**
+ * A press on an indentation guide, or null if it was not one.
+ *
+ * Guides are painted as a gradient on one pseudo-element per line
+ * (docs/research/09), so there is no element to hit — the column has to be
+ * found by arithmetic. All of it comes from the line under the press:
+ *
+ * - its box's left edge is column 0, measured;
+ * - its own mark sits at `left + depth × unit`, so one rendered mark on the
+ *   line gives the unit without resolving a CSS variable to pixels;
+ * - the guides it draws are its ancestors' columns, `k < depth`.
+ *
+ * The tolerance is a third of a unit either side, comfortably short of the half
+ * that would start stealing presses meant for the level beside it, and the
+ * press must land LEFT of the line's own text — a click in the text is a click
+ * in the text, whatever column it happens to line up with.
+ */
+function guideHit(
+  view: EditorView,
+  lineEl: HTMLElement,
+  clientX: number,
+  depth: number,
+): number | null {
+  if (depth < 1) return null;
+  const box = lineEl.getBoundingClientRect();
+  const markEl = lineEl.querySelector<HTMLElement>(
+    ':scope > .to-decor-marker-icon, .list-bullet, .cm-formatting-list, .task-list-item-checkbox',
+  );
+  const step = markEl ? (markEl.getBoundingClientRect().left - box.left) / depth : null;
+  if (step === null || !(step > 1)) return null;
+  const textLeft = box.left + parseFloat(getComputedStyle(lineEl).paddingLeft);
+  if (clientX > textLeft) return null;
+  const tolerance = step / 3;
+  for (let k = 0; k < depth; k++) {
+    if (Math.abs(clientX - (box.left + k * step)) <= tolerance) return k;
+  }
+  return null;
 }
 
 export function zoomClickExtension(): Extension {

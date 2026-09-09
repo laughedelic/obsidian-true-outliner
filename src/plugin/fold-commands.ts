@@ -26,8 +26,10 @@ import {
   foldableEntries,
   foldTargetAtLine,
   isFoldable,
+  subtreeSpan,
   type FoldEntry,
 } from './fold-model';
+import { ownSpan } from '../model';
 import {
   currentFolds,
   dispatchFolds,
@@ -127,6 +129,35 @@ export function applyFold(view: EditorView, entries: FoldEntry[], action: FoldAc
 export function toggleFoldAtLine(view: EditorView, lineNumber: number): boolean {
   const entry = foldChromeTarget(view.state, lineNumber);
   return entry ? applyFold(view, [entry], 'toggle') : false;
+}
+
+/**
+ * The guide gesture: fold or unfold every child of the node that guide belongs
+ * to.
+ *
+ * Toggle by majority-of-one: if ANY of those children is unfolded they all
+ * fold, and only when every one is already folded do they open. Reading a
+ * single branch by collapsing everything beside it is what this exists for, and
+ * that reading is reached in one click from any starting state.
+ *
+ * `depth` is the guide's own column, so the node it belongs to is the ancestor
+ * at that depth — the guide at column 0 belongs to the top-level node whose
+ * subtree the line sits in, not to the line itself.
+ */
+export function toggleGuideAt(view: EditorView, lineNumber: number, depth: number): boolean {
+  const { doc } = parsedDoc(view.state.doc);
+  const chain = ancestryAtLine(doc, lineNumber);
+  const owner = chain[depth];
+  if (!owner) return false;
+  const children: FoldEntry[] = [];
+  let startLine = owner.startLine + ownSpan(owner.node);
+  for (const child of owner.node.children) {
+    if (isFoldable(child)) children.push({ node: child, startLine, depth: owner.depth + 1 });
+    startLine += subtreeSpan(child);
+  }
+  if (children.length === 0) return false;
+  const anyOpen = children.some((child) => !isFolded(view.state, child));
+  return applyFold(view, children, anyOpen ? 'fold' : 'unfold');
 }
 
 /** The gesture, end to end: resolve, act, report whether anything happened. */

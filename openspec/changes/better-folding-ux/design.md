@@ -268,8 +268,8 @@ and its folded treatment — not the fold state itself, which stays the footer's
 - **Where the count sits when a node's text wraps.** After the text means after its LAST visual
   row, which is not where a reader looks. Anchoring it to the first row instead is a rendering
   decision the mockup does not settle, and either answer satisfies the spec.
-- **The guide tolerance on touch.** Whether the mobile hit band needs to be wider than the desktop
-  one, answered by the mobile e2e run rather than in advance.
+- ~~**The guide tolerance on touch.**~~ Answered by the mobile run: no. Every guide-gesture case
+  passes under mobile emulation at the desktop tolerance, and one number serves both.
 - **Whether `fold one level more/less` should track a remembered depth** rather than recomputing
   the deepest unfolded level each time. Only observable when the two disagree — after an edit that
   changes depth between invocations — and either answer satisfies the spec's scenarios.

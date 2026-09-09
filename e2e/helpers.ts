@@ -1096,6 +1096,82 @@ export function foldAffordanceVisible(line: number): Promise<boolean> {
   }, line);
 }
 
+/**
+ * Press a real pointer on a line's guide column.
+ *
+ * Real coordinates, not a synthesised event on an element: a guide HAS no
+ * element — it is a gradient on a pseudo-element — so dispatching at a node
+ * would bypass the arithmetic the gesture is made of. The column's x comes from
+ * the same geometry the plugin uses: the line's own left edge plus `k` steps,
+ * where a step is the distance from that edge to the line's own mark divided by
+ * its depth.
+ *
+ * `depth` comes from the FIXTURE, not from the geometry: deriving it here from
+ * the same measurements the plugin uses would make the test agree with the
+ * implementation by construction. Measured the hard way once — a helper that
+ * guessed the depth from a hardcoded gutter reported one level where the
+ * document had two, put every press one column right, and made a tolerance test
+ * pass against a deliberately broken tolerance.
+ *
+ * `offsetFraction` shifts the press by that fraction of a step, for testing the
+ * tolerance's edges.
+ */
+export async function clickGuideColumn(
+  line: number,
+  column: number,
+  opts: { depth: number; offsetFraction?: number },
+): Promise<void> {
+  const point = await browser.executeObsidian(
+    ({}, n: number, k: number, fraction: number, depth: number) => {
+      const el = document.querySelectorAll<HTMLElement>(
+        '.workspace-leaf.mod-active .cm-content > .cm-line',
+      )[n];
+      if (!el) throw new Error(`no line ${n}`);
+      const box = el.getBoundingClientRect();
+      const mark = el.querySelector<HTMLElement>(
+        ':scope > .to-decor-marker-icon, .list-bullet, .cm-formatting-list, .task-list-item-checkbox',
+      );
+      if (!mark) throw new Error(`line ${n} renders no mark to measure a step from`);
+      // One level, from this line's own mark: it sits `depth` steps right of
+      // the line's left edge, which is column 0.
+      const step = (mark.getBoundingClientRect().left - box.left) / depth;
+      return { x: box.left + k * step + fraction * step, y: box.top + box.height / 2 };
+    },
+    line,
+    column,
+    opts.offsetFraction ?? 0,
+    opts.depth,
+  );
+  await clickAtPoint(point.x, point.y);
+  await browser.pause(150);
+}
+
+/** Press a real pointer in the middle of a line's own text. */
+export async function clickLineText(line: number): Promise<void> {
+  const point = await browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll<HTMLElement>(
+      '.workspace-leaf.mod-active .cm-content > .cm-line',
+    )[n];
+    if (!el) throw new Error(`no line ${n}`);
+    const box = el.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(el).paddingLeft);
+    return { x: box.left + pad + 12, y: box.top + box.height / 2 };
+  }, line);
+  await clickAtPoint(point.x, point.y);
+  await browser.pause(150);
+}
+
+/** The guide-visibility setting, through the plugin's own accessor. */
+export async function setGuideVisibility(value: string): Promise<void> {
+  await browser.executeObsidian(
+    async ({ plugins }, v: string) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (plugins.trueOutliner as any).setGuideVisibility(v),
+    value,
+  );
+  await browser.pause(200);
+}
+
 /** The marker-visibility setting, through the plugin's own accessor. */
 export async function setMarkerVisibility(value: string): Promise<void> {
   await browser.executeObsidian(

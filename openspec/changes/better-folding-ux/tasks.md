@@ -116,16 +116,19 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 
 ## 6. The guide gesture
 
-- [ ] 6.1 Extend `zoom-click.ts`'s capture-phase `pointerdown` (D7): mark first, then guide
+- [x] 6.1 Extend `zoom-click.ts`'s capture-phase `pointerdown` (D7): mark first, then guide
       column by x-offset against `depth × unit`, within a tolerance narrower than half a unit and
       never on the node's own text. No new listener
-- [ ] 6.2 Toggle semantics per the spec — any child unfolded means fold them all; all folded
+- [x] 6.2 Toggle semantics per the spec — any child unfolded means fold them all; all folded
       means unfold — acting on the children of the node the guide belongs to
-- [ ] 6.3 E2E: a click on the band folds the branch; a second click reopens it; a click past the
+- [x] 6.3 E2E: a click on the band folds the branch; a second click reopens it; a click past the
       tolerance places a caret and folds nothing; with guides turned off nothing folds. Negative
       control — widening the tolerance past half a unit must fail the caret test
-- [ ] 6.4 Mobile run of 6.3, since the hit band may need to be wider there (design — Open
-      Questions). Record the answer
+- [x] 6.4 Mobile run of 6.3, since the hit band may need to be wider there (design — Open
+      Questions). **Answer: no.** Every case passes under mobile emulation at the desktop
+      tolerance — the gesture is a `pointerdown` on a column, not a drag, and a third of a unit is
+      already wider than a touch's own precision on the outline's grid. Left as one number for
+      both, and the spec states a tolerance rather than a platform
 
 ## 7. Persistence
 
