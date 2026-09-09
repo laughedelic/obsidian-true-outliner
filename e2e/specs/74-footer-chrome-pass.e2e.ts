@@ -339,9 +339,9 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     await h.openNote(SMALL);
     await ensureOutlineMode(SMALL);
 
-    const probe = (): Promise<Array<{ where: string; off: number }>> =>
+    const probe = (): Promise<Array<{ where: string; off: number; capOff: number | null }>> =>
       browser.executeObsidian(() => {
-        const out: Array<{ where: string; off: number }> = [];
+        const out: Array<{ where: string; off: number; capOff: number | null }> = [];
         const leaf = document.querySelector('.workspace-leaf.mod-active');
         if (!leaf) return out;
 
@@ -350,15 +350,25 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
           base.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
           const ex = document.createElement('span');
           ex.style.cssText = 'display:inline-block;width:0;height:1ex;vertical-align:baseline';
+          const cap = document.createElement('span');
+          cap.style.cssText = 'display:inline-block;width:0;height:1cap;vertical-align:baseline';
           host.insertBefore(base, host.firstChild);
           host.insertBefore(ex, host.firstChild);
+          host.insertBefore(cap, host.firstChild);
           const baseline = base.getBoundingClientRect().top;
           const xh = ex.getBoundingClientRect().height;
+          const caph = cap.getBoundingClientRect().height;
           base.remove();
           ex.remove();
+          cap.remove();
           if (xh <= 0) return;
-          const r = icon.getBoundingClientRect();
-          out.push({ where, off: r.top + r.height / 2 - (baseline - xh / 2) });
+          const r0 = icon.getBoundingClientRect();
+          const centre = r0.top + r0.height / 2;
+          out.push({
+            where,
+            off: centre - (baseline - xh / 2),
+            capOff: caph > 0 ? centre - (baseline - caph / 2) : null,
+          });
         };
 
         leaf.querySelectorAll<HTMLElement>('.cm-content > .cm-line').forEach((line, i) => {
@@ -381,11 +391,24 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     const footer = (await probe()).filter((m) => m.where.startsWith('footer'));
     expect(footer.length).toBeGreaterThan(0);
 
-    // Sub-pixel, not "close enough": the correction is expressed in `ex`, so it
-    // is exact by construction at any text size — a drift here means something
-    // stopped resolving against the font it sits in.
-    for (const m of [...editor, ...footer]) {
+    // Sub-pixel, not "close enough": each correction is expressed in the font's
+    // own metric, so it is exact by construction at any text size — a drift
+    // here means something stopped resolving against the font it sits in.
+    //
+    // TWO midlines, because the two surfaces are two cases. An editor marker
+    // hangs in its own gutter with no text on its line to be read against, and
+    // the x-height midline is where a small mark belongs there. A FOOTER marker
+    // sits at the head of a line of text, and a glyph centred on x-height dips
+    // below that text's baseline — measured, 0.15em under it, against 0.06em
+    // for the icons inline in the same row. One row cannot have two midlines,
+    // and the one it keeps is the one that matches the text beside it. Zoom's
+    // trail reached the same conclusion first and shipped it.
+    for (const m of editor) {
       expect(Math.abs(m.off)).toBeLessThan(1);
+    }
+    for (const m of footer) {
+      expect(m.capOff).not.toBeNull();
+      expect(Math.abs(m.capOff!)).toBeLessThan(1);
     }
   });
 
@@ -675,6 +698,11 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         const xh = ex.getBoundingClientRect().height;
         base.remove();
         ex.remove();
+        const capProbe = document.createElement('span');
+        capProbe.style.cssText = 'display:inline-block;width:0;height:1cap;vertical-align:baseline';
+        (content ?? el).insertBefore(capProbe, (content ?? el).firstChild);
+        const caph = capProbe.getBoundingClientRect().height;
+        capProbe.remove();
 
         const m = marker?.getBoundingClientRect();
         const c = content?.getBoundingClientRect();
@@ -693,9 +721,13 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
           // `0.5ex` rule centres by hand. An ordinal is text on the row's own
           // baseline — already aligned by typography, and its box centre is not
           // its ink's.
-          opticalOffset: icon && xh > 0
+          // Against the CAP midline, which is the footer's: a mark here sits at
+          // the head of a line of text, and one centred on the x-height midline
+          // dips below that text's baseline. The editor's own markers keep the
+          // x-height rule and are asserted against it elsewhere in this file.
+          opticalOffset: icon && caph > 0
             ? icon.getBoundingClientRect().top + icon.getBoundingClientRect().height / 2 -
-              (baseline - xh / 2)
+              (baseline - caph / 2)
             : null,
           // What alignment means for a text marker: it shares a line with the
           // text beside it.

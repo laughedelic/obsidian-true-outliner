@@ -169,7 +169,20 @@ Emphasis inside a lineage row SHALL carry weight and not colour, whatever a them
 elsewhere. A theme that accents `<strong>` otherwise puts the loudest mark on the page inside
 the row that exists to be quiet.
 
-No element inside a row SHALL be drawn larger than that row's own text. Where a size comes from
+Every mark in a row — the gutter marker and the icons inline in a chain — SHALL be vertically
+centred on the same midline as the text beside it, and that midline SHALL be the font's CAP
+height rather than its x-height. A mark centred on the x-height midline dips below the baseline
+of adjacent text: measured, a footer gutter marker sat 0.15em under it while the icons inline in
+the same row sat at 0.06em, which is one row drawn to two midlines. The editor's own markers
+keep the x-height rule, and that difference is the requirement rather than a drift — a marker
+there hangs in its own gutter with no text on its line to be read against.
+
+Every mark in a row SHALL be drawn at ONE size, whatever that row's text size is. A mark is
+notation, and a chain that shrinks its text SHALL NOT shrink its marks with it: the gutter
+marker's size feeds the marker column's own placement, so a per-row size moves the column that
+every row shares.
+
+No other element inside a row SHALL be drawn larger than that row's own text. Where a size comes from
 a theme token it SHALL be capped against the row's scale, because a token is not guaranteed to
 be relative and an absolute one breaks the row it lands in.
 
@@ -218,6 +231,12 @@ implementation.
 - **WHEN** a lineage row and its reference row both carry a tag
 - **THEN** the chain's text is smaller than the reference's, the chain's tag is smaller than the
   reference's tag rather than larger, and neither tag is larger than the row holding it
+
+#### Scenario: A row's marks share one midline and one size
+
+- **WHEN** a lineage row draws its gutter marker and the icons inline beside its text
+- **THEN** all of them are centred on the same midline as that text, and all are the same size
+  as one another and as the marks on every other row in the footer
 
 #### Scenario: A theme's emphasis colour does not reach a chain
 

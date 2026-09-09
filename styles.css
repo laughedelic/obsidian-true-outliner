@@ -1368,6 +1368,11 @@ body {
    * the placement arithmetic reads this same property (MARKER_ICON_VAR).
    */
   --to-marker-icon-size: 0.8em;
+  /* How much smaller a lineage row's TEXT is than the reference it leads to.
+   * Named once because two rules have to agree about it: the chain's font-size
+   * uses it, and the inline marks divide it back out to stay the size every
+   * other mark in the footer is. */
+  --to-chain-scale: 0.92;
   /*
    * The colour of every mark in the footer — row markers, the icons inline on a
    * lineage row, and the fold chevrons that are notation about the same outline.
@@ -1755,9 +1760,38 @@ body {
  * for the view rather than context inside a card, and its requirement puts it
  * level with the note it heads — so the unscoped selector would have shrunk
  * the one row that must not shrink.
+ *
+ * On the ROW, not on the content span inside it, and that is load-bearing. The
+ * row's gutter marker is a SIBLING of that span, and its size is `0.8em`
+ * against whatever font it inherits — so sizing the span alone shrank the icons
+ * inline in the text while leaving the marker beside them at the row's full
+ * size, breaking the footer's one-size-for-every-mark contract by 0.94px.
+ * Sizing the row scales the text, the inline icons and the marker together.
  */
 .to-backlinks .to-backlinks-row.is-lineage .to-backlinks-content {
-  font-size: 0.92em;
+  font-size: calc(1em * var(--to-chain-scale));
+}
+
+/*
+ * The marks do NOT shrink with it, and that is the footer's own rule rather
+ * than an oversight.
+ *
+ * A mark is notation: `74-footer-chrome-pass` requires one size for every mark
+ * in the footer, gutter and inline alike, on the same column. The size sits on
+ * the CONTENT span because a row's font-size is load-bearing for chrome the
+ * text has no part in — guide columns, marker placement, the whole-number-of-
+ * lines row height — and moving it to the row broke five of those at once.
+ *
+ * But the gutter marker is a SIBLING of that span and the inline icons are
+ * inside it, so the shrink reached one and not the other: measured, 11.77px
+ * against 10.83px, and the contract failed by 0.94px. Sizing the MARKER down to
+ * match instead moved the column, because the placement arithmetic reads the
+ * same property. So the inline icons divide the factor back out and every mark
+ * in the footer stays one size, whatever the row's text does.
+ */
+.to-backlinks .to-backlinks-row.is-lineage .to-backlinks-seg-icon {
+  width: calc(0.8em / var(--to-chain-scale));
+  height: calc(0.8em / var(--to-chain-scale));
 }
 
 /*
@@ -1944,6 +1978,26 @@ body {
  * information. Space alone divides them now — 0.7em, the width the chevron's own
  * margins used to hold, so the rhythm of a chain is unchanged.
  */
+/*
+ * A footer row's gutter marker, on the same midline as the icons inline beside
+ * it.
+ *
+ * `.to-decor-marker-icon` centres on the x-height, which is right where that
+ * rule was measured — the editor, where a marker hangs in its own gutter with
+ * no text on its line to be read against. A footer row is the other case: the
+ * marker sits at the head of a line of text, and on the x-height midline its
+ * lower edge fell 0.15em below that text's baseline while the row's own inline
+ * icons sat at 0.06em. One row, two midlines, and the taller glyphs showed it
+ * first.
+ *
+ * Only the `cap` half is restated: the `ex` fallback is already the base rule's.
+ */
+@supports (top: 1cap) {
+  .to-backlinks .to-backlinks-row > .to-decor-marker-icon {
+    top: calc(var(--to-marker-icon-size, 0.85rem) / 2 - 0.5cap);
+  }
+}
+
 /*
  * A segment's kind mark, on the CAP midline of the text beside it.
  *
