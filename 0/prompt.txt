@@ -1,0 +1,1 @@
+check deps update PR: https://github.com/laughedelic/obsidian-true-outliner/pull/83. it bumped major vitest version and CI is failing now. fix it please
