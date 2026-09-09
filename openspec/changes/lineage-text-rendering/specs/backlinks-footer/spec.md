@@ -145,10 +145,18 @@ taken from the ROW's own colour rather than from a fixed value, because the foot
 zoom's trail are dimmed to different degrees and a value chosen for one leaves the tag
 unreadable on the other.
 
-A highlight SHALL be drawn at reduced strength in a lineage row, keeping its hue. At full
-strength it is the loudest mark on a row whose dimness is what makes it read as context — the
-same inversion the colour accent causes, in the one channel that is only colour. A reference row
-SHALL keep its highlight at full strength, being a quotation rather than context.
+A highlight SHALL be drawn with a visible background in every row, and SHALL take its row's own
+text colour. Left to the browser a `<mark>` is black on an opaque yellow, which on a dark theme
+is the only black text in the footer; and a background derived solely from a theme token
+disappears entirely where that token is undefined. Neither outcome is a highlight.
+
+A lineage row SHALL NOT weaken that background further. Its text is already dimmer and smaller
+than the mention it leads to, and the theme's own highlight token may already carry alpha — so
+reducing it again is what makes a highlight read as ordinary text.
+
+A lineage row's content SHALL be drawn at less than the size of the reference it leads to, and
+everything inside it — code spans, tags — SHALL be sized relative to the CHAIN rather than to
+the row, so no element inside a chain is larger than its counterpart in a reference row.
 
 Embedded media SHALL NOT render in a lineage row at all. A chain is one line, and there is no
 size at which an image belongs in it; the segment SHALL keep the embed's alt text, which is what
@@ -179,11 +187,17 @@ implementation.
 - **THEN** the segment's own hover changes only its colour, and the only underline anywhere on
   the row is the link's own
 
-#### Scenario: A highlight is quieter in a chain than in a reference
+#### Scenario: A highlight reads as one, in both rows
 
 - **WHEN** an ancestor and the reference beneath it both carry a highlight
-- **THEN** the reference's is drawn at full strength and the ancestor's at reduced strength, and
-  both keep the highlight hue
+- **THEN** both are drawn with a visible background, and each takes its own row's text colour
+  rather than the browser's default black
+
+#### Scenario: A chain is smaller than the reference it leads to
+
+- **WHEN** a lineage row and its reference row both carry a tag
+- **THEN** the chain's text is smaller than the reference's, and the chain's tag is smaller than
+  the reference's tag rather than larger
 
 #### Scenario: A tag reads against its row
 

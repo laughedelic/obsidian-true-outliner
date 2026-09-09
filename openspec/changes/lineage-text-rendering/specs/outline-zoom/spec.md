@@ -47,8 +47,14 @@ A crumb's label SHALL be rendered as inline content and SHALL NOT reach the read
 source. A crumb SHALL NOT contain block-level elements, and no embedded media SHALL render in
 one.
 
-The trail SHALL take the backlinks footer's lineage treatment for that content, not one of its
-own: live and separately activatable links and tags, no colour accent, and the underline, cursor
+The trail SHALL be drawn at the size of the note it heads, NOT at the size the backlinks
+footer gives its own chains. A footer chain is context inside a card and reads smaller than the
+mention it leads to; the trail is a header for the view, and its own requirement above puts it
+level with the content beneath it. The two share one rendering primitive, so this is the one
+place the shared treatment is deliberately not shared.
+
+The trail SHALL take the backlinks footer's lineage treatment for that content in every other
+respect, not one of its own: live and separately activatable links and tags, no colour accent, and the underline, cursor
 and hover channels that treatment defines. The two surfaces draw the same primitive, and a crumb
 that accented its links while a footer segment did not would reintroduce along a second axis
 exactly the disagreement this requirement removes. The trail's own row colour is its own — it
@@ -84,6 +90,11 @@ The trail SHALL be present only while zoomed, and SHALL disappear when the zoom 
 - **THEN** the link is separately activatable, drawn in the trail's own colour rather than the
   theme's link colour, and activating it — by click or by Enter — does not also re-root the view
   on that ancestor
+
+#### Scenario: The trail reads at the note's own size
+- **WHEN** the view is zoomed and the trail carries an ancestor crumb
+- **THEN** the crumb's text is the size of the editor's own lines, not the smaller size the
+  footer gives a lineage row
 
 #### Scenario: A crumb's marker follows its node's state
 - **WHEN** a task ancestor's checkbox is toggled while zoomed, its label unchanged

@@ -60,11 +60,25 @@ a chip: a pill is a second object in a line that is one. Its colour is a step fr
 colour toward the text colour rather than a fixed token, because the footer's lineage is faint
 and the trail's is muted — a token chosen for one leaves the tag invisible on the other.
 
-A highlight is muted too, toward transparent rather than replaced. At full strength it is the
-loudest thing on a dim line, which is the accent problem again in the one channel that is pure
-colour; mixed down it keeps the hue that says "highlight" and loses the shout. A reference row
-keeps its own at full strength, being a quotation rather than context — the two sit together in
-the prototype's highlight example, one row apart.
+A highlight is NOT muted, and that reverses what this decision first said. Muting it was tried
+twice and broke twice, both times for the same reason: `--text-highlight-bg` already carries its
+own alpha (`rgba(255, 208, 0, 0.4)` by default), so mixing it toward transparent compounds — 40%
+resolved to 0.16 and read as no highlight at all — and a theme that leaves the token undefined
+makes the whole `color-mix` invalid, which cancels the background outright. The prototype that
+set the number used an OPAQUE swatch and had neither failure available to it.
+
+So a chain draws the app's own highlight, with a literal fallback so no theme can cancel it. The
+quieting a chain needs, it already has: its text is dimmer AND smaller than the mention it leads
+to, which is two axes before colour is spent on a third.
+
+A chain also reads at less than full size — a rule tried and removed before this change, on the
+grounds that colour alone said "context" and a size compounded with the row's own. What changed
+is what a chain CONTAINS: it now renders bold, links, code spans and tags, and carries weight
+colour alone no longer offsets. Everything inside it scales with the chain rather than with the
+row, so a tag in a chain is smaller than a tag in the reference below it rather than larger.
+
+Zoom's trail is excluded from that size, and only from that. It is a header for the view rather
+than context inside a card, and `outline-zoom` puts it level with the note it heads.
 
 **Media does not render in a chain.** A crumb is one line, and an image is not text. Its alt
 text is what the node says, so the segment keeps that; dropping it outright can leave a crumb

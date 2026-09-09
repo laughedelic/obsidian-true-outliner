@@ -295,7 +295,11 @@ describe('backlinks footer: first render', function () {
           const linMark = one('.to-backlinks-row.is-lineage .to-backlinks-content mark');
           const refMark = one('.to-backlinks-row.is-reference .to-backlinks-content mark');
           const refContent = one('.to-backlinks-row.is-reference .to-backlinks-content');
-          if (!lineage || !linCode || !linMark || !refMark || !refContent) return null;
+          const linTag = one('.to-backlinks-row.is-lineage .to-backlinks-content a.tag');
+          const refTag = one('.to-backlinks-row.is-reference .to-backlinks-content a.tag');
+          if (!lineage || !linCode || !linMark || !refMark || !refContent || !linTag || !refTag) {
+            return null;
+          }
           return {
             contentSize: num(getComputedStyle(lineage).fontSize),
             codeSize: num(getComputedStyle(linCode).fontSize),
@@ -305,6 +309,10 @@ describe('backlinks footer: first render', function () {
             refMarkColour: getComputedStyle(refMark).color,
             linMarkAlpha: alpha(getComputedStyle(linMark).backgroundColor),
             refMarkAlpha: alpha(getComputedStyle(refMark).backgroundColor),
+            lineageSize: num(getComputedStyle(lineage).fontSize),
+            referenceSize: num(getComputedStyle(refContent).fontSize),
+            lineageTagSize: num(getComputedStyle(linTag).fontSize),
+            referenceTagSize: num(getComputedStyle(refTag).fontSize),
           };
         }),
       { timeout: 12000, timeoutMsg: 'no styled row to measure' },
@@ -320,10 +328,20 @@ describe('backlinks footer: first render', function () {
     expect(seen!.markColour).toBe(seen!.rowColour);
     expect(seen!.refMarkColour).toBe(seen!.refRowColour);
 
-    // Softer in a chain than in a quotation — and visible in both. The first
-    // attempt mixed an already-translucent token toward transparent and landed
-    // near invisible, so the floor matters as much as the ordering.
-    expect(seen!.linMarkAlpha).toBeLessThan(seen!.refMarkAlpha);
-    expect(seen!.linMarkAlpha).toBeGreaterThan(0.2);
+    // A highlight is VISIBLE. Muting it was tried twice and broke twice, both
+    // times because `--text-highlight-bg` already carries its own alpha: mixed
+    // toward transparent it compounded to near nothing, and in a theme that
+    // leaves the token undefined the whole declaration went invalid and the
+    // highlight read as ordinary text. What this pins is the outcome, not the
+    // arithmetic — a mark has a background, whatever the theme does.
+    expect(seen!.linMarkAlpha).toBeGreaterThan(0.15);
+    expect(seen!.refMarkAlpha).toBeGreaterThan(0.15);
+
+    // A chain reads at less than full size, and everything inside it scales
+    // with the chain rather than with the row — a tag sized against the row
+    // came out LARGER in a chain than in the reference below it.
+    expect(seen!.lineageSize).toBeLessThan(seen!.referenceSize);
+    expect(seen!.lineageTagSize).toBeLessThan(seen!.lineageSize);
+    expect(seen!.lineageTagSize).toBeLessThan(seen!.referenceTagSize);
   });
 });

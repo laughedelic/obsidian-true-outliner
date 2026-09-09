@@ -1668,4 +1668,54 @@ describe('outline zoom: the enforced path with a zoom active', function () {
       zoomed: zoomed.timing['boundary-crossing-edit'],
     }));
   });
+
+  /**
+   * The trail is a HEADER for the view, so it reads at the size of the note it
+   * heads — not at the footer's chain size.
+   *
+   * The two surfaces share `lineage-row.ts`, and the footer's own chain is
+   * deliberately smaller than the mention it leads to. An unscoped rule for
+   * that would have shrunk the one lineage row that must not shrink, which is
+   * why this asserts the trail against the EDITOR's own line rather than
+   * against a number.
+   */
+  it('reads at the size of the note it heads, not the footer chain size', async function () {
+    const md = ['# Top', '', '- ancestor **bold** with `code` and #tag', '  - the leaf', ''].join('\n');
+    await openZoomable(md);
+    await browser.waitUntil(async () => (await h.getBuffer()).includes('the leaf'), {
+      timeout: 5000,
+      timeoutMsg: 'the fixture never reached the editor',
+    });
+    await h.clickAt(3, 8);
+    await browser.pause(200);
+    await h.runCommand('zoom-in');
+    await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(
+          ({ app, obsidian }) =>
+            (app.workspace
+              .getActiveViewOfType(obsidian.MarkdownView)
+              ?.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg').length ?? 0) > 1,
+        ),
+      { timeout: 5000, timeoutMsg: 'the trail never showed an ancestor crumb' },
+    );
+
+    const size = await browser.executeObsidian(({ app, obsidian }) => {
+      const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const px = (sel: string): number => {
+        const el = v.containerEl.querySelector(sel);
+        return el ? parseFloat(getComputedStyle(el).fontSize) : 0;
+      };
+      return {
+        trail: px('.to-zoom-trail .to-backlinks-content'),
+        line: px('.cm-content .cm-line'),
+        trailCode: px('.to-zoom-trail .to-backlinks-content code'),
+      };
+    });
+
+    expect(size.line).toBeGreaterThan(0);
+    expect(size.trail).toBe(size.line);
+    // Code still steps down inside it, by the app's own rule.
+    expect(size.trailCode).toBeLessThan(size.trail);
+  });
 });

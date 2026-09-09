@@ -1732,14 +1732,32 @@ body {
   color: var(--text-muted);
 }
 
-/* Context, not substance — and the only thing that says so is COLOUR.
- *
- * Lineage used to be smaller as well, and after the row took a size of its own
- * the two compounded: 0.92 of 0.92, visibly smaller than the mention it leads
- * to rather than level with it. One size across every row reads as one outline,
- * which is what it is. */
+/* Context, not substance: dimmer, and smaller. */
 .to-backlinks-row.is-lineage .to-backlinks-content {
   color: var(--text-faint);
+}
+
+/*
+ * A chain reads at less than full size, in the FOOTER only.
+ *
+ * This was tried once and removed: with the row already at 0.92em the two
+ * compounded, and lineage came out visibly smaller than the mention it leads
+ * to. The note then read "one size across every row reads as one outline".
+ *
+ * What changed is what a chain now contains. When that was decided a lineage
+ * row was plain dim text, so colour alone carried "this is context". It now
+ * renders its markdown — bold ancestors, links, code spans, tags — and carries
+ * weight that colour alone no longer offsets. Size is the axis that answers
+ * that, and the compounding the first attempt hit is the intended effect
+ * rather than the objection.
+ *
+ * Scoped to the footer. Zoom's trail is the same primitive, but it is a HEADER
+ * for the view rather than context inside a card, and its requirement puts it
+ * level with the note it heads — so the unscoped selector would have shrunk
+ * the one row that must not shrink.
+ */
+.to-backlinks .to-backlinks-row.is-lineage .to-backlinks-content {
+  font-size: 0.92em;
 }
 
 /*
@@ -1784,7 +1802,10 @@ body {
   padding: 0 0.15em;
   border-radius: var(--radius-s);
   text-decoration: none;
-  font-size: inherit;
+  /* The app's own tag size, for the reason code takes the app's own code size:
+   * `inherit` left a chain's tags LARGER than the reference row's below them,
+   * which Obsidian had already sized down to `--tag-size`. */
+  font-size: var(--tag-size, 0.875em);
 }
 
 .to-backlinks-row.is-lineage .to-backlinks-content a.tag:hover {
@@ -1805,25 +1826,16 @@ body {
   color: inherit;
   /* And the app's own highlight, not the browser's. Unset, `<mark>` fell back
    * to `background: Mark` — opaque `rgb(255, 255, 0)`, measured — which is a
-   * harsher yellow than anything else in the note. */
-  background: var(--text-highlight-bg);
+   * harsher yellow than anything else in the note.
+   *
+   * With a literal fallback, because a `var()` that resolves to nothing makes
+   * the whole declaration invalid and the highlight disappears rather than
+   * degrading. A theme that does not define this token is not a theme we can
+   * see from here, so the fallback is the only thing standing between it and a
+   * highlight that reads as ordinary text. */
+  background: var(--text-highlight-bg, rgba(255, 208, 0, 0.4));
 }
 
-/*
- * Softer in a chain than in a quotation, but only softer.
- *
- * `--text-highlight-bg` is ALREADY translucent — `rgba(255, 208, 0, 0.4)` in
- * the default theme — so mixing it toward transparent compounds: at 40% it
- * resolved to 0.16 alpha, which is the "no different background" this rule
- * first shipped with. The prototype that set the number used an opaque swatch
- * and did not have that to discover.
- *
- * 70% of a token that already carries its own alpha, then, rather than 40% of
- * an assumed-opaque one.
- */
-.to-backlinks-row.is-lineage .to-backlinks-content mark {
-  background: color-mix(in srgb, var(--text-highlight-bg) 70%, transparent);
-}
 
 /*
  * An inline code span, at the size Obsidian gives its own.
