@@ -464,9 +464,17 @@ describe('computeVerdictForRanges: multi-range structural deletion (D2/D3)', () 
     const md = 'First.\n\nSecond.\n';
     const doc = parse(md);
     const edit: EditFact = { from: pos(0, 0), to: pos(1, 0), insert: '' };
-    expect(computeVerdictForRanges('boundary-crossing-edit', doc, [edit])).toEqual(
-      computeVerdict('boundary-crossing-edit', doc, edit),
-    );
+    const viaRanges = computeVerdictForRanges('boundary-crossing-edit', doc, [edit]);
+    const direct = computeVerdict('boundary-crossing-edit', doc, edit);
+    // `after` is compared by its ENCODING, not structurally. Both calls run the
+    // operation and so allocate their own nodes, and `model.ts`'s ids come from
+    // a global counter that is never reset — two structurally identical trees
+    // built by two calls share no id values at all. Everything else is compared
+    // as before.
+    const { after: viaAfter, ...viaRest } = viaRanges as Extract<typeof viaRanges, { kind: 'rewrite' }>;
+    const { after: directAfter, ...directRest } = direct as Extract<typeof direct, { kind: 'rewrite' }>;
+    expect(viaRest).toEqual(directRest);
+    expect(encode(viaAfter)).toBe(encode(directAfter));
   });
 
   it('falls back to pass when any range is not an exact cover', () => {

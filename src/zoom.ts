@@ -12,8 +12,9 @@
  * (D9), so the decoration layer needs no zoom-shaped parameter.
  */
 
-import type { OutlineDoc, OutlineNode } from './model';
+import type { NodePath, OutlineDoc, OutlineNode } from './model';
 import { findPath, nodeAt } from './model';
+import { encodeLines } from './encode';
 import { documentLineCount, forEachNodeWithLine, nodeAtLine } from './locate';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { subtreeDocument } from './project';
@@ -35,6 +36,11 @@ export interface ZoomScope {
   readonly startLine: number;
   /** The root's depth in the source document — 0 for a top-level node. */
   readonly depth: number;
+  /** The root's position in the tree, as child indices from the document's own
+   * top level. The one identity that survives a re-parse: node ids do not
+   * (see `reresolveZoom`), and `startLine` names a place rather than a node —
+   * after an unwrap a DIFFERENT node begins on the same line (D2). */
+  readonly path: NodePath;
   /** The visible range: the root's whole subtree cover, trailing gap included
    * (D3). */
   readonly cover: Cover;
@@ -70,6 +76,9 @@ export function resolveZoom(doc: OutlineDoc, anchorLine: number): ZoomScope | nu
   });
   if (startLine < 0) return null;
 
+  const path = findPath(doc, root.id);
+  if (!path) return null;
+
   const cover = subtreeCoverOf(doc, root);
   const total = documentLineCount(doc);
   const hidden: LineSpan[] = [];
@@ -82,8 +91,9 @@ export function resolveZoom(doc: OutlineDoc, anchorLine: number): ZoomScope | nu
     root,
     startLine,
     depth,
+    path,
     cover,
-    trail: ancestorsOf(doc, root),
+    trail: ancestorsOf(doc, path),
     hidden,
     document: subtreeDocument(root),
   };
@@ -124,13 +134,14 @@ export function reresolveZoom(doc: OutlineDoc, scope: ZoomScope): ZoomScope | nu
 /**
  * A node's ancestors, outermost first.
  *
- * Read off `findPath` rather than by a second walk: the path IS the ancestor
- * chain expressed as indices, and deriving it twice is how two answers to one
- * question start disagreeing.
+ * Takes the path rather than looking it up: the path IS the ancestor chain
+ * expressed as indices, and deriving it twice is how two answers to one
+ * question start disagreeing. It used to call `findPath` itself, which was
+ * harmless until the scope started carrying the path too — at which point the
+ * same walk ran twice on every resolution, and this comment argued against
+ * exactly what the code beside it was doing.
  */
-function ancestorsOf(doc: OutlineDoc, node: OutlineNode): OutlineNode[] {
-  const path = findPath(doc, node.id);
-  if (!path) return [];
+function ancestorsOf(doc: OutlineDoc, path: NodePath): OutlineNode[] {
   const out: OutlineNode[] = [];
   for (let i = 1; i < path.length; i++) {
     const ancestor = nodeAt(doc, path.slice(0, i));
@@ -274,4 +285,118 @@ export function splitEscapes(
   if (lineIndex === 0 && ch === contentStart) return true;
 
   return node.children.length === 0 && node.kind !== 'heading';
+}
+
+/**
+ * What a change did, in the only terms the escape check needs (design D1).
+ *
+ * Both facts are CM-shaped — they come from mapping positions through a
+ * `ChangeDesc` — so they are computed by the callers and passed in, keeping
+ * this module free of CodeMirror. `zoom-state.ts` derives both and shares the
+ * derivation with `transaction-filter.ts`, so the refusal and the automatic
+ * exit cannot disagree about whether the root survived.
+ */
+export interface EditFootprint {
+  /** The zoom root's own first line, mapped forward into the AFTER document. */
+  readonly anchorLine: number;
+  /**
+   * Did the change remove every line of the root's subtree cover AND touch
+   * nothing else?
+   *
+   * The "and nothing else" is load-bearing. This fact exists to say "the other
+   * clauses cannot be asked, because there is no root to find them from", and a
+   * transaction that removed the cover but ALSO deleted a hidden subtree still
+   * has an escape in it that nobody would ever look at. Multi-range deletions
+   * are the shape that reaches it: one range takes the root, another takes
+   * something the zoom hides, and `node-edit-enforcement` requires the pair to
+   * be refused as a whole.
+   */
+  readonly onlyCoverRemoved: boolean;
+}
+
+/**
+ * Would this change place content outside the zoom scope? (design D1)
+ *
+ * The three questions are asked in this order because the later two cannot be
+ * asked at all until the earlier ones have answered.
+ *
+ * **0. Was the whole subtree removed, and nothing else touched?** Then this is
+ * not an escape. Deleting
+ * the zoom root deliberately is allowed and the automatic exit takes it from
+ * here (D7). This is asked first, and asked about the CHANGE rather than the
+ * after-state, because the other two begin by locating the root on its own
+ * first line — and once the root is deleted that line belongs to something
+ * else, which they would then mistake for the root. Measured both ways: a
+ * following sibling slides up into the line, and at the end of a document the
+ * node ABOVE owns the trailing blank line.
+ *
+ * **1. Is the root still the root?** The node OWNING that line must hold the
+ * position in the tree the root held. Ownership rather than "begins there":
+ * a Backspace that empties the root's own line leaves nothing beginning on it
+ * while the node above owns it, and that edit moves the root, so it must be
+ * refused rather than waved through.
+ *
+ * **2. Did anything outside the subtree change?** Compared as text, against the
+ * root's cover as it stands AFTER the change. That is what makes an append at
+ * the very end of the scope come out inside while a paste of a top-level
+ * sibling at the same offset comes out outside: the two produce different
+ * covers, and no comparison of offsets in the before-state can separate them.
+ *
+ * A clause for "everything inserted landed inside the subtree" is deliberately
+ * absent: content inserted outside the subtree necessarily changes the text
+ * outside it, so such a clause could never be the one to fail.
+ */
+export function editEscapes(
+  before: OutlineDoc,
+  scope: ZoomScope,
+  after: OutlineDoc,
+  footprint: EditFootprint,
+): boolean {
+  if (footprint.onlyCoverRemoved) return false;
+
+  const afterScope = resolveZoom(after, footprint.anchorLine);
+  // No node owns the line the root began on — it has become preamble, or the
+  // document has no nodes left, and neither happened by removing the cover or
+  // clause 0 would have answered. The root is gone some other way.
+  if (!afterScope) return true;
+  if (!samePath(scope.path, afterScope.path)) return true;
+
+  return !sameOutsideText(before, scope.cover, after, afterScope.cover);
+}
+
+function samePath(a: NodePath, b: NodePath): boolean {
+  return a.length === b.length && a.every((index, i) => index === b[i]);
+}
+
+/**
+ * Is everything outside the cover unchanged?
+ *
+ * Both sides are read through `encodeLines`, so the comparison is between two
+ * encodings rather than between an encoding and a buffer — it needs the
+ * encoding to be deterministic, not to round-trip.
+ *
+ * Line by line, never by joining. Joining is not injective: `[]` and `['']`
+ * both render as the empty string, and the difference between them is a real
+ * escape. Zoom into the document's FIRST node and have something insert a blank
+ * line above it — a sync write, another pane, an undo — and the root keeps its
+ * path while a preamble line appears outside the subtree. Compared as joined
+ * strings that reads as "nothing outside changed" and the zoom survives a
+ * change that left it.
+ */
+function sameOutsideText(
+  before: OutlineDoc,
+  beforeCover: Cover,
+  after: OutlineDoc,
+  afterCover: Cover,
+): boolean {
+  const b = encodeLines(before);
+  const a = encodeLines(after);
+  return (
+    sameLines(b.slice(0, beforeCover.start.line), a.slice(0, afterCover.start.line)) &&
+    sameLines(b.slice(beforeCover.end.line + 1), a.slice(afterCover.end.line + 1))
+  );
+}
+
+function sameLines(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((line, i) => line === b[i]);
 }

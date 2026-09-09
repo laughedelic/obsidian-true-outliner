@@ -61,6 +61,16 @@ export interface RewriteVerdict {
   readonly edits: readonly Edit[];
   readonly cursor: { readonly line: number; readonly ch: number };
   readonly userEvent: string;
+  /**
+   * The document this verdict's edits produce.
+   *
+   * The operation computed it on the way to `edits` and this interface used to
+   * drop it. The zoom escape check (`outline-zoom`) has to judge the AFTER
+   * state, and carrying the one already in hand is both cheaper and more honest
+   * than re-deriving it by applying `edits` and parsing the result — two
+   * derivations of one document are two chances to disagree.
+   */
+  readonly after: OutlineDoc;
 }
 
 export type Verdict =
@@ -93,7 +103,7 @@ function rewriteFrom(
     after: result.doc,
     anchor: result.anchor,
   });
-  return { kind: 'rewrite', edits: result.edits, cursor: caret, userEvent };
+  return { kind: 'rewrite', edits: result.edits, cursor: caret, userEvent, after: result.doc };
 }
 
 function vetoFrom(result: OpResult<OpOutput>): Verdict {
@@ -371,7 +381,13 @@ function deleteAndSplice(
     { kind: 'exact' },
     { before: doc, after: inserted.value.doc, anchor: runEnd },
   );
-  return { kind: 'rewrite', edits: finalEdits, cursor: caret, userEvent: 'input.paste.structural' };
+  return {
+    kind: 'rewrite',
+    edits: finalEdits,
+    cursor: caret,
+    userEvent: 'input.paste.structural',
+    after: inserted.value.doc,
+  };
 }
 
 function composeTypeOver(
@@ -459,7 +475,13 @@ function computePasteVerdict(
     { kind: 'exact' },
     { before: doc, after: inserted.value.doc, anchor: runEnd },
   );
-  return { kind: 'rewrite', edits: inserted.value.edits, cursor: caret, userEvent: 'input.paste.structural' };
+  return {
+    kind: 'rewrite',
+    edits: inserted.value.edits,
+    cursor: caret,
+    userEvent: 'input.paste.structural',
+    after: inserted.value.doc,
+  };
 }
 
 /**

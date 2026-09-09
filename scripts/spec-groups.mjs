@@ -29,13 +29,17 @@ const LABELS = {
   5: 'decorations',
   6: 'selection',
   7: 'backlinks',
-  8: 'zoom',
   // Its own group: the longest spec in the suite, and its own feature.
   55: 'position-indicators',
   // Lifted out of `selection` and run one-at-a-time: see EXCLUSIVE_GROUPS.
   61: 'clipboard',
   62: 'clipboard',
   67: 'clipboard',
+  // Zoom joined this group when its boundary catalogue gained the two paste
+  // rows: a refusal whose splice lands beside the root, and an allowance whose
+  // splice lands inside it. Both need a REAL paste, which is the one thing the
+  // synthesised alternative below cannot be.
+  80: 'clipboard',
 };
 
 /**
@@ -44,7 +48,7 @@ const LABELS = {
  *
  * `clipboard` is the only one. `pasteText` writes the system clipboard and then
  * presses Mod+V, and 61 and 67 press Mod+C into that same system clipboard —
- * one clipboard per machine, three specs, and workers interleaving freely.
+ * one clipboard per machine, four specs, and workers interleaving freely.
  * Observed twice on CI, in both directions: a paste receiving another spec's
  * copied fixture, and a copy losing its content before the spec could read it.
  *
@@ -53,9 +57,12 @@ const LABELS = {
  * involved — would stop exercising a real paste, and the copy side cannot be
  * faked that way at all.
  *
- * Only these three are serialised, so the rest of `selection` keeps its
- * parallelism, and the new group is a CI job of its own (the matrix is built
- * from `--list-groups`) which runs alongside the others anyway.
+ * Only these are serialised, so the rest of `selection` keeps its parallelism,
+ * and the group is a CI job of its own (the matrix is built from
+ * `--list-groups`) which runs alongside the others anyway. Zoom costs that job
+ * its own former parallel slot, which is the price of its paste rows being real
+ * pastes; splitting them into a spec of their own would buy the slot back at
+ * the cost of a catalogue that no longer reads as one.
  */
 export const EXCLUSIVE_GROUPS = new Set(['clipboard']);
 

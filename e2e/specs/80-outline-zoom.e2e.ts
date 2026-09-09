@@ -1156,3 +1156,357 @@ describe('outline zoom', function () {
     expect(await h.commandAvailable('zoom-clear')).toBe(false);
   });
 });
+
+/**
+ * Editing at the scope's boundary (`outline-zoom`, docs/research/26).
+ *
+ * Every case is a row of that note, named by its label there. The refusals and
+ * the allowances carry equal weight on purpose: before this change the failure
+ * mode was losing the zoom, and the failure mode it could be replaced by is
+ * refusing an edit the user is entitled to make.
+ */
+describe('outline zoom: editing at the boundary', function () {
+  const LIST = ['- alpha', '- beta', '  - beta child', '- gamma', ''].join('\n');
+  const HEAD = ['# One', '', 'para one', '', '## Two', '', 'para two', '', '## Three', ''].join('\n');
+  const ZOOM_CUE = 'That would move it outside the zoomed view.';
+
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+  });
+
+  afterEach(async function () {
+    await h.runCommand('zoom-clear');
+    await h.dismissNotices();
+  });
+
+  /** Fresh fixture, zoomed to the line whose trimmed text is `root`. */
+  async function zoomedTo(md: string, root: string): Promise<void> {
+    await h.createNote(NOTE, md);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.setBuffer(md);
+    await browser.pause(120);
+    const line = md.split('\n').findIndex((l) => l.trim() === root.trim());
+    if (line < 0) throw new Error(`no line ${root}`);
+    await h.setCursorSettled(line, md.split('\n')[line]!.length);
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+    await h.dismissNotices();
+  }
+
+  /** `ch` counted from the end when negative, so a fixture edit cannot
+   * silently move a caret off the end of its line. */
+  function at(md: string, line: number, ch: number): { line: number; ch: number } {
+    const text = md.split('\n')[line] ?? '';
+    return { line, ch: ch < 0 ? text.length + 1 + ch : ch };
+  }
+
+  /** The document is untouched, the zoom is intact, and the cue named the
+   * zoomed view — the three things a refusal has to be. */
+  async function expectRefused(md: string, trailBefore: string[]): Promise<void> {
+    expect(await h.getBuffer()).toBe(md);
+    expect(await trail()).toEqual(trailBefore);
+    expect(await h.recordedNoticeTexts()).toContain(ZOOM_CUE);
+  }
+
+  describe('an edit that would leave the scope is refused', function () {
+    it('Backspace at the zoom root’s content start (A1)', async function () {
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 1, 2);
+      await h.setCursorSettled(c.line, c.ch);
+      await browser.keys(['Backspace']);
+      await browser.pause(300);
+      await expectRefused(LIST, before);
+    });
+
+    it('Delete at the end of the last visible line (B1)', async function () {
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 2, -1);
+      await h.setCursorSettled(c.line, c.ch);
+      await browser.keys(['Delete']);
+      await browser.pause(300);
+      await expectRefused(LIST, before);
+    });
+
+
+    it('Backspace at a nested root’s content start, into its hidden parent (R8)', async function () {
+      // The root is a paragraph INSIDE a section; the node it would merge into
+      // is its own parent, which the zoom hides just as it hides a sibling.
+      await zoomedTo(HEAD, 'para two');
+      const before = await trail();
+      await h.setCursorSettled(6, 0);
+      await browser.keys(['Backspace']);
+      await browser.pause(300);
+      await expectRefused(HEAD, before);
+    });
+
+    it('a paste that would splice beside the root (G1)', async function () {
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 1, 2);
+      await h.setCursorSettled(c.line, c.ch);
+      await h.pasteText('- p\n  - q');
+      await browser.pause(400);
+      await expectRefused(LIST, before);
+    });
+
+    it('a Backspace that would unwrap an emptied list root (R4)', async function () {
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 1, -1);
+      await h.setCursorSettled(c.line, c.ch);
+      // Four to empty `beta`, all of them ordinary in-scope edits; the fifth is
+      // the one that would move the root itself.
+      await browser.keys(['Backspace', 'Backspace', 'Backspace', 'Backspace']);
+      await browser.pause(250);
+      await h.dismissNotices();
+      expect(await h.getBuffer()).toBe(LIST.replace('- beta', '- '));
+      await browser.keys(['Backspace']);
+      await browser.pause(300);
+      await expectRefused(LIST.replace('- beta', '- '), before);
+    });
+  });
+
+  describe('an edit that stays inside the scope is untouched, and keeps the zoom', function () {
+    /** The edit landed AND the view did not change out from under it. */
+    async function expectApplied(md: string, trailBefore: string[]): Promise<void> {
+      expect(await h.getBuffer()).not.toBe(md);
+      expect(await trail()).toEqual(trailBefore);
+      expect(await h.recordedNoticeTexts()).not.toContain(ZOOM_CUE);
+    }
+
+    it('appends a last child, with no trailing gap in the cover (X2)', async function () {
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 2, -1);
+      await h.setCursorSettled(c.line, c.ch);
+      await browser.keys(['Enter']);
+      await browser.pause(350);
+      await expectApplied(LIST, before);
+    });
+
+    it('appends a last child when the cover ENDS on a trailing gap (X1)', async function () {
+      // `## Two`'s cover ends on the blank line after `para two`, so the
+      // insertion lands past the cover's last offset either way. The trailing
+      // gap is what made this look like a special case; it is not one.
+      await zoomedTo(HEAD, '## Two');
+      const before = await trail();
+      const c = at(HEAD, 6, -1);
+      await h.setCursorSettled(c.line, c.ch);
+      await browser.keys(['Enter']);
+      await browser.pause(350);
+      await expectApplied(HEAD, before);
+    });
+
+    it('pastes a block inside the subtree (G2)', async function () {
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 2, -1);
+      await h.setCursorSettled(c.line, c.ch);
+      await h.pasteText('- p\n  - q');
+      await browser.pause(400);
+      await expectApplied(LIST, before);
+    });
+
+    it('deletes the cover’s own trailing gap line (R6)', async function () {
+      await zoomedTo(HEAD, '## Two');
+      const before = await trail();
+      await h.setCursorSettled(7, 0);
+      await browser.keys(['Delete']);
+      await browser.pause(350);
+      await expectApplied(HEAD, before);
+    });
+
+    it('merges two visible nodes (A5)', async function () {
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 2, 4);
+      await h.setCursorSettled(c.line, c.ch);
+      await browser.keys(['Backspace']);
+      await browser.pause(350);
+      await expectApplied(LIST, before);
+    });
+
+    it('types into the root (X5)', async function () {
+      await zoomedTo(LIST, '- beta');
+      const before = await trail();
+      const c = at(LIST, 1, -1);
+      await h.setCursorSettled(c.line, c.ch);
+      await browser.keys(['X']);
+      await browser.pause(300);
+      await expectApplied(LIST, before);
+    });
+  });
+
+  describe('an unenforced change that dissolves the root exits cleanly', function () {
+    it('emptying the root’s own line leaves no zoom, not a retargeted one (R7)', async function () {
+      // Clearing the root's whole line — marker included — is WITHIN-NODE
+      // authoring: one line, one owner, so the classifier never asks for a
+      // verdict and the refusal never sees it. `node-edit-enforcement` states
+      // that limit deliberately: such an edit cannot reach content the user
+      // cannot see. What it CAN do is dissolve the root, and the exit trigger
+      // is what answers for it.
+      //
+      // Driven by selecting the line and deleting, not by Mod-Backspace. That
+      // key is two different gestures: Cmd+Backspace deletes to the line start
+      // on macOS and Ctrl+Backspace deletes the previous WORD everywhere else,
+      // so the same test measured an emptied line locally and a surviving `- `
+      // marker on CI — where the root is still a list item at the same
+      // position, the edit is in scope, and the zoom correctly stays. The
+      // selection reaches the state this row is about on every platform.
+      //
+      // The measured defect was never that the edit applied. It was that the
+      // zoom stayed ACTIVE, rooted on whatever node inherited the line, with
+      // the trail still claiming otherwise. Hence the trail is asserted EMPTY,
+      // not merely changed.
+      await zoomedTo(LIST, '- beta');
+      await h.setSelection({ line: 1, ch: 0 }, { line: 1, ch: '- beta'.length });
+      await browser.keys(['Backspace']);
+      await browser.pause(350);
+      expect(await h.getBuffer()).toBe('- alpha\n\n  - beta child\n- gamma\n');
+      expect(await trail()).toEqual([]);
+    });
+  });
+
+  describe('a refusal that is not the zoom’s keeps its own reason', function () {
+    it('a heading root’s trailing edge still reports the inexpressible merge', async function () {
+      // A heading's trailing neighbour is always another heading, so markdown's
+      // own algebra refuses this before the zoom has anything to say. The cue
+      // has to stay that one: it tells the user WHY, and "outside the zoomed
+      // view" would be both less useful and untrue.
+      await zoomedTo(HEAD, '## Two');
+      const c = at(HEAD, 6, -1);
+      await h.setCursorSettled(c.line, c.ch);
+      await browser.keys(['Delete']);
+      await browser.pause(350);
+      expect(await h.getBuffer()).toBe(HEAD);
+      const notices = await h.recordedNoticeTexts();
+      expect(notices).toContain("These blocks can't be joined into one.");
+      expect(notices).not.toContain(ZOOM_CUE);
+    });
+
+    it('a first-node zoom root reports the first-node veto', async function () {
+      await zoomedTo(LIST, '- alpha');
+      const c = at(LIST, 0, 2);
+      await h.setCursorSettled(c.line, c.ch);
+      await browser.keys(['Backspace']);
+      await browser.pause(350);
+      expect(await h.getBuffer()).toBe(LIST);
+      const notices = await h.recordedNoticeTexts();
+      expect(notices).toContain('Nothing here to join with.');
+      expect(notices).not.toContain(ZOOM_CUE);
+    });
+  });
+});
+
+/**
+ * The cost of judging the invariant on the enforced path
+ * (`node-edit-enforcement`'s budget, applied with a zoom active).
+ *
+ * Design D5 deliberately removed the offset shortcut that would have kept this
+ * off the common path, on the grounds that no textual shape can decide tree
+ * membership. The argument that the parse is affordable is that
+ * `parsed-doc.ts` caches on CM6's immutable `Text`, so parsing the after-state
+ * is a parse the NEXT transaction would have paid anyway. This is the test that
+ * settles the argument; the shape mirrors 62's own perf case so the two numbers
+ * are comparable.
+ */
+describe('outline zoom: the enforced path with a zoom active', function () {
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+    await h.pinPositionIndicatorsOff();
+  });
+
+  it('stays within the enforcement budget on a ~2000-line note', async function () {
+    const lines: string[] = [];
+    for (let i = 0; i < 400; i++) {
+      lines.push(`## Section ${i}`, '', `Paragraph text for section ${i}, some words here.`, '');
+    }
+    const stress = lines.join('\n') + '\n';
+    await h.createNote(NOTE, stress);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.setBuffer(stress);
+    await browser.pause(200);
+
+    // Zoom into a section near the MIDDLE, so both hidden spans are large —
+    // clause 2 compares the text on either side of the cover, and a zoom at
+    // either end would leave one of them empty and measure the easy case.
+    // Every edit below is INSIDE the zoomed section, so each one runs the whole
+    // invariant and is allowed — the expensive path, not the short-circuit.
+    async function driveOneRound(): Promise<void> {
+      for (let i = 0; i < 8; i++) {
+        await h.setCursorSettled(802, 0);
+        await browser.keys(['Backspace']); // merges the paragraph into its heading
+        await h.keys.undo();
+        await browser.pause(20);
+      }
+      for (let i = 0; i < 5; i++) {
+        await h.setCursorSettled(802, 5);
+        await h.pasteText('Pasted one.\n\nPasted two.');
+        await h.keys.undo();
+        await browser.pause(20);
+      }
+    }
+
+    /** Four measured rounds, for the reason 62's own perf case records: at two,
+     * p95 sits close enough to the maximum that one GC pause becomes the
+     * statistic. One unmeasured round first, to settle JIT and GC. */
+    async function measure(): Promise<h.StatsSnapshot> {
+      await driveOneRound();
+      await h.resetStats();
+      await driveOneRound();
+      await driveOneRound();
+      await driveOneRound();
+      await driveOneRound();
+      return h.getStats();
+    }
+
+    // The baseline is the SAME note and the SAME edits with no zoom, so the two
+    // numbers differ in one thing only. Without it a single figure inside the
+    // budget says nothing about what the invariant costs, which is the question
+    // D5 left open.
+    const unzoomed = await measure();
+
+    // Zoom into a section near the MIDDLE, so both hidden spans are large —
+    // clause 2 compares the text on either side of the cover, and a zoom at
+    // either end would leave one of them empty and measure the easy case.
+    await h.setCursorSettled(800, 0);
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+    expect((await trail()).length).toBeGreaterThan(0);
+
+    // Every edit is INSIDE the zoomed section, so each one runs the whole
+    // invariant and is allowed — the expensive path, not the short-circuit.
+    const zoomed = await measure();
+
+    for (const snap of [unzoomed, zoomed]) {
+      const t = snap.timing['boundary-crossing-edit'];
+      if (t && t.count > 0) {
+        expect(t.median).toBeLessThanOrEqual(3);
+        expect(t.p95).toBeLessThanOrEqual(8);
+      }
+      for (const kind of ['pass', 'rewrite', 'veto']) {
+        const vt = snap.verdictTiming[kind];
+        if (!vt || vt.count === 0) continue;
+        expect(vt.median).toBeLessThanOrEqual(3);
+        expect(vt.p95).toBeLessThanOrEqual(8);
+      }
+    }
+
+    // Recorded rather than only asserted, so docs/research/26 carries figures a
+    // run reproduces instead of a claim. Deliberately NOT asserted as a delta:
+    // the difference between the two is well inside this harness's run-to-run
+    // spread, and a test that failed on it would be measuring the runner.
+    // eslint-disable-next-line no-console
+    console.log('[zoom-budget]', JSON.stringify({
+      unzoomed: unzoomed.timing['boundary-crossing-edit'],
+      zoomed: zoomed.timing['boundary-crossing-edit'],
+    }));
+  });
+});

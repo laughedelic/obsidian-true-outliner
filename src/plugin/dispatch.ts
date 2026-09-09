@@ -28,6 +28,8 @@
  */
 
 import type { Edit } from '../result';
+import type { ChangeSpec, Text } from '@codemirror/state';
+import { linePosToOffset } from './cm-pos';
 
 export interface EditorPos {
   line: number;
@@ -675,4 +677,25 @@ export function mapCursorForward(
     delta += change.text.length - (to - from);
   }
   return target + delta;
+}
+
+/**
+ * A structural operation's `Edit`s (old-document LINE ranges) as a CM6
+ * `ChangeSpec` against `doc`, through the same `editsToChanges` position
+ * conversion the grammar's own dispatches use.
+ *
+ * Here rather than beside its callers because there are now two of them — the
+ * rewrite dispatch and the zoom escape check, which has to ask about the change
+ * a rewrite WILL make before it is dispatched.
+ */
+export function editsToChangeSpec(
+  doc: Text,
+  oldLines: readonly string[],
+  edits: readonly Edit[],
+): ChangeSpec[] {
+  return editsToChanges(oldLines, edits).map((c) => ({
+    from: linePosToOffset(doc, c.from),
+    to: linePosToOffset(doc, c.to),
+    insert: c.text,
+  }));
 }
