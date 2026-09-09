@@ -127,9 +127,12 @@ drops the whole overlay when there are none — so "guides off" turns off guide 
 while marker accents are untouched. That is the intended reading: an accent is a treatment of a
 guide, and there is nothing to treat.
 
-The filter is applied in `activeGuideDepths`, not inside `computeLineGuides`. The walk stays pure
-and caret-free so it remains cacheable per document; the caret-dependent part lives beside the
-trail, which is already recomputed per state.
+The filter is applied in `drawnGuideDepths`, a wrapper around `activeGuideDepths` — which keeps
+its one job, merging the block and list depth tracks — and NOT inside `computeLineGuides`. The
+walk stays pure and caret-free so it remains cacheable per document; the caret-dependent part
+lives beside the trail, which is already recomputed per state. Both call sites go through that
+one wrapper, so the line decorations and the widget-line patch cannot disagree about which
+guides exist.
 
 ### D6 — Cursor-scoped visibility needs the caret chain, not the accent trail's suppressions
 

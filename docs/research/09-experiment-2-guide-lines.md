@@ -388,10 +388,10 @@ computations must agree on and only one of them can follow an override.
 | **`60%`** | **The default**, unchanged. |
 | `100%` | Offered as the strong rung — the theme's own `--text-faint` at full strength. Comparable in weight to a bullet's dot in dark, and no louder than the text it sits beside in light. |
 
-Intensity is a percentage over `--text-faint` rather than a colour, so both rungs resolve from
-whatever theme is running and neither can be wrong in one mode and right in the other. A hue
-remains the stylesheet's to change, which is what keeps this a two-rung dropdown rather than a
-colour picker.
+Intensity is a percentage over `--text-faint` rather than a colour, so every rung resolves from
+whatever theme is running and none can be wrong in one mode and right in the other. A hue
+remains the stylesheet's to change, which is what keeps this a three-rung dropdown — the default
+and the two either side of it — rather than a colour picker.
 
 Two rules move with the width once it is a declaration, and both are load-bearing:
 

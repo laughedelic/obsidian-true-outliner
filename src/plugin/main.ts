@@ -679,7 +679,19 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.forceRedraw();
   }
 
-  /** Write the appearance choices onto the document — see `appearance.ts`. */
+  /**
+   * Write the appearance choices onto the document — see `appearance.ts`.
+   *
+   * This realm's document is enough, INCLUDING for a pop-out leaf, which runs
+   * in a window with a `Document` of its own. Measured rather than assumed,
+   * since the decoration layer treats a pop-out as its own realm everywhere it
+   * schedules or measures: Obsidian mirrors the main window's `body` inline
+   * properties and classes into every pop-out document, live — a property
+   * written here after the window opened arrives there too, and resolves in its
+   * own layout. Writing each document separately would be a second mechanism
+   * for something the platform already does, and `59-appearance-settings`
+   * pins the behaviour we are relying on.
+   */
   private publishAppearance(): void {
     applyAppearance(this.data, document.body);
   }

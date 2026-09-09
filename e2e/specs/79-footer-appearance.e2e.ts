@@ -204,6 +204,7 @@ describe('the footer’s appearance settings', function () {
       await set('backlinksGuides', false);
       await set('outlineUnit', 'auto');
       await set('guideThickness', 'hairline');
+      await set('guideIntensity', 'normal');
       await set('guideVisibility', 'all');
     });
 
@@ -216,9 +217,15 @@ describe('the footer’s appearance settings', function () {
       inset: number;
     }> =>
       browser.execute(() => {
-        const row = document.querySelector<HTMLElement>(
-          '.workspace-leaf.mod-active .to-backlinks-row.to-decor-guides',
-        );
+        // The first row that actually PAINTS one. Every row carries the class,
+        // including the depth-0 rows whose guide list is empty by construction
+        // — there is no ancestor above them to draw — so picking by class alone
+        // reads a row whose background is `none` and compares nothing.
+        const row = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '.workspace-leaf.mod-active .to-backlinks-row.to-decor-guides',
+          ),
+        ).find((el) => getComputedStyle(el, '::after').backgroundImage !== 'none');
         if (!row) throw new Error('no footer row drawing guides');
         const probe = document.createElement('div');
         probe.style.cssText = 'position:absolute;visibility:hidden;height:0;';
@@ -270,13 +277,22 @@ describe('the footer’s appearance settings', function () {
       const base = await guideRow();
       await set('outlineUnit', 'wide');
       await set('guideThickness', 'medium');
-      const after = await guideRow();
+      const geometry = await guideRow();
       // Relationships, not pixels: a wider step is wider on this surface too,
       // and the group's own inset — stated from the unit rather than copied
       // from a row — moves with it.
-      expect(after.unit).toBeGreaterThan(base.unit);
-      expect(after.guide).toBeGreaterThan(base.guide);
-      expect(after.inset).toBeGreaterThan(base.inset);
+      expect(geometry.unit).toBeGreaterThan(base.unit);
+      expect(geometry.guide).toBeGreaterThan(base.guide);
+      expect(geometry.inset).toBeGreaterThan(base.inset);
+
+      // Intensity ON ITS OWN, after the geometry has settled. It is the one
+      // axis with no length to read, so it is asserted where it lands — the
+      // colour this row's own guide paints — and changed alone, or a thicker
+      // stripe would move the same background string and a rule that scoped
+      // `--to-guide-color` to the editor would still pass.
+      await set('guideIntensity', 'strong');
+      const stronger = await guideRow();
+      expect(stronger.background).not.toBe(geometry.background);
     });
   });
 });

@@ -98,16 +98,26 @@ long note's leftmost column busy — and in the common shape where a whole note 
 
 - **Modified**: `styles.css` (the chrome-token declarations gain settings-fed defaults and a
   device-class default for the unit); `src/plugin/chrome-line.ts` (`GUIDE_WIDTH` becomes a
-  property reference); `src/plugin/chrome-tokens.ts` (one more name in `CHROME_VARS`, no numeric
-  siblings); `src/plugin/decorations.ts` (the visibility filter, the document's single-root fact,
-  and a widened caret-chain gate — the guide walk in `decorate.ts` stays settings- and caret-free
-  so its per-document cache still holds); `src/plugin/mode-registry.ts` and `src/plugin/main.ts`
-  (five settings, their validation, and the property publication on `body`); `src/plugin/backlinks-footer.ts`
-  (the master off).
-- **Tests**: `58-unit-override.e2e.ts` grows the settings-vs-snippet precedence case;
-  `51-guides-gradient.e2e.ts` grows the visibility modes and the single-root qualifier — in e2e
-  because nothing under `tests/` imports `decorations.ts`, where both now live; a mobile-emulation
-  run covers the device default.
+  property reference); `src/plugin/chrome-tokens.ts` (the preset-to-declaration maps and the
+  settings' own property names, no numeric siblings); `src/plugin/decorate.ts` (the pure filter,
+  the caret's per-line ancestor depths and the single-root predicate — the guide walk itself
+  stays settings- and caret-free so its per-document cache still holds);
+  `src/plugin/decorations.ts` (one funnel that applies the filter, the single-root fact carried
+  with the doc facts, and a caret chain read outside the accent trail's own gates);
+  `src/plugin/mode-registry.ts` and `src/plugin/main.ts` (five settings, their validation, and
+  the property publication on `body`); `src/plugin/backlinks-footer.ts` (the master off).
+- **Added**: `src/plugin/appearance.ts` — what the settings publish to the document, and what
+  unload takes back.
+- **Tests**: `59-appearance-settings.e2e.ts` (new) holds the publication mechanism: a default
+  publishing nothing, a preset naming a declaration rather than a length, a snippet still
+  winning over both, a second pane and a pop-out window following, and unload clearing.
+  `58-unit-override.e2e.ts` measures each rung's geometry on both surfaces, the device-class
+  default under mobile emulation, and the narrowest rung's clearance over the grid's floor.
+  `51-guides-gradient.e2e.ts` covers the visibility modes, the single-root qualifier and the
+  guide-width declaration; `55-position-indicators.e2e.ts` covers the accent gates;
+  `79-footer-appearance.e2e.ts` covers the footer. `tests/decorate.test.ts` unit-tests the pure
+  filter, the caret depths and the single-root predicate; `tests/plugin.test.ts` covers the five
+  settings' validation.
 - **Risk**: bounded by the floor. A narrower unit is the one direction that can break a column —
   a child's mark must still begin right of its parent's text — which is why the ladder's lowest
   rung is measured on both device classes before it ships rather than reasoned about.

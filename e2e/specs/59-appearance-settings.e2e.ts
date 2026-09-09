@@ -232,6 +232,102 @@ describe('outline appearance settings', function () {
     await browser.pause(400);
   });
 
+  it('reaches a pop-out window, which is a document of its own', async function () {
+    // A pop-out leaf runs in a window with a `Document` of its own, and the
+    // decoration layer treats one as its own realm everywhere it schedules or
+    // measures — so "the settings write one `body` and every pane follows" is a
+    // claim about the platform, not something to take on trust.
+    //
+    // Measured, and it holds for a reason worth stating: Obsidian mirrors the
+    // main window's `body` inline properties and classes into every pop-out
+    // document, live. A property written after the window opened arrives there
+    // and resolves in that window's own layout. This case pins that, because it
+    // is what lets one write serve every surface — if it ever stops being true,
+    // the settings need publishing per document and this is what says so.
+    if (h.IS_MOBILE_RUN) this.skip(); // a phone's workspace has no second window
+
+    /** What a window's own document says about the outline's chrome. */
+    const chromeOf = (which: 'existing' | 'new') =>
+      browser.executeObsidian(({ app }, pick: string) => {
+        const leaf = app.workspace
+          .getLeavesOfType('markdown')
+          .concat(app.workspace.getLeavesOfType('empty'))
+          .find((l) => l.getContainer() !== app.workspace.rootSplit);
+        if (!leaf) throw new Error(`no popped-out leaf to read (${pick})`);
+        const doc = leaf.getContainer().doc;
+        const probe = doc.createElement('div');
+        probe.style.cssText = 'position:absolute;visibility:hidden;height:0;';
+        doc.body.appendChild(probe);
+        const width = (expr: string): number => {
+          probe.style.width = expr;
+          return +probe.getBoundingClientRect().width.toFixed(2);
+        };
+        // Resolved INSIDE the pop-out and compared with that document's own
+        // declarations, never with a pixel count: a pop-out window can run at
+        // its own root font size, so the stable statement is that the unit in
+        // force there is the rung the reader chose.
+        const chrome = {
+          set: doc.body.style.getPropertyValue('--to-set-unit').trim(),
+          guidesOff: doc.body.classList.contains('to-guides-off'),
+          unit: width('var(--to-decor-unit)'),
+          wide: width('var(--to-unit-wide)'),
+          standard: width('var(--to-unit-standard)'),
+        };
+        probe.remove();
+        return chrome;
+      }, which);
+
+    // A pop-out opened BEFORE the change is the case that matters: nothing
+    // else writes to its document afterwards, so a mirror that only copied at
+    // creation would leave it on the default step forever.
+    await browser.executeObsidian(({ app }) => {
+      const leaf = app.workspace.getLeavesOfType('markdown')[0];
+      if (!leaf) throw new Error('no markdown leaf to pop out');
+      app.workspace.moveLeafToPopout(leaf);
+    });
+    await browser.pause(600);
+
+    await set('outlineUnit', 'wide');
+    await set('guideVisibility', 'off');
+
+    const existing = await chromeOf('existing');
+    expect(existing.set).toBe('var(--to-unit-wide)');
+    expect(existing.unit).toBe(existing.wide);
+    expect(existing.unit).toBeGreaterThan(existing.standard);
+    // And the class that hands list levels back to Obsidian: a pop-out missing
+    // it suppresses the native guides against a layer drawing nothing at all,
+    // which is worse than merely stale.
+    expect(existing.guidesOff).toBe(true);
+
+    // And a window opened WHILE a non-default is in force starts with it — the
+    // other half of the mirror, since no setting changes at that moment.
+    await browser.executeObsidian(({ app }) => {
+      for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+        if (leaf.getContainer() !== app.workspace.rootSplit) leaf.detach();
+      }
+    });
+    await browser.pause(400);
+    await browser.executeObsidian(({ app }) => {
+      app.workspace.openPopoutLeaf();
+    });
+    await browser.pause(600);
+    const opened = await chromeOf('new');
+    expect(opened.set).toBe('var(--to-unit-wide)');
+    expect(opened.guidesOff).toBe(true);
+
+    await browser.executeObsidian(({ app }) => {
+      for (const type of ['markdown', 'empty']) {
+        for (const leaf of app.workspace.getLeavesOfType(type)) {
+          if (leaf.getContainer() !== app.workspace.rootSplit) leaf.detach();
+        }
+      }
+    });
+    await browser.pause(500);
+    await set('guideVisibility', 'all');
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+  });
+
   it('clears what it published on unload, and republishes the saved choices on enable', async function () {
     // Starting from non-default choices on purpose: a disable/enable cycle from
     // the defaults exercises no cleanup at all, because there is nothing
