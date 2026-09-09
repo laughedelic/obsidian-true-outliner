@@ -19,7 +19,25 @@ import { isOutlineMode } from './outline-state';
 import { currentFolds, unfoldEffectsWithin } from './fold-ops';
 
 class FoldRevealPlugin implements PluginValue {
-  constructor(private readonly view: EditorView) {}
+  constructor(
+    private readonly view: EditorView,
+    private readonly source: FoldPersistenceSource,
+  ) {
+    // "Remember folds" off: Obsidian has already restored this file's folds
+    // from its own workspace state by the time an editor exists, so the
+    // setting is a suppression rather than a store — there is nothing of ours
+    // to not-write. Deferred past construction for the same reason every other
+    // correction here is: a dispatch inside the view's own setup re-enters it.
+    if (!source.rememberFolds) queueMicrotask(() => this.expandAll());
+  }
+
+  /** Everything in our jurisdiction, opened. Obsidian's own folds in a
+   * non-outline note are none of our business either way. */
+  private expandAll(): void {
+    if (!isOutlineMode(this.view.state)) return;
+    const effects = unfoldEffectsWithin(this.view.state, 0, this.view.state.doc.length);
+    if (effects.length > 0) this.view.dispatch({ effects });
+  }
 
   update(update: ViewUpdate): void {
     if (!update.selectionSet && !update.docChanged) return;
@@ -37,6 +55,12 @@ class FoldRevealPlugin implements PluginValue {
   }
 }
 
-export function foldViewExtension(): Extension {
-  return ViewPlugin.define((view) => new FoldRevealPlugin(view));
+/** What the view needs to know about persistence: one boolean, read live so a
+ * settings change reaches the next editor without a reload. */
+export interface FoldPersistenceSource {
+  readonly rememberFolds: boolean;
+}
+
+export function foldViewExtension(source: FoldPersistenceSource): Extension {
+  return ViewPlugin.define((view) => new FoldRevealPlugin(view, source));
 }

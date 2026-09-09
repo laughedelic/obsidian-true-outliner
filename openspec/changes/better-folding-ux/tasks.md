@@ -132,13 +132,13 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 
 ## 7. Persistence
 
-- [ ] 7.1 Verify (do not build) that fold state round-trips through Obsidian's own fold manager
+- [x] 7.1 Verify (do not build) that fold state round-trips through Obsidian's own fold manager
       once the provider is registered, including a fold on a paragraph: close the leaf, reopen,
       assert the same folds. This is the measured behaviour; the task is the test that keeps it
-- [ ] 7.2 The setting (D8), default ON, declared in both places `TrueOutlinerSettingTab` requires.
+- [x] 7.2 The setting (D8), default ON, declared in both places `TrueOutlinerSettingTab` requires.
       With it OFF, a note's editor opens with our jurisdiction unfolded. Verify both states;
       negative control — ignoring the setting must fail the OFF test
-- [ ] 7.3 Assert the note file is byte-identical after folding, unfolding and saving — the
+- [x] 7.3 Assert the note file is byte-identical after folding, unfolding and saving — the
       clean-files invariant, stated as a test rather than as a promise
 
 ## 8. Backlinks footer

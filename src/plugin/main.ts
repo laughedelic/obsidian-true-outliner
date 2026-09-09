@@ -177,7 +177,10 @@ const MARKER_HIGHLIGHT_LABELS: Record<MarkerHighlight, string> = {
  * own existing indentation, same as before this fix — a known, small gap
  * limited to the command-palette / custom-hotkey entry point.
  */
-type StructuralOp = (doc: OutlineDoc, groups: readonly (readonly number[])[]) => OpResult<OpOutput>;
+type StructuralOp = (
+  doc: OutlineDoc,
+  groups: readonly (readonly number[])[],
+) => OpResult<OpOutput>;
 
 /**
  * The cursor a palette-invoked structural command should end on: decided by
@@ -515,7 +518,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.registerEditorExtension(foldServiceExtension());
     // Beside it: the rule that a computed caret never lands in hidden content,
     // and the one that decides what a change does to a fold.
-    this.registerEditorExtension(foldViewExtension());
+    this.registerEditorExtension(foldViewExtension(this));
     this.registerEditorExtension(foldCarryExtension());
     this.registerEditorExtension(grammarExtension());
     this.registerEditorExtension(decorationsExtension(this));
@@ -574,6 +577,16 @@ export default class TrueOutlinerPlugin extends Plugin {
       // an already-open note reads "0 references" until an unrelated edit.
       repaintFooters();
     });
+  }
+
+  get rememberFolds(): boolean {
+    return this.data.rememberFolds;
+  }
+
+  async setRememberFolds(value: boolean): Promise<void> {
+    this.data.rememberFolds = value;
+    await this.saveData(this.data);
+    this.app.workspace.updateOptions();
   }
 
   get outlineByDefault(): boolean {
@@ -1417,7 +1430,8 @@ export default class TrueOutlinerPlugin extends Plugin {
     // A selection that WAS a block cover survives the operation as the cover of
     // the nodes that moved; anything else lands a caret, exactly as before.
     const planned = afterState(result.value, operand.wasCover, cursor);
-    const after = backward && planned.to ? { from: planned.to, to: planned.from } : planned;
+    const after =
+      backward && planned.to ? { from: planned.to, to: planned.from } : planned;
     if (changes.length > 0) editor.transaction({ changes, selection: after });
     if (after.to) editor.setSelection(after.from, after.to);
     else editor.setCursor(after.from);
@@ -1469,6 +1483,11 @@ const SETTING_OUTLINE_BY_DEFAULT = {
 const SETTING_STATUS_BAR_MODE = {
   name: 'Show outline mode in the status bar',
   desc: 'What the status bar shows for the active tab, and whether it shows anything at all. Obsidian can hide the ribbon icon from its own right-click menu but offers no equivalent for a plugin\u2019s status bar item, so this is where that chip is turned off. Desktop only \u2014 there is no status bar on mobile.',
+} as const;
+
+const SETTING_REMEMBER_FOLDS = {
+  name: 'Remember folds',
+  desc: 'Whether a note reopens with the nodes you left folded. Fold state lives in Obsidian\u2019s own workspace data, never in the note \u2014 a file is byte-identical whether its nodes are folded or not, and always readable without this plugin. Turn this off to have every note open fully expanded.',
 } as const;
 
 const SETTING_DEBUG_CROSSCHECK = {
@@ -1579,6 +1598,14 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           key: 'statusBarMode',
           options: STATUS_BAR_MODE_LABELS,
           defaultValue: DEFAULT_DATA.statusBarMode,
+        },
+      },
+      {
+        ...SETTING_REMEMBER_FOLDS,
+        control: {
+          type: 'toggle',
+          key: 'rememberFolds',
+          defaultValue: DEFAULT_DATA.rememberFolds,
         },
       },
       {
@@ -1716,6 +1743,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         return this.plugin.outlineByDefault;
       case 'statusBarMode':
         return this.plugin.statusBarMode;
+      case 'rememberFolds':
+        return this.plugin.rememberFolds;
       case 'debugCrossCheck':
         return this.plugin.debugCrossCheck;
       case 'backlinksFooter':
@@ -1758,6 +1787,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         break;
       case 'statusBarMode':
         await this.plugin.setStatusBarMode(value as StatusBarMode);
+        break;
+      case 'rememberFolds':
+        await this.plugin.setRememberFolds(Boolean(value));
         break;
       case 'debugCrossCheck':
         await this.plugin.setDebugCrossCheck(Boolean(value));
@@ -1826,6 +1858,14 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           .addOptions(STATUS_BAR_MODE_LABELS)
           .setValue(this.plugin.statusBarMode)
           .onChange((value) => void this.plugin.setStatusBarMode(value as StatusBarMode)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_REMEMBER_FOLDS.name)
+      .setDesc(SETTING_REMEMBER_FOLDS.desc)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.rememberFolds)
+          .onChange((value) => void this.plugin.setRememberFolds(value)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_DEBUG_CROSSCHECK.name)

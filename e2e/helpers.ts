@@ -978,6 +978,15 @@ export async function setNativeFoldSettings(on: boolean): Promise<void> {
   await browser.pause(300);
 }
 
+/** Close the active tab, so the next `openNote` builds a fresh editor — the
+ * only way to exercise what Obsidian restores when a file is opened. */
+export async function closeActiveLeaf(): Promise<void> {
+  await browser.executeObsidian(({ app }) => {
+    app.workspace.getMostRecentLeaf()?.detach();
+  });
+  await browser.pause(300);
+}
+
 /**
  * Unfold everything in the active note.
  *
