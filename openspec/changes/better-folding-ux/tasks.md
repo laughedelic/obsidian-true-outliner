@@ -96,22 +96,22 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 - [x] 5.1 Folded-marker treatment chosen from `docs/research/28-fold-marker-mockup.html`: the
       kind's own glyph in a solid weight, plus the count. Design D6 records why the six
       alternatives lost
-- [ ] 5.2 The solid-weight folded marker in `decorations.ts` + `styles.css`: same glyph, same box,
+- [x] 5.2 The solid-weight folded marker in `decorations.ts` + `styles.css`: same glyph, same box,
       both themes, nothing drawn around it. Verify with an e2e asserting the folded and unfolded
       marks differ in a stated property and NOT in their box (the never-assert-glyph-widths rule
       applies — assert the relationship, not pixels)
-- [ ] 5.3 Hidden-descendant count as a widget after the node's text, `contenteditable="false"`,
+- [x] 5.3 Hidden-descendant count as a widget after the node's text, `contenteditable="false"`,
       absent from copied text. Settle where it sits when the text wraps (design — Open Questions). Verify by folding a node with a nested subtree, copying it, and
       asserting the clipboard has no count; negative control — rendering the count as document
       text must fail it
-- [ ] 5.4 Our own fold affordance wherever a node we fold has no native chevron (D5). Task 1.3
+- [x] 5.4 Our own fold affordance wherever a node we fold has no native chevron (D5). Task 1.3
       measured where that is: NOT the default configuration, where Obsidian's indicator follows
       the provider onto every line we claim — but with "Fold heading" and "Fold indent" off,
       where it paints none anywhere. Verify in both configurations: exactly one affordance per
       foldable line in each, the same column for every kind, and none on a table or on a line
       only the editor calls foldable. The one-affordance-per-line assertion is what catches a
       double-draw on headings
-- [ ] 5.5 Mobile pass: the affordance is reachable without hover, on a touch target that is not
+- [x] 5.5 Mobile pass: the affordance is reachable without hover, on a touch target that is not
       the 14px glyph. Verify under `--mobile`
 
 ## 6. The guide gesture

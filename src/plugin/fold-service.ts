@@ -32,7 +32,14 @@ import { Prec, type EditorState, type Extension } from '@codemirror/state';
 import { parsedDoc } from './parsed-doc';
 import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
-import { foldLines, foldTargetAtLine, entryAtLine, type FoldEntry } from './fold-model';
+import {
+  entryAtLine,
+  foldLines,
+  foldTargetAtLine,
+  hiddenDescendantCount,
+  type FoldEntry,
+} from './fold-model';
+import { currentFolds } from './fold-ops';
 
 /**
  * The fold this line's node offers, as document offsets, or null when it offers
@@ -107,6 +114,26 @@ export function foldGestureTarget(state: EditorState, lineNumber: number): FoldE
   if (state.field(nestedEditorField, false)) return null;
   const { doc } = parsedDoc(state.doc);
   return foldTargetAtLine(doc, lineNumber);
+}
+
+/**
+ * Every line whose node is folded RIGHT NOW, with how many descendants it
+ * hides — what the chrome layer draws from.
+ *
+ * Keyed on our own folds, not on the editor's: a fold Obsidian offers inside an
+ * atom's notation is its business, and marking that line as a folded outline
+ * node would claim something the outline does not say.
+ */
+export function foldedChromeLines(state: EditorState): Map<number, number> {
+  const out = new Map<number, number>();
+  if (!isOutlineMode(state)) return out;
+  for (const range of currentFolds(state)) {
+    const line = state.doc.lineAt(range.from).number - 1;
+    const entry = foldChromeTarget(state, line);
+    if (!entry) continue;
+    out.set(line, hiddenDescendantCount(entry.node));
+  }
+  return out;
 }
 
 /**

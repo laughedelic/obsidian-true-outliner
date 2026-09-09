@@ -1002,6 +1002,111 @@ export async function clearFolds(): Promise<void> {
   );
 }
 
+/** Lines carrying the folded-node class — a folded node's OWN line, per the
+ * plugin's own answer rather than the editor's. */
+export function foldedNodeLines(): Promise<number[]> {
+  return browser.executeObsidian(() =>
+    Array.from(document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line'))
+      .map((el, i) => (el.classList.contains('to-decor-folded') ? i : -1))
+      .filter((i) => i >= 0),
+  );
+}
+
+/** The hidden-descendant counts currently rendered, by line. */
+export function foldCounts(): Promise<{ line: number; count: number }[]> {
+  return browser.executeObsidian(() =>
+    Array.from(document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line'))
+      .map((el, i) => {
+        const badge = el.querySelector('.to-decor-fold-count');
+        return badge ? { line: i, count: Number(badge.textContent) } : null;
+      })
+      .filter((v): v is { line: number; count: number } => v !== null),
+  );
+}
+
+/** Is the count part of the editable document, or chrome beside it? */
+export function foldCountIsEditable(line: number): Promise<boolean> {
+  return browser.executeObsidian(({}, n: number) => {
+    const el = document
+      .querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line')
+      [n]?.querySelector<HTMLElement>('.to-decor-fold-count');
+    return el ? el.isContentEditable : false;
+  }, line);
+}
+
+/** The painted geometry and weight of a line's marker glyph — a RELATIONSHIP
+ * instrument: compare two of these, never one against a number. */
+export function markerGlyphStyle(
+  line: number,
+): Promise<{ strokeWidth: string; color: string; width: number; height: number }> {
+  return browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line')[n];
+    const wrapper = el?.querySelector<HTMLElement>('.to-decor-marker-icon');
+    const glyph = wrapper?.querySelector('svg');
+    const painted = glyph?.querySelector('line, polyline, rect, circle, path');
+    if (!wrapper || !glyph || !painted) throw new Error(`no marker glyph on line ${n}`);
+    const box = wrapper.getBoundingClientRect();
+    return {
+      strokeWidth: getComputedStyle(painted).strokeWidth,
+      color: getComputedStyle(wrapper).color,
+      width: box.width,
+      height: box.height,
+    };
+  }, line);
+}
+
+/** Lines offering a fold affordance — Obsidian's own indicator or ours,
+ * whichever is actually rendered and not hidden. */
+export function foldAffordanceLines(): Promise<number[]> {
+  return browser.executeObsidian(() =>
+    Array.from(document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line'))
+      .map((el, i) => {
+        const controls = Array.from(
+          el.querySelectorAll('.cm-fold-indicator, .to-decor-fold-toggle'),
+        ).filter((c) => getComputedStyle(c as HTMLElement).display !== 'none');
+        return controls.length > 0 ? i : -1;
+      })
+      .filter((i) => i >= 0),
+  );
+}
+
+/** How many fold affordances a line actually renders — one is the contract. */
+export function foldAffordanceCount(line: number): Promise<number> {
+  return browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line')[n];
+    return Array.from(
+      el?.querySelectorAll('.cm-fold-indicator, .to-decor-fold-toggle') ?? [],
+    ).filter((c) => getComputedStyle(c as HTMLElement).display !== 'none').length;
+  }, line);
+}
+
+/** Is the affordance visible WITHOUT a hover? True is required once folded. */
+export function foldAffordanceVisible(line: number): Promise<boolean> {
+  return browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line')[n];
+    // ANY of them: a folded line can carry both the native indicator and our
+    // own, with CSS hiding one — which one comes first in the DOM is not the
+    // question being asked.
+    return Array.from(el?.querySelectorAll('.cm-fold-indicator, .to-decor-fold-toggle') ?? []).some(
+      (control) => {
+        const style = getComputedStyle(control as HTMLElement);
+        return style.display !== 'none' && Number(style.opacity) > 0.05;
+      },
+    );
+  }, line);
+}
+
+/** The marker-visibility setting, through the plugin's own accessor. */
+export async function setMarkerVisibility(value: string): Promise<void> {
+  await browser.executeObsidian(
+    async ({ plugins }, v: string) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (plugins.trueOutliner as any).setMarkerVisibility(v),
+    value,
+  );
+  await browser.pause(200);
+}
+
 /** Lines where the plugin's own fold chrome belongs. */
 export async function foldChromeLines(): Promise<number[]> {
   return (await foldState()).chromeLines;

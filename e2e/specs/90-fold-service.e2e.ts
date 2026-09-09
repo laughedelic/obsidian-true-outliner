@@ -85,10 +85,14 @@ const ATOMS = [
 ].join('\n');
 
 describe('fold service', () => {
-  before(async () => {
+  // Per test, not once: folding leaves Obsidian's own indicators re-rendered
+  // only on the lines it redrew, so a chevron census after another test's fold
+  // reports fewer than the document has. A fresh note is the honest fixture.
+  beforeEach(async () => {
     await h.createNote(NOTE, DOC);
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
+    await h.clearFolds();
     await h.setCursor(0, 0);
   });
 
@@ -124,7 +128,9 @@ describe('fold service', () => {
     expect(await h.renderedLineTexts()).toEqual([
       'Top',
       '',
-      'Paragraph with children:…',
+      // The count is chrome the folded node now carries — three hidden
+      // descendants, in the same widget the reader sees.
+      'Paragraph with children:7…',
       '',
       'Second',
       '',

@@ -51,7 +51,7 @@ describe('folds through edits', () => {
     expect(await h.renderedLineTexts()).toEqual([
       '- two',
       '  - under two',
-      '- one…',
+      '- one2…',
       '- three',
       '',
     ]);

@@ -18,6 +18,7 @@
 import type { EditorState, StateEffect } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { parsedDoc } from './parsed-doc';
+import { foldChromeTarget } from './fold-service';
 import { isOutlineMode } from './outline-state';
 import { zoomScope } from './zoom-scope';
 import {
@@ -115,6 +116,17 @@ export function applyFold(view: EditorView, entries: FoldEntry[], action: FoldAc
   // is the node the reader just acted on.
   view.dispatch({ effects, selection: { anchor: swallowed.from } });
   return true;
+}
+
+/**
+ * Toggle the fold of the node whose own line this is — the pointer gesture's
+ * entry point, which names its node by the line it was drawn on rather than by
+ * the selection. No escalation: the affordance belongs to one node, and it is
+ * the one the reader clicked.
+ */
+export function toggleFoldAtLine(view: EditorView, lineNumber: number): boolean {
+  const entry = foldChromeTarget(view.state, lineNumber);
+  return entry ? applyFold(view, [entry], 'toggle') : false;
 }
 
 /** The gesture, end to end: resolve, act, report whether anything happened. */

@@ -78,7 +78,7 @@ describe('fold commands', () => {
       '',
       'Intro paragraph:',
       '',
-      '- one…',
+      '- one2…',
       '- two',
       '  - under two',
       '',
@@ -164,7 +164,7 @@ describe('fold commands', () => {
     // Only the outermost fold is visible on screen; the rest are inside it.
     // `# Top…`, with its marker: the caret is on line 0 — the only line left —
     // and Live Preview shows the active line's raw source.
-    expect(await h.renderedLineTexts()).toEqual(['# Top…', '']);
+    expect(await h.renderedLineTexts()).toEqual(['# Top8…', '']);
     await h.runCommand('unfold-all');
     expect(await h.foldedLineRanges()).toEqual([]);
   });

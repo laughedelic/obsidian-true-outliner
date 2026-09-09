@@ -3315,3 +3315,115 @@ body.is-mobile {
 .true-outliner-ribbon-on:hover {
   color: var(--text-accent-hover);
 }
+
+/* ---- Folded nodes (better-folding-ux D6) ---------------------------------
+ *
+ * A folded node says so through its own mark, in the same box: the kind's glyph
+ * in a solid weight, at full text contrast where an unfolded one is muted.
+ * Nothing is drawn AROUND the glyph — no halo, ring, outline or underline. Six
+ * alternatives were drawn against every mark at real geometry
+ * (docs/research/28-fold-marker-mockup.html); everything around the glyph
+ * either crowds a 14px gutter the fold affordance already shares, or has to
+ * change shape per kind to avoid cropping a wide one, which turns one state
+ * into several.
+ *
+ * The weight change is what every mark can carry identically. What it cannot
+ * say is HOW MUCH is hidden — a bullet is already solid — and that is the
+ * count's job, below.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-marker-icon {
+  color: var(--text-normal);
+}
+
+.markdown-source-view.mod-cm6
+  .cm-content
+  > .to-decor-folded
+  .to-decor-marker-icon
+  svg
+  :is(line, polyline, rect, circle, path) {
+  stroke-width: 2.4;
+}
+
+/* A list line keeps its NATIVE mark — a bullet, an ordered number, a checkbox —
+ * so the weight change is a contrast change there. The bullet's dot is a
+ * `::after` background and the number is text, which is why both are named:
+ * the same split `to-decor-current-native` documents above. */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-bullet::after {
+  background-color: var(--text-normal);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-number {
+  color: var(--text-normal);
+}
+
+/* The hidden-descendant count, after the node's own text. Sized off the
+ * surrounding text rather than fixed, so it stays proportional on a heading;
+ * `cursor: default` because it is chrome and clicking it does nothing. */
+.to-decor-fold-count {
+  display: inline-block;
+  margin-left: 0.45em;
+  padding: 0.1em 0.4em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 1em;
+  background-color: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: 0.75em;
+  font-family: var(--font-interface);
+  line-height: 1.4;
+  vertical-align: middle;
+  cursor: default;
+  user-select: none;
+}
+
+/*
+ * The plugin's own fold affordance.
+ *
+ * Drawn on every line whose node we fold, and hidden wherever Obsidian's own
+ * indicator is already on the line — `:has()` rather than a measurement,
+ * because whether Obsidian decorates a line is decided in its own decoration
+ * pass and asking the DOM from inside a decoration build measures the wrong
+ * frame. In the default configuration this rule hides all of them; with
+ * Obsidian's "Fold heading" / "Fold indent" settings off it hides none, which
+ * is the case this exists for.
+ *
+ * Positioned to land where the native chevron is transformed to — left of the
+ * marker column by the same decomposition (see the chevron rule above), so a
+ * reader who turns those settings off sees the control move nowhere.
+ */
+.markdown-source-view.mod-cm6 .cm-line:has(.cm-fold-indicator) .to-decor-fold-toggle {
+  display: none;
+}
+
+.to-decor-fold-toggle {
+  position: absolute;
+  left: calc(
+    var(--to-marker-gutter) * -1 - var(--to-marker-icon-size, 0.85rem) / 2 - 3px
+  );
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.85rem;
+  height: 1.4em;
+  color: var(--text-faint);
+  opacity: 0;
+  cursor: var(--cursor, pointer);
+  transition: opacity 100ms ease-in-out;
+}
+
+.to-decor-fold-toggle svg {
+  width: 0.7rem;
+  height: 0.7rem;
+  display: block;
+}
+
+/* Hover to reveal while the node is open; PERMANENT once it is folded, because
+ * a folded node's only route back must not be hidden behind a hover. */
+.cm-line:hover > .to-decor-fold-toggle,
+.to-decor-fold-toggle:hover,
+.to-decor-fold-toggle.is-collapsed {
+  opacity: 1;
+}
+
+.to-decor-fold-toggle.is-collapsed svg {
+  transform: rotate(-90deg);
+}
