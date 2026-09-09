@@ -158,11 +158,13 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 
 ## 9. Editing grammar
 
-- [ ] 9.1 Enter at the end of a folded node creates a sibling after the whole subtree with the
-      fold intact; Enter mid-text and a merging Backspace unfold first (`outline-keyboard-grammar`
-      delta). Verify each as its own e2e; negative control — removing the folded-node branch must
+- [x] 9.1 Enter at the end of a folded node creates a sibling after the whole subtree with the
+      fold intact; Enter mid-text unfolds first. A MERGE turned out to need no rule — the general
+      "a fold follows the lines it hid" rule already carries the children to the node that now
+      owns them, and the spec was revised rather than the code bent to it
+      (`outline-keyboard-grammar` delta). Verify each as its own e2e; negative control — removing the folded-node branch must
       reproduce the measured behaviour, where the new node lands inside the revealed subtree
-- [ ] 9.2 Confirm deletion needs no new rule: a selection covering a folded node still escalates
+- [x] 9.2 Confirm deletion needs no new rule: a selection covering a folded node still escalates
       to the whole subtree through `node-edit-enforcement`. A test, not a change
 
 ## 10. Land

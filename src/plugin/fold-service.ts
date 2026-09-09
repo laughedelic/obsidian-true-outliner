@@ -39,7 +39,7 @@ import {
   hiddenDescendantCount,
   type FoldEntry,
 } from './fold-model';
-import { currentFolds } from './fold-ops';
+import { currentFolds, isFolded } from './fold-ops';
 
 /**
  * The fold this line's node offers, as document offsets, or null when it offers
@@ -134,6 +134,20 @@ export function foldedChromeLines(state: EditorState): Map<number, number> {
     out.set(line, hiddenDescendantCount(entry.node));
   }
   return out;
+}
+
+/**
+ * Whether the node this line belongs to currently has its children hidden —
+ * the one fold fact the editing grammar needs, and the only one it asks for.
+ *
+ * Any of the node's own lines answers, not just its first: a caret on a
+ * paragraph's second line is still in a node whose children are hidden.
+ */
+export function isNodeFoldedAt(state: EditorState, lineNumber: number): boolean {
+  if (!isOutlineMode(state)) return false;
+  const { doc } = parsedDoc(state.doc);
+  const entry = entryAtLine(doc, lineNumber);
+  return entry && entry.node.children.length > 0 ? isFolded(state, entry) : false;
 }
 
 /**

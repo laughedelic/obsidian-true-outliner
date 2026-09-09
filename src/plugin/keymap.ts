@@ -63,6 +63,8 @@ import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
 import { zoomScope } from "./zoom-scope";
+import { isNodeFoldedAt } from "./fold-service";
+import { unfoldEffectsWithin } from "./fold-ops";
 import { isNestedEditor } from "./nested-editor";
 import { isOutlineMode } from "./outline-state";
 import type { EditorChange } from "./dispatch";
@@ -112,6 +114,20 @@ function makeHandler(key: GrammarKey) {
     // editor setting, so reading it here respects that preference without
     // touching any Obsidian-private API (confirmed live: toggling the
     // setting flips this facet's value immediately).
+    // A folded node splits differently, and only at its own end. There, the
+    // new node goes AFTER the hidden subtree — a first child would land inside
+    // content the reader has hidden, which is the one place they are not
+    // looking. Anywhere else in its text, the split redistributes the node's
+    // own words and the reader has to see where its children end up, so the
+    // fold opens first and the ordinary rules apply.
+    const folded = key === "split" && isNodeFoldedAt(view.state, fromLine.number - 1);
+    const atOwnEnd = planFrom === fromLine.to;
+    const collapsed = folded && atOwnEnd;
+    if (folded && !atOwnEnd) {
+      const effects = unfoldEffectsWithin(view.state, planFrom, view.state.doc.length);
+      if (effects.length > 0) view.dispatch({ effects });
+    }
+
     const outcome = planKey(
       view.state.doc.toString(),
       {
@@ -129,6 +145,7 @@ function makeHandler(key: GrammarKey) {
         ? undefined
         : { line: startLine.number - 1, ch: sel.from - startLine.from },
       zoomScope(view.state),
+      collapsed,
     );
 
     if (outcome === null) {
