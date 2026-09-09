@@ -1686,9 +1686,44 @@ export async function renderInline(
     el.createEl('code', { cls: 'to-backlinks-code', text: content.markdown });
     return;
   }
-  await MarkdownRenderer.render(app, content.markdown, el, sourcePath, component);
+  // An embed is taken out of the SOURCE where a chain is being drawn, not only
+  // out of the result. Obsidian builds an embed's element on its own schedule —
+  // a wrapper first, its content and sometimes its final tag later — so a single
+  // pass after `render()` resolves is racing that pipeline: locally the elements
+  // were already there to remove, and on a slower machine two of them arrived
+  // afterwards and stayed. Removing the syntax means none is ever created.
+  //
+  // `dropMedia` still runs behind it. The transform reads markdown, so it cannot
+  // see an `<img>` written as HTML, and a backstop that catches what is present
+  // costs nothing.
+  const source = options.media ? content.markdown : withoutEmbeds(content.markdown);
+  await MarkdownRenderer.render(app, source, el, sourcePath, component);
   unwrapBlocks(el);
   if (!options.media) dropMedia(el);
+}
+
+/**
+ * Embed syntax replaced by what it would have shown.
+ *
+ * Narrow on purpose: `![[…]]` and `![…](…)` and nothing else. This is the one
+ * markdown rewrite this module does — the general case is what
+ * `MarkdownRenderer` is for — and it is confined to a chain, where the rule is
+ * already that no media renders. A literal `![[` inside a code span is the
+ * false positive it can produce, and the cost there is alt text where the
+ * source characters were.
+ *
+ * The alt, then the target, then nothing: an embed whose alt is empty still has
+ * to leave something behind, or a segment carrying only that embed is blank and
+ * unclickable.
+ */
+function withoutEmbeds(markdown: string): string {
+  return markdown
+    .replace(/!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, target: string, alias?: string) =>
+      (alias ?? target).trim(),
+    )
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt: string, src: string) =>
+      alt.trim().length > 0 ? alt.trim() : src.trim(),
+    );
 }
 
 /**
