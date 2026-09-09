@@ -1792,13 +1792,51 @@ body {
   color: var(--text-normal);
 }
 
-/* A highlight at full strength is the loudest mark on a dim line — the accent
- * problem again, in the one channel that is only colour. Mixed toward the row's
- * own ground it keeps the hue that says "highlight" and loses the shout. A
- * reference row keeps its own at full strength, being a quotation of the node
- * rather than context for one. */
+/*
+ * A highlight keeps the row's own text colour.
+ *
+ * `<mark>` carries a browser default of black-on-yellow (`color: MarkText`),
+ * and nothing in our rows overrides it — Obsidian's own mark styling is scoped
+ * to its rendered-markdown containers, which a footer row is not. So a
+ * highlight inside a row came out black on a dark theme, in a row whose text is
+ * otherwise `--text-faint`. Measured, muted or not: the colour was never ours.
+ */
+.to-backlinks-content mark {
+  color: inherit;
+  /* And the app's own highlight, not the browser's. Unset, `<mark>` fell back
+   * to `background: Mark` — opaque `rgb(255, 255, 0)`, measured — which is a
+   * harsher yellow than anything else in the note. */
+  background: var(--text-highlight-bg);
+}
+
+/*
+ * Softer in a chain than in a quotation, but only softer.
+ *
+ * `--text-highlight-bg` is ALREADY translucent — `rgba(255, 208, 0, 0.4)` in
+ * the default theme — so mixing it toward transparent compounds: at 40% it
+ * resolved to 0.16 alpha, which is the "no different background" this rule
+ * first shipped with. The prototype that set the number used an opaque swatch
+ * and did not have that to discover.
+ *
+ * 70% of a token that already carries its own alpha, then, rather than 40% of
+ * an assumed-opaque one.
+ */
 .to-backlinks-row.is-lineage .to-backlinks-content mark {
-  background: color-mix(in srgb, var(--text-highlight-bg) 40%, transparent);
+  background: color-mix(in srgb, var(--text-highlight-bg) 70%, transparent);
+}
+
+/*
+ * An inline code span, at the size Obsidian gives its own.
+ *
+ * `--code-size` (0.875em by default) is applied by Obsidian through its
+ * rendered-markdown containers, which a footer row is not — so a `<code>` here
+ * came out at the row's full size. Monospace at the same px reads LARGER than
+ * the prose beside it, which is why the row looked like it changed size at the
+ * code span. `.to-backlinks-code` already did this for a code ROW; this is the
+ * same rule for a span inside any row.
+ */
+.to-backlinks-content code {
+  font-size: var(--code-size);
 }
 
 /*

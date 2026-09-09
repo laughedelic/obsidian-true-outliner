@@ -14,7 +14,7 @@ whatever the week was.
 	  one is gone~~ actually it is still there behind the flag
 		- see the **flag notes** in [[Severity rollout]]: `--severity-first` is
 		  *off* by default, and [the RFC](https://example.com/rfc/severity-first)
-		  says why #followup
+		  says why, and the touch fallback is ==still open== #followup
 	- 100% of the \*existing\* fixtures still pass, which surprised me
 
 > [!warning] Still open before launch

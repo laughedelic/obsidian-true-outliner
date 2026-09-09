@@ -266,4 +266,64 @@ describe('backlinks footer: first render', function () {
     // at natural size, which was multiples of this.
     expect(measured!.tallest).toBeLessThan(measured!.line * 8);
   });
+
+  /**
+   * Three things a manual pass caught that no structural assertion did, all of
+   * them about how an element is DRAWN rather than whether it exists.
+   *
+   * Relationships throughout, never pixels: CI's fonts are not macOS's, and a
+   * theme may set any of these tokens to anything.
+   */
+  it('draws code, highlights and their text at the sizes and colours of their row', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const seen = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const num = (v: string): number => parseFloat(v) || 0;
+          const alpha = (v: string): number => {
+            const m = /\/\s*([\d.]+)\s*\)/.exec(v) ?? /rgba\([^)]*,\s*([\d.]+)\)/.exec(v);
+            return m ? parseFloat(m[1]!) : 1;
+          };
+          const one = (sel: string): Element | null => root.querySelector(sel);
+          const lineage = one('.to-backlinks-row.is-lineage .to-backlinks-content');
+          const linCode = one('.to-backlinks-row.is-lineage .to-backlinks-content code');
+          const linMark = one('.to-backlinks-row.is-lineage .to-backlinks-content mark');
+          const refMark = one('.to-backlinks-row.is-reference .to-backlinks-content mark');
+          const refContent = one('.to-backlinks-row.is-reference .to-backlinks-content');
+          if (!lineage || !linCode || !linMark || !refMark || !refContent) return null;
+          return {
+            contentSize: num(getComputedStyle(lineage).fontSize),
+            codeSize: num(getComputedStyle(linCode).fontSize),
+            rowColour: getComputedStyle(lineage).color,
+            markColour: getComputedStyle(linMark).color,
+            refRowColour: getComputedStyle(refContent).color,
+            refMarkColour: getComputedStyle(refMark).color,
+            linMarkAlpha: alpha(getComputedStyle(linMark).backgroundColor),
+            refMarkAlpha: alpha(getComputedStyle(refMark).backgroundColor),
+          };
+        }),
+      { timeout: 12000, timeoutMsg: 'no styled row to measure' },
+    );
+
+    // Monospace at the prose size reads LARGER than the prose beside it, which
+    // is why Obsidian sizes its own code down and why a row must too.
+    expect(seen!.codeSize).toBeLessThan(seen!.contentSize);
+
+    // A highlight takes its ROW's text colour. Left to the browser, `<mark>`
+    // is black on yellow, which on a dark theme is the only black text in the
+    // footer.
+    expect(seen!.markColour).toBe(seen!.rowColour);
+    expect(seen!.refMarkColour).toBe(seen!.refRowColour);
+
+    // Softer in a chain than in a quotation — and visible in both. The first
+    // attempt mixed an already-translucent token toward transparent and landed
+    // near invisible, so the floor matters as much as the ordering.
+    expect(seen!.linMarkAlpha).toBeLessThan(seen!.refMarkAlpha);
+    expect(seen!.linMarkAlpha).toBeGreaterThan(0.2);
+  });
 });
