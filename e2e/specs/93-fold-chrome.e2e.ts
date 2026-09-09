@@ -101,19 +101,29 @@ describe('fold chrome', () => {
     expect(await h.foldAffordanceVisible(2)).toBe(true);
   });
 
-  it('draws our own affordance when Obsidian paints none', async () => {
-    await h.setNativeFoldSettings(false);
-    try {
-      expect(await h.nativeChevronLines()).toEqual([]);
-      // Every node we fold still has exactly one affordance, in the same
-      // column, and a table — which we never fold — has none.
-      const ours = await h.foldAffordanceLines();
-      expect(ours).toEqual(await h.foldChromeLines());
-      expect(ours).not.toContain(8);
-      for (const line of ours) expect(await h.foldAffordanceCount(line)).toBe(1);
-    } finally {
-      await h.setNativeFoldSettings(true);
+  it('draws its own affordance on every foldable line, hidden where Obsidian paints one', async () => {
+    // Ours is rendered everywhere we fold — and nowhere else, which is the part
+    // that matters: a line the EDITOR calls foldable but we do not (a raw HTML
+    // block) gets nothing.
+    expect(await h.foldToggleLines()).toEqual(await h.foldChromeLines());
+    expect(await h.foldToggleLines()).not.toContain(8); // the table
+
+    // While Obsidian's own indicator is on the line, ours is hidden, so a
+    // reader sees exactly one control.
+    for (const line of await h.foldChromeLines()) {
+      expect(await h.foldAffordanceCount(line)).toBe(1);
     }
+
+    // Take Obsidian's indicators away — the condition ours exists for — and it
+    // is the control that remains, in the same column.
+    const removed = await h.removeNativeChevrons();
+    expect(removed).toBeGreaterThan(0);
+    for (const line of await h.foldChromeLines()) {
+      expect(await h.foldAffordanceCount(line)).toBe(1);
+    }
+    // Whether it is VISIBLE at rest is a hover state, and the pointer's resting
+    // position is whatever an earlier test left it on — asserted for the folded
+    // case above, where it must not depend on hover at all.
   });
 
   it('keeps the count and the affordance when markers are hidden', async () => {

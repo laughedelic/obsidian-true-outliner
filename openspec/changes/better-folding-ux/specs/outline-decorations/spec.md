@@ -43,9 +43,9 @@ notice of what the editor reports as foldable. A line carrying a node `outline-f
 foldable, with no native chevron on it, SHALL receive a fold affordance drawn by the plugin, in
 the marker gutter, at the position the native chevron is transformed onto for the lines that have
 one. In the default configuration Obsidian paints an indicator on every line the plugin makes
-foldable, so this draws nothing; with Obsidian's own "Fold heading" and "Fold indent" settings
-off it paints none anywhere, and the plugin's affordance is what keeps every foldable node
-operable by pointer.
+foldable, so this draws nothing. It is drawn regardless — the condition is evaluated in CSS, from
+the presence of a native chevron on the line — so a line Obsidian stops decorating, for whatever
+reason, keeps a control without the plugin having to detect why.
 
 The condition SHALL be that pairing — our fold, no native chevron — rather than the node's kind or
 the editor's own notion of foldability. Kind is wrong because Obsidian's rule is its own to

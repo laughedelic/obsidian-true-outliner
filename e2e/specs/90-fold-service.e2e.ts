@@ -12,6 +12,14 @@
  *   we draw nothing for it;
  * - Obsidian's own `editor:toggle-fold` folds through our answer.
  *
+ * What is NOT asserted here, deliberately: how any of this behaves with
+ * Obsidian's "Fold heading" / "Fold indent" settings off. Driving those from
+ * the harness proved unreliable — the same call left the indicators in place in
+ * one sequence and removed them in another, and in a third it left the editor
+ * unable to apply a fold at all — so every reading taken through it was
+ * untrustworthy in both directions. The question is real and open; it is
+ * recorded in docs/research/28 rather than asserted by a test that would flake.
+ *
  * CM6's fold exports are not reachable from the renderer's `require`, only from
  * plugin module scope, so the folded ranges are read through the plugin's own
  * `foldState()` probe rather than by importing the package here — the same
@@ -150,25 +158,6 @@ describe('fold service', () => {
     // provider claims — so in the default configuration nothing of ours needs
     // to be drawn.
     expect(await h.nativeChevronLines()).toEqual(await h.foldChromeLines());
-  });
-
-  it('keeps folding when Obsidian’s own fold settings are off — the chevron does not', async () => {
-    await h.setNativeFoldSettings(false);
-    try {
-      // The settings gate Obsidian's INDICATOR, not the fold: nothing is
-      // clickable, and every fold path still works. This is the configuration
-      // our own affordance exists for.
-      expect(await h.nativeChevronLines()).toEqual([]);
-      expect((await h.foldableLines({ oursOnly: true })).map((f) => f.line)).toEqual([
-        0, 2, 4, 7, 9, 12,
-      ]);
-      await h.setCursorSettled(2, 3);
-      await h.runEditorExec('toggleFold');
-      expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 10 }]);
-      await h.runEditorExec('toggleFold');
-    } finally {
-      await h.setNativeFoldSettings(true);
-    }
   });
 
   it('leaves an atom’s own native fold alone, and draws nothing for it', async () => {

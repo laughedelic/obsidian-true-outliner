@@ -966,16 +966,28 @@ export function nativeChevronLines(): Promise<number[]> {
   );
 }
 
-/** Obsidian's own "Fold heading" / "Fold indent" settings, which gate its
- * indicator (measured) but not the fold itself. */
-export async function setNativeFoldSettings(on: boolean): Promise<void> {
-  await browser.executeObsidian(({ app }, value) => {
-    const vault = app.vault as unknown as { setConfig(k: string, v: unknown): void };
-    vault.setConfig('foldHeading', value);
-    vault.setConfig('foldIndent', value);
-    app.workspace.updateOptions();
-  }, on);
-  await browser.pause(300);
+/**
+ * Remove Obsidian's own fold indicators from the rendered lines, simulating a
+ * configuration where it paints none.
+ *
+ * NOT by driving `foldHeading` / `foldIndent`: those were tried first and do
+ * not apply reliably from here — measured, the same call left the indicators in
+ * place in one sequence and removed them in another, and in a third it left the
+ * editor in a state where no fold effect landed at all. A test that sometimes
+ * configures the app and sometimes does not is worse than no test.
+ *
+ * What this simulates is exactly the condition the plugin's own affordance keys
+ * on — a foldable line with no native chevron on it — and it does so
+ * deterministically. The elements come back on the next render.
+ */
+export async function removeNativeChevrons(): Promise<number> {
+  return browser.executeObsidian(() => {
+    const found = document.querySelectorAll(
+      '.workspace-leaf.mod-active .cm-content .cm-fold-indicator',
+    );
+    found.forEach((el) => el.remove());
+    return found.length;
+  });
 }
 
 /** Close the active tab, so the next `openNote` builds a fresh editor — the
@@ -1190,6 +1202,16 @@ export async function setMarkerVisibility(value: string): Promise<void> {
     value,
   );
   await browser.pause(200);
+}
+
+/** Lines carrying the plugin's OWN fold toggle element, whether or not CSS is
+ * currently hiding it behind Obsidian's. */
+export function foldToggleLines(): Promise<number[]> {
+  return browser.executeObsidian(() =>
+    Array.from(document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line'))
+      .map((el, i) => (el.querySelector('.to-decor-fold-toggle') ? i : -1))
+      .filter((i) => i >= 0),
+  );
 }
 
 /** Lines where the plugin's own fold chrome belongs. */

@@ -190,12 +190,27 @@ claims — the paragraph with attached children included. So the affordance is N
 the default configuration; Obsidian draws it, in the column our decorations already transform it
 into.
 
-**But it is gated on the settings, and the fold is not.** With "Fold heading" and "Fold indent"
-both off: no indicator on any line, while `foldable()` still reports our ranges and every fold
-path still folds — the native fold operation included. So the two questions genuinely separate:
-the settings decide whether Obsidian offers a control, and our provider decides what a fold is.
-That configuration is what a plugin-drawn affordance exists for, which is why the spec's condition
-is "a node we make foldable, with no native chevron on its line" rather than a kind.
+**What those settings do is UNRESOLVED, and the attempt to settle it is worth recording.** The
+first reading said the indicators vanish with "Fold heading" and "Fold indent" both off while
+every fold path keeps working, and the spec was written on it. Re-measured while building the
+chrome, the same harness produced three mutually exclusive answers:
+
+| Sequence | Indicators | Folding |
+| --- | --- | --- |
+| toggle off, then read | gone | works (through Obsidian's own path, then ours) |
+| toggle off in a list-only note, then fold | gone | **never lands**, over eight attempts across 2.8s |
+| fresh note per configuration, all four combinations | **still there in all four** | works in all four |
+
+The third row is the one that condemns the instrument: with both settings off, the indicators were
+still painted, so the configuration had not applied at all. `vault.setConfig` plus
+`workspace.updateOptions()` is evidently not equivalent to changing the setting in Obsidian's own
+UI, and every reading taken through it — including the first one — is untrustworthy.
+
+So: no code in the plugin reads those settings, and nothing here claims what happens with them
+off. The specs were corrected to say so, and the affordance test now removes Obsidian's indicators
+from the DOM directly, which is the same condition and a deterministic one. Answering the question
+properly needs a human toggling the setting in a real vault, which is what the change's manual
+pass is for.
 
 ### What we take over, diffed across the corpus
 

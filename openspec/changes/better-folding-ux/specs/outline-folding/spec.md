@@ -30,8 +30,12 @@ The rule SHALL be the same rule for every kind, taking precedence over any narro
 Obsidian would give for the same line, so that no node's fold extent depends on which notation
 happens to encode it.
 
-Folding SHALL NOT depend on Obsidian's "Fold heading" and "Fold indent" settings: those settings
-govern Obsidian's own folding, and an outline node folds because it has children.
+What Obsidian's own "Fold heading" and "Fold indent" settings do to this is NOT stated here.
+Folding an outline node is offered because the node has children, and no code in this plugin reads
+those settings — but whether the editor still applies a fold with both of them off could not be
+established: driving them from the harness proved unreliable in both directions (see
+docs/research/28), and a requirement no test can hold is worse than an open question. It is
+recorded as one.
 
 #### Scenario: A paragraph with attached children folds
 - **WHEN** the caret is in a paragraph that has a list attached to it as children, and the fold
@@ -57,10 +61,7 @@ govern Obsidian's own folding, and an outline node folds because it has children
 - **WHEN** a heading with nested headings and lists beneath it is folded
 - **THEN** every descendant is hidden and the next sibling heading remains visible
 
-#### Scenario: Folding works with Obsidian's own fold settings off
-- **WHEN** "Fold heading" and "Fold indent" are both disabled and the fold command runs on a
-  node with children
-- **THEN** the node folds
+
 
 ### Requirement: Three commands fold, unfold and toggle the current node
 

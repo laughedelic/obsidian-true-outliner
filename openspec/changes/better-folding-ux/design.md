@@ -66,10 +66,13 @@ a list item folding by indentation, a paragraph folding by our tree — and it l
 subject to Obsidian's "Fold heading" / "Fold indent" settings. The whole point of the change is
 that a node folds because it is a node.
 
-*Consequence to verify first (task 1):* whether Obsidian's own click and command paths consult
-those two settings BEFORE asking `foldable()`. The research note lists this as the one unmeasured
-claim the design rests on. If they do, the commands still work and only the native chevron goes
-quiet with the settings off — a degradation, not a redesign.
+*What the gate could not settle:* how any of this behaves with Obsidian's own "Fold heading" and
+"Fold indent" settings off. Driving them from the harness gave contradictory readings — the same
+call left the indicators in place in one sequence and removed them in another, and in a third left
+the editor unable to apply a fold at all — so nothing measured through it can be trusted in either
+direction. No code here reads those settings; whether Obsidian's fold layer is present without
+them is recorded as open in docs/research/28. Everything else in this design rests on the default
+configuration, which is measured throughout.
 
 ### D2. The trailing gap stays visible
 
@@ -156,11 +159,13 @@ which measured the opposite of what this design first assumed. Obsidian's indica
 fold decoration for an unchanged line is not rebuilt. Registered at load, the chevron appears on
 every line the provider claims, the paragraph included.
 
-What remains is the configuration the same measurement found: with "Fold heading" and "Fold
-indent" off, Obsidian paints NO indicator on any line while `foldable()` and every fold path keep
-working. So the plugin's own affordance is the answer for a user who turned those settings off —
-which is exactly the condition the spec states, and the reason it is written as "a node we make
-foldable, with no native chevron" rather than as a kind. Section 5.4 tests it there.
+It is still drawn on every line we fold, and still hidden in CSS by the presence of a native
+chevron rather than by a rule about which lines Obsidian decorates. That costs one element per
+foldable line and buys independence from a decision that is Obsidian's to change — which matters
+more than it first appeared, because the configuration this was expected to serve (both fold
+settings off) turned out to be one the harness cannot drive reliably enough to test. The test
+takes Obsidian's indicators out of the DOM directly instead, which is the same condition and a
+deterministic one.
 
 *Alternative rejected:* a CM6 `gutter()` beside the content. It is the obvious mechanism and the
 wrong one here: a gutter sits outside the readable-line-width column, so the affordance would

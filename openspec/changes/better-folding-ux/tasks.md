@@ -17,16 +17,13 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       `outline-decorations` — our affordance follows OUR fold, never the editor's — so this task
       is the test that keeps it, plus a check that nothing we draw appears on such a line
 
-- [x] 1.3 **The settings question.** Turn Obsidian's "Fold heading" and "Fold indent" OFF and
-      re-run 1.1's fold path through the affordance, `editor:toggle-fold`, and a direct
-      `foldEffect`. Record which of the three still works.
-
-      If the native chevron or its click path gates on those settings, the affordance does NOT
-      degrade: `outline-decorations`' condition is "a node we make foldable, with no native
-      chevron", so heading and list lines fall to the plugin's own affordance exactly as a
-      paragraph does, and section 5.4 covers them. What this task settles is whether that path is
-      exercised in the default configuration or only in a non-default one — which decides whether
-      5.4's e2e needs a settings-off run
+- [x] 1.3 **The settings question — UNRESOLVED, and recorded as such.** Driving "Fold heading"
+      and "Fold indent" from the harness produced three mutually exclusive readings, including one
+      where the configuration plainly never applied (docs/research/28 has the table).
+      `vault.setConfig` + `updateOptions()` is not equivalent to changing the setting in
+      Obsidian's own UI. No code reads those settings and no spec now claims anything about them;
+      the affordance test removes Obsidian's indicators from the DOM instead, which is the same
+      condition and deterministic. Answering it properly needs the manual pass (10.3)
 - [x] 1.4 **What we take over.** Diff native fold extents against ours across the `test-vault/`
       corpus: heading sections (with and without a trailing gap), nested lists, a list under a
       paragraph, ordered lists, tasks.
@@ -175,7 +172,9 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 - [x] 10.2 Add the folding group's label to `scripts/spec-groups.mjs` so the new decade reports
       under a name rather than its prefix
 - [ ] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
-      two the measurements found (a moved folded node, Enter on a folded node)
+      two the measurements found (a moved folded node, Enter on a folded node) — and the one the
+      harness could not settle: fold with Obsidian's "Fold heading" and "Fold indent" turned off
+      in the real settings UI, which is the only place they can be trusted to apply (task 1.3)
 - [x] 10.4 Update `docs/research/12-decoration-follow-ups.md`: close the guide-click entry, the
       footer fold-chrome entry and the one-way-row-fold entry, and record anything this change
       deliberately left in the parking lot
