@@ -285,10 +285,31 @@ describe('backlinks footer: first render', function () {
           const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
           if (!root) return null;
           const num = (v: string): number => parseFloat(v) || 0;
-          const alpha = (v: string): number => {
-            const m = /\/\s*([\d.]+)\s*\)/.exec(v) ?? /rgba\([^)]*,\s*([\d.]+)\)/.exec(v);
-            return m ? parseFloat(m[1]!) : 1;
+          // `color-mix` computes to `color(srgb r g b / a)` with 0-1 channels,
+          // while everything else is `rgb()` with 0-255. Read both, or a mixed
+          // colour measures as near-black and every ratio below is fiction.
+          const parse = (c: string): number[] => {
+            const srgb = c.trim().startsWith('color(');
+            const m = c.match(/[\d.]+/g)!.map(Number);
+            const ch = srgb ? [m[0]!, m[1]!, m[2]!].map((v) => v * 255) : [m[0]!, m[1]!, m[2]!];
+            return [ch[0]!, ch[1]!, ch[2]!, m[3] ?? 1];
           };
+          const over = (fg: number[], bg: number[]): number[] =>
+            [0, 1, 2].map((i) => fg[3]! * fg[i]! + (1 - fg[3]!) * bg[i]!);
+          const lum = (c: number[]): number => {
+            const f = (v: number): number => {
+              const x = v / 255;
+              return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+            };
+            return 0.2126 * f(c[0]!) + 0.7152 * f(c[1]!) + 0.0722 * f(c[2]!);
+          };
+          const contrastOf = (el: Element, ground: number[]): number => {
+            const cs = getComputedStyle(el);
+            const [hi, lo] = [lum(parse(cs.color)), lum(over(parse(cs.backgroundColor), ground))]
+              .sort((a, b) => b - a);
+            return (hi! + 0.05) / (lo! + 0.05);
+          };
+          const ground = parse(getComputedStyle(document.body).backgroundColor);
           const one = (sel: string): Element | null => root.querySelector(sel);
           const lineage = one('.to-backlinks-row.is-lineage .to-backlinks-content');
           const linCode = one('.to-backlinks-row.is-lineage .to-backlinks-content code');
@@ -307,8 +328,8 @@ describe('backlinks footer: first render', function () {
             markColour: getComputedStyle(linMark).color,
             refRowColour: getComputedStyle(refContent).color,
             refMarkColour: getComputedStyle(refMark).color,
-            linMarkAlpha: alpha(getComputedStyle(linMark).backgroundColor),
-            refMarkAlpha: alpha(getComputedStyle(refMark).backgroundColor),
+            linMarkContrast: contrastOf(linMark, ground),
+            refMarkContrast: contrastOf(refMark, ground),
             lineageSize: num(getComputedStyle(lineage).fontSize),
             referenceSize: num(getComputedStyle(refContent).fontSize),
             lineageTagSize: num(getComputedStyle(linTag).fontSize),
@@ -322,20 +343,23 @@ describe('backlinks footer: first render', function () {
     // is why Obsidian sizes its own code down and why a row must too.
     expect(seen!.codeSize).toBeLessThan(seen!.contentSize);
 
-    // A highlight takes its ROW's text colour. Left to the browser, `<mark>`
-    // is black on yellow, which on a dark theme is the only black text in the
-    // footer.
-    expect(seen!.markColour).toBe(seen!.rowColour);
+    // A reference row's highlight takes that row's own text colour. Left to
+    // the browser, `<mark>` is black on yellow, which on a dark theme is the
+    // only black text in the footer.
+    //
+    // A chain's is deliberately NOT its row's: its ink is lifted to stay
+    // legible against the tint, which is what the contrast assertion below is
+    // for. Pinning equality there is what would forbid the fix.
     expect(seen!.refMarkColour).toBe(seen!.refRowColour);
 
-    // A highlight is VISIBLE. Muting it was tried twice and broke twice, both
-    // times because `--text-highlight-bg` already carries its own alpha: mixed
-    // toward transparent it compounded to near nothing, and in a theme that
-    // leaves the token undefined the whole declaration went invalid and the
-    // highlight read as ordinary text. What this pins is the outcome, not the
-    // arithmetic — a mark has a background, whatever the theme does.
-    expect(seen!.linMarkAlpha).toBeGreaterThan(0.15);
-    expect(seen!.refMarkAlpha).toBeGreaterThan(0.15);
+    // Highlighted text is READABLE, in a chain as much as in a reference.
+    //
+    // Contrast rather than alpha, because alpha was never the thing that
+    // mattered and asserting it hid the real defect: the chain's faint ink on
+    // the default highlight composited to 1.01:1 — the floor, where the text is
+    // not dim but absent — while its alpha looked perfectly reasonable.
+    expect(seen!.linMarkContrast).toBeGreaterThan(3);
+    expect(seen!.refMarkContrast).toBeGreaterThan(3);
 
     // A chain reads at less than full size, and everything inside it scales
     // with the chain rather than with the row — a tag sized against the row

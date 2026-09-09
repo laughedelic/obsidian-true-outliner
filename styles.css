@@ -1838,6 +1838,35 @@ body {
 
 
 /*
+ * A highlight inside a CHAIN: softer ground, and ink lifted to meet it.
+ *
+ * Measured, not estimated. A chain's text is `--text-faint`, and the default
+ * highlight composited over a dark theme lands at almost exactly that
+ * luminance — `rgb(102,102,102)` on `rgb(120,101,18)` is **1.01:1**, which is
+ * the floor. The text was not hard to read, it was gone.
+ *
+ * Both levers, because neither is enough alone. Any yellow tint raises the
+ * ground toward the faint ink, so muting the background alone still leaves a
+ * chain's own 2.9:1 unreachable; and lifting the ink alone to `--text-normal`
+ * makes a highlighted run in a chain as loud as the mention it leads to.
+ * Together they clear 3:1 while keeping the run recognisably part of the
+ * chain.
+ *
+ * Relative on both sides, so a theme moves them together: the ground is a
+ * share of the theme's own highlight, and the ink starts from whatever the row
+ * is and travels toward whatever the theme calls normal. `currentColor` in a
+ * `color` declaration is the INHERITED colour — the row's — which is exactly
+ * the starting point wanted here.
+ *
+ * The literal fallback stays. It is what stops a theme that leaves the token
+ * undefined from invalidating the declaration and cancelling the highlight.
+ */
+.to-backlinks-row.is-lineage .to-backlinks-content mark {
+  background: color-mix(in srgb, var(--text-highlight-bg, rgba(255, 208, 0, 0.4)) 60%, transparent);
+  color: color-mix(in srgb, currentColor 40%, var(--text-normal) 60%);
+}
+
+/*
  * An inline code span, at the size Obsidian gives its own.
  *
  * `--code-size` (0.875em by default) is applied by Obsidian through its

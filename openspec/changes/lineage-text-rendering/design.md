@@ -67,9 +67,20 @@ resolved to 0.16 and read as no highlight at all — and a theme that leaves the
 makes the whole `color-mix` invalid, which cancels the background outright. The prototype that
 set the number used an OPAQUE swatch and had neither failure available to it.
 
-So a chain draws the app's own highlight, with a literal fallback so no theme can cancel it. The
-quieting a chain needs, it already has: its text is dimmer AND smaller than the mention it leads
-to, which is two axes before colour is spent on a third.
+So a chain draws the theme's own highlight at a share of its strength, with a literal fallback
+so no theme can cancel it — and lifts its ink to meet it.
+
+Both, because measurement says neither is enough. A chain's `--text-faint` over the default
+highlight composites to **1.01:1**, the floor: the ink and the tinted ground land at the same
+luminance. Any yellow tint raises that ground toward faint ink, so softening alone cannot
+recover a chain's own 2.9:1; and lifting the ink to `--text-normal` alone makes a highlighted
+run as loud as the mention the chain leads to. Together — 60% of the theme's highlight, ink 60%
+of the way from the row's colour to normal — the chain measures 3.94:1 dark and 6.34:1 light,
+against a reference row's 4.09 and 13.44.
+
+Relative on both sides, so a theme moves them together rather than needing a second set of
+values. The remaining quieting a chain needs it already has: its text is dimmer AND smaller than
+the mention it leads to.
 
 A chain also reads at less than full size — a rule tried and removed before this change, on the
 grounds that colour alone said "context" and a size compounded with the row's own. What changed

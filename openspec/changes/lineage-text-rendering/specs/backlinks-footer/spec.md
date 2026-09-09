@@ -150,9 +150,16 @@ text colour. Left to the browser a `<mark>` is black on an opaque yellow, which 
 is the only black text in the footer; and a background derived solely from a theme token
 disappears entirely where that token is undefined. Neither outcome is a highlight.
 
-A lineage row SHALL NOT weaken that background further. Its text is already dimmer and smaller
-than the mention it leads to, and the theme's own highlight token may already carry alpha — so
-reducing it again is what makes a highlight read as ordinary text.
+Highlighted text SHALL remain legible against its own highlight, in every row. This is a
+contrast requirement, not an opacity one: a chain's faint ink over the default highlight
+composites to almost exactly its own luminance — measured at 1.01:1, where text is not dim but
+absent — while the opacity involved looks unremarkable.
+
+Where a row's own text colour cannot meet that against its highlight, the row SHALL soften the
+highlight and lift the text TOGETHER. Neither alone suffices: any tint raises the ground toward
+faint ink, and lifting the ink to full strength alone makes a highlighted run in a chain as loud
+as the mention it leads to. Both SHALL be expressed relative to the theme's own colours, so the
+two move together when the theme changes.
 
 A lineage row's content SHALL be drawn at less than the size of the reference it leads to, and
 everything inside it — code spans, tags — SHALL be sized relative to the CHAIN rather than to
@@ -190,8 +197,9 @@ implementation.
 #### Scenario: A highlight reads as one, in both rows
 
 - **WHEN** an ancestor and the reference beneath it both carry a highlight
-- **THEN** both are drawn with a visible background, and each takes its own row's text colour
-  rather than the browser's default black
+- **THEN** both are drawn with a visible background, neither takes the browser's default black
+  text, and the text in each is legible against its own highlight in a light theme and a dark
+  one alike
 
 #### Scenario: A chain is smaller than the reference it leads to
 
