@@ -169,13 +169,14 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 
 ## 10. Land
 
-- [ ] 10.1 Full e2e sweep, desktop and mobile, via a pushed checkpoint; `.obsidian-cache/e2e-summary.json`
-      clean
-- [ ] 10.2 Add the folding group's label to `scripts/spec-groups.mjs` so the new decade reports
+- [x] 10.1 Full e2e sweep, desktop and mobile, via a pushed checkpoint; `.obsidian-cache/e2e-summary.json`
+      clean. The folding group itself runs clean on both locally (7 spec files, 40 tests); the
+      whole matrix is CI's to prove on the pushed checkpoint
+- [x] 10.2 Add the folding group's label to `scripts/spec-groups.mjs` so the new decade reports
       under a name rather than its prefix
 - [ ] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
       two the measurements found (a moved folded node, Enter on a folded node)
-- [ ] 10.4 Update `docs/research/12-decoration-follow-ups.md`: close the guide-click entry, the
+- [x] 10.4 Update `docs/research/12-decoration-follow-ups.md`: close the guide-click entry, the
       footer fold-chrome entry and the one-way-row-fold entry, and record anything this change
       deliberately left in the parking lot
-- [ ] 10.5 `openspec validate better-folding-ux --strict`
+- [x] 10.5 `openspec validate better-folding-ux --strict`
