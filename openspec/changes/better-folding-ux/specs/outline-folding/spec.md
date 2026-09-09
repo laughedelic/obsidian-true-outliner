@@ -236,6 +236,33 @@ Fold state elsewhere in the document SHALL be unaffected.
 - **WHEN** an unfolded node with two folded children is moved up
 - **THEN** both children are still folded at the new position
 
+### Requirement: A change to hidden content opens the fold that hides it
+
+A change that alters what a fold HIDES SHALL open that fold, whatever made the change — a
+keystroke, an undo or redo, a find-and-replace, or a sync landing another device's edit. Nothing
+may change where the reader cannot see it.
+
+A change that leaves the hidden lines intact SHALL leave the fold alone, and the fold SHALL follow
+those lines wherever the change puts them. Editing the folded node's OWN line is such a change:
+its text is visible, and nothing about what is hidden has changed.
+
+Fold state SHALL NOT enter the undo history — folding alters no text, so there is nothing to undo
+— and this requirement is what makes that safe rather than merely defensible: undoing a move
+carries the fold back with the lines, and undoing an edit inside a folded subtree opens it.
+
+#### Scenario: An edit inside a folded subtree reveals it
+- **WHEN** a folded node's hidden descendant is changed by anything other than a relocation of the
+  same lines
+- **THEN** the fold opens and the changed content is on screen
+
+#### Scenario: Undo of an edit made before folding shows what it undid
+- **WHEN** the user edits a descendant, folds its ancestor, and then undoes
+- **THEN** the edit is reverted and the fold is open, showing the reverted line
+
+#### Scenario: Typing on a folded node's own line keeps it folded
+- **WHEN** the user types on the visible line of a folded node
+- **THEN** the node stays folded and hides the same descendants
+
 ### Requirement: A caret never lands inside hidden content
 
 Any operation that would place the caret or a selection endpoint inside a folded range SHALL open

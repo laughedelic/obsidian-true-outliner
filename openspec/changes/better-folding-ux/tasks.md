@@ -73,24 +73,21 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 
 ## 4. Fold state through structural operations
 
-- [ ] 4.1 Capture-and-reapply in the structural dispatch path (D4): each folded node recorded as
-      a path RELATIVE to its operand root plus that root's index in the forest, re-applied after
-      the change against the roots covered by `OpOutput.span` in document order. `OpOutput` has no
-      per-root result paths and `finalize` regenerates ids, so nothing here may assume node
-      identity survives. An unresolved path drops its fold; unit-test that case directly, with an
-      outdent that adopts following siblings as the fixture
-- [ ] 4.1a `invertedEffects` registration for the fold effects the plugin dispatches (D4a) —
-      a fold inverts to an unfold of the mapped range and back. Without it CM6's history restores
-      the text and leaves the fold layer where mapping put it. Verify with an e2e that folds,
-      moves, undoes and REDOES, asserting text and fold state after each step; negative control —
-      removing the facet registration must fail the undo assertion while the same-transaction
-      dispatch still passes its "one undo step" check
-- [ ] 4.2 E2E per scenario in the `editor-structural-commands` delta: move a folded node, move a
+- [x] 4.1 The carry as a transaction filter (D4, revised): every fold restated from the lines it
+      hid, with indentation ignored, following them wherever the change put them and opening when
+      they are gone. Covers both dispatch sites at once, because both produce ordinary
+      transactions. The second spec must be marked `sequential` or its effects are mapped through
+      the change set twice
+- [x] 4.1a No `invertedEffects` after all (D4a, revised): folding stays out of the history
+      entirely, and undo restores a fold because undoing a move re-inserts the same hidden lines,
+      which 4.1's rule follows. Verified by an e2e that folds, moves, undoes and REDOES, reading
+      text and fold state at each step
+- [x] 4.2 E2E per scenario in the `editor-structural-commands` delta: move a folded node, move a
       node containing folded children, group-move a mixed selection, indent and outdent a folded
       node. Negative control — dropping the reapply must fail the move test while leaving the
       indent test passing, which is exactly the asymmetry
       `docs/research/28-fold-mechanics.md` measured
-- [ ] 4.3 One undo step still means one: a folded node moved and undone restores text, selection
+- [x] 4.3 One undo step still means one: a folded node moved and undone restores text, selection
       and fold together, with no intermediate state where the text has moved back and the fold has
       not. `structural-history-integration` is the contract this must not break
 

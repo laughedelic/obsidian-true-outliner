@@ -87,61 +87,61 @@ the minimal-change dispatch and the undo history never see it.
 *Escalation to the nearest ancestor with children* (spec: "Three commands…") is resolved by
 walking the node path from the caret's node upward — the path is already in hand from the parse.
 
-### D4. Fold state through a structural op is re-derived, and the mapping is RELATIVE
+### D4. A fold follows its own content, decided in a transaction filter
 
-Measured: an indent preserves a fold because it rewrites only indentation prefixes; a move destroys
-it because a range whose ends are inside deleted text cannot map. So the operation records the fold
-state of the operand's subtree BEFORE the change and re-applies it AFTER.
+Measured, and not what this design first assumed: CodeMirror's own mapping cannot be relied on to
+keep a fold across a structural operation at all. A move drops it even when the change set never
+overlaps the folded range, and an indent drops it too — the note that recorded indent as the
+surviving case did not survive re-measurement.
 
-*What it records, precisely.* `OpOutput` cannot be asked "where did node N go": `finalize`
-re-parses, so ids are regenerated, and the output carries an `anchor` (one line/column) and a
-`span` (the whole-subtree cover of every subject, in the result) — no per-root paths
-(`src/ops.ts`). So the mapping is relative, in two steps:
+So the fold layer restates itself on every change, in a transaction filter, from one rule:
 
-1. Before the change, for each folded node inside an operand root's subtree, record its path
-   RELATIVE to that root — indices into successive `children` arrays — and the root's own index
-   within the operand forest.
-2. After the change, re-parse (which the dispatch already does), take the subtree roots covered by
-   `span` in document order — `span` is an exact whole-subtree cover, which is what makes this
-   well-defined — and match them to the pre-operation roots by index. Then walk each recorded
-   relative path from its new root.
+> A fold survives a change if the lines it HID are still there in one piece — the same lines, in
+> the same order, ignoring each line's indentation. It then follows them wherever they went.
+> Otherwise it opens.
 
-This holds because indent, outdent and move relocate a subtree without reordering what is inside
-it. Where an operation DOES change the operand's internal shape — an outdent adopting following
-siblings is the case in the corpus — a recorded path may not resolve, and an unresolved path
-drops its fold rather than guessing at a neighbour. Dropping a fold is recoverable in one
-keystroke; folding the wrong node is a silent lie about what is on screen.
+The identity is the hidden run and nothing else. Indentation is excluded because an indent
+rewrites exactly that and changes nothing about what is hidden; the node's own visible line is
+excluded because typing on it changes nothing about what is hidden either. A whole run rather than
+a first line, because a list of repeated items would otherwise match the wrong sibling. Ties go to
+the candidate nearest where the run used to be.
 
-*Alternative rejected:* extending `OpOutput` with per-root result paths. It is the cleaner shape
-and it is a change to the mapping core's public output for a presentation concern; the relative
-mapping needs nothing the output does not already state. Worth revisiting if a second consumer
-ever wants the same thing.
+*Why a filter, and why every fold rather than the touched ones.* The filter is the only place that
+sees both dispatch sites — the keyboard path and the command path produce ordinary transactions,
+and neither carries an `OpOutput` a design could read the moved node out of (`OpOutput` has an
+anchor and a span, no per-root paths, and `finalize` regenerates ids). Restating every fold rather
+than only the ones a change reaches is what makes the rule independent of CodeMirror's mapping
+behaviour, which is the thing that could not be trusted. It is idempotent — a `foldEffect` for a
+fold that already exists is ignored — and the fast path checks the mapped position first, so an
+ordinary keystroke pays one line comparison per fold.
 
-*Alternative rejected:* making the move emit an edit shape CM6 can map a fold through (e.g. moving
-the boundary lines only). That is a change to `ops.ts`'s minimal changesets for a presentation
-concern, and `minimal-change-dispatch` exists to keep those changesets aligned with the tree, not
-with the fold layer.
+*Alternatives rejected.* Extending `OpOutput` with result paths: a change to the mapping core's
+public output for a presentation concern, and it would still leave the keyboard path to plumb.
+Making the move emit an edit shape a fold can map through: a change to `ops.ts`'s minimal
+changesets for the same reason. Both were the design's earlier answers, and both are heavier than
+a rule that needs nothing from the operation at all.
 
-*Placement:* in the same dispatch that applies the operation, so one transaction carries the edit,
-the selection and the fold effects — see D4a for what that does and does not buy.
+*One mechanical detail that is load-bearing.* The effects are appended as a second transaction
+spec, and that spec must be marked `sequential`. Without it CodeMirror merges the two specs
+non-sequentially and maps the effects through the change set — a second time, since these
+positions are already stated in the document the change produces. Measured: a fold carried through
+an indent landed one line late, and one carried through a move landed inside deleted text and
+vanished.
 
-### D4a. Undo needs `invertedEffects`, not just one transaction
+### D4a. Folding stays out of the history, and undo restores it anyway
 
-Putting the fold effects in the edit's own transaction makes them arrive together; it does NOT
-make them undoable. CM6's history records effects only through the `invertedEffects` facet, and
-neither `foldEffect` nor `unfoldEffect` registers one — they define mapping, not inversion. Undo
-would restore the text and leave the fold layer wherever mapping happened to put it, which is the
-same class of defect D4 exists to fix, one keystroke later.
+Folding is view state, not document state: a fold produces no `ChangeSet`, so nothing about it
+enters the undo history, and undo reaches past any number of folds to the last real edit.
 
-So the plugin registers `invertedEffects` for the fold effects it dispatches: a fold inverts to an
-unfold of the mapped range and vice versa. This is the mechanism CM6 documents for exactly this
-case, it costs one facet registration, and it makes redo work by the same route — which is worth
-saying out loud, because a fix aimed at undo alone tends to leave redo asserting nothing.
+That would normally cost something — undoing a move would restore the text and leave the fold
+behind — and it does not, because of D4. Undoing a move re-inserts the same hidden run, so the
+same rule that carried the fold forward carries it back; undoing an edit INSIDE a folded subtree
+changes those lines, so the same rule opens the fold and the reader sees what the undo did.
 
-The scope is deliberately narrow: effects THIS plugin dispatches as part of an operation. A fold a
-user makes on their own is not part of any edit and has nothing to invert; nothing about ordinary
-folding enters the history. `structural-history-integration` is the spec this has to compose
-with, and its "one undo step per operation" contract is what the same-transaction dispatch keeps.
+This replaces an earlier decision to register `invertedEffects` for the fold effects the plugin
+dispatches. That would have put a subset of folds into the history, which is a second answer to
+"is folding undoable" living beside the first. Nothing needs it: the rule that keeps a fold on its
+content is direction-agnostic, because undo and redo are just more changes.
 
 ### D5. Our own affordance is a widget in the marker column, not a second gutter
 
@@ -252,13 +252,19 @@ and its folded treatment — not the fold state itself, which stays the footer's
   → Fold state is keyed by path from the operation's own result, which is the same source the
   caret placement uses; if the result reports no path for an operand, its fold is dropped rather
   than guessed.
-- **Fold state is not undo state by default.** Undoing a move restores the text; a fold effect
-  dispatched with it is not inverted by CM6's history on its own. → D4a registers
-  `invertedEffects` for the effects we dispatch, and an e2e that folds, moves, undoes AND redoes
-  reads both text and fold state at each step.
+- **The block-identity match can pick the wrong twin.** Two identical subtrees in one document
+  are indistinguishable to the rule, and only proximity separates them. → Ties go to the candidate
+  nearest the block's mapped position, and the failure is a fold landing on an identical sibling,
+  not on unrelated content.
+- **The fallback scan is linear in the document.** A fold whose run cannot be found at the mapped
+  position costs a scan of the note. → It runs only when the fast path misses, only for documents
+  that have folds at all, and the miss case ends in an unfold rather than a search that repeats.
 
 ## Open Questions
 
+- **Whether the reveal should be a notice.** An edit inside a folded subtree opens it, which is
+  visible on its own; whether a sync landing one off-screen also deserves a cue is unanswered and
+  costs nothing to defer.
 - **Where the count sits when a node's text wraps.** After the text means after its LAST visual
   row, which is not where a reader looks. Anchoring it to the first row instead is a rendering
   decision the mockup does not settle, and either answer satisfies the spec.

@@ -82,6 +82,7 @@ import { foldable } from '@codemirror/language';
 import { foldChromeTarget, foldRangeAt, foldServiceExtension } from './fold-service';
 import { currentFolds } from './fold-ops';
 import { foldViewExtension } from './fold-view';
+import { foldCarryExtension } from './fold-carry';
 import {
   foldGestureAvailable,
   hasAnyFold,
@@ -512,8 +513,10 @@ export default class TrueOutlinerPlugin extends Plugin {
     // per-file persistence all follow from this one provider
     // (docs/research/28-fold-mechanics.md).
     this.registerEditorExtension(foldServiceExtension());
-    // Beside it: the rule that a computed caret never lands in hidden content.
+    // Beside it: the rule that a computed caret never lands in hidden content,
+    // and the one that decides what a change does to a fold.
     this.registerEditorExtension(foldViewExtension());
+    this.registerEditorExtension(foldCarryExtension());
     this.registerEditorExtension(grammarExtension());
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));

@@ -2126,6 +2126,10 @@ export async function dismissNotices(): Promise<void> {
 
 /** The platform's Mod key. Exported because a spec driving a Mod-CLICK needs
  * the same key the Mod-keystroke helpers below use. */
+/** Shift, for the redo chord — spelled once so a spec does not import
+ * `webdriverio`'s `Key` just for it. */
+export const SHIFT = Key.Shift;
+
 export const PRIMARY_MOD = process.platform === 'darwin' ? Key.Command : Key.Ctrl;
 
 export const keys = {

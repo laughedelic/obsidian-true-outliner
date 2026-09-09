@@ -72,6 +72,14 @@ class on the line itself, so a line-level signal is ours to add too.
 
 ### 3. A fold survives indent; a move destroys it
 
+> **Corrected 9 September 2026, while building the carry.** The measurement below is right about
+> the move and wrong about the indent: an indent drops the fold too. The first reading folded a
+> node's children and indented the PARENT, where the fold's own lines are shifted but not
+> rewritten; indenting the folded node itself rewrites the hidden lines' indentation and the fold
+> goes. Worse, a move drops the fold even when the change set never overlaps the folded range —
+> mapping is simply not something a fold layer can lean on here. What replaced the whole idea is
+> in `better-folding-ux` design D4: restate every fold from the lines it hid.
+
 Same fold (`- one`'s two children hidden), two operations:
 
 | Operation | Fold after |
@@ -211,3 +219,19 @@ every wrapped list item in the vault — a bullet on one line and its fold on th
 belongs on the node's FIRST line, where the marker is, while the RANGE still begins after the
 node's last own line. The two coincide for every single-line node, which is why a fixture of short
 lines cannot see it; the corpus could.
+
+## Two mechanics the carry ran into (9 September 2026)
+
+**A second transaction spec is merged NON-sequentially by default.** A transaction filter that
+returns `[tr, {effects}]` has those effects mapped through the transaction's change set, and a
+fold's positions are already stated in the document the change produces — so they are mapped
+twice. Measured: a fold carried through an indent landed one line late; one carried through a move
+landed inside deleted text and vanished. `sequential: true` on the appended spec is what says
+"already in the new coordinate space". `resolveTransaction` in `@codemirror/state` is where this
+lives; `mergeTransaction`'s `sequential` branch sets `mapForB` to an empty change set.
+
+**Obsidian's own editor COMMANDS decline without editor focus, and under WebDriver the OS window
+is never focused.** `editor:toggle-fold` does nothing in a spec however many times the test calls
+`focus()`, while `Editor.exec('toggleFold')` — the same operation through the public API — works.
+Any spec asserting native editor behaviour needs the `exec` route, and `runEditorExec` in the
+helpers exists for it.
