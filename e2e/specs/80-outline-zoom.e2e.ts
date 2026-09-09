@@ -1718,4 +1718,52 @@ describe('outline zoom: the enforced path with a zoom active', function () {
     // Code still steps down inside it, by the app's own rule.
     expect(size.trailCode).toBeLessThan(size.trail);
   });
+
+  /** The trail's marks sit on its text's line too — the same construction the
+   * footer's do, since both are the same primitive. */
+  it('puts a crumb icon on the text line', async function () {
+    const md = ['# Top', '', '- ancestor one', '  - middle here', '    - the leaf', ''].join('\n');
+    await openZoomable(md);
+    await browser.waitUntil(async () => (await h.getBuffer()).includes('middle here'), {
+      timeout: 5000,
+      timeoutMsg: 'the fixture never reached the editor',
+    });
+    await h.clickAt(4, 8);
+    await browser.pause(200);
+    await h.runCommand('zoom-in');
+    await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(
+          ({ app, obsidian }) =>
+            (app.workspace
+              .getActiveViewOfType(obsidian.MarkdownView)
+              ?.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg-icon').length ?? 0) > 0,
+        ),
+      { timeout: 5000, timeoutMsg: 'the trail never drew a crumb icon' },
+    );
+
+    const marks = await browser.executeObsidian(({ app, obsidian }) => {
+      const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const segs = Array.from(v.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg'));
+      const read = (seg: Element) => {
+            const icon = seg.querySelector('.to-backlinks-seg-icon');
+            if (!icon) return null;
+            // A zero-size inline-block on the baseline: its box edge IS the
+            // baseline of the line it sits in, which is what "the lower edge of
+            // the text" means. Measured, never assumed from font metrics.
+            const probe = document.createElement('span');
+            probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+            icon.insertAdjacentElement('afterend', probe);
+            const base = probe.getBoundingClientRect().top;
+            probe.remove();
+            const box = icon.getBoundingClientRect();
+            const fs = parseFloat(getComputedStyle(seg).fontSize);
+            return { offsetEm: (box.bottom - base) / fs, sizeEm: box.height / fs };
+          };
+      return segs.map(read).filter(Boolean);
+    });
+
+    expect(marks.length).toBeGreaterThan(0);
+    for (const m of marks) expect(Math.abs(m!.offsetEm)).toBeLessThan(0.1);
+  });
 });

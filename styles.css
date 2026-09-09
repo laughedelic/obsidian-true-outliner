@@ -1944,14 +1944,45 @@ body {
  * information. Space alone divides them now — 0.7em, the width the chevron's own
  * margins used to hold, so the rhythm of a chain is unchanged.
  */
+/*
+ * A segment's kind mark, on the CAP midline of the text beside it.
+ *
+ * `inline-block`, NOT `inline-flex`: an inline-flex box derives its baseline
+ * from its flex item, so neither `vertical-align: middle` nor a nudge on top of
+ * it lands where the arithmetic says. With no line box the span's baseline IS
+ * its bottom edge, and the box's centre can then be placed by `top` — the
+ * construction `.to-decor-marker-icon` documents.
+ *
+ * The CAP midline, where the editor's own markers use the x-height one. A kind
+ * glyph's ink is about 0.64em tall and the x-height midline sits 0.26em above
+ * the baseline, so a mark centred there DIPS below the baseline of the text
+ * beside it. The editor never shows that, because a marker hangs in its own
+ * gutter with no text on its line to be measured against; in a lineage row the
+ * mark and its name are adjacent words. Measured before this rule, a footer
+ * icon's lower edge sat 0.17em below the baseline; after, 0.06em — the same
+ * place the trail already put its own.
+ *
+ * `cap` is the font's own cap height, so this holds at any size and in any
+ * theme, with the x-height approximation standing where `cap` is unsupported.
+ * Both terms are in `em`, so the mark scales with the row: a chain's text is
+ * smaller than the reference it leads to, and its marks follow.
+ */
 .to-backlinks-seg-icon {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 0;
+  position: relative;
+  top: calc(0.4em - 0.5ex);
   width: 0.8em;
   height: 0.8em;
   margin-inline-end: 0.3em;
   color: var(--to-backlinks-mark);
+}
+
+@supports (top: 1cap) {
+  .to-backlinks-seg-icon {
+    top: calc(0.4em - 0.5cap);
+  }
 }
 
 .to-backlinks-seg-icon > svg {
@@ -2862,14 +2893,27 @@ body {
  * sits between them, so that rule stops applying exactly where this one starts.
  */
 .to-backlinks-seg-sep {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
+  /* The same construction the icons take, for the same reason and so the two
+   * land on one line: a chevron centred by `vertical-align: middle` sits on
+   * neither the icons' centre nor the text's, and reads as pointing between two
+   * marks rather than from one to the next. Its own box is smaller, so its
+   * centring term is its own. */
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 0;
+  position: relative;
+  top: calc(0.325em - 0.5ex);
   width: 0.65em;
   height: 0.65em;
   margin-inline: 0.35em;
   color: var(--to-backlinks-mark);
   opacity: 0.7;
+}
+
+@supports (top: 1cap) {
+  .to-backlinks-seg-sep {
+    top: calc(0.325em - 0.5cap);
+  }
 }
 
 .to-backlinks-seg-sep > svg {
@@ -2993,57 +3037,22 @@ body {
   width: 0.8em;
   height: 0.8em;
   color: var(--text-faint);
-  /* On the SAME line as the kind icons, by the same construction. The shared
-   * rule centres a separator with `vertical-align: middle` on an inline-flex
-   * box, which lands it on neither the icons' centre nor the text's — and once
-   * the icons moved up to the cap midline, the chevron's point read as pointing
-   * between two marks rather than from one to the next. */
-  display: inline-block;
-  vertical-align: baseline;
-  line-height: 0;
-  position: relative;
+  /* Its centring term follows its own box, which is larger here than the
+   * footer's; the construction itself is the shared rule's. */
   top: calc(0.4em - 0.5ex);
+}
+
+@supports (top: 1cap) {
+  .to-zoom-trail .to-backlinks-seg-sep {
+    top: calc(0.4em - 0.5cap);
+  }
 }
 
 .to-zoom-trail .to-backlinks-seg-sep svg * {
   stroke-width: 2.75;
 }
 
-/*
- * The trail's marks, aligned the way the block markers are — with one departure
- * the trail earns and the editor does not.
- *
- * `inline-block`, NOT the shared rule's `inline-flex`: an inline-flex box
- * derives its baseline from its flex item, so neither the shared rule's
- * `vertical-align: middle` nor a baseline nudge on top of it lands where the
- * arithmetic says, which is why these sat low through two attempts. The working
- * construction is the one `.to-decor-marker-icon` documents — no line box, so
- * the span's baseline IS its bottom edge, then place the box's centre by `top`.
- *
- * On the CAP midline, where the editor's markers use the x-height one. A kind
- * glyph's ink is about 0.64em tall and the x-height midline sits 0.26em above
- * the baseline, so a mark centred there DIPS below the baseline of the text
- * beside it — which is exactly what "the icons sit lower than the text" is. The
- * editor never shows it, because a marker there hangs in its own gutter with no
- * text on its line to be measured against; in the trail the mark and its name
- * are adjacent words. `cap` is the font's own cap height, so this holds at any
- * size and in any theme, with the x-height rule standing where `cap` is not
- * supported.
- */
-.to-zoom-trail .to-backlinks-seg-icon {
-  display: inline-block;
-  vertical-align: baseline;
-  line-height: 0;
-  position: relative;
-  top: calc(0.4em - 0.5ex);
-}
-
 @supports (top: 1cap) {
-  .to-zoom-trail .to-backlinks-seg-icon,
-  .to-zoom-trail .to-backlinks-seg-sep {
-    top: calc(0.4em - 0.5cap);
-  }
-
   .to-zoom-trail .to-zoom-out {
     top: calc(var(--to-zoom-mark-size) / 2 - 0.5cap);
   }

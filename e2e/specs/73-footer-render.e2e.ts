@@ -383,4 +383,56 @@ describe('backlinks footer: first render', function () {
     // be quiet.
     expect(seen!.lineageStrongColour).toBe(seen!.rowColour);
   });
+
+  /**
+   * A segment's kind mark sits on the line of the text beside it, and scales
+   * with it.
+   *
+   * In `em` on both counts, never pixels: the whole point is that a chain's
+   * marks follow a chain's smaller text, and CI's font is not this machine's.
+   */
+  it('puts a segment icon on the text line, at the text size', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const marks = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const segs = Array.from(
+            root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-seg'),
+          );
+          const read = (seg: Element) => {
+            const icon = seg.querySelector('.to-backlinks-seg-icon');
+            if (!icon) return null;
+            // A zero-size inline-block on the baseline: its box edge IS the
+            // baseline of the line it sits in, which is what "the lower edge of
+            // the text" means. Measured, never assumed from font metrics.
+            const probe = document.createElement('span');
+            probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+            icon.insertAdjacentElement('afterend', probe);
+            const base = probe.getBoundingClientRect().top;
+            probe.remove();
+            const box = icon.getBoundingClientRect();
+            const fs = parseFloat(getComputedStyle(seg).fontSize);
+            return { offsetEm: (box.bottom - base) / fs, sizeEm: box.height / fs };
+          };
+          const out = segs.map(read).filter(Boolean);
+          return out.length > 0 ? out : null;
+        }),
+      { timeout: 12000, timeoutMsg: 'no segment icon to measure' },
+    );
+
+    for (const m of marks!) {
+      // On the line, not below it. Centred on the x-height midline instead the
+      // box dipped 0.17em under the baseline, which is what reads as "the icons
+      // sit lower than the text".
+      expect(Math.abs(m!.offsetEm)).toBeLessThan(0.1);
+      // And sized from the row, so a chain's marks shrink with a chain's text.
+      expect(m!.sizeEm).toBeGreaterThan(0.6);
+      expect(m!.sizeEm).toBeLessThan(1);
+    }
+  });
 });
