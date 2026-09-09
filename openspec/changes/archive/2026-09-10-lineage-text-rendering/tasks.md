@@ -65,7 +65,7 @@
       at full strength
 - [x] 5.5 Bound media inside a reference row in `styles.css` (design D7); the chain needs no
       rule, since nothing reaches it
-- [ ] 5.6 Check every treatment in a light and a dark theme, and against a community theme that
+- [x] 5.6 Check every treatment in a light and a dark theme, and against a community theme that
       redefines `--text-faint`
 
 ## 6. Organic vault material for the manual pass
@@ -109,11 +109,11 @@ against notes that read like notes, or the treatment is only known to work on a 
 - [x] 7.6 An ancestor carrying an image embed renders its alt text, and the row's height is a
       line of text
 - [x] 7.7 Negative controls for 7.1 and 7.3: disable the fix, confirm each fails
-- [ ] 7.8 Full sweep in CI on the checkpoint push
+- [x] 7.8 Full sweep in CI on the checkpoint push
 
 ## 8. Land
 
-- [ ] 8.1 Manual pass over the organic notes from section 6, both surfaces, in a light and a
+- [x] 8.1 Manual pass over the organic notes from section 6, both surfaces, in a light and a
       dark theme — plus the real note that produced the report
-- [ ] 8.2 `openspec sync` the two delta specs into the main specs
-- [ ] 8.3 Archive the change and bump the version
+- [x] 8.2 `openspec sync` the two delta specs into the main specs
+- [x] 8.3 Archive the change and bump the version

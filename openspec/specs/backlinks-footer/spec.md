@@ -6,7 +6,9 @@ shows every reference to it in the tree of the note it came from — the lineage
 the referencing node, the node itself, and what hangs off it. It is the outward-facing use of
 the plugin's block tree, and it is strictly a rendering: it never changes the note it sits under
 or the notes it displays.
+
 ## Requirements
+
 ### Requirement: The footer is scoped to outline mode and to the editing view
 
 The footer SHALL render only when the open file has outline mode enabled, resolved through the
@@ -213,6 +215,15 @@ lives inside a line. A row SHALL NOT contain block-level elements. A node's bloc
 removed before its content is rendered, so no heading, list, blockquote, table, callout or code
 block is produced.
 
+This rule SHALL govern EVERY row that quotes node text, a lineage row's segments included. A
+lineage segment and a node row naming the same node SHALL produce the same elements for the same
+syntax; neither SHALL show markdown source where the other renders it. How those elements are
+DRAWN may differ between the two, and does — see the lineage treatment below.
+
+Embedded media SHALL NOT set a reference row's height. A row is a line in an index of mentions,
+and an image rendered at its natural size is the reproduction this requirement exists to
+prevent.
+
 Kind SHALL be expressed once, by the row's marker. A row SHALL NOT additionally carry the
 typography of its kind: no heading sizes, no callout box, no quote bar, no table frame.
 
@@ -230,6 +241,18 @@ only the cell the reference sits in.
 - **WHEN** a source note references the target from a heading, a quote, a callout, a table and a
   fenced code block
 - **THEN** no row in the footer contains a heading, blockquote, list, table or code-block element
+
+#### Scenario: A lineage row and its reference row produce the same elements
+
+- **WHEN** a reference's ancestors carry emphasis, a code span, an external link and a wikilink,
+  and the referencing node carries the same
+- **THEN** the lineage row and the reference row beneath it produce the same elements for that
+  syntax, and neither shows its source characters
+
+#### Scenario: An embedded image does not set a row's height
+
+- **WHEN** a row's node contains an image embed
+- **THEN** the row's height is that of a line of text, not that of the image
 
 #### Scenario: Kind is said once
 
@@ -475,3 +498,180 @@ rather than a line at the end of a long one.
 - **WHEN** a note with no references is zoomed into a node
 - **THEN** the footer behaves exactly as it does unzoomed
 
+### Requirement: A lineage segment names its node the way a row of that kind does
+
+A lineage segment's content SHALL be derived by the same per-kind rule a node row's content is:
+a callout ancestor's title without its `[!type]` token, a table ancestor's cell, a fenced-code
+ancestor's own line, and every other kind's first line with its block syntax removed. A segment
+SHALL NOT be derived by a second, weaker rule.
+
+A node with more of its own lines than the segment shows SHALL be marked as shortened, by the
+same rule wherever a chain element is quoted — so a segment and a crumb naming the same node
+carry the same mark or neither does.
+
+A segment whose content would be empty SHALL fall back to a label naming its kind, so no segment
+is ever blank and unclickable. That fallback is a name for the node rather than a quotation from
+it, and SHALL NOT take the shortened mark.
+
+#### Scenario: A callout ancestor's segment drops its callout token
+
+- **WHEN** a reference sits under a callout ancestor
+- **THEN** that ancestor's lineage segment reads the callout's title, without `[!type]`, and its
+  kind is carried by the segment's own marker
+
+#### Scenario: A segment and a crumb name the same node identically
+
+- **WHEN** the same node appears both as a footer lineage segment and as a zoom trail crumb
+- **THEN** the two carry the same text and the same shortened mark
+
+### Requirement: A lineage row renders live, and spends no colour on it
+
+A lineage row's content SHALL render as inline markdown, with its links and tags remaining
+separately activatable — an ancestor's links are part of what that ancestor says, and a chain
+that removes them misquotes it.
+
+That content SHALL take NO colour accent. A lineage row is context, drawn dimmer than the
+reference it leads to, and a theme-accented link inside it is the loudest thing on the line —
+which inverts the emphasis the row's own colour establishes.
+
+The affordance SHALL be carried by three channels that spend no colour:
+
+- **An underline present at rest**, drawn in the row's own colour. A link revealed only under
+  the pointer is one the reader must go looking for.
+- **The cursor.** An external link SHALL take the cursor the platform uses for leaving the
+  current context, and an internal one the same cursor the surrounding segment takes, so the two
+  destinations are distinguishable BEFORE the click rather than after it.
+- **Hover**, which SHALL shift the colour toward the text colour and SHALL NOT add or change an
+  underline. A segment's own hover SHALL do the same, and SHALL be the row's only hover signal:
+  on this row an underline means "link" and nothing else, so a segment wearing one under the
+  pointer makes the ancestor read as a link and hides the boundary of any link inside it.
+
+A tag SHALL render as a word carrying a step more ink than the row around it, filling on hover,
+rather than as a chip — a pill is a second object in a line that is one. That step SHALL be
+taken from the ROW's own colour rather than from a fixed value, because the footer's lineage and
+zoom's trail are dimmed to different degrees and a value chosen for one leaves the tag
+unreadable on the other.
+
+A highlight SHALL be drawn with a visible background in every row, and SHALL take its row's own
+text colour. Left to the browser a `<mark>` is black on an opaque yellow, which on a dark theme
+is the only black text in the footer; and a background derived solely from a theme token
+disappears entirely where that token is undefined. Neither outcome is a highlight.
+
+Highlighted text SHALL remain legible against its own highlight, in every row. This is a
+contrast requirement, not an opacity one: a chain's faint ink over the default highlight
+composites to almost exactly its own luminance — measured at 1.01:1, where text is not dim but
+absent — while the opacity involved looks unremarkable.
+
+Where a row's own text colour cannot meet that against its highlight, the row SHALL soften the
+highlight and lift the text TOGETHER. Neither alone suffices: any tint raises the ground toward
+faint ink, and lifting the ink to full strength alone makes a highlighted run in a chain as loud
+as the mention it leads to.
+
+The highlight's own colour SHALL NOT be derived from a theme token. Such a token is variously
+undefined, fully transparent, opaque and light, or translucent — measured across four themes,
+all four — and a rule built on it renders as a browser default, as nothing at all, or as
+illegible depending on which theme is loaded.
+
+Emphasis inside a lineage row SHALL carry weight and not colour, whatever a theme gives it
+elsewhere. A theme that accents `<strong>` otherwise puts the loudest mark on the page inside
+the row that exists to be quiet.
+
+Every mark in a row — the gutter marker and the icons inline in a chain — SHALL be vertically
+centred on the same midline as the text beside it, and that midline SHALL be the font's CAP
+height rather than its x-height. A mark centred on the x-height midline dips below the baseline
+of adjacent text: measured, a footer gutter marker sat 0.15em under it while the icons inline in
+the same row sat at 0.06em, which is one row drawn to two midlines. The editor's own markers
+keep the x-height rule, and that difference is the requirement rather than a drift — a marker
+there hangs in its own gutter with no text on its line to be read against.
+
+Every GLYPH mark in a row — the gutter marker and the kind icons inline in a chain — SHALL be
+drawn at one size, whatever that row's text size is. A glyph mark is notation, and a chain that
+shrinks its text SHALL NOT shrink those with it: the gutter marker's size feeds the marker
+column's own placement, so a per-row size moves the column every row shares.
+
+A mark that is a NUMBER — an ordered item's ordinal, in the gutter or inline in a chain — is
+text rather than a glyph, and SHALL take its row's own text size. Sized to match the glyph marks
+it would be drawn larger than the words beside it in a chain, which is the opposite of reading
+as one line.
+
+No other element inside a row SHALL be drawn larger than that row's own text. Where a size comes from
+a theme token it SHALL be capped against the row's scale, because a token is not guaranteed to
+be relative and an absolute one breaks the row it lands in.
+
+A lineage row's content SHALL be drawn at less than the size of the reference it leads to, and
+everything inside it — code spans, tags — SHALL be sized relative to the CHAIN rather than to
+the row, so no element inside a chain is larger than its counterpart in a reference row.
+
+Embedded media SHALL NOT render in a lineage row at all. A chain is one line, and there is no
+size at which an image belongs in it; the segment SHALL keep the embed's alt text, which is what
+the node says, rather than dropping it and risking a blank segment.
+
+Where a link inside a segment and the segment itself both claim an event, the link SHALL win
+where the event originates inside it and the segment SHALL win everywhere else. This SHALL hold
+for keyboard activation as well as for the pointer, since a rendered link is focusable and its
+own `Enter` reaches the segment around it. The rule SHALL be enforced by the shared rendering
+primitive rather than by either surface's own handler, so that both surfaces get it from one
+implementation.
+
+#### Scenario: A link in a lineage row takes no accent colour
+
+- **WHEN** an ancestor's text carries an external link and a wikilink
+- **THEN** both render as links in the lineage row's own colour, underlined, and neither is
+  drawn in the theme's link colour
+
+#### Scenario: The two destinations differ before the click
+
+- **WHEN** the pointer rests on an external link inside a lineage segment, and then on the
+  segment's own text
+- **THEN** the cursor differs between the two
+
+#### Scenario: Hover never underlines a segment
+
+- **WHEN** the pointer rests on a lineage segment, and then on a link inside one
+- **THEN** the segment's own hover changes only its colour, and the only underline anywhere on
+  the row is the link's own
+
+#### Scenario: A highlight reads as one, in both rows
+
+- **WHEN** an ancestor and the reference beneath it both carry a highlight
+- **THEN** both are drawn with a visible background, neither takes the browser's default black
+  text, and the text in each is legible against its own highlight in a light theme and a dark
+  one alike
+
+#### Scenario: A chain is smaller than the reference it leads to
+
+- **WHEN** a lineage row and its reference row both carry a tag
+- **THEN** the chain's text is smaller than the reference's, the chain's tag is smaller than the
+  reference's tag rather than larger, and neither tag is larger than the row holding it
+
+#### Scenario: A row's marks share one midline and one size
+
+- **WHEN** a lineage row draws its gutter marker and the icons inline beside its text
+- **THEN** all of them are centred on the same midline as that text, and the glyph marks are the
+  same size as one another and as those on every other row in the footer
+
+#### Scenario: A theme's emphasis colour does not reach a chain
+
+- **WHEN** the active theme draws bold text in an accent colour
+- **THEN** a bold ancestor in a lineage row is still drawn in that row's own text colour
+
+#### Scenario: A tag reads against its row
+
+- **WHEN** an ancestor's text carries a tag
+- **THEN** the tag is drawn with more ink than the segment's own text on both the footer's
+  lineage and zoom's trail, despite the two rows being dimmed differently
+
+#### Scenario: An image embed does not render in a chain
+
+- **WHEN** an ancestor's text carries an image embed
+- **THEN** the segment shows the embed's alt text, no image element is produced, and the row is
+  one line of text tall
+
+#### Scenario: A link inside a segment wins its own activation
+
+- **WHEN** the user clicks a link inside a lineage segment
+- **THEN** that link is followed, and the segment's own action does not also fire
+- **WHEN** the user clicks the segment's text beside it
+- **THEN** the segment's own action fires
+- **WHEN** the user focuses a link inside a segment and presses Enter
+- **THEN** that link is followed, and the segment's own action does not also fire
