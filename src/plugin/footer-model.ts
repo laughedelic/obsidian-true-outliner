@@ -15,7 +15,7 @@ import { ATOM_KINDS, type OutlineDoc, type OutlineNode } from '../model';
 import { decorate, type LineDecorationFact } from './decorate';
 import { collapseLineage } from '../lineage';
 import { project, type NodePredicate } from '../project';
-import { stripBlockPrefix } from '../node-text';
+import { nodeContent, segmentContent, type NodeRender } from '../node-text';
 import type { BacklinkReference, PlacedReference } from './backlink-index';
 
 /** How many levels of a reference's own descendants the footer shows before
@@ -118,24 +118,29 @@ export interface FooterModel {
   readonly groups: readonly FooterGroup[];
 }
 
-/**
- * How a row's content becomes DOM.
- *
- * - `markdown` — inline markdown, rendered by Obsidian, so links and emphasis
- *   look as they do anywhere else.
- * - `text` — plain text, rendered by nobody. An HTML block's wikilinks are not
- *   resolved by Obsidian, so rendering it as markdown would only pretend to.
- * - `code` — plain text in a monospace run.
- */
-export type RowRender = 'markdown' | 'text' | 'code';
+/** How a row's content becomes DOM — `NodeRender` under the footer's own name,
+ * since the rule that decides it is the one every surface quoting a node
+ * follows. */
+export type RowRender = NodeRender;
 
 /** One element of a collapsed lineage chain. */
 export interface LineageSegment {
   /** The element's own text, with its block syntax already removed — including
    * the checkbox and the ordered number, which are drawn as the marker. Stripped
    * here rather than in the renderer so a segment and a node row of the same
-   * kind say the same thing. */
-  readonly text: string;
+   * kind say the same thing.
+   *
+   * Inline markdown, not a finished string: `render` says what to do with it.
+   * A bare `text` was what left the renderer no choice but `appendText`, so a
+   * segment showed `**bold**` while the row beneath it rendered the same
+   * syntax (docs/research/27). */
+  readonly markdown: string;
+  /** How `markdown` becomes DOM, by the same rule a node row follows. */
+  readonly render: RowRender;
+  /** The node has lines beyond the one shown, so the segment is a shortening
+   * rather than the whole of it. One rule across both surfaces: the footer used
+   * to mark nothing while zoom's trail appended an ellipsis. */
+  readonly shortened?: boolean | undefined;
   readonly nodeId: number;
   /** This element's own kind, so every ancestor on the line is named rather
    * than the chain standing for all of them under the first one's marker. */
@@ -146,6 +151,26 @@ export interface LineageSegment {
   readonly task?: boolean | undefined;
   /** An ordered ancestor's own label, likewise drawn as its marker. */
   readonly ordinal?: string | undefined;
+}
+
+/**
+ * The widget's identity: every field of every segment that changes what is
+ * DRAWN.
+ *
+ * Segment text alone is not enough, and shipping that way meant a task
+ * ancestor could be ticked without its crumb's checkbox following — same label,
+ * different marker, so `eq()` said equal and CodeMirror kept the old DOM. The
+ * render mode makes it worse, since one string can go from plain to rendered.
+ *
+ * Node ids stay OUT, and that is not an oversight: `model.ts`'s global counter
+ * hands out fresh ids on every reparse, so keying on them would rebuild the row
+ * on every keystroke. It is the same reason the activation handler below
+ * resolves an ancestor by its POSITION rather than by a captured id.
+ */
+export function lineageKey(segments: readonly LineageSegment[]): string {
+  return segments
+    .map((s) => [s.markdown, s.render, s.kind, s.task ?? '', s.ordinal ?? '', s.shortened ?? ''].join('\u0000'))
+    .join('\u0001');
 }
 
 /** `Notes/Sub/Thing.md` -> `{ name: 'Thing', folder: 'Notes/Sub' }`. */
@@ -182,180 +207,6 @@ function factsByNode(doc: OutlineDoc): Map<OutlineNode, LineDecorationFact> {
   if (firsts.length !== preorder.length) return out;
   preorder.forEach((node, i) => out.set(node, firsts[i]!));
   return out;
-}
-
-/** A row's content, and how to render it — the whole of D18's per-kind table.
- *
- * `refLine` is which of the node's OWN lines carries the reference, counted
- * from its first. Absent for a node that is context rather than a match, and
- * for kinds that do not use it.
- */
-interface RowContent {
-  readonly markdown: string;
-  readonly render: RowRender;
-  readonly task?: boolean | undefined;
-  readonly ordinal?: string | undefined;
-}
-
-/**
- * The split this switch encodes: `code` and `table` lines are separate RECORDS,
- * so joining them would fabricate a sentence the source does not contain; every
- * other kind's lines are continuations of one thought and join. `callout` needs
- * neither rule — its title names it, and only a reference in the body displaces
- * that.
- */
-function contentOf(node: OutlineNode, ref: PlacedReference | undefined): RowContent {
-  const refLine = ref?.line;
-  const task = taskStateOf(node);
-  const ordinal = ordinalOf(node);
-  const extra = { ...(task !== undefined ? { task } : {}), ...(ordinal ? { ordinal } : {}) };
-
-  switch (node.kind) {
-    case 'hr':
-      // Nothing to say: the marker is the whole node.
-      return { markdown: '', render: 'markdown', ...extra };
-    case 'html':
-      // Obsidian does not resolve wikilinks inside an HTML block, so rendering
-      // one as markdown shows the reader `[[Target]]` and calls it a link. Its
-      // TEXT is what the block says; its tags are how it says it, and a footer
-      // row is not the place to read markup.
-      return { markdown: htmlTextOf(node), render: 'text', ...extra };
-    case 'code':
-      return { markdown: codeLineOf(node, refLine), render: 'code', ...extra };
-    case 'table':
-      return { markdown: tableTextOf(node, ref), render: 'markdown', ...extra };
-    case 'callout':
-      return { markdown: calloutTextOf(node, refLine), render: 'markdown', ...extra };
-    default:
-      return { markdown: proseOf(node), render: 'markdown', ...extra };
-  }
-}
-
-/** Continuation lines, joined: a paragraph, heading, quote or list item's lines
- * are one thought wrapped, not several records. */
-function proseOf(node: OutlineNode): string {
-  return node.lines.map(stripBlockPrefix).filter((l) => l.length > 0).join(' ');
-}
-
-/**
- * `- [x]` — a task's state, or absent when the item is not a task.
- *
- * The trailing whitespace is optional because `- [ ]` with nothing after it is a
- * valid task, and the common one: it is what a just-created todo looks like.
- * Requiring it classified an empty task as a plain list item, which dropped its
- * checkbox and left `[ ]` in the row's own text.
- */
-function taskStateOf(node: OutlineNode): boolean | undefined {
-  if (node.kind !== 'list-item') return undefined;
-  const m = /^\s*[-*+]\s+\[([ xX])\](?:\s|$)/.exec(node.lines[0] ?? '');
-  return m ? m[1] !== ' ' : undefined;
-}
-
-/** `10.` — an ordered item's own label, as written. */
-function ordinalOf(node: OutlineNode): string | undefined {
-  if (node.kind !== 'list-item') return undefined;
-  return /^\s*(\d{1,9}[.)])(?:\s|$)/.exec(node.lines[0] ?? '')?.[1];
-}
-
-/** A fence's lines are statements, not a sentence: show the one the reference
- * is on, or the first real line when it is context rather than a match. */
-function codeLineOf(node: OutlineNode, refLine: number | undefined): string {
-  const isFence = (l: string): boolean => /^\s*(?:```|~~~)/.test(l);
-  const at = refLine !== undefined ? node.lines[refLine] : undefined;
-  if (at !== undefined && !isFence(at)) return at.trim();
-  return (node.lines.find((l) => !isFence(l) && l.trim().length > 0) ?? '').trim();
-}
-
-/**
- * One tag, or one comment.
- *
- * The quoted-string alternatives are what keep a tag's own `>` from ending it:
- * `<div title="1 > 0">` is one tag, and matching to the first `>` left the rest
- * of the attribute in the row as text. Requiring a letter after `<` leaves a
- * stray `<` in prose alone, which matching `<[^>]*>` did not.
- *
- * A tokenizer would be the thorough answer and is not available here: this
- * module is pure so it can be tested without a DOM, and a dependency is a large
- * price for the preview line of a footer row.
- */
-const HTML_TAG = /<!--[\s\S]*?-->|<\/?[a-zA-Z][^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/g;
-
-/**
- * An HTML block's visible text: tags removed, entities left to the DOM.
- *
- * A wikilink inside one is reduced to the text it would have shown. Obsidian
- * does not resolve it, so rendering it as a link would lie — but showing the
- * reader `[[Target]]` with its brackets is not the alternative, it is just
- * source code in a row that holds no other source code.
- */
-function htmlTextOf(node: OutlineNode): string {
-  return node.lines
-    .join(' ')
-    .replace(HTML_TAG, ' ')
-    .replace(/!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, target: string, alias?: string) =>
-      (alias ?? target).trim(),
-    )
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-const TABLE_SEPARATOR = /^\s*\|?[\s:|-]+\|?\s*$/;
-
-/**
- * The single CELL the reference sits in.
- *
- * An earlier version showed the header row alongside the reference's own row,
- * on the reasoning that a bare value needs its column name. Seen in place it was
- * the noisiest row in the footer: two rows of pipe-separated fields to say that
- * one cell mentions the note. A cell is the smallest thing that can hold a
- * reference, and quoting it is the same promise every other kind's row makes.
- *
- * Found by the reference's own text, not by position, because a row can hold
- * more than one link and only one of them is the reason this row exists.
- */
-function tableTextOf(node: OutlineNode, ref: PlacedReference | undefined): string {
-  // Unescaped delimiters only. A table cell writes an aliased link as
-  // `[[Target\\|alias]]`, because a bare pipe there WOULD be a column break —
-  // so splitting on every pipe cut that cell in two, left no cell containing the
-  // reference's own text, and fell through to displaying the first cell instead.
-  // The escape is a table-syntax artefact, so it comes back out of the cell text.
-  const cellsOf = (line: string): string[] =>
-    line
-      .replace(/^\s*\|/, '')
-      .replace(/(?<!\\)\|\s*$/, '')
-      .split(/(?<!\\)\|/)
-      .map((c) => c.replace(/\\\|/g, '|').trim());
-
-  const at = ref?.line !== undefined ? node.lines[ref.line] : undefined;
-  const row = at !== undefined && !TABLE_SEPARATOR.test(at) ? at : node.lines[0];
-  if (row === undefined) return '';
-
-  const cells = cellsOf(row);
-  const hit = ref?.text ? cells.find((c) => c.includes(ref.text)) : undefined;
-  // No reference to place — a table shown as CONTEXT — so its first cell names
-  // it, the way a first line names every other kind.
-  return hit ?? cells.find((c) => c.length > 0) ?? '';
-}
-
-/**
- * A callout's title, with its `[!type]` token dropped — the marker already says
- * callout, so the token would be the kind said a second time. A reference in the
- * BODY shows that body line instead, since the title is not where it is.
- */
-function calloutTextOf(node: OutlineNode, refLine: number | undefined): string {
-  if (refLine !== undefined && refLine > 0) {
-    const body = node.lines[refLine];
-    if (body !== undefined) return stripBlockPrefix(body);
-  }
-  // Through the closing bracket, not a guessed alphabet. `parse.ts` classifies
-  // ANY `> [!…` line as a callout (CALLOUT_RE), so restricting the identifier to
-  // letters and hyphens here left `[!type_2]` or `[!step1]` classified as a
-  // callout and its token leaking into the row — the kind said twice, which is
-  // exactly what dropping the token is for.
-  const title = stripBlockPrefix(node.lines[0] ?? '').replace(/^\[![^\]]*\][-+]?\s*/, '').trim();
-  // An untitled callout has only its type; its first body line names it instead.
-  if (title.length > 0) return title;
-  return stripBlockPrefix(node.lines[1] ?? '');
 }
 
 /**
@@ -434,20 +285,16 @@ export function buildRows(
         // so it takes a plain block line's chrome even when its first element
         // is an atom kind — a lineage row is never a callout box.
         fact: rowFact(row.kind, row.depth),
-        // First line only: continuation lines are context for reading a node,
-        // not for naming it (docs/research/18, D5).
+        // The same per-kind rule a node row's content comes from, so a segment
+        // and a row naming the same node say the same thing. First line only:
+        // continuation lines are context for reading a node, not for naming it
+        // (docs/research/18, D5).
         segments: row.elements.map((n) => {
           visible.add(n.id);
-          const task = taskStateOf(n);
-          const ordinal = ordinalOf(n);
           return {
-            // First line only: continuation lines are context for reading a
-            // node, not for naming it (docs/research/18, D5).
-            text: stripBlockPrefix(n.lines[0] ?? ''),
+            ...segmentContent(n),
             nodeId: n.id,
             kind: n.kind,
-            ...(task !== undefined ? { task } : {}),
-            ...(ordinal ? { ordinal } : {}),
           };
         }),
         kind: row.kind,
@@ -468,7 +315,7 @@ export function buildRows(
       depth: row.depth,
       guideDepths: guideDepthsFor(row.depth),
       nodeId: row.node.id,
-      ...contentOf(row.node, refOf(row.node)),
+      ...nodeContent(row.node, refOf(row.node)),
       // The projected fact says what KIND of node this is; its depth is the
       // projection's, and the rendered tree collapsed lineage out from under
       // it. The row's own depth is the one the chrome lays out against.
@@ -559,7 +406,7 @@ export function buildRows(
         nodeId: node.id,
         // Only a reference has a line something points at; a context row shows
         // its first line instead.
-        ...contentOf(node, isMatch ? refOf(node) : undefined),
+        ...nodeContent(node, isMatch ? refOf(node) : undefined),
         fact: syntheticFact(node, depth),
         isReference: isMatch,
         referenceKind: isMatch ? refOf(node)?.kind : undefined,

@@ -13,7 +13,7 @@ import {
   splitEscapes,
   resolveZoom,
 } from '../src/zoom';
-import { nodeLabel, stripBlockPrefix } from '../src/node-text';
+import { nodeContent, segmentContent, stripBlockPrefix } from '../src/node-text';
 import { documentLineCount } from '../src/locate';
 import { itemContentIsEmpty, markerPrefixCh } from '../src/ops';
 import { decorate, computeLineGuides } from '../src/plugin/decorate';
@@ -161,7 +161,7 @@ describe('resolveZoom: what the scope is', () => {
   });
 });
 
-describe('nodeLabel: what a crumb is called', () => {
+describe('segmentContent: what a crumb is called', () => {
   it('strips the block syntax that encodes the node place', () => {
     expect(stripBlockPrefix('## Mid')).toBe('Mid');
     expect(stripBlockPrefix('  - [ ] todo')).toBe('todo');
@@ -172,18 +172,101 @@ describe('nodeLabel: what a crumb is called', () => {
   it('falls back to the kind when nothing survives', () => {
     const doc = parse('# Top\n\n-\n');
     const bare = walk(doc.children).find((n) => n.kind === 'list-item')!;
-    expect(nodeLabel(bare)).toBe('List item');
+    expect(segmentContent(bare).markdown).toBe('List item');
   });
 
   it('never returns an empty label, for any node in any document', () => {
     fc.assert(
       fc.property(arbMarkdownText, (md) => {
         for (const node of walk(parse(md).children)) {
-          expect(nodeLabel(node).length).toBeGreaterThan(0);
+          expect(segmentContent(node).markdown.length).toBeGreaterThan(0);
         }
       }),
       { numRuns: 200 },
     );
+  });
+
+  /**
+   * A crumb and a footer row of the SAME node say the same thing.
+   *
+   * The assertion is agreement, not a particular string: what each kind shows
+   * is `nodeContent`'s to decide and is asserted there. What this pins is that
+   * there is only ONE decision — the trail used to reach its own weaker rule,
+   * which is how a callout crumb read `[!tip] Field notes` while the footer row
+   * beneath said `Field notes` (docs/research/27).
+   */
+  it('names a node the way a footer row of that node does', () => {
+    const doc = parse(
+      [
+        '> [!tip] Field notes, **second pass**',
+        '> body line',
+        '',
+        '| owner | **status** |',
+        '| --- | --- |',
+        '| maya | shipped |',
+        '',
+        '```js',
+        'const severity = 3;',
+        '```',
+        '',
+        '<div>an **html** block</div>',
+        '',
+      ].join('\n'),
+    );
+
+    const kinds = ['callout', 'table', 'code', 'html'] as const;
+    for (const kind of kinds) {
+      const node = walk(doc.children).find((n) => n.kind === kind);
+      expect(node, `no ${kind} node in the fixture`).toBeDefined();
+      const crumb = segmentContent(node!);
+      const row = nodeContent(node!);
+      expect(crumb.markdown, kind).toBe(row.markdown);
+      expect(crumb.render, kind).toBe(row.render);
+    }
+  });
+
+  /**
+   * The shortening mark, which is now ONE rule across both surfaces — the
+   * footer's segments used to carry none while zoom's crumbs appended an
+   * ellipsis. It lives on the content rather than in the text so it is never
+   * parsed as markdown, which is exactly why nothing about the rendered string
+   * would catch it going wrong.
+   */
+  it('marks a segment as shortened only when the node has more to say', () => {
+    const doc = parse(
+      [
+        '- one line only',
+        '- a first line',
+        '  a continuation of it',
+        '-',
+        '',
+      ].join('\n'),
+    );
+    const items = walk(doc.children).filter((n) => n.kind === 'list-item');
+    const [single, multi, empty] = items;
+
+    expect(segmentContent(single!).shortened).toBeFalsy();
+    expect(segmentContent(multi!).shortened).toBe(true);
+    // The kind fallback is a NAME for the node, not a quotation from it, so it
+    // has nothing it could be cutting short — even though the node it names
+    // may well have more lines.
+    expect(segmentContent(empty!).markdown).toBe('List item');
+    expect(segmentContent(empty!).shortened).toBe(false);
+  });
+
+  it('leaves no block syntax in a crumb, whatever the ancestor kind', () => {
+    // The three the trail leaked, named as the shapes rather than as strings:
+    // a callout token, a table's pipes, a fence.
+    const doc = parse(
+      ['> [!tip] Field notes', '', '| owner | status |', '| --- | --- |', '', '```js', 'x', '```', ''].join('\n'),
+    );
+    for (const node of walk(doc.children)) {
+      if (!['callout', 'table', 'code'].includes(node.kind)) continue;
+      const label = segmentContent(node).markdown;
+      expect(label, node.kind).not.toMatch(/^\[!/);
+      expect(label, node.kind).not.toContain('|');
+      expect(label, node.kind).not.toMatch(/^(?:```|~~~)/);
+    }
   });
 });
 

@@ -506,7 +506,7 @@ contract publishes `--to-*` custom properties, so a CSS snippet already covers t
 The first three are answered — by the spike series
 ([19](19-backlinks-footer-spikes.md)) and by building the change. Kept with their answers
 rather than deleted, since two of them were answered differently from how they were asked.
-The fourth is open, and is recorded with what has been measured so far.
+The fourth and fifth are open, and are recorded with what has been measured so far.
 
 1. ~~**Footer collapse state** — per note, global, or not persisted?~~ **Per note, and not
    persisted past the tab.** What a reader unfolded is about the reading they are doing, not
@@ -548,6 +548,33 @@ The fourth is open, and is recorded with what has been measured so far.
    yet reliably reproducible, specifically when the footer exceeds roughly half the viewport —
    consistent with the anchoring model above but not yet caught in the act of failing under it,
    which is what would confirm the mechanism rather than the correlation.
+
+5. **A lineage segment is a link that can now contain links.**
+
+   A segment carries `role="link"` and a tab stop, because activating one navigates to that
+   ancestor — the shape it has had since zoom's trail joined the primitive. What changed with
+   `lineage-text-rendering` is what a segment may CONTAIN: its markdown renders, so an ancestor
+   whose own text carries a link puts a real `<a>` inside that role. ARIA does not allow an
+   interactive descendant there, and assistive technology may flatten the pair or announce it
+   ambiguously.
+
+   Nothing is functionally wrong, which is why a manual pass does not surface it. The pointer
+   and the keyboard both reach the right target: `lineage-row.ts` declines to activate a segment
+   when the event starts inside a link or button, for click and for `Enter` alike, and the two
+   destinations are distinguishable before the click because an external link takes the
+   platform's `alias` cursor. What is wrong is the accessibility TREE, not the behaviour.
+
+   Three ways out, none free. Attaching the navigation to the segment's kind mark instead leaves
+   the anchors as independent controls and the tree valid, at the cost of a click target the
+   size of a glyph — and the first crumb has no inline mark to carry it, its own being the row's
+   gutter marker or, on the trail, the zoom-out control. Dropping the role from segments that
+   happen to contain a link makes keyboard behaviour differ between neighbouring crumbs.
+   Rendering a chain's links as inert text restores the tree completely and reverses D1, which
+   chose live links deliberately — a chain is made of real nodes, and an ancestor's links are
+   part of what that ancestor says.
+
+   Deferred rather than answered: the first option is a real change to what a crumb IS, and it
+   deserves its own pass rather than being folded into the change that exposed it.
 
 ## Prototype
 

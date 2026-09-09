@@ -7,6 +7,15 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
 
 const TARGET = 'Projects/Aurora Dashboard.md';
+/**
+ * The note the ORGANIC material points at (`test-vault/Backlinks/Severity
+ * rollout diary.md` and `Long chain, long names.md`).
+ *
+ * A target of its own, because `Aurora Dashboard` is what the generated
+ * backlink hub points at: 100+ machine-written notes whose ancestors are plain
+ * prose, which cap out the footer before any hand-written chain reaches it.
+ */
+const ORGANIC = 'Projects/Severity rollout.md';
 
 /**
  * The footer lives at `doc.length`, and CodeMirror virtualises: in a document
@@ -127,5 +136,358 @@ describe('backlinks footer: first render', function () {
       async () => (await dump()).some((l) => l.startsWith('head') && l.includes('0 references')),
       { timeout: 8000, timeoutMsg: 'no empty-state header' },
     );
+  });
+
+  /**
+   * A lineage row is inline CONTENT, not a source string.
+   *
+   * Asserted on the row's DOM rather than on its text, because the defect this
+   * closes was invisible to `textContent`: `**bold**` reads as `**bold**`
+   * either way, and what changed is that a `<strong>` exists now. Every
+   * assertion below names an element or a computed property, never a glyph
+   * width — CI's fonts are not macOS's.
+   */
+  it('renders a lineage segment as inline content, not as markdown source', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const seen = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const segs = Array.from(root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-seg'));
+          if (segs.length === 0) return null;
+          const html = segs.map((s) => s.innerHTML).join('');
+          const text = segs.map((s) => (s as HTMLElement).innerText).join(' ');
+          return {
+            strong: segs.some((s) => s.querySelector('strong') !== null),
+            em: segs.some((s) => s.querySelector('em') !== null),
+            code: segs.some((s) => s.querySelector('code') !== null),
+            anchors: segs.some((s) => s.querySelector('a') !== null),
+            // The source characters the defect showed. `innerText`, so a `**`
+            // that only exists inside an attribute does not count.
+            asterisks: /\*\*/.test(text),
+            brackets: /\]\(http/.test(text),
+            wikibrackets: /\[\[/.test(text),
+            html,
+          };
+        }),
+      { timeout: 12000, timeoutMsg: 'no lineage segments rendered' },
+    );
+
+    // A bold ancestor produces <strong>, a linked one <a>, a code span <code>.
+    expect(seen!.strong).toBe(true);
+    expect(seen!.anchors).toBe(true);
+    expect(seen!.code).toBe(true);
+    // And none of the source characters survive into what the reader sees.
+    expect(seen!.asterisks).toBe(false);
+    expect(seen!.brackets).toBe(false);
+    expect(seen!.wikibrackets).toBe(false);
+  });
+
+  /**
+   * The chain and the reference beneath it are both quotations of node text, so
+   * the same syntax has to produce the same ELEMENTS in both. What may differ is
+   * how those elements are drawn, and one thing that must: a chain carries no
+   * media (design D1).
+   */
+  it('gives a lineage row and a reference row the same elements for the same syntax', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const shape = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const tags = (sel: string): string[] => {
+            const out = new Set<string>();
+            root.querySelectorAll(sel).forEach((el) => {
+              el.querySelectorAll('strong, em, code, a, mark, del, img').forEach((n) =>
+                out.add(n.tagName.toLowerCase()),
+              );
+            });
+            return [...out].sort();
+          };
+          const lineage = tags('.to-backlinks-row.is-lineage .to-backlinks-content');
+          const reference = tags('.to-backlinks-row.is-reference .to-backlinks-content');
+          if (lineage.length === 0 || reference.length === 0) return null;
+          return { lineage, reference };
+        }),
+      { timeout: 12000, timeoutMsg: 'no rows to compare' },
+    );
+
+    // The syntaxes the organic fixture places in BOTH roles, deliberately, so
+    // this compares the two renderers rather than whichever elements the vault
+    // happens to contain. Comparing the two UNIONS would do the latter: it
+    // fails the moment an ancestor carries a highlight no leaf happens to.
+    for (const tag of ['strong', 'code', 'a']) {
+      expect(shape!.lineage).toContain(tag);
+      expect(shape!.reference).toContain(tag);
+    }
+    // The one asymmetry, stated as itself: a chain is not a weaker renderer,
+    // only a quieter one, and media is the single thing it does not inherit.
+    expect(shape!.lineage).not.toContain('img');
+  });
+
+  /**
+   * An embed in a chain becomes its alt text; an embed in a reference row stays
+   * and is bounded instead. Height as a RELATIONSHIP — a row is about as tall as
+   * a line of its own text — never as a pixel count.
+   */
+  it('keeps media out of a chain and bounded in a reference row', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const measured = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const rows = Array.from(root.querySelectorAll('.to-backlinks-row')) as HTMLElement[];
+          if (rows.length === 0) return null;
+          const heights = rows.map((r) => r.getBoundingClientRect().height);
+          const line = parseFloat(getComputedStyle(rows[0]!).lineHeight || '0');
+          // The fixture puts an embed in a real ANCESTOR — a list item with a
+          // child that references the target. Without that this assertion was
+          // vacuous: the vault's only other image sits in a callout, and an
+          // atom never has children, so no chain could carry it and
+          // `chainImages === 0` held whether or not media was ever dropped.
+          const chainText = Array.from(
+            root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-content'),
+          )
+            .map((el) => (el as HTMLElement).innerText)
+            .join(' ');
+          // The reference row that carries BOTH the target link and an embed —
+          // the half of this test that was previously unproven, since nothing
+          // in the vault put an image in a reference row and a height bound
+          // passes trivially when there is nothing to bound.
+          // `img, .internal-embed`, because which of the two an embed becomes is
+          // Obsidian's business: a resolved vault image is an `<img>`, and an
+          // unresolved one stays the `.internal-embed` wrapper. The rule is
+          // about media, not about one tag.
+          const MEDIA = 'img, .internal-embed';
+          const refWithImage = Array.from(
+            root.querySelectorAll('.to-backlinks-row.is-reference'),
+          ).find((r) => r.querySelector(MEDIA)) as HTMLElement | undefined;
+          const refImage = refWithImage?.querySelector(MEDIA) as HTMLElement | undefined;
+          return {
+            referenceKeptImage: !!refImage,
+            referenceRowHeight: refWithImage?.getBoundingClientRect().height ?? 0,
+            referenceRowLine: refWithImage
+              ? parseFloat(getComputedStyle(refWithImage).lineHeight || '0')
+              : 0,
+            referenceImageHeight: refImage?.getBoundingClientRect().height ?? 0,
+            chainImages: root.querySelectorAll(
+              '.to-backlinks-row.is-lineage :is(img, .internal-embed)',
+            ).length,
+            chainKeptAltText: chainText.includes('the hover mock'),
+            chainShowsEmbedSource: /!\[|hover-mock\.png/.test(chainText),
+            tallest: Math.max(...heights),
+            line,
+          };
+        }),
+      { timeout: 12000, timeoutMsg: 'no rows measured' },
+    );
+
+    expect(measured!.chainImages).toBe(0);
+    // …and the alt text is what stands in its place, since a segment emptied of
+    // its only content would be blank and unclickable.
+    expect(measured!.chainKeptAltText).toBe(true);
+    expect(measured!.chainShowsEmbedSource).toBe(false);
+    // Generous: a row may wrap to a few lines. What this rules out is an image
+    // at natural size, which was multiples of this.
+    expect(measured!.tallest).toBeLessThan(measured!.line * 8);
+
+    // A reference row KEEPS its embed — it is a quotation, and the embed is
+    // part of what the node says — and the bound is what stops it setting the
+    // row's height. Both halves asserted, because "no image anywhere" would
+    // satisfy the height check while breaking the rule it stands for.
+    expect(measured!.referenceKeptImage).toBe(true);
+    expect(measured!.referenceImageHeight).toBeGreaterThan(0);
+    expect(measured!.referenceImageHeight).toBeLessThan(measured!.referenceRowLine * 2);
+    expect(measured!.referenceRowHeight).toBeLessThan(measured!.referenceRowLine * 4);
+  });
+
+  /**
+   * Three things a manual pass caught that no structural assertion did, all of
+   * them about how an element is DRAWN rather than whether it exists.
+   *
+   * Relationships throughout, never pixels: CI's fonts are not macOS's, and a
+   * theme may set any of these tokens to anything.
+   */
+  it('draws code, highlights and their text at the sizes and colours of their row', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const seen = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const num = (v: string): number => parseFloat(v) || 0;
+          // `color-mix` computes to `color(srgb r g b / a)` with 0-1 channels,
+          // while everything else is `rgb()` with 0-255. Read both, or a mixed
+          // colour measures as near-black and every ratio below is fiction.
+          const parse = (c: string): number[] => {
+            const srgb = c.trim().startsWith('color(');
+            const m = c.match(/[\d.]+/g)!.map(Number);
+            const ch = srgb ? [m[0]!, m[1]!, m[2]!].map((v) => v * 255) : [m[0]!, m[1]!, m[2]!];
+            return [ch[0]!, ch[1]!, ch[2]!, m[3] ?? 1];
+          };
+          const over = (fg: number[], bg: number[]): number[] =>
+            [0, 1, 2].map((i) => fg[3]! * fg[i]! + (1 - fg[3]!) * bg[i]!);
+          const lum = (c: number[]): number => {
+            const f = (v: number): number => {
+              const x = v / 255;
+              return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+            };
+            return 0.2126 * f(c[0]!) + 0.7152 * f(c[1]!) + 0.0722 * f(c[2]!);
+          };
+          const contrastOf = (el: Element, ground: number[]): number => {
+            const cs = getComputedStyle(el);
+            const [hi, lo] = [lum(parse(cs.color)), lum(over(parse(cs.backgroundColor), ground))]
+              .sort((a, b) => b - a);
+            return (hi! + 0.05) / (lo! + 0.05);
+          };
+          const ground = parse(getComputedStyle(document.body).backgroundColor);
+          const one = (sel: string): Element | null => root.querySelector(sel);
+          const lineage = one('.to-backlinks-row.is-lineage .to-backlinks-content');
+          const linCode = one('.to-backlinks-row.is-lineage .to-backlinks-content code');
+          const linMark = one('.to-backlinks-row.is-lineage .to-backlinks-content mark');
+          const refMark = one('.to-backlinks-row.is-reference .to-backlinks-content mark');
+          const refContent = one('.to-backlinks-row.is-reference .to-backlinks-content');
+          const linTag = one('.to-backlinks-row.is-lineage .to-backlinks-content a.tag');
+          const linStrong = one('.to-backlinks-row.is-lineage .to-backlinks-content strong');
+          const refTag = one('.to-backlinks-row.is-reference .to-backlinks-content a.tag');
+          if (
+            !lineage || !linCode || !linMark || !refMark || !refContent || !linTag || !refTag ||
+            !linStrong
+          ) {
+            return null;
+          }
+          return {
+            contentSize: num(getComputedStyle(lineage).fontSize),
+            codeSize: num(getComputedStyle(linCode).fontSize),
+            rowColour: getComputedStyle(lineage).color,
+            markColour: getComputedStyle(linMark).color,
+            refRowColour: getComputedStyle(refContent).color,
+            refMarkColour: getComputedStyle(refMark).color,
+            linMarkContrast: contrastOf(linMark, ground),
+            refMarkContrast: contrastOf(refMark, ground),
+            lineageSize: num(getComputedStyle(lineage).fontSize),
+            referenceSize: num(getComputedStyle(refContent).fontSize),
+            lineageTagSize: num(getComputedStyle(linTag).fontSize),
+            referenceTagSize: num(getComputedStyle(refTag).fontSize),
+            lineageStrongColour: getComputedStyle(linStrong).color,
+          };
+        }),
+      { timeout: 12000, timeoutMsg: 'no styled row to measure' },
+    );
+
+    // Monospace at the prose size reads LARGER than the prose beside it, which
+    // is why Obsidian sizes its own code down and why a row must too.
+    expect(seen!.codeSize).toBeLessThan(seen!.contentSize);
+
+    // A reference row's highlight takes that row's own text colour. Left to
+    // the browser, `<mark>` is black on yellow, which on a dark theme is the
+    // only black text in the footer.
+    //
+    // A chain's is deliberately NOT its row's: its ink is lifted to stay
+    // legible against the tint, which is what the contrast assertion below is
+    // for. Pinning equality there is what would forbid the fix.
+    expect(seen!.refMarkColour).toBe(seen!.refRowColour);
+
+    // Highlighted text is READABLE, in a chain as much as in a reference.
+    //
+    // Contrast rather than alpha, because alpha was never the thing that
+    // mattered and asserting it hid the real defect: the chain's faint ink on
+    // the default highlight composited to 1.01:1 — the floor, where the text is
+    // not dim but absent — while its alpha looked perfectly reasonable.
+    // 4.5:1, the ratio WCAG asks of normal-size text — not a floor picked to
+    // sit just above whatever the code happens to produce. Swept across five
+    // themes in both schemes, the worst cases are 4.82 (chain) and 4.94
+    // (reference); a 0.4 tint left a reference row at 3.73.
+    expect(seen!.linMarkContrast).toBeGreaterThanOrEqual(4.5);
+    expect(seen!.refMarkContrast).toBeGreaterThanOrEqual(4.5);
+
+    // A chain reads at less than full size, and everything inside it scales
+    // with the chain rather than with the row — a tag sized against the row
+    // came out LARGER in a chain than in the reference below it.
+    expect(seen!.lineageSize).toBeLessThan(seen!.referenceSize);
+    expect(seen!.lineageTagSize).toBeLessThan(seen!.lineageSize);
+    expect(seen!.lineageTagSize).toBeLessThan(seen!.referenceTagSize);
+    // Nothing inside a row outgrows the row, whatever the theme asks for.
+    // Catppuccin sets `--tag-size` to an absolute 16px, which made a tag larger
+    // than the reference row it sits in.
+    expect(seen!.referenceTagSize).toBeLessThan(seen!.referenceSize);
+
+    // Emphasis in a chain carries weight, never colour. Several themes draw
+    // `<strong>` in an accent — measured, Catppuccin blue and Things pink —
+    // which puts the loudest thing on the line inside the row whose job is to
+    // be quiet.
+    expect(seen!.lineageStrongColour).toBe(seen!.rowColour);
+  });
+
+  /**
+   * A segment's kind mark sits on the line of the text beside it, and scales
+   * with it.
+   *
+   * In `em` on both counts, never pixels: the whole point is that a chain's
+   * marks follow a chain's smaller text, and CI's font is not this machine's.
+   */
+  it('puts a segment icon on the text line, at the text size', async function () {
+    await h.openNote(ORGANIC);
+    await ensureOutlineMode(ORGANIC);
+    await scrollToEnd();
+
+    const marks = await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          if (!root) return null;
+          const segs = Array.from(
+            root.querySelectorAll('.to-backlinks-row.is-lineage .to-backlinks-seg'),
+          );
+          const read = (seg: Element) => {
+            const icon = seg.querySelector('.to-backlinks-seg-icon');
+            if (!icon) return null;
+            // A zero-size inline-block on the baseline: its box edge IS the
+            // baseline of the line it sits in, which is what "the lower edge of
+            // the text" means. Measured, never assumed from font metrics.
+            const probe = document.createElement('span');
+            probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+            icon.insertAdjacentElement('afterend', probe);
+            const base = probe.getBoundingClientRect().top;
+            probe.remove();
+            const box = icon.getBoundingClientRect();
+            const fs = parseFloat(getComputedStyle(seg).fontSize);
+            return { offsetEm: (box.bottom - base) / fs, sizePx: box.height };
+          };
+          const out = segs.map(read).filter(Boolean);
+          // The row's own gutter marker, which every mark in the footer matches.
+          const marker = root.querySelector('.to-backlinks-row.is-lineage > .to-decor-marker-icon');
+          if (!marker || out.length === 0) return null;
+          return { icons: out, markerPx: marker.getBoundingClientRect().height };
+        }),
+      { timeout: 12000, timeoutMsg: 'no segment icon to measure' },
+    );
+
+    for (const m of marks!.icons) {
+      // On the line, not below it. Centred on the x-height midline instead the
+      // box dipped 0.17em under the baseline, which is what reads as "the icons
+      // sit lower than the text".
+      expect(Math.abs(m!.offsetEm)).toBeLessThan(0.1);
+      // One size for every mark in the footer, gutter and inline alike — in
+      // PIXELS, because that is what the contract is about. An `em` range
+      // against the chain's own smaller text passes whether or not the size is
+      // compensated, which is the assertion this replaces.
+      expect(Math.abs(m!.sizePx - marks!.markerPx)).toBeLessThan(0.5);
+    }
   });
 });

@@ -91,20 +91,42 @@ function renderedLines(): Promise<string[]> {
 }
 
 /**
- * The trail's segment labels, in order.
+ * What each crumb is CALLED, in order — its name, without the notation drawn
+ * beside it.
  *
  * Read through the FOOTER's own classes, because the trail is a footer lineage
  * row: same markup, same marker gutter, same separators. If this selector ever
  * has to change to something zoom-specific, the shared visual language has been
  * broken and that is the thing to fix.
+ *
+ * The ordinal is excluded for the same reason the kind icon already is: both
+ * are the node's MARKER, drawn in the text run because that is where an ordered
+ * item's number needs its own width, but neither is part of what the node says.
+ * The icon leaves `innerText` alone by being an SVG; the number does not, so it
+ * is removed here rather than baked into every expectation as `2.second`.
+ * `trailOrdinals` asserts it where it is the subject.
  */
 function trail(): Promise<string[]> {
   return browser.executeObsidian(({ app, obsidian }) => {
     const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
     const el = view?.containerEl.querySelector('.to-zoom-trail');
     if (!el) return [];
+    return Array.from(el.querySelectorAll('.to-backlinks-seg')).map((seg) => {
+      const ord = seg.querySelector('.to-backlinks-seg-ord')?.textContent ?? '';
+      const text = (seg as HTMLElement).innerText.trim();
+      return (ord && text.startsWith(ord) ? text.slice(ord.length) : text).trim();
+    });
+  });
+}
+
+/** The ordinal drawn on each crumb, or '' where the node has none. */
+function trailOrdinals(): Promise<string[]> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    const el = view?.containerEl.querySelector('.to-zoom-trail');
+    if (!el) return [];
     return Array.from(el.querySelectorAll('.to-backlinks-seg')).map(
-      (seg) => (seg as HTMLElement).innerText.trim(),
+      (seg) => seg.querySelector('.to-backlinks-seg-ord')?.textContent ?? '',
     );
   });
 }
@@ -1071,6 +1093,11 @@ describe('outline zoom', function () {
     await browser.pause(250);
     expect(await clickMark('.to-decor-list .to-decor-ol-digits', 2)).toBe('mark');
     expect(await trail()).toEqual(['zoom', 'Top', 'second']);
+    // Its NUMBER is drawn beside it, in the marker's place. The trail used to
+    // drop the ordinal entirely, so this crumb read "second" where the note
+    // reads "2. second" — a misquote the footer never made, and the reason both
+    // surfaces now name a node through one rule.
+    expect(await trailOrdinals()).toEqual(['', '', '2.']);
   });
 
   it('leaves a task’s checkbox to its own click, not this gesture', async function () {
@@ -1154,6 +1181,138 @@ describe('outline zoom', function () {
     await browser.pause(150);
     expect(await h.commandAvailable('zoom-out')).toBe(false);
     expect(await h.commandAvailable('zoom-clear')).toBe(false);
+  });
+
+  /**
+   * A crumb carries none of the block syntax that encodes its node's place.
+   *
+   * The reachable kinds only. An atom — callout, table, fenced code — never has
+   * children in this model (measured: `parse` gives a callout its inner lines as
+   * its OWN lines, not as a subtree), so it can never be an ancestor and never a
+   * crumb. What CAN be one is a heading, a quote, a task and an ordered item,
+   * and each of those carries syntax the label must not.
+   */
+  it('leaves no block syntax in a crumb, whatever the ancestor kind', async function () {
+    const md = [
+      '# A heading ancestor',
+      '',
+      '> a quoted ancestor',
+      '',
+      '- [x] a task ancestor',
+      '  1. an ordered ancestor',
+      '     - the leaf',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, 'the leaf');
+    const crumbs = await trail();
+    expect(crumbs.length).toBeGreaterThan(1);
+    const joined = crumbs.join(' ');
+    // The heading's hashes, the task's box and the ordered item's number are
+    // notation: they belong to the marker, never to the text.
+    expect(joined).not.toContain('#');
+    expect(joined).not.toContain('[x]');
+    expect(joined).not.toContain('[ ]');
+    expect(joined).not.toMatch(/(^|\s)1\.\s/);
+    // What the ancestors SAY still survives the stripping.
+    expect(joined).toContain('a task ancestor');
+  });
+
+  /**
+   * The crumb renders its markdown, and does not show its source. Asserted on
+   * the DOM, because `**bold**` and a `<strong>` have the same `textContent`.
+   */
+  it('renders a crumb as inline content, not as markdown source', async function () {
+    const md = [
+      '- ancestor **bold** with `code` and [a link](https://example.com)',
+      '\t- the leaf',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, 'the leaf');
+    const shape = await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const el = view?.containerEl.querySelector('.to-zoom-trail');
+      if (!el) return null;
+      return {
+        strong: el.querySelector('.to-backlinks-seg strong') !== null,
+        code: el.querySelector('.to-backlinks-seg code') !== null,
+        anchor: el.querySelector('.to-backlinks-seg a') !== null,
+        blocks: el.querySelectorAll('.to-backlinks-seg p, .to-backlinks-seg ul, .to-backlinks-seg li').length,
+        text: (el as HTMLElement).innerText,
+      };
+    });
+    expect(shape).not.toBe(null);
+    expect(shape!.strong).toBe(true);
+    expect(shape!.code).toBe(true);
+    expect(shape!.anchor).toBe(true);
+    // A row may hold no block-level element, and the renderer's own `<p>` is one.
+    expect(shape!.blocks).toBe(0);
+    expect(shape!.text).not.toContain('**');
+    expect(shape!.text).not.toContain('](http');
+  });
+
+  /**
+   * A link inside a crumb is a second destination competing with the crumb's
+   * own. The link wins where the event starts on it; the crumb wins everywhere
+   * else. Asserted as BEHAVIOUR — did the view re-root — rather than by reading
+   * the guard, because the guard the design first relied on lived on the
+   * footer's row and never ran here at all (design D8).
+   */
+  it('lets a link inside a crumb take its own click, without re-rooting', async function () {
+    const md = [
+      '# Top',
+      '',
+      '- ancestor with [a link](https://example.com)',
+      '\t- the leaf',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, 'the leaf');
+    const before = await trail();
+
+    // The anchor itself. Its own navigation is Obsidian's business and is
+    // suppressed here; what this asserts is that the SEGMENT did not also act.
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const a = view?.containerEl.querySelector('.to-zoom-trail .to-backlinks-seg a') as HTMLElement | null;
+      if (!a) throw new Error('no link inside a crumb');
+      a.addEventListener('click', (e) => e.preventDefault(), { once: true });
+      a.click();
+    });
+    await browser.pause(250);
+    expect(await trail()).toEqual(before);
+
+    // The same segment's own text still activates it, so the guard has not
+    // made the crumb inert — which is the failure mode a target check invites.
+    await clickCrumb(1);
+    await browser.pause(250);
+    expect((await trail()).length).toBeLessThan(before.length);
+  });
+
+  it('lets a link inside a crumb take its own Enter, without re-rooting', async function () {
+    const md = [
+      '# Top',
+      '',
+      '- ancestor with [a link](https://example.com)',
+      '\t- the leaf',
+      '',
+    ].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, 'the leaf');
+    const before = await trail();
+
+    // A rendered anchor is focusable, and its own Enter bubbles to the segment
+    // around it — so keydown needs the same guard the click has.
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const a = view?.containerEl.querySelector('.to-zoom-trail .to-backlinks-seg a') as HTMLElement | null;
+      if (!a) throw new Error('no link inside a crumb');
+      a.focus();
+      a.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    });
+    await browser.pause(250);
+    expect(await trail()).toEqual(before);
   });
 });
 
@@ -1508,5 +1667,103 @@ describe('outline zoom: the enforced path with a zoom active', function () {
       unzoomed: unzoomed.timing['boundary-crossing-edit'],
       zoomed: zoomed.timing['boundary-crossing-edit'],
     }));
+  });
+
+  /**
+   * The trail is a HEADER for the view, so it reads at the size of the note it
+   * heads — not at the footer's chain size.
+   *
+   * The two surfaces share `lineage-row.ts`, and the footer's own chain is
+   * deliberately smaller than the mention it leads to. An unscoped rule for
+   * that would have shrunk the one lineage row that must not shrink, which is
+   * why this asserts the trail against the EDITOR's own line rather than
+   * against a number.
+   */
+  it('reads at the size of the note it heads, not the footer chain size', async function () {
+    const md = ['# Top', '', '- ancestor **bold** with `code` and #tag', '  - the leaf', ''].join('\n');
+    await openZoomable(md);
+    await browser.waitUntil(async () => (await h.getBuffer()).includes('the leaf'), {
+      timeout: 5000,
+      timeoutMsg: 'the fixture never reached the editor',
+    });
+    await h.clickAt(3, 8);
+    await browser.pause(200);
+    await h.runCommand('zoom-in');
+    await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(
+          ({ app, obsidian }) =>
+            (app.workspace
+              .getActiveViewOfType(obsidian.MarkdownView)
+              ?.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg').length ?? 0) > 1,
+        ),
+      { timeout: 5000, timeoutMsg: 'the trail never showed an ancestor crumb' },
+    );
+
+    const size = await browser.executeObsidian(({ app, obsidian }) => {
+      const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const px = (sel: string): number => {
+        const el = v.containerEl.querySelector(sel);
+        return el ? parseFloat(getComputedStyle(el).fontSize) : 0;
+      };
+      return {
+        trail: px('.to-zoom-trail .to-backlinks-content'),
+        line: px('.cm-content .cm-line'),
+        trailCode: px('.to-zoom-trail .to-backlinks-content code'),
+      };
+    });
+
+    expect(size.line).toBeGreaterThan(0);
+    expect(size.trail).toBe(size.line);
+    // Code still steps down inside it, by the app's own rule.
+    expect(size.trailCode).toBeLessThan(size.trail);
+  });
+
+  /** The trail's marks sit on its text's line too — the same construction the
+   * footer's do, since both are the same primitive. */
+  it('puts a crumb icon on the text line', async function () {
+    const md = ['# Top', '', '- ancestor one', '  - middle here', '    - the leaf', ''].join('\n');
+    await openZoomable(md);
+    await browser.waitUntil(async () => (await h.getBuffer()).includes('middle here'), {
+      timeout: 5000,
+      timeoutMsg: 'the fixture never reached the editor',
+    });
+    await h.clickAt(4, 8);
+    await browser.pause(200);
+    await h.runCommand('zoom-in');
+    await browser.waitUntil(
+      async () =>
+        browser.executeObsidian(
+          ({ app, obsidian }) =>
+            (app.workspace
+              .getActiveViewOfType(obsidian.MarkdownView)
+              ?.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg-icon').length ?? 0) > 0,
+        ),
+      { timeout: 5000, timeoutMsg: 'the trail never drew a crumb icon' },
+    );
+
+    const marks = await browser.executeObsidian(({ app, obsidian }) => {
+      const v = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      const segs = Array.from(v.containerEl.querySelectorAll('.to-zoom-trail .to-backlinks-seg'));
+      const read = (seg: Element) => {
+            const icon = seg.querySelector('.to-backlinks-seg-icon');
+            if (!icon) return null;
+            // A zero-size inline-block on the baseline: its box edge IS the
+            // baseline of the line it sits in, which is what "the lower edge of
+            // the text" means. Measured, never assumed from font metrics.
+            const probe = document.createElement('span');
+            probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+            icon.insertAdjacentElement('afterend', probe);
+            const base = probe.getBoundingClientRect().top;
+            probe.remove();
+            const box = icon.getBoundingClientRect();
+            const fs = parseFloat(getComputedStyle(seg).fontSize);
+            return { offsetEm: (box.bottom - base) / fs, sizeEm: box.height / fs };
+          };
+      return segs.map(read).filter(Boolean);
+    });
+
+    expect(marks.length).toBeGreaterThan(0);
+    for (const m of marks) expect(Math.abs(m!.offsetEm)).toBeLessThan(0.1);
   });
 });

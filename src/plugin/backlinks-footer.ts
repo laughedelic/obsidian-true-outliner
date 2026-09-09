@@ -66,6 +66,7 @@ import {
   splitPath,
   type FooterRow,
   type LineageSegment,
+  type RowRender,
 } from './footer-model';
 import {
   applyControls,
@@ -1334,6 +1335,13 @@ class FooterController {
         marker: segmentMarker,
         glyph: segmentGlyph,
         separatorGlyph,
+        // Collected, not discarded. `render()` measures every group's height
+        // once `pending` settles, to decide caps and "show more" — so a lineage
+        // row still filling in at that point is measured empty, and the numbers
+        // come from heights that no longer exist a frame later.
+        renderSegment: (target, segment) => {
+          pending.push(this.renderSegment(target, segment, sourcePath));
+        },
         onActivate: (segment, event) => this.open(event, sourcePath, segment.nodeId),
       });
       return;
@@ -1402,9 +1410,15 @@ class FooterController {
    * Unwrapped, the row's marker and text sit in one inline flow, exactly as a
    * `.cm-line`'s do.
    */
-  private async renderMarkdown(el: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
-    await MarkdownRenderer.render(this.source.app, markdown, el, sourcePath, this.component);
-    unwrapBlocks(el);
+  private renderMarkdown(el: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
+    return renderInline(
+      this.source.app,
+      el,
+      { markdown, render: 'markdown' },
+      sourcePath,
+      this.component,
+      { media: true },
+    );
   }
 
   /**
@@ -1419,21 +1433,36 @@ class FooterController {
     row: Extract<FooterRow, { type: 'node' }>,
     sourcePath: string,
   ): Promise<void> {
-    if (row.markdown.length === 0) return Promise.resolve();
-    if (row.render === 'text') {
-      el.setText(decodeEntities(row.markdown));
-      return Promise.resolve();
-    }
-    if (row.render === 'code') {
-      el.createEl('code', { cls: 'to-backlinks-code', text: row.markdown });
-      return Promise.resolve();
-    }
     // An embed of the target, rendered inside the target's OWN footer, would
     // transclude the note into itself — the reader asked where it was
     // referenced, not to read it again. Rendered as a link instead, and marked.
     const markdown =
       row.referenceKind === 'embed' ? row.markdown.replace(/!\[\[/g, '[[') : row.markdown;
-    return this.renderMarkdown(el, markdown, sourcePath);
+    // A reference row is a QUOTATION of the node, so an embed it contains is
+    // part of what the node says and stays. Its height is bounded by the
+    // stylesheet instead (design D7) — the model does not take a quotation's
+    // content away to fix a layout problem.
+    return renderInline(
+      this.source.app,
+      el,
+      { markdown, render: row.render },
+      sourcePath,
+      this.component,
+      { media: true },
+    );
+  }
+
+  /** One lineage segment's own content, by the same rule and the same renderer
+   * a node row's takes — minus its media, which is the one thing a chain does
+   * not inherit from a quotation (design D1). */
+  private renderSegment(
+    el: HTMLElement,
+    segment: LineageSegment,
+    sourcePath: string,
+  ): Promise<void> {
+    return renderInline(this.source.app, el, segment, sourcePath, this.component, {
+      media: false,
+    });
   }
 
   /**
@@ -1620,6 +1649,119 @@ const BLOCK_WRAPPERS = new Set(['P', 'UL', 'OL', 'LI', 'DIV', 'H1', 'H2', 'H3', 
  * unwraps. The wider set stays because a stripping miss must not put a block
  * element in a row — the one invariant the whole model rests on.
  */
+/**
+ * One node's inline content, into one element, by the one rule every surface
+ * that quotes a node follows.
+ *
+ * Three modes, and only `markdown` reaches Obsidian. By then the model has
+ * already removed the node's block syntax, so the renderer is asked for inline
+ * content and returns a single paragraph, which `unwrapBlocks` flattens.
+ *
+ * `sourcePath` is the REFERENCING note, so its relative links resolve from
+ * where they were written rather than from the note being read.
+ *
+ * `media` is D1's one difference between a chain and a quotation. Applied as a
+ * pass over the RENDERED fragment rather than as a rewrite of the markdown: the
+ * only thing that knows what a string parses into is the parser, and stripping
+ * embed syntax by regex ahead of it would get escapes and code spans wrong the
+ * same way a hand-rolled inline stripper would (design D2).
+ *
+ * Resolves after the element already exists. Callers that cannot wait — a CM6
+ * widget's `toDOM` — get a complete row whose text fills in a moment later.
+ */
+export async function renderInline(
+  app: App,
+  el: HTMLElement,
+  content: { readonly markdown: string; readonly render: RowRender },
+  sourcePath: string,
+  component: Component,
+  options: { readonly media: boolean },
+): Promise<void> {
+  if (content.markdown.length === 0) return;
+  if (content.render === 'text') {
+    el.setText(decodeEntities(content.markdown));
+    return;
+  }
+  if (content.render === 'code') {
+    el.createEl('code', { cls: 'to-backlinks-code', text: content.markdown });
+    return;
+  }
+  // An embed is taken out of the SOURCE where a chain is being drawn, not only
+  // out of the result. Obsidian builds an embed's element on its own schedule —
+  // a wrapper first, its content and sometimes its final tag later — so a single
+  // pass after `render()` resolves is racing that pipeline: locally the elements
+  // were already there to remove, and on a slower machine two of them arrived
+  // afterwards and stayed. Removing the syntax means none is ever created.
+  //
+  // `dropMedia` still runs behind it. The transform reads markdown, so it cannot
+  // see an `<img>` written as HTML, and a backstop that catches what is present
+  // costs nothing.
+  const source = options.media ? content.markdown : withoutEmbeds(content.markdown);
+  await MarkdownRenderer.render(app, source, el, sourcePath, component);
+  unwrapBlocks(el);
+  if (!options.media) dropMedia(el);
+}
+
+/**
+ * Embed syntax replaced by what it would have shown.
+ *
+ * Narrow on purpose: `![[…]]` and `![…](…)` and nothing else. This is the one
+ * markdown rewrite this module does — the general case is what
+ * `MarkdownRenderer` is for — and it is confined to a chain, where the rule is
+ * already that no media renders. A literal `![[` inside a code span is the
+ * false positive it can produce, and the cost there is alt text where the
+ * source characters were.
+ *
+ * The alt, then the target, then nothing: an embed whose alt is empty still has
+ * to leave something behind, or a segment carrying only that embed is blank and
+ * unclickable.
+ */
+function withoutEmbeds(markdown: string): string {
+  return markdown
+    .replace(/!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, target: string, alias?: string) =>
+      (alias ?? target).trim(),
+    )
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt: string, src: string) =>
+      alt.trim().length > 0 ? alt.trim() : src.trim(),
+    );
+}
+
+/**
+ * Media out of a chain, alt text in its place.
+ *
+ * A lineage row is one line of context; an image is not text and there is no
+ * size at which it belongs there. The alt is what the node SAYS, so it stays —
+ * a segment emptied of its only content is blank, and a blank segment is
+ * unclickable, which is the failure the kind-label fallback already exists to
+ * prevent.
+ *
+ * Obsidian's own internal embeds are `.internal-embed` spans that resolve
+ * later, so they are matched by class as well as by tag: by the time one has
+ * become an `<img>` the row has already been drawn.
+ */
+function dropMedia(el: HTMLElement): void {
+  // NOT a bare `svg`. Obsidian renders inline math as an SVG inside its MathJax
+  // container, and math is inline content this rule is required to keep — a
+  // chain carrying `$E = mc^2$` would have lost the formula entirely. Only the
+  // SVG that IS a drawing is media; `canvas` joins it, as the row's own bound
+  // already recognised.
+  const media = el.querySelectorAll(
+    'img, video, audio, iframe, canvas, svg.excalidraw-svg, .internal-embed',
+  );
+  media.forEach((node) => {
+    // An attribute that is present but empty is absent for this purpose:
+    // `getAttribute('alt')` answers `''` for `alt=""`, which `??` accepts, so
+    // an image whose alt is empty replaced itself with nothing — and a segment
+    // whose only content was that image became blank and still focusable,
+    // which is the failure the fallback chain exists to prevent.
+    const first = (...values: Array<string | null>): string =>
+      values.find((v) => v !== null && v.trim().length > 0)?.trim() ?? '';
+    node.replaceWith(
+      first(node.getAttribute('alt'), node.getAttribute('src'), node.getAttribute('title')),
+    );
+  });
+}
+
 function unwrapBlocks(el: HTMLElement): void {
   for (;;) {
     const only = el.children.length === 1 ? el.firstElementChild : null;

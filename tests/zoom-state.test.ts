@@ -3,6 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { zoomAnchorField, zoomCleared, zoomTo } from '../src/plugin/zoom-state';
 import { parse } from '../src/parse';
 import { resolveZoom } from '../src/zoom';
+import { lineageKey, type LineageSegment } from '../src/plugin/footer-model';
 
 const DOC = `# Top
 
@@ -129,5 +130,50 @@ describe('forward association is load-bearing, not a preference', () => {
     const forward = tr.changes.mapPos(anchor, 1);
     const backward = tr.changes.mapPos(anchor, -1);
     expect(tr.state.doc.lineAt(forward).number).toBe(tr.state.doc.lineAt(backward).number);
+  });
+});
+
+/**
+ * The trail widget's identity (design D9).
+ *
+ * `eq()` decides whether CodeMirror keeps the DOM it already has, so anything
+ * the row DRAWS has to be in the key. Keyed on segment text alone — which is
+ * what shipped — a task ancestor could be ticked without its crumb's checkbox
+ * following: same label, different marker, so `eq()` said equal and the old
+ * marker stayed. The render mode makes it worse, since one string can go from
+ * plain to rendered.
+ *
+ * Tested here rather than through the UI because the claim IS the key: driving
+ * it through a zoom and a checkbox asserts the same thing at several removes,
+ * and pins the harness as much as the rule.
+ */
+describe('the zoom trail widget key', () => {
+  const base: LineageSegment = { markdown: 'a task ancestor', render: 'markdown', nodeId: 1, kind: 'list-item' };
+
+  it('separates two states that differ only in a field the row draws', () => {
+    const cases: Array<[string, LineageSegment]> = [
+      ['task state', { ...base, task: true }],
+      ['ordinal', { ...base, ordinal: '10.' }],
+      ['kind', { ...base, kind: 'heading' }],
+      ['render mode', { ...base, render: 'text' }],
+      ['shortening', { ...base, shortened: true }],
+    ];
+    for (const [what, changed] of cases) {
+      expect(lineageKey([base]), what).not.toBe(lineageKey([changed]));
+    }
+  });
+
+  it('ignores the node id, which a reparse hands out fresh every keystroke', () => {
+    // The exclusion is the point: keying on ids would rebuild the row on every
+    // edit, which is the same reason activation resolves an ancestor by
+    // position rather than by a captured id.
+    expect(lineageKey([base])).toBe(lineageKey([{ ...base, nodeId: 999 }]));
+  });
+
+  it('separates two chains that differ only in where a boundary falls', () => {
+    // `a` + `bc` and `ab` + `c` must not collide, or a chain could change shape
+    // without the row following.
+    const seg = (markdown: string): LineageSegment => ({ ...base, markdown });
+    expect(lineageKey([seg('a'), seg('bc')])).not.toBe(lineageKey([seg('ab'), seg('c')]));
   });
 });
