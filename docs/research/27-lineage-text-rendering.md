@@ -112,7 +112,8 @@ fragment. One mechanism; the policy is a serialiser over its output.
 | `subdued` | everything live, drawn without colour accent; no media | **chosen** |
 | `live` | everything, rendered with the theme's accents | rejected — the accent out-shouts the reference the chain leads to |
 
-[prototypes/lineage-rendering.html](prototypes/lineage-rendering.html) draws one corpus —
+[prototypes/lineage-rendering.html](prototypes/lineage-rendering.html) — whose highlight
+treatment is superseded, see below — draws one corpus —
 emphasis, code spans, external links, wikilinks with and without aliases, tags, highlights,
 strikethrough, an image embed, math, escaped asterisks, task and ordered ancestors, and the
 three block-syntax leaks — under all five, on both surfaces. Its inline parser is a stand-in for
@@ -140,7 +141,7 @@ So the treatment is:
 | **Hover** | colour shifts, nothing underlines. The segment's hover is the same shift and the row's only hover signal — an underline there is the mark a link owns, and a segment wearing it reads as one big link |
 | **Cursor** | `alias` (the platform's curled arrow, "this leaves here") on an external link; `pointer` on an internal one and on the crumb itself |
 | **Tag** | a step of ink from the ROW's colour toward the text colour, filling on hover. Not a chip — a pill is a second object in a line that is one |
-| **Highlight** | muted toward transparent, hue kept. At full strength it is the loudest mark on a dim line — the accent problem again, in the one channel that is only colour |
+| **Highlight** | a fixed tint with lifted ink, clearing 4.5:1 on every theme measured. Muting a theme's own token was tried and failed: that token is variously undefined, transparent, or opaque and light, and a chain's faint ink over it measures 1.01:1 |
 | **Media** | not rendered in a chain at all; the segment keeps the alt text |
 
 The tag colour is `color-mix` on `currentColor` rather than a token, and that is not a

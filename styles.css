@@ -1979,6 +1979,24 @@ body {
 }
 
 /*
+ * A transclusion is bounded as media, because that is what it becomes.
+ *
+ * `.internal-embed` is the wrapper Obsidian resolves a `![[...]]` into, and it
+ * is already treated as media where a chain drops one. A reference row KEEPS
+ * its embed — the row is a quotation and the embed is part of what the node
+ * says — and a note transclusion resolves into block content carrying none of
+ * the tags bounded above, so it could still expand the row to its natural
+ * height. `overflow: hidden` as well as the bound: the height limit alone does
+ * not stop a taller child painting past it.
+ */
+.to-backlinks-content .internal-embed {
+  display: inline-block;
+  max-height: 1.4em;
+  overflow: hidden;
+  vertical-align: text-bottom;
+}
+
+/*
  * The step between two ancestors in a collapsed chain — an icon naming the next
  * ancestor's kind, and no separator at all.
  *

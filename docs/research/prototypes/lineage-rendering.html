@@ -616,6 +616,16 @@
   </section>
 
   <p class="note">
+    <strong>Superseded on one point: the highlight.</strong> This page derives a highlight from
+    a theme token and only reduces its alpha, which is what the comparison chose. Measuring the
+    shipped rule across five installed themes then showed that token to be unusable as a source
+    &mdash; variously undefined, fully transparent, or opaque and light &mdash; and a chain's
+    faint ink over it to be illegible at 1.01:1. The rule that shipped uses a fixed tint with
+    lifted ink, at ratios that clear 4.5:1 everywhere. Everything else here still describes what
+    was chosen; see design D1 for the highlight.
+  </p>
+
+  <p class="note">
     <strong>What this prototype is not.</strong> The inline parser here is a stand-in,
     written to make the policies comparable. The real implementation runs Obsidian's own
     <code>MarkdownRenderer</code> once and lets the policy decide what to keep from its

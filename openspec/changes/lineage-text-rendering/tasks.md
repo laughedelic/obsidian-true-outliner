@@ -10,8 +10,9 @@
 
 - [x] 2.1 Move the per-kind content rule out of `footer-model.ts`'s `contentOf` into
       `node-text.ts`, returning `{ markdown, render }` (design D3)
-- [x] 2.2 Make `nodeLabel` a caller of it: per-kind content, first line only, kind-label
-      fallback, ellipsis when the node has more
+- [x] 2.2 Replace `nodeLabel` with `segmentContent`: per-kind content, first line only,
+      kind-label fallback, and a `shortened` flag rather than an ellipsis glued into the string
+      — the mark belongs outside the markdown so it is never parsed
 - [x] 2.3 `footer-model.ts` calls the moved rule rather than its own copy
 - [x] 2.4 Unit tests in `tests/zoom.test.ts`: a callout, table and code-block ancestor's label,
       each against the footer row's own text for the same node — the assertion is that they

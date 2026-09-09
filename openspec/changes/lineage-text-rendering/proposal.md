@@ -32,7 +32,7 @@ implementations, `contentOf` in `footer-model.ts` (per kind) and `nodeLabel` in 
 ## What Changes
 
 - **One answer to "what does this node say."** The per-kind content rule moves out of
-  `footer-model.ts` into `node-text.ts` beside `nodeLabel`, which becomes a caller of it. The
+  `footer-model.ts` into `node-text.ts`, where `segmentContent` replaces `nodeLabel`. The
   trail gains the footer's callout, table and code stripping as a consequence rather than as a
   second implementation.
 - **A lineage segment carries a render mode, not a bare string**, the same shape a node row's

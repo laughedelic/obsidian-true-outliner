@@ -262,8 +262,29 @@ describe('backlinks footer: first render', function () {
           )
             .map((el) => (el as HTMLElement).innerText)
             .join(' ');
+          // The reference row that carries BOTH the target link and an embed —
+          // the half of this test that was previously unproven, since nothing
+          // in the vault put an image in a reference row and a height bound
+          // passes trivially when there is nothing to bound.
+          // `img, .internal-embed`, because which of the two an embed becomes is
+          // Obsidian's business: a resolved vault image is an `<img>`, and an
+          // unresolved one stays the `.internal-embed` wrapper. The rule is
+          // about media, not about one tag.
+          const MEDIA = 'img, .internal-embed';
+          const refWithImage = Array.from(
+            root.querySelectorAll('.to-backlinks-row.is-reference'),
+          ).find((r) => r.querySelector(MEDIA)) as HTMLElement | undefined;
+          const refImage = refWithImage?.querySelector(MEDIA) as HTMLElement | undefined;
           return {
-            chainImages: root.querySelectorAll('.to-backlinks-row.is-lineage img').length,
+            referenceKeptImage: !!refImage,
+            referenceRowHeight: refWithImage?.getBoundingClientRect().height ?? 0,
+            referenceRowLine: refWithImage
+              ? parseFloat(getComputedStyle(refWithImage).lineHeight || '0')
+              : 0,
+            referenceImageHeight: refImage?.getBoundingClientRect().height ?? 0,
+            chainImages: root.querySelectorAll(
+              '.to-backlinks-row.is-lineage :is(img, .internal-embed)',
+            ).length,
             chainKeptAltText: chainText.includes('the hover mock'),
             chainShowsEmbedSource: /!\[|hover-mock\.png/.test(chainText),
             tallest: Math.max(...heights),
@@ -281,6 +302,15 @@ describe('backlinks footer: first render', function () {
     // Generous: a row may wrap to a few lines. What this rules out is an image
     // at natural size, which was multiples of this.
     expect(measured!.tallest).toBeLessThan(measured!.line * 8);
+
+    // A reference row KEEPS its embed — it is a quotation, and the embed is
+    // part of what the node says — and the bound is what stops it setting the
+    // row's height. Both halves asserted, because "no image anywhere" would
+    // satisfy the height check while breaking the rule it stands for.
+    expect(measured!.referenceKeptImage).toBe(true);
+    expect(measured!.referenceImageHeight).toBeGreaterThan(0);
+    expect(measured!.referenceImageHeight).toBeLessThan(measured!.referenceRowLine * 2);
+    expect(measured!.referenceRowHeight).toBeLessThan(measured!.referenceRowLine * 4);
   });
 
   /**
