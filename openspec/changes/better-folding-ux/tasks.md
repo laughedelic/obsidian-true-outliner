@@ -143,14 +143,14 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 
 ## 8. Backlinks footer
 
-- [ ] 8.1 Row fold state keyed by node id in `ViewState`, so a row that HAS a subtree keeps its
+- [x] 8.1 Row fold state keyed by node id in `ViewState`, so a row that HAS a subtree keeps its
       affordance after expansion (D9) — the `truncatable` shape, for the same reason
-- [ ] 8.2 Delete `to-backlinks-fold` and its `styles.css` rule; the row's affordance becomes the
+- [x] 8.2 Delete `to-backlinks-fold` and its `styles.css` rule; the row's affordance becomes the
       editor's fold chrome, and a folded row's marker takes the folded treatment from 5.2. The
       chrome is what changes, never the semantics: the control stays a real `button` with an
       accessible label and an `aria-expanded` that tracks BOTH states, since a footer row has no
       keyboard command behind it the way an editor line does
-- [ ] 8.3 E2E per the `backlinks-footer` delta: an expanded row folds again, a folded row is
+- [x] 8.3 E2E per the `backlinks-footer` delta: an expanded row folds again, a folded row is
       distinguishable from a leaf, and the control is reachable by Tab and operable by Enter and
       Space with `aria-expanded` correct in both states. Negative controls — restoring the
       `foldedCount > 0` condition must fail the fold-again test, and swapping the `button` for a

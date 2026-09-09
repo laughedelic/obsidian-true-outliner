@@ -1358,17 +1358,43 @@ class FooterController {
 
     if (row.isReference) el.addClass('is-reference');
 
-    if (row.foldedCount > 0) {
-      const fold = el.createEl('button', { cls: 'to-backlinks-fold' });
+    if (row.foldable) {
+      // Keyed on the row HAVING a subtree, never on it being folded right now.
+      // The old condition (`foldedCount > 0`) stopped being true the moment a
+      // reader expanded the row, so the control that could close it again was
+      // never drawn — expansion was a one-way door.
+      const key = `${sourcePath}:${row.nodeId}`;
+      const expanded = viewStateFor(this.targetPath).expandedRows.has(key);
+      // The editor's own fold chrome, in the editor's own column — but a real
+      // BUTTON, which the editor's is not. Chrome is what the two surfaces
+      // share; semantics are not. An editor line has a fold command behind it
+      // and a footer row has nothing, so this element is the only route a
+      // keyboard reader has, and it keeps its role, its label and a state that
+      // tracks both directions.
+      const fold = el.createEl('button', { cls: 'to-backlinks-fold to-decor-fold-toggle' });
       fold.type = 'button';
-      fold.setAttribute('aria-label', `Show ${row.foldedCount} hidden`);
-      fold.setAttribute('aria-expanded', 'false');
+      fold.setAttribute('aria-label', expanded ? 'Hide children' : `Show ${row.foldedCount} hidden`);
+      fold.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      fold.toggleClass('is-collapsed', !expanded);
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
       fold.appendChild(chevronGlyph(false));
-      fold.addEventListener('click', (event) => {
+      const toggle = (event: Event) => {
         event.stopPropagation();
-        viewStateFor(this.targetPath).expandedRows.add(`${sourcePath}:${row.nodeId}`);
+        const rows = viewStateFor(this.targetPath).expandedRows;
+        if (expanded) rows.delete(key);
+        else rows.add(key);
         void this.render();
+      };
+      fold.addEventListener('click', toggle);
+      // Enter and Space handled explicitly, though a `button` activates on both
+      // by itself: inside the editor's own key handling the default action does
+      // not survive to reach it — measured, a focused row control that ignored
+      // every press. The row's own activation handler makes the same choice for
+      // the same reason.
+      fold.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggle(event);
       });
     }
 

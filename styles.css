@@ -2259,6 +2259,10 @@ body.is-mobile {
  * the marker's left edge with a fixed 3px gap, which put it hard against the
  * bullet and left the whole gap open on the other side.
  */
+/* The footer's control shares the editor toggle's class for its glyph, its
+ * hover reveal and its folded rotation; what stays here is where it sits, which
+ * is the footer's own column arithmetic. It is a real `button` — see
+ * `renderRow` for why the semantics are not shared along with the look. */
 .to-backlinks-fold {
   position: absolute;
   left: calc(
@@ -2278,6 +2282,29 @@ body.is-mobile {
 
 .to-backlinks-fold:hover {
   color: var(--text-normal);
+}
+
+/*
+ * The footer's control shares the editor toggle's GLYPH — its chevron, its
+ * rotation when folded — and none of its placement or its hover behaviour.
+ *
+ * Both declared here, in the two-class selector, so which of the two
+ * single-class rules happens to come later in this file cannot decide it. That
+ * ordering is exactly what broke first: the editor rule's `left` (built from
+ * the editor's marker gutter) won inside the footer and put the button
+ * somewhere no click could reach.
+ *
+ * Always visible, unlike the editor's: a footer row has no hover convention to
+ * inherit and no fold command behind it, so hiding it would leave a keyboard or
+ * touch reader with nothing.
+ */
+.to-backlinks-fold.to-decor-fold-toggle {
+  position: absolute;
+  left: calc((var(--to-depth, 0) - 0.5) * var(--to-decor-unit) - var(--to-fold-size) / 2);
+  width: var(--to-fold-size);
+  height: 1.5em;
+  top: 0.1rem;
+  opacity: 1;
 }
 
 /* A row whose markdown holds more than one block keeps them (`unwrapBlocks`

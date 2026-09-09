@@ -87,6 +87,17 @@ export type FooterRow =
       readonly referenceKind?: BacklinkReference['kind'] | undefined;
       /** Descendants hidden behind this row's fold affordance; 0 when none. */
       readonly foldedCount: number;
+      /**
+       * Whether this row HAS a subtree the footer folds — true whether or not
+       * it is folded right now.
+       *
+       * Separate from `foldedCount`, which drops to 0 the moment a reader
+       * expands the row. Keying the affordance on the count made expansion a
+       * one-way door: the branch that drew the control stopped running exactly
+       * when the control was needed to close it again. Same shape, and same
+       * reason, as `truncatable` for a capped group.
+       */
+      readonly foldable: boolean;
     })
   | (FooterRowBase & {
       readonly type: 'property';
@@ -326,7 +337,10 @@ export function buildRows(
       // outer match a false reference, and gave it a descendant pass of its own.
       isReference: row.isMatch,
       referenceKind: row.isMatch ? refOf(row.node)?.kind : undefined,
+      // A lineage row is context on the way to a match, never a fold owner:
+      // the descendant pass below is what creates folds.
       foldedCount: 0,
+      foldable: false,
     });
 
     // Only a real match brings its own subtree; a path node under one is
@@ -397,7 +411,10 @@ export function buildRows(
       // applies to what is shown BELOW the node, not to the node itself — a
       // match's own children are shown, so it folds nothing.
       const childBudget = isMatch ? DESCENDANT_DEPTH : open ? remaining : remaining - 1;
-      const willFold = !isMatch && node.children.length > 0 && remaining === 1 && !open;
+      // What makes a row foldable does not depend on whether it is folded
+      // right now: an expanded row is still a row with a subtree.
+      const foldable = !isMatch && node.children.length > 0 && remaining === 1;
+      const willFold = foldable && !open;
       if (willFold) folds.push({ index: rows.length, node });
       rows.push({
         type: 'node',
@@ -412,6 +429,7 @@ export function buildRows(
         referenceKind: isMatch ? refOf(node)?.kind : undefined,
         // Filled in after the walk — see `folds`.
         foldedCount: 0,
+        foldable,
       });
       // `open` lets one row escape the depth bound, which is exactly what
       // expanding it means.
