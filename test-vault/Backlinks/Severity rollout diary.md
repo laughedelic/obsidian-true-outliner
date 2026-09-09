@@ -9,8 +9,8 @@ whatever the week was.
 	- talked to Maya about the [[People/Maya Okonkwo|alarm-name PII]] question #blocked
 		- she wants a written answer before we ship, and [[Severity rollout]] is
 		  where it would go
-- design review, with the mock inline ![the hover mock](Assets/hover-mock.png) as shipped
-	- Priya signed it off, and it goes in [[Severity rollout]]
+- #request design review, with the mock inline ![the hover mock](Assets/hover-mock.png) as shipped
+	- Priya signed it off ![the hover mock](Assets/hover-mock.png) and it goes in [[Severity rollout]]
 - week two, ==the sort landed==
 	- `sortStable(rows, bySeverity)` replaced the old comparator, ~~and the old
 	  one is gone~~ actually it is still there behind the flag
