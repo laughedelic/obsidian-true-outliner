@@ -14,6 +14,14 @@ on:
         required: false
         default: ""
 
+# A restack force-pushes every layer of a stack within seconds of each other, and
+# each push starts the whole matrix — both platforms, every group — for commits
+# that no longer exist by the time it finishes. Supersede those. `main` is left
+# alone: there each commit's result is the record of that commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   node-version: "26"
   # Obsidian instances per e2e job. Beyond the runner's core count this stops

@@ -6,13 +6,26 @@ Every change gets a branch (`feat/`, `fix/`, `chore/`), usually a worktree, and 
 carries both its plan and its implementation.
 
 **Before branching, look for work already in flight.** Any open PR whose base is not `main` is
-part of a stack, and new work usually belongs on top of that stack rather than off `main` — it
-keeps changes from conflicting and lands them in a predictable order. Offer that; let the user
-decide.
+part of a stack.
 
 ```bash
 gh pr list --state open --json number,headRefName,baseRefName,isDraft
 ```
+
+**Stack only what depends on the layer below.** A stack encodes a dependency order, and it
+charges for that order: every layer above a moved one is rewritten, and the bottom layer cannot
+merge and release without a restack of everything on top. Unrelated work pays that toll for
+nothing, and pays it repeatedly — each layer bumps the version, so `manifest.json`,
+`versions.json` and `package.json` conflict on every single restack. The test is mechanical,
+and settles it before the branch exists:
+
+```bash
+git diff --name-only main...<candidate-base>
+```
+
+Overlapping files, or code that reads what the other branch adds, means stack it. Otherwise
+branch off `main`, where it merges and releases on its own schedule. Prefer short stacks — two
+or three layers that are genuinely one unit of work. Offer the reading; let the user decide.
 
 Stacks are GitHub's native stacked PRs, driven by the `gh stack` extension
 (`gh extension install github/gh-stack`). A stacked PR targets the branch below it instead of
@@ -23,17 +36,52 @@ maintained by hand.
 | --- | --- |
 | `gh stack view --json` | the current branch's stack, if it is in one |
 | `gh stack checkout <pr>` | fetch an existing stack and switch into it |
-| `gh stack init <branch>` | start a stack off the trunk |
+| `gh stack init <branch>` | start a stack off the trunk, or adopt existing branches into one |
 | `gh stack add <branch>` | add a layer on top of the current stack |
 | `gh stack submit --auto` | push every layer and open or update its PRs, as drafts |
 | `gh stack rebase` | cascading rebase after the trunk or a lower layer moves |
+| `gh stack sync` | fetch, cascade-rebase and atomically force-push the whole stack |
 | `gh stack merge` | atomic merge of the stack up to a chosen PR |
 
-Two things bite. Rebase a stacked branch with `gh stack rebase`, never plain `git rebase`:
-rebasing one layer by hand leaves every layer above it on commits that no longer exist —
-`gh stack view` reports a branch needing one. And only `gh stack submit --auto` opens drafts;
-its interactive editor defaults to ready for review. `--auto` also auto-generates titles, so
-write the real title and description afterwards with `gh pr edit`.
+**A session working on a layer runs none of these.** It owns one branch: commit, push, report.
+Stack surgery happens in one place, from the primary checkout, because these commands rewrite
+branches other sessions are sitting on and take a lock in the shared git directory.
+
+**Never merge another branch into a layer.** After a restack below it, a layer sits on commits
+that no longer exist and git reports it as *diverged from origin by N and M commits*. Merging
+the layer below "to update the base" resolves that and destroys the linear history the stack
+exists to keep — it also survives into `main`, because the whole stack squash-merges. The
+remote is authoritative there:
+
+```bash
+git fetch origin && git reset --hard origin/<branch>   # no unpushed commits
+```
+
+With unpushed commits, stop and report rather than merging. Rebase a layer with
+`gh stack rebase`, never plain `git rebase`: rebasing one layer by hand leaves every layer
+above it on commits that no longer exist — `gh stack view` reports a branch needing one.
+
+**Worktrees hold branches hostage.** Git refuses to check out or rebase a branch that another
+worktree has checked out (`fatal: '<branch>' is already used by worktree at …`), which is every
+`gh stack` command that moves HEAD — `rebase`, `sync`, `switch`, `up`, `down`, `checkout`.
+`gh stack init` is the exception: it only records the topology, so a stack can be adopted with
+every layer live in its own worktree, and nothing needs setting up before sessions start.
+Detach the other worktrees around the restack instead:
+
+```bash
+node scripts/stack-park.mjs park     # refuses while any of them is dirty
+gh stack sync
+node scripts/stack-park.mjs unpark
+```
+
+**Land a stack whole.** `gh stack merge --yes --squash` squash-merges every layer in one
+all-or-nothing operation, so nothing is restacked between merges. Merging the bottom layer
+alone to release it is what a stack of independent work forces, and it costs a restack of every
+layer above — one more reason such work does not belong in a stack.
+
+Only `gh stack submit --auto` opens drafts; its interactive editor defaults to ready for review.
+`--auto` also auto-generates titles, so write the real title and description afterwards with
+`gh pr edit`.
 
 ## Change lifecycle
 
