@@ -11,7 +11,7 @@ whatever the week was.
 		  where it would go
 - #request design review, with the mock inline ![the hover mock](Assets/hover-mock.png) as shipped
 	- Priya signed it off ![the hover mock](Assets/hover-mock.png) and it goes in [[Severity rollout]]
-	- the sourdough note is quoted whole here ![[Sourdough Log]] which [[Severity rollout]] links back to
+	- a whole note is quoted here ![[Transcluded fragment]] which [[Severity rollout]] links back to
 - week two, ==the sort landed==
 	- `sortStable(rows, bySeverity)` replaced the old comparator, ~~and the old
 	  one is gone~~ actually it is still there behind the flag
