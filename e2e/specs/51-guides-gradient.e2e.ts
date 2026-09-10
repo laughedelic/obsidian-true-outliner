@@ -796,6 +796,56 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       await browser.pause(150);
     });
 
+    it('reads the single-root qualifier from the document its guides came from', async function () {
+      // Three things have to be true at once for these to be two different
+      // documents: a zoom scope (which is re-rooted, so it always has exactly
+      // one root), a provisional position (whose guides are computed from the
+      // WHOLE note rather than from the scope), and the qualifier on. Ask the
+      // scope whether the note has one root and the answer is always yes —
+      // which drops the outermost guide of a ladder that names something.
+      const note = 'Scratch/decorations-guide-qualifier-frame.md';
+      await h.createNote(
+        note,
+        ['# One', '', '## Sub', '', 'body', '', '# Two', '', 'other', ''].join('\n'),
+      );
+      await ensureOutlineMode(note);
+      await h.setCursorSettled(0, 5);
+      await h.runCommand('zoom-in'); // into "# One", whose subtree has one root
+      await browser.pause(300);
+
+      const bodyRow = async (): Promise<number> => {
+        const rendered = await browser.executeObsidian(({ app, obsidian }) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cm = (view.editor as any).cm;
+          return Array.from(
+            cm.contentDOM.querySelectorAll(':scope > .cm-line'),
+            (el) => (el as HTMLElement).textContent ?? '',
+          );
+        });
+        const i = rendered.findIndex((t) => t.trim() === 'body');
+        expect(i).toBeGreaterThan(-1);
+        return layers(i);
+      };
+
+      // A caret on the blank row inside the zoom is a provisional position.
+      await h.setCursor(3, 0);
+      await browser.pause(300);
+      const before = await bodyRow();
+      expect(before).toBeGreaterThan(1); // "# One" and "## Sub" both above it
+
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      // The note has TWO roots, so nothing is dropped — whatever the scope,
+      // which has one, would have said.
+      expect(await bodyRow()).toBe(before);
+
+      await h.setPluginSetting('guideHideSingleRoot', false);
+      await h.runCommand('zoom-clear');
+      await browser.pause(200);
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
     it('moves no line’s geometry under any visibility mode, or as the caret moves', async function () {
       // Guides are painted, not laid out. Every mode, and every caret position
       // within a mode, has to leave the grid exactly where it was.

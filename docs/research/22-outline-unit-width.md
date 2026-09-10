@@ -134,8 +134,8 @@ one step everywhere and only the DEFAULT differs — which is why the bottom run
 the HIGHER of the two floors rather than each device's own.
 
 **The bottom rung's margin is thin, and it is thin on purpose.** `1.5rem` reads well on a phone
-and 25px is the tightest step that still clears mobile's floor: 0.61px of clearance, against 3px
-on desktop. Sub-pixel margin is enough for the mark not to overlap, and not enough to survive a
+and does not clear the floor there, so the rung sits at `1.5625rem` — 25px, the tightest step
+that does: 0.61px of clearance on mobile, against 3px on desktop. Sub-pixel margin is enough for the mark not to overlap, and not enough to survive a
 theme that enlarges the checkbox — the floor is `gutter + widest ink-left`, the gutter's widest
 term IS `--checkbox-size`, and a theme may set it. A reader on such a theme sees the marks meet
 at this rung and nowhere else; the fix, if that is ever reported, is to raise the rung rather

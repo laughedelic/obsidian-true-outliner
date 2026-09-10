@@ -217,9 +217,10 @@ that hand-sync is a known cost of the existing shape, not something this change 
 - **A thick guide reads as a bar rather than a line** → measured by looking at it, which is what
   withdrew weight as a setting (D4); the declaration a snippet reaches is bounded in practice by
   the gradient's period, which is one unit.
-- **Lifting native-guide suppression while the layer is off flips a second thing** → suppression
-  is lifted only in the master `off` mode, never per line, so Obsidian's own setting governs
-  exactly when we draw nothing and nothing flickers as the caret moves.
+- **~~Lifting native-guide suppression while the layer is off flips a second thing~~** →
+  withdrawn. Suppression is not lifted at all: a native guide sits on a column this grid does not
+  use, so handing list levels back where we draw none hands back a ladder that does not line up.
+  It is unconditional in outline mode, which also removes the flicker this entry was hedging.
 - **Four more controls on a tab that already has eleven** → they are the axes asked for, and the
   hue and per-level knobs stay with the snippet route, which is what keeps this from becoming a
   mirror of the stylesheet.

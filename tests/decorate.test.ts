@@ -789,6 +789,18 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
     expect(out).toEqual([1]);
   });
 
+  it('reports a single root for the document it is asked about, not for a subtree of it', () => {
+    // The qualifier's fact has to come from the document its GUIDES came from.
+    // A zoom scope is re-rooted, so it always answers "one root" — reading it
+    // for a ladder computed over the whole note drops an outermost guide that
+    // names something. The predicate is per-document precisely so the caller
+    // has to say which one it means.
+    const whole = parse(['# One', '', 'a', '', '# Two', '', 'b', ''].join('\n'));
+    expect(hasSingleRoot(whole)).toBe(false);
+    const subtree = resolveZoom(whole, 0)!; // zoom into "# One"
+    expect(hasSingleRoot(subtree.document)).toBe(true);
+  });
+
   it('reports a single root for one top-level node, and not for two', () => {
     expect(hasSingleRoot(parse('# Only\n\nbody\n'))).toBe(true);
     expect(hasSingleRoot(doc)).toBe(false);

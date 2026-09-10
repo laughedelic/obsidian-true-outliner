@@ -375,8 +375,18 @@ function caretScope(state: EditorState): CaretGuideScope | null {
   const head = state.selection.main.head;
   const cursorLine = state.doc.lineAt(head).number - 1;
   // A provisional position stands for a node that is not in the buffer yet, so
-  // the chain is read from the tree that position resolves to — the same
-  // document `factsFor` hands the guides on that render.
+  // the chain is read from the tree that position resolves to — and reading the
+  // raw parse instead would resolve the caret to the node that OWNS the gap,
+  // which for a position standing for that node's next sibling says "you are
+  // inside this" of something the reader has just left.
+  //
+  // That tree is the whole document's, and so are the guides this filters on
+  // such a render: both provisional branches of `factsFor` compute them from a
+  // whole-document parse rather than from the zoom scope. The two frames agree
+  // because they are the same frame — which is also why the zoomed rendering of
+  // a provisional position shows source-document depths, the gap
+  // `docs/research/12` records against the caret trail and which this layer
+  // inherits rather than widens.
   const provisional = provisionalAt(state);
   const scope = provisional
     ? caretGuideScope(provisional.doc, cursorLine)
@@ -585,13 +595,22 @@ function factsFor(state: EditorState): DocFacts {
     // ENDS, so a position opened past a subtree's last content line is not left
     // with its marker below a guide that stopped above it. Recomputed rather
     // than reused from `base`, which was trimmed without knowing about it.
-    const guides = computeLineGuides(parsedDoc(state.doc).doc, provisional.line);
+    const whole = parsedDoc(state.doc).doc;
+    const guides = computeLineGuides(whole, provisional.line);
     computed = {
       ...base,
       facts,
       factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
       guides,
       guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
+      // From the document the GUIDES came from, not from `base`. Under a zoom
+      // those are two different documents: `base` describes the re-rooted
+      // scope, which has exactly one root by construction, while these guides
+      // describe the whole note, which may not. Inheriting the scope's answer
+      // dropped the outermost guide of a source-document ladder whenever a
+      // provisional position was open inside a zoom with the single-root
+      // qualifier on.
+      singleRoot: hasSingleRoot(whole),
     };
   }
 
