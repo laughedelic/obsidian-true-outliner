@@ -67,7 +67,10 @@
 
 - [x] 4.1 Mark the docs/research/12 entry closed by this change, keeping its measurement, and
   check nothing else in that note still describes the trail gap as open.
-- [ ] 4.2 Sync the delta specs into `openspec/specs/` and archive the change on this branch.
-- [ ] 4.3 Bump the patch version (`npm version patch`) and confirm `manifest.json` and
+- [x] 4.2 Sync the delta specs into `openspec/specs/` and archive the change on this branch.
+- [x] 4.3 Bump the patch version (`npm version patch`) and confirm `manifest.json` and
   `versions.json` moved together with no tag created.
-- [ ] 4.4 `openspec validate positions-re-base-with-the-zoom --strict`
+- [x] 4.4 `openspec validate positions-re-base-with-the-zoom --strict` (run before archiving, and
+  `openspec validate --all --strict` after: the three specs this change touches pass; the one
+  failing item, `paste-heading-section-reencoding`, is an unrelated change this branch never
+  touched.)
