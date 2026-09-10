@@ -2,6 +2,8 @@
 
 In outline mode a note is drawn so that its structure is visible at a glance: one indentation grid for every kind of block, guide lines from each parent to its children, a marker naming each block's kind, and a highlight that shows where the caret is in the tree. All of it is additive: the note's own text, fonts and Obsidian theme are untouched, and every part of it can be tuned from the settings or overridden from a CSS snippet.
 
+<Shot name="guides-markers" alt="A note with nested lists, showing guide lines, markers and the caret's lineage" caption="Guides from every parent to its children, a marker per block, and the caret's own guides and marker in the accent colour." />
+
 ## The grid
 
 Every node steps right by the same amount per level, whatever its kind. A heading at depth two, the paragraph under it and a list item under that all sit on the same three columns, so nesting reads as nesting. Wrapped lines hang under their own first line.

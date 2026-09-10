@@ -16,6 +16,8 @@ A click on a marker only zooms: it does not move the caret, start a selection or
 
 With the caret in a node, the command zooms into that node. With a selection covering several nodes, it zooms into the first one.
 
+<Clip name="zoom-in-out" caption="A click on a heading's marker zooms to its section, a click on a bullet zooms to that item, and the commands step back out." />
+
 ## While zoomed
 
 - **The trail.** Above the content, in the note's own text size: the note's name, then each ancestor of the zoomed node from the outermost inward. Each crumb shows that ancestor's marker and its text, rendered live, with heading `#`, quote `>` and task boxes stripped. Clicking an ancestor re-zooms to it. Clicking the note's name, or the small marker at the start of the trail, zooms all the way out.
@@ -23,6 +25,8 @@ With the caret in a node, the command zooms into that node. With a selection cov
 - **Editing is confined.** The caret, Shift+Arrow, Select All and every structural key stay inside the visible subtree. A split, move, outdent or paste whose result would fall outside it is refused with *That would move it outside the zoomed view*. Clicking below the last visible line puts the caret on the last visible line, not on hidden text.
 - **The view starts at the top**, with the editor focused and the caret where it was if that is still visible, otherwise on the zoomed node. A folded subtree is unfolded when it becomes the zoom root; folds elsewhere are left alone.
 - **The backlinks footer** keeps rendering under the zoomed content.
+
+<Shot name="zoom" alt="The Materials section zoomed in, with the breadcrumb trail above it" caption="Zoomed into Materials: the trail names the note and the heading above, and the section sits at the left edge." />
 
 ## Zooming out
 
