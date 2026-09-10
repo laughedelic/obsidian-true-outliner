@@ -134,8 +134,15 @@ class ZoomClickPlugin implements PluginValue {
     if (!isOutlineMode(this.view.state)) return false;
     // A press on a fold control is that control's own, whichever of the two
     // drew it. Their ink sits in the gutter a guide column also runs through,
-    // and a control is the more specific claim.
-    if (target?.closest('.cm-fold-indicator, .to-decor-fold-toggle')) return false;
+    // and a control is the more specific claim — when the press is actually ON
+    // it. Decided by geometry rather than by the event's target, because on a
+    // touch screen the two disagree: Chrome snaps a tap to the nearest small
+    // clickable element and leaves the coordinates where the finger was, so a
+    // tap on the parent's guide, a few pixels from a chevron at a narrow unit,
+    // arrives targeting the chevron's SVG. Measured on the emulated phone: the
+    // guide's second press reopened one child instead of two.
+    const control = target?.closest<HTMLElement>('.cm-fold-indicator, .to-decor-fold-toggle');
+    if (control && controlOwnsPress(control, event.clientX, event.clientY)) return false;
     const lineEl = target?.closest<HTMLElement>('.cm-line');
     if (!lineEl) return false;
     // A guide is drawn only when guides are drawn: an affordance that
@@ -224,6 +231,34 @@ class ZoomClickPlugin implements PluginValue {
     });
   }
 }
+
+/**
+ * Whether a press at this point lies within a fold control's own hit box.
+ *
+ * Obsidian's control is its `.collapse-indicator` wrapper, the box it sizes and
+ * pads for the purpose. Ours is a zero-size anchor the glyph hangs off, so its
+ * box is the glyph's, grown to the touch target the stylesheet gives it under a
+ * coarse pointer — the same 24px, stated once there and once here.
+ */
+function controlOwnsPress(control: HTMLElement, x: number, y: number): boolean {
+  let box: DOMRect;
+  if (control.classList.contains('to-decor-fold-toggle')) {
+    const glyph = control.querySelector('svg');
+    if (!glyph) return false;
+    const rect = glyph.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height, TOUCH_TARGET_PX);
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    box = new DOMRect(cx - size / 2, cy - size / 2, size, size);
+  } else {
+    box = (control.querySelector('.collapse-indicator') ?? control).getBoundingClientRect();
+  }
+  return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+}
+
+/** The touch target styles.css gives our own fold control under a coarse
+ * pointer. */
+const TOUCH_TARGET_PX = 24;
 
 /**
  * The visual depth of the guide a press landed on, or null if it landed on none.

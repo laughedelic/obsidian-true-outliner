@@ -284,6 +284,13 @@ already declares (`depth × unit`, plus the marker gutter's base). Within a tole
 half a unit, and only left of the node's own text, the click is a guide click; otherwise it falls
 through untouched.
 
+A fold control's claim on a press is decided by the same geometry, not by the event's target. On
+a touch screen the two disagree: Chrome snaps a tap to the nearest small clickable element and
+leaves the coordinates where the finger was, so a tap on the parent's guide a few pixels from a
+chevron — the case at a phone's narrow unit — arrives targeting the chevron's SVG. Measured on the
+emulated phone: the guide's second press reopened one child instead of two. A control owns a press
+only when the point lies within its own hit box.
+
 This dissolves the parking-lot blocker, which assumed a hit area had to be invented. It also keeps
 the guides themselves `pointer-events: none`, so nothing about their painting changes.
 
