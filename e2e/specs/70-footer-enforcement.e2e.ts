@@ -42,6 +42,12 @@ import {
 } from '../footer.js';
 
 const NOTE = 'Backlinks/Deep chain.md';
+/**
+ * The four structural operations the case runs, in order. They undo one
+ * another, so the document must come back exactly as they found it — and each
+ * one must move it on the way, or it was refused.
+ */
+const OP_SEQUENCE = ['indent-node', 'outdent-node', 'move-node-up', 'move-node-down'] as const;
 /** A note with enough backlinks to have every control, for the last case. */
 const HUB = 'Projects/Aurora Dashboard.md';
 const WIDGET_SELECTOR = '.to-backlinks';
@@ -170,7 +176,7 @@ async function measure(): Promise<Observations> {
   // Requiring every step to CHANGE the document is what makes each one
   // demonstrably apply.
   const buffersDuringOps: string[] = [];
-  for (const command of ['indent-node', 'outdent-node', 'move-node-up', 'move-node-down']) {
+  for (const command of OP_SEQUENCE) {
     await h.runCommand(command);
     buffersDuringOps.push(await h.getBuffer());
   }
@@ -211,11 +217,18 @@ async function measure(): Promise<Observations> {
  * Did each of the four operations change the document? A refused operation is
  * indistinguishable from one that applied — the command reports that it ran —
  * so the only evidence that it did anything is the document moving.
+ *
+ * Named per operation rather than positional: a failure has to say which
+ * command declined, not leave the next reader to map an index back onto the
+ * order they ran in.
  */
-function stepsThatChanged(o: Observations): boolean[] {
+function changesPerOp(o: Observations): { command: string; changed: boolean }[] {
   const steps = [o.bufferBeforeOps, ...o.buffersDuringOps];
-  return steps.slice(1).map((buffer, i) => buffer !== steps[i]);
+  return OP_SEQUENCE.map((command, i) => ({ command, changed: steps[i + 1] !== steps[i] }));
 }
+
+/** Every operation applied — what `changesPerOp` must report. */
+const ALL_APPLIED = OP_SEQUENCE.map((command) => ({ command, changed: true }));
 
 describe('spike S1: end-of-document block widget vs. the enforcement layer', function () {
   before(async function () {
@@ -277,8 +290,8 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     // Every step must have changed the document, which is the part a round trip
     // alone does not give: refusals can cancel each other and still return the
     // document unchanged.
-    expect(stepsThatChanged(without)).toEqual([true, true, true, true]);
-    expect(stepsThatChanged(withWidget)).toEqual([true, true, true, true]);
+    expect(changesPerOp(without)).toEqual(ALL_APPLIED);
+    expect(changesPerOp(withWidget)).toEqual(ALL_APPLIED);
     expect(without.bufferAfterOps).toEqual(without.bufferBeforeOps);
     expect(withWidget.bufferAfterOps).toEqual(withWidget.bufferBeforeOps);
     expect(withWidget.caretAfterOps).toEqual(without.caretAfterOps);
