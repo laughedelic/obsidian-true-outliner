@@ -130,7 +130,6 @@ const OUTLINE_UNIT_LABELS: Record<OutlineUnit, string> = {
 const GUIDE_VISIBILITY_LABELS: Record<GuideVisibility, string> = {
   all: 'Every level',
   ancestors: 'The levels the cursor is inside',
-  own: 'The current node’s own guide',
   subtree: 'The levels inside the current node',
   off: 'None',
 };
@@ -1379,7 +1378,7 @@ const SETTING_OUTLINE_UNIT = {
 
 const SETTING_GUIDE_VISIBILITY = {
   name: 'Which indentation guides to draw',
-  desc: 'The vertical lines that connect a node to the levels above it. The three middle choices follow the cursor: the route down to the node, what hangs off it, or the single guide between the two. Obsidian’s own indent guides stay hidden in outline mode whichever is chosen — they sit on columns this grid does not use.',
+  desc: 'The vertical lines that connect a node to the levels above it. The two middle choices follow the cursor: the route down to the node it is in, or the ladder inside that node. Obsidian’s own indent guides stay hidden in outline mode whichever is chosen — they sit on columns this grid does not use.',
 } as const;
 
 const SETTING_GUIDE_SINGLE_ROOT = {

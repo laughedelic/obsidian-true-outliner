@@ -582,24 +582,23 @@ export type MarkerHighlight = 'off' | 'current' | 'lineage';
  * Which of a line's ancestor guides are DRAWN — a different question from
  * `GuideHighlight`, which decides how a drawn guide is accented.
  *
- * Four of the five are scoped to the caret's own node, and they answer
- * different questions about it. `'ancestors'` draws the route down to it,
- * `'subtree'` draws what hangs off it, and `'own'` draws the one guide that
- * separates the two. None of them is obviously the right default, which is why
- * all three are offered rather than one chosen for the reader.
+ * Two of the four are scoped to the caret's own node, and they look in
+ * opposite directions from it: `'ancestors'` draws the route down to it,
+ * `'subtree'` draws the ladder inside it. Between them sat a third — the one
+ * guide that node owns, the seam where the two meet — which read as too little
+ * to be worth a rung of its own and is gone.
  *
  * - `'all'` — every strict ancestor's, the base rendering.
  * - `'ancestors'` — only guides belonging to a strict ancestor of the node
  *   holding the primary caret: the levels the cursor is inside.
- * - `'own'` — only the caret's own node's guide, on the rows it covers. A node
- *   with no children owns none, so nothing is drawn there.
- * - `'subtree'` — every guide inside the caret's own node: its own and each of
- *   its descendants', on the rows they cover. The dual of `'ancestors'`.
+ * - `'subtree'` — every guide inside the caret's own node: the one it owns and
+ *   each of its descendants', on the rows they cover. The dual of
+ *   `'ancestors'`; a node with no children owns none, so nothing is drawn.
  * - `'off'` — none. Obsidian's own indent guides stay suppressed regardless: a
  *   native guide sits on a column this grid does not use, so showing one where
  *   ours is absent would be showing a ladder that does not match the content.
  */
-export type GuideVisibility = 'all' | 'ancestors' | 'own' | 'subtree' | 'off';
+export type GuideVisibility = 'all' | 'ancestors' | 'subtree' | 'off';
 
 /**
  * Where the caret is, in the terms the three caret-scoped modes ask about.
@@ -673,11 +672,9 @@ export function visibleGuideDepths(
 /**
  * Whether a depth survives the caret-scoped part of the filter, on one line.
  *
- * `'own'` and `'subtree'` are the same span — the rows the caret's node's guide
- * covers, which is its whole subtree — and differ only in how much of the
- * ladder inside it they keep: the one column the node owns, or every column
- * from that one outward, which is every guide owned by the node or something
- * inside it.
+ * `'subtree'` keeps every column from the caret's own node's outward, on the
+ * rows that node's own guide covers — which is every guide owned by the node
+ * or by something inside it, and nothing above.
  */
 function caretPredicate(
   ctx: GuideVisibilityContext,
@@ -692,7 +689,7 @@ function caretPredicate(
   }
   const inside = lineNumber >= caret.ownFrom && lineNumber <= caret.ownTo;
   if (!inside) return () => false;
-  return ctx.visibility === 'own' ? (d) => d === caret.ownDepth : (d) => d >= caret.ownDepth;
+  return (d) => d >= caret.ownDepth;
 }
 
 const EMPTY_DEPTHS: readonly number[] = [];

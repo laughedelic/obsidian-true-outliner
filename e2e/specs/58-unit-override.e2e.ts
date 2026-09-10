@@ -472,11 +472,16 @@ describe('the outline unit is one declaration the whole grid follows', function 
     expect(auto).toBe(h.IS_MOBILE_RUN ? measured.compact : measured.roomy);
   });
 
-  it('keeps a child’s mark right of its parent’s text at the narrowest step', async function () {
+  it('keeps a child’s mark right of its parent’s text, at every step', async function () {
     // The one direction that can actually break the grid. Its floor is not one
     // number — the gutter it is built from holds a checkbox Obsidian sizes
     // differently per platform (docs/research/22) — so this runs on both device
     // classes and asserts the RELATIONSHIP, never a pixel.
+    //
+    // Every rung, not just the narrowest: the bottom of the ladder is the
+    // tightest step that clears the HIGHER of the two floors, so there is no
+    // rung with an exception to explain and no device class where one reads
+    // differently.
     const note = 'Scratch/unit-floor.md';
     await h.createNote(
       note,
@@ -485,10 +490,10 @@ describe('the outline unit is one declaration the whole grid follows', function 
       ),
     );
     await h.setOutlineMode(true);
-    await h.setPluginSetting('outlineUnit', 'compact');
     await browser.pause(300);
 
-    const clearance = await browser.executeObsidian(({ app, obsidian }) => {
+    const measure = (): Promise<{ worst: number | null; depths: number[] }> =>
+      browser.executeObsidian(({ app, obsidian }) => {
       const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cm = (view.editor as any).cm;
@@ -546,13 +551,18 @@ describe('the outline unit is one declaration the whole grid follows', function 
         }
       }
       return { worst, depths: [...new Set(rows.map((r) => r.depth))].sort() };
-    });
+      });
 
-    // Fixture guard: an assertion over parent/child pairs the note never
-    // rendered would pass without measuring anything.
-    expect(clearance.depths.length).toBeGreaterThan(2);
-    expect(clearance.worst).not.toBeNull();
-    expect(clearance.worst!).toBeGreaterThan(0);
+    for (const step of ['compact', 'balanced', 'roomy', 'wide'] as const) {
+      await h.setPluginSetting('outlineUnit', step);
+      await browser.pause(250);
+      const clearance = await measure();
+      // Fixture guard: an assertion over parent/child pairs the note never
+      // rendered would pass without measuring anything.
+      expect(clearance.depths.length).toBeGreaterThan(2);
+      expect(clearance.worst).not.toBeNull();
+      expect(clearance.worst!).toBeGreaterThan(0);
+    }
 
     await h.setPluginSetting('outlineUnit', 'auto');
   });

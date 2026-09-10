@@ -72,11 +72,15 @@ body {
    * (docs/research/22-outline-unit-width.md). A rung is named by its
    * DECLARATION and never by its length, so a preset and the default that
    * happens to share its value are one number rather than two that agree until
-   * someone edits one. `1.5rem` — the pre-widening default, before
-   * `outline-unit-width` measured its way to `1.75rem` — is not among them:
-   * measured, a nested task's checkbox begins 0.4px LEFT of its parent's text
-   * there on mobile, where the floor is 24.4px against desktop's 22.0px. */
-  --to-unit-compact: 1.625rem;
+   * someone edits one.
+   *
+   * `compact` is the bottom, and it is the tightest step that still clears the
+   * floor on BOTH device classes — 24.4px on mobile against desktop's 22.0px,
+   * so the rung sits just above the higher of the two. `1.5rem` reads well on a
+   * phone and is not offered: it puts a nested task's checkbox 0.4px left of
+   * its parent's text there, and a rung that overlaps on one device class is a
+   * rung the ladder has to explain. Nothing below `compact` is offered. */
+  --to-unit-compact: 1.5625rem;
   --to-unit-balanced: 1.75rem;
   --to-unit-roomy: 2rem;
   --to-unit-wide: 2.5rem;

@@ -34,8 +34,11 @@ every device class alike.
 Every step the setting offers SHALL clear the floor the grid requires — a child's mark begins
 right of its parent's text — on every device class the plugin runs on, measured rather than
 assumed, since the marker gutter that sets that floor is itself derived from marks whose size
-varies by platform. A value the setting cannot produce, including one left in stored data by an
-older build or written by hand, SHALL fall back to the default rather than reach the grid.
+varies by platform. Because the steps are one ladder rather than one per device class, the
+narrowest SHALL be chosen against the HIGHEST of those floors, so that no step reads differently
+on one device than on another. A value the setting cannot produce, including one left in stored
+data by an older build or written by hand, SHALL fall back to the default rather than reach the
+grid.
 
 No layer SHALL hold the unit's value in any other form. In particular a component that computes
 a position outside CSS SHALL refer to the property rather than to a number equal to it, since
@@ -78,7 +81,7 @@ paragraph.
 
 #### Scenario: Every offered step clears the grid's floor
 
-- **WHEN** the narrowest step the setting offers is in force, on each device class, on a note
+- **WHEN** each step the setting offers is in force in turn, on each device class, on a note
   containing a task list
 - **THEN** every child's mark still begins right of its parent's text
 
@@ -105,20 +108,19 @@ tree depth, whatever that ancestor's kind — a heading, paragraph or atom with 
 a list item with descendants alike. Every line inside an ancestor's subtree renders that
 ancestor's guide, on that ancestor's own depth column.
 
-Which of those guides is DRAWN SHALL be governed by a visibility setting with five states:
+Which of those guides is DRAWN SHALL be governed by a visibility setting with four states:
 
 - **every level** — the rendering above, and the default;
 - **the levels the cursor is inside** — only guides belonging to a strict ancestor of the node
   holding the primary caret; every other guide is not drawn at all;
-- **the current node's own guide** — only the guide the caret's own node owns, on the rows that
-  guide covers. A node with no children owns none, and nothing is drawn;
-- **the levels inside the current node** — that guide and every guide owned by a node inside the
-  caret's own node, on the rows they cover; the dual of the state above it;
+- **the levels inside the current node** — the guide the caret's own node owns and every guide
+  owned by a node within it, on the rows they cover; the dual of the state above it. A node with
+  no children owns none, and nothing is drawn;
 - **none** — the layer draws no guides.
 
-The three caret-scoped states SHALL partition a row's guides where they meet: on a row inside the
+The two caret-scoped states SHALL partition a row's guides where they meet: on a row inside the
 caret's own node, every guide it carries belongs either to the route down to that node or to the
-ladder inside it, and the node's own guide is the boundary between them.
+ladder inside it, and no guide belongs to both.
 
 A separate setting SHALL additionally drop the OUTERMOST guide while the document has exactly
 one root node, on the grounds that a guide every line carries distinguishes nothing. A zoomed
@@ -227,19 +229,13 @@ be the same either way.
 - **THEN** no guide renders on any line in the editor, no line's geometry changes, and no native
   indent guide renders on a list line either
 
-#### Scenario: The caret's own node's guide, alone
-- **WHEN** the visibility setting names the current node's own guide and the caret is in a node
-  with children
-- **THEN** that node's own guide renders on the rows its subtree covers, and no other guide
-  renders anywhere
-
 #### Scenario: The levels inside the current node
 - **WHEN** the visibility setting names the levels inside the current node
 - **THEN** the caret's own node's guide and every guide owned within it render on the rows they
   cover, and the guides of its ancestors render nowhere
 
 #### Scenario: A childless node owns no guide to draw
-- **WHEN** either of those two states is in force and the caret is in a node with no children
+- **WHEN** that state is in force and the caret is in a node with no children
 - **THEN** no guide renders on any line
 
 #### Scenario: The outermost guide is dropped under a single root

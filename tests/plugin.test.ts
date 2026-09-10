@@ -143,12 +143,14 @@ describe('persisted plugin data', () => {
     expect(normalizePluginData({ guideVisibility: 'sometimes' }).guideVisibility).toBe(
       DEFAULT_DATA.guideVisibility,
     );
-    // `cursor` was this setting's own earlier name for the ancestors state. A
-    // retired state is not migrated — it is not a known one, so it falls back
-    // like any other unknown value.
-    expect(normalizePluginData({ guideVisibility: 'cursor' }).guideVisibility).toBe(
-      DEFAULT_DATA.guideVisibility,
-    );
+    // `cursor` was this setting's own earlier name for the ancestors state,
+    // and `own` a state it briefly had. A retired state is not migrated — it
+    // is not a known one, so it falls back like any other unknown value.
+    for (const retired of ['cursor', 'own']) {
+      expect(normalizePluginData({ guideVisibility: retired }).guideVisibility).toBe(
+        DEFAULT_DATA.guideVisibility,
+      );
+    }
     expect(normalizePluginData({ guideIntensity: 0.6 }).guideIntensity).toBe(
       DEFAULT_DATA.guideIntensity,
     );

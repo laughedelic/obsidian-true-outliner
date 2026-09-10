@@ -653,9 +653,9 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       expect(await layers(UNDER_TWO)).toBe(0);
     });
 
-    it('draws the caret’s own guide, and everything inside it', async function () {
-      // The two modes that look DOWN from the caret rather than up. A note with
-      // a level below the caret's own node, so "own" and "subtree" differ:
+    it('draws everything inside the caret’s own node, and nothing above it', async function () {
+      // The mode that looks DOWN from the caret rather than up. A note with a
+      // level below the caret's own node, so the subtree has depth of its own:
       //
       //   0 # Root        1 ## Mid      2 ### Deep      3 body
       const nested = 'Scratch/decorations-guide-subtree.md';
@@ -673,11 +673,6 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       const SIBLING = 10; // inside Other, outside Mid
       expect(await layers(BODY)).toBe(3); // Root's, Mid's, Deep's
 
-      // Only the caret's node's own column, on the rows its subtree covers.
-      await h.setPluginSetting('guideVisibility', 'own');
-      expect(await layers(BODY)).toBe(1);
-      expect(await layers(SIBLING)).toBe(0);
-
       // Its own and everything owned inside it — Root's, above, stays out.
       await h.setPluginSetting('guideVisibility', 'subtree');
       expect(await layers(BODY)).toBe(2);
@@ -687,14 +682,12 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       await h.setPluginSetting('guideVisibility', 'ancestors');
       expect(await layers(BODY)).toBe(1);
 
-      // A node with no children owns no guide, so both modes draw nothing.
+      // A node with no children owns no guide, so the mode draws nothing.
       await h.setCursorSettled(SIBLING, 3);
       await browser.pause(200);
-      for (const mode of ['own', 'subtree'] as const) {
-        await h.setPluginSetting('guideVisibility', mode);
-        expect(await layers(BODY)).toBe(0);
-        expect(await layers(SIBLING)).toBe(0);
-      }
+      await h.setPluginSetting('guideVisibility', 'subtree');
+      expect(await layers(BODY)).toBe(0);
+      expect(await layers(SIBLING)).toBe(0);
 
       await h.openNote(NOTE);
       await browser.pause(150);
@@ -717,7 +710,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
         h.getLineComputedStyle(line, '--indentation-guide-width');
       expect((await nativeWidth(3)).trim()).toBe('0px');
 
-      for (const mode of ['off', 'own', 'subtree', 'ancestors'] as const) {
+      for (const mode of ['off', 'subtree', 'ancestors'] as const) {
         await h.setPluginSetting('guideVisibility', mode);
         expect((await nativeWidth(3)).trim()).toBe('0px');
       }
@@ -809,7 +802,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       await h.setCursorSettled(UNDER_TWO, 3);
       const base = await geometry(UNDER_ONE);
 
-      for (const mode of ['ancestors', 'own', 'subtree', 'off', 'all'] as const) {
+      for (const mode of ['ancestors', 'subtree', 'off', 'all'] as const) {
         await h.setPluginSetting('guideVisibility', mode);
         expect(await geometry(UNDER_ONE)).toEqual(base);
       }

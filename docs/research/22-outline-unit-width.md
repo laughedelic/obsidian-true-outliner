@@ -115,21 +115,31 @@ correction below for why that matters):
 | Unit | Step | Desktop clearance | Mobile clearance |
 | --- | ---: | ---: | ---: |
 | `1.5rem` | 24px | +2.0px | **−0.4px** |
-| **`1.625rem`** | 26px | +4.0px | +1.6px |
+| **`1.5625rem`** | 25px | +3.0px | +0.6px |
+| `1.625rem` | 26px | +4.0px | +1.6px |
 | **`1.75rem`** | 28px | +6.0px | +3.6px |
-| `2rem` | 32px | +10.0px | +7.6px |
+| **`2rem`** | 32px | +10.0px | +7.6px |
 
 Clearance is linear in the unit, so each column names its own floor: **22.0px on desktop, 24.4px
 on mobile.** The binding mark is a task's **checkbox** — Obsidian sizes it 16px on desktop and
 `calc(16px * 1.15)` = 18.4px on mobile, and it is centred on its own column, so half of it falls
 left of that column and the gutter that holds it is 1.2px wider on mobile as well.
 
-**The ladder is therefore `1.625rem` (compact), `1.75rem` (balanced), `2rem` (roomy) and
+**The ladder is therefore `1.5625rem` (compact), `1.75rem` (balanced), `2rem` (roomy) and
 `2.5rem` (wide), with roomy as the desktop default and compact as the mobile one.** `1.5rem` —
 the pre-widening default, and the obvious bottom rung — is excluded: on mobile a nested task's
 checkbox begins 0.4px LEFT of its parent's text, which is the one arrangement this grid does not
 survive. The rung set is uniform across device classes rather than per-class, so a preset means
-one step everywhere and only the DEFAULT differs.
+one step everywhere and only the DEFAULT differs — which is why the bottom rung is chosen against
+the HIGHER of the two floors rather than each device's own.
+
+**The bottom rung's margin is thin, and it is thin on purpose.** `1.5rem` reads well on a phone
+and 25px is the tightest step that still clears mobile's floor: 0.61px of clearance, against 3px
+on desktop. Sub-pixel margin is enough for the mark not to overlap, and not enough to survive a
+theme that enlarges the checkbox — the floor is `gutter + widest ink-left`, the gutter's widest
+term IS `--checkbox-size`, and a theme may set it. A reader on such a theme sees the marks meet
+at this rung and nowhere else; the fix, if that is ever reported, is to raise the rung rather
+than to re-derive the gutter.
 
 The two defaults sit two rungs apart, and that is the point of having them differ at all. A
 desktop window has width to spend and reads better with the ladder open — `2rem` was described

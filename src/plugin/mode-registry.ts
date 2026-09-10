@@ -284,7 +284,6 @@ const KNOWN_OUTLINE_UNIT: Record<OutlineUnit, true> = {
 const KNOWN_GUIDE_VISIBILITY: Record<GuideVisibility, true> = {
   all: true,
   ancestors: true,
-  own: true,
   subtree: true,
   off: true,
 };

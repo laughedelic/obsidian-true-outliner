@@ -726,15 +726,6 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
       expect(at(OTHER_BODY, {})).toEqual([0, 1]);
     });
 
-    it('“own” draws one column, on the rows its node covers', () => {
-      const caret = caretGuideScope(nested, CARET_IN_MID);
-      // Mid owns the depth-1 guide, and it covers Mid's whole subtree.
-      expect(at(DEEP, { visibility: 'own', caret })).toEqual([1]);
-      expect(at(BODY, { visibility: 'own', caret })).toEqual([1]);
-      // Not the root's above it, and nothing at all outside the subtree.
-      expect(at(OTHER_BODY, { visibility: 'own', caret })).toEqual([]);
-    });
-
     it('“subtree” adds the guides owned inside that node', () => {
       const caret = caretGuideScope(nested, CARET_IN_MID);
       // A row inside Deep carries Mid's own guide AND Deep's, both owned within
@@ -744,15 +735,13 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
       expect(at(OTHER_BODY, { visibility: 'subtree', caret })).toEqual([]);
     });
 
-    it('“own” and “subtree” draw nothing for a node with no children', () => {
-      // A childless node's own guide has an empty span, so both modes — which
-      // read that same span — have nothing to draw anywhere.
+    it('“subtree” draws nothing for a node with no children', () => {
+      // A childless node's own guide has an empty span, and that span is what
+      // the mode reads, so there is nothing to draw anywhere.
       const caret = caretGuideScope(nested, OTHER_BODY);
       expect(caret!.ownFrom).toBeGreaterThan(caret!.ownTo);
-      for (const visibility of ['own', 'subtree'] as const) {
-        expect(at(BODY, { visibility, caret })).toEqual([]);
-        expect(at(OTHER_BODY, { visibility, caret })).toEqual([]);
-      }
+      expect(at(BODY, { visibility: 'subtree', caret })).toEqual([]);
+      expect(at(OTHER_BODY, { visibility: 'subtree', caret })).toEqual([]);
     });
 
     it('“ancestors” and “subtree” are duals across the caret’s own node', () => {
@@ -763,8 +752,9 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
       // of them: the route down to the caret's node, or the ladder inside it.
       expect([...ancestors, ...subtree].sort()).toEqual(at(BODY, {}));
       expect(ancestors.filter((d) => subtree.includes(d))).toEqual([]);
-      // And "own" is the seam between them — the shallowest of the subtree's.
-      expect(at(BODY, { visibility: 'own', caret })).toEqual([Math.min(...subtree)]);
+      // The seam is the caret's own node's column: the shallowest the subtree
+      // keeps, and one deeper than the deepest the ancestors do.
+      expect(Math.min(...subtree)).toBe(Math.max(...ancestors) + 1);
     });
   });
 

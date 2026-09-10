@@ -96,8 +96,10 @@ first, because the gutter's checkbox term is larger on mobile
 it. The specs state the invariant; the numbers land in the research note and then in the code.
 
 **Measured, and one rung lower than expected.** The floor is 22.0px on desktop and 24.4px on
-mobile, bound by a task's checkbox, so the ladder is `1.625rem` (compact) / `1.75rem` (balanced)
-/ `2rem` (roomy) / `2.5rem` (wide), with roomy the desktop default and compact the mobile one. `1.5rem` — the obvious bottom rung, and this layer's own
+mobile, bound by a task's checkbox, so the ladder is `1.5625rem` (compact) / `1.75rem`
+(balanced) / `2rem` (roomy) / `2.5rem` (wide), with roomy the desktop default and compact the
+mobile one — the bottom rung chosen against the higher of the two floors, since one ladder serves
+both device classes. `1.5rem` — the obvious bottom rung, and this layer's own
 previous default — puts a nested task's checkbox 0.4px left of its parent's text on mobile. The
 first measurement pass missed that by sweeping a fixture long enough that CodeMirror never
 rendered its task list; the e2e case, which re-derives the relationship per device class, is what

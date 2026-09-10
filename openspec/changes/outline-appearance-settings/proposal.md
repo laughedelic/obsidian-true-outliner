@@ -43,10 +43,10 @@ long note's leftmost column busy — and in the common shape where a whole note 
   property; a snippet retunes it, the accent trail follows it, and a later use for weight —
   marking the guide under the pointer — has it waiting.
 
-- **Guide visibility gets a mode and a qualifier.** The mode chooses between every level, three
-  scoped to the caret — the levels it is inside, its own node's guide, and the levels inside that
-  node — and none at all. The three caret-scoped states partition a row's guides where they meet,
-  and which of them reads best is a question only use answers, so all three are offered. The
+- **Guide visibility gets a mode and a qualifier.** The mode chooses between every level, two
+  scoped to the caret — the levels it is inside, and the levels inside the node it is in — and
+  none at all. The two caret-scoped states partition a row's guides where they meet: the route
+  down to the caret's node, and the ladder inside it. The
   qualifier drops the outermost guide when the whole document hangs off a single root — the
   `# Title` shape above, and every zoomed view by construction (`outline-zoom` re-bases the zoom
   root to depth 0).
