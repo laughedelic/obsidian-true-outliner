@@ -1229,30 +1229,37 @@ export async function waitForRead<T>(
  * happened to.
  */
 export async function waitForMetadataResolved(): Promise<void> {
+  // Best effort, and short: this exists to make footer reads less flaky, so a
+  // criterion that CI's vault does not meet — twice now, with two different
+  // definitions of "resolved", both met at once locally — must cost a few
+  // seconds and a logged sample, never a hook. The sample is what the next
+  // failure is diagnosed from.
   let held = 0;
   let previous = -1;
-  await browser.waitUntil(
-    async () => {
-      const { cached, resolved, files } = await browser.executeObsidian(({ app }) => {
-        // `getCachedFiles` is in the app's public surface and not in the
-        // bundled typings; measured present, listing every read file's path.
-        const cache = app.metadataCache as unknown as { getCachedFiles(): string[] };
-        return {
-          cached: cache.getCachedFiles().filter((f: string) => f.endsWith('.md')).length,
-          resolved: Object.keys(app.metadataCache.resolvedLinks).length,
-          files: app.vault.getMarkdownFiles().length,
-        };
-      });
-      if (cached < files || resolved !== previous) {
-        previous = resolved;
-        held = 0;
-        return false;
-      }
+  let last: unknown = null;
+  const deadline = Date.now() + waitBudget(5000);
+  do {
+    const sample = await browser.executeObsidian(({ app }) => {
+      // `getCachedFiles` is in the app's public surface and not in the
+      // bundled typings; measured present, listing every read file's path.
+      const cache = app.metadataCache as unknown as { getCachedFiles(): string[] };
+      return {
+        cached: cache.getCachedFiles().filter((f: string) => f.endsWith('.md')).length,
+        resolved: Object.keys(app.metadataCache.resolvedLinks).length,
+        files: app.vault.getMarkdownFiles().length,
+      };
+    });
+    last = sample;
+    if (sample.cached >= sample.files && sample.resolved === previous) {
       held++;
-      return held >= 3;
-    },
-    { timeout: waitBudget(20000), interval: 200, timeoutMsg: 'the metadata cache never resolved' },
-  );
+      if (held >= 3) return;
+    } else {
+      held = 0;
+    }
+    previous = sample.resolved;
+    await browser.pause(200);
+  } while (Date.now() < deadline);
+  console.log(`[metadata] never held still: last sample ${JSON.stringify(last)}`);
 }
 
 /** Is the count part of the editable document, or chrome beside it? */
