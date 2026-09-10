@@ -3486,9 +3486,15 @@ body.is-mobile {
  * Where there is no hover to reveal it, the control is simply visible — and
  * given a real touch target.
  *
- * A pointer that cannot hover never triggers the rule below, so the affordance
- * would exist and never be seen; and the painted glyph is well under the 24px
- * a finger needs. The hit area comes from a centred pseudo-element rather than
+ * A coarse pointer never triggers the hover rule below, so the affordance would
+ * exist and never be seen; and the painted glyph is well under the 24px a
+ * finger needs.
+ *
+ * `(pointer: coarse)` alone, NOT `(hover: none)`. The two look
+ * interchangeable and are not: a browser with no pointing device attached —
+ * a WebDriver session, a kiosk — reports `hover: none` with a fine pointer,
+ * and inflating a gutter control to 24px there puts an invisible hit area
+ * over the first characters of every foldable line. The hit area comes from a centred pseudo-element rather than
  * from the element's own box, so the glyph stays exactly where the native
  * chevron sits — growing the box would move it off the column both controls
  * share.
@@ -3498,7 +3504,7 @@ body.is-mobile {
  * the footer's own arithmetic, so a hit area sized here would be a foreign
  * element inside a row whose layout the footer measures.
  */
-@media (hover: none), (pointer: coarse) {
+@media (pointer: coarse) {
   .markdown-source-view.mod-cm6 .cm-content .to-decor-fold-toggle {
     opacity: 1;
   }
