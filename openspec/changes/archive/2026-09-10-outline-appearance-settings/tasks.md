@@ -178,11 +178,14 @@
 
 ## 11. Land it
 
-- [ ] 11.1 Sync the delta specs into the main specs (`openspec sync-specs`) and verify
-  `openspec validate --strict` still passes over the updated capabilities
-- [ ] 11.2 Archive the change on this branch, and verify it lands under
-  `openspec/changes/archive/` with the date prefix the archive uses
-- [ ] 11.3 Bump the version (`npm version <patch|minor>`) and verify `manifest.json` and
-  `versions.json` both move and no tag is created — CI releases from the squashed merge commit
-- [ ] 11.4 Re-check the test vault for drift before merging (`git status --short test-vault`),
-  since a local run writes settings a fixture should not carry
+- [x] 11.1 Sync the delta specs into the main specs and verify `openspec validate --strict` still
+  passes over the updated capabilities — `openspec archive` does both in one step: 2 requirements
+  added and 3 modified across the three capabilities, and all 25 spec items validate
+- [x] 11.2 Archive the change on this branch, and verify it lands under
+  `openspec/changes/archive/` with the date prefix the archive uses —
+  `archive/2026-09-10-outline-appearance-settings`
+- [x] 11.3 Bump the version (`npm version minor` — this adds user-facing settings) and verify
+  `manifest.json` and `versions.json` both move and no tag is created: 0.6.0 → 0.7.0, and
+  `git tag --points-at HEAD` is empty. CI releases from the squashed merge commit
+- [x] 11.4 Re-check the test vault for drift before merging (`git status --short test-vault`),
+  since a local run writes settings a fixture should not carry — clean
