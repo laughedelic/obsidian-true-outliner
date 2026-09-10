@@ -10,7 +10,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
-import { openFooter } from '../footer.js';
+import { openFooter, readStable } from '../footer.js';
 
 /**
  * The hub target's footer, on screen.
@@ -60,6 +60,29 @@ interface Shape {
   separators: number;
   lineageMarkers: number;
   guideRows: number;
+}
+
+/**
+ * `shape()` with the hub footer scrolled back into existence if a repaint has
+ * pushed it out of the viewport.
+ *
+ * Every setting here repaints the footer, and this one is the whole hub
+ * fixture: on a phone-sized viewport that rebuild can leave the widget outside
+ * the rendered range, where `shape()` reads null. Not `scrollToFooter` from
+ * ../footer.ts, which settles as well — that budget is what a few hundred
+ * resolving rows exhaust.
+ */
+async function hubShape(): Promise<Shape> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const now = await shape();
+    if (now) return now;
+    await browser.executeObsidian(() => {
+      const s = document.querySelector('.workspace-leaf.mod-active .cm-scroller');
+      if (s) s.scrollTop = s.scrollHeight;
+    });
+    await browser.pause(500);
+  }
+  throw new Error('no footer rendered');
 }
 
 function shape(): Promise<Shape | null> {
@@ -116,7 +139,7 @@ describe('the footer’s appearance settings', function () {
   });
 
   it('defaults to every ancestor named, nothing between them, and no guides', async function () {
-    const s = await shape();
+    const s = await hubShape();
     expect(s).not.toBeNull();
     // The fixture has to actually produce lineage, or every case below passes
     // by finding nothing to look at.
@@ -129,7 +152,7 @@ describe('the footer’s appearance settings', function () {
 
   it('drops the per-segment icons but keeps the row’s own marker', async function () {
     await set('backlinksSegmentIcons', 'own');
-    const s = await shape();
+    const s = await hubShape();
     expect(s!.segIcons).toBe(0);
     expect(s!.lineageMarkers).toBeGreaterThan(0);
     // The rows themselves are untouched — this is a decline, not a filter.
@@ -138,7 +161,7 @@ describe('the footer’s appearance settings', function () {
 
   it('drops the row’s own marker too, at the last rung', async function () {
     await set('backlinksSegmentIcons', 'none');
-    const s = await shape();
+    const s = await hubShape();
     expect(s!.segIcons).toBe(0);
     expect(s!.lineageMarkers).toBe(0);
     expect(s!.lineageRows).toBeGreaterThan(0);
@@ -147,7 +170,7 @@ describe('the footer’s appearance settings', function () {
   it('puts a chevron between ancestors when asked', async function () {
     await set('backlinksSegmentIcons', 'all');
     await set('backlinksSeparator', 'chevron');
-    const s = await shape();
+    const s = await hubShape();
     expect(s!.separators).toBeGreaterThan(0);
     // Separators stand BETWEEN ancestors, so there is one fewer than there are
     // per-segment icons plus the gutter marker each row spends on its first.
@@ -157,26 +180,11 @@ describe('the footer’s appearance settings', function () {
   it('draws guides down the footer’s rows when asked', async function () {
     await set('backlinksSeparator', 'none');
     await set('backlinksGuides', true);
-    const s = await shape();
+    const s = await hubShape();
     expect(s!.guideRows).toBeGreaterThan(0);
 
     await set('backlinksGuides', false);
-    expect((await shape())!.guideRows).toBe(0);
-  });
-
-  it('draws none while the guide layer itself is off, and returns when it comes back', async function () {
-    // Two conditions, not one. Turning the layer off is a statement about the
-    // outline's chrome rather than about one surface, and a reader who turned
-    // guides off does not expect them under the note either.
-    await set('backlinksGuides', true);
-    expect((await shape())!.guideRows).toBeGreaterThan(0);
-
-    await set('guideVisibility', 'off');
-    expect((await shape())!.guideRows).toBe(0);
-
-    await set('guideVisibility', 'all');
-    expect((await shape())!.guideRows).toBeGreaterThan(0);
-    await set('backlinksGuides', false);
+    expect((await hubShape()).guideRows).toBe(0);
   });
 
   /**
@@ -248,6 +256,25 @@ describe('the footer’s appearance settings', function () {
           inset: group ? parseFloat(getComputedStyle(group).paddingLeft) || 0 : 0,
         };
       });
+
+    it('draws none while the guide layer itself is off, and returns when it comes back', async function () {
+      // Two conditions, not one. Turning the layer off is a statement about the
+      // outline's chrome rather than about one surface, and a reader who turned
+      // guides off does not expect them under the note either.
+      //
+      // Here rather than on the hub for the reason above: each of these
+      // settings repaints every mounted footer, and doing that four times over
+      // a few hundred rows ran past mocha's per-test budget on a contended
+      // mobile runner. The claim is a presence and an absence, which the small
+      // footer answers just as well.
+      expect((await readStable(shape))!.guideRows).toBeGreaterThan(0);
+
+      await set('guideVisibility', 'off');
+      expect((await readStable(shape))!.guideRows).toBe(0);
+
+      await set('guideVisibility', 'all');
+      expect((await readStable(shape))!.guideRows).toBeGreaterThan(0);
+    });
 
     it('keeps its own rows’ guides while the editor draws only the cursor’s levels', async function () {
       // The two caret- and document-scoped modes have no referent here: a
