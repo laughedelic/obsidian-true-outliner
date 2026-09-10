@@ -578,6 +578,163 @@ export type GuideHighlight = 'off' | 'full' | 'lineage';
  */
 export type MarkerHighlight = 'off' | 'current' | 'lineage';
 
+/**
+ * Which of a line's ancestor guides are DRAWN — a different question from
+ * `GuideHighlight`, which decides how a drawn guide is accented.
+ *
+ * Two of the four are scoped to the caret's own node, and they look in
+ * opposite directions from it: `'ancestors'` draws the route down to it,
+ * `'subtree'` draws the ladder inside it. Between them sat a third — the one
+ * guide that node owns, the seam where the two meet — which read as too little
+ * to be worth a rung of its own and is gone.
+ *
+ * - `'all'` — every strict ancestor's, the base rendering.
+ * - `'ancestors'` — only guides belonging to a strict ancestor of the node
+ *   holding the primary caret: the levels the cursor is inside.
+ * - `'subtree'` — every guide inside the caret's own node: the one it owns and
+ *   each of its descendants', on the rows they cover. The dual of
+ *   `'ancestors'`; a node with no children owns none, so nothing is drawn.
+ * - `'off'` — none. Obsidian's own indent guides stay suppressed regardless: a
+ *   native guide sits on a column this grid does not use, so showing one where
+ *   ours is absent would be showing a ladder that does not match the content.
+ */
+export type GuideVisibility = 'all' | 'ancestors' | 'subtree' | 'off';
+
+/**
+ * Where the caret is, in the terms the three caret-scoped modes ask about.
+ *
+ * Built by `caretGuideScope`, and `null` where there is no caret to read.
+ */
+export interface CaretGuideScope {
+  /**
+   * Per LINE, the depths at which that line is inside one of the caret's strict
+   * ancestors.
+   *
+   * Keyed by line and not merely a set of depths, because a depth is not an
+   * identity: two sibling sections both own a guide at depth 0, and a set would
+   * keep the sibling's guide lit on every row of a subtree the caret is nowhere
+   * near.
+   */
+  readonly ancestorsByLine: ReadonlyMap<number, ReadonlySet<number>>;
+  /** The caret's own node's depth — the column its own guide is drawn on. */
+  readonly ownDepth: number;
+  /**
+   * The rows the caret's own node's guide covers: from the row after its own
+   * lines through its subtree's last content line, exactly the span
+   * `computeLineGuides` gives that depth. Empty (`from > to`) for a node with
+   * no children, which owns no guide at all.
+   */
+  readonly ownFrom: number;
+  readonly ownTo: number;
+}
+
+/** What `visibleGuideDepths` needs to answer "is this guide drawn here". */
+export interface GuideVisibilityContext {
+  readonly visibility: GuideVisibility;
+  /** Drop the outermost guide while the document has exactly one root. */
+  readonly hideSingleRoot: boolean;
+  /** Whether the document this line belongs to HAS exactly one root. */
+  readonly singleRoot: boolean;
+  /** Read only by the caret-scoped modes. */
+  readonly caret: CaretGuideScope | null;
+}
+
+/**
+ * The depths a line actually draws, given what the reader asked for.
+ *
+ * Pure, and applied at the point the layers are built rather than inside
+ * `computeLineGuides`: the walk stays caret-free so its result can be cached
+ * per document, where a caret-dependent one would be recomputed on every
+ * cursor move.
+ *
+ * Visibility is a matter of what is painted and nothing else. Nothing here
+ * feeds indentation, so a guide starting or stopping — because a setting
+ * changed, because the caret moved, or because an edit gave the document a
+ * second root — moves no character on the page.
+ */
+export function visibleGuideDepths(
+  depths: readonly number[],
+  ctx: GuideVisibilityContext,
+  lineNumber: number,
+): readonly number[] {
+  if (ctx.visibility === 'off') return EMPTY_DEPTHS;
+  // The outermost guide is dropped only where every line in the document is
+  // inside it, which is what one root means — a guide every line carries
+  // distinguishes nothing. A zoomed view satisfies this by construction, its
+  // scope being re-based to a single root at depth 0 (`outline-zoom` D9), which
+  // is the behaviour wanted there anyway.
+  const dropRoot = ctx.hideSingleRoot && ctx.singleRoot;
+  if (!dropRoot && ctx.visibility === 'all') return depths;
+  const keep = caretPredicate(ctx, lineNumber);
+  return depths.filter((d) => !(dropRoot && d === 0) && keep(d));
+}
+
+/**
+ * Whether a depth survives the caret-scoped part of the filter, on one line.
+ *
+ * `'subtree'` keeps every column from the caret's own node's outward, on the
+ * rows that node's own guide covers — which is every guide owned by the node
+ * or by something inside it, and nothing above.
+ */
+function caretPredicate(
+  ctx: GuideVisibilityContext,
+  lineNumber: number,
+): (depth: number) => boolean {
+  const caret = ctx.caret;
+  if (ctx.visibility === 'all') return () => true;
+  if (!caret) return () => false;
+  if (ctx.visibility === 'ancestors') {
+    const here = caret.ancestorsByLine.get(lineNumber);
+    return (d) => here?.has(d) ?? false;
+  }
+  const inside = lineNumber >= caret.ownFrom && lineNumber <= caret.ownTo;
+  if (!inside) return () => false;
+  return (d) => d >= caret.ownDepth;
+}
+
+const EMPTY_DEPTHS: readonly number[] = [];
+
+/** Whether the whole document hangs off one root node. */
+export function hasSingleRoot(doc: OutlineDoc): boolean {
+  return doc.children.length === 1;
+}
+
+/**
+ * Where the caret is, in the terms the caret-scoped visibility modes ask about:
+ * the rows each strict ancestor's guide covers, and the caret's own node's
+ * depth and span.
+ *
+ * The ancestor half is built from `computePositionTrail`'s `'full'` state
+ * rather than from a second walk, because that state answers exactly that
+ * question already: an ancestor's guide is active from the row after its own
+ * through its subtree's last content row, and stating that span twice is
+ * stating it twice. The node's OWN span is that same rule applied one level
+ * lower, which `chainAtLine` already reports per entry.
+ *
+ * Reads those WALKS, never `computeTrail`'s gates. Those empty the trail in two
+ * cases that are statements about accents — both accent axes off, and a
+ * selection covering whole nodes — and a guide the reader asked to see must not
+ * vanish because of either.
+ */
+export function caretGuideScope(doc: OutlineDoc, cursorLine: number): CaretGuideScope | null {
+  const chain = chainAtLine(doc, cursorLine);
+  if (!chain || chain.length === 0) return null;
+  const current = chain[chain.length - 1]!;
+  const trail = computePositionTrail(doc, cursorLine, { guides: 'full', markers: 'off' });
+  const ancestorsByLine = new Map<number, ReadonlySet<number>>();
+  for (const [line, fact] of trail.byLine) {
+    ancestorsByLine.set(line, new Set(fact.accents.map((a) => a.depth)));
+  }
+  return {
+    ancestorsByLine,
+    ownDepth: current.depth,
+    // The same span an ancestor's own guide gets, for the node the caret is in.
+    // `from > to` for a childless node, which owns no guide to draw.
+    ownFrom: current.ownEnd + 1,
+    ownTo: current.contentEnd,
+  };
+}
+
 /** The two independent axes, read together on every recompute. */
 export interface PositionHighlight {
   readonly guides: GuideHighlight;
@@ -877,4 +1034,28 @@ export function zoomAwarePositionTrail(
   if (!scope) return computePositionTrail(doc, cursorLine, highlight);
   const trail = computePositionTrail(scope.document, cursorLine - scope.startLine, highlight);
   return shiftTrail(trail, scope.startLine);
+}
+
+/**
+ * `caretGuideScope`, re-based against an active zoom scope — the same
+ * translation `zoomAwarePositionTrail` makes, and for the same reason.
+ */
+export function zoomAwareCaretScope(
+  doc: OutlineDoc,
+  cursorLine: number,
+  scope: ZoomScope | null,
+): CaretGuideScope | null {
+  if (!scope) return caretGuideScope(doc, cursorLine);
+  const local = caretGuideScope(scope.document, cursorLine - scope.startLine);
+  if (!local) return null;
+  // Only LINES move; the depths are already in the scope's own frame, the same
+  // one the guides this filters were computed in.
+  return {
+    ancestorsByLine: new Map(
+      Array.from(local.ancestorsByLine, ([line, depths]) => [line + scope.startLine, depths]),
+    ),
+    ownDepth: local.ownDepth,
+    ownFrom: local.ownFrom + scope.startLine,
+    ownTo: local.ownTo + scope.startLine,
+  };
 }

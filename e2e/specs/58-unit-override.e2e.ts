@@ -423,6 +423,150 @@ describe('the outline unit is one declaration the whole grid follows', function 
     expect(after).toBeGreaterThan(before);
   });
 
+  it('follows a preset the same way, on both surfaces, and defaults per device class', async function () {
+    // The setting reaches the same declaration a snippet does — through a
+    // property of its own that the declaration consumes as a default, so this
+    // measures the same grid the override case above measures, driven the way a
+    // reader drives it. Its precedence against a snippet lives with the rest of
+    // the mechanism in `59-appearance-settings.e2e.ts`.
+    await openFixture('unit-preset');
+
+    const step = async (): Promise<number> => {
+      const unit = await h.publishedUnit();
+      const rows = await editorRows();
+      // The same relationship the override case pins, restated over the rows
+      // this fixture renders: a level's text starts one unit right of the
+      // level above it, whatever kind the row is.
+      const byDepth = new Map<number, Row[]>();
+      for (const row of rows) byDepth.set(row.depth, [...(byDepth.get(row.depth) ?? []), row]);
+      for (const [depth, at] of byDepth) {
+        const deeper = byDepth.get(depth + 1);
+        if (!deeper) continue;
+        for (const row of at) {
+          if (row.textX === null || row.kind === 'atom') continue;
+          for (const child of deeper) {
+            if (child.textX === null || child.kind === 'atom') continue;
+            expect(child.textX - row.textX).toBeCloseTo(unit, 0);
+          }
+        }
+      }
+      return unit;
+    };
+
+    const measured: Record<string, number> = {};
+    for (const preset of ['compact', 'balanced', 'roomy', 'wide'] as const) {
+      await h.setPluginSetting('outlineUnit', preset);
+      measured[preset] = await step();
+    }
+    // A ladder, not four names for one number.
+    expect(measured.compact).toBeLessThan(measured.balanced!);
+    expect(measured.balanced).toBeLessThan(measured.roomy!);
+    expect(measured.roomy).toBeLessThan(measured.wide!);
+
+    // And the default resolves per device class: the same `auto` setting is a
+    // narrower step on a phone, where the width is worth more. Asserted against
+    // the declarations rather than against pixels, so it holds at any root font
+    // size.
+    await h.setPluginSetting('outlineUnit', 'auto');
+    const auto = await h.publishedUnit();
+    expect(auto).toBe(h.IS_MOBILE_RUN ? measured.compact : measured.roomy);
+  });
+
+  it('keeps a child’s mark right of its parent’s text, at every step', async function () {
+    // The one direction that can actually break the grid. Its floor is not one
+    // number — the gutter it is built from holds a checkbox Obsidian sizes
+    // differently per platform (docs/research/22) — so this runs on both device
+    // classes and asserts the RELATIONSHIP, never a pixel.
+    //
+    // Every rung, not just the narrowest: the bottom of the ladder is the
+    // tightest step that clears the HIGHER of the two floors, so there is no
+    // rung with an exception to explain and no device class where one reads
+    // differently.
+    const note = 'Scratch/unit-floor.md';
+    await h.createNote(
+      note,
+      ['# Section', '', '- [ ] a task', '	- [x] a done subtask', '		- a plain child', ''].join(
+        '\n',
+      ),
+    );
+    await h.setOutlineMode(true);
+    await browser.pause(300);
+
+    const measure = (): Promise<{ worst: number | null; depths: number[] }> =>
+      browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const content = cm.contentDOM.getBoundingClientRect();
+      const rows: { depth: number; textX: number | null; markLeft: number | null }[] = [];
+      for (const child of Array.from(cm.contentDOM.children) as HTMLElement[]) {
+        try {
+          cm.state.doc.lineAt(cm.posAtDOM(child));
+        } catch {
+          continue;
+        }
+        const depth = Number(getComputedStyle(child).getPropertyValue('--to-depth').trim() || '-1');
+        if (depth < 0) continue;
+        const range = document.createRange();
+        const walker = document.createTreeWalker(child, NodeFilter.SHOW_TEXT);
+        let textX: number | null = null;
+        let node: Node | null = walker.nextNode();
+        while (node) {
+          const chrome = node.parentElement?.closest(
+            '.cm-formatting-list, .cm-hmd-list-indent, .task-list-label, .to-decor-marker-icon',
+          );
+          const raw = node.textContent ?? '';
+          if (!chrome && raw.trim() !== '') {
+            range.setStart(node, raw.length - raw.trimStart().length);
+            range.setEnd(node, raw.length);
+            for (const r of Array.from(range.getClientRects())) {
+              if (r.width === 0) continue;
+              const l = r.left - content.left;
+              if (textX === null || l < textX) textX = l;
+            }
+          }
+          node = walker.nextNode();
+        }
+        let markLeft: number | null = null;
+        for (const sel of [
+          ':scope > .to-decor-marker-icon',
+          'input.task-list-item-checkbox',
+          '.list-number',
+        ]) {
+          const el = child.querySelector<HTMLElement>(sel);
+          if (!el) continue;
+          const l = el.getBoundingClientRect().left - content.left;
+          if (markLeft === null || l < markLeft) markLeft = l;
+        }
+        rows.push({ depth, textX, markLeft });
+      }
+      // The tightest gap in the note between a parent's text and a child's mark.
+      let worst: number | null = null;
+      for (const parent of rows) {
+        if (parent.textX === null) continue;
+        for (const child of rows) {
+          if (child.depth !== parent.depth + 1 || child.markLeft === null) continue;
+          const gap = child.markLeft - parent.textX;
+          if (worst === null || gap < worst) worst = gap;
+        }
+      }
+      return { worst, depths: [...new Set(rows.map((r) => r.depth))].sort() };
+      });
+
+    for (const step of ['compact', 'balanced', 'roomy', 'wide'] as const) {
+      await h.setPluginSetting('outlineUnit', step);
+      await browser.pause(250);
+      const clearance = await measure();
+      // Fixture guard: an assertion over parent/child pairs the note never
+      // rendered would pass without measuring anything.
+      expect(clearance.depths.length).toBeGreaterThan(2);
+      expect(clearance.worst).not.toBeNull();
+      expect(clearance.worst!).toBeGreaterThan(0);
+    }
+
+    await h.setPluginSetting('outlineUnit', 'auto');
+  });
+
   it('leaves a mark’s distance from its own text alone', async function () {
     // The gutter is derived from the marks it holds, not from the unit
     // (docs/research/21). Widening a level must not touch it — the two are

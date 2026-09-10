@@ -60,6 +60,10 @@ describe('persisted plugin data', () => {
       markerVisibility: 'with-children' as const,
       guideHighlight: 'lineage' as const,
       markerHighlight: 'lineage' as const,
+      outlineUnit: 'balanced' as const,
+      guideVisibility: 'subtree' as const,
+      guideHideSingleRoot: true,
+      guideIntensity: 'strong' as const,
     };
     expect(normalizePluginData(onDisk)).toEqual(onDisk);
   });
@@ -128,6 +132,30 @@ describe('persisted plugin data', () => {
     // and a prototype key is a string but not a known state
     expect(normalizePluginData({ guideHighlight: 'toString' }).guideHighlight).toBe(
       DEFAULT_DATA.guideHighlight,
+    );
+    // The appearance presets, whose unknown states would reach a CSS property
+    // as `var(--to-unit-undefined)` — a reference to nothing, which resolves to
+    // nothing and leaves the grid at a step no setting names.
+    expect(normalizePluginData({ outlineUnit: '1.5rem' }).outlineUnit).toBe(
+      DEFAULT_DATA.outlineUnit,
+    );
+    expect(normalizePluginData({ outlineUnit: 24 }).outlineUnit).toBe(DEFAULT_DATA.outlineUnit);
+    expect(normalizePluginData({ guideVisibility: 'sometimes' }).guideVisibility).toBe(
+      DEFAULT_DATA.guideVisibility,
+    );
+    // `cursor` was this setting's own earlier name for the ancestors state,
+    // and `own` a state it briefly had. A retired state is not migrated — it
+    // is not a known one, so it falls back like any other unknown value.
+    for (const retired of ['cursor', 'own']) {
+      expect(normalizePluginData({ guideVisibility: retired }).guideVisibility).toBe(
+        DEFAULT_DATA.guideVisibility,
+      );
+    }
+    expect(normalizePluginData({ guideIntensity: 0.6 }).guideIntensity).toBe(
+      DEFAULT_DATA.guideIntensity,
+    );
+    expect(normalizePluginData({ guideHideSingleRoot: 'yes' }).guideHideSingleRoot).toBe(
+      DEFAULT_DATA.guideHideSingleRoot,
     );
   });
 

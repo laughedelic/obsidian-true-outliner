@@ -55,18 +55,99 @@ body {
    * width: every column on every surface is derived from it, so a snippet
    * setting it on `body` moves the whole grid and nothing is left behind. That
    * only holds while nothing restates the value — no rule's `var()` fallback,
-   * and nothing in JS (see `UNIT_EXPR`). */
-  --to-decor-unit: 1.75rem;
+   * and nothing in JS (see `UNIT_EXPR`).
+   *
+   * The setting reaches it through `--to-set-unit`, a property of its own that
+   * this declaration consumes as a default, rather than by restating the unit.
+   * The distinction is the whole of the precedence: an inline
+   * `--to-decor-unit` on `body` would beat every stylesheet rule at any
+   * specificity and quietly demote the snippet route to "whatever the plugin is
+   * not currently setting", where a separate property leaves this one
+   * declaration exactly where it is. Unset while the reader has chosen nothing,
+   * so the default below is what resolves. */
+  --to-decor-unit: var(--to-set-unit, var(--to-unit-default));
 
-  --to-guide-color: color-mix(in srgb, var(--text-faint) 60%, transparent);
+  /* The ladder the setting offers, measured against the grid's own floor — a
+   * child's mark must begin right of its parent's text — on both device classes
+   * (docs/research/22-outline-unit-width.md). A rung is named by its
+   * DECLARATION and never by its length, so a preset and the default that
+   * happens to share its value are one number rather than two that agree until
+   * someone edits one.
+   *
+   * `compact` is the bottom, and it is the tightest step that still clears the
+   * floor on BOTH device classes — 24.4px on mobile against desktop's 22.0px,
+   * so the rung sits just above the higher of the two. `1.5rem` reads well on a
+   * phone and is not offered: it puts a nested task's checkbox 0.4px left of
+   * its parent's text there, and a rung that overlaps on one device class is a
+   * rung the ladder has to explain. Nothing below `compact` is offered. */
+  --to-unit-compact: 1.5625rem;
+  --to-unit-balanced: 1.75rem;
+  --to-unit-roomy: 2rem;
+  --to-unit-wide: 2.5rem;
+
+  /* Only the DEFAULT moves per device class, never `--to-decor-unit` itself:
+   * redeclaring the unit under a body class would raise the winning specificity
+   * above a snippet's own `body` rule and break the escape hatch on exactly the
+   * device where a reader most wants it. Keyed off the class Obsidian already
+   * puts on `body` rather than off a platform check in JS, so it follows
+   * `app.emulateMobile()` and is testable rather than mocked.
+   *
+   * The two defaults are a step apart on purpose. A desktop window has width to
+   * spend and reads better with the ladder open; a phone does not, and the same
+   * step there costs a wrapped row of text per level. */
+  --to-unit-default: var(--to-unit-roomy);
+
+  /* Intensity is a percentage over the theme's own faint text, so every rung
+   * resolves from whatever theme is running and none can be right in one mode
+   * and wrong in the other. A hue stays the stylesheet's to change.
+   *
+   * `subtle` is the default: a guide is a background relationship, and the
+   * strength that reads as one at a glance is the quietest one that still
+   * traces. The two above it are for a reader who wants the ladder to carry
+   * more of the page. */
+  --to-guide-intensity-subtle: 35%;
+  --to-guide-intensity-normal: 60%;
+  --to-guide-intensity-strong: 100%;
+  --to-guide-color: color-mix(
+    in srgb,
+    var(--text-faint) var(--to-set-guide-intensity, var(--to-guide-intensity-subtle)),
+    transparent
+  );
   --to-decor-accent: var(--text-accent);
+
+  /* A guide stripe's own width. Declared here rather than spelled where a
+   * stripe is built, for the reason the unit above records: the gradient and
+   * the position that centres it on the column are built in JS
+   * (`chrome-line.ts`), and a number there could not follow this declaration —
+   * the stripe would paint at one width while the centring assumed another.
+   * `GUIDE_WIDTH` is the only way JS refers to it, and carries no fallback.
+   *
+   * NOT a setting. `2px` was offered as one and read as too heavy against a
+   * bullet's dot; intensity carries the same axis — how much of the page a
+   * guide takes — without thickening a line that has to stay a background
+   * relationship (docs/research/09-experiment-2-guide-lines.md). A snippet
+   * still retunes it, and a later use for weight — marking the guide under the
+   * pointer, say — has the declaration waiting. */
+  --to-guide-width: 1px;
 
   /* Same width as an unaccented guide, so an accent is purely a change of
    * colour: the line does not thicken as the caret moves into a subtree, and an
    * accented guide sits on exactly the columns and weight the unaccented one
    * did. A heavier value reads as emphasis-by-weight and makes the accented
-   * column visibly jump; retune with a snippet if that is wanted. */
-  --to-trail-width: 1px;
+   * column visibly jump; retune with a snippet if that is wanted.
+   *
+   * Stated as the guide's own width rather than as a second `1px`: the two must
+   * agree at every thickness, and a literal only agrees at the one it was
+   * written for. */
+  --to-trail-width: var(--to-guide-width);
+}
+
+/* The one device-class branch in this file. See `--to-unit-default` above for
+ * why it moves the default and not the unit. `is-mobile` covers phones and
+ * tablets alike; a tablet reader with room to spare picks a wider step
+ * explicitly. */
+body.is-mobile {
+  --to-unit-default: var(--to-unit-compact);
 }
 
 /*
@@ -132,6 +213,28 @@ body {
   ) !important;
 }
 
+/* Obsidian's own indent guide, gone on every outline-mode list line —
+ * unconditionally, whatever this layer draws there.
+ *
+ * Not merely to avoid doubling up. A native guide sits on the column native
+ * list nesting puts it on, and outline mode does not use those columns: a list
+ * level renders at `depth × unit` like every other kind
+ * (`lists-on-the-outline-grid`), so the native line lands beside the grid
+ * rather than on it. Showing one is showing a ladder that does not match the
+ * content — which is worse than showing none, and worse than showing ours.
+ *
+ * So this does not follow the visibility setting. Turning our guides off means
+ * no guides, not Obsidian's instead; and a suppression that varied per line or
+ * with the caret would make a misaligned line blink in and out under the
+ * reader. Only the BORDER goes: the `.cm-indent` spans still do the layout, and
+ * they exist only while the user's own "Show indentation guides" setting is on
+ * — which stays the user's to set, and governs everywhere outline mode is
+ * not. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
+  --indentation-guide-width: 0px;
+  --indentation-guide-width-active: 0px;
+}
+
 /* List items: the SUPPLEMENTAL depth, the distance from the document root down
  * to the list's own root. `margin-left` is a box-model property native list
  * rendering does not otherwise use, so this contribution is additive on top of
@@ -175,14 +278,6 @@ body {
  */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
   --list-indent: var(--to-decor-unit);
-
-  /* Our own gradient draws every list level now (`computeLineGuides` publishes
-   * their depths and `activeGuideDepths` folds them in), so Obsidian's own line
-   * would double up on the same column. Only its BORDER goes: the `.cm-indent`
-   * spans still do the layout, and they exist only while the user's own "Show
-   * indentation guides" setting is on — which stays the user's to set. */
-  --indentation-guide-width: 0px;
-  --indentation-guide-width-active: 0px;
 
   /* A bullet is a marker like any other: same weight, same colour token, so a
    * snippet retunes lists and blocks together. 0.38em against Obsidian's 0.30em
@@ -647,9 +742,13 @@ body {
    * both by default): `left` moves the border edge out by the bleed and the
    * border puts the padding edge back where it was, so every coordinate
    * decorations.ts computes still means exactly what it meant. Sized from the
-   * widest stripe this overlay can carry, so a snippet that thickens the trail
-   * cannot reintroduce the clip. */
-  --to-stripe-bleed: max(1px, var(--to-trail-width, 1px));
+   * widest stripe this overlay can carry — the guide's own width and the
+   * accent's, which are the same value until a snippet parts them — so neither
+   * a thickened guide nor a thickened trail can reintroduce the clip. An
+   * earlier `max(1px, …)` covered only the trail: once the two agree by
+   * default, both terms resolve to the same thickness and the literal silently
+   * stopped being the guard it looks like. */
+  --to-stripe-bleed: max(var(--to-guide-width), var(--to-trail-width));
   left: calc(-1 * var(--to-own-shift, 0px) - var(--to-stripe-bleed));
   border-left: var(--to-stripe-bleed) solid transparent;
   right: 0;

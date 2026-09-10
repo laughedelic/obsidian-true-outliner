@@ -6,9 +6,12 @@ import { encode } from '../src/encode';
 import { arbMarkdownText } from './generators';
 import { planKey } from '../src/plugin/grammar';
 import {
+  caretGuideScope,
   computeLineGuides,
   computePositionTrail,
   decorate,
+  hasSingleRoot,
+  visibleGuideDepths,
   positionBisectsANode,
   resolvedOutline,
   materializeProbe,
@@ -637,6 +640,171 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       expect(g.get(4)?.guideDepths).toEqual([]);
       expect(g.get(4)?.listGuideDepths).toEqual([]);
     });
+  });
+});
+
+describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
+  /** Two sections, each with a child, so depth 0 belongs to two different
+   * ancestors — the case a set of depths alone cannot tell apart. */
+  const md = ['# One', '', 'under one', '', '# Two', '', 'under two', ''].join('\n');
+  const doc = parse(md);
+  const guides = new Map(computeLineGuides(doc).map((g) => [g.lineNumber, g]));
+  /** "under two" — inside `# Two`, which owns a guide at depth 0. */
+  const UNDER_TWO = 6;
+  /** "under one" — inside `# One`, which owns its own guide at depth 0. */
+  const UNDER_ONE = 2;
+
+  const ctx = (over: Partial<Parameters<typeof visibleGuideDepths>[1]> = {}) => ({
+    visibility: 'all' as const,
+    hideSingleRoot: false,
+    singleRoot: hasSingleRoot(doc),
+    caret: null,
+    ...over,
+  });
+
+  const drawn = (line: number, over = {}): readonly number[] =>
+    visibleGuideDepths(guides.get(line)!.guideDepths, ctx(over), line);
+
+  it('draws every ancestor level by default', () => {
+    expect(drawn(UNDER_ONE)).toEqual([0]);
+    expect(drawn(UNDER_TWO)).toEqual([0]);
+  });
+
+  it('draws nothing at all when the layer is off', () => {
+    expect(drawn(UNDER_ONE, { visibility: 'off' })).toEqual([]);
+    expect(drawn(UNDER_TWO, { visibility: 'off' })).toEqual([]);
+  });
+
+  it('draws only the levels the cursor is inside — by ancestor, not by depth', () => {
+    // The caret is in "under two". Both rows carry a guide at depth 0, and only
+    // one of those depth-0 guides belongs to an ancestor of the caret's node. A
+    // filter keyed on depth alone would keep the sibling section's guide lit.
+    const caret = caretGuideScope(doc, UNDER_TWO);
+    expect(drawn(UNDER_TWO, { visibility: 'ancestors', caret })).toEqual([0]);
+    expect(drawn(UNDER_ONE, { visibility: 'ancestors', caret })).toEqual([]);
+  });
+
+  describe('the caret’s own node, and what hangs off it', () => {
+    // One root with two levels below it, so a caret in the middle has an
+    // ancestor above, a guide of its own, and a descendant's guide below.
+    //
+    //  0 # Root                            depth 0
+    //  2 ## Mid    <- the caret's node       depth 1, owns the depth-1 guide
+    //  4 ### Deep  <- inside it              depth 2, owns the depth-2 guide
+    //  6 body      <- inside both            depth 3
+    //  8 ## Other  <- a sibling of Mid       depth 1, outside the subtree
+    // 10 other body                          depth 2
+    const nested = parse(
+      ['# Root', '', '## Mid', '', '### Deep', '', 'body', '', '## Other', '', 'other body', ''].join(
+        '\n',
+      ),
+    );
+    const nestedGuides = new Map(computeLineGuides(nested).map((g) => [g.lineNumber, g]));
+    const at = (
+      line: number,
+      over: Partial<Parameters<typeof visibleGuideDepths>[1]> = {},
+    ): readonly number[] =>
+      visibleGuideDepths(
+        nestedGuides.get(line)!.guideDepths,
+        {
+          visibility: 'all',
+          hideSingleRoot: false,
+          singleRoot: hasSingleRoot(nested),
+          caret: null,
+          ...over,
+        },
+        line,
+      );
+    const CARET_IN_MID = 2;
+    const DEEP = 4;
+    const BODY = 6;
+    const OTHER_BODY = 10;
+
+    it('the whole ladder is what every other mode is a subset of', () => {
+      expect(at(DEEP, {})).toEqual([0, 1]);
+      expect(at(BODY, {})).toEqual([0, 1, 2]);
+      expect(at(OTHER_BODY, {})).toEqual([0, 1]);
+    });
+
+    it('“subtree” adds the guides owned inside that node', () => {
+      const caret = caretGuideScope(nested, CARET_IN_MID);
+      // A row inside Deep carries Mid's own guide AND Deep's, both owned within
+      // the caret's subtree — and not the root's, which is above it.
+      expect(at(BODY, { visibility: 'subtree', caret })).toEqual([1, 2]);
+      expect(at(DEEP, { visibility: 'subtree', caret })).toEqual([1]);
+      expect(at(OTHER_BODY, { visibility: 'subtree', caret })).toEqual([]);
+    });
+
+    it('“subtree” draws nothing for a node with no children', () => {
+      // A childless node's own guide has an empty span, and that span is what
+      // the mode reads, so there is nothing to draw anywhere.
+      const caret = caretGuideScope(nested, OTHER_BODY);
+      expect(caret!.ownFrom).toBeGreaterThan(caret!.ownTo);
+      expect(at(BODY, { visibility: 'subtree', caret })).toEqual([]);
+      expect(at(OTHER_BODY, { visibility: 'subtree', caret })).toEqual([]);
+    });
+
+    it('“ancestors” and “subtree” are duals across the caret’s own node', () => {
+      const caret = caretGuideScope(nested, CARET_IN_MID);
+      const ancestors = at(BODY, { visibility: 'ancestors', caret });
+      const subtree = at(BODY, { visibility: 'subtree', caret });
+      // On a row inside the caret's subtree, every guide belongs to exactly one
+      // of them: the route down to the caret's node, or the ladder inside it.
+      expect([...ancestors, ...subtree].sort()).toEqual(at(BODY, {}));
+      expect(ancestors.filter((d) => subtree.includes(d))).toEqual([]);
+      // The seam is the caret's own node's column: the shallowest the subtree
+      // keeps, and one deeper than the deepest the ancestors do.
+      expect(Math.min(...subtree)).toBe(Math.max(...ancestors) + 1);
+    });
+  });
+
+  it('drops the outermost guide only where the document has a single root', () => {
+    // Two roots here, so the outermost guide names something: it is kept.
+    expect(drawn(UNDER_TWO, { hideSingleRoot: true })).toEqual([0]);
+
+    const single = parse(['# Title', '', '## Section', '', 'deep', ''].join('\n'));
+    const singleGuides = new Map(computeLineGuides(single).map((g) => [g.lineNumber, g]));
+    const deep = singleGuides.get(4)!;
+    expect(deep.guideDepths).toEqual([0, 1]);
+    const singleCtx = {
+      visibility: 'all' as const,
+      hideSingleRoot: true,
+      singleRoot: hasSingleRoot(single),
+      caret: null,
+    };
+    // Only the outermost goes; a single chain below it keeps every level, so
+    // the ladder never depends on content several levels away.
+    expect(visibleGuideDepths(deep.guideDepths, singleCtx, 4)).toEqual([1]);
+  });
+
+  it('a single root with a single child keeps that child’s own guide', () => {
+    const single = parse(['# Title', '', '## Only', '', 'deep', ''].join('\n'));
+    expect(hasSingleRoot(single)).toBe(true);
+    const guide = computeLineGuides(single).find((g) => g.lineNumber === 4)!;
+    const out = visibleGuideDepths(
+      guide.guideDepths,
+      { visibility: 'all', hideSingleRoot: true, singleRoot: true, caret: null },
+      4,
+    );
+    expect(out).toEqual([1]);
+  });
+
+  it('reports a single root for the document it is asked about, not for a subtree of it', () => {
+    // The qualifier's fact has to come from the document its GUIDES came from.
+    // A zoom scope is re-rooted, so it always answers "one root" — reading it
+    // for a ladder computed over the whole note drops an outermost guide that
+    // names something. The predicate is per-document precisely so the caller
+    // has to say which one it means.
+    const whole = parse(['# One', '', 'a', '', '# Two', '', 'b', ''].join('\n'));
+    expect(hasSingleRoot(whole)).toBe(false);
+    const subtree = resolveZoom(whole, 0)!; // zoom into "# One"
+    expect(hasSingleRoot(subtree.document)).toBe(true);
+  });
+
+  it('reports a single root for one top-level node, and not for two', () => {
+    expect(hasSingleRoot(parse('# Only\n\nbody\n'))).toBe(true);
+    expect(hasSingleRoot(doc)).toBe(false);
+    expect(hasSingleRoot(parse(''))).toBe(false);
   });
 });
 

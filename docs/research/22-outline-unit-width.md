@@ -36,6 +36,10 @@ The floor is well clear. A child's mark must begin right of its parent's text, w
 `unit > gutter + widest ink-left` — about 22px at the derived gutter. The previous default sat
 2px above that; the new one sits 6px above it. Widening only increases the margin.
 
+That 22px is arithmetic from the widest mark the gutter is sized for. Measured per device class
+later, the binding mark turns out to be a narrower one and the floor differs between desktop and
+mobile — see "A preset ladder, and the floor on two device classes" below.
+
 ## The override, and why it needed a test rather than a fix
 
 Overriding `--to-decor-unit` the way a snippet would already retargeted everything, before this
@@ -82,3 +86,89 @@ published property the chevron's clearance is exactly what it was.
 That is the change's own thesis arriving as evidence. A spelled unit is inert until the
 declaration moves, and then it is wrong. The two specs that held one — this and
 `56-list-grid.e2e.ts` — now read the value the document publishes.
+
+## A preset ladder, and the floor on two device classes
+
+`outline-unit-width` left the unit a single derived default with a snippet as the only way to
+retune it, and called a setting an explicit non-goal. `outline-appearance-settings` takes that
+back up, which means the ladder's rungs have to be chosen against the floor rather than against
+taste alone — and the floor is not one number, because the gutter it is built from is not
+([21](21-marker-text-gap.md) derives the gutter from the marks it must hold, and one of those
+marks is sized by the platform).
+
+**Measured 8 September 2026**, Obsidian 1.13.7, bundled theme, 16px root font. Desktop is the
+1024×800 window the e2e harness runs; mobile is the same build under `app.emulateMobile()` at
+390×844.
+
+The floor is stated as a relationship rather than a length: **a child's mark must begin right of
+its parent's text.** Measured directly as the gap between a parent row's first text ink and a
+child row's leftmost mark ink, over a fixture whose every row is rendered at once (see the
+correction below for why that matters):
+
+```
+# Section
+- [ ] a task
+	- [x] a done subtask
+		- a plain child
+```
+
+| Unit | Step | Desktop clearance | Mobile clearance |
+| --- | ---: | ---: | ---: |
+| `1.5rem` | 24px | +2.0px | **−0.4px** |
+| **`1.5625rem`** | 25px | +3.0px | +0.6px |
+| `1.625rem` | 26px | +4.0px | +1.6px |
+| **`1.75rem`** | 28px | +6.0px | +3.6px |
+| **`2rem`** | 32px | +10.0px | +7.6px |
+
+Clearance is linear in the unit, so each column names its own floor: **22.0px on desktop, 24.4px
+on mobile.** The binding mark is a task's **checkbox** — Obsidian sizes it 16px on desktop and
+`calc(16px * 1.15)` = 18.4px on mobile, and it is centred on its own column, so half of it falls
+left of that column and the gutter that holds it is 1.2px wider on mobile as well.
+
+**The ladder is therefore `1.5625rem` (compact), `1.75rem` (balanced), `2rem` (roomy) and
+`2.5rem` (wide), with roomy as the desktop default and compact as the mobile one.** `1.5rem` —
+the pre-widening default, and the obvious bottom rung — is excluded: on mobile a nested task's
+checkbox begins 0.4px LEFT of its parent's text, which is the one arrangement this grid does not
+survive. The rung set is uniform across device classes rather than per-class, so a preset means
+one step everywhere and only the DEFAULT differs — which is why the bottom rung is chosen against
+the HIGHER of the two floors rather than each device's own.
+
+**The bottom rung's margin is thin, and it is thin on purpose.** `1.5rem` reads well on a phone
+and does not clear the floor there, so the rung sits at `1.5625rem` — 25px, the tightest step
+that does: 0.61px of clearance on mobile, against 3px on desktop. Sub-pixel margin is enough for the mark not to overlap, and not enough to survive a
+theme that enlarges the checkbox — the floor is `gutter + widest ink-left`, the gutter's widest
+term IS `--checkbox-size`, and a theme may set it. A reader on such a theme sees the marks meet
+at this rung and nowhere else; the fix, if that is ever reported, is to raise the rung rather
+than to re-derive the gutter.
+
+The two defaults sit two rungs apart, and that is the point of having them differ at all. A
+desktop window has width to spend and reads better with the ladder open — `2rem` was described
+above as "legible, but a four-deep list starts spending real width on chrome", which is a fair
+price on a wide window and not on a narrow one. A phone pays that price in wrapped rows of text,
+so it gets the tightest rung that clears its own floor.
+
+`2.5rem` was rendered and read rather than assumed. On a desktop window a four-deep list at that
+step spends real width on chrome — more than [the reading above](#what-was-measured-and-what-was-chosen)
+found at `2rem` — but nothing about it is unsafe, and it is offered as a choice rather than
+proposed as a default.
+
+On a 390px viewport the narrower default is not a matter of taste: the fixture corpus's four-deep
+wrapped item takes one row fewer at the compact step than at the standard one, and the ladder
+still reads as a ladder.
+
+### The correction: a long fixture measures only its viewport
+
+The first pass at this table reported floors of 20.79px and 22.0px, bound by our own block-marker
+icon rather than by a checkbox, and concluded that `1.5rem` cleared both. It was measured over
+`Notes/List decoration demo.md`, which carries a task list precisely so that the widest mark is in
+the sample.
+
+It was not in the sample. CodeMirror renders the viewport, not the document, and that fixture's
+task section sits below the fold — so the probe swept every rendered row, found no checkbox among
+them, and reported the tightest pair it could see. The number was true of what it measured and
+false of the question it was asked.
+
+Caught by the e2e case that now holds this floor permanently, which failed on the mobile run at
+the rung the first pass had endorsed. Two things follow, both cheap: measure a floor over a
+fixture short enough to render whole, and state the assertion as a relationship the test can
+re-derive on each device class rather than as a number recorded once.

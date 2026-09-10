@@ -48,6 +48,27 @@ export const DEFAULT_MARKER_VISIBILITY: MarkerVisibility = "all";
 export type { GuideHighlight, MarkerHighlight } from "./decorate";
 
 /**
+ * Which of a line's ancestor guides the base layer draws
+ * (`outline-appearance-settings`). Declared in decorate.ts beside the pure
+ * filter that applies it, and re-exported here for the reason above.
+ *
+ * A different question from `GuideHighlight`, which accents guides that are
+ * drawn: this one decides which exist to be accented at all.
+ */
+export type { GuideVisibility } from "./decorate";
+
+/**
+ * The appearance a reader picks from a preset rather than a length
+ * (`outline-appearance-settings`). Declared in chrome-tokens.ts, beside the map
+ * from each preset to the declaration holding its value — the numbers live in
+ * styles.css and nothing here holds one.
+ *
+ * `auto` is the unit's default state, and means the plugin publishes nothing:
+ * the step then resolves from the device-class default in the stylesheet.
+ */
+export type { GuideIntensity, OutlineUnit } from "./chrome-tokens";
+
+/**
  * The backlinks footer's controls, and the two caps that bound it.
  *
  * Named values rather than a free number or a CSS length: the settings tab is
@@ -108,6 +129,11 @@ export const DEFAULT_SORT_ORDER: SortOrder = "recent";
 import type { GuideHighlight, MarkerHighlight } from "./decorate";
 export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = "full";
 export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = "current";
+import type { GuideVisibility } from "./decorate";
+import type { GuideIntensity, OutlineUnit } from "./chrome-tokens";
+export const DEFAULT_OUTLINE_UNIT: OutlineUnit = "auto";
+export const DEFAULT_GUIDE_VISIBILITY: GuideVisibility = "all";
+export const DEFAULT_GUIDE_INTENSITY: GuideIntensity = "subtle";
 
 /**
  * How the status bar states the active tab's mode.
@@ -162,6 +188,16 @@ export interface PluginData {
   /** Whether the footer body draws guide lines. The model reports
    * `guideDepths` either way; the renderer is the one site that declines. */
   backlinksGuides: boolean;
+  /** One tree level's step, as a preset. `auto` publishes nothing and lets the
+   * stylesheet's own device-class default resolve. */
+  outlineUnit: OutlineUnit;
+  /** See `GuideVisibility`. */
+  guideVisibility: GuideVisibility;
+  /** Drop the outermost guide while the document has exactly one root — a
+   * guide every line carries names nothing. Paint only: no line moves. */
+  guideHideSingleRoot: boolean;
+  /** See `GuideIntensity`. */
+  guideIntensity: GuideIntensity;
 }
 
 export const DEFAULT_DATA: PluginData = {
@@ -180,6 +216,10 @@ export const DEFAULT_DATA: PluginData = {
   backlinksSegmentIcons: DEFAULT_SEGMENT_ICONS,
   backlinksSeparator: DEFAULT_LINEAGE_SEPARATOR,
   backlinksGuides: false,
+  outlineUnit: DEFAULT_OUTLINE_UNIT,
+  guideVisibility: DEFAULT_GUIDE_VISIBILITY,
+  guideHideSingleRoot: false,
+  guideIntensity: DEFAULT_GUIDE_INTENSITY,
 };
 
 /**
@@ -233,6 +273,24 @@ const KNOWN_MARKER_HIGHLIGHT: Record<MarkerHighlight, true> = {
   off: true,
   current: true,
   lineage: true,
+};
+const KNOWN_OUTLINE_UNIT: Record<OutlineUnit, true> = {
+  auto: true,
+  compact: true,
+  balanced: true,
+  roomy: true,
+  wide: true,
+};
+const KNOWN_GUIDE_VISIBILITY: Record<GuideVisibility, true> = {
+  all: true,
+  ancestors: true,
+  subtree: true,
+  off: true,
+};
+const KNOWN_GUIDE_INTENSITY: Record<GuideIntensity, true> = {
+  subtle: true,
+  normal: true,
+  strong: true,
 };
 
 const oneOf = <T extends string>(
@@ -337,6 +395,25 @@ export function normalizePluginData(raw: unknown): PluginData {
     backlinksGuides: bool(
       stored.backlinksGuides,
       DEFAULT_DATA.backlinksGuides,
+    ),
+    outlineUnit: oneOf(
+      KNOWN_OUTLINE_UNIT,
+      stored.outlineUnit,
+      DEFAULT_DATA.outlineUnit,
+    ),
+    guideVisibility: oneOf(
+      KNOWN_GUIDE_VISIBILITY,
+      stored.guideVisibility,
+      DEFAULT_DATA.guideVisibility,
+    ),
+    guideHideSingleRoot: bool(
+      stored.guideHideSingleRoot,
+      DEFAULT_DATA.guideHideSingleRoot,
+    ),
+    guideIntensity: oneOf(
+      KNOWN_GUIDE_INTENSITY,
+      stored.guideIntensity,
+      DEFAULT_DATA.guideIntensity,
     ),
   };
 }

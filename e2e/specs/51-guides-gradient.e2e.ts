@@ -585,4 +585,366 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     // it is derived from the marks it holds (docs/research/21-marker-text-gap.md).
     expect(info.codeLeft - info.listLeft).toBeCloseTo(await h.publishedGutter(), 0);
   });
+
+  describe('which guides are drawn', function () {
+    // Two sections, each with a child of its own, so depth 0 belongs to two
+    // different ancestors — the case that tells "the levels the cursor is
+    // inside" apart from "the depths the cursor happens to sit at".
+    const NOTE = 'Scratch/decorations-guide-visibility.md';
+    const MD = ['# One', '', 'under one', '', '# Two', '', 'under two', ''].join('\n');
+    const UNDER_ONE = 2;
+    const UNDER_TWO = 6;
+
+    /** Gradient layers on a line's guide overlay. */
+    const layers = async (line: number): Promise<number> =>
+      gradientLayerCount(await h.getLinePseudoComputedStyle(line, 'background-image'));
+
+    /** Every geometry a visibility change must leave exactly where it was. */
+    const geometry = (line: number): Promise<Record<string, string>> =>
+      browser.executeObsidian(
+        ({ app, obsidian }, line: number) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cm = (view.editor as any).cm;
+          const el = cm.contentDOM.querySelectorAll(':scope > .cm-line')[line] as HTMLElement;
+          const cs = getComputedStyle(el);
+          const content = cm.contentDOM.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const text = range.getClientRects()[0];
+          return {
+            paddingLeft: cs.paddingLeft,
+            marginLeft: cs.marginLeft,
+            textIndent: cs.textIndent,
+            textX: text ? (text.left - content.left).toFixed(2) : 'none',
+          };
+        },
+        line,
+      );
+
+    before(async function () {
+      await h.createNote(NOTE, MD);
+      await ensureOutlineMode(NOTE);
+      await browser.pause(150);
+    });
+
+    afterEach(async function () {
+      await h.setPluginSetting('guideVisibility', 'all');
+      await h.setPluginSetting('guideHideSingleRoot', false);
+    });
+
+    it('draws every ancestor level by default', async function () {
+      expect(await layers(UNDER_ONE)).toBe(1);
+      expect(await layers(UNDER_TWO)).toBe(1);
+    });
+
+    it('draws only the levels the cursor is inside, by ancestor and not by depth', async function () {
+      await h.setCursorSettled(UNDER_TWO, 3);
+      await h.setPluginSetting('guideVisibility', 'ancestors');
+      // Both rows carry a guide at depth 0, and only one of those depth-0
+      // guides belongs to an ancestor of the caret's own node.
+      expect(await layers(UNDER_TWO)).toBe(1);
+      expect(await layers(UNDER_ONE)).toBe(0);
+
+      // And it follows the caret, with no setting change in between.
+      await h.setCursorSettled(UNDER_ONE, 3);
+      await browser.pause(200);
+      expect(await layers(UNDER_ONE)).toBe(1);
+      expect(await layers(UNDER_TWO)).toBe(0);
+    });
+
+    it('draws everything inside the caret’s own node, and nothing above it', async function () {
+      // The mode that looks DOWN from the caret rather than up. A note with a
+      // level below the caret's own node, so the subtree has depth of its own:
+      //
+      //   0 # Root        1 ## Mid      2 ### Deep      3 body
+      const nested = 'Scratch/decorations-guide-subtree.md';
+      await h.createNote(
+        nested,
+        ['# Root', '', '## Mid', '', '### Deep', '', 'body', '', '## Other', '', 'sibling', ''].join(
+          '\n',
+        ),
+      );
+      await ensureOutlineMode(nested);
+      await h.setCursorSettled(2, 6); // "## Mid"
+      await browser.pause(200);
+
+      const BODY = 6; // inside Deep, inside Mid, inside Root
+      const SIBLING = 10; // inside Other, outside Mid
+      expect(await layers(BODY)).toBe(3); // Root's, Mid's, Deep's
+
+      // Its own and everything owned inside it — Root's, above, stays out.
+      await h.setPluginSetting('guideVisibility', 'subtree');
+      expect(await layers(BODY)).toBe(2);
+      expect(await layers(SIBLING)).toBe(0);
+
+      // And the dual: what "ancestors" draws on that row is exactly the rest.
+      await h.setPluginSetting('guideVisibility', 'ancestors');
+      expect(await layers(BODY)).toBe(1);
+
+      // A node with no children owns no guide, so the mode draws nothing.
+      await h.setCursorSettled(SIBLING, 3);
+      await browser.pause(200);
+      await h.setPluginSetting('guideVisibility', 'subtree');
+      expect(await layers(BODY)).toBe(0);
+      expect(await layers(SIBLING)).toBe(0);
+
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('draws none at all when the layer is off, and still shows no native guide', async function () {
+      // Obsidian's own indent guide stays suppressed whatever this layer draws.
+      // It sits on the column native list nesting puts it on, and outline mode
+      // does not use those columns — a list level renders at `depth × unit`
+      // like every other kind — so a native guide here is a ladder that does
+      // not match the content. Drawing none of ours is not a reason to show
+      // one; it is a reason to show nothing.
+      const listNote = 'Scratch/decorations-guide-visibility-list.md';
+      await h.createNote(listNote, ['# Section', '', '- top', '\t- nested', ''].join('\n'));
+      await ensureOutlineMode(listNote);
+      await h.setIndentGuides(true); // the reader's own setting, deliberately ON
+      await browser.pause(150);
+
+      const nativeWidth = (line: number): Promise<string> =>
+        h.getLineComputedStyle(line, '--indentation-guide-width');
+      expect((await nativeWidth(3)).trim()).toBe('0px');
+
+      for (const mode of ['off', 'subtree', 'ancestors'] as const) {
+        await h.setPluginSetting('guideVisibility', mode);
+        expect((await nativeWidth(3)).trim()).toBe('0px');
+      }
+      await h.setPluginSetting('guideVisibility', 'off');
+      expect(await layers(2)).toBe(0);
+      expect(await layers(3)).toBe(0);
+
+      await h.setPluginSetting('guideVisibility', 'all');
+      expect((await nativeWidth(3)).trim()).toBe('0px');
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('drops the outermost guide only where the note has a single root', async function () {
+      // Two roots: the outermost guide names something, so it stays.
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      expect(await layers(UNDER_TWO)).toBe(1);
+
+      const single = 'Scratch/decorations-guide-single-root.md';
+      await h.createNote(single, ['# Title', '', '## Section', '', 'deep', ''].join('\n'));
+      await ensureOutlineMode(single);
+      await browser.pause(150);
+      // "deep" is inside both the title and the section; with one root the
+      // title's guide runs down every line and names nothing.
+      expect(await layers(4)).toBe(1);
+      await h.setPluginSetting('guideHideSingleRoot', false);
+      expect(await layers(4)).toBe(2);
+
+      // A second root brings it back, with nothing else changed.
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      expect(await layers(4)).toBe(1);
+      await h.setBuffer(
+        ['# Title', '', '## Section', '', 'deep', '', '# Second', '', 'body', ''].join('\n'),
+      );
+      await browser.pause(300);
+      expect(await layers(4)).toBe(2);
+
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('drops the zoom root’s own guide while zoomed, and keeps the levels inside it', async function () {
+      // A zoomed view has one root by construction — the scope is re-based so
+      // the zoom root renders at depth 0 — so the qualifier applies there for
+      // the same reason it applies to a single-rooted note: while zoomed into a
+      // node, its own guide down the whole view says nothing.
+      const zoomNote = 'Scratch/decorations-guide-zoom.md';
+      const md = ['# Root', '', '## Mid', '', 'inner para', '', '# Other', '', 'body', ''].join(
+        '\n',
+      );
+      await h.createNote(zoomNote, md);
+      await ensureOutlineMode(zoomNote);
+      await h.setCursorSettled(2, 6); // "## Mid"
+      await h.runCommand('zoom-in');
+      await browser.pause(300);
+
+      // Hidden lines are not rendered at all while zoomed, so the row is
+      // indexed among what the view actually draws — "## Mid", its gap, then
+      // "inner para".
+      const rendered = await browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (view.editor as any).cm;
+        return Array.from(
+          cm.contentDOM.querySelectorAll(':scope > .cm-line'),
+          (el) => (el as HTMLElement).textContent ?? '',
+        );
+      });
+      const inner = rendered.findIndex((t) => t.includes('inner para'));
+      expect(inner).toBeGreaterThan(-1);
+
+      // Zoomed into "## Mid": "inner para" is inside it, and inside nothing
+      // else the view renders.
+      expect(await layers(inner)).toBe(1);
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      expect(await layers(inner)).toBe(0);
+
+      await h.setPluginSetting('guideHideSingleRoot', false);
+      expect(await layers(inner)).toBe(1);
+      await h.runCommand('zoom-clear');
+      await browser.pause(200);
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('reads the single-root qualifier from the document its guides came from', async function () {
+      // Three things have to be true at once for these to be two different
+      // documents: a zoom scope (which is re-rooted, so it always has exactly
+      // one root), a provisional position (whose guides are computed from the
+      // WHOLE note rather than from the scope), and the qualifier on. Ask the
+      // scope whether the note has one root and the answer is always yes —
+      // which drops the outermost guide of a ladder that names something.
+      const note = 'Scratch/decorations-guide-qualifier-frame.md';
+      await h.createNote(
+        note,
+        ['# One', '', '## Sub', '', 'body', '', '# Two', '', 'other', ''].join('\n'),
+      );
+      await ensureOutlineMode(note);
+      await h.setCursorSettled(0, 5);
+      await h.runCommand('zoom-in'); // into "# One", whose subtree has one root
+      await browser.pause(300);
+
+      const bodyRow = async (): Promise<number> => {
+        const rendered = await browser.executeObsidian(({ app, obsidian }) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cm = (view.editor as any).cm;
+          return Array.from(
+            cm.contentDOM.querySelectorAll(':scope > .cm-line'),
+            (el) => (el as HTMLElement).textContent ?? '',
+          );
+        });
+        const i = rendered.findIndex((t) => t.trim() === 'body');
+        expect(i).toBeGreaterThan(-1);
+        return layers(i);
+      };
+
+      // A caret on the blank row inside the zoom is a provisional position.
+      await h.setCursor(3, 0);
+      await browser.pause(300);
+      const before = await bodyRow();
+      expect(before).toBeGreaterThan(1); // "# One" and "## Sub" both above it
+
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      // The note has TWO roots, so nothing is dropped — whatever the scope,
+      // which has one, would have said.
+      expect(await bodyRow()).toBe(before);
+
+      await h.setPluginSetting('guideHideSingleRoot', false);
+      await h.runCommand('zoom-clear');
+      await browser.pause(200);
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('moves no line’s geometry under any visibility mode, or as the caret moves', async function () {
+      // Guides are painted, not laid out. Every mode, and every caret position
+      // within a mode, has to leave the grid exactly where it was.
+      await h.setCursorSettled(UNDER_TWO, 3);
+      const base = await geometry(UNDER_ONE);
+
+      for (const mode of ['ancestors', 'subtree', 'off', 'all'] as const) {
+        await h.setPluginSetting('guideVisibility', mode);
+        expect(await geometry(UNDER_ONE)).toEqual(base);
+      }
+      await h.setPluginSetting('guideVisibility', 'ancestors');
+      await h.setCursorSettled(UNDER_ONE, 3);
+      await browser.pause(200);
+      expect(await geometry(UNDER_ONE)).toEqual(base);
+
+      await h.setPluginSetting('guideHideSingleRoot', true);
+      expect(await geometry(UNDER_ONE)).toEqual(base);
+    });
+  });
+
+  it('the guide’s width is one declaration: the stripe, the accent and the overlay’s own paint area all follow it', async function () {
+    // `GUIDE_WIDTH` used to be a JS literal, which meant the gradient was
+    // built at one width while the rules around it assumed another the
+    // moment either moved. Now it is a property, and three things have to
+    // follow it at once: the stripe the gradient paints, the accent's width
+    // (an accent is a change of colour, not of weight), and the overlay's
+    // leftward paint bleed — without which a depth-0 stripe, centred on this
+    // box's own left edge, loses the half that falls outside it.
+    const note = 'Scratch/decorations-guide-width.md';
+    await h.createNote(note, '# Parent\n\nchild\n');
+    await ensureOutlineMode(note);
+    await browser.pause(150);
+
+    /** A length-valued custom property, RESOLVED the way layout resolves it. */
+    const resolve = (prop: string): Promise<number> =>
+      browser.execute((p: string) => {
+        const probe = document.createElement('div');
+        probe.style.cssText = `position:absolute;visibility:hidden;height:0;width:var(${p});`;
+        document.body.appendChild(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        return +width.toFixed(2);
+      }, prop);
+
+    /** The overlay's own border box: `left`, and the transparent bleed border. */
+    const overlay = (): Promise<{ left: number; bleed: number; stripeStart: number }> =>
+      browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (view.editor as any).cm;
+        const line = cm.contentDOM.querySelectorAll(':scope > .cm-line')[2] as HTMLElement;
+        const cs = getComputedStyle(line, '::after');
+        return {
+          left: parseFloat(cs.left) || 0,
+          bleed: parseFloat(cs.borderLeftWidth) || 0,
+          stripeStart: parseFloat(cs.backgroundPosition) || 0,
+        };
+      });
+
+    const base = { width: await resolve('--to-guide-width'), trail: await resolve('--to-trail-width') };
+    const baseOverlay = await overlay();
+    // The accent is the guide's own width, so entering a subtree recolours a
+    // column without thickening it.
+    expect(base.trail).toBe(base.width);
+    // The bleed covers the widest stripe the overlay carries — at minimum the
+    // half of a depth-0 stripe that falls left of this box's own edge.
+    expect(baseOverlay.bleed).toBeGreaterThanOrEqual(base.width / 2);
+
+    // A snippet thickens the guide. Everything derived from it moves together.
+    await h.applyStyleOverride('to-guide-width-probe', 'body { --to-guide-width: 3px; }');
+    const thick = { width: await resolve('--to-guide-width'), trail: await resolve('--to-trail-width') };
+    const thickOverlay = await overlay();
+    expect(thick.width).toBe(3);
+    expect(thick.trail).toBe(3);
+    expect(thickOverlay.bleed).toBeGreaterThanOrEqual(thick.width / 2);
+    // The gradient is built in JS from the same property: a stripe is centred
+    // on its column, so widening it by `d` starts it `d / 2` further left.
+    // Asserted as the DIFFERENCE, never as a pixel — the column itself depends
+    // on the unit and the theme.
+    expect(baseOverlay.stripeStart - thickOverlay.stripeStart).toBeCloseTo(
+      (thick.width - base.width) / 2,
+      1,
+    );
+
+    // The negative control for the bleed, and the reason it is stated as a max
+    // of BOTH widths. With the trail pinned narrow, an accent-only bleed
+    // (`max(1px, var(--to-trail-width))`, what this rule used to say) resolves
+    // to 1px — less than half the guide — and clips the depth-0 stripe. The
+    // guide's own width has to be in the maximum for this to hold.
+    await h.applyStyleOverride(
+      'to-guide-width-probe',
+      'body { --to-guide-width: 3px; --to-trail-width: 1px; }',
+    );
+    const parted = await overlay();
+    expect(await resolve('--to-trail-width')).toBe(1);
+    expect(parted.bleed).toBeGreaterThanOrEqual(3 / 2);
+    expect(parted.bleed).toBe(3);
+
+    await h.applyStyleOverride('to-guide-width-probe', null);
+    expect(await resolve('--to-guide-width')).toBe(base.width);
+  });
 });
