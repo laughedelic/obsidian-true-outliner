@@ -88,7 +88,7 @@ import {
   ownShiftExpr as plainOwnShiftExpr,
   stripeStartExpr,
 } from './chrome-line';
-import type { NodeKind, OutlineDoc } from '../model';
+import type { NodeKind } from '../model';
 import { parse } from '../parse';
 import { coveredForestOf, coveredSubtreeRoots } from '../escalate';
 import type { LineRange } from '../line-pos';
@@ -99,8 +99,10 @@ import {
   computePositionTrail,
   decorate,
   hasSingleRoot,
-  materializeProbe,
-  positionBisectsANode,
+  materializeProvisional,
+  shiftCaretScope,
+  shiftLines,
+  shiftTrail,
   visibleGuideDepths,
   zoomAwareCaretScope,
   zoomAwarePositionTrail,
@@ -111,6 +113,7 @@ import {
   type MarkerHighlight,
   type LineDecorationFact,
   type LineGuideFact,
+  type ProvisionalMaterialization,
   type PositionTrail,
   type PositionTrailFact,
   type TrailExtent,
@@ -410,16 +413,17 @@ function caretScope(state: EditorState): CaretGuideScope | null {
   // which for a position standing for that node's next sibling says "you are
   // inside this" of something the reader has just left.
   //
-  // That tree is the whole document's, and so are the guides this filters on
-  // such a render: both provisional branches of `factsFor` compute them from a
-  // whole-document parse rather than from the zoom scope. The two frames agree
-  // because they are the same frame — which is also why the zoomed rendering of
-  // a provisional position shows source-document depths, the gap
-  // `docs/research/12` records against the caret trail and which this layer
-  // inherits rather than widens.
+  // That tree is the view's — the zoom root's subtree while zoomed — and so are
+  // the guides this filters on such a render, since both provisional branches of
+  // `factsFor` are computed in the same frame. Reading the chain in one frame and
+  // filtering guides drawn in another is what made a zoomed provisional position
+  // render at source-document depths, the gap `docs/research/12` recorded.
   const provisional = provisionalAt(state);
   const scope = provisional
-    ? caretGuideScope(provisional.doc, cursorLine)
+    ? shiftCaretScope(
+        caretGuideScope(provisional.doc, cursorLine - provisional.offset),
+        provisional.offset,
+      )
     : zoomAwareCaretScope(parsedDoc(state.doc).doc, cursorLine, zoomScope(state));
   caretScopeCache.set(state, scope);
   return scope;
@@ -480,22 +484,16 @@ function hasOverlay(depths: readonly number[]): boolean {
  * Cached per `EditorState` for the same reason the trail is, and gated first on
  * the cheap tests (one empty cursor, on a line that is blank) so a caret in
  * content space — every caret, almost always — costs a `trim()`.
+ *
+ * The derivation itself is `materializeProvisional`, pure and stated in
+ * `decorate.ts`: which document the position is read against — the whole note,
+ * or the zoom root's subtree while zoomed — is a question about the view, not
+ * about the editor, and keeping it pure is what lets the unit suite exercise
+ * both frames. This half only reads the state the question needs.
  */
-interface Provisional {
-  readonly line: number;
-  readonly fact: LineDecorationFact;
-  readonly doc: OutlineDoc;
-  /**
-   * True when the position JOINS an existing node rather than standing for a new
-   * one (`positionBisectsANode`). It is the gate that decides whether the WHOLE
-   * document's facts come from `doc` — see `factsFor`.
-   */
-  readonly joins: boolean;
-}
+const provisionalCache = new WeakMap<EditorState, ProvisionalMaterialization | null>();
 
-const provisionalCache = new WeakMap<EditorState, Provisional | null>();
-
-function provisionalAt(state: EditorState): Provisional | null {
+function provisionalAt(state: EditorState): ProvisionalMaterialization | null {
   const cached = provisionalCache.get(state);
   if (cached !== undefined) return cached;
   const computed = computeProvisional(state);
@@ -503,23 +501,17 @@ function provisionalAt(state: EditorState): Provisional | null {
   return computed;
 }
 
-function computeProvisional(state: EditorState): Provisional | null {
+function computeProvisional(state: EditorState): ProvisionalMaterialization | null {
   const sel = state.selection.main;
   if (!sel.empty || state.selection.ranges.length !== 1) return null;
   const line = state.doc.lineAt(sel.head);
   if (line.text.trim() !== '') return null;
-  const probe = materializeProbe(state.doc.toString(), line.number - 1, sel.head - line.from);
-  if (probe === null) return null;
-  const doc = parse(probe);
-  const facts = decorate(doc);
-  const fact = facts.find((f) => f.lineNumber === line.number - 1);
-  if (!fact) return null;
-  return {
-    line: line.number - 1,
-    fact,
-    doc,
-    joins: positionBisectsANode(facts, line.number - 1),
-  };
+  return materializeProvisional(
+    state.doc.toString(),
+    line.number - 1,
+    sel.head - line.from,
+    zoomScope(state),
+  );
 }
 
 /**
@@ -577,12 +569,8 @@ function baseFacts(state: EditorState): DocFacts {
   if (!scope) return docFacts(state);
 
   const offset = scope.startLine;
-  const shift = <T extends { readonly lineNumber: number }>(fact: T): T => ({
-    ...fact,
-    lineNumber: fact.lineNumber + offset,
-  });
-  const facts = decorate(scope.document).map(shift);
-  const guides = computeLineGuides(scope.document).map(shift);
+  const facts = shiftLines(decorate(scope.document), offset);
+  const guides = shiftLines(computeLineGuides(scope.document), offset);
   const computed: DocFacts = {
     facts,
     factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
@@ -605,11 +593,16 @@ function factsFor(state: EditorState): DocFacts {
   if (!provisional) {
     computed = baseFacts(state);
   } else if (provisional.joins) {
-    const facts = decorate(provisional.doc);
+    // `provisional.doc` is in the VIEW's own numbering — the zoom scope's while
+    // zoomed — so everything derived from it is shifted back the same way
+    // `baseFacts` shifts its own, and by the same offset.
+    const offset = provisional.offset;
+    const local = provisional.line - offset;
+    const facts = shiftLines(decorate(provisional.doc), offset);
     // The row is one of a node's own lines in the resolved outline, so the
     // provisional argument is a no-op here — passed anyway rather than gated,
     // since a gate is one more thing to get wrong and this one buys nothing.
-    const guides = computeLineGuides(provisional.doc, provisional.line);
+    const guides = shiftLines(computeLineGuides(provisional.doc, local), offset);
     computed = {
       facts,
       factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
@@ -625,22 +618,29 @@ function factsFor(state: EditorState): DocFacts {
     // ENDS, so a position opened past a subtree's last content line is not left
     // with its marker below a guide that stopped above it. Recomputed rather
     // than reused from `base`, which was trimmed without knowing about it.
-    const whole = parsedDoc(state.doc).doc;
-    const guides = computeLineGuides(whole, provisional.line);
+    //
+    // "As it actually is" means as the VIEW has it: the zoom root's subtree
+    // while zoomed, the whole note otherwise — the same document `base` was
+    // built from, so the guides and the facts they sit under agree about depth.
+    const scope = zoomScope(state);
+    const source = scope ? scope.document : parsedDoc(state.doc).doc;
+    const guides = shiftLines(
+      computeLineGuides(source, provisional.line - provisional.offset),
+      provisional.offset,
+    );
     computed = {
       ...base,
       facts,
       factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
       guides,
       guidesByLine: new Map(guides.map((g) => [g.lineNumber, g])),
-      // From the document the GUIDES came from, not from `base`. Under a zoom
-      // those are two different documents: `base` describes the re-rooted
-      // scope, which has exactly one root by construction, while these guides
-      // describe the whole note, which may not. Inheriting the scope's answer
-      // dropped the outermost guide of a source-document ladder whenever a
-      // provisional position was open inside a zoom with the single-root
-      // qualifier on.
-      singleRoot: hasSingleRoot(whole),
+      // From the document the GUIDES came from, which is now the one `base`
+      // describes as well. It was not always: while these guides came from the
+      // whole note inside a zoom, inheriting the scope's answer — exactly one
+      // root, by construction — dropped the outermost guide of a source-document
+      // ladder whenever a position was open with the single-root qualifier on.
+      // Both halves read one document now, so the two answers cannot disagree.
+      singleRoot: hasSingleRoot(source),
     };
   }
 
@@ -675,16 +675,14 @@ function computeTrail(state: EditorState, modes: DecorationSource): PositionTrai
   const highlight = { guides: modes.guideHighlight, markers: modes.markerHighlight };
 
   if (provisional) {
-    // Left un-rebased while a provisional position is ALSO open:
-    // `provisional.doc` is materialized from the whole document
-    // (`computeProvisional`), not from the zoom scope's, and re-basing that
-    // combination is unbuilt. Narrower than the gap `zoomAwarePositionTrail`
-    // closes — it needs an empty caret resting on a blank gap line inside the
-    // zoomed subtree, a transient position rather than the ordinary
-    // caret-follows-a-node case that function fixes. Diagnosed with a fix
-    // sketch in docs/research/12 ("A provisional position inside a zoomed
-    // subtree renders its trail at the source document's depth").
-    return computePositionTrail(provisional.doc, cursorLine, highlight);
+    // Re-based the same way `zoomAwarePositionTrail` re-bases the ordinary case,
+    // by the position's own offset rather than the scope's: the two are equal
+    // while zoomed and both zero otherwise, but the materialized document is the
+    // one this trail is read from, so its offset is the one that translates it.
+    return shiftTrail(
+      computePositionTrail(provisional.doc, cursorLine - provisional.offset, highlight),
+      provisional.offset,
+    );
   }
   const { doc } = parsedDoc(state.doc);
   return zoomAwarePositionTrail(doc, cursorLine, zoomScope(state), highlight);

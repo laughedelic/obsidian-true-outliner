@@ -634,6 +634,88 @@ describe('outline zoom', function () {
     expect(nested.alignedLeft).toBeLessThan(unzoomed.alignedLeft);
   });
 
+  it('renders a provisional position at the zoomed depth, and moves nothing else', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '## Mid');
+    // Parked on the root's own line, which is none of the lines measured here.
+    await h.setCursorSettled(2, 0);
+    await browser.pause(150);
+    const before = {
+      one: await h.getLineElementInfo(4),
+      nested: await h.getLineElementInfo(5),
+      para: await h.getLineElementInfo(8),
+    };
+
+    // The blank line between `- two` and the trailing paragraph: a position
+    // standing for a NEW node, a sibling of that paragraph one level in from
+    // the zoom root.
+    await h.setCursorSettled(7, 0);
+    await browser.pause(150);
+    const during = {
+      one: await h.getLineElementInfo(4),
+      nested: await h.getLineElementInfo(5),
+      para: await h.getLineElementInfo(8),
+      position: await h.getLineElementInfo(7),
+    };
+
+    // Nothing the position did not touch moves, and no guide column appears for
+    // the ancestor the zoom is hiding — the whole-note derivation added `# Top`'s
+    // to every one of these rows.
+    for (const line of ['one', 'nested', 'para'] as const) {
+      expect(during[line].alignedLeft).toBeCloseTo(before[line].alignedLeft, 0);
+      expect(during[line].guideBackground).toBe(before[line].guideBackground);
+    }
+    // And the position renders on the column its own materialized node would:
+    // a paragraph one level in, which is exactly what `Trailing para.` is.
+    expect(during.position.alignedLeft).toBeCloseTo(before.para.alignedLeft, 0);
+  });
+
+  it('leaves a bisected subtree on its zoomed columns', async function () {
+    // A position opened INTERIOR to a node makes the raw parse wrong about every
+    // line, so this branch renders the whole view from the outline the position
+    // stands for — which has to be the view's own outline, or the subtree steps
+    // right by its hidden ancestors.
+    const md = ['# Top', '', '## Mid', '', 'para one', '', 'para two', '', '- item', ''].join('\n');
+    await openZoomable(md);
+    await zoomAt(md, '## Mid');
+    await h.setCursorSettled(2, 0);
+    await browser.pause(150);
+    const before = await h.getLineElementInfo(8); // '- item'
+
+    await h.setCursorSettled(5, 0);
+    await browser.pause(150);
+    const during = await h.getLineElementInfo(8);
+
+    expect(during.alignedLeft).toBeCloseTo(before.alignedLeft, 0);
+    expect(during.guideBackground).toBe(before.guideBackground);
+  });
+
+  it('restores the pre-position render when the caret leaves', async function () {
+    await openZoomable();
+    await zoomAt(DOC, '## Mid');
+    await h.setCursorSettled(2, 0);
+    await browser.pause(150);
+    const before = await h.getLineElementInfo(8);
+
+    await h.setCursorSettled(7, 0);
+    await browser.pause(150);
+    const during = await h.getLineElementInfo(8);
+
+    await h.setCursorSettled(2, 0);
+    await browser.pause(150);
+    const after = await h.getLineElementInfo(8);
+
+    // Three points, not two: the render this rule is about is the TRANSIENT
+    // one, and a before/after pair cannot see it — the view comes back to the
+    // same place whether or not it left it.
+    for (const render of [during, after]) {
+      expect(render.alignedLeft).toBeCloseTo(before.alignedLeft, 0);
+      expect(render.guideBackground).toBe(before.guideBackground);
+    }
+    // The file is untouched throughout: a position is a caret-derived render.
+    expect(await h.getBuffer()).toBe(DOC);
+  });
+
   it('keeps a visible line chrome intact while hiding', async function () {
     await openZoomable();
     await zoomAt(DOC, '## Mid');

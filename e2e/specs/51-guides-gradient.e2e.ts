@@ -797,12 +797,13 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     });
 
     it('reads the single-root qualifier from the document its guides came from', async function () {
-      // Three things have to be true at once for these to be two different
-      // documents: a zoom scope (which is re-rooted, so it always has exactly
-      // one root), a provisional position (whose guides are computed from the
-      // WHOLE note rather than from the scope), and the qualifier on. Ask the
-      // scope whether the note has one root and the answer is always yes —
-      // which drops the outermost guide of a ladder that names something.
+      // The qualifier answers about the document the view is RENDERING, and a
+      // caret resting on a blank row does not change which document that is.
+      // It used to: a provisional position's guides came from the whole note
+      // while the rest of the zoomed view came from the scope, so the outermost
+      // column blinked back on as the caret crossed a blank line and off again
+      // when it left. `positions-re-base-with-the-zoom` put both halves in the
+      // view's own frame; what this pins now is that they agree.
       const note = 'Scratch/decorations-guide-qualifier-frame.md';
       await h.createNote(
         note,
@@ -828,18 +829,31 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
         return layers(i);
       };
 
-      // A caret on the blank row inside the zoom is a provisional position.
-      await h.setCursor(3, 0);
+      // Caret on content: the ordinary zoomed render, both ways round.
+      await h.setCursor(4, 2);
       await browser.pause(300);
-      const before = await bodyRow();
-      expect(before).toBeGreaterThan(1); // "# One" and "## Sub" both above it
+      const withQualifierOff = await bodyRow();
+      expect(withQualifierOff).toBeGreaterThan(1); // "# One" and "## Sub" above it
 
       await h.setPluginSetting('guideHideSingleRoot', true);
-      // The note has TWO roots, so nothing is dropped — whatever the scope,
-      // which has one, would have said.
-      expect(await bodyRow()).toBe(before);
+      await browser.pause(200);
+      const withQualifierOn = await bodyRow();
+      // The scope is re-rooted, so it has exactly one root by construction and
+      // that root's column names nothing worth drawing.
+      expect(withQualifierOn).toBe(withQualifierOff - 1);
+
+      // A caret on the blank row inside the zoom is a provisional position, and
+      // it answers from the same document: the count does not move.
+      await h.setCursor(3, 0);
+      await browser.pause(300);
+      expect(await bodyRow()).toBe(withQualifierOn);
 
       await h.setPluginSetting('guideHideSingleRoot', false);
+      await browser.pause(200);
+      expect(await bodyRow()).toBe(withQualifierOff);
+
+      await h.setCursor(4, 2);
+      await browser.pause(200);
       await h.runCommand('zoom-clear');
       await browser.pause(200);
       await h.openNote(NOTE);

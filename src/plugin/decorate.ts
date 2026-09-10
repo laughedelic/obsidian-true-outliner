@@ -31,6 +31,7 @@ import type { NodeKind, OutlineDoc, OutlineNode } from '../model';
 import { isAtom, ownSpan } from '../model';
 import { nodeAtLine } from '../locate';
 import { parse } from '../parse';
+import { encode } from '../encode';
 import type { ZoomScope } from '../zoom';
 
 export interface LineDecorationFact {
@@ -272,6 +273,82 @@ export function positionBisectsANode(
   // where there was none.
   const next = materialized.find((f) => f.lineNumber === line + 1);
   return next !== undefined && !next.isFirstLine;
+}
+
+/**
+ * Everything a render needs about an open provisional position, derived ONCE:
+ * the tree the position stands for, its own fact, and the bisection gate that
+ * decides how far that tree reaches.
+ *
+ * The document is the ZOOM SCOPE's when one is active, and the whole note's
+ * otherwise. That is the whole of the zoom re-basing for this layer, and it is
+ * done here — before the probe is built — rather than by correcting depths
+ * afterwards: the probe's parse is wrong about more than depth while the view
+ * is zoomed (the two guide tracks, `hasChildren`, and which node the position
+ * bisects are all tree-shaped), and one substitution answers all of them at
+ * once. `tree-projection` is what makes the substitution a translation and not
+ * a reinterpretation: the subtree's line K is the source's line N + K, its
+ * lines are the source's own, so the caret's column carries over untouched.
+ *
+ * Two frames meet in the result, and the field names are the only warning the
+ * caller gets. `doc` is in the SCOPE's numbering, because its consumers run
+ * `decorate`/`computeLineGuides`/`computePositionTrail` over it and shift the
+ * whole result in one pass; `line` and `fact` are ABSOLUTE, because every
+ * consumer of those looks them up by the line the editor renders. `offset` is
+ * the translation between them, carried here so no consumer re-derives it.
+ */
+export interface ProvisionalMaterialization {
+  /** The position's line, in the SOURCE document's numbering. */
+  readonly line: number;
+  /** The fact that line takes, at the source document's line number. */
+  readonly fact: LineDecorationFact;
+  /** The materialized tree, in `doc`'s own (scope-relative) numbering. */
+  readonly doc: OutlineDoc;
+  /** Source line of `doc`'s line 0 — the zoom root's start line, or 0. */
+  readonly offset: number;
+  /** Whether the position bisected a node, answered inside `doc`. */
+  readonly joins: boolean;
+}
+
+/**
+ * `provisionalFact`'s whole answer rather than just the fact, against the
+ * document the VIEW is showing — `scope.document` while zoomed.
+ *
+ * `line` and `ch` are the caret's, in the source document's frame; a caret
+ * outside the scope is not a provisional position here, because the probe for a
+ * line the scoped document does not have comes back null and this returns null
+ * with it. Caret confinement makes that unreachable while zoomed, and the
+ * fallback it produces — the view rendering from its ordinary zoomed facts — is
+ * a correct rendering rather than a state needing its own guard.
+ *
+ * The bisection gate is answered inside the scope, so "is a node bisected"
+ * is asked about the document on screen. It can differ from the whole-buffer
+ * answer only at the cover's own trailing gap, where the buffer has content
+ * below that the view does not; there the scoped answer is the one that matches
+ * what is rendered, which is what this layer renders.
+ */
+export function materializeProvisional(
+  text: string,
+  line: number,
+  ch: number | undefined,
+  scope: ZoomScope | null,
+): ProvisionalMaterialization | null {
+  const offset = scope ? scope.startLine : 0;
+  const source = scope ? encode(scope.document) : text;
+  const local = line - offset;
+  const probe = materializeProbe(source, local, ch);
+  if (probe === null) return null;
+  const doc = parse(probe);
+  const facts = decorate(doc);
+  const own = facts.find((fact) => fact.lineNumber === local);
+  if (!own) return null;
+  return {
+    line,
+    fact: { ...own, lineNumber: line },
+    doc,
+    offset,
+    joins: positionBisectsANode(facts, local),
+  };
 }
 
 /**
@@ -989,7 +1066,8 @@ export function computePositionTrail(
  * reason: every consumer indexes by the ABSOLUTE line the real document
  * renders, never by the sub-document's own.
  */
-function shiftTrail(trail: PositionTrail, offset: number): PositionTrail {
+export function shiftTrail(trail: PositionTrail, offset: number): PositionTrail {
+  if (offset === 0) return trail;
   return {
     currentLine: trail.currentLine === null ? null : trail.currentLine + offset,
     currentIsListItem: trail.currentIsListItem,
@@ -1046,16 +1124,43 @@ export function zoomAwareCaretScope(
   scope: ZoomScope | null,
 ): CaretGuideScope | null {
   if (!scope) return caretGuideScope(doc, cursorLine);
-  const local = caretGuideScope(scope.document, cursorLine - scope.startLine);
-  if (!local) return null;
-  // Only LINES move; the depths are already in the scope's own frame, the same
-  // one the guides this filters were computed in.
+  return shiftCaretScope(caretGuideScope(scope.document, cursorLine - scope.startLine), scope.startLine);
+}
+
+/**
+ * `caretGuideScope`'s result, moved from a sub-document's own line numbering
+ * back to the source document's — `shiftTrail`'s counterpart, and split out for
+ * the same reason: the provisional path re-bases by an offset of its own
+ * (`ProvisionalMaterialization`), against a document that is not `scope.document`
+ * but shares its numbering.
+ *
+ * Only LINES move; the depths are already in the scope's own frame, the same one
+ * the guides this filters were computed in.
+ */
+export function shiftCaretScope(
+  scope: CaretGuideScope | null,
+  offset: number,
+): CaretGuideScope | null {
+  if (!scope || offset === 0) return scope;
   return {
     ancestorsByLine: new Map(
-      Array.from(local.ancestorsByLine, ([line, depths]) => [line + scope.startLine, depths]),
+      Array.from(scope.ancestorsByLine, ([line, depths]) => [line + offset, depths]),
     ),
-    ownDepth: local.ownDepth,
-    ownFrom: local.ownFrom + scope.startLine,
-    ownTo: local.ownTo + scope.startLine,
+    ownDepth: scope.ownDepth,
+    ownFrom: scope.ownFrom + offset,
+    ownTo: scope.ownTo + offset,
   };
+}
+
+/**
+ * Line-numbered facts (or guides) moved from a sub-document's own numbering back
+ * to the source document's. The identity at offset 0, so an unzoomed render
+ * allocates nothing to re-base by nothing.
+ */
+export function shiftLines<T extends { readonly lineNumber: number }>(
+  facts: T[],
+  offset: number,
+): T[] {
+  if (offset === 0) return facts;
+  return facts.map((fact) => ({ ...fact, lineNumber: fact.lineNumber + offset }));
 }

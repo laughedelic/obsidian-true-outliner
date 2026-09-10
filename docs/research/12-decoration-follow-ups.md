@@ -136,9 +136,9 @@ hands the decoration layer depths counted from the note's own root instead of fr
 root.
 
 `computeProvisional` builds `materializeProbe` against `state.doc.toString()` and parses that.
-Nothing downstream re-bases the result, so `factsFor` and `computeTrail` both spend a
-source-depth tree in a view that `baseFacts` has re-based (design D9). Three separate leaks
-follow, and which of them fires depends on what the position did to the parse:
+Nothing downstream re-bases the result, so every consumer of it spends a source-depth tree in a
+view that `baseFacts` has re-based (design D9). The leaks that follow, and which of them fires,
+depend on what the position did to the parse:
 
 | While a position is open | Where the depths come from | What re-bases |
 | --- | --- | --- |
@@ -146,6 +146,12 @@ follow, and which of them fires depends on what the position did to the parse:
 | Position stands for a NEW node | guides, every visible line: whole buffer | nothing |
 | Position BISECTS a node | every line's facts AND guides: whole buffer | nothing |
 | Either | the position trail: whole buffer | nothing |
+| Either | the caret guide scope: whole buffer | nothing |
+
+The last row arrived after this entry was written, with the caret-scoped guide modes: a new
+consumer read the same materialization and inherited the same frame. That is the shape of the
+defect rather than an accident of it — the materialization was the only thing in this layer that
+did not re-base, so every consumer reached for it and got source depths.
 
 Measured against `# Top` / `## Mid` / `- one` / `  - nested` / (blank) / `- two`, zoomed to
 `## Mid` with the caret on the blank line. The zoomed view renders `## Mid` at depth 0, `- one`
@@ -164,6 +170,11 @@ root's start line — the same translation `baseFacts` and `zoomAwarePositionTra
 applied before the probe is built rather than after. `tree-projection` guarantees the subtree
 document's line K is the source's line N + K with the node's own lines unchanged, so the caret's
 column carries over untouched and the probe asks the same question of a smaller document.
+
+One visible consequence beyond the depths, found while closing it: the single-root guide
+qualifier had been reading the whole note on such a render, because that was the document the
+guides came from. Both halves read the view's own document now, so the outermost column no longer
+blinks back on as the caret crosses a blank row inside a zoom with the qualifier on.
 
 ### A list item's continuation line does not align with the item's own content
 
