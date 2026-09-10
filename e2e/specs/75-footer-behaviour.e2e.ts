@@ -504,11 +504,10 @@ describe('backlinks footer: behaviour', function () {
         const row = document
           .querySelector('.workspace-leaf.mod-active .to-backlinks-fold')
           ?.closest('.to-backlinks-row');
-        const icon = row?.querySelector('.to-decor-marker-icon');
-        const painted = icon?.querySelector('line, polyline, rect, circle, path');
+        const icon = row?.querySelector<HTMLElement>('.to-decor-marker-icon');
         return {
           folded: row?.classList.contains('to-decor-folded') ?? null,
-          stroke: painted ? getComputedStyle(painted).strokeWidth : null,
+          color: icon ? getComputedStyle(icon).color : null,
         };
       });
 
@@ -520,10 +519,11 @@ describe('backlinks footer: behaviour', function () {
     // One of the two states is folded and the other is not, whichever way the
     // row started — expansion is per note and outlives a test.
     expect(before.folded).not.toBe(after.folded);
-    const [foldedState, openState] = before.folded ? [before, after] : [after, before];
-    expect(parseFloat(foldedState.stroke ?? '0')).toBeGreaterThan(
-      parseFloat(openState.stroke ?? '0'),
-    );
+    // The treatment is contrast — the editor's rule, which the footer shares —
+    // and nothing heavier: a stroke change reached a paragraph's glyph and not
+    // a heading's, so it told kinds apart rather than states.
+    expect(before.color).not.toBeNull();
+    expect(before.color).not.toBe(after.color);
   });
 
   /**

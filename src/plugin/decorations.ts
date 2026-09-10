@@ -1845,6 +1845,10 @@ function clearWidgetPatch(el: HTMLElement): void {
  */
 const MARKER_ACCENT_CLASS = 'to-decor-marker-accent';
 
+/** A hidden, zero-height element whose only job is to resolve a CSS length
+ * the browser alone can compute (styles.css). */
+const MEASURE_PROBE_CLASS = 'to-decor-measure-probe';
+
 class DecorationsPlugin implements PluginValue {
   decorations: DecorationSet;
 
@@ -2691,11 +2695,10 @@ class MarginCompensation implements PluginValue {
    * declares it. A probe rather than a parse: the value is a `max()` of unit,
    * checkbox and glyph terms only the browser can resolve. */
   private resolveChevronOffset(): number | null {
-    const probe = this.view.contentDOM.ownerDocument.createElement('div');
-    probe.style.cssText =
-      'position:absolute;visibility:hidden;height:0;width:var(--to-fold-chevron-offset)';
-    // eslint-disable-next-line no-restricted-syntax -- measurement probe on the editor root, removed before the next frame
-    this.view.dom.appendChild(probe);
+    // On the editor root, where the value is declared, and gone before the
+    // next frame: nothing lays out against it.
+    const probe = this.view.dom.createDiv({ cls: MEASURE_PROBE_CLASS });
+    probe.setCssProps({ width: 'var(--to-fold-chevron-offset)' });
     const width = probe.getBoundingClientRect().width;
     probe.remove();
     return width > 0 ? width : null;

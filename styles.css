@@ -158,6 +158,14 @@ body {
   --to-trail-width: var(--to-guide-width);
 }
 
+/* A measurement probe (`resolveChevronOffset`): laid out so a `max()` of unit,
+ * checkbox and glyph terms resolves to a width, and out of everyone's way. */
+.to-decor-measure-probe {
+  position: absolute;
+  visibility: hidden;
+  height: 0;
+}
+
 /* The one device-class branch in this file. See `--to-unit-default` above for
  * why it moves the default and not the unit. `is-mobile` covers phones and
  * tablets alike; a tablet reader with room to spare picks a wider step

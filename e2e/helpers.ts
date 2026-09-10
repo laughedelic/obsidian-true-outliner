@@ -1209,6 +1209,39 @@ export async function waitForRead<T>(
   throw new Error(`${what}: last saw ${last}`);
 }
 
+/**
+ * Wait until Obsidian's metadata cache has resolved every markdown file.
+ *
+ * `resetVault` reloads the vault, and the cache resolves the reloaded files
+ * asynchronously — on a loaded CI runner, for seconds. Everything the
+ * backlinks footer counts comes from that cache, so a footer read during the
+ * resolve sees totals that climb by a few with every sample and never settle:
+ * measured, 408 → 411 references over ten seconds of reads, on a case whose
+ * own waits had long confirmed the footer's DOM was quiet. Held for three
+ * consecutive polls, since a count that has caught up can still be caught up
+ * again by a late file.
+ */
+export async function waitForMetadataResolved(): Promise<void> {
+  let held = 0;
+  let previous = -1;
+  await browser.waitUntil(
+    async () => {
+      const { resolved, files } = await browser.executeObsidian(({ app }) => ({
+        resolved: Object.keys(app.metadataCache.resolvedLinks).length,
+        files: app.vault.getMarkdownFiles().length,
+      }));
+      if (resolved < files || resolved !== previous) {
+        previous = resolved;
+        held = 0;
+        return false;
+      }
+      held++;
+      return held >= 3;
+    },
+    { timeout: waitBudget(20000), interval: 200, timeoutMsg: 'the metadata cache never resolved' },
+  );
+}
+
 /** Is the count part of the editable document, or chrome beside it? */
 export function foldCountIsEditable(line: number): Promise<boolean> {
   return browser.executeObsidian(({}, n: number) => {
