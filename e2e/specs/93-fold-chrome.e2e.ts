@@ -159,6 +159,15 @@ describe('fold chrome', () => {
     expect(await h.foldedNodeLines()).toEqual([0]); // the marker's line
     expect(await h.foldCounts()).toEqual([{ line: 1, count: 2 }]); // after its text
     expect(await h.foldToggleLines()).toEqual([0]);
+
+    // ONE control, beside the marker. Obsidian paints its collapsed indicator on
+    // the line a fold starts on — the node's LAST own line here — and leaves an
+    // ordinary hover chevron beside the marker, so without this a folded
+    // paragraph showed two chevrons on hover, neither of them where it belongs.
+    expect(await h.foldAffordanceLines()).toEqual([0]);
+    expect(await h.foldAffordanceCount(0)).toBe(1);
+    expect(await h.foldAffordanceCount(1)).toBe(0);
+    expect(await h.foldAffordanceVisible(0)).toBe(true);
   });
 
   it('keeps the count and the affordance when markers are hidden', async () => {

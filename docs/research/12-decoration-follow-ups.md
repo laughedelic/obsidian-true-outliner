@@ -879,6 +879,10 @@ fix, one more kind to cover.
   is unbuilt, and which of the two a click performs is not configurable. The gesture is stated so
   a setting can be added later without changing what it means, and nobody has asked for the zoom
   form since click-to-zoom shipped on the mark.
+- **The footer's own controls are below a touch target.** The row fold and the header controls are
+  sized in `rem` against the footer's own column arithmetic — around 11px for the fold — where the
+  editor's affordance now gets a 24px hit area under a coarse pointer. It predates this change and
+  is the footer's sizing question rather than folding's, but a phone reader meets it on every row.
 - **A repaint drops focus inside the footer.** The footer rebuilds its whole tree on every render,
   so a control a keyboard reader has focused is replaced under them — measured while testing the
   row fold, where a press after a repaint landed on the body. It predates this change and belongs

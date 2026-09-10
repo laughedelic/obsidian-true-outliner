@@ -3429,7 +3429,34 @@ body.is-mobile {
  * marker column by the same decomposition (see the chevron rule above), so a
  * reader who turns those settings off sees the control move nowhere.
  */
-.markdown-source-view.mod-cm6 .cm-line:has(.cm-fold-indicator) .to-decor-fold-toggle {
+/*
+ * Ours yields to Obsidian's indicator wherever that indicator is doing the job.
+ *
+ * On an UNFOLDED line that is any indicator at all. On a FOLDED one it has to be
+ * the COLLAPSED indicator specifically, because Obsidian paints two different
+ * things: the collapsed one goes on the line a fold starts on, and for a node
+ * spanning several source lines that is not the line its marker is on. Beside
+ * the marker it leaves the ordinary hover chevron — pointing down, offering to
+ * fold what is already folded — and strands the real control beside the node's
+ * last line. So on a folded marker line ours takes over, and the two rules below
+ * clear what Obsidian left in both places.
+ */
+.markdown-source-view.mod-cm6
+  .cm-line:not(.to-decor-folded):has(.cm-fold-indicator)
+  .to-decor-fold-toggle,
+.markdown-source-view.mod-cm6
+  .cm-line.to-decor-folded:has(.cm-fold-indicator.is-collapsed)
+  .to-decor-fold-toggle {
+  display: none;
+}
+
+/* The stale down-chevron beside a folded node's marker. */
+.markdown-source-view.mod-cm6 .cm-line.to-decor-folded .cm-fold-indicator:not(.is-collapsed) {
+  display: none;
+}
+
+/* The collapsed one, stranded beside a folded node's last own line. */
+.markdown-source-view.mod-cm6 .cm-line.to-decor-fold-tail .cm-fold-indicator {
   display: none;
 }
 
@@ -3465,13 +3492,18 @@ body.is-mobile {
  * from the element's own box, so the glyph stays exactly where the native
  * chevron sits — growing the box would move it off the column both controls
  * share.
+ *
+ * Scoped to the EDITOR's copy. The footer's control shares this class for its
+ * glyph but nothing else: it is already visible without a hover, and its box is
+ * the footer's own arithmetic, so a hit area sized here would be a foreign
+ * element inside a row whose layout the footer measures.
  */
 @media (hover: none), (pointer: coarse) {
-  .to-decor-fold-toggle {
+  .markdown-source-view.mod-cm6 .cm-content .to-decor-fold-toggle {
     opacity: 1;
   }
 
-  .to-decor-fold-toggle::before {
+  .markdown-source-view.mod-cm6 .cm-content .to-decor-fold-toggle::before {
     content: '';
     position: absolute;
     top: 50%;

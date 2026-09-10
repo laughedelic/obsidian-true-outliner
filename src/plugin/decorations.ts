@@ -1084,6 +1084,17 @@ class MarkerWidget extends WidgetType {
 export const FOLDED_NODE_CLASS = 'to-decor-folded';
 
 /**
+ * The class a folded MULTI-LINE node's last own line carries.
+ *
+ * Obsidian paints its collapsed indicator on the line a fold STARTS on, which
+ * for a node spanning several source lines is not the line its marker is on —
+ * so a folded paragraph running over two lines shows a persistent chevron
+ * stranded beside its second line, and a second, stale one beside its marker.
+ * This is how the stylesheet finds the stranded one.
+ */
+export const FOLDED_TAIL_CLASS = 'to-decor-fold-tail';
+
+/**
  * How many descendants a folded node hides, rendered after its text.
  *
  * Chrome, not content: `contenteditable="false"`, outside the document, absent
@@ -1251,6 +1262,7 @@ function lineDecoration(
   trail: PositionTrail,
   markerAccent: boolean,
   folded: boolean,
+  foldedTail: boolean,
 ): Decoration {
   const guides = hasOverlay(depths)
     ? guideBackground(depths, trail.byLine.get(fact.lineNumber))
@@ -1259,7 +1271,8 @@ function lineDecoration(
   const cls =
     chrome.classes.join(' ') +
     markerClasses(trail, fact.lineNumber, markerAccent) +
-    (folded ? ` ${FOLDED_NODE_CLASS}` : '');
+    (folded ? ` ${FOLDED_NODE_CLASS}` : '') +
+    (foldedTail ? ` ${FOLDED_TAIL_CLASS}` : '');
   return Decoration.line({ class: cls, attributes: { style: chromeStyle(chrome) } });
 }
 
@@ -1299,9 +1312,13 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // text — the same line only when the node is a single line long.
   const foldedMarkers = new Map<number, number>();
   const foldedCounts = new Map<number, number>();
+  const foldedTails = new Set<number>();
   for (const chrome of foldedChrome(state)) {
     foldedMarkers.set(chrome.markerLine, chrome.hidden);
     foldedCounts.set(chrome.textLine, chrome.hidden);
+    // Only when the two differ: a single-line node's own indicator is already
+    // beside its marker, and hiding it there would leave the line with none.
+    if (chrome.textLine !== chrome.markerLine) foldedTails.add(chrome.textLine);
   }
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
@@ -1327,6 +1344,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
         trail,
         modes.markerHighlight !== 'off',
         foldedMarkers.has(guide.lineNumber),
+        foldedTails.has(guide.lineNumber),
       ),
     );
     // The count rides at the END of the node's own text, where a reader's eye
