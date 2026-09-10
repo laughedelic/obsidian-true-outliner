@@ -956,3 +956,25 @@ fix, one more kind to cover.
   settings toggle repainting a moment late is not the defect the mode toggle
   was, and because `forceRedraw` itself is already parked here for a revisit —
   worth folding into that revisit rather than doing twice.
+
+### The backlinks footer's first read races Obsidian's own cache on CI
+
+`77-footer-controls` "shortens the header on the same narrow footer that sheds facet words" fails
+on roughly every other CI run and never locally, and `readStable`'s diagnostic finally named the
+field: the header's totals climbing — `408 · 126 → 411 · 127` over ten seconds of samples. The
+cause is not the footer. `resetVault` reloads the vault, and Obsidian's metadata cache resolves
+the reloaded files asynchronously — measured through a wait that logged its samples on CI, at
+two to four files a second, so thirty-five to seventy-five seconds for this 149-file vault,
+against a moment locally. Everything the footer counts comes from that cache, so a footer whose
+DOM has long been quiet is still counting a vault Obsidian has not finished reading.
+
+Three forms of a wait were tried on the branch and reverted: gated on the resolved-link count
+reaching the file count (a link-less file never appears in it, so unreachable); gated on the
+cache's own file list plus a still resolved-link count, inside `settle()` (stacked past mocha's
+per-case budget in the specs that settle a dozen times); the same, once per spec file in
+`openFooter` with a minute's budget and memoised (the minute is not enough on the slower runners,
+and a wait that never succeeds memoises nothing, so every open pays it). What would work is a
+wait in the harness's per-spec-file setup, after the vault reset, with a budget sized from the
+measured rate and the vault's file count — and a resolved-link count held still as the criterion,
+never a comparison to the file count. Parked: it is harness work with a cost on every spec file,
+and the case it fixes is one intermittent read.
