@@ -65,10 +65,21 @@ one waits forever: the popover stayed open behind a fold the reader had just mad
 footer, dismissal SHALL remain on the click, for the reason `backlink-filtering` records — a
 repaint at pointerdown destroys the control the press was about to focus.
 
+A controller whose element has left the document SHALL act on neither: the footer's dismissal
+speaks for one element, and one that is no longer placed reads every press as "outside" — closing
+the menu a reader has just opened, including on the option they are pressing. Folding takes the
+footer out of the viewport and the widget is rebuilt when it returns, which is how a controller
+comes to be listening for a footer it is no longer part of.
+
 #### Scenario: A press the editor takes for itself still dismisses
 
 - **WHEN** a popover is open and the reader presses a guide column in the note, folding a subtree
 - **THEN** the subtree folds and the popover closes
+
+#### Scenario: The footer still answers after a fold rebuilds it
+
+- **WHEN** the reader folds a subtree, unfolds it, and then chooses a value from a facet's menu
+- **THEN** the filter narrows and the menu stays open
 
 **Covered by**: `e2e/specs/77-footer-controls.e2e.ts` ("closes an open popover on a press the
 editor takes for itself").

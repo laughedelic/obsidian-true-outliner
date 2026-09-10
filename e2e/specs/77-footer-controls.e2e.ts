@@ -26,6 +26,7 @@ import {
   openFilters,
   openFooter,
   readStable,
+  scrollToFooter,
   settle,
 } from '../footer.js';
 
@@ -547,15 +548,15 @@ describe('the footer’s controls', function () {
     await openFilters();
     await h.clearFolds();
 
-    const expanded = (): Promise<string> =>
+    const expanded = (axis: string): Promise<string> =>
       browser.executeObsidian(
         (_ctx, selector: string) =>
           document.querySelector(selector)?.getAttribute('aria-expanded') ?? 'gone',
-        `.workspace-leaf.mod-active ${sel('folder')}`,
+        `.workspace-leaf.mod-active ${sel(axis)}`,
       );
 
     await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
-    expect(await expanded()).toBe('true');
+    expect(await expanded('folder')).toBe('true');
 
     // The guide column of a note line on screen beside the footer — the same
     // gesture 94 drives, here for what it does to everything else.
@@ -581,8 +582,27 @@ describe('the footer’s controls', function () {
     // The gesture really took the press — without this the case would pass on a
     // press that simply fell through to the editor as an ordinary click.
     expect((await h.foldedLineRanges()).length).toBeGreaterThan(0);
-    expect(await expanded()).toBe('false');
+    expect(await expanded('folder')).toBe('false');
+
+    // Put the view back where the rest of this spec expects it: folding takes
+    // most of the note's height away, unfolding gives it back, and the scroller
+    // does not return to the footer on its own.
     await h.clearFolds();
+    await scrollToFooter();
+
+    // And the footer still answers presses of its own. Taking the footer out of
+    // the viewport rebuilds its widget, and the controller that was there
+    // before is not always told: left listening on the document, it speaks for
+    // an element no longer in it, reads every press as "outside", and closes
+    // the menu a reader has just opened — including on the option they are
+    // pressing. Choosing an option narrows the filter and LEAVES THE MENU OPEN,
+    // which is what the cases after this one are built on.
+    await openFilters();
+    await clickIn(`${FOOTER} ${sel('kind')}`);
+    expect(await expanded('kind')).toBe('true');
+    await chooseFacetValue('Note');
+    expect(await expanded('kind')).toBe('true');
+    await clearFilters();
   });
 
   it('holds the row still when the reset appears and goes', async function () {

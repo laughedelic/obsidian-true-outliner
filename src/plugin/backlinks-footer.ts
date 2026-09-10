@@ -311,8 +311,28 @@ class FooterController {
     void this.render();
   }
 
+  /**
+   * Whether this controller still has a place in the document.
+   *
+   * Its two dismissal listeners are on the DOCUMENT, so they keep firing after
+   * the element they speak for has left it — and a controller with a detached
+   * element contains nothing, so every press reads as "outside" and every
+   * popover closes, including a press on an option inside the live footer.
+   *
+   * That state is reachable: folding a subtree takes the footer out of the
+   * viewport, the widget is rebuilt when it comes back, and the controller that
+   * was there before is not always told (measured: two live controllers, one of
+   * them detached, both still listening). Guarded rather than disposed, because
+   * a detached element is also the ordinary state of a block widget scrolled
+   * out of view, which comes back.
+   */
+  private get placed(): boolean {
+    return this.el.isConnected;
+  }
+
   /** Bound once so it can be removed again; see the constructor. */
   private readonly closeOnOutsideClick = (event: Event): void => {
+    if (!this.placed) return;
     const state = viewStates.get(this.targetPath);
     if (!state || state.openFacet === null) return;
     const target = event.target as HTMLElement | null;
@@ -324,6 +344,7 @@ class FooterController {
   /** The same dismissal, for a press that lands outside the footer entirely —
    * where waiting for a click risks waiting for one that never comes. */
   private readonly closeOnOutsidePress = (event: Event): void => {
+    if (!this.placed) return;
     const state = viewStates.get(this.targetPath);
     if (!state || state.openFacet === null) return;
     const target = event.target as HTMLElement | null;
