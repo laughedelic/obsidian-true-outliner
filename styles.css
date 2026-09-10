@@ -67,6 +67,19 @@ body {
    * so the default below is what resolves. */
   --to-decor-unit: var(--to-set-unit, var(--to-unit-default));
 
+  /* How far left of the marker column a fold chevron is centred: the midpoint
+   * between the parent's guide and the marker — half a unit — so the control
+   * keeps its place whatever the unit is set to. With a FLOOR, because a narrow
+   * unit brings the midpoint in over the widest centred mark: at the mobile
+   * default the glyph's right edge lands inside a checkbox's half-width. The
+   * floor is that half-width plus half the glyph and a visible gap, the same
+   * term the marker gutter is derived from. Every placement — ours, and both of
+   * Obsidian's chevron transforms — reads this one value. */
+  --to-fold-chevron-offset: max(
+    var(--to-decor-unit) / 2,
+    max(0.5rem, var(--checkbox-size, 1rem) / 2) + var(--to-chevron-glyph, 10px) / 2 + 2px
+  );
+
   /* The ladder the setting offers, measured against the grid's own floor — a
    * child's mark must begin right of its parent's text — on both device classes
    * (docs/research/22-outline-unit-width.md). A rung is named by its
@@ -531,7 +544,7 @@ body.is-mobile {
   .cm-fold-indicator
   .collapse-indicator {
   transform: translate(
-    calc(-1 * (var(--to-decor-unit) / 2 - var(--to-chevron-glyph, 10px) / 2)),
+    calc(-1 * (var(--to-fold-chevron-offset) - var(--to-chevron-glyph, 10px) / 2)),
     var(--to-chevron-dy, 0px)
   );
 }
@@ -1002,7 +1015,7 @@ body.is-mobile {
     calc(
       -1 *
         (
-          var(--to-marker-gutter) + var(--to-decor-unit) / 2 - var(--to-chevron-glyph, 10px) / 2 -
+          var(--to-marker-gutter) + var(--to-fold-chevron-offset) - var(--to-chevron-glyph, 10px) / 2 -
             var(--to-chevron-dead-right, 6px)
         )
     ),
@@ -1134,14 +1147,20 @@ body.is-mobile {
  * highlight under the pointer, for the same reason — it is the other control
  * in the gutter, and the two say "interactive" the same way.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line:hover .to-decor-marker-icon,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list:hover .list-number,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list:hover .to-decor-ol-digits {
-  color: var(--to-decor-accent);
-}
+/* Under the same switch as the caret's accent (`.to-decor-marker-accent`, set
+ * on the editor by the decoration pass): the two are one feature, and a reader
+ * who turned it off asked for muted marks. And only where a hover exists — a
+ * touch layout has no resting pointer to name a node with. */
+@media (hover: hover) {
+  .markdown-source-view.mod-cm6 .to-decor-marker-accent .cm-content > .cm-line:hover .to-decor-marker-icon,
+  .markdown-source-view.mod-cm6 .to-decor-marker-accent .cm-content > .to-decor-list:hover .list-number,
+  .markdown-source-view.mod-cm6 .to-decor-marker-accent .cm-content > .to-decor-list:hover .to-decor-ol-digits {
+    color: var(--to-decor-accent);
+  }
 
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list:hover .list-bullet::after {
-  background-color: var(--to-decor-accent);
+  .markdown-source-view.mod-cm6 .to-decor-marker-accent .cm-content > .to-decor-list:hover .list-bullet::after {
+    background-color: var(--to-decor-accent);
+  }
 }
 
 .markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon:hover,
@@ -3404,16 +3423,18 @@ body.is-mobile {
  * moment it collapses, which beside a marker at text contrast read as a control
  * being HIGHLIGHTED while nothing was pointing at it. The highlight is kept for
  * the pointer, where it means something.
+ *
+ * The footer is not in this: its control is drawn in the footer's own mark
+ * colour and hovers to text contrast, a convention of that surface (`74` holds
+ * it), and its rows are not `.cm-line`s.
  */
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .cm-fold-indicator.is-collapsed .collapse-indicator svg,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed,
-.to-backlinks-row.to-decor-folded .to-decor-fold-toggle.is-collapsed {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed {
   color: var(--text-normal);
 }
 
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .cm-fold-indicator.is-collapsed .collapse-indicator:hover svg,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed:hover,
-.to-backlinks-row.to-decor-folded .to-decor-fold-toggle.is-collapsed:hover {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed:hover {
   color: var(--to-decor-highlight);
 }
 

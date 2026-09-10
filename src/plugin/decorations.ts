@@ -1230,23 +1230,23 @@ function buildChevron(): SVGSVGElement {
 
 /**
  * How far left of its own box the toggle's glyph belongs: from that box's
- * origin to the MIDPOINT between the parent's guide and the line's marker
- * column — half a unit left of the column, whatever the unit is set to, so the
- * control keeps its place when the indentation width changes.
+ * origin to the point every fold chevron is centred on, `--to-fold-chevron-offset`
+ * left of the line's marker column (styles.css states it: the midpoint between
+ * the parent's guide and the marker, floored clear of the widest mark).
  *
  * The box sits in the line's flow and takes up none of it (styles.css), so the
  * origin is wherever the line's first inline box starts — and that is not the
  * same place for both kinds. A block line's own text starts one gutter right of
  * its marker column, by the definition of the gutter, so the answer is a gutter
- * and a half-unit back whatever the depth. A LIST line hangs its indentation, which
+ * and that offset back whatever the depth. A LIST line hangs its indentation, which
  * puts that first box back at the line's own left edge, so the column has to be
  * named outright: the depth's column, less the shift the depth rules have
  * already given the box itself.
  */
 function foldToggleLeftExpr(fact: LineDecorationFact): string {
-  const half = `${UNIT_EXPR} / 2`;
-  if (!fact.isListItem) return `calc(-1 * ${MARKER_GUTTER_CSS} - ${half})`;
-  return `calc(${fact.depth} * ${UNIT_EXPR} - ${plainOwnShiftExpr(fact)} - ${half})`;
+  const offset = 'var(--to-fold-chevron-offset)';
+  if (!fact.isListItem) return `calc(-1 * ${MARKER_GUTTER_CSS} - ${offset})`;
+  return `calc(${fact.depth} * ${UNIT_EXPR} - ${plainOwnShiftExpr(fact)} - ${offset})`;
 }
 
 function computeFoldToggles(state: EditorState): DecorationSet {
@@ -1835,6 +1835,15 @@ function clearWidgetPatch(el: HTMLElement): void {
   clearWidgetMarker(el);
 }
 
+/**
+ * The switch the line-hover accent reads (styles.css): set on the editor root,
+ * because a hover is a CSS state and the caret's accent is a per-line class the
+ * stylesheet cannot see from a rule about a line the caret is NOT on. One
+ * feature, one setting — a reader who turned the accent off asked for muted
+ * marks under the pointer too.
+ */
+const MARKER_ACCENT_CLASS = 'to-decor-marker-accent';
+
 class DecorationsPlugin implements PluginValue {
   decorations: DecorationSet;
 
@@ -1843,10 +1852,16 @@ class DecorationsPlugin implements PluginValue {
     private readonly modes: DecorationSource,
   ) {
     this.decorations = this.compute();
+    this.publishAccentSwitch();
   }
 
   update(): void {
     this.decorations = this.compute();
+    this.publishAccentSwitch();
+  }
+
+  private publishAccentSwitch(): void {
+    this.view.dom.classList.toggle(MARKER_ACCENT_CLASS, this.modes.markerHighlight !== 'off');
   }
 
   private compute(): DecorationSet {

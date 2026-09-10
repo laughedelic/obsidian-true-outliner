@@ -195,21 +195,28 @@ describe('fold chrome', () => {
     // At TWO units, because at the default one the fixed anchor and the
     // midpoint are a pixel apart and either would pass: what is asserted is
     // that the control follows the unit, which only a second unit can show.
-    const centred = async (lines: number[]): Promise<void> => {
+    //
+    // The midpoint has a floor — at a narrow unit it would land the glyph
+    // inside a checkbox — so what a line is held to is the one offset every
+    // placement reads: on it, never nearer the marker than the midpoint, and
+    // AT the midpoint once the unit is wide enough for the floor not to bind.
+    const centred = async (lines: number[], midpoint: boolean): Promise<void> => {
       for (const line of lines) {
-        const { gap, unit } = await h.foldControlGap(line);
-        expect({ line, unit, centred: Math.abs(gap - unit / 2) < 2 }).toEqual({
+        const { gap, unit, offset } = await h.foldControlGap(line);
+        expect({
           line,
           unit,
-          centred: true,
-        });
+          onOffset: Math.abs(gap - offset) < 2,
+          notNearer: offset >= unit / 2 - 0.5,
+          midpoint: !midpoint || Math.abs(offset - unit / 2) < 0.5,
+        }).toEqual({ line, unit, onOffset: true, notNearer: true, midpoint: true });
       }
     };
     const WIDER = 'body { --to-decor-unit: 3rem; }';
-    await centred([2, 4, 5]);
+    await centred([2, 4, 5], false);
     await h.applyStyleOverride('wider-unit', WIDER);
     try {
-      await centred([2, 4, 5]);
+      await centred([2, 4, 5], true);
     } finally {
       await h.applyStyleOverride('wider-unit', null);
     }
@@ -223,10 +230,10 @@ describe('fold chrome', () => {
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
     await h.setCursorSettled(0, 0);
-    await centred([2]);
+    await centred([2], false);
     await h.applyStyleOverride('wider-unit', WIDER);
     try {
-      await centred([2]);
+      await centred([2], true);
     } finally {
       await h.applyStyleOverride('wider-unit', null);
     }
@@ -250,6 +257,8 @@ describe('fold chrome', () => {
     expect(heading.control).toBe(heading.marker);
     expect(bullet.control).toBe(bullet.marker);
     // The caret's own line carries the accent; a hovered line is drawn in it.
+    // Not under mobile emulation, which has no hover to draw it for.
+    if (h.IS_MOBILE_RUN) return;
     const caret = (await h.foldChromeColors(2)).marker;
     await h.hoverLineText(0);
     expect((await h.foldChromeColors(0)).marker).toBe(caret);

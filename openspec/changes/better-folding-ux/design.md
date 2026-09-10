@@ -180,7 +180,10 @@ of the marker column — for ours and for the native chevron alike, which the pl
 transforms per line. The first version anchored both a fixed gutter-and-a-half off the marker,
 which the manual pass caught two ways: a paragraph's control sat visibly nearer its marker than a
 heading's (a glyph's width of difference between the two anchors), and neither moved when the
-indentation width was changed. The footer had made the midpoint choice already.
+indentation width was changed. The footer had made the midpoint choice already. The midpoint has
+a floor: at the mobile default unit it lands the glyph's right edge inside a checkbox's
+half-width, so the offset is never less than that half-width plus half the glyph and a gap — one
+CSS value, `--to-fold-chevron-offset`, that every placement reads.
 
 *Alternative rejected:* a CM6 `gutter()` beside the content. It is the obvious mechanism and the
 wrong one here: a gutter sits outside the readable-line-width column, so the affordance would
@@ -263,6 +266,12 @@ Two tokens carry it: `--to-decor-accent` (the caret trail's colour, already in u
 `--to-decor-highlight` (`--text-accent-hover`), one step past it, for a control under the pointer.
 The marker's own hover — the zoom gesture — moves from the accent to the highlight, so that
 hovering a line and hovering its mark are two states rather than one.
+
+The line-hover accent is under the same switch as the caret's accent (a class the decoration pass
+sets on the editor), because the two are one feature and a reader who turned it off asked for
+muted marks — and it is drawn only where a hover exists. The footer is not in this table: its
+control is drawn in the footer's own mark colour and hovers to text contrast, a convention of that
+surface that its own spec holds.
 
 Left open, deliberately: a keyboard focus ring on the footer's button (a real `button`, so the
 platform's own applies), and whether a touch layout should show every chevron at rest — it does

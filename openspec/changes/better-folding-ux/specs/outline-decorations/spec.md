@@ -62,9 +62,14 @@ every kind and whichever of the two controls — Obsidian's or the plugin's — 
 - **Hovering a folded chevron**: the highlight, as for any control under the pointer.
 
 The chevron SHALL be centred between the parent's guide and the node's marker — half an
-indentation unit left of the marker column — for every kind, whatever the unit is set to. Anchored
-a fixed distance off the marker instead, a paragraph's control sat nearer its marker than a
-heading's, and none of them followed the unit.
+indentation unit left of the marker column — for every kind, whatever the unit is set to, and
+never nearer the marker than clear of the widest centred mark: at a unit narrow enough for the
+midpoint to reach into a checkbox, the control stops short of it instead. Anchored a fixed
+distance off the marker, a paragraph's control sat nearer its marker than a heading's, and none of
+them followed the unit.
+
+The line-hover accent SHALL be governed by the same setting as the caret's accent, and SHALL apply
+only where a hover exists.
 
 #### Scenario: A folded chevron matches its marker
 - **WHEN** a heading and a list item are folded

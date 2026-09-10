@@ -1074,7 +1074,9 @@ export function foldTailControlCount(line: number): Promise<number> {
  * the same way `guideColumnPoint` finds a guide; the control is whichever of
  * the two the line shows.
  */
-export function foldControlGap(line: number): Promise<{ gap: number; unit: number }> {
+export function foldControlGap(
+  line: number,
+): Promise<{ gap: number; unit: number; offset: number }> {
   return browser.executeObsidian(({}, n: number) => {
     const el = document.querySelectorAll<HTMLElement>(
       '.workspace-leaf.mod-active .cm-content > .cm-line',
@@ -1092,7 +1094,18 @@ export function foldControlGap(line: number): Promise<{ gap: number; unit: numbe
     ).find((g) => g.getBoundingClientRect().width > 0);
     if (!glyph) throw new Error(`line ${n} shows no fold control`);
     const rect = glyph.getBoundingClientRect();
-    return { gap: Number((column - (rect.left + rect.width / 2)).toFixed(1)), unit };
+    // The offset every placement reads, resolved where the line resolves it.
+    const probe = el.ownerDocument.createElement('div');
+    probe.style.cssText =
+      'position:absolute;visibility:hidden;height:0;width:var(--to-fold-chevron-offset);';
+    el.appendChild(probe);
+    const offset = probe.getBoundingClientRect().width;
+    probe.remove();
+    return {
+      gap: Number((column - (rect.left + rect.width / 2)).toFixed(1)),
+      unit,
+      offset: Number(offset.toFixed(1)),
+    };
   }, line);
 }
 
