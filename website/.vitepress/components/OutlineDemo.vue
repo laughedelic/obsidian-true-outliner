@@ -7,6 +7,9 @@
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { OutlineEditor, ScriptRunner, ScriptStep, DemoSettings } from '../../demo/editor';
 
+// The root is a ClientOnly fragment, so attributes go to the figure by hand.
+defineOptions({ inheritAttrs: false });
+
 const props = withDefaults(
   defineProps<{
     doc: string;
@@ -40,8 +43,8 @@ let observer: IntersectionObserver | null = null;
 let played = false;
 
 function labelOf(step: ScriptStep): string {
+  if (step.label) return step.label;
   if ('key' in step) {
-    if (step.label) return step.label;
     const isMac = navigator.platform.startsWith('Mac');
     const parts: string[] = [];
     if (step.mod) parts.push(isMac ? '⌘' : 'Ctrl');
@@ -165,7 +168,7 @@ onBeforeUnmount(() => {
 
 <template>
   <ClientOnly>
-    <figure class="to-demo-frame">
+    <figure class="to-demo-frame" v-bind="$attrs">
       <div class="to-demo-bar">
         <span class="to-demo-title">{{ title }}</span>
         <button v-if="script" type="button" @click="play" :aria-pressed="playing">
