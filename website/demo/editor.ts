@@ -95,6 +95,18 @@ export function createOutlineEditor(parent: HTMLElement, options: OutlineEditorO
     EditorView.lineWrapping,
     indentUnit.of('\t'),
     livePreviewExtension(),
+    // CodeMirror scrolls every scrollable ancestor to reveal the caret, the
+    // page included, which would drag a reader along with a scripted tour.
+    // The editor's own scroller is the only thing that moves.
+    EditorView.scrollHandler.of((v, range) => {
+      const rect = v.coordsAtPos(range.head);
+      if (!rect) return true;
+      const scroller = v.scrollDOM;
+      const box = scroller.getBoundingClientRect();
+      if (rect.top < box.top) scroller.scrollTop -= box.top - rect.top + 12;
+      else if (rect.bottom > box.bottom) scroller.scrollTop += rect.bottom - box.bottom + 12;
+      return true;
+    }),
     readOnly.of(EditorState.readOnly.of(!!options.readOnly)),
     placeholder('Empty note'),
     nestedEditorExtension(),
@@ -218,7 +230,7 @@ export function sendKey(view: EditorView, step: { key: string; mod?: boolean; sh
     // browser's input event would, annotated as typing so the plugin's
     // provisional-position rules read it as text arriving, not as the caret
     // leaving.
-    view.dispatch({ ...view.state.replaceSelection(step.key), userEvent: 'input.type', scrollIntoView: true });
+    view.dispatch({ ...view.state.replaceSelection(step.key), userEvent: 'input.type' });
     return true;
   }
   return handled;
@@ -248,7 +260,7 @@ export function scriptRunner(editor: OutlineEditor, delay = 700): ScriptRunner {
           continue;
         }
         if ('cursor' in step) {
-          view.dispatch({ selection: { anchor: posOf(view, step.cursor[0], step.cursor[1]) }, scrollIntoView: true });
+          view.dispatch({ selection: { anchor: posOf(view, step.cursor[0], step.cursor[1]) } });
         } else if ('select' in step) {
           view.dispatch({
             selection: {
