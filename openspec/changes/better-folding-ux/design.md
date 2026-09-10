@@ -269,20 +269,24 @@ The states, for every kind and whichever control the line shows:
 | state | marker | chevron |
 | --- | --- | --- |
 | rest, unfolded | muted; caret accent when the caret is on or under the node | hidden |
-| line hovered | accent — "this node" | shown, Obsidian's chevron colour |
+| line hovered | unchanged | shown, Obsidian's chevron colour |
 | mark hovered (zoom) | highlight | — |
 | chevron hovered | — | highlight |
-| folded | solid, text contrast (D6) | the same colour as the marker |
-| folded, chevron hovered | solid | highlight |
+| folded | text contrast (D6); the caret accent still wins on the caret's node | folded colour |
+| folded, chevron hovered | — | highlight |
 
 Two tokens carry it: `--to-decor-accent` (the caret trail's colour, already in use) and a new
 `--to-decor-highlight` (`--text-accent-hover`), one step past it, for a control under the pointer.
-The marker's own hover — the zoom gesture — moves from the accent to the highlight, so that
-hovering a line and hovering its mark are two states rather than one.
+The marker's own hover — the zoom gesture — is the highlight together with the cursor, and says
+"clickable"; hovering the rest of the line changes nothing about the mark. A first version
+accented the mark on line hover as well, and the second manual round read that as the mark being
+highlighted by the whole node — the two controls keep their two meanings by each answering to its
+own hover only. Two more things that round settled: the caret's colour wins over the folded one
+on the caret's own node, and the mark is stacked above Obsidian's chevron wrapper, which on a
+folded block line reaches over it (measured: the element under a folded paragraph's icon was the
+wrapper, so hovering showed the chevron's cursor and a click unfolded instead of zooming).
 
-The line-hover accent is under the same switch as the caret's accent (a class the decoration pass
-sets on the editor), because the two are one feature and a reader who turned it off asked for
-muted marks — and it is drawn only where a hover exists. The footer is not in this table: its
+The footer is not in this table: its
 control is drawn in the footer's own mark colour and hovers to text contrast, a convention of that
 surface that its own spec holds.
 

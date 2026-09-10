@@ -1162,6 +1162,24 @@ export function foldChromeColors(line: number): Promise<{ marker: string; contro
   }, line);
 }
 
+/** Park the pointer on a line's own marker icon — the zoom gesture's target. */
+export async function hoverMarker(line: number): Promise<void> {
+  const point = await browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll<HTMLElement>(
+      '.workspace-leaf.mod-active .cm-content > .cm-line',
+    )[n];
+    const icon = el?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+    if (!icon) throw new Error(`line ${n} has no marker icon`);
+    const box = icon.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  }, line);
+  await browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' })
+    .perform();
+  await browser.pause(150);
+}
+
 /** Park the pointer on a line's text, so the line is hovered and nothing in
  * its gutter is. */
 export async function hoverLineText(line: number): Promise<void> {

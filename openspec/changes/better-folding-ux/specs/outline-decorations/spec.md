@@ -53,15 +53,19 @@ every kind and whichever of the two controls — Obsidian's or the plugin's — 
 
 - **At rest**, unfolded: the chevron is hidden and the marker is muted, or carries the caret's
   accent when the caret is on the node or in its subtree — the existing rule.
-- **Hovering the line**: the chevron appears and the marker takes the same ACCENT the caret's trail
-  uses, naming the node the pointer is on.
+- **Hovering the line**: the chevron appears; the marker SHALL NOT change.
 - **Hovering the mark itself** — the zoom gesture — or hovering a chevron: the control takes the
-  HIGHLIGHT, one step past the accent, so a pointer travelling across a line to the mark sees it
-  change twice, once for the node and once for the control.
-- **Folded**: the marker carries the folded treatment above and the chevron SHALL match it, rather
-  than take Obsidian's own collapsed colour — the accent in the bundled themes, which beside a
-  marker at text contrast read as a control being highlighted while nothing pointed at it.
+  HIGHLIGHT, one step past the accent, together with the pointer cursor: "this is clickable". The
+  two controls SHALL each answer only to their own hover.
+- **Folded**: the marker carries the folded treatment above, and the caret's accent SHALL still
+  win on the caret's own node; the chevron SHALL take the folded colour rather than Obsidian's own
+  collapsed colour — the accent in the bundled themes, which beside a marker at text contrast read
+  as a control being highlighted while nothing pointed at it.
 - **Hovering a folded chevron**: the highlight, as for any control under the pointer.
+- **A folded node's mark SHALL remain the zoom gesture's target**: hovering it shows the pointer
+  cursor and the highlight, and clicking it zooms; the fold's chevron is the only control that
+  unfolds. Obsidian's chevron wrapper reaches over the mark on a folded block line, so the mark is
+  stacked above it.
 
 The chevron SHALL be centred between the parent's guide and the node's marker — half an
 indentation unit left of the marker column — for every kind, whatever the unit is set to, and
@@ -70,16 +74,21 @@ midpoint to reach into a checkbox, the control stops short of it instead. Anchor
 distance off the marker, a paragraph's control sat nearer its marker than a heading's, and none of
 them followed the unit.
 
-The line-hover accent SHALL be governed by the same setting as the caret's accent, and SHALL apply
-only where a hover exists.
-
 #### Scenario: A folded chevron matches its marker
 - **WHEN** a heading and a list item are folded
 - **THEN** each one's chevron is drawn in the same colour as its marker
 
-#### Scenario: A hovered line accents its marker
-- **WHEN** the pointer rests on the text of a node the caret is not on
-- **THEN** its marker takes the colour the caret's own node carries
+#### Scenario: Hovering the line leaves the marker; hovering the mark highlights it
+- **WHEN** the pointer rests on the text of a node the caret is not on, and then on its mark
+- **THEN** the marker is unchanged on the first and changes colour on the second
+
+#### Scenario: The caret's node stays marked while folded
+- **WHEN** a node is folded and the caret is on it
+- **THEN** its marker carries the caret's colour, not the folded one
+
+#### Scenario: A folded mark still zooms
+- **WHEN** a paragraph is folded and the reader clicks its mark
+- **THEN** the view zooms into it and the fold is unchanged
 
 #### Scenario: The control keeps its place whatever is folded and wherever the caret is
 - **WHEN** one of three paragraphs with children is folded and the caret is placed on each in turn

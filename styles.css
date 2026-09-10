@@ -1149,34 +1149,17 @@ body.is-mobile {
  * split the current-node accent already makes for the same two elements.
  */
 /*
- * Two hover states, one for the LINE and one for the MARK, and they have to
- * read as two.
+ * The mark under the pointer — and only the mark — takes the highlight: it is
+ * the zoom gesture's target, and the change of colour together with the cursor
+ * says "this is clickable", which a 13px glyph hanging in a gutter next to
+ * several others cannot say on its own. Hovering the rest of the line changes
+ * nothing about the mark; that reveals the fold chevron, and the two controls
+ * keep their two meanings by each answering to its own hover.
  *
- * Hovering anywhere on a node's line accents its marker — the same colour the
- * caret's own trail uses — and reveals its fold chevron: "this is the node the
- * pointer is on". Hovering the mark ITSELF is the zoom gesture, and takes the
- * HIGHLIGHT (`--to-decor-highlight`): a step brighter than the accent, so that
- * a pointer travelling across a line to the mark sees the mark change twice,
- * once for the node and once for the control. The chevron takes the same
- * highlight under the pointer, for the same reason — it is the other control
- * in the gutter, and the two say "interactive" the same way.
+ * A bullet's dot is a background on its `::after`, and an ordered number is
+ * text, so the same state is three declarations rather than one — the same
+ * split the current-node accent already makes for the same two elements.
  */
-/* Under the same switch as the caret's accent (`.to-decor-marker-accent`, set
- * on the editor by the decoration pass): the two are one feature, and a reader
- * who turned it off asked for muted marks. And only where a hover exists — a
- * touch layout has no resting pointer to name a node with. */
-@media (hover: hover) {
-  .markdown-source-view.mod-cm6 .to-decor-marker-accent .cm-content > .cm-line:hover .to-decor-marker-icon,
-  .markdown-source-view.mod-cm6 .to-decor-marker-accent .cm-content > .to-decor-list:hover .list-number,
-  .markdown-source-view.mod-cm6 .to-decor-marker-accent .cm-content > .to-decor-list:hover .to-decor-ol-digits {
-    color: var(--to-decor-accent);
-  }
-
-  .markdown-source-view.mod-cm6 .to-decor-marker-accent .cm-content > .to-decor-list:hover .list-bullet::after {
-    background-color: var(--to-decor-accent);
-  }
-}
-
 .markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon:hover,
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number:hover,
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-list .to-decor-ol-digits:hover {
@@ -3445,6 +3428,40 @@ body.is-mobile {
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .cm-fold-indicator.is-collapsed .collapse-indicator:hover svg,
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed:hover {
   color: var(--to-decor-highlight);
+}
+
+/*
+ * The caret's own colour wins over the folded one. Both rules name the marker
+ * and both are one class deep, so the folded rule, declared later, took the
+ * caret's node too — a folded node the reader was editing showed no sign of
+ * being the one in play. Stated at two classes, after, so that neither the
+ * order of the two blocks nor a later addition can decide it again.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-current .to-decor-marker-icon,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-ancestor .to-decor-marker-icon {
+  color: var(--to-decor-accent);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-current-native .list-bullet::after,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-ancestor-native .list-bullet::after {
+  background-color: var(--to-decor-accent);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-current-native .list-number,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-ancestor-native .list-number {
+  color: var(--to-decor-accent);
+}
+
+/*
+ * Above the fold indicator. Obsidian's wrapper for the chevron is stacked at
+ * `z-index: 1`, and on a folded block line — which Obsidian tags as a list line
+ * and pads accordingly — it reaches right of its own glyph, over the marker.
+ * Measured: the element under a folded paragraph's icon was the wrapper, so the
+ * pointer showed the chevron's cursor there and a click unfolded instead of
+ * zooming. The mark is the more specific control, and it is already positioned.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon {
+  z-index: 2;
 }
 
 /* The footer draws its own markers, so the folded treatment needs its own

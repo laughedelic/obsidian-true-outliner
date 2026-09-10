@@ -242,13 +242,12 @@ describe('fold chrome', () => {
     }
   });
 
-  it('gives the folded control the folded marker’s colour, and the hovered line the accent', async () => {
+  it('gives the folded control the folded marker’s colour', async () => {
     // One visual language for the mark and the chevron beside it, whichever of
     // the two controls the line shows. Folded: the chevron takes the colour the
     // marker's folded treatment gives it, rather than Obsidian's own collapsed
     // colour — the accent, which beside a marker at text contrast read as a
-    // control being highlighted while nothing pointed at it. Hovered: the mark
-    // takes the caret trail's accent, saying which node the pointer is on.
+    // control being highlighted while nothing pointed at it.
     await h.setCursorSettled(4, 3);
     await h.runCommand('fold-node');
     await h.setCursorSettled(0, 3);
@@ -259,12 +258,35 @@ describe('fold chrome', () => {
     const bullet = await h.foldChromeColors(4);
     expect(heading.control).toBe(heading.marker);
     expect(bullet.control).toBe(bullet.marker);
-    // The caret's own line carries the accent; a hovered line is drawn in it.
-    // Not under mobile emulation, which has no hover to draw it for.
+  });
+
+  it('changes the mark under the pointer, and not under a hovered line', async () => {
+    // The mark is the zoom gesture's target, and the change of colour with the
+    // cursor is what says so. Hovering the rest of its line reveals the fold
+    // chevron and leaves the mark alone: a first version accented the mark on
+    // line hover too, which read as the whole node highlighting the mark. Not
+    // under mobile emulation, which has no hover to draw for.
     if (h.IS_MOBILE_RUN) return;
-    const caret = (await h.foldChromeColors(2)).marker;
+    await h.setCursorSettled(0, 3);
+    const rest = (await h.foldChromeColors(2)).marker;
+    await h.hoverLineText(2);
+    expect((await h.foldChromeColors(2)).marker).toBe(rest);
+    await h.hoverMarker(2);
+    expect((await h.foldChromeColors(2)).marker).not.toBe(rest);
     await h.hoverLineText(0);
-    expect((await h.foldChromeColors(0)).marker).toBe(caret);
+  });
+
+  it('keeps the caret’s colour on a folded node the caret is on', async () => {
+    // Both the caret rule and the folded rule name the marker, and the folded
+    // one, declared later, took the caret's node too — a folded node being
+    // edited showed no sign of being the one in play.
+    await h.setCursorSettled(0, 3);
+    const caretColour = (await h.foldChromeColors(0)).marker;
+    await h.setCursorSettled(2, 4);
+    await h.runCommand('fold-node');
+    expect((await h.foldChromeColors(2)).marker).toBe(caretColour);
+    await h.setCursorSettled(0, 3);
+    expect((await h.foldChromeColors(2)).marker).not.toBe(caretColour);
   });
 
   it('holds the control’s place whatever line the caret is on and whatever is folded', async () => {
@@ -299,6 +321,49 @@ describe('fold chrome', () => {
         for (const line of [0, 17, 28]) await settled(line);
       }
     } finally {
+      await h.clearFolds();
+    }
+  });
+
+  it('leaves a folded paragraph’s mark to the zoom gesture', async () => {
+    // Obsidian's chevron wrapper is stacked at z-index 1 and, on a folded block
+    // line — which Obsidian tags as a list line and pads accordingly — reaches
+    // right of its glyph, over the mark. Measured on this note: the element
+    // under the folded paragraph's icon was the wrapper, so the pointer showed
+    // the chevron's cursor there and a click unfolded instead of zooming. Two
+    // controls, two gestures: the chevron unfolds, the mark zooms.
+    await h.openNote('Backlinks/Family tree.md');
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+    try {
+      await h.setCursorSettled(0, 4);
+      await h.runCommand('fold-node');
+      await h.setCursorSettled(17, 4);
+      const under = await browser.executeObsidian(() => {
+        const icon = document
+          .querySelector<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line')
+          ?.querySelector<HTMLElement>(':scope > .to-decor-marker-icon');
+        if (!icon) throw new Error('no marker icon on the folded paragraph');
+        const box = icon.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return {
+          onIcon: !!hit?.closest('.to-decor-marker-icon'),
+          point: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+        };
+      });
+      expect(under.onIcon).toBe(true);
+      await h.clickAtPoint(under.point.x, under.point.y);
+      await browser.pause(300);
+      const zoomed = await browser.executeObsidian(
+        () => document.querySelector('.workspace-leaf.mod-active .to-zoom-trail') !== null,
+      );
+      // Zoomed — which an unfold click never does. Whether the fold survives
+      // is not asked: zooming into a folded node opens it, by the change's
+      // own rule (`outline-zoom`), so a zoom that reads as an unfold as well is
+      // the intended result and not the defect.
+      expect(zoomed).toBe(true);
+    } finally {
+      await h.runCommand('zoom-clear');
       await h.clearFolds();
     }
   });

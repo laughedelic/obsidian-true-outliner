@@ -1836,15 +1836,6 @@ function clearWidgetPatch(el: HTMLElement): void {
   clearWidgetMarker(el);
 }
 
-/**
- * The switch the line-hover accent reads (styles.css): set on the editor root,
- * because a hover is a CSS state and the caret's accent is a per-line class the
- * stylesheet cannot see from a rule about a line the caret is NOT on. One
- * feature, one setting — a reader who turned the accent off asked for muted
- * marks under the pointer too.
- */
-const MARKER_ACCENT_CLASS = 'to-decor-marker-accent';
-
 /** A hidden, zero-height element whose only job is to resolve a CSS length
  * the browser alone can compute (styles.css). */
 const MEASURE_PROBE_CLASS = 'to-decor-measure-probe';
@@ -1857,16 +1848,10 @@ class DecorationsPlugin implements PluginValue {
     private readonly modes: DecorationSource,
   ) {
     this.decorations = this.compute();
-    this.publishAccentSwitch();
   }
 
   update(): void {
     this.decorations = this.compute();
-    this.publishAccentSwitch();
-  }
-
-  private publishAccentSwitch(): void {
-    this.view.dom.classList.toggle(MARKER_ACCENT_CLASS, this.modes.markerHighlight !== 'off');
   }
 
   private compute(): DecorationSet {
