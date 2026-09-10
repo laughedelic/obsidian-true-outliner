@@ -96,20 +96,27 @@ first, because the gutter's checkbox term is larger on mobile
 it. The specs state the invariant; the numbers land in the research note and then in the code.
 
 **Measured, and one rung lower than expected.** The floor is 22.0px on desktop and 24.4px on
-mobile, bound by a task's checkbox, so the ladder is `1.625rem` / `1.75rem` / `2rem` / `2.5rem`
-with `1.625rem` as the mobile default. `1.5rem` — the obvious bottom rung, and this layer's own
+mobile, bound by a task's checkbox, so the ladder is `1.625rem` (compact) / `1.75rem` (balanced)
+/ `2rem` (roomy) / `2.5rem` (wide), with roomy the desktop default and compact the mobile one. `1.5rem` — the obvious bottom rung, and this layer's own
 previous default — puts a nested task's checkbox 0.4px left of its parent's text on mobile. The
 first measurement pass missed that by sweeping a fixture long enough that CodeMirror never
 rendered its task list; the e2e case, which re-derives the relationship per device class, is what
 caught it. Both are recorded in
 [22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md).
 
-### D4 — The guide's own width becomes a declaration, and the accent follows it
+### D4 — The guide's own width becomes a declaration, and stays one
 
 `GUIDE_WIDTH` (`chrome-line.ts`) is the last geometry constant in the chrome vocabulary held as a
 JS literal. It becomes `--to-guide-width`, declared once alongside the other tokens and referred
 to by `var()` with no fallback and no numeric sibling — the rule the unit already carries, and
 for the same reason a number cannot follow an override.
+
+It does NOT become a setting. Weight and intensity answer the same question — how much of the
+page a guide takes — and weight cannot answer it without thickening a line whose role is to stay
+a background relationship; read side by side, the one rung above the default was already too
+heavy. The declaration stays anyway: a snippet reaches it, and the affordance most likely to want
+weight next — marking the guide under the pointer, or the one a click activates — needs it for one
+column and not the rest.
 
 Two rules move with it. `--to-trail-width` defaults to `var(--to-guide-width)` rather than to a
 literal `1px`, which preserves what styles.css already states about it: an accent is a change of

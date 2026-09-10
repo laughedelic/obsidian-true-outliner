@@ -66,7 +66,7 @@ export type { GuideVisibility } from "./decorate";
  * `auto` is the unit's default state, and means the plugin publishes nothing:
  * the step then resolves from the device-class default in the stylesheet.
  */
-export type { GuideIntensity, GuideThickness, OutlineUnit } from "./chrome-tokens";
+export type { GuideIntensity, OutlineUnit } from "./chrome-tokens";
 
 /**
  * The backlinks footer's controls, and the two caps that bound it.
@@ -130,15 +130,10 @@ import type { GuideHighlight, MarkerHighlight } from "./decorate";
 export const DEFAULT_GUIDE_HIGHLIGHT: GuideHighlight = "full";
 export const DEFAULT_MARKER_HIGHLIGHT: MarkerHighlight = "current";
 import type { GuideVisibility } from "./decorate";
-import type {
-  GuideIntensity,
-  GuideThickness,
-  OutlineUnit,
-} from "./chrome-tokens";
+import type { GuideIntensity, OutlineUnit } from "./chrome-tokens";
 export const DEFAULT_OUTLINE_UNIT: OutlineUnit = "auto";
 export const DEFAULT_GUIDE_VISIBILITY: GuideVisibility = "all";
-export const DEFAULT_GUIDE_THICKNESS: GuideThickness = "hairline";
-export const DEFAULT_GUIDE_INTENSITY: GuideIntensity = "normal";
+export const DEFAULT_GUIDE_INTENSITY: GuideIntensity = "subtle";
 
 /**
  * How the status bar states the active tab's mode.
@@ -201,8 +196,6 @@ export interface PluginData {
   /** Drop the outermost guide while the document has exactly one root — a
    * guide every line carries names nothing. Paint only: no line moves. */
   guideHideSingleRoot: boolean;
-  /** See `GuideThickness`. */
-  guideThickness: GuideThickness;
   /** See `GuideIntensity`. */
   guideIntensity: GuideIntensity;
 }
@@ -226,7 +219,6 @@ export const DEFAULT_DATA: PluginData = {
   outlineUnit: DEFAULT_OUTLINE_UNIT,
   guideVisibility: DEFAULT_GUIDE_VISIBILITY,
   guideHideSingleRoot: false,
-  guideThickness: DEFAULT_GUIDE_THICKNESS,
   guideIntensity: DEFAULT_GUIDE_INTENSITY,
 };
 
@@ -285,18 +277,16 @@ const KNOWN_MARKER_HIGHLIGHT: Record<MarkerHighlight, true> = {
 const KNOWN_OUTLINE_UNIT: Record<OutlineUnit, true> = {
   auto: true,
   compact: true,
-  standard: true,
+  balanced: true,
   roomy: true,
   wide: true,
 };
 const KNOWN_GUIDE_VISIBILITY: Record<GuideVisibility, true> = {
   all: true,
-  cursor: true,
+  ancestors: true,
+  own: true,
+  subtree: true,
   off: true,
-};
-const KNOWN_GUIDE_THICKNESS: Record<GuideThickness, true> = {
-  hairline: true,
-  medium: true,
 };
 const KNOWN_GUIDE_INTENSITY: Record<GuideIntensity, true> = {
   subtle: true,
@@ -420,11 +410,6 @@ export function normalizePluginData(raw: unknown): PluginData {
     guideHideSingleRoot: bool(
       stored.guideHideSingleRoot,
       DEFAULT_DATA.guideHideSingleRoot,
-    ),
-    guideThickness: oneOf(
-      KNOWN_GUIDE_THICKNESS,
-      stored.guideThickness,
-      DEFAULT_DATA.guideThickness,
     ),
     guideIntensity: oneOf(
       KNOWN_GUIDE_INTENSITY,

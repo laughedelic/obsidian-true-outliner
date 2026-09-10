@@ -454,13 +454,13 @@ describe('the outline unit is one declaration the whole grid follows', function 
     };
 
     const measured: Record<string, number> = {};
-    for (const preset of ['compact', 'standard', 'roomy', 'wide'] as const) {
+    for (const preset of ['compact', 'balanced', 'roomy', 'wide'] as const) {
       await h.setPluginSetting('outlineUnit', preset);
       measured[preset] = await step();
     }
     // A ladder, not four names for one number.
-    expect(measured.compact).toBeLessThan(measured.standard!);
-    expect(measured.standard).toBeLessThan(measured.roomy!);
+    expect(measured.compact).toBeLessThan(measured.balanced!);
+    expect(measured.balanced).toBeLessThan(measured.roomy!);
     expect(measured.roomy).toBeLessThan(measured.wide!);
 
     // And the default resolves per device class: the same `auto` setting is a
@@ -469,7 +469,7 @@ describe('the outline unit is one declaration the whole grid follows', function 
     // size.
     await h.setPluginSetting('outlineUnit', 'auto');
     const auto = await h.publishedUnit();
-    expect(auto).toBe(h.IS_MOBILE_RUN ? measured.compact : measured.standard);
+    expect(auto).toBe(h.IS_MOBILE_RUN ? measured.compact : measured.roomy);
   });
 
   it('keeps a child’s mark right of its parent’s text at the narrowest step', async function () {

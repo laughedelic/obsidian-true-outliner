@@ -93,7 +93,7 @@ import { coveredForestOf, coveredSubtreeRoots } from '../escalate';
 import type { LineRange } from '../line-pos';
 import { offsetToLinePos } from './cm-pos';
 import {
-  caretGuideDepths,
+  caretGuideScope,
   computeLineGuides,
   computePositionTrail,
   decorate,
@@ -101,10 +101,11 @@ import {
   materializeProbe,
   positionBisectsANode,
   visibleGuideDepths,
-  zoomAwareCaretDepths,
+  zoomAwareCaretScope,
   zoomAwarePositionTrail,
   type GuideHighlight,
   type GuideVisibility,
+  type CaretGuideScope,
   type GuideVisibilityContext,
   type MarkerHighlight,
   type LineDecorationFact,
@@ -352,37 +353,36 @@ function visibilityContext(
   modes: DecorationSource,
   facts: DocFacts,
 ): GuideVisibilityContext {
-  const needsCaret = modes.guideVisibility === 'cursor';
+  const needsCaret = modes.guideVisibility !== 'all' && modes.guideVisibility !== 'off';
   return {
     visibility: modes.guideVisibility,
     hideSingleRoot: modes.guideHideSingleRoot,
     singleRoot: facts.singleRoot,
-    caretDepthsByLine: needsCaret ? caretDepthsByLine(state) : null,
+    caret: needsCaret ? caretScope(state) : null,
   };
 }
 
-const caretDepthsCache = new WeakMap<EditorState, ReadonlyMap<number, ReadonlySet<number>>>();
+const caretScopeCache = new WeakMap<EditorState, CaretGuideScope | null>();
 
 /**
- * Per line, the depths at which that line is inside one of the primary caret's
- * strict ancestors, cached per state for the reason the trail is: two consumers
- * read it on the same render, and a CM6 state fixes the document and the
- * selection together.
+ * Where the primary caret is, in the terms the caret-scoped modes ask about,
+ * cached per state for the reason the trail is: two consumers read it on the
+ * same render, and a CM6 state fixes the document and the selection together.
  */
-function caretDepthsByLine(state: EditorState): ReadonlyMap<number, ReadonlySet<number>> {
-  const cached = caretDepthsCache.get(state);
-  if (cached) return cached;
+function caretScope(state: EditorState): CaretGuideScope | null {
+  const cached = caretScopeCache.get(state);
+  if (cached !== undefined) return cached;
   const head = state.selection.main.head;
   const cursorLine = state.doc.lineAt(head).number - 1;
   // A provisional position stands for a node that is not in the buffer yet, so
   // the chain is read from the tree that position resolves to — the same
   // document `factsFor` hands the guides on that render.
   const provisional = provisionalAt(state);
-  const depths = provisional
-    ? caretGuideDepths(provisional.doc, cursorLine)
-    : zoomAwareCaretDepths(parsedDoc(state.doc).doc, cursorLine, zoomScope(state));
-  caretDepthsCache.set(state, depths);
-  return depths;
+  const scope = provisional
+    ? caretGuideScope(provisional.doc, cursorLine)
+    : zoomAwareCaretScope(parsedDoc(state.doc).doc, cursorLine, zoomScope(state));
+  caretScopeCache.set(state, scope);
+  return scope;
 }
 
 /**

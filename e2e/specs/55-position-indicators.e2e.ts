@@ -683,7 +683,7 @@ describe('position indicators: current node and ancestor trail', function () {
     });
 
     it('leaves cursor-scoped guides drawn where the accent trail is suppressed', async function () {
-      // The base layer's own `'cursor'` visibility reads the caret chain, and
+      // The base layer's own `'ancestors'` visibility reads the caret chain, and
       // the accent trail is emptied in two cases that are statements about
       // ACCENTS: both accent axes off, and a whole-subtree cover selected,
       // where block chrome already answers "where am I". Neither may take the
@@ -693,7 +693,7 @@ describe('position indicators: current node and ancestor trail', function () {
       await ensureOutlineMode(note);
       await setGuides('off');
       await setMarkers('off');
-      await h.setPluginSetting('guideVisibility', 'cursor');
+      await h.setPluginSetting('guideVisibility', 'ancestors');
       await h.setCursor(6, 2); // "Body of A." — inside Project and Section A
       await browser.pause(300);
       // Two ancestors, both drawn, none of them accented.

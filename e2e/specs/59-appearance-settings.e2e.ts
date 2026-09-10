@@ -92,8 +92,7 @@ describe('outline appearance settings', function () {
     // next one's starting point — and a test that begins by setting the value
     // it means to change measures nothing.
     await set('outlineUnit', 'auto');
-    await set('guideThickness', 'hairline');
-    await set('guideIntensity', 'normal');
+    await set('guideIntensity', 'subtle');
   });
 
   after(async function () {
@@ -113,12 +112,10 @@ describe('outline appearance settings', function () {
     // same declarations. A published length would be a second copy — and the
     // compact rung and the mobile default are the same number, so they would be
     // two copies that agree only until someone edits one.
-    await set('outlineUnit', 'roomy');
-    await set('guideThickness', 'medium');
+    await set('outlineUnit', 'balanced');
     await set('guideIntensity', 'strong');
     const props = await publishedProps();
-    expect(props['--to-set-unit']).toBe('var(--to-unit-roomy)');
-    expect(props['--to-set-guide-width']).toBe('var(--to-guide-width-medium)');
+    expect(props['--to-set-unit']).toBe('var(--to-unit-balanced)');
     expect(props['--to-set-guide-intensity']).toBe('var(--to-guide-intensity-strong)');
   });
 
@@ -134,14 +131,13 @@ describe('outline appearance settings', function () {
     // rung is wider, and that every rung is one value every layer reads.
     expect(wide).toBeGreaterThan(compact);
 
-    await set('guideThickness', 'hairline');
-    const hairline = await resolveLength('--to-guide-width');
-    await set('guideThickness', 'medium');
-    const medium = await resolveLength('--to-guide-width');
-    expect(medium).toBeGreaterThan(hairline);
-    // The accent follows the guide at every thickness — an accent is a change
-    // of colour, not of weight.
-    expect(await resolveLength('--to-trail-width')).toBe(medium);
+    // Weight is not a setting — intensity carries the same axis without
+    // thickening a line that has to stay a background relationship — but the
+    // accent still follows the guide's own width, so a snippet that changes one
+    // changes both.
+    expect(await resolveLength('--to-trail-width')).toBe(
+      await resolveLength('--to-guide-width'),
+    );
 
     // Intensity is a proportion of the theme's own faint text, so the ordering
     // has to hold in a light theme and a dark one, and the colour itself has to
@@ -175,7 +171,6 @@ describe('outline appearance settings', function () {
     expect(overridden).toBe(48); // 3rem at the 16px root the harness runs
 
     // The same for the guides' own two tokens.
-    await set('guideThickness', 'medium');
     await h.applyStyleOverride(
       'appearance-spec-override',
       'body { --to-guide-width: 5px; --to-guide-color: rgb(1, 2, 3); }',
@@ -201,14 +196,22 @@ describe('outline appearance settings', function () {
     });
     await browser.pause(800);
 
-    /** The guide width each open editor resolves, in DOM order. */
+    /**
+     * The outline unit each VISIBLE editor resolves, in DOM order.
+     *
+     * Hidden editors are skipped: Obsidian retains one behind a leaf that has
+     * moved on, and a `display: none` ancestor measures every length as zero —
+     * which is not a value this can compare, in either direction.
+     */
     const perPane = (): Promise<number[]> =>
       browser.execute(() => {
-        const panes = Array.from(document.querySelectorAll<HTMLElement>('.cm-content'));
+        const panes = Array.from(document.querySelectorAll<HTMLElement>('.cm-content')).filter(
+          (pane) => pane.getBoundingClientRect().width > 0,
+        );
         return panes.map((pane) => {
           const probe = document.createElement('div');
           probe.style.cssText =
-            'position:absolute;visibility:hidden;height:0;width:var(--to-guide-width);';
+            'position:absolute;visibility:hidden;height:0;width:var(--to-decor-unit);';
           pane.appendChild(probe);
           const width = +probe.getBoundingClientRect().width.toFixed(2);
           probe.remove();
@@ -218,13 +221,13 @@ describe('outline appearance settings', function () {
 
     const before = await perPane();
     expect(before.length).toBeGreaterThan(1); // two panes, or this proves nothing
-    await set('guideThickness', 'medium');
+    await set('outlineUnit', 'wide');
     const after = await perPane();
     expect(after.length).toBe(before.length);
     // EVERY pane, not just the one the settings tab was opened over.
     for (const [i, width] of after.entries()) expect(width).toBeGreaterThan(before[i]!);
 
-    await set('guideThickness', 'hairline');
+    await set('outlineUnit', 'auto');
     await browser.executeObsidian(({ app }) => {
       const leaves = app.workspace.getLeavesOfType('markdown');
       if (leaves.length > 1) leaves[leaves.length - 1]!.detach();
@@ -268,10 +271,9 @@ describe('outline appearance settings', function () {
         // force there is the rung the reader chose.
         const chrome = {
           set: doc.body.style.getPropertyValue('--to-set-unit').trim(),
-          guidesOff: doc.body.classList.contains('to-guides-off'),
           unit: width('var(--to-decor-unit)'),
           wide: width('var(--to-unit-wide)'),
-          standard: width('var(--to-unit-standard)'),
+          balanced: width('var(--to-unit-balanced)'),
         };
         probe.remove();
         return chrome;
@@ -288,16 +290,11 @@ describe('outline appearance settings', function () {
     await browser.pause(600);
 
     await set('outlineUnit', 'wide');
-    await set('guideVisibility', 'off');
 
     const existing = await chromeOf('existing');
     expect(existing.set).toBe('var(--to-unit-wide)');
     expect(existing.unit).toBe(existing.wide);
-    expect(existing.unit).toBeGreaterThan(existing.standard);
-    // And the class that hands list levels back to Obsidian: a pop-out missing
-    // it suppresses the native guides against a layer drawing nothing at all,
-    // which is worse than merely stale.
-    expect(existing.guidesOff).toBe(true);
+    expect(existing.unit).toBeGreaterThan(existing.balanced);
 
     // And a window opened WHILE a non-default is in force starts with it — the
     // other half of the mirror, since no setting changes at that moment.
@@ -313,7 +310,6 @@ describe('outline appearance settings', function () {
     await browser.pause(600);
     const opened = await chromeOf('new');
     expect(opened.set).toBe('var(--to-unit-wide)');
-    expect(opened.guidesOff).toBe(true);
 
     await browser.executeObsidian(({ app }) => {
       for (const type of ['markdown', 'empty']) {
@@ -323,7 +319,6 @@ describe('outline appearance settings', function () {
       }
     });
     await browser.pause(500);
-    await set('guideVisibility', 'all');
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
   });
@@ -333,11 +328,9 @@ describe('outline appearance settings', function () {
     // the defaults exercises no cleanup at all, because there is nothing
     // published to remove.
     await set('outlineUnit', 'wide');
-    await set('guideThickness', 'medium');
-    await set('guideIntensity', 'subtle');
+    await set('guideIntensity', 'strong');
     expect(Object.keys(await publishedProps()).sort()).toEqual([
       '--to-set-guide-intensity',
-      '--to-set-guide-width',
       '--to-set-unit',
     ]);
 
@@ -355,7 +348,6 @@ describe('outline appearance settings', function () {
     await browser.pause(500);
     const props = await publishedProps();
     expect(props['--to-set-unit']).toBe('var(--to-unit-wide)');
-    expect(props['--to-set-guide-width']).toBe('var(--to-guide-width-medium)');
-    expect(props['--to-set-guide-intensity']).toBe('var(--to-guide-intensity-subtle)');
+    expect(props['--to-set-guide-intensity']).toBe('var(--to-guide-intensity-strong)');
   });
 });

@@ -130,6 +130,27 @@
   settings.e2e.ts`'s settings-driving helper is the existing pattern), appearance without a
   decoration rebuild and visibility with one
 
+## 10. Review round: what use of it changed
+
+- [x] 10.1 Add the two caret-scoped visibility states that look DOWN from the caret — the node's
+  own guide, and every guide inside it — and verify in `tests/decorate.test.ts` that the three
+  caret-scoped states partition a row's guides, and in `51-guides-gradient.e2e.ts` that a
+  childless node draws none. Negative control: drop the span check and confirm the sibling
+  subtree lights up
+- [x] 10.2 Suppress Obsidian's own indent guides unconditionally in outline mode, since they sit
+  on columns this grid does not use, and verify a list line reports a zeroed native width under
+  every visibility state including `none` — negative control: restore the body-class gate and
+  confirm the `none` case fails
+- [x] 10.3 Retire the thickness setting, keeping `--to-guide-width` as a declaration, and default
+  intensity to `subtle`; verify the footer case still catches an editor-scoped `--to-guide-color`
+  by changing intensity alone
+- [x] 10.4 Rename the unit's rungs (`balanced`, `auto`) and split the defaults — roomy on desktop,
+  compact on mobile — and verify `58-unit-override.e2e.ts` reads each rung and the device default
+  on both classes
+- [x] 10.5 Record the reasoning in `docs/research/09` (weight withdrawn, intensity's default) and
+  `docs/research/22` (the two defaults), and park the reader-facing snippet documentation in
+  `docs/research/12`
+
 ## 9. Close out
 
 - [x] 9.1 Run the unit suite and the touched e2e specs on both device classes

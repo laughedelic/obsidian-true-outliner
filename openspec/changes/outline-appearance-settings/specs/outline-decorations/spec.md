@@ -105,12 +105,20 @@ tree depth, whatever that ancestor's kind — a heading, paragraph or atom with 
 a list item with descendants alike. Every line inside an ancestor's subtree renders that
 ancestor's guide, on that ancestor's own depth column.
 
-Which of those guides is DRAWN SHALL be governed by a visibility setting with three states:
+Which of those guides is DRAWN SHALL be governed by a visibility setting with five states:
 
 - **every level** — the rendering above, and the default;
 - **the levels the cursor is inside** — only guides belonging to a strict ancestor of the node
   holding the primary caret; every other guide is not drawn at all;
+- **the current node's own guide** — only the guide the caret's own node owns, on the rows that
+  guide covers. A node with no children owns none, and nothing is drawn;
+- **the levels inside the current node** — that guide and every guide owned by a node inside the
+  caret's own node, on the rows they cover; the dual of the state above it;
 - **none** — the layer draws no guides.
+
+The three caret-scoped states SHALL partition a row's guides where they meet: on a row inside the
+caret's own node, every guide it carries belongs either to the route down to that node or to the
+ladder inside it, and the node's own guide is the boundary between them.
 
 A separate setting SHALL additionally drop the OUTERMOST guide while the document has exactly
 one root node, on the grounds that a guide every line carries distinguishes nothing. A zoomed
@@ -121,13 +129,14 @@ Visibility SHALL be a matter of what is painted and nothing else: no line's inde
 marker or text SHALL move when a guide stops or starts being drawn, whether because a setting
 changed, the caret moved, or an edit made the document's root no longer single.
 
-The plugin SHALL own this rendering rather than share it: wherever it draws a guide for a list
-level it SHALL suppress Obsidian's own indent guide for that level, so exactly one line renders
-per level. Where the layer draws NO guides at all — the `none` state — it SHALL suppress
-nothing, leaving list levels to whatever Obsidian's own setting asks for. Suppression SHALL NOT
-vary line by line or with the caret, so that no native guide appears or disappears as the reader
-moves. Guides SHALL render continuously through blank separator lines between sibling
-blocks, not just through node content lines.
+The plugin SHALL own this rendering rather than share it: in outline mode it SHALL suppress
+Obsidian's own indent guide on every list line, whatever this layer itself draws there. A native
+guide is positioned by native list nesting, and outline mode does not use those columns — a list
+level renders at `depth × unit` like every other kind — so a native guide lands beside this grid
+rather than on it, and showing one is showing a ladder that does not match the content. Drawing
+no guides of our own is therefore not a reason to show Obsidian's; suppression SHALL NOT vary
+with the visibility setting, line by line, or with the caret. Guides SHALL render continuously
+through blank separator lines between sibling blocks, not just through node content lines.
 
 A guide SHALL END at the last CONTENT line of the subtree it covers — the last line in that
 subtree that belongs to some node's own lines — and SHALL NOT render on the blank separator
@@ -213,10 +222,25 @@ be the same either way.
 - **THEN** that section's guides render and the previous section's stop, with no line's text,
   marker or indentation moving
 
-#### Scenario: Guides off draws none, and gives the levels back to Obsidian
-- **WHEN** the visibility setting is `none`
-- **THEN** no guide renders on any line in the editor, no line's geometry changes, and a list
-  level renders whatever Obsidian's own indentation-guide setting asks for
+#### Scenario: Guides off draws none, and still shows no native guide
+- **WHEN** the visibility setting is `none`, with Obsidian's own indentation-guide setting on
+- **THEN** no guide renders on any line in the editor, no line's geometry changes, and no native
+  indent guide renders on a list line either
+
+#### Scenario: The caret's own node's guide, alone
+- **WHEN** the visibility setting names the current node's own guide and the caret is in a node
+  with children
+- **THEN** that node's own guide renders on the rows its subtree covers, and no other guide
+  renders anywhere
+
+#### Scenario: The levels inside the current node
+- **WHEN** the visibility setting names the levels inside the current node
+- **THEN** the caret's own node's guide and every guide owned within it render on the rows they
+  cover, and the guides of its ancestors render nowhere
+
+#### Scenario: A childless node owns no guide to draw
+- **WHEN** either of those two states is in force and the caret is in a node with no children
+- **THEN** no guide renders on any line
 
 #### Scenario: The outermost guide is dropped under a single root
 - **WHEN** the qualifier is enabled and every node in the note descends from one top-level
@@ -242,11 +266,13 @@ vocabulary as the unit, under the same rule: declared once, at a scope every sur
 with no layer holding a second copy of either value in any other form — in particular no
 component that builds a stripe outside CSS may spell the width as a number equal to it.
 
-Both SHALL be settable from a plugin setting as a choice among named steps, contributed through
-properties the declarations consume so that a stylesheet override continues to win over both the
-setting and the default. The colour SHALL be settable in INTENSITY only, expressed against the
-theme's own faint-text colour, so that a guide stays legible in a light and a dark theme alike
-and the hue remains the stylesheet's to change.
+Of the two, only INTENSITY SHALL be settable, as a choice among named steps contributed through a
+property the declaration consumes, so that a stylesheet override continues to win over both the
+setting and the default. It SHALL be expressed against the theme's own faint-text colour, so that
+a guide stays legible in a light and a dark theme alike and the hue remains the stylesheet's to
+change. Thickness SHALL remain a declaration only: it answers the same question intensity does —
+how much of the page a guide takes — and cannot answer it without thickening a line whose role is
+to stay a background relationship.
 
 The caret accent's width SHALL follow the guide's, so that accenting a guide is a change of
 colour and not of weight, whatever thickness is in force. The guide overlay's own paint area
@@ -259,7 +285,7 @@ with no note edited and no line's geometry changed.
 
 #### Scenario: Thickness applies to every guide on both surfaces
 
-- **WHEN** the reader picks a thicker guide
+- **WHEN** a stylesheet thickens the guide's declaration
 - **THEN** every guide in the editor and in the footer renders at that thickness, still centred
   on its own depth column, and no text or marker moves
 
@@ -284,5 +310,6 @@ with no note edited and no line's geometry changed.
 #### Scenario: Appearance reaches every open pane at once
 
 - **WHEN** the same note is open in two panes, one of them holding the backlinks footer, and the
-  reader changes thickness or intensity
-- **THEN** both panes and the footer render the new appearance without the note being touched
+  reader changes the unit or the intensity
+- **THEN** both panes and the footer render the new appearance without the note being touched, as
+  does a pop-out window holding a third

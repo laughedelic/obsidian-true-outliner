@@ -640,7 +640,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
 
     it('draws only the levels the cursor is inside, by ancestor and not by depth', async function () {
       await h.setCursorSettled(UNDER_TWO, 3);
-      await h.setPluginSetting('guideVisibility', 'cursor');
+      await h.setPluginSetting('guideVisibility', 'ancestors');
       // Both rows carry a guide at depth 0, and only one of those depth-0
       // guides belongs to an ancestor of the caret's own node.
       expect(await layers(UNDER_TWO)).toBe(1);
@@ -653,25 +653,77 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       expect(await layers(UNDER_TWO)).toBe(0);
     });
 
-    it('draws none at all when the layer is off, and hands list levels back to Obsidian', async function () {
+    it('draws the caret’s own guide, and everything inside it', async function () {
+      // The two modes that look DOWN from the caret rather than up. A note with
+      // a level below the caret's own node, so "own" and "subtree" differ:
+      //
+      //   0 # Root        1 ## Mid      2 ### Deep      3 body
+      const nested = 'Scratch/decorations-guide-subtree.md';
+      await h.createNote(
+        nested,
+        ['# Root', '', '## Mid', '', '### Deep', '', 'body', '', '## Other', '', 'sibling', ''].join(
+          '\n',
+        ),
+      );
+      await ensureOutlineMode(nested);
+      await h.setCursorSettled(2, 6); // "## Mid"
+      await browser.pause(200);
+
+      const BODY = 6; // inside Deep, inside Mid, inside Root
+      const SIBLING = 10; // inside Other, outside Mid
+      expect(await layers(BODY)).toBe(3); // Root's, Mid's, Deep's
+
+      // Only the caret's node's own column, on the rows its subtree covers.
+      await h.setPluginSetting('guideVisibility', 'own');
+      expect(await layers(BODY)).toBe(1);
+      expect(await layers(SIBLING)).toBe(0);
+
+      // Its own and everything owned inside it — Root's, above, stays out.
+      await h.setPluginSetting('guideVisibility', 'subtree');
+      expect(await layers(BODY)).toBe(2);
+      expect(await layers(SIBLING)).toBe(0);
+
+      // And the dual: what "ancestors" draws on that row is exactly the rest.
+      await h.setPluginSetting('guideVisibility', 'ancestors');
+      expect(await layers(BODY)).toBe(1);
+
+      // A node with no children owns no guide, so both modes draw nothing.
+      await h.setCursorSettled(SIBLING, 3);
+      await browser.pause(200);
+      for (const mode of ['own', 'subtree'] as const) {
+        await h.setPluginSetting('guideVisibility', mode);
+        expect(await layers(BODY)).toBe(0);
+        expect(await layers(SIBLING)).toBe(0);
+      }
+
+      await h.openNote(NOTE);
+      await browser.pause(150);
+    });
+
+    it('draws none at all when the layer is off, and still shows no native guide', async function () {
+      // Obsidian's own indent guide stays suppressed whatever this layer draws.
+      // It sits on the column native list nesting puts it on, and outline mode
+      // does not use those columns — a list level renders at `depth × unit`
+      // like every other kind — so a native guide here is a ladder that does
+      // not match the content. Drawing none of ours is not a reason to show
+      // one; it is a reason to show nothing.
       const listNote = 'Scratch/decorations-guide-visibility-list.md';
       await h.createNote(listNote, ['# Section', '', '- top', '\t- nested', ''].join('\n'));
       await ensureOutlineMode(listNote);
-      await h.setIndentGuides(true);
+      await h.setIndentGuides(true); // the reader's own setting, deliberately ON
       await browser.pause(150);
 
       const nativeWidth = (line: number): Promise<string> =>
         h.getLineComputedStyle(line, '--indentation-guide-width');
-      // While we draw a list level's guide, Obsidian's own is suppressed on
-      // that line so exactly one line renders per level.
       expect((await nativeWidth(3)).trim()).toBe('0px');
 
+      for (const mode of ['off', 'own', 'subtree', 'ancestors'] as const) {
+        await h.setPluginSetting('guideVisibility', mode);
+        expect((await nativeWidth(3)).trim()).toBe('0px');
+      }
       await h.setPluginSetting('guideVisibility', 'off');
       expect(await layers(2)).toBe(0);
       expect(await layers(3)).toBe(0);
-      // Drawing nothing removes the reason to suppress: the reader's own
-      // Obsidian setting governs list levels again.
-      expect((await nativeWidth(3)).trim()).not.toBe('0px');
 
       await h.setPluginSetting('guideVisibility', 'all');
       expect((await nativeWidth(3)).trim()).toBe('0px');
@@ -757,11 +809,11 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
       await h.setCursorSettled(UNDER_TWO, 3);
       const base = await geometry(UNDER_ONE);
 
-      for (const mode of ['cursor', 'off', 'all'] as const) {
+      for (const mode of ['ancestors', 'own', 'subtree', 'off', 'all'] as const) {
         await h.setPluginSetting('guideVisibility', mode);
         expect(await geometry(UNDER_ONE)).toEqual(base);
       }
-      await h.setPluginSetting('guideVisibility', 'cursor');
+      await h.setPluginSetting('guideVisibility', 'ancestors');
       await h.setCursorSettled(UNDER_ONE, 3);
       await browser.pause(200);
       expect(await geometry(UNDER_ONE)).toEqual(base);

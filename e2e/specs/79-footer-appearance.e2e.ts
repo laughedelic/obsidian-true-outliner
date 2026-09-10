@@ -203,8 +203,7 @@ describe('the footer’s appearance settings', function () {
     after(async function () {
       await set('backlinksGuides', false);
       await set('outlineUnit', 'auto');
-      await set('guideThickness', 'hairline');
-      await set('guideIntensity', 'normal');
+      await set('guideIntensity', 'subtle');
       await set('guideVisibility', 'all');
     });
 
@@ -255,7 +254,7 @@ describe('the footer’s appearance settings', function () {
       // footer has no caret of its own, and every row's lineage begins at its
       // source note's own root. So a footer row draws one guide per ancestor
       // row above it whatever the editor is doing.
-      await set('guideVisibility', 'cursor');
+      await set('guideVisibility', 'ancestors');
       const before = await guideRow();
 
       // Plain `setCursor`: the caret-placement policy corrects a position at a
@@ -276,14 +275,16 @@ describe('the footer’s appearance settings', function () {
       // with, in case some rule ever scopes one of them to the editor.
       const base = await guideRow();
       await set('outlineUnit', 'wide');
-      await set('guideThickness', 'medium');
+      await h.applyStyleOverride('footer-appearance-width', 'body { --to-guide-width: 3px; }');
       const geometry = await guideRow();
       // Relationships, not pixels: a wider step is wider on this surface too,
-      // and the group's own inset — stated from the unit rather than copied
-      // from a row — moves with it.
+      // the group's own inset — stated from the unit rather than copied from a
+      // row — moves with it, and the guide's own width follows the one
+      // declaration a snippet retunes (it is not a setting).
       expect(geometry.unit).toBeGreaterThan(base.unit);
       expect(geometry.guide).toBeGreaterThan(base.guide);
       expect(geometry.inset).toBeGreaterThan(base.inset);
+      await h.applyStyleOverride('footer-appearance-width', null);
 
       // Intensity ON ITS OWN, after the geometry has settled. It is the one
       // axis with no length to read, so it is asserted where it lands — the

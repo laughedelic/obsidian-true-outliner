@@ -548,6 +548,15 @@ whole guide layer. What it did, and what it deliberately left:
   single child repeats the shape one level down and keeps its guide, deliberately, so the
   visible ladder never depends on content several levels away. Whether that deeper case is
   worth a rule of its own is unanswered.
+- **Also open: telling readers about the snippet route.** Every value this layer draws from is a
+  custom property a snippet can retune — the unit, the guide's colour and its weight, the accent's
+  colour and weight, the marker's size — and the specs require it to stay that way, with an e2e
+  case behind the unit's. None of that is written down anywhere a reader would look. A short
+  documented list of the properties and what each one moves would serve the tinkerer without
+  growing the settings surface, which is the trade this whole entry is about. Guide WEIGHT is the
+  first thing on it: offered as a setting, withdrawn as too heavy at every rung above the default,
+  and left as a declaration precisely so a snippet can still reach it
+  ([09](09-experiment-2-guide-lines.md)).
 
 Make most of the decoration system configurable and optional. Indentation is the one
 essential layer; everything else should be independently switchable without breaking the

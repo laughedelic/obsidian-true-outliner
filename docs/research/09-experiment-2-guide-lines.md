@@ -378,20 +378,29 @@ computations must agree on and only one of them can follow an override.
 
 | Thickness | Reading |
 | --- | --- |
-| **`1px`** | **The default.** A hairline; at a four-deep nesting the ladder reads without competing with the bullets it comes out of. |
-| **`2px`** | **Offered.** Clearly heavier and still a line. Legible against a light theme's own faint text, where `1px` at a low intensity can disappear. |
-| `3px` | Rejected. Beside a bullet's dot and a `0.85rem` marker icon it reads as a bar rather than a guide — the levels stop looking like a ladder and start looking like columns. |
+| **`1px`** | **The default, and the only one shipped.** A hairline; at a four-deep nesting the ladder reads without competing with the bullets it comes out of. |
+| `2px` | Offered as a setting, then withdrawn — see below. Clearly heavier and still a line, but heavier than a guide wants to be beside a bullet's dot. |
+| `3px` | Rejected outright. Beside a bullet's dot and a `0.85rem` marker icon it reads as a bar rather than a guide — the levels stop looking like a ladder and start looking like columns. |
 
 | Intensity | Reading |
 | --- | --- |
-| `35%` | Offered as the subtle rung. Traceable in both themes; visibly quieter than the default. |
-| **`60%`** | **The default**, unchanged. |
+| **`35%`** | **The default.** Traceable in both themes and quiet enough to read as a background relationship rather than as content. |
+| `60%` | Offered. What the guides were before this change. |
 | `100%` | Offered as the strong rung — the theme's own `--text-faint` at full strength. Comparable in weight to a bullet's dot in dark, and no louder than the text it sits beside in light. |
 
 Intensity is a percentage over `--text-faint` rather than a colour, so every rung resolves from
 whatever theme is running and none can be wrong in one mode and right in the other. A hue
 remains the stylesheet's to change, which is what keeps this a three-rung dropdown — the default
-and the two either side of it — rather than a colour picker.
+and the two above it — rather than a colour picker.
+
+**Thickness is not a setting, and intensity's default moved down.** Read side by side in a real
+vault, `2px` was already too heavy: the two axes overlap — both answer "how much of the page does
+a guide take" — and only one of them can do it without thickening a line whose whole job is to
+stay a background relationship. So weight stays one declaration a snippet can retune, and the
+setting is intensity alone, defaulting to the quietest rung that still traces. The declaration
+is kept rather than inlined because a later use for weight is already in view: marking the guide
+under the pointer, or the one a click activates, wants a heavier line for one column and not for
+the rest.
 
 Two rules move with the width once it is a declaration, and both are load-bearing:
 

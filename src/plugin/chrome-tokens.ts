@@ -112,8 +112,7 @@ export const CHROME_VARS = {
  * The maps are `Record`s over their unions, so adding a state to a type without
  * giving it a declaration is a compile error rather than a silent fallback.
  */
-export type OutlineUnit = 'auto' | 'compact' | 'standard' | 'roomy' | 'wide';
-export type GuideThickness = 'hairline' | 'medium';
+export type OutlineUnit = 'auto' | 'compact' | 'balanced' | 'roomy' | 'wide';
 export type GuideIntensity = 'subtle' | 'normal' | 'strong';
 
 /** The properties the settings layer contributes, which the declarations in
@@ -122,20 +121,14 @@ export type GuideIntensity = 'subtle' | 'normal' | 'strong';
  * itself still winning — the settings are a default, not a ceiling. */
 export const SETTING_VARS = {
   unit: '--to-set-unit',
-  guideWidth: '--to-set-guide-width',
   guideIntensity: '--to-set-guide-intensity',
 } as const;
 
 export const UNIT_STEP_VARS: Record<Exclude<OutlineUnit, 'auto'>, string> = {
   compact: '--to-unit-compact',
-  standard: '--to-unit-standard',
+  balanced: '--to-unit-balanced',
   roomy: '--to-unit-roomy',
   wide: '--to-unit-wide',
-};
-
-export const GUIDE_THICKNESS_VARS: Record<GuideThickness, string> = {
-  hairline: '--to-guide-width-hairline',
-  medium: '--to-guide-width-medium',
 };
 
 export const GUIDE_INTENSITY_VARS: Record<GuideIntensity, string> = {

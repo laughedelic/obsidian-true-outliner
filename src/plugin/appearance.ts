@@ -1,6 +1,6 @@
 /**
- * What the settings publish to the DOCUMENT: three custom properties, and one
- * class for the state where the guide layer draws nothing.
+ * What the settings publish to the DOCUMENT: the custom properties a choice
+ * resolves to.
  *
  * This is the whole mechanism for the unit step, the guide's thickness and its
  * intensity: there is no decoration rebuild, no per-view sweep and no
@@ -24,46 +24,26 @@
  * `.cm-line`s and both surfaces inherit from there — the same reason the tokens
  * are declared at `body` in the first place.
  *
- * Guide VISIBILITY is otherwise not published here at all: which depths a line
- * draws is decided where the gradient layers are built (`decorations.ts`). The
- * one exception is the class below, which is a statement about the whole layer
- * rather than about a line.
+ * Guide VISIBILITY is not published here at all: which depths a line draws is
+ * decided where the gradient layers are built (`decorations.ts`), and the
+ * suppression of Obsidian's own indent guides is unconditional in outline mode
+ * — a native guide sits on a column this grid does not use, so it is wrong to
+ * show whatever we draw beside it.
  */
 
 import {
   GUIDE_INTENSITY_VARS,
-  GUIDE_THICKNESS_VARS,
   SETTING_VARS,
   UNIT_STEP_VARS,
   type GuideIntensity,
-  type GuideThickness,
   type OutlineUnit,
 } from './chrome-tokens';
-import type { GuideVisibility } from './decorate';
 
 /** The settings this layer publishes. Read fresh on every apply. */
 export interface AppearanceSource {
   readonly outlineUnit: OutlineUnit;
-  readonly guideThickness: GuideThickness;
   readonly guideIntensity: GuideIntensity;
-  readonly guideVisibility: GuideVisibility;
 }
-
-/**
- * On `body` while the guide layer draws nothing at all.
- *
- * The one thing about visibility that is not a decoration: wherever we draw a
- * guide for a list level we suppress Obsidian's own indent guide for it, so
- * exactly one line renders per level. Drawing none removes the reason for that
- * suppression — there is nothing left to double up with — so the reader's own
- * Obsidian setting governs list levels again.
- *
- * A whole-layer statement, never per line: flipping suppression as the caret
- * moved would make native guides appear and disappear under the reader, so the
- * `'cursor'` mode keeps suppressing on every line and simply draws fewer of its
- * own.
- */
-export const GUIDES_OFF_CLASS = 'to-guides-off';
 
 /**
  * What each setting contributes, or `null` where the reader has chosen the
@@ -77,12 +57,8 @@ function published(source: AppearanceSource): Record<string, string | null> {
   return {
     [SETTING_VARS.unit]:
       source.outlineUnit === 'auto' ? null : `var(${UNIT_STEP_VARS[source.outlineUnit]})`,
-    [SETTING_VARS.guideWidth]:
-      source.guideThickness === 'hairline'
-        ? null
-        : `var(${GUIDE_THICKNESS_VARS[source.guideThickness]})`,
     [SETTING_VARS.guideIntensity]:
-      source.guideIntensity === 'normal'
+      source.guideIntensity === 'subtle'
         ? null
         : `var(${GUIDE_INTENSITY_VARS[source.guideIntensity]})`,
   };
@@ -94,7 +70,6 @@ export function applyAppearance(source: AppearanceSource, target: HTMLElement): 
     if (value === null) target.style.removeProperty(name);
     else target.style.setProperty(name, value);
   }
-  target.classList.toggle(GUIDES_OFF_CLASS, source.guideVisibility === 'off');
 }
 
 /**
@@ -106,5 +81,4 @@ export function applyAppearance(source: AppearanceSource, target: HTMLElement): 
  */
 export function clearAppearance(target: HTMLElement): void {
   for (const name of Object.values(SETTING_VARS)) target.style.removeProperty(name);
-  target.classList.remove(GUIDES_OFF_CLASS);
 }

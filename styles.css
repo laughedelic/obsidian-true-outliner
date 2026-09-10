@@ -73,11 +73,11 @@ body {
    * DECLARATION and never by its length, so a preset and the default that
    * happens to share its value are one number rather than two that agree until
    * someone edits one. `1.5rem` — the pre-widening default, before
-   * `outline-unit-width` measured its way to the `1.75rem` above — is not among
-   * them: measured, a nested task's checkbox begins 0.4px LEFT of its parent's
-   * text there on mobile, where the floor is 24.4px against desktop's 22.0px. */
+   * `outline-unit-width` measured its way to `1.75rem` — is not among them:
+   * measured, a nested task's checkbox begins 0.4px LEFT of its parent's text
+   * there on mobile, where the floor is 24.4px against desktop's 22.0px. */
   --to-unit-compact: 1.625rem;
-  --to-unit-standard: 1.75rem;
+  --to-unit-balanced: 1.75rem;
   --to-unit-roomy: 2rem;
   --to-unit-wide: 2.5rem;
 
@@ -86,18 +86,27 @@ body {
    * above a snippet's own `body` rule and break the escape hatch on exactly the
    * device where a reader most wants it. Keyed off the class Obsidian already
    * puts on `body` rather than off a platform check in JS, so it follows
-   * `app.emulateMobile()` and is testable rather than mocked. */
-  --to-unit-default: var(--to-unit-standard);
+   * `app.emulateMobile()` and is testable rather than mocked.
+   *
+   * The two defaults are a step apart on purpose. A desktop window has width to
+   * spend and reads better with the ladder open; a phone does not, and the same
+   * step there costs a wrapped row of text per level. */
+  --to-unit-default: var(--to-unit-roomy);
 
-  /* Intensity is a percentage over the theme's own faint text, so both rungs
-   * resolve from whatever theme is running and neither can be right in one mode
-   * and wrong in the other. A hue stays the stylesheet's to change. */
+  /* Intensity is a percentage over the theme's own faint text, so every rung
+   * resolves from whatever theme is running and none can be right in one mode
+   * and wrong in the other. A hue stays the stylesheet's to change.
+   *
+   * `subtle` is the default: a guide is a background relationship, and the
+   * strength that reads as one at a glance is the quietest one that still
+   * traces. The two above it are for a reader who wants the ladder to carry
+   * more of the page. */
   --to-guide-intensity-subtle: 35%;
   --to-guide-intensity-normal: 60%;
   --to-guide-intensity-strong: 100%;
   --to-guide-color: color-mix(
     in srgb,
-    var(--text-faint) var(--to-set-guide-intensity, var(--to-guide-intensity-normal)),
+    var(--text-faint) var(--to-set-guide-intensity, var(--to-guide-intensity-subtle)),
     transparent
   );
   --to-decor-accent: var(--text-accent);
@@ -109,12 +118,13 @@ body {
    * the stripe would paint at one width while the centring assumed another.
    * `GUIDE_WIDTH` is the only way JS refers to it, and carries no fallback.
    *
-   * `3px` is deliberately not a rung: beside a bullet's dot and a `0.85rem`
-   * marker icon it reads as a bar rather than a guide
-   * (docs/research/09-experiment-2-guide-lines.md). */
-  --to-guide-width-hairline: 1px;
-  --to-guide-width-medium: 2px;
-  --to-guide-width: var(--to-set-guide-width, var(--to-guide-width-hairline));
+   * NOT a setting. `2px` was offered as one and read as too heavy against a
+   * bullet's dot; intensity carries the same axis — how much of the page a
+   * guide takes — without thickening a line that has to stay a background
+   * relationship (docs/research/09-experiment-2-guide-lines.md). A snippet
+   * still retunes it, and a later use for weight — marking the guide under the
+   * pointer, say — has the declaration waiting. */
+  --to-guide-width: 1px;
 
   /* Same width as an unaccented guide, so an accent is purely a change of
    * colour: the line does not thicken as the caret moves into a subtree, and an
@@ -199,23 +209,24 @@ body.is-mobile {
   ) !important;
 }
 
-/* Our own gradient draws every list level (`computeLineGuides` publishes their
- * depths and `drawnGuideDepths` folds them in), so Obsidian's own line would
- * double up on the same column. Only its BORDER goes: the `.cm-indent` spans
- * still do the layout, and they exist only while the user's own "Show
- * indentation guides" setting is on — which stays the user's to set.
+/* Obsidian's own indent guide, gone on every outline-mode list line —
+ * unconditionally, whatever this layer draws there.
  *
- * Gated on the layer drawing anything at all. With guide visibility off we draw
- * no list-level line, so there is nothing for a native one to double up with
- * and no reason to suppress it — the reader's own Obsidian setting governs
- * again. The gate is the whole layer's state and never a per-line one: a
- * suppression that flipped as the caret moved would make native guides appear
- * and disappear under the reader, so the cursor-scoped mode keeps suppressing
- * everywhere and simply draws fewer of its own. */
-body:not(.to-guides-off)
-  .markdown-source-view.mod-cm6
-  .cm-content
-  > .cm-line.to-decor-list {
+ * Not merely to avoid doubling up. A native guide sits on the column native
+ * list nesting puts it on, and outline mode does not use those columns: a list
+ * level renders at `depth × unit` like every other kind
+ * (`lists-on-the-outline-grid`), so the native line lands beside the grid
+ * rather than on it. Showing one is showing a ladder that does not match the
+ * content — which is worse than showing none, and worse than showing ours.
+ *
+ * So this does not follow the visibility setting. Turning our guides off means
+ * no guides, not Obsidian's instead; and a suppression that varied per line or
+ * with the caret would make a misaligned line blink in and out under the
+ * reader. Only the BORDER goes: the `.cm-indent` spans still do the layout, and
+ * they exist only while the user's own "Show indentation guides" setting is on
+ * — which stays the user's to set, and governs everywhere outline mode is
+ * not. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-list {
   --indentation-guide-width: 0px;
   --indentation-guide-width-active: 0px;
 }

@@ -27,7 +27,6 @@ import {
   type GroupHeight,
   type GuideHighlight,
   type GuideIntensity,
-  type GuideThickness,
   type GuideVisibility,
   type OutlineUnit,
   type LineageSeparator,
@@ -121,22 +120,19 @@ const LINEAGE_SEPARATOR_LABELS: Record<LineageSeparator, string> = {
 };
 
 const OUTLINE_UNIT_LABELS: Record<OutlineUnit, string> = {
-  auto: 'Automatic — narrower on a phone or tablet',
+  auto: 'Auto',
   compact: 'Compact',
-  standard: 'Standard',
+  balanced: 'Balanced',
   roomy: 'Roomy',
   wide: 'Wide',
 };
 
 const GUIDE_VISIBILITY_LABELS: Record<GuideVisibility, string> = {
   all: 'Every level',
-  cursor: 'Only the levels the cursor is inside',
+  ancestors: 'The levels the cursor is inside',
+  own: 'The current node’s own guide',
+  subtree: 'The levels inside the current node',
   off: 'None',
-};
-
-const GUIDE_THICKNESS_LABELS: Record<GuideThickness, string> = {
-  hairline: 'Hairline',
-  medium: 'Medium',
 };
 
 const GUIDE_INTENSITY_LABELS: Record<GuideIntensity, string> = {
@@ -629,16 +625,6 @@ export default class TrueOutlinerPlugin extends Plugin {
     // No redraw: every column on both surfaces is a `var()` away from the
     // property this writes, so the grid moves on the next style recalculation
     // — in every open pane, which `forceRedraw` could not reach.
-    this.publishAppearance();
-  }
-
-  get guideThickness(): GuideThickness {
-    return this.data.guideThickness;
-  }
-
-  async setGuideThickness(value: GuideThickness): Promise<void> {
-    this.data.guideThickness = value;
-    await this.saveData(this.data);
     this.publishAppearance();
   }
 
@@ -1388,12 +1374,12 @@ const SETTING_BACKLINKS_GUIDES = {
 
 const SETTING_OUTLINE_UNIT = {
   name: 'Outline width',
-  desc: 'How far one level of the outline steps to the right — in the editor and in the backlinks footer alike. “Automatic” takes a narrower step on a phone or tablet, where the width is worth more. Every step keeps a child’s marker clear of its parent’s text; a CSS snippet setting --to-decor-unit still overrides whatever is chosen here.',
+  desc: 'How far one level of the outline steps to the right — in the editor and in the backlinks footer alike. “Auto” takes a narrower step on a phone or tablet, where the width is worth more, and a roomier one on a desktop. Every step keeps a child’s marker clear of its parent’s text; a CSS snippet setting --to-decor-unit still overrides whatever is chosen here.',
 } as const;
 
 const SETTING_GUIDE_VISIBILITY = {
   name: 'Which indentation guides to draw',
-  desc: 'The vertical lines that connect a node to the levels above it. Drawing only the levels the cursor is inside keeps the ladder where the reading is and the rest of the page quiet. With none drawn, Obsidian’s own indent-guide setting governs list levels again.',
+  desc: 'The vertical lines that connect a node to the levels above it. The three middle choices follow the cursor: the route down to the node, what hangs off it, or the single guide between the two. Obsidian’s own indent guides stay hidden in outline mode whichever is chosen — they sit on columns this grid does not use.',
 } as const;
 
 const SETTING_GUIDE_SINGLE_ROOT = {
@@ -1401,14 +1387,9 @@ const SETTING_GUIDE_SINGLE_ROOT = {
   desc: 'Where a whole note hangs off one top-level node — a single “# Title”, or any zoomed-in view — that node’s guide runs down every line while telling the reader nothing. This drops it and keeps every deeper level. Nothing moves: guides are painted, not laid out.',
 } as const;
 
-const SETTING_GUIDE_THICKNESS = {
-  name: 'Guide line thickness',
-  desc: 'How heavy an indentation guide is drawn. The accent that marks the cursor’s own lineage follows the same thickness, so entering a subtree changes a guide’s colour and never its weight.',
-} as const;
-
 const SETTING_GUIDE_INTENSITY = {
   name: 'Guide line strength',
-  desc: 'How strongly a guide stands out, as a proportion of the theme’s own faintest text — so it stays right in a light theme and a dark one. A snippet can change the colour itself.',
+  desc: 'How strongly a guide stands out, as a proportion of the theme’s own faintest text — so it stays right in a light theme and a dark one. A snippet can change the colour, and the line’s weight, itself.',
 } as const;
 
 const SETTING_MARKER_VISIBILITY = {
@@ -1548,15 +1529,6 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         },
       },
       {
-        ...SETTING_GUIDE_THICKNESS,
-        control: {
-          type: 'dropdown',
-          key: 'guideThickness',
-          options: GUIDE_THICKNESS_LABELS,
-          defaultValue: DEFAULT_DATA.guideThickness,
-        },
-      },
-      {
         ...SETTING_GUIDE_INTENSITY,
         control: {
           type: 'dropdown',
@@ -1627,8 +1599,6 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         return this.plugin.guideVisibility;
       case 'guideHideSingleRoot':
         return this.plugin.guideHideSingleRoot;
-      case 'guideThickness':
-        return this.plugin.guideThickness;
       case 'guideIntensity':
         return this.plugin.guideIntensity;
       case 'markerVisibility':
@@ -1682,9 +1652,6 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         break;
       case 'guideHideSingleRoot':
         await this.plugin.setGuideHideSingleRoot(Boolean(value));
-        break;
-      case 'guideThickness':
-        await this.plugin.setGuideThickness(value as GuideThickness);
         break;
       case 'guideIntensity':
         await this.plugin.setGuideIntensity(value as GuideIntensity);
@@ -1814,15 +1781,6 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         toggle
           .setValue(this.plugin.guideHideSingleRoot)
           .onChange((value) => void this.plugin.setGuideHideSingleRoot(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_GUIDE_THICKNESS.name)
-      .setDesc(SETTING_GUIDE_THICKNESS.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(GUIDE_THICKNESS_LABELS)
-          .setValue(this.plugin.guideThickness)
-          .onChange((value) => void this.plugin.setGuideThickness(value as GuideThickness)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_GUIDE_INTENSITY.name)

@@ -60,10 +60,9 @@ describe('persisted plugin data', () => {
       markerVisibility: 'with-children' as const,
       guideHighlight: 'lineage' as const,
       markerHighlight: 'lineage' as const,
-      outlineUnit: 'roomy' as const,
-      guideVisibility: 'cursor' as const,
+      outlineUnit: 'balanced' as const,
+      guideVisibility: 'subtree' as const,
       guideHideSingleRoot: true,
-      guideThickness: 'medium' as const,
       guideIntensity: 'strong' as const,
     };
     expect(normalizePluginData(onDisk)).toEqual(onDisk);
@@ -144,8 +143,11 @@ describe('persisted plugin data', () => {
     expect(normalizePluginData({ guideVisibility: 'sometimes' }).guideVisibility).toBe(
       DEFAULT_DATA.guideVisibility,
     );
-    expect(normalizePluginData({ guideThickness: '3px' }).guideThickness).toBe(
-      DEFAULT_DATA.guideThickness,
+    // `cursor` was this setting's own earlier name for the ancestors state. A
+    // retired state is not migrated — it is not a known one, so it falls back
+    // like any other unknown value.
+    expect(normalizePluginData({ guideVisibility: 'cursor' }).guideVisibility).toBe(
+      DEFAULT_DATA.guideVisibility,
     );
     expect(normalizePluginData({ guideIntensity: 0.6 }).guideIntensity).toBe(
       DEFAULT_DATA.guideIntensity,

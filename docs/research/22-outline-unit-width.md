@@ -124,12 +124,18 @@ on mobile.** The binding mark is a task's **checkbox** — Obsidian sizes it 16p
 `calc(16px * 1.15)` = 18.4px on mobile, and it is centred on its own column, so half of it falls
 left of that column and the gutter that holds it is 1.2px wider on mobile as well.
 
-**The ladder is therefore `1.625rem` (compact), `1.75rem` (standard, the desktop default), `2rem`
-(roomy) and `2.5rem` (wide), with `1.625rem` as the mobile default.** `1.5rem` — the
-pre-widening default, and the obvious bottom rung — is excluded: on mobile a nested task's
+**The ladder is therefore `1.625rem` (compact), `1.75rem` (balanced), `2rem` (roomy) and
+`2.5rem` (wide), with roomy as the desktop default and compact as the mobile one.** `1.5rem` —
+the pre-widening default, and the obvious bottom rung — is excluded: on mobile a nested task's
 checkbox begins 0.4px LEFT of its parent's text, which is the one arrangement this grid does not
 survive. The rung set is uniform across device classes rather than per-class, so a preset means
 one step everywhere and only the DEFAULT differs.
+
+The two defaults sit two rungs apart, and that is the point of having them differ at all. A
+desktop window has width to spend and reads better with the ladder open — `2rem` was described
+above as "legible, but a four-deep list starts spending real width on chrome", which is a fair
+price on a wide window and not on a narrow one. A phone pays that price in wrapped rows of text,
+so it gets the tightest rung that clears its own floor.
 
 `2.5rem` was rendered and read rather than assumed. On a desktop window a four-deep list at that
 step spends real width on chrome — more than [the reading above](#what-was-measured-and-what-was-chosen)

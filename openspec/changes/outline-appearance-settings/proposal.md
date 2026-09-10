@@ -34,17 +34,27 @@ long note's leftmost column busy — and in the common shape where a whole note 
   is higher than the desktop one because the gutter's checkbox term is
   ([21-marker-text-gap.md](../../../docs/research/21-marker-text-gap.md)).
 
-- **Guide appearance gets two axes**: thickness and intensity, each a preset. Thickness has a
-  prerequisite — the guide's own width is a JS literal today (`GUIDE_WIDTH` in `chrome-line.ts`),
-  the one geometry constant in the chrome vocabulary that is not a published property. It becomes
-  a declaration under the same rule the unit already carries: declared once, no second copy, and
-  the accent trail's width follows it so that an accent stays a change of colour rather than of
-  weight.
+- **Guide appearance gets one axis, and one prerequisite.** Intensity becomes a preset over the
+  theme's own faint text, defaulting to the quietest rung that still traces. Weight does not: the
+  two answer the same question — how much of the page a guide takes — and only intensity answers
+  it without thickening a line whose role is to stay a background relationship. It still becomes
+  a declaration, because the guide's own width is a JS literal today (`GUIDE_WIDTH` in
+  `chrome-line.ts`), the one geometry constant in the chrome vocabulary that is not a published
+  property; a snippet retunes it, the accent trail follows it, and a later use for weight —
+  marking the guide under the pointer — has it waiting.
 
-- **Guide visibility gets a mode and a qualifier.** The mode chooses between every level, only
-  the levels the cursor is inside, and none at all. The qualifier drops the outermost guide when
-  the whole document hangs off a single root — the `# Title` shape above, and every zoomed view
-  by construction (`outline-zoom` re-bases the zoom root to depth 0).
+- **Guide visibility gets a mode and a qualifier.** The mode chooses between every level, three
+  scoped to the caret — the levels it is inside, its own node's guide, and the levels inside that
+  node — and none at all. The three caret-scoped states partition a row's guides where they meet,
+  and which of them reads best is a question only use answers, so all three are offered. The
+  qualifier drops the outermost guide when the whole document hangs off a single root — the
+  `# Title` shape above, and every zoomed view by construction (`outline-zoom` re-bases the zoom
+  root to depth 0).
+
+- **Obsidian's own indent guides stay hidden in outline mode**, whatever this layer draws. They
+  are positioned by native list nesting, and outline mode does not use those columns, so a native
+  guide lands beside the grid rather than on it — drawing none of ours is a reason to show
+  nothing, not a reason to show one that does not line up.
 
 - **Settings drive the same declarations a snippet would.** Each preset resolves to a value the
   plugin publishes as its own custom property, which the existing declaration consumes as its
@@ -65,6 +75,12 @@ long note's leftmost column busy — and in the common shape where a whole note 
   faint text, so it stays correct in light and dark; hue stays a snippet's job. This keeps the
   settings axis "small and opinionated" rather than a mirror of every CSS knob
   (`docs/research/12-decoration-follow-ups.md`).
+- **A thickness setting.** Offered, measured, withdrawn — see the What Changes entry above. The
+  declaration stays for snippets and for a later weight-based affordance.
+- **Documenting the snippet route for readers.** Every token this change touches is overridable
+  from a CSS snippet, and the specs require it to stay that way, but telling readers so — a
+  documented list of the properties and what each one moves — is its own piece of work and is
+  parked in `docs/research/12-decoration-follow-ups.md`.
 - **Two stored values for desktop and mobile.** One setting whose default resolves per device
   class, per the shape chosen when this change was scoped. A reader who sets an explicit step
   gets it on both.
@@ -104,7 +120,7 @@ long note's leftmost column busy — and in the common shape where a whole note 
   stays settings- and caret-free so its per-document cache still holds);
   `src/plugin/decorations.ts` (one funnel that applies the filter, the single-root fact carried
   with the doc facts, and a caret chain read outside the accent trail's own gates);
-  `src/plugin/mode-registry.ts` and `src/plugin/main.ts` (five settings, their validation, and
+  `src/plugin/mode-registry.ts` and `src/plugin/main.ts` (four settings, their validation, and
   the property publication on `body`); `src/plugin/backlinks-footer.ts` (the master off).
 - **Added**: `src/plugin/appearance.ts` — what the settings publish to the document, and what
   unload takes back.

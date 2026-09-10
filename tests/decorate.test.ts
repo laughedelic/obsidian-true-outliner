@@ -6,7 +6,7 @@ import { encode } from '../src/encode';
 import { arbMarkdownText } from './generators';
 import { planKey } from '../src/plugin/grammar';
 import {
-  caretGuideDepths,
+  caretGuideScope,
   computeLineGuides,
   computePositionTrail,
   decorate,
@@ -658,7 +658,7 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
     visibility: 'all' as const,
     hideSingleRoot: false,
     singleRoot: hasSingleRoot(doc),
-    caretDepthsByLine: null,
+    caret: null,
     ...over,
   });
 
@@ -679,9 +679,90 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
     // The caret is in "under two". Both rows carry a guide at depth 0, and only
     // one of those depth-0 guides belongs to an ancestor of the caret's node. A
     // filter keyed on depth alone would keep the sibling section's guide lit.
-    const caretDepthsByLine = caretGuideDepths(doc, UNDER_TWO);
-    expect(drawn(UNDER_TWO, { visibility: 'cursor', caretDepthsByLine })).toEqual([0]);
-    expect(drawn(UNDER_ONE, { visibility: 'cursor', caretDepthsByLine })).toEqual([]);
+    const caret = caretGuideScope(doc, UNDER_TWO);
+    expect(drawn(UNDER_TWO, { visibility: 'ancestors', caret })).toEqual([0]);
+    expect(drawn(UNDER_ONE, { visibility: 'ancestors', caret })).toEqual([]);
+  });
+
+  describe('the caret’s own node, and what hangs off it', () => {
+    // One root with two levels below it, so a caret in the middle has an
+    // ancestor above, a guide of its own, and a descendant's guide below.
+    //
+    //  0 # Root                            depth 0
+    //  2 ## Mid    <- the caret's node       depth 1, owns the depth-1 guide
+    //  4 ### Deep  <- inside it              depth 2, owns the depth-2 guide
+    //  6 body      <- inside both            depth 3
+    //  8 ## Other  <- a sibling of Mid       depth 1, outside the subtree
+    // 10 other body                          depth 2
+    const nested = parse(
+      ['# Root', '', '## Mid', '', '### Deep', '', 'body', '', '## Other', '', 'other body', ''].join(
+        '\n',
+      ),
+    );
+    const nestedGuides = new Map(computeLineGuides(nested).map((g) => [g.lineNumber, g]));
+    const at = (line: number, over: Record<string, unknown>): readonly number[] =>
+      visibleGuideDepths(
+        nestedGuides.get(line)!.guideDepths,
+        {
+          visibility: 'all',
+          hideSingleRoot: false,
+          singleRoot: hasSingleRoot(nested),
+          caret: null,
+          ...over,
+        } as Parameters<typeof visibleGuideDepths>[1],
+        line,
+      );
+    const CARET_IN_MID = 2;
+    const DEEP = 4;
+    const BODY = 6;
+    const OTHER_BODY = 10;
+
+    it('the whole ladder is what every other mode is a subset of', () => {
+      expect(at(DEEP, {})).toEqual([0, 1]);
+      expect(at(BODY, {})).toEqual([0, 1, 2]);
+      expect(at(OTHER_BODY, {})).toEqual([0, 1]);
+    });
+
+    it('“own” draws one column, on the rows its node covers', () => {
+      const caret = caretGuideScope(nested, CARET_IN_MID);
+      // Mid owns the depth-1 guide, and it covers Mid's whole subtree.
+      expect(at(DEEP, { visibility: 'own', caret })).toEqual([1]);
+      expect(at(BODY, { visibility: 'own', caret })).toEqual([1]);
+      // Not the root's above it, and nothing at all outside the subtree.
+      expect(at(OTHER_BODY, { visibility: 'own', caret })).toEqual([]);
+    });
+
+    it('“subtree” adds the guides owned inside that node', () => {
+      const caret = caretGuideScope(nested, CARET_IN_MID);
+      // A row inside Deep carries Mid's own guide AND Deep's, both owned within
+      // the caret's subtree — and not the root's, which is above it.
+      expect(at(BODY, { visibility: 'subtree', caret })).toEqual([1, 2]);
+      expect(at(DEEP, { visibility: 'subtree', caret })).toEqual([1]);
+      expect(at(OTHER_BODY, { visibility: 'subtree', caret })).toEqual([]);
+    });
+
+    it('“own” and “subtree” draw nothing for a node with no children', () => {
+      // A childless node's own guide has an empty span, so both modes — which
+      // read that same span — have nothing to draw anywhere.
+      const caret = caretGuideScope(nested, OTHER_BODY);
+      expect(caret!.ownFrom).toBeGreaterThan(caret!.ownTo);
+      for (const visibility of ['own', 'subtree'] as const) {
+        expect(at(BODY, { visibility, caret })).toEqual([]);
+        expect(at(OTHER_BODY, { visibility, caret })).toEqual([]);
+      }
+    });
+
+    it('“ancestors” and “subtree” are duals across the caret’s own node', () => {
+      const caret = caretGuideScope(nested, CARET_IN_MID);
+      const ancestors = at(BODY, { visibility: 'ancestors', caret });
+      const subtree = at(BODY, { visibility: 'subtree', caret });
+      // On a row inside the caret's subtree, every guide belongs to exactly one
+      // of them: the route down to the caret's node, or the ladder inside it.
+      expect([...ancestors, ...subtree].sort()).toEqual(at(BODY, {}));
+      expect(ancestors.filter((d) => subtree.includes(d))).toEqual([]);
+      // And "own" is the seam between them — the shallowest of the subtree's.
+      expect(at(BODY, { visibility: 'own', caret })).toEqual([Math.min(...subtree)]);
+    });
   });
 
   it('drops the outermost guide only where the document has a single root', () => {
@@ -696,7 +777,7 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
       visibility: 'all' as const,
       hideSingleRoot: true,
       singleRoot: hasSingleRoot(single),
-      caretDepthsByLine: null,
+      caret: null,
     };
     // Only the outermost goes; a single chain below it keeps every level, so
     // the ladder never depends on content several levels away.
@@ -709,7 +790,7 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
     const guide = computeLineGuides(single).find((g) => g.lineNumber === 4)!;
     const out = visibleGuideDepths(
       guide.guideDepths,
-      { visibility: 'all', hideSingleRoot: true, singleRoot: true, caretDepthsByLine: null },
+      { visibility: 'all', hideSingleRoot: true, singleRoot: true, caret: null },
       4,
     );
     expect(out).toEqual([1]);
