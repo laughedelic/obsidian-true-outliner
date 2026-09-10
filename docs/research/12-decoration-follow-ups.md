@@ -537,11 +537,14 @@ whole guide layer. What it did, and what it deliberately left:
   measured against the grid's floor on both device classes
   ([22](22-outline-unit-width.md)), and a setting reaches the declaration through a property
   of its own so a snippet still wins over it.
-- **The guide layer has an off state**, plus a cursor-scoped one and a qualifier that drops
-  the outermost guide under a single root. Turning it off also lifts the native-guide
-  suppression, since there is then nothing of ours for a native line to double up with.
-- **Guide thickness and intensity are presets** over declarations that hold every value, and
-  the accent's width follows the guide's.
+- **The guide layer has an off state**, two caret-scoped ones — the levels the cursor is
+  inside, and the ladder inside the node it is in — and a qualifier that drops the outermost
+  guide under a single root. Obsidian's own indent guides stay suppressed in outline mode
+  whichever is chosen: they sit on columns this grid does not use, so drawing none of ours is a
+  reason to show nothing rather than to show one that does not line up.
+- **Guide intensity is a preset** over declarations that hold every value. Thickness is NOT:
+  offered, read side by side, and withdrawn as too heavy at every rung above the default. It
+  stays a declaration a snippet can retune, and the accent's width follows it.
 - **Still open**: everything about MARKERS below — the icon layer's own off switch and the
   gutter-reservation question that comes with it, per-kind icons, style variants, and the
   bullet-style set. The single-root qualifier also does not cascade: a single root with a

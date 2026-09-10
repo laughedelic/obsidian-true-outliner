@@ -2,8 +2,8 @@
  * What the settings publish to the DOCUMENT: the custom properties a choice
  * resolves to.
  *
- * This is the whole mechanism for the unit step, the guide's thickness and its
- * intensity: there is no decoration rebuild, no per-view sweep and no
+ * This is the whole mechanism for the unit's step and the guides' intensity:
+ * there is no decoration rebuild, no per-view sweep and no
  * `forceRedraw`. Every rule and every JS-built expression that consumes these
  * is a `var()`, so writing one property moves the grid in every open pane and
  * in the backlinks footer at once, on the next style recalculation. That is

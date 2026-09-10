@@ -40,8 +40,9 @@
 
 ## 3. Settings storage and publication
 
-- [x] 3.1 Add the five settings to `PluginData` (unit step, guide visibility, single-root
-  qualifier, guide thickness, guide intensity) with their defaults and `KNOWN_*` records in
+- [x] 3.1 Add the settings to `PluginData` (unit step, guide visibility, single-root qualifier,
+  guide intensity — and, until 10.3 retired it, guide thickness) with their defaults and
+  `KNOWN_*` records in
   `src/plugin/mode-registry.ts`, and verify `tests/` covers each field falling back to its default
   from a wrong-typed and an unknown stored value — negative control: drop one field from its
   `KNOWN_*` record and confirm the type check fails to compile
@@ -52,9 +53,10 @@
   choices that the DISABLED midpoint leaves `body` with no `--to-set-*` property and the grid at
   Obsidian's own rendering, and that re-enabling republishes the saved choices — starting from
   defaults exercises no cleanup at all, since there is nothing published to remove
-- [x] 3.4 Spell each token in `styles.css` as `var(--to-set-…, <default>)` — unit, guide width,
-  guide intensity — keeping each declaration single and at `body`, and verify a stylesheet
-  override at `body` still wins over a published setting (design D1)
+- [x] 3.4 Spell each settings-fed token in `styles.css` as `var(--to-set-…, <default>)` — the
+  unit and the guides' intensity, plus guide width until 10.3 made it declaration-only — keeping
+  each declaration single and at `body`, and verify a stylesheet override at `body` still wins
+  over a published setting (design D1)
 
 ## 4. The unit ladder
 
@@ -75,11 +77,12 @@
 
 ## 5. Guide appearance
 
-- [x] 5.1 Wire the thickness and intensity settings through publication, and verify in the editor
-  and the footer that every guide's rendered width and colour follow, with no line's text or
-  marker moving — assert the relationship between the two surfaces' values, not absolute widths
-- [x] 5.2 Verify a thickness or intensity change reaches a second open pane and an open footer
-  without touching a note and without `forceRedraw` — negative control: route the change through
+- [x] 5.1 Wire the intensity setting through publication — and the thickness one, until 10.3
+  withdrew it — and verify in the editor and the footer that every guide's rendered width and
+  colour follow, with no line's text or marker moving; assert the relationship between the two
+  surfaces' values, not absolute widths
+- [x] 5.2 Verify a settings change reaches a second open pane and an open footer without touching
+  a note and without `forceRedraw` — negative control: route the change through
   `forceRedraw` instead and confirm the second pane's assertion fails
 
 ## 6. Guide visibility
@@ -103,9 +106,11 @@
   accents only, and verify accent behaviour is byte-identical before and after in
   `55-position-indicators.e2e.ts` — negative control: leave the gate unwidened and confirm the new
   cursor-scoped-with-accents-off case renders no guides
-- [x] 6.5 Gate the native indent-guide suppression on the layer being drawn at all, and verify that
-  in the `none` mode a list line reports Obsidian's own guide width restored, while in every other
-  mode it stays suppressed on every line regardless of the caret
+- [x] 6.5 Gate the native indent-guide suppression on the layer being drawn at all, and verify
+  that in the `none` mode a list line reports Obsidian's own guide width restored, while in every
+  other mode it stays suppressed on every line regardless of the caret. **Superseded by 10.2**,
+  which made the suppression unconditional: a native guide sits on a column this grid does not
+  use, so handing list levels back was handing back a ladder that does not line up
 - [x] 6.6 Verify no line's geometry moves under any visibility mode or as the caret moves — measure
   a row's padding, margin, text start and marker centre with guides on, off, and cursor-scoped
 - [x] 6.7 Measure the cost of a caret move under cursor-scoped visibility on the largest existing
@@ -119,11 +124,12 @@
   zero and returns — negative control: read only the footer's own setting and confirm the case
   fails
 - [x] 7.2 Verify a footer row's guides do not change as the caret moves under cursor-scoped
-  visibility, and that unit, thickness and intensity changes do reach the footer
+  visibility, and that a unit or intensity change — and a snippet's change to the guide's
+  weight — does reach the footer
 
 ## 8. The settings tab
 
-- [x] 8.1 Add the five controls to `getSettingDefinitions()` and to the pre-1.13 `display()`
+- [x] 8.1 Add the controls to `getSettingDefinitions()` and to the pre-1.13 `display()`
   fallback, with the plugin's accessor pair for each, and verify both surfaces render the same
   controls with the same labels
 - [x] 8.2 Verify each control's change applies live in an open note (`e2e/specs/41-backlinks-
@@ -162,10 +168,21 @@
 - [x] 9.2 Regenerate the screenshot corpus at the new defaults and verify the baseline diff shows
   only the intended appearance change — regenerated by `51-guides-gradient`'s own screenshot pass
   on every run of the decorations group. The committed baselines (`e2e/baselines/footer`) record
-  structure rather than pixels and are unchanged. The only default that moved anywhere is the
-  mobile step, from `1.75rem` to `1.625rem`; desktop's unit, the guide's width and its intensity
-  are all exactly what they were
+  structure rather than pixels and are unchanged. Three defaults moved, all deliberately (group
+  10): the desktop step to `2rem`, the mobile step to `1.5625rem`, and the guides' intensity to
+  `subtle`. The guide's own width is unchanged at `1px`
 - [x] 9.3 Move the completed parking-lot entries in `docs/research/12-decoration-follow-ups.md` to
   closed, note the deferred cascade of the single-root qualifier there, and verify no entry claims
   work this change did
 - [x] 9.4 Run `openspec validate outline-appearance-settings --strict`
+
+## 11. Land it
+
+- [ ] 11.1 Sync the delta specs into the main specs (`openspec sync-specs`) and verify
+  `openspec validate --strict` still passes over the updated capabilities
+- [ ] 11.2 Archive the change on this branch, and verify it lands under
+  `openspec/changes/archive/` with the date prefix the archive uses
+- [ ] 11.3 Bump the version (`npm version <patch|minor>`) and verify `manifest.json` and
+  `versions.json` both move and no tag is created — CI releases from the squashed merge commit
+- [ ] 11.4 Re-check the test vault for drift before merging (`git status --short test-vault`),
+  since a local run writes settings a fixture should not carry

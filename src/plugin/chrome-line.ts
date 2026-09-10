@@ -97,10 +97,11 @@ export function stripeStartExpr(depth: number, width: string): string {
  * A guide stripe's own width, as a REFERENCE rather than a length.
  *
  * No fallback and no numeric sibling, the rule `UNIT_EXPR` already carries:
- * styles.css holds the single declaration, a snippet or the thickness setting
- * moves it, and a number here could not follow either — the stripe would paint
- * at one width while every position derived from it assumed another, which is
- * half a pixel of drift per layer and a visibly off-centre guide.
+ * styles.css holds the single declaration and a snippet moves it — there is no
+ * thickness setting, deliberately — and a number here could not follow an
+ * override: the stripe would paint at one width while every position derived
+ * from it assumed another, which is half a pixel of drift per layer and a
+ * visibly off-centre guide.
  */
 export const GUIDE_WIDTH = `var(${CHROME_VARS.guideWidth})`;
 

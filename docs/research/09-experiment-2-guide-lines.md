@@ -367,11 +367,12 @@ replacement for a periodic real-vault spot check if this area is touched again l
 
 The gradient technique fixed the guide's width at `1px` and its colour at 60% of the theme's own
 faint text, both chosen the way most of this layer's early numbers were chosen: they worked.
-`outline-appearance-settings` makes both settable, which means picking rungs rather than one
-value, and the width in particular had a prerequisite — it was a JS literal (`GUIDE_WIDTH`), the
-one geometry constant in the chrome vocabulary that was not a published property. A stripe is
-centred on its column by subtracting half its own width, so a literal there is a value two
-computations must agree on and only one of them can follow an override.
+`outline-appearance-settings` makes INTENSITY a setting — rungs rather than one value — and the
+width a published declaration a snippet can retune, which it was not before: it was a JS literal
+(`GUIDE_WIDTH`), the one geometry constant in the chrome vocabulary that was not a property. A
+stripe is centred on its column by subtracting half its own width, so a literal there is a value
+two computations must agree on and only one of them can follow an override. Weight was offered as
+a setting too and withdrawn; the reading below is what withdrew it.
 
 **Rendered 8 September 2026**, Obsidian 1.13.7, both bundled themes, against
 `Notes/List decoration demo.md`.

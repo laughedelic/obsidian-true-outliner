@@ -295,11 +295,13 @@ describe('the footer’s appearance settings', function () {
       expect(after.background).toBe(before.background);
     });
 
-    it('takes the unit, the thickness and the intensity the editor takes', async function () {
+    it('takes the unit, the weight and the intensity the editor takes', async function () {
       // Chrome vocabulary is declared at `body`, which both surfaces inherit,
       // so this is consistency by construction rather than by a second
       // implementation. Asserted against the RESOLVED values a row renders
-      // with, in case some rule ever scopes one of them to the editor.
+      // with, in case some rule ever scopes one of them to the editor. Weight
+      // is not a setting — it is a declaration a snippet retunes — so it is
+      // driven here the way a reader would drive it.
       const base = await guideRow();
       await set('outlineUnit', 'wide');
       await h.applyStyleOverride('footer-appearance-width', 'body { --to-guide-width: 3px; }');

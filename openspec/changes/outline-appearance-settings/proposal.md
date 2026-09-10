@@ -103,11 +103,11 @@ long note's leftmost column busy — and in the common shape where a whole note 
   resolves per device class without displacing a snippet's override; the guide-rendering
   requirement gains visibility modes (every level / cursor's levels / none) and the
   single-root qualifier; and the chrome vocabulary's "declared once, never restated" rule
-  extends to the guide's own width, which a preset drives.
+  extends to the guide's own width, which a stylesheet retunes and no setting touches.
 - `hierarchy-position-indicators`: accents are a treatment of guides that exist, so a guide the
   visibility mode does not draw takes no accent — and the caret chain the cursor-scoped mode
   needs must be computed even where accents are suppressed.
-- `backlinks-footer`: the footer draws the outline's chrome at whatever unit, thickness and
+- `backlinks-footer`: the footer draws the outline's chrome at whatever unit, weight and
   intensity are in force, and draws no guides while the layer is off.
 
 ## Impact
@@ -120,8 +120,9 @@ long note's leftmost column busy — and in the common shape where a whole note 
   stays settings- and caret-free so its per-document cache still holds);
   `src/plugin/decorations.ts` (one funnel that applies the filter, the single-root fact carried
   with the doc facts, and a caret chain read outside the accent trail's own gates);
-  `src/plugin/mode-registry.ts` and `src/plugin/main.ts` (four settings, their validation, and
-  the property publication on `body`); `src/plugin/backlinks-footer.ts` (the master off).
+  `src/plugin/mode-registry.ts` and `src/plugin/main.ts` (four settings — the unit, guide
+  visibility, the single-root qualifier and intensity — their validation, and the property
+  publication on `body`); `src/plugin/backlinks-footer.ts` (the master off).
 - **Added**: `src/plugin/appearance.ts` — what the settings publish to the document, and what
   unload takes back.
 - **Tests**: `59-appearance-settings.e2e.ts` (new) holds the publication mechanism: a default
@@ -132,7 +133,7 @@ long note's leftmost column busy — and in the common shape where a whole note 
   `51-guides-gradient.e2e.ts` covers the visibility modes, the single-root qualifier and the
   guide-width declaration; `55-position-indicators.e2e.ts` covers the accent gates;
   `79-footer-appearance.e2e.ts` covers the footer. `tests/decorate.test.ts` unit-tests the pure
-  filter, the caret depths and the single-root predicate; `tests/plugin.test.ts` covers the five
+  filter, the caret depths and the single-root predicate; `tests/plugin.test.ts` covers the four
   settings' validation.
 - **Risk**: bounded by the floor. A narrower unit is the one direction that can break a column —
   a child's mark must still begin right of its parent's text — which is why the ladder's lowest

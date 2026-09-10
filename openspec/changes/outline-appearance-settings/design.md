@@ -39,8 +39,8 @@ it load-bearing:
 ### D1 — A setting publishes its own property; the declaration consumes it as a default
 
 The plugin writes its resolved choices as custom properties on `document.body`
-(`--to-set-unit`, `--to-set-guide-width`, `--to-set-guide-intensity`), and `styles.css` spells
-each token as `var(--to-set-…, <default>)`. The plugin writes a property only while the reader
+(`--to-set-unit` and `--to-set-guide-intensity` — the two settings that survived D4), and
+`styles.css` spells each token as `var(--to-set-…, <default>)`. The plugin writes a property only while the reader
 has chosen something; the default state removes it.
 
 Precedence is the reason. Writing `--to-decor-unit` itself as an inline style on `body` would win
@@ -174,7 +174,7 @@ several levels away; the deeper case goes to the parking lot.
 
 ### D8 — Appearance applies without a redraw; visibility does not
 
-An appearance change (unit, thickness, intensity) is a property write on `body`. Every rule and
+An appearance change (the unit's step, the guides' intensity) is a property write on `body`. Every rule and
 every JS-built expression that consumes it is a `var()`, so the whole grid on every open pane and
 the footer moves on the next style recalculation, with no decoration rebuild and no
 `forceRedraw`. This is strictly better than what the existing settings get, and it is the
@@ -197,7 +197,7 @@ construction, so "the document's single root" is not a fact about it. The footer
 guide toggle and additionally draws nothing while the layer is off — a master switch is a
 statement about the layer, and a reader who turned guides off does not expect them in the footer.
 
-### D10 — Four dropdowns and one toggle, in both settings surfaces
+### D10 — Three dropdowns and one toggle, in both settings surfaces
 
 The tab renders from `getSettingDefinitions()` (Obsidian 1.13+) with `display()` kept as the
 documented pre-1.13 fallback, and the two are kept in sync by hand. Every new control goes in
@@ -214,12 +214,13 @@ that hand-sync is a known cost of the existing shape, not something this change 
   recomputes per state and the guide walk is cached per document; what is new is that more lines
   change their `--to-guides` value per move. Measured on the same large-document fixtures the
   existing decoration cost work uses, and the mode is not the default.
-- **A thick guide reads as a bar rather than a line** → the top rung is chosen by looking at it,
-  and the gradient's period is the unit, so thickness is bounded well under a level's width.
+- **A thick guide reads as a bar rather than a line** → measured by looking at it, which is what
+  withdrew weight as a setting (D4); the declaration a snippet reaches is bounded in practice by
+  the gradient's period, which is one unit.
 - **Lifting native-guide suppression while the layer is off flips a second thing** → suppression
   is lifted only in the master `off` mode, never per line, so Obsidian's own setting governs
   exactly when we draw nothing and nothing flickers as the caret moves.
-- **Five more controls on a tab that already has eleven** → they are the axes asked for, and the
+- **Four more controls on a tab that already has eleven** → they are the axes asked for, and the
   hue and per-level knobs stay with the snippet route, which is what keeps this from becoming a
   mirror of the stylesheet.
 

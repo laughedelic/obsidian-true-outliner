@@ -1,6 +1,6 @@
 /**
- * The appearance settings — the outline unit's step, the guides' thickness and
- * their intensity — and the mechanism that applies them.
+ * The appearance settings — the outline unit's step and the guides' intensity —
+ * and the mechanism that applies them.
  *
  * That mechanism is the thing under test as much as the values are. Each
  * setting is published as a property of its OWN (`--to-set-*`) which the
@@ -14,6 +14,9 @@
  * on the chosen step — is measured in `58-unit-override.e2e.ts`, which already
  * reads every independently positioned layer. This spec asserts what carries a
  * choice to that geometry.
+ *
+ * The guide's WEIGHT is not among the settings — it is a declaration a snippet
+ * retunes — so where it appears here it appears as an override, not a control.
  */
 
 import { browser, expect } from '@wdio/globals';
