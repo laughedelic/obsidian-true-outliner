@@ -117,8 +117,16 @@ operations now apply.
 
 That restores an invariant the sequence should always have had, and it is now asserted absolutely
 in each half rather than only across them: four operations that undo one another must leave the
-document exactly as they found it. A refusal in both halves fails it. Confirmed by putting the
-operand back and watching the new assertion catch the refused indent by name.
+document exactly as they found it.
+
+That round trip is necessary but **not sufficient**, and the first version of this fix stopped
+there. With a top-level operand a refused `indent-node` leaves `outdent-node` refused too —
+`outdentSurgery` rejects a top-level path as `at-top-level` — and the move pair then cancels on
+its own, so two refusals still return the document unchanged. Refusals can hide behind each other.
+
+What closes that is requiring each step to **change** the document: the buffer is captured after
+every command, and a step that changed nothing is a step that was refused. Confirmed by putting
+the operand back and watching the assertions catch the refused indent by name.
 
 The operand is also placed with `setCursorSettled` rather than `setCursor`. The plain set can be
 moved by a later unannotated selection dispatch — the hazard that helper was written for, and one

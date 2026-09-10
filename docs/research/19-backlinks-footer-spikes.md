@@ -99,8 +99,16 @@ its presence, and content would confound "the widget is here" with "the content 
 Observed per run: caret after `End`; caret after a programmatic placement at the document's last
 offset; caret after arrow-down off the last content line; caret after a click below the last line
 (which lands *inside* the widget when it is mounted); four rungs of the select-all ladder;
-buffer and caret after indent / outdent / move-up / move-down on the last node; buffer after
-undoing all of it; and the transaction filter's own classification counts and trace.
+buffer and caret after indent / outdent / move-up / move-down on the last top-level node, and the
+buffer after each of the four; buffer after undoing all of it; and the transaction filter's own
+classification counts and trace.
+
+The operand is the last TOP-LEVEL node rather than the last node in the document, which the first
+version of this apparatus used. Both end the document, which is what the case is about, but only a
+top-level node here has a previous sibling — and `indent-node` without one is refused, silently, so
+the sequence ran three operations while reading as four.
+[30-refused-commands-in-e2e.md](30-refused-commands-in-e2e.md) records why a refusal is invisible
+to the harness and what it costs a differential assertion.
 
 ### Finding 1 — block decorations cannot come from a ViewPlugin
 

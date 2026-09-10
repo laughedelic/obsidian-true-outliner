@@ -75,6 +75,9 @@ interface Observations {
   /** The document the four operations start from, so their round trip can be
    * asserted absolutely and not only across the two halves. */
   bufferBeforeOps: string;
+  /** The document after each of the four operations, so a refused one shows up
+   * as a step that changed nothing. */
+  buffersDuringOps: string[];
   bufferAfterOps: string;
   caretAfterOps: { line: number; ch: number };
   bufferAfterUndoAll: string;
@@ -145,9 +148,9 @@ async function measure(): Promise<Observations> {
   // A refusal is invisible from the harness. `executeCommandById` reports that
   // the command RAN, because the operation declines inside it and says so with
   // a Notice, so `runCommand` resolves either way. An operand that cannot be
-  // indented therefore turned one of the four into a silent no-op and cost the
-  // sequence the property that makes it self-checking: four operations that
-  // undo one another must leave the document exactly as they found it.
+  // indented therefore turned one of the four into a silent no-op, which is why
+  // the assertions below require each operation to change the document rather
+  // than only checking where the sequence ends up.
   const lastTopLevelLine = lines.reduce(
     (last, text, i) => (text.trim() && !/^\s/.test(text) ? i : last),
     0,
@@ -159,11 +162,19 @@ async function measure(): Promise<Observations> {
   // settling the start cannot hide a placement bug.
   await h.setCursorSettled(lastTopLevelLine, 1);
   const bufferBeforeOps = await h.getBuffer();
-  await h.runCommand('indent-node');
-  await h.runCommand('outdent-node');
-  await h.runCommand('move-node-up');
-  await h.runCommand('move-node-down');
-  const bufferAfterOps = await h.getBuffer();
+  // The buffer after EACH command, not only after the four. A round trip that
+  // returns the document unchanged is necessary but not sufficient: with a
+  // top-level operand, a refused `indent-node` leaves `outdent-node` refused
+  // too (`at-top-level`), and the move pair then cancels on its own — four
+  // operations, two of them refused, and a document that came back anyway.
+  // Requiring every step to CHANGE the document is what makes each one
+  // demonstrably apply.
+  const buffersDuringOps: string[] = [];
+  for (const command of ['indent-node', 'outdent-node', 'move-node-up', 'move-node-down']) {
+    await h.runCommand(command);
+    buffersDuringOps.push(await h.getBuffer());
+  }
+  const bufferAfterOps = buffersDuringOps[buffersDuringOps.length - 1] ?? bufferBeforeOps;
   const caretAfterOps = await h.getCursor();
 
   // Undo every operation above; the buffer must return to where it started.
@@ -187,12 +198,23 @@ async function measure(): Promise<Observations> {
     caretAfterClickBelowLast,
     selectAllLadder,
     bufferBeforeOps,
+    buffersDuringOps,
     bufferAfterOps,
     caretAfterOps,
     bufferAfterUndoAll,
     classifications,
     trace,
   };
+}
+
+/**
+ * Did each of the four operations change the document? A refused operation is
+ * indistinguishable from one that applied — the command reports that it ran —
+ * so the only evidence that it did anything is the document moving.
+ */
+function stepsThatChanged(o: Observations): boolean[] {
+  const steps = [o.bufferBeforeOps, ...o.buffersDuringOps];
+  return steps.slice(1).map((buffer, i) => buffer !== steps[i]);
 }
 
 describe('spike S1: end-of-document block widget vs. the enforcement layer', function () {
@@ -246,12 +268,17 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     expect(withWidget.caretAfterClickBelowLast).toEqual(without.caretAfterClickBelowLast);
     expect(withWidget.selectAllLadder).toEqual(without.selectAllLadder);
     expect(withWidget.bufferAfterOps).toEqual(without.bufferAfterOps);
-    // Absolutely, in BOTH halves, and not only across them: indent, outdent,
-    // move up and move down undo one another, so the document must come back
-    // unchanged. The differential comparison above cannot see an operation that
-    // was refused in both halves — it compares two identical wrong answers and
-    // passes — which is the blind spot that let a refused `indent-node` sit in
-    // this sequence unnoticed.
+    expect(withWidget.buffersDuringOps).toEqual(without.buffersDuringOps);
+    // Absolutely, in BOTH halves, and not only across them. The differential
+    // comparison above cannot see an operation refused in both — it compares two
+    // identical wrong answers and passes — which is the blind spot that let a
+    // refused `indent-node` sit in this sequence unnoticed.
+    //
+    // Every step must have changed the document, which is the part a round trip
+    // alone does not give: refusals can cancel each other and still return the
+    // document unchanged.
+    expect(stepsThatChanged(without)).toEqual([true, true, true, true]);
+    expect(stepsThatChanged(withWidget)).toEqual([true, true, true, true]);
     expect(without.bufferAfterOps).toEqual(without.bufferBeforeOps);
     expect(withWidget.bufferAfterOps).toEqual(withWidget.bufferBeforeOps);
     expect(withWidget.caretAfterOps).toEqual(without.caretAfterOps);
