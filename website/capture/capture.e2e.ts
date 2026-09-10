@@ -118,6 +118,7 @@ const CHROME_CSS = `
   .metadata-container, .inline-title { display: none !important; }
   ${h.IS_MOBILE_RUN ? '' : '.view-header { display: none !important; }'}
   .cm-cursorLayer { animation: none !important; }
+  .tooltip { display: none !important; }
 `;
 
 const WINDOW = { width: 1280, height: 800 };
@@ -158,6 +159,9 @@ async function frameWindow(): Promise<void> {
 
 async function settle(ms = 120): Promise<void> {
   await h.dismissNotices();
+  // The window opens under wherever the machine's pointer happens to be, and
+  // a link under it grows a tooltip that would sit in every frame.
+  if (!h.IS_MOBILE_RUN) await mouse().move({ x: WINDOW.width - 4, y: WINDOW.height - 4 }).perform(true);
   await browser.pause(ms);
 }
 
