@@ -104,6 +104,23 @@ describe('fold chrome', () => {
     // Chrome: it is not in the document and it is not in what a copy yields.
     expect(await h.getBuffer()).toBe(DOC);
     expect(await h.foldCountIsEditable(2)).toBe(false);
+
+    // And ONE control after the text, not two. Ours carries the ellipsis, the
+    // count and the click, so Obsidian's own placeholder beside it would be a
+    // second control for the same action — the busier half of what the reader
+    // saw, and the half that did nothing when clicked.
+    expect(await h.foldTailControlCount(2)).toBe(1);
+  });
+
+  it('unfolds when its own tail control is clicked', async () => {
+    await h.setCursorSettled(2, 4);
+    await h.runCommand('fold-node');
+    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 6 }]);
+
+    // The control that replaced Obsidian's placeholder has to do what that
+    // placeholder did.
+    await h.clickFoldCount(2);
+    expect(await h.foldedLineRanges()).toEqual([]);
   });
 
   it('gives a folded node an affordance that stays visible', async () => {
@@ -139,6 +156,32 @@ describe('fold chrome', () => {
     // Whether it is VISIBLE at rest is a hover state, and the pointer's resting
     // position is whatever an earlier test left it on — asserted for the folded
     // case above, where it must not depend on hover at all.
+  });
+
+  it('puts its own affordance where Obsidian puts its indicator, at every depth', async () => {
+    // Both controls answer for the same node, and only one of them is ever on
+    // screen, so a reader who turns Obsidian's fold settings off should see the
+    // affordance stay exactly where it was.
+    //
+    // At every depth, which is the part that was wrong: placing the control
+    // against the line's own box rather than in its flow ignored the line's
+    // indentation, so it kept its distance from the window and lost it to the
+    // marker — one whole level further away with every step deeper, and on a
+    // folded paragraph, where ours is the control a reader is left with, it
+    // read as the chevron wandering off on its own.
+    const offsets = await h.foldControlOffsets();
+    expect(offsets.map((o) => o.line)).toEqual(await h.foldChromeLines());
+    for (const { line, dx, dy } of offsets) {
+      // A tolerance, not a fitted number: the two glyphs are different sizes and
+      // ours is placed against the text's own metrics, so they agree to within
+      // less than the width of either. A level is 2rem, so nothing that drifts
+      // by depth can pass this.
+      expect({ line, dx: Math.abs(dx) < 3, dy: Math.abs(dy) < 3 }).toEqual({
+        line,
+        dx: true,
+        dy: true,
+      });
+    }
   });
 
   it('treats a multi-line node as one node, marker above and count below', async () => {

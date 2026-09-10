@@ -34,7 +34,10 @@ engine, and none of which writes to the note.
   mockup ([28-fold-marker-mockup.html](../../../docs/research/28-fold-marker-mockup.html)) against
   six alternatives — halos, outlines and underlines all read as either too heavy at 14px or
   inconsistent across the marks, and the count is the only candidate that says how much is
-  hidden rather than merely that something is.
+  hidden rather than merely that something is. The count is also the line's only tail control: it
+  carries Obsidian's placeholder ellipsis and its click, chosen from a second mockup
+  ([28-fold-count-mockup.html](../../../docs/research/28-fold-count-mockup.html)) after a badge
+  beside that placeholder proved to be two pieces of chrome for one idea.
 - **Clicking a guide toggles the subtree under it.** The default action for the guide column at
   depth *d*: fold, or unfold, every child of the node that guide belongs to. Configurable later;
   one action now.

@@ -140,9 +140,10 @@ export function toggleFoldAtLine(view: EditorView, lineNumber: number): boolean 
  * single branch by collapsing everything beside it is what this exists for, and
  * that reading is reached in one click from any starting state.
  *
- * `depth` is the guide's own column, so the node it belongs to is the ancestor
- * at that depth — the guide at column 0 belongs to the top-level node whose
- * subtree the line sits in, not to the line itself.
+ * `depth` is the level the guide is DRAWN at, and the ancestry chain is indexed
+ * by exactly that: both count from the document's own root. The guide at column
+ * 0 therefore belongs to the top-level node whose subtree the line sits in, not
+ * to the line itself.
  */
 export function toggleGuideAt(view: EditorView, lineNumber: number, depth: number): boolean {
   const { doc } = parsedDoc(view.state.doc);

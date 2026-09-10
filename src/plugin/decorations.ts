@@ -1095,29 +1095,54 @@ export const FOLDED_NODE_CLASS = 'to-decor-folded';
 export const FOLDED_TAIL_CLASS = 'to-decor-fold-tail';
 
 /**
- * How many descendants a folded node hides, rendered after its text.
+ * What a folded node shows after its own text: that something is hidden, how
+ * much of it, and the way back — in ONE control.
+ *
+ * Obsidian already renders a placeholder here (`.cm-foldPlaceholder`, an
+ * ellipsis that unfolds when clicked), and a count beside it made two pieces of
+ * adjacent chrome out of one idea: the reader saw a bordered pill next to a
+ * bordered control and had to learn which of them did anything. So this takes
+ * over the whole job — it carries the ellipsis, the count, and the click — and
+ * the stylesheet hides the native placeholder wherever this is drawn.
+ *
+ * The count is what a folded state cannot otherwise say. Solid ink says
+ * something is hidden; only a number says whether that is one line or forty,
+ * and a list bullet, already solid, cannot even say the first (design D6).
  *
  * Chrome, not content: `contenteditable="false"`, outside the document, absent
- * from anything copied. It is the only part of the folded treatment that says
- * HOW MUCH is hidden rather than merely that something is — which is what a
- * list bullet, already solid, cannot say on its own (design D6).
+ * from anything copied. The ellipsis is drawn by the stylesheet rather than
+ * written here, so the element's own text stays the number — what a reader
+ * copies out of a folded outline should be the node's text, and what an
+ * assistive reader hears comes from the label.
  */
 class FoldCountWidget extends WidgetType {
-  constructor(private readonly count: number) {
+  constructor(
+    private readonly count: number,
+    private readonly lineNumber: number,
+  ) {
     super();
   }
 
   override eq(other: FoldCountWidget): boolean {
-    return other.count === this.count;
+    return other.count === this.count && other.lineNumber === this.lineNumber;
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const el = createSpan({ cls: 'to-decor-fold-count', text: String(this.count) });
-    el.setAttribute('aria-label', `${this.count} hidden`);
+    el.setAttribute('aria-label', `Unfold, ${this.count} hidden`);
+    el.setAttribute('title', 'Unfold');
     el.contentEditable = 'false';
+    el.addEventListener('mousedown', (event) => event.preventDefault());
+    el.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFoldAtLine(view, this.lineNumber);
+    });
     return el;
   }
 
+  /** True for the reason `FoldToggleWidget` gives: it is what stops CM6's own
+   * handlers from taking a press meant for this control. */
   override ignoreEvent(): boolean {
     return true;
   }
@@ -1145,18 +1170,24 @@ class FoldToggleWidget extends WidgetType {
   constructor(
     private readonly lineNumber: number,
     private readonly folded: boolean,
+    private readonly leftExpr: string,
   ) {
     super();
   }
 
   override eq(other: FoldToggleWidget): boolean {
-    return other.lineNumber === this.lineNumber && other.folded === this.folded;
+    return (
+      other.lineNumber === this.lineNumber &&
+      other.folded === this.folded &&
+      other.leftExpr === this.leftExpr
+    );
   }
 
   toDOM(view: EditorView): HTMLElement {
     const el = createSpan({
       cls: `to-decor-fold-toggle${this.folded ? ' is-collapsed' : ''}`,
     });
+    applyMarkerLeft(el, this.leftExpr);
     el.setAttribute('aria-label', this.folded ? 'Unfold' : 'Fold');
     el.contentEditable = 'false';
     // eslint-disable-next-line no-restricted-syntax -- detached DOM: CM6 mounts toDOM()'s result via its own supported path
@@ -1197,20 +1228,45 @@ function buildChevron(): SVGSVGElement {
   return svg;
 }
 
+/**
+ * How far left of its own box the toggle's glyph belongs: from that box's
+ * origin to one marker gutter left of the line's marker column.
+ *
+ * The box sits in the line's flow and takes up none of it (styles.css), so the
+ * origin is wherever the line's first inline box starts — and that is not the
+ * same place for both kinds. A block line's own text starts one gutter right of
+ * its marker column, by the definition of the gutter, so the answer is two
+ * gutters back whatever the depth. A LIST line hangs its indentation, which
+ * puts that first box back at the line's own left edge, so the column has to be
+ * named outright: the depth's column, less the shift the depth rules have
+ * already given the box itself.
+ */
+function foldToggleLeftExpr(fact: LineDecorationFact): string {
+  if (!fact.isListItem) return `calc(-2 * ${MARKER_GUTTER_CSS})`;
+  return `calc(${fact.depth} * ${UNIT_EXPR} - ${plainOwnShiftExpr(fact)} - ${MARKER_GUTTER_CSS})`;
+}
+
 function computeFoldToggles(state: EditorState): DecorationSet {
   if (!isOutlineMode(state)) return Decoration.none;
-  // The toggle only needs to know which marker lines are folded, so it can
-  // point its chevron the right way.
+  // The toggle needs to know which marker lines are folded, so it can point its
+  // chevron the right way, and each line's own geometry, so it can find the
+  // marker column it belongs beside.
   const folded = new Set(foldedChrome(state).map((chrome) => chrome.markerLine));
+  const placement = new Map<number, string>();
+  for (const fact of decorate(parsedDoc(state.doc).doc)) {
+    if (fact.isFirstLine) placement.set(fact.lineNumber, foldToggleLeftExpr(fact));
+  }
   const builder = new RangeSetBuilder<Decoration>();
   for (let line = 0; line < state.doc.lines; line++) {
     if (!foldChromeTarget(state, line)) continue;
+    const left = placement.get(line);
+    if (left === undefined) continue;
     const from = state.doc.line(line + 1).from;
     builder.add(
       from,
       from,
       Decoration.widget({
-        widget: new FoldToggleWidget(line, folded.has(line)),
+        widget: new FoldToggleWidget(line, folded.has(line), left),
         side: -2, // before the marker icon, which is the order they read in
       }),
     );
@@ -1347,15 +1403,19 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
         foldedTails.has(guide.lineNumber),
       ),
     );
-    // The count rides at the END of the node's own text, where a reader's eye
-    // already is when they reach the end of what is visible.
+    // At the END of the node's own text, where a reader's eye already is when
+    // they reach the end of what is visible — and where Obsidian puts its own
+    // placeholder, which this one replaces.
     const hidden = foldedCounts.get(guide.lineNumber);
     if (hidden !== undefined && hidden > 0) {
       const line = state.doc.line(guide.lineNumber + 1);
       builder.add(
         line.to,
         line.to,
-        Decoration.widget({ widget: new FoldCountWidget(hidden), side: 1 }),
+        Decoration.widget({
+          widget: new FoldCountWidget(hidden, guide.lineNumber),
+          side: 1,
+        }),
       );
     }
   }

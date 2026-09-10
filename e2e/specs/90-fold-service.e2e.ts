@@ -130,14 +130,18 @@ describe('fold service', () => {
     await h.setCursorSettled(2, 3);
     await h.runEditorExec('toggleFold');
     expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 10 }]);
-    // The list block is gone from the DOM entirely, not hidden in place, and
-    // the head line carries Obsidian's own `…` placeholder — inherited chrome,
-    // which is the point of folding through its mechanism rather than beside it.
+    // The list block is gone from the DOM entirely, rather than hidden in
+    // place, which is the point of folding through Obsidian's mechanism rather
+    // than beside it.
+    //
+    // The tail of the head line reads oddly here because `textContent` reports
+    // hidden nodes too: `7` is our own control, and `…` is Obsidian's
+    // placeholder, still in the DOM and hidden by CSS wherever ours is drawn
+    // (93 asserts that only one of the two is SHOWN, which textContent cannot
+    // answer).
     expect(await h.renderedLineTexts()).toEqual([
       'Top',
       '',
-      // The count is chrome the folded node now carries — three hidden
-      // descendants, in the same widget the reader sees.
       'Paragraph with children:7…',
       '',
       'Second',

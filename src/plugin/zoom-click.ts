@@ -47,7 +47,6 @@ import { ViewPlugin, type EditorView, type PluginValue } from '@codemirror/view'
 import type { Extension } from '@codemirror/state';
 import { resolveZoom } from '../zoom';
 import { parsedDoc } from './parsed-doc';
-import { ancestryAtLine } from './fold-model';
 import { GUIDES_CLASS } from './chrome-line';
 import { toggleGuideAt } from './fold-commands';
 import { isNestedEditor } from './nested-editor';
@@ -133,6 +132,10 @@ class ZoomClickPlugin implements PluginValue {
   private handleGuide(event: MouseEvent, target: Element | null): boolean {
     if (isNestedEditor(this.view)) return false;
     if (!isOutlineMode(this.view.state)) return false;
+    // A press on a fold control is that control's own, whichever of the two
+    // drew it. Their ink sits in the gutter a guide column also runs through,
+    // and a control is the more specific claim.
+    if (target?.closest('.cm-fold-indicator, .to-decor-fold-toggle')) return false;
     const lineEl = target?.closest<HTMLElement>('.cm-line');
     if (!lineEl) return false;
     // A guide is drawn only when guides are drawn: an affordance that
@@ -147,11 +150,7 @@ class ZoomClickPlugin implements PluginValue {
       return false;
     }
     const lineNumber = this.view.state.doc.lineAt(pos).number - 1;
-    const { doc } = parsedDoc(this.view.state.doc);
-    const chain = ancestryAtLine(doc, lineNumber);
-    const depth = chain.length - 1;
-    if (depth < 1) return false;
-    const column = guideHit(this.view, lineEl, event.clientX, depth);
+    const column = guideHit(lineEl, event.clientX);
     if (column === null) return false;
     return toggleGuideAt(this.view, lineNumber, column);
   }
@@ -227,40 +226,49 @@ class ZoomClickPlugin implements PluginValue {
 }
 
 /**
- * A press on an indentation guide, or null if it was not one.
+ * The visual depth of the guide a press landed on, or null if it landed on none.
  *
- * Guides are painted as a gradient on one pseudo-element per line
- * (docs/research/09), so there is no element to hit — the column has to be
- * found by arithmetic. All of it comes from the line under the press:
+ * The columns are read from what the renderer actually PAINTED — the guide
+ * gradient's own `background-position-x` and `background-size`, resolved to
+ * pixels — rather than computed from the node's depth in the tree. Those two
+ * are not the same number: a heading is an ancestor of everything in its
+ * section but indents none of it, so a list item three nodes deep sits at
+ * visual depth two. Computing the columns from the tree therefore placed them
+ * a level apart from where they were drawn, and a press on a node's own fold
+ * chevron landed inside its PARENT's band — folding every sibling instead of
+ * the node clicked, which is how this was found.
  *
- * - its box's left edge is column 0, measured;
- * - its own mark sits at `left + depth × unit`, so one rendered mark on the
- *   line gives the unit without resolving a CSS variable to pixels;
- * - the guides it draws are its ancestors' columns, `k < depth`.
+ * Reading the paint also settles two things for free: only guides that are
+ * actually drawn can be clicked, whatever the visibility setting says, and the
+ * unit comes from the same declaration the gradient is sized by.
  *
- * The tolerance is a third of a unit either side, comfortably short of the half
- * that would start stealing presses meant for the level beside it, and the
- * press must land LEFT of the line's own text — a click in the text is a click
- * in the text, whatever column it happens to line up with.
+ * The one thing it does not settle is WHERE those positions are measured from.
+ * The overlay is shifted back off the line by the line's own margin and bled
+ * out by a border (styles.css), and a background is positioned from the
+ * padding edge — so the origin is the overlay's own, not the line's, and using
+ * the line's is a whole level of error on any list whose root is itself
+ * indented.
  */
-function guideHit(
-  view: EditorView,
-  lineEl: HTMLElement,
-  clientX: number,
-  depth: number,
-): number | null {
-  if (depth < 1) return null;
+function guideHit(lineEl: HTMLElement, clientX: number): number | null {
+  const after = getComputedStyle(lineEl, '::after');
+  const unit = parseFloat(after.backgroundSize);
+  if (!(unit > 1)) return null;
   const box = lineEl.getBoundingClientRect();
-  const markEl = lineEl.querySelector<HTMLElement>(
-    ':scope > .to-decor-marker-icon, .list-bullet, .cm-formatting-list, .task-list-item-checkbox',
-  );
-  const step = markEl ? (markEl.getBoundingClientRect().left - box.left) / depth : null;
-  if (step === null || !(step > 1)) return null;
-  const textLeft = box.left + parseFloat(getComputedStyle(lineEl).paddingLeft);
-  if (clientX > textLeft) return null;
-  const tolerance = step / 3;
-  for (let k = 0; k < depth; k++) {
-    if (Math.abs(clientX - (box.left + k * step)) <= tolerance) return k;
+  const origin = parseFloat(after.left) + parseFloat(after.borderLeftWidth);
+  if (Number.isNaN(origin)) return null;
+  const offset = clientX - box.left - origin;
+  // Left of the line's own text, always: a press in the text is a press in the
+  // text, whatever column it happens to line up with. Measured in the same
+  // frame, so the text's own start moves back by the overlay's origin too.
+  if (offset > parseFloat(getComputedStyle(lineEl).paddingLeft) - origin) return null;
+  const tolerance = unit / 3;
+  for (const part of after.backgroundPositionX.split(',')) {
+    const x = parseFloat(part);
+    if (Number.isNaN(x)) continue;
+    if (Math.abs(offset - x) > tolerance) continue;
+    // The painted position is inset by half the guide's own width; rounding
+    // against the unit recovers the level it stands for.
+    return Math.max(0, Math.round(x / unit));
   }
   return null;
 }

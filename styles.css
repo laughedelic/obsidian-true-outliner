@@ -3398,20 +3398,46 @@ body.is-mobile {
 /* The hidden-descendant count, after the node's own text. Sized off the
  * surrounding text rather than fixed, so it stays proportional on a heading;
  * `cursor: default` because it is chrome and clicking it does nothing. */
+/*
+ * The one thing a folded node shows after its text: an ellipsis, the count, and
+ * the way back.
+ *
+ * It replaces Obsidian's placeholder rather than sitting beside it (the rule
+ * below hides that), so it is drawn as the placeholder is — the editor's own
+ * `…`, in the muted weight the rest of our chrome uses — with the number
+ * trailing it a size down. A bordered pill next to Obsidian's bordered
+ * placeholder was two controls' worth of chrome for one idea, and the louder of
+ * the two was the half that could not be clicked.
+ *
+ * The ellipsis is `content`, not text, so the element's own text stays the
+ * number: nothing here belongs in what a reader copies.
+ */
 .to-decor-fold-count {
   display: inline-block;
-  margin-left: 0.45em;
-  padding: 0.1em 0.4em;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 1em;
-  background-color: var(--background-secondary);
-  color: var(--text-muted);
-  font-size: 0.75em;
+  margin-left: 0.35em;
+  color: var(--text-faint);
   font-family: var(--font-interface);
+  font-size: 0.85em;
   line-height: 1.4;
-  vertical-align: middle;
-  cursor: default;
+  vertical-align: baseline;
+  cursor: var(--cursor, pointer);
   user-select: none;
+}
+
+.to-decor-fold-count::before {
+  content: '…';
+  margin-right: 0.3em;
+  font-size: 1.15em;
+}
+
+.to-decor-fold-count:hover {
+  color: var(--text-muted);
+}
+
+/* Ours says everything the native placeholder says and takes the same click, so
+ * where ours is drawn, the native one is a second control for one action. */
+.markdown-source-view.mod-cm6 .cm-line:has(.to-decor-fold-count) .cm-foldPlaceholder {
+  display: none;
 }
 
 /*
@@ -3460,16 +3486,10 @@ body.is-mobile {
   display: none;
 }
 
+/* What the two copies share: the glyph, and the states it is drawn in. Where
+ * the control sits is the surface's own business — the editor's box is below,
+ * the footer's is with the rest of the footer's column arithmetic. */
 .to-decor-fold-toggle {
-  position: absolute;
-  left: calc(
-    var(--to-marker-gutter) * -1 - var(--to-marker-icon-size, 0.85rem) / 2 - 3px
-  );
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 0.85rem;
-  height: 1.4em;
   color: var(--text-faint);
   opacity: 0;
   cursor: var(--cursor, pointer);
@@ -3480,6 +3500,42 @@ body.is-mobile {
   width: 0.7rem;
   height: 0.7rem;
   display: block;
+}
+
+/*
+ * The editor's copy sits IN the line's flow, at the start of its own text, and
+ * takes up none of it — a zero-size box the glyph hangs off, which is exactly
+ * how Obsidian's own indicator is built. Positioning it absolutely instead
+ * measures from the line's padding box, which knows nothing of the line's
+ * indentation: the control kept its distance from the window and lost it to the
+ * marker, one whole level further away on every step deeper.
+ *
+ * What that box's own origin IS still differs by kind, so the offset from it to
+ * the marker column is built per line, in `foldToggleLeftExpr`, and arrives
+ * through `--to-marker-left`.
+ *
+ * Vertically it is the marker icon's own mechanics, and `.to-decor-marker-icon`
+ * says why each of them: zero line-height, so the box's baseline is its bottom
+ * edge and lands on the text's; then the glyph centred `0.5ex` above that, the
+ * text's own optical middle. The two therefore stay on one line at any text
+ * size and in any theme, which a box centred on the LINE does not — a heading's
+ * line is half as tall again as its text.
+ */
+.cm-line .to-decor-fold-toggle {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+  line-height: 0;
+  vertical-align: baseline;
+  left: var(--to-marker-left, 0px);
+}
+
+.cm-line .to-decor-fold-toggle svg {
+  position: absolute;
+  top: -0.5ex;
+  left: 0;
+  transform: translate(-50%, -50%);
 }
 
 /*
@@ -3512,8 +3568,10 @@ body.is-mobile {
   .markdown-source-view.mod-cm6 .cm-content .to-decor-fold-toggle::before {
     content: '';
     position: absolute;
-    top: 50%;
-    left: 50%;
+    /* On the GLYPH, which hangs off a zero-size box rather than filling it —
+     * the box's own centre is the text baseline. */
+    top: -0.5ex;
+    left: 0;
     width: 24px;
     height: 24px;
     transform: translate(-50%, -50%);
@@ -3530,4 +3588,10 @@ body.is-mobile {
 
 .to-decor-fold-toggle.is-collapsed svg {
   transform: rotate(-90deg);
+}
+
+/* The editor's copy centres its glyph with a transform, so the rotation has to
+ * carry that centring with it. */
+.cm-line .to-decor-fold-toggle.is-collapsed svg {
+  transform: translate(-50%, -50%) rotate(-90deg);
 }

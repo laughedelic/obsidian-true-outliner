@@ -8,10 +8,11 @@
  * hit-testing does, which is the whole thing under test.
  */
 
-import { expect } from '@wdio/globals';
+import { browser, expect } from '@wdio/globals';
 import * as h from '../helpers.js';
 
 const NOTE = 'Scratch/fold-guide.md';
+const HEADED = 'Scratch/fold-guide-headed.md';
 
 /*  0 | - root
     1 |   - first
@@ -30,6 +31,29 @@ const DOC = [
   '',
 ].join('\n');
 
+/*  0 | ## Section
+    1 |
+    2 | - work
+    3 |   - thread
+    4 |     - shipped
+    5 |     - prototype review
+    6 |       - severity sort
+    7 |     - open questions
+    8 |       - touch fallback
+    9 |                                                                        */
+const HEADED_DOC = [
+  '## Section',
+  '',
+  '- work',
+  '  - thread',
+  '    - shipped',
+  '    - prototype review',
+  '      - severity sort',
+  '    - open questions',
+  '      - touch fallback',
+  '',
+].join('\n');
+
 describe('the guide gesture', () => {
   beforeEach(async () => {
     await h.createNote(NOTE, DOC);
@@ -42,13 +66,13 @@ describe('the guide gesture', () => {
   it('folds every child under the guide, and reopens them on a second press', async () => {
     // The guide at column 0 on line 2 belongs to "- root", so its children are
     // "- first", "- second" and "- third leaf" — the two with children fold.
-    await h.clickGuideColumn(2, 0, { depth: 2 });
+    await h.clickGuideColumn(2, 0);
     expect(await h.foldedLineRanges()).toEqual([
       { from: 1, to: 2 },
       { from: 3, to: 4 },
     ]);
 
-    await h.clickGuideColumn(2, 0, { depth: 2 });
+    await h.clickGuideColumn(2, 0);
     expect(await h.foldedLineRanges()).toEqual([]);
   });
 
@@ -58,7 +82,7 @@ describe('the guide gesture', () => {
     expect(await h.foldedLineRanges()).toEqual([{ from: 1, to: 2 }]);
     // "any open means fold them all" — one press reaches the reading this
     // gesture exists for, from any starting state.
-    await h.clickGuideColumn(3, 0, { depth: 1 });
+    await h.clickGuideColumn(3, 0);
     expect(await h.foldedLineRanges()).toEqual([
       { from: 1, to: 2 },
       { from: 3, to: 4 },
@@ -68,7 +92,7 @@ describe('the guide gesture', () => {
   it('does not move the caret or change the document', async () => {
     const before = await h.getBuffer();
     await h.setCursorSettled(5, 6);
-    await h.clickGuideColumn(2, 0, { depth: 2 });
+    await h.clickGuideColumn(2, 0);
     expect(await h.getCursor()).toEqual({ line: 5, ch: 6 });
     expect(await h.getBuffer()).toBe(before);
   });
@@ -82,14 +106,41 @@ describe('the guide gesture', () => {
   it('leaves a press past the tolerance alone', async () => {
     // Halfway between two columns: near enough to be a near miss, far enough
     // that claiming it would start stealing presses from the level beside it.
-    await h.clickGuideColumn(2, 0, { depth: 2, offsetFraction: 0.5 });
+    await h.clickGuideColumn(2, 0, { offsetFraction: 0.5 });
     expect(await h.foldedLineRanges()).toEqual([]);
   });
 
+  it('reads the columns where they are painted, not where the tree puts them', async () => {
+    // Under a HEADING, and with the list's own root indented — the shape that
+    // made this visible. The guide overlay is shifted back off the line by
+    // however far the depth rules have already moved the line's box, so a
+    // column measured from the line's own edge is a whole level out on any list
+    // like this one. Measured that way, a press aimed at "thread"'s guide
+    // resolved to "work"'s, and folding a single node's siblings took the
+    // node's whole branch with them.
+    await h.createNote(HEADED, HEADED_DOC);
+    await h.openNote(HEADED);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+    await h.setCursorSettled(0, 3);
+
+    // Column 2 belongs to "- thread", whose children are "shipped",
+    // "prototype review" and "open questions" — the last two have children.
+    await h.clickGuideColumn(6, 2);
+    expect(await h.foldedLineRanges()).toEqual([
+      { from: 5, to: 6 },
+      { from: 7, to: 8 },
+    ]);
+  });
+
   it('is not offered when guides are not drawn', async () => {
+    // The point is measured while they still are, so what changes between the
+    // measurement and the press is the guide alone.
+    const point = await h.guideColumnPoint(2, 0);
     await h.setGuideVisibility('off');
     try {
-      await h.clickGuideColumn(2, 0, { depth: 2 });
+      await h.clickAtPoint(point.x, point.y);
+      await browser.pause(150);
       expect(await h.foldedLineRanges()).toEqual([]);
     } finally {
       await h.setGuideVisibility('all');

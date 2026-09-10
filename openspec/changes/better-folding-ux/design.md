@@ -201,6 +201,30 @@ The hidden-descendant count renders as a widget after the node's text, `contente
 and outside the document — the same class of chrome as the trail and the footer, and subject to
 the same "never mutate document state" requirement `outline-decorations` already carries.
 
+### D6b. The count IS the tail control, not a badge beside one — decided
+
+Built as a bordered pill, the count landed immediately next to Obsidian's own fold placeholder —
+which is not an ornament but a control: clicking the `…` unfolds. Two adjacent pieces of chrome
+for one idea, and the louder of the two was the half a reader could not click.
+
+Seven ways to spend less on it were drawn at real geometry in
+[`28-fold-count-mockup.html`](../../../docs/research/28-fold-count-mockup.html).
+**Chosen: the count moves INTO the placeholder** — one control after the node's text, carrying the
+ellipsis, the number and the click, with the native placeholder hidden wherever ours is drawn.
+
+*Why not the others.* Dropping the pill's border and fill (B) is quieter but still two elements
+saying one thing. Replacing the ellipsis with the bare number (D) reads as content on first sight
+and gives a count of 1 a very small target. The gutter (E) is 14px wide and already the chevron's.
+Hover-only (F) withholds the count exactly while a reader is scanning a folded outline, and says
+nothing at all on touch. No count (G) gives up the one thing the folded state cannot otherwise
+say.
+
+*What it costs:* the ellipsis becomes ours to draw. We do not reconfigure CodeMirror's
+`placeholderDOM` to get there — that facet field throws on a merge conflict, so claiming it would
+make a future Obsidian release that sets it a startup failure rather than a cosmetic clash. The
+native placeholder is left in place and hidden by a rule keyed on ours being present, which is the
+same mechanism the fold affordance already uses for the native chevron.
+
 ### D7. The guide gesture is hit-test arithmetic, not an element
 
 The click's x-offset within the content column is compared against the guide columns the line

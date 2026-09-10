@@ -101,6 +101,11 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       absent from copied text. Settle where it sits when the text wraps (design — Open Questions). Verify by folding a node with a nested subtree, copying it, and
       asserting the clipboard has no count; negative control — rendering the count as document
       text must fail it
+- [x] 5.3a The count becomes the line's ONLY tail control (D6b): it carries the placeholder's
+      ellipsis and its click, and Obsidian's own placeholder is hidden wherever ours is drawn.
+      Verify that a folded line shows exactly one control after its text and that clicking it
+      unfolds; negative controls — leaving the native placeholder visible, and a count that takes
+      no click, must each fail one of those
 - [x] 5.4 Our own fold affordance wherever a node we fold has no native chevron (D5). Task 1.3
       measured where that is: NOT the default configuration, where Obsidian's indicator follows
       the provider onto every line we claim — but with "Fold heading" and "Fold indent" off,

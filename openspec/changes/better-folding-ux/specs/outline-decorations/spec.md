@@ -21,6 +21,14 @@ The number of hidden descendants SHALL render after the node's own text, as chro
 document content: it SHALL NOT be selectable, SHALL NOT receive the caret, and SHALL NOT appear in
 copied text.
 
+That count SHALL be the line's only tail control. It SHALL carry the fold placeholder's ellipsis
+and SHALL unfold the node when clicked, and Obsidian's own placeholder SHALL be hidden wherever it
+is drawn — a folded line offers one control after its text, not two for the same action.
+
+#### Scenario: One control after the text
+- **WHEN** a node is folded
+- **THEN** exactly one control is shown after its text, and clicking it unfolds the node
+
 When markers are hidden by the marker-visibility setting, the count SHALL still render and the
 fold affordance SHALL still be offered — the setting governs the kind mark, not the fold.
 

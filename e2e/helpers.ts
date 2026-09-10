@@ -1045,6 +1045,26 @@ export function foldCounts(): Promise<{ line: number; count: number }[]> {
   );
 }
 
+/**
+ * How many controls a folded line actually SHOWS after its text — ours and
+ * Obsidian's placeholder together.
+ *
+ * Both are in the DOM whenever a fold is on the line; the question is how many
+ * of them a reader sees, and `textContent` cannot answer it — a hidden node
+ * still contributes its text.
+ */
+export function foldTailControlCount(line: number): Promise<number> {
+  return browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line')[n];
+    return Array.from(el?.querySelectorAll('.cm-foldPlaceholder, .to-decor-fold-count') ?? []).filter(
+      (control) => {
+        const style = getComputedStyle(control as HTMLElement);
+        return style.display !== 'none' && Number(style.opacity) > 0.05;
+      },
+    ).length;
+  }, line);
+}
+
 /** Is the count part of the editable document, or chrome beside it? */
 export function foldCountIsEditable(line: number): Promise<boolean> {
   return browser.executeObsidian(({}, n: number) => {
@@ -1118,51 +1138,100 @@ export function foldAffordanceVisible(line: number): Promise<boolean> {
 }
 
 /**
- * Press a real pointer on a line's guide column.
+ * Where a line's guide column is on screen.
  *
- * Real coordinates, not a synthesised event on an element: a guide HAS no
- * element — it is a gradient on a pseudo-element — so dispatching at a node
- * would bypass the arithmetic the gesture is made of. The column's x comes from
- * the same geometry the plugin uses: the line's own left edge plus `k` steps,
- * where a step is the distance from that edge to the line's own mark divided by
- * its depth.
+ * The column's x is read from the PAINT — the guide overlay's own origin and
+ * the unit its gradient repeats at — because the paint is what a reader aims
+ * at, and it is the one description of a column that holds for every kind and
+ * depth. An earlier version derived a step from the line's own rendered mark
+ * and the depth the fixture declared, which needed the mark and the column to
+ * share an origin; on a list whose root is itself indented they do not, and
+ * every press came out a level off.
  *
- * `depth` comes from the FIXTURE, not from the geometry: deriving it here from
- * the same measurements the plugin uses would make the test agree with the
- * implementation by construction. Measured the hard way once — a helper that
- * guessed the depth from a hardcoded gutter reported one level where the
- * document had two, put every press one column right, and made a tolerance test
- * pass against a deliberately broken tolerance.
+ * That the gesture reads the same paint is deliberate rather than circular:
+ * what these tests assert is which NODES a press folds, and the map from a
+ * column to a node is nothing this measurement can supply.
  *
  * `offsetFraction` shifts the press by that fraction of a step, for testing the
  * tolerance's edges.
  */
-export async function clickGuideColumn(
+export async function guideColumnPoint(
   line: number,
   column: number,
-  opts: { depth: number; offsetFraction?: number },
-): Promise<void> {
-  const point = await browser.executeObsidian(
-    ({}, n: number, k: number, fraction: number, depth: number) => {
+  opts: { offsetFraction?: number } = {},
+): Promise<{ x: number; y: number }> {
+  return browser.executeObsidian(
+    ({}, n: number, k: number, fraction: number) => {
       const el = document.querySelectorAll<HTMLElement>(
         '.workspace-leaf.mod-active .cm-content > .cm-line',
       )[n];
       if (!el) throw new Error(`no line ${n}`);
       const box = el.getBoundingClientRect();
-      const mark = el.querySelector<HTMLElement>(
-        ':scope > .to-decor-marker-icon, .list-bullet, .cm-formatting-list, .task-list-item-checkbox',
-      );
-      if (!mark) throw new Error(`line ${n} renders no mark to measure a step from`);
-      // One level, from this line's own mark: it sits `depth` steps right of
-      // the line's left edge, which is column 0.
-      const step = (mark.getBoundingClientRect().left - box.left) / depth;
-      return { x: box.left + k * step + fraction * step, y: box.top + box.height / 2 };
+      // Where the guides are actually PAINTED, which is what a reader aims at:
+      // the overlay's own origin, and the unit its gradient repeats at. Derived
+      // from a rendered mark instead, this had to know how far the line's own
+      // box had already been shifted, and got it wrong for every list whose
+      // root is itself indented.
+      const after = getComputedStyle(el, '::after');
+      const unit = parseFloat(after.backgroundSize);
+      if (!(unit > 1)) throw new Error(`line ${n} paints no guides to measure`);
+      const origin = parseFloat(after.left) + parseFloat(after.borderLeftWidth);
+      return {
+        x: box.left + origin + k * unit + fraction * unit,
+        y: box.top + box.height / 2,
+      };
     },
     line,
     column,
     opts.offsetFraction ?? 0,
-    opts.depth,
   );
+}
+
+/** Press a real pointer on a guide column. */
+export async function clickGuideColumn(
+  line: number,
+  column: number,
+  opts: { offsetFraction?: number } = {},
+): Promise<void> {
+  const point = await guideColumnPoint(line, column, opts);
+  await clickAtPoint(point.x, point.y);
+  await browser.pause(150);
+}
+
+/** Press a real pointer on a folded line's tail control. */
+export async function clickFoldCount(line: number): Promise<void> {
+  const point = await browser.executeObsidian(({}, n: number) => {
+    const el = document
+      .querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line')
+      [n]?.querySelector('.to-decor-fold-count');
+    if (!el) throw new Error(`line ${n} shows no fold count`);
+    const box = el.getBoundingClientRect();
+    if (box.width === 0) throw new Error(`line ${n}'s fold count is not laid out`);
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  }, line);
+  await clickAtPoint(point.x, point.y);
+  await browser.pause(150);
+}
+
+/**
+ * Press a real pointer on the fold control a line actually shows — Obsidian's
+ * own indicator where it draws one, ours where it does not.
+ *
+ * Real coordinates, like `clickGuideColumn` and for the same reason: what is
+ * under test is which handler claims a press, and a synthesised event on the
+ * element would answer that question by assumption.
+ */
+export async function clickFoldControl(line: number): Promise<void> {
+  const point = await browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll<HTMLElement>(
+      '.workspace-leaf.mod-active .cm-content > .cm-line',
+    )[n];
+    if (!el) throw new Error(`no line ${n}`);
+    const glyph = el.querySelector('.cm-fold-indicator svg, .to-decor-fold-toggle svg');
+    if (!glyph) throw new Error(`line ${n} shows no fold control`);
+    const box = glyph.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  }, line);
   await clickAtPoint(point.x, point.y);
   await browser.pause(150);
 }
@@ -1212,6 +1281,53 @@ export function foldToggleLines(): Promise<number[]> {
       .map((el, i) => (el.querySelector('.to-decor-fold-toggle') ? i : -1))
       .filter((i) => i >= 0),
   );
+}
+
+/**
+ * How far our own fold control sits from the native indicator it stands in for,
+ * per line, in that line's own coordinates.
+ *
+ * A difference rather than a position: where the control belongs is a different
+ * number for every depth and every kind, and the one thing that is true of all
+ * of them is that both controls answer for the same node and so belong in the
+ * same place. Obsidian's answer is the reference because ours exists only where
+ * its is missing — the two are never on screen together, and a reader who turns
+ * the setting off should see the affordance stay put.
+ *
+ * Destructive, and necessarily so: ours is hidden while a native indicator is on
+ * the line, so the natives are measured, then removed, then ours is measured.
+ */
+export function foldControlOffsets(): Promise<Array<{ line: number; dx: number; dy: number }>> {
+  return browser.executeObsidian(() => {
+    const lines = Array.from(
+      document.querySelectorAll('.workspace-leaf.mod-active .cm-content > .cm-line'),
+    );
+    const centre = (el: Element) => {
+      const box = el.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    };
+    const native = new Map<number, { x: number; y: number }>();
+    lines.forEach((el, i) => {
+      const glyph = el.querySelector('.cm-fold-indicator svg');
+      if (glyph) native.set(i, centre(glyph));
+    });
+    document
+      .querySelectorAll('.workspace-leaf.mod-active .cm-content .cm-fold-indicator')
+      .forEach((el) => el.remove());
+    const out: Array<{ line: number; dx: number; dy: number }> = [];
+    lines.forEach((el, i) => {
+      const glyph = el.querySelector('.to-decor-fold-toggle svg');
+      const reference = native.get(i);
+      if (!glyph || !reference) return;
+      const ours = centre(glyph);
+      out.push({
+        line: i,
+        dx: Number((ours.x - reference.x).toFixed(1)),
+        dy: Number((ours.y - reference.y).toFixed(1)),
+      });
+    });
+    return out;
+  });
 }
 
 /** Lines where the plugin's own fold chrome belongs. */
