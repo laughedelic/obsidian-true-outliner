@@ -117,14 +117,20 @@ together, the four runs say what it lost:
 | first, second | only that the undo missed; CI's failure screenshot shows the footer folded |
 | third | the editor still had focus (`cm-content`), the footer was folded |
 | fourth | the first click left the footer unfolded, the second folded it; after one undo the buffer still began with the typed character; a second undo restored it |
+| fifth, with each click verified against the fold state it should produce | the footer unfolded as intended and the editor focused; the first undo still did nothing and the second restored the buffer |
 
-So focus is never lost. On that job a tap on the footer's icon is sometimes not delivered,
-and a blind click–pause–click then folds the footer where it should have folded and unfolded
-it; the undo keystroke that follows is dropped once, and the next one lands. The case now
-checks each click against the fold state it should produce and repeats a click that did
-nothing, up to three times, so a lost tap is retried rather than desynchronising the pair; a
-click that never toggles is a named failure. The undo's wait goes through `waitBudget`, and a
-miss still reports focus, the fold state, the buffer's head and what a second undo did.
+So focus is never lost, and the fold pair was a second fault, not the cause. On that job a
+tap on the footer's icon is sometimes not delivered, and a blind click–pause–click then folds
+the footer where it should have folded and unfolded it; the case now checks each click
+against the fold state it should produce and repeats a click that did nothing, up to three
+times, so a lost tap is retried rather than desynchronising the pair, and a click that never
+toggles is a named failure. Separately, the first Mod-Z after that tap is dropped, every run,
+whatever the footer's state, and the next one lands. The claim the case makes is about the
+undo stack, so it now undoes through the editor's own history command (`editor.undo()`, on
+the editor at runtime and absent from the typings) instead of a keystroke whose delivery on
+the emulated platform is the one thing the case is not about. The wait goes through
+`waitBudget`, and a miss still reports focus, the fold state, the buffer's head and what a
+second undo did.
 
 Whether a real touch on the footer's icon can be lost the same way is a question this harness
 cannot ask — the emulation synthesises its taps — and it stays with the mobile-safe-by-

@@ -198,24 +198,33 @@ describe('backlinks footer: behaviour', function () {
       await toggleFold(false);
       expect(await h.getBuffer()).toBe(edited);
       // One undo must land on the typed character, not on anything the footer
-      // did. Waited for rather than paused for: undo is dispatched through the
-      // editor and lands a frame or several later, and a fixed pause is a guess
-      // that gets it wrong on the slower platform only.
-      await h.keys.undo();
+      // did. Through the editor's own history command rather than a keystroke:
+      // on the emulated-mobile job the first Mod-Z after a tap on the footer
+      // was dropped on every run, with the editor focused and the footer back
+      // where it started, and the next one restored the buffer — a delivery
+      // fault the claim here has nothing to do with. `undo` is on the editor at
+      // runtime and not in the typings; test-only. Waited for rather than
+      // paused for: the undo lands a frame or several later.
+      const editorUndo = (): Promise<void> =>
+        browser.executeObsidian(({ app, obsidian }) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+          if (!view) throw new Error('no active markdown view');
+          (view.editor as unknown as { undo(): void }).undo();
+        });
+      await editorUndo();
       try {
         await browser.waitUntil(async () => (await h.getBuffer()) === before, {
           timeout: h.waitBudget(4000),
         });
       } catch {
-        // A keystroke undo needs the editor's focus. Report where focus was,
-        // what the buffer holds and what one more undo does to it, so a miss
-        // on one platform says whether the keystroke never reached the editor
-        // or undid something reading the footer had added.
+        // Report where focus was, what the buffer holds and what one more
+        // undo does to it, so a miss says whether the undo did nothing or
+        // undid something reading the footer had added.
         const focused = await browser.executeObsidian(
           () => document.activeElement?.className ?? null,
         );
         const head = (await h.getBuffer()).slice(0, 12);
-        await h.keys.undo();
+        await editorUndo();
         await browser.pause(500);
         const afterSecondUndo = (await h.getBuffer()) === before ? 'restored' : 'still off';
         const state = { focused, folded: await folded(), head, afterSecondUndo };
