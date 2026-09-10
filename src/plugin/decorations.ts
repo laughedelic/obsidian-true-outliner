@@ -117,7 +117,7 @@ import {
 import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
 import { isNestedEditor } from './nested-editor';
-import { foldChromeTarget, foldedChromeLines } from './fold-service';
+import { foldChromeTarget, foldedChrome } from './fold-service';
 import { toggleFoldAtLine } from './fold-commands';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
@@ -1188,7 +1188,9 @@ function buildChevron(): SVGSVGElement {
 
 function computeFoldToggles(state: EditorState): DecorationSet {
   if (!isOutlineMode(state)) return Decoration.none;
-  const folded = foldedChromeLines(state);
+  // The toggle only needs to know which marker lines are folded, so it can
+  // point its chevron the right way.
+  const folded = new Set(foldedChrome(state).map((chrome) => chrome.markerLine));
   const builder = new RangeSetBuilder<Decoration>();
   for (let line = 0; line < state.doc.lines; line++) {
     if (!foldChromeTarget(state, line)) continue;
@@ -1292,7 +1294,15 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   const { factsByLine, guides } = facts;
   const visibility = visibilityContext(state, modes, facts);
   const trail = positionTrail(state, modes);
-  const folded = foldedChromeLines(state);
+  // Two lookups from one pass: a folded node's treatment belongs on the line
+  // its marker is on, and the count of what it hides belongs after its own
+  // text — the same line only when the node is a single line long.
+  const foldedMarkers = new Map<number, number>();
+  const foldedCounts = new Map<number, number>();
+  for (const chrome of foldedChrome(state)) {
+    foldedMarkers.set(chrome.markerLine, chrome.hidden);
+    foldedCounts.set(chrome.textLine, chrome.hidden);
+  }
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
   for (const guide of guides) {
@@ -1316,12 +1326,12 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
         depths,
         trail,
         modes.markerHighlight !== 'off',
-        folded.has(guide.lineNumber),
+        foldedMarkers.has(guide.lineNumber),
       ),
     );
-    // The count rides at the line's END, after the node's own text, where a
-    // reader's eye already is when they reach the end of what is visible.
-    const hidden = folded.get(guide.lineNumber);
+    // The count rides at the END of the node's own text, where a reader's eye
+    // already is when they reach the end of what is visible.
+    const hidden = foldedCounts.get(guide.lineNumber);
     if (hidden !== undefined && hidden > 0) {
       const line = state.doc.line(guide.lineNumber + 1);
       builder.add(

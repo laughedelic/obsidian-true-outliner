@@ -236,3 +236,17 @@ export function runFoldLevel(view: EditorView, direction: 'more' | 'less'): bool
 export function hasAnyFold(state: EditorState): boolean {
   return currentFolds(state).length > 0;
 }
+
+/**
+ * Whether anything in scope is still open — the availability answer for the
+ * document-wide folding commands.
+ *
+ * Deliberately not the per-node answer. A command that folds the whole scope
+ * has nothing to do with where the caret is, and keying it on the caret's own
+ * operand made it disappear whenever the caret sat in frontmatter or in a
+ * childless top-level node, with a document full of foldable nodes on screen.
+ */
+export function hasOpenFoldable(state: EditorState): boolean {
+  if (!isOutlineMode(state)) return false;
+  return foldableInScope(state).some((entry) => !isFolded(state, entry));
+}

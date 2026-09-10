@@ -18,6 +18,29 @@ const NOTE = 'Scratch/fold-grammar.md';
     4 |                                                                       */
 const DOC = ['- one', '  - nested a', '  - nested b', '- two', ''].join('\n');
 
+/*  0 | # Section
+    1 |
+    2 | A paragraph that runs
+    3 | over two source lines:
+    4 |
+    5 | - child one
+    6 | - child two
+    7 |
+    8 | ## Next
+    9 |                                                                       */
+const MIXED = [
+  '# Section',
+  '',
+  'A paragraph that runs',
+  'over two source lines:',
+  '',
+  '- child one',
+  '- child two',
+  '',
+  '## Next',
+  '',
+].join('\n');
+
 describe('folding and the editing grammar', () => {
   beforeEach(async () => {
     await h.createNote(NOTE, DOC);
@@ -53,6 +76,56 @@ describe('folding and the editing grammar', () => {
     expect(await h.getBuffer()).toBe(
       ['- on', '  - e', '  - nested a', '  - nested b', '- two', ''].join('\n'),
     );
+  });
+
+  it('Enter mid-way through a folded multi-line node splits it exactly as an unfolded one', async () => {
+    // The end of a SOURCE line is not the end of the node's text. Reading it as
+    // one put the new node after the hidden subtree and left the paragraph's
+    // second line stranded below its own children.
+    //
+    // The assertion is the EQUIVALENCE, not a spelling of the result: what the
+    // spec promises here is that the fold opens and the ordinary rules apply,
+    // so the two paths have to agree byte for byte whatever those rules are.
+    const splitAt = async (fold: boolean): Promise<string> => {
+      await h.createNote(NOTE, MIXED);
+      await h.openNote(NOTE);
+      await h.setOutlineMode(true);
+      await h.clearFolds();
+      if (fold) {
+        await h.setCursorSettled(2, 4);
+        await h.runCommand('fold-node');
+      }
+      await h.setCursorSettled(2, 21); // end of the FIRST of its two own lines
+      await browser.keys(['Enter']);
+      return h.getBuffer();
+    };
+
+    const folded = await splitAt(true);
+    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(folded).toBe(await splitAt(false));
+  });
+
+  it('Enter at a folded HEADING’s end opens it rather than inventing a sibling', async () => {
+    // A heading has no sibling shape to put a new node in: a paragraph written
+    // after its section re-parses as that section's child. So the promise the
+    // other kinds keep cannot be kept here, and the honest answer is the
+    // ordinary split with the subtree visible.
+    await h.createNote(NOTE, MIXED);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+
+    await h.setCursorSettled(0, 3);
+    await h.runCommand('fold-node');
+    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 8 }]);
+    await h.setCursorSettled(0, 9); // the heading's own end
+    await browser.keys(['Enter']);
+    await browser.keys(['X']);
+
+    expect(await h.foldedLineRanges()).toEqual([]);
+    // Directly under the heading, where an unfolded one puts it — not after the
+    // whole section, and not past the next heading.
+    expect(await h.getBuffer()).toContain('# Section\n\nX\n');
   });
 
   it('deleting a folded node takes its hidden children with it', async () => {

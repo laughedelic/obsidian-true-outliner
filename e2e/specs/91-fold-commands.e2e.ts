@@ -217,6 +217,33 @@ describe('fold commands', () => {
     expect(await h.commandAvailable('fold-less')).toBe(true);
   });
 
+  it('offers the document-wide commands wherever the caret is', async () => {
+    // A command that folds the whole scope has nothing to do with the caret's
+    // own node. Keying its availability on the per-node operand made it vanish
+    // exactly where a reader is most likely to reach for it — in frontmatter,
+    // or on a childless line — with a document full of foldable nodes on
+    // screen.
+    const withFrontmatter = 'Scratch/fold-commands-fm.md';
+    await h.createNote(
+      withFrontmatter,
+      ['---', 'title: x', '---', '', '# Head', '', '- parent', '  - child', ''].join('\n'),
+    );
+    await h.openNote(withFrontmatter);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+
+    await h.setCursorSettled(1, 3); // inside the frontmatter — no node at all
+    expect(await h.commandAvailable('toggle-fold')).toBe(false); // no operand, correctly
+    expect(await h.commandAvailable('fold-all')).toBe(true);
+    expect(await h.commandAvailable('fold-more')).toBe(true);
+
+    await h.runCommand('fold-all');
+    expect((await h.foldedLineRanges()).length).toBeGreaterThan(0);
+    // And once everything is folded there is no level left to fold.
+    expect(await h.commandAvailable('fold-all')).toBe(false);
+    expect(await h.commandAvailable('unfold-all')).toBe(true);
+  });
+
   it('ships the three per-node gestures with their default hotkeys', async () => {
     expect(await h.commandHotkeys('fold-node')).toEqual([
       { modifiers: ['Mod', 'Alt'], key: 'ArrowUp' },

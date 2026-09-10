@@ -116,38 +116,66 @@ export function foldGestureTarget(state: EditorState, lineNumber: number): FoldE
   return foldTargetAtLine(doc, lineNumber);
 }
 
+/** Where a folded node's chrome goes: its marker line, and the line its own
+ * text ends on. The two differ for every multi-line node. */
+export interface FoldedChrome {
+  /** The node's own FIRST line — where the marker, the folded treatment and the
+   * toggle belong. */
+  readonly markerLine: number;
+  /** The node's own LAST line — where its text ends, and so where the count of
+   * what it hides belongs. */
+  readonly textLine: number;
+  readonly hidden: number;
+}
+
 /**
- * Every line whose node is folded RIGHT NOW, with how many descendants it
- * hides — what the chrome layer draws from.
+ * Every node folded RIGHT NOW, with the two lines its chrome needs.
  *
  * Keyed on our own folds, not on the editor's: a fold Obsidian offers inside an
  * atom's notation is its business, and marking that line as a folded outline
  * node would claim something the outline does not say.
+ *
+ * The node is resolved from the fold's START line — which is its LAST own line,
+ * since a fold begins at the end of a node's own text — and keyed by its FIRST.
+ * Resolving from the first line instead drops every multi-line node:
+ * `foldChromeTarget` answers only for a node's first line, and a folded
+ * paragraph running over two source lines starts its fold on the second.
  */
-export function foldedChromeLines(state: EditorState): Map<number, number> {
-  const out = new Map<number, number>();
-  if (!isOutlineMode(state)) return out;
+export function foldedChrome(state: EditorState): FoldedChrome[] {
+  if (!isOutlineMode(state)) return [];
+  const { doc } = parsedDoc(state.doc);
+  const out: FoldedChrome[] = [];
   for (const range of currentFolds(state)) {
-    const line = state.doc.lineAt(range.from).number - 1;
-    const entry = foldChromeTarget(state, line);
-    if (!entry) continue;
-    out.set(line, hiddenDescendantCount(entry.node));
+    const entry = entryAtLine(doc, state.doc.lineAt(range.from).number - 1);
+    if (!entry || entry.node.children.length === 0) continue;
+    out.push({
+      markerLine: entry.startLine,
+      textLine: entry.startLine + entry.node.lines.length - 1,
+      hidden: hiddenDescendantCount(entry.node),
+    });
   }
   return out;
 }
 
 /**
- * Whether the node this line belongs to currently has its children hidden —
- * the one fold fact the editing grammar needs, and the only one it asks for.
+ * The node whose own lines contain this one, when it is folded right now.
  *
- * Any of the node's own lines answers, not just its first: a caret on a
- * paragraph's second line is still in a node whose children are hidden.
+ * The editing grammar's one fold question, answered with the NODE rather than a
+ * boolean so the caller can ask where its own text ends — which is not the line
+ * the caret is on for anything that runs over more than one.
  */
-export function isNodeFoldedAt(state: EditorState, lineNumber: number): boolean {
-  if (!isOutlineMode(state)) return false;
+export function foldedEntryAt(state: EditorState, lineNumber: number): FoldEntry | null {
+  if (!isOutlineMode(state)) return null;
+  if (state.field(nestedEditorField, false)) return null;
   const { doc } = parsedDoc(state.doc);
   const entry = entryAtLine(doc, lineNumber);
-  return entry && entry.node.children.length > 0 ? isFolded(state, entry) : false;
+  if (!entry || entry.node.children.length === 0) return null;
+  return isFolded(state, entry) ? entry : null;
+}
+
+/** Whether the node this line belongs to currently has its children hidden. */
+export function isNodeFoldedAt(state: EditorState, lineNumber: number): boolean {
+  return foldedEntryAt(state, lineNumber) !== null;
 }
 
 /**

@@ -39,6 +39,21 @@ const DOC = [
   '',
 ].join('\n');
 
+/*  0 | A paragraph that runs
+    1 | over two source lines:
+    2 |
+    3 | - child one
+    4 | - child two
+    5 |                                                                       */
+const MULTILINE = [
+  'A paragraph that runs',
+  'over two source lines:',
+  '',
+  '- child one',
+  '- child two',
+  '',
+].join('\n');
+
 describe('fold chrome', () => {
   beforeEach(async () => {
     await h.createNote(NOTE, DOC);
@@ -124,6 +139,26 @@ describe('fold chrome', () => {
     // Whether it is VISIBLE at rest is a hover state, and the pointer's resting
     // position is whatever an earlier test left it on — asserted for the folded
     // case above, where it must not depend on hover at all.
+  });
+
+  it('treats a multi-line node as one node, marker above and count below', async () => {
+    // A fold begins at the end of a node's own TEXT, so a paragraph running
+    // over two source lines starts its fold on the second — while its marker,
+    // and everything that hangs off it, belongs on the first. Resolving the
+    // chrome from the fold's start line and keying it by the node's first is
+    // what makes those two the same node; keying by the fold's own line drops
+    // every multi-line node from the treatment entirely.
+    await h.createNote(NOTE, MULTILINE);
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+
+    await h.setCursorSettled(0, 4);
+    await h.runCommand('fold-node');
+    expect(await h.foldedLineRanges()).toEqual([{ from: 1, to: 4 }]);
+    expect(await h.foldedNodeLines()).toEqual([0]); // the marker's line
+    expect(await h.foldCounts()).toEqual([{ line: 1, count: 2 }]); // after its text
+    expect(await h.foldToggleLines()).toEqual([0]);
   });
 
   it('keeps the count and the affordance when markers are hidden', async () => {

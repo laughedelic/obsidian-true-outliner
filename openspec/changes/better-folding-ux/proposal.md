@@ -21,16 +21,14 @@ engine, and none of which writes to the note.
   mapping-core tree, at a precedence above the native providers, so every node that HAS children
   folds the same subtree cover. Three kinds can: a heading, a list item (bullet, ordered or task),
   and a paragraph carrying attached children — an atom is never a parent in the tree, which is
-  what makes the paragraph the one kind Obsidian cannot fold and we must. Folding stops depending
-  on Obsidian's "Fold heading" / "Fold indent" settings.
+  what makes the paragraph the one kind Obsidian cannot fold and we must.
 - **Three commands with default hotkeys** — fold node (`Mod+Alt+ArrowUp`), unfold node
   (`Mod+Alt+ArrowDown`), toggle fold (`Mod+Alt+Period`) — plus document-wide fold all, unfold all,
   and fold to level, scoped to our tree rather than to what Obsidian's own fold-all reaches.
 - **A fold affordance on every foldable node, whoever draws it.** Obsidian's own chevron follows
-  the provider — a paragraph gets one for free — but it disappears from every line when a user
-  turns "Fold heading" or "Fold indent" off, while the fold itself keeps working. The plugin draws
-  its own wherever a node we fold has no native chevron, in the gutter our markers and the
-  repositioned chevron already share.
+  the provider, so a paragraph gets one for free. The plugin draws its own wherever a node we fold
+  has no native chevron — in the gutter our markers and the repositioned chevron already share —
+  so a line Obsidian stops decorating, for whatever reason, keeps a control.
 - **A folded node reads as folded.** The marker itself carries the state: the kind's own glyph,
   solid, with the count of hidden descendants after the node's text. Chosen from a rendered
   mockup ([28-fold-marker-mockup.html](../../../docs/research/28-fold-marker-mockup.html)) against
@@ -85,6 +83,11 @@ engine, and none of which writes to the note.
   clean-files invariant (Q3) is unchanged.
 - **Rebuilding the fold engine.** We register a provider into CodeMirror's; we do not replace
   Obsidian's fold state, its placeholder, or its own fold commands.
+- **Any claim about Obsidian's own "Fold heading" and "Fold indent" settings.** No code here reads
+  them, and what folding does with them off is UNRESOLVED: driving them from the harness produced
+  contradictory readings, one of which showed the configuration never applying at all
+  (docs/research/28). The question is recorded rather than answered, and the affordance is written
+  so that a line Obsidian stops decorating keeps a control either way.
 
 ## Impact
 

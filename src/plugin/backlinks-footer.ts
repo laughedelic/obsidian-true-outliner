@@ -45,7 +45,7 @@ import {
 import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
-import { buildMarkerIcon } from './decorations';
+import { buildMarkerIcon, FOLDED_NODE_CLASS } from './decorations';
 import { renderLineageContent } from './lineage-row';
 import {
   MARKER_LEFT_SHIFT_EXPR,
@@ -1371,6 +1371,10 @@ class FooterController {
       // and a footer row has nothing, so this element is the only route a
       // keyboard reader has, and it keeps its role, its label and a state that
       // tracks both directions.
+      // The row itself carries the folded state, so its marker takes the same
+      // treatment a folded node's does in the editor. The class goes on the row
+      // rather than the control because that is what the marker is inside.
+      el.toggleClass(FOLDED_NODE_CLASS, !expanded);
       const fold = el.createEl('button', { cls: 'to-backlinks-fold to-decor-fold-toggle' });
       fold.type = 'button';
       fold.setAttribute('aria-label', expanded ? 'Hide children' : `Show ${row.foldedCount} hidden`);

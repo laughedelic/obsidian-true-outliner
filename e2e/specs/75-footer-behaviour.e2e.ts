@@ -462,6 +462,40 @@ describe('backlinks footer: behaviour', function () {
   });
 
   /**
+   * A folded row has to LOOK folded, not merely have a chevron that points a
+   * different way. The editor's own folded-marker rule is scoped to its lines,
+   * so the footer needs the class on its row and a selector of its own.
+   */
+  it('gives a folded row the folded marker treatment', async function () {
+    await openFooter(TARGET);
+    const read = () =>
+      browser.executeObsidian(() => {
+        const row = document
+          .querySelector('.workspace-leaf.mod-active .to-backlinks-fold')
+          ?.closest('.to-backlinks-row');
+        const icon = row?.querySelector('.to-decor-marker-icon');
+        const painted = icon?.querySelector('line, polyline, rect, circle, path');
+        return {
+          folded: row?.classList.contains('to-decor-folded') ?? null,
+          stroke: painted ? getComputedStyle(painted).strokeWidth : null,
+        };
+      });
+
+    const before = await read();
+    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
+    await browser.pause(400);
+    const after = await read();
+
+    // One of the two states is folded and the other is not, whichever way the
+    // row started — expansion is per note and outlives a test.
+    expect(before.folded).not.toBe(after.folded);
+    const [foldedState, openState] = before.folded ? [before, after] : [after, before];
+    expect(parseFloat(foldedState.stroke ?? '0')).toBeGreaterThan(
+      parseFloat(openState.stroke ?? '0'),
+    );
+  });
+
+  /**
    * The index answers about the vault as it is now. Reported in review: a
    * deletion updated the reverse map but left the group on screen, because
    * nothing repainted.

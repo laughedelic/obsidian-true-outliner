@@ -73,9 +73,23 @@ interface CarriedFold {
    * whole run.
    */
   readonly key: readonly string[];
+  /** How many lines the run actually has. The key is capped, so this is what
+   * says where the fold ends once the run is found again. */
+  readonly lineCount: number;
   /** Where the hidden run began, so the nearest candidate can be preferred. */
   readonly blockStart: number;
 }
+
+/**
+ * How many of a hidden run's lines the fingerprint keeps.
+ *
+ * The whole run would be read on every document change, for every fold — a note
+ * with a thousand hidden lines under one fold would pay for all of them on each
+ * keystroke, and nested folds pay again for the same content. A bounded prefix
+ * plus the run's length identifies a block well enough for the only thing this
+ * does with it: finding where the same block went, near where it was.
+ */
+const KEY_LINES = 32;
 
 function carriedFolds(state: EditorState): CarriedFold[] {
   const folds: CarriedFold[] = [];
@@ -86,16 +100,26 @@ function carriedFolds(state: EditorState): CarriedFold[] {
     const last = state.doc.lineAt(to).number;
     if (last <= head) return;
     const key: string[] = [];
-    for (let n = head + 1; n <= last; n++) key.push(state.doc.line(n).text.trimStart());
-    folds.push({ from, to, key, blockStart: state.doc.line(head + 1).from });
+    for (let n = head + 1; n <= Math.min(last, head + KEY_LINES); n++) {
+      key.push(state.doc.line(n).text.trimStart());
+    }
+    folds.push({
+      from,
+      to,
+      key,
+      lineCount: last - head,
+      blockStart: state.doc.line(head + 1).from,
+    });
   });
   return folds;
 }
 
 /** Do the `key.length` lines starting at `line` (1-based) still say what the
  * block said? */
-function matchesAt(doc: Text, line: number, key: readonly string[]): boolean {
-  if (line < 1 || line + key.length - 1 > doc.lines) return false;
+function matchesAt(doc: Text, line: number, fold: CarriedFold): boolean {
+  const key = fold.key;
+  // The run has to still FIT, whole — the key is only its first lines.
+  if (line < 1 || line + fold.lineCount - 1 > doc.lines) return false;
   for (let i = 0; i < key.length; i++) {
     if (doc.line(line + i).text.trimStart() !== key[i]) return false;
   }
@@ -115,15 +139,21 @@ function matchesAt(doc: Text, line: number, key: readonly string[]): boolean {
  * document can hold two identical subtrees, and the one this fold belonged to
  * is the one it moved the least far from.
  */
-function relocatedTo(fold: CarriedFold, tr: Transaction): number | null {
+function relocatedTo(fold: CarriedFold, tr: Transaction, touched: boolean): number | null {
   const doc = tr.newDoc;
   const target = tr.changes.mapPos(fold.blockStart, 1);
   const mapped = doc.lineAt(Math.min(target, doc.length)).number;
-  if (matchesAt(doc, mapped, fold.key)) return mapped;
+  if (matchesAt(doc, mapped, fold)) return mapped;
+  // The scan is only for a run the change actually disturbed. A change that
+  // never reached inside the fold leaves the run where mapping says it is, so a
+  // miss there means the block is genuinely gone — and scanning the document
+  // for it on every unrelated keystroke is what makes a large folded note
+  // expensive.
+  if (!touched) return null;
   let best: number | null = null;
   let bestDistance = Infinity;
-  for (let n = 1; n + fold.key.length - 1 <= doc.lines; n++) {
-    if (!matchesAt(doc, n, fold.key)) continue;
+  for (let n = 1; n + fold.lineCount - 1 <= doc.lines; n++) {
+    if (!matchesAt(doc, n, fold)) continue;
     const distance = Math.abs(doc.line(n).from - target);
     if (distance < bestDistance) {
       best = n;
@@ -140,9 +170,13 @@ function relocatedTo(fold: CarriedFold, tr: Transaction): number | null {
  * CodeMirror's own mapping cannot be relied on to keep one: measured, a
  * structural move drops the fold on a subtree it relocates even though the
  * change set never overlaps the folded range. Restating is idempotent —
- * CodeMirror ignores a `foldEffect` for a fold that already exists — so the
- * cost of being explicit is a line comparison per fold, and the fast path in
- * `relocatedTo` makes the ordinary keystroke pay only that.
+ * CodeMirror ignores a `foldEffect` for a fold that already exists.
+ *
+ * What that costs is bounded on both axes it could grow along: the fingerprint
+ * is capped at `KEY_LINES` however much a fold hides, and the document-wide
+ * scan runs only for a fold whose interior the change actually touched. An
+ * ordinary keystroke away from every fold therefore pays one mapped-position
+ * comparison of at most `KEY_LINES` lines per fold.
  *
  * A fold whose block is gone gets an explicit UNFOLD rather than being left
  * alone, since mapping may well have preserved a range that now hides
@@ -155,7 +189,11 @@ export function foldCarryEffects(tr: Transaction): TransactionSpec | null {
   const doc = tr.newDoc;
   const effects = [];
   for (const fold of carried) {
-    const hiddenStart = relocatedTo(fold, tr);
+    let touched = false;
+    tr.changes.iterChangedRanges((fromA, toA) => {
+      if (fromA < fold.to && toA > fold.from) touched = true;
+    });
+    const hiddenStart = relocatedTo(fold, tr, touched);
     if (hiddenStart === null || hiddenStart < 2) {
       const from = tr.changes.mapPos(fold.from, 1);
       const to = tr.changes.mapPos(fold.to, 1);
@@ -165,7 +203,7 @@ export function foldCarryEffects(tr: Transaction): TransactionSpec | null {
     // The fold starts at the end of the line ABOVE the hidden run — the node's
     // own line, wherever it now is.
     const from = doc.line(hiddenStart - 1).to;
-    const to = doc.line(hiddenStart + fold.key.length - 1).to;
+    const to = doc.line(hiddenStart + fold.lineCount - 1).to;
     if (to > from) effects.push(foldEffect.of({ from, to }));
   }
   // `sequential`, and it is load-bearing. Without it CodeMirror merges this

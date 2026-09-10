@@ -86,6 +86,7 @@ import { foldCarryExtension } from './fold-carry';
 import {
   foldGestureAvailable,
   hasAnyFold,
+  hasOpenFoldable,
   runFoldAll,
   runFoldGesture,
   runFoldLevel,
@@ -363,7 +364,9 @@ export default class TrueOutlinerPlugin extends Plugin {
     // remaining modifier combination is worth more to the per-node gestures.
     // `hasAnyFold` gates the two that would otherwise be offered on a document
     // with nothing to act on.
-    this.addFoldCommand('fold-all', 'Fold all nodes', (view) => runFoldAll(view, 'fold'));
+    this.addFoldCommand('fold-all', 'Fold all nodes', (view) => runFoldAll(view, 'fold'), undefined, (view) =>
+      hasOpenFoldable(view.state),
+    );
     this.addFoldCommand(
       'unfold-all',
       'Unfold all nodes',
@@ -371,7 +374,9 @@ export default class TrueOutlinerPlugin extends Plugin {
       undefined,
       (view) => hasAnyFold(view.state),
     );
-    this.addFoldCommand('fold-more', 'Fold one level more', (view) => runFoldLevel(view, 'more'));
+    this.addFoldCommand('fold-more', 'Fold one level more', (view) => runFoldLevel(view, 'more'), undefined, (view) =>
+      hasOpenFoldable(view.state),
+    );
     this.addFoldCommand(
       'fold-less',
       'Fold one level less',

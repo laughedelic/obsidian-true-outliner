@@ -3371,6 +3371,18 @@ body.is-mobile {
   stroke-width: 2.4;
 }
 
+/* The footer draws its own markers, so the folded treatment needs its own
+ * selector there: the editor's is scoped to `.cm-content`'s lines, and a footer
+ * row is neither. Same weight change, same reasoning — what differs is only
+ * which element the mark hangs off. */
+.to-backlinks-row.to-decor-folded .to-decor-marker-icon {
+  color: var(--text-normal);
+}
+
+.to-backlinks-row.to-decor-folded .to-decor-marker-icon svg :is(line, polyline, rect, circle, path) {
+  stroke-width: 2.4;
+}
+
 /* A list line keeps its NATIVE mark — a bullet, an ordered number, a checkbox —
  * so the weight change is a contrast change there. The bullet's dot is a
  * `::after` background and the number is text, which is why both are named:
@@ -3441,6 +3453,33 @@ body.is-mobile {
   width: 0.7rem;
   height: 0.7rem;
   display: block;
+}
+
+/*
+ * Where there is no hover to reveal it, the control is simply visible — and
+ * given a real touch target.
+ *
+ * A pointer that cannot hover never triggers the rule below, so the affordance
+ * would exist and never be seen; and the painted glyph is well under the 24px
+ * a finger needs. The hit area comes from a centred pseudo-element rather than
+ * from the element's own box, so the glyph stays exactly where the native
+ * chevron sits — growing the box would move it off the column both controls
+ * share.
+ */
+@media (hover: none), (pointer: coarse) {
+  .to-decor-fold-toggle {
+    opacity: 1;
+  }
+
+  .to-decor-fold-toggle::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    transform: translate(-50%, -50%);
+  }
 }
 
 /* Hover to reveal while the node is open; PERMANENT once it is folded, because

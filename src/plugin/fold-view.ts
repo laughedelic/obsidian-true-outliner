@@ -14,9 +14,14 @@
  */
 
 import { EditorView, ViewPlugin, type PluginValue, type ViewUpdate } from '@codemirror/view';
-import type { Extension } from '@codemirror/state';
+import type { EditorState, Extension } from '@codemirror/state';
 import { isOutlineMode } from './outline-state';
-import { currentFolds, unfoldEffectsWithin } from './fold-ops';
+import { currentFolds, unfoldEffectsWithin, type FoldRange } from './fold-ops';
+
+/** Positional equality for two selection snapshots. */
+function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((value, i) => value === b[i]);
+}
 
 class FoldRevealPlugin implements PluginValue {
   constructor(
@@ -40,18 +45,47 @@ class FoldRevealPlugin implements PluginValue {
   }
 
   update(update: ViewUpdate): void {
-    if (!update.selectionSet && !update.docChanged) return;
+    // Fold effects count as well as selection and document changes: opening the
+    // outermost of two nested folds is itself an effects-only update, and the
+    // inner one may still be hiding the position that started this.
+    const foldChanged = update.transactions.some((tr) => tr.effects.length > 0);
+    if (!update.selectionSet && !update.docChanged && !foldChanged) return;
     if (!isOutlineMode(update.state)) return;
-    const head = update.state.selection.main.head;
-    // Strictly inside: a position AT a fold's start is the head line's own end,
-    // which is visible and is exactly where folding a node leaves the caret.
-    const hiding = currentFolds(update.state).find((r) => head > r.from && head <= r.to);
-    if (!hiding) return;
+    const hiding = this.foldsHidingSelection(update.state);
+    if (hiding.length === 0) return;
+    const positions = this.selectionPositions(update.state);
     queueMicrotask(() => {
-      if (this.view.state.selection.main.head !== head) return;
-      const effects = unfoldEffectsWithin(this.view.state, hiding.from, hiding.from);
+      // The selection may have moved on while this waited; re-derive rather
+      // than acting on what was true a microtask ago.
+      if (!isOutlineMode(this.view.state)) return;
+      if (!sameNumbers(positions, this.selectionPositions(this.view.state))) return;
+      const effects = this.foldsHidingSelection(this.view.state).flatMap((range) =>
+        unfoldEffectsWithin(this.view.state, range.from, range.from),
+      );
       if (effects.length > 0) this.view.dispatch({ effects });
     });
+  }
+
+  /** Every position the selection actually occupies — both ends of every range.
+   * A backward selection can leave its ANCHOR hidden while its head is fine. */
+  private selectionPositions(state: EditorState): number[] {
+    return state.selection.ranges.flatMap((range) => [range.from, range.to]);
+  }
+
+  /**
+   * Every fold hiding any of those positions, innermost included.
+   *
+   * All of them, not the first: nested folds hide the same position at
+   * different starts, and opening only the outermost leaves the caret hidden by
+   * the inner one.
+   */
+  private foldsHidingSelection(state: EditorState): FoldRange[] {
+    const positions = this.selectionPositions(state);
+    // Strictly inside: a position AT a fold's start is the head line's own end,
+    // which is visible and is exactly where folding a node leaves the caret.
+    return currentFolds(state).filter((range) =>
+      positions.some((pos) => pos > range.from && pos <= range.to),
+    );
   }
 }
 

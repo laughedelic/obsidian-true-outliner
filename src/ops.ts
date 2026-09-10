@@ -1148,6 +1148,11 @@ export function splitNode(
    * A parameter rather than a fold lookup, because this layer has no view: what
    * is folded is a property of an editor, and the caller is the only thing that
    * can see one.
+   *
+   * Ignored for a HEADING, whose sibling shape does not exist: a paragraph
+   * written after a heading's section re-parses as that section's child, so
+   * there is nothing for the sibling path to encode. A folded heading takes the
+   * ordinary split, and the caller opens it first so the result is visible.
    */
   collapsed = false,
 ): OpResult<OpOutput> {
@@ -1216,7 +1221,8 @@ export function splitNode(
   // Headings always take this branch, even with no children: a heading's only
   // possible SIBLING is another heading, so a plain-text split has no sibling
   // encoding to fall back to — the remainder can only ever be a child.
-  if (!collapsed && (node.children.length > 0 || node.kind === 'heading')) {
+  const afterSubtree = collapsed && node.kind !== 'heading';
+  if (!afterSubtree && (node.children.length > 0 || node.kind === 'heading')) {
     const childKind = encodingKindAtDestination({
       parentKind: node.kind,
       precedingSiblings: [],
@@ -1310,7 +1316,7 @@ export function splitNode(
   // answer for the same reason the first-child branch above is — both put the
   // new position among the node's hidden children. A folded node at its own end
   // takes the SIBLING path below, the only one that lands after the subtree.
-  if (!collapsed && emptyRemainder && (node.kind !== 'list-item' || node.children.length > 0)) {
+  if (!afterSubtree && emptyRemainder && (node.kind !== 'list-item' || node.children.length > 0)) {
     // END of a node whose destination scope's kind has no empty encoding: no
     // empty-paragraph encoding exists, so widen the gap and put the cursor on
     // a line that is blank-separated on BOTH sides — typing there materializes
