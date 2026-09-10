@@ -433,6 +433,7 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
         // B's own guide column (depth 1) — the nearest ancestor guide to a
         // depth-2 node, and the one the chevron has the least room against.
         ancestorGuideCol: contentRect.left + 1 * unitPx,
+        unitPx,
       };
     });
 
@@ -442,10 +443,15 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
     expect(info.markerRect!.left - info.glyphRect!.right).toBeGreaterThan(0.5);
     // Glyph clears the ancestor guide column (to its left) too.
     expect(info.glyphRect!.left - info.ancestorGuideCol).toBeGreaterThan(0.5);
-    // Sanity bound on both gaps — not precise pixel assertions, just
-    // guarding against a future regression ballooning the spacing.
-    expect(info.markerRect!.left - info.glyphRect!.right).toBeLessThan(10);
-    expect(info.glyphRect!.left - info.ancestorGuideCol).toBeLessThan(10);
+    // Sanity bound on both gaps — not precise pixel assertions, just guarding
+    // against a future regression ballooning the spacing. Stated as ONE UNIT,
+    // the space the chevron has to fit inside, rather than as a pixel count:
+    // the gap from the ancestor's column grows with the step, so a literal
+    // calibrated at one rung fails at a wider one the moment the default moves
+    // — which is what a spelled `1.5` did to this same case once before
+    // (docs/research/22-outline-unit-width.md).
+    expect(info.markerRect!.left - info.glyphRect!.right).toBeLessThan(info.unitPx);
+    expect(info.glyphRect!.left - info.ancestorGuideCol).toBeLessThan(info.unitPx);
 
     // Hardening 5.1: the chevron shift's dead-space term is measured live
     // (MarginCompensation.measureChevron), not hardcoded. Assert the
