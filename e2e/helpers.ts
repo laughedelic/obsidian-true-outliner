@@ -1217,20 +1217,28 @@ export async function waitForRead<T>(
  * backlinks footer counts comes from that cache, so a footer read during the
  * resolve sees totals that climb by a few with every sample and never settle:
  * measured, 408 → 411 references over ten seconds of reads, on a case whose
- * own waits had long confirmed the footer's DOM was quiet. Held for three
- * consecutive polls, since a count that has caught up can still be caught up
- * again by a late file.
+ * own waits had long confirmed the footer's DOM was quiet.
+ *
+ * Two readings, because neither alone says "done". The cache lists every
+ * markdown file once it has read it — that is the floor. The resolved-link
+ * count is what the footer's totals follow, and it is held for three
+ * consecutive polls, since a count that has caught up can be caught up again
+ * by a late file. It is NOT compared to the file count: a file with no links
+ * never appears in it, so that comparison waited for a number the vault could
+ * not reach — on CI, every time, after passing locally on a vault where it
+ * happened to.
  */
 export async function waitForMetadataResolved(): Promise<void> {
   let held = 0;
   let previous = -1;
   await browser.waitUntil(
     async () => {
-      const { resolved, files } = await browser.executeObsidian(({ app }) => ({
+      const { cached, resolved, files } = await browser.executeObsidian(({ app }) => ({
+        cached: app.metadataCache.getCachedFiles().filter((f) => f.endsWith('.md')).length,
         resolved: Object.keys(app.metadataCache.resolvedLinks).length,
         files: app.vault.getMarkdownFiles().length,
       }));
-      if (resolved < files || resolved !== previous) {
+      if (cached < files || resolved !== previous) {
         previous = resolved;
         held = 0;
         return false;
