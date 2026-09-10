@@ -39,7 +39,7 @@ Obsidian's makers built Dynalist, one of the best outliners of its generation, a
 
 **[Influx](https://github.com/jensmtg/influx)**, **[Coalesce](https://github.com/bfloydd/coalesce)** and **[Better Search Views](https://github.com/ivan-lednev/better-search-views)** each show backlinks with more context than Obsidian's own pane, the last of them by patching Obsidian's internals and breaking periodically as a result.
 
-What none of them provide, alone or together, is a document that **cannot** be structurally broken while the plugin is on, node-level selection as the primary model, first-class headings and paragraphs, and one coherent product instead of an outliner plus a zoom plugin plus a backlinks plugin plus styling snippets, each with its own settings and conflicts.
+What none of them provide, alone or together, is editing that works on the tree for every operation, node-level selection as the primary model, first-class headings and paragraphs, and one coherent product instead of an outliner plus a zoom plugin plus a backlinks plugin plus styling snippets, each with its own settings and conflicts.
 
 ## Feature by feature
 
@@ -48,7 +48,7 @@ What defines a true outliner, and where True Outliner stands today.
 | Behaviour | True Outliner |
 | --- | --- |
 | Every block is a node; operations act on nodes and carry the subtree | ✓ Headings, paragraphs, list items, code, tables and callouts alike |
-| The structure cannot be broken by a keystroke, selection, paste or deletion | ✓ Enforced on every edit |
+| Selection, paste and deletion respect node boundaries | ✓ On every edit |
 | Enter, Shift+Enter, Tab, Shift+Tab, Backspace-at-start, empty-item outdent, move up and down | ✓ |
 | Selection escalates to whole nodes; Select All climbs a ladder; block selections render as blocks | ✓ |
 | Zoom into any node with breadcrumbs | ✓ Any node kind |
