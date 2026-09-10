@@ -192,16 +192,20 @@ html.theme-dark {
   position: relative;
   padding: 0;
 }
+/* The plugin hangs a list item's wrapped rows with a negative text-indent on
+ * the line; inline-block children would inherit it and shift their own first
+ * line again. Obsidian's app.css carries this same reset. */
+.to-demo .cm-line > * {
+  text-indent: 0;
+}
 .to-demo .cm-cursor,
 .to-demo .cm-dropCursor {
   border-left-color: var(--caret-color);
 }
 .to-demo .cm-selectionBackground,
-.to-demo .cm-editor > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground {
-  background-color: var(--text-selection) !important;
-}
+.to-demo .cm-editor > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground,
 .to-demo .cm-focused .cm-selectionBackground {
-  background-color: var(--text-selection) !important;
+  background-color: var(--text-selection);
 }
 .to-demo .cm-hidden-formatting {
   display: none;
@@ -332,6 +336,9 @@ html.theme-dark {
 }
 .to-demo .cm-formatting-quote {
   color: var(--text-faint);
+}
+.to-demo .cm-transparent {
+  color: transparent;
 }
 
 /* Code */
