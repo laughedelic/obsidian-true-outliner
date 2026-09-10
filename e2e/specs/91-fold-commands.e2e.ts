@@ -165,13 +165,27 @@ describe('fold commands', () => {
     // `# Top…`, with its marker: the caret is on line 0 — the only line left —
     // and Live Preview shows the active line's raw source.
     //
-    // Settled again first, and deliberately: which line Live Preview treats as
-    // active is read from the selection at RENDER time, so this assertion is
-    // about a caret rather than about a command's result. Taking the earlier
-    // settle on trust made it a race the fold commands have no part in — on CI
-    // it read the heading rendered rather than as source, once.
+    // Which line Live Preview treats as active is read from the selection at
+    // RENDER time, and the render that reveals the line's source is a pass
+    // later than the one that places the caret — so a settled caret is not yet
+    // a settled screen, and a read between the two sees the heading rendered.
+    // On CI, twice. The screen is what this asserts, so the screen is what is
+    // waited for; a wrong result still fails, on the timeout, naming what it
+    // last saw.
     await h.setCursorSettled(0, 2);
-    expect(await h.renderedLineTexts()).toEqual(['# Top8…', '']);
+    const expected = ['# Top8…', ''];
+    let seen: string[] = [];
+    await browser.waitUntil(
+      async () => {
+        seen = await h.renderedLineTexts();
+        return seen.length === expected.length && seen.every((t, i) => t === expected[i]);
+      },
+      {
+        timeout: h.waitBudget(3000),
+        interval: 100,
+        timeoutMsg: `expected ${JSON.stringify(expected)} on screen, last saw ${JSON.stringify(seen)}`,
+      },
+    );
     await h.runCommand('unfold-all');
     expect(await h.foldedLineRanges()).toEqual([]);
   });
