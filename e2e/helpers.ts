@@ -1213,31 +1213,32 @@ export async function waitForRead<T>(
  * Wait until Obsidian's metadata cache has resolved every markdown file.
  *
  * `resetVault` reloads the vault, and the cache resolves the reloaded files
- * asynchronously — on a loaded CI runner, for seconds. Everything the
+ * asynchronously — measured on CI at about four files a second, so some
+ * thirty-five seconds for this vault, against a moment locally. Everything the
  * backlinks footer counts comes from that cache, so a footer read during the
- * resolve sees totals that climb by a few with every sample and never settle:
- * measured, 408 → 411 references over ten seconds of reads, on a case whose
- * own waits had long confirmed the footer's DOM was quiet.
+ * resolve saw totals that climbed by a few with every sample and never
+ * settled, on roughly every other run since the footer specs existed.
+ *
+ * Once per spec file, not per read: the first version waited inside `settle`,
+ * which one case calls a dozen times, and its budget stacked past mocha's own.
+ * The result is remembered — a spec resets its vault in `before`, and the
+ * cache does not un-resolve — so later calls cost one sample.
  *
  * Two readings, because neither alone says "done". The cache lists every
- * markdown file once it has read it — that is the floor. The resolved-link
- * count is what the footer's totals follow, and it is held for three
- * consecutive polls, since a count that has caught up can be caught up again
- * by a late file. It is NOT compared to the file count: a file with no links
- * never appears in it, so that comparison waited for a number the vault could
- * not reach — on CI, every time, after passing locally on a vault where it
- * happened to.
+ * markdown file once it has read it — the floor. The resolved-link count is
+ * what the footer's totals follow, and it is held for three consecutive polls;
+ * it is NOT compared to the file count, since a file with no links never
+ * appears in it. Best effort: giving up logs the last sample rather than
+ * failing a hook, because a wait that exists to make reads less flaky must
+ * not be able to fail them itself.
  */
+let metadataResolvedOnce = false;
 export async function waitForMetadataResolved(): Promise<void> {
-  // Best effort, and short: this exists to make footer reads less flaky, so a
-  // criterion that CI's vault does not meet — twice now, with two different
-  // definitions of "resolved", both met at once locally — must cost a few
-  // seconds and a logged sample, never a hook. The sample is what the next
-  // failure is diagnosed from.
+  if (metadataResolvedOnce) return;
   let held = 0;
   let previous = -1;
   let last: unknown = null;
-  const deadline = Date.now() + waitBudget(5000);
+  const deadline = Date.now() + waitBudget(60000);
   do {
     const sample = await browser.executeObsidian(({ app }) => {
       // `getCachedFiles` is in the app's public surface and not in the
@@ -1252,12 +1253,15 @@ export async function waitForMetadataResolved(): Promise<void> {
     last = sample;
     if (sample.cached >= sample.files && sample.resolved === previous) {
       held++;
-      if (held >= 3) return;
+      if (held >= 3) {
+        metadataResolvedOnce = true;
+        return;
+      }
     } else {
       held = 0;
     }
     previous = sample.resolved;
-    await browser.pause(200);
+    await browser.pause(250);
   } while (Date.now() < deadline);
   console.log(`[metadata] never held still: last sample ${JSON.stringify(last)}`);
 }

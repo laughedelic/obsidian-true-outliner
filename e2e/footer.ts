@@ -28,9 +28,6 @@ export const FOOTER = '.workspace-leaf.mod-active .to-backlinks';
  * paint the reader would ever wait through.
  */
 export async function settle(budgetMs = 20000): Promise<void> {
-  // The cache first: a footer whose DOM is quiet can still be counting a vault
-  // Obsidian has not finished reading (`waitForMetadataResolved`).
-  await h.waitForMetadataResolved();
   let previous = '';
   await browser.waitUntil(
     async () => {
@@ -106,6 +103,9 @@ export async function readStable<T>(read: () => Promise<T>, baseDeadlineMs = 800
 
 /** Open a note in outline mode and bring its footer's header on screen. */
 export async function openFooter(notePath: string): Promise<void> {
+  // The cache first, once: a footer whose DOM is quiet can still be counting a
+  // vault Obsidian has not finished reading (`waitForMetadataResolved`).
+  await h.waitForMetadataResolved();
   await h.openNote(notePath);
   await h.setOutlineMode(true);
   await scrollToFooter();
