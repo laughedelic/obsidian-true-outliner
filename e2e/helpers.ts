@@ -748,10 +748,11 @@ export async function waitForBacklinkIndexReady(target: string, minSources = 10)
  * took on the runner — see docs/research/31-e2e-ci-budgets.md for what it
  * showed the first time it was read.
  *
- * The criterion is the resolved-link table holding still while the cache's own
- * file list has caught up with the vault. Never "resolved count equals file
- * count": a file with no links never appears in `resolvedLinks`, so that
- * comparison cannot be satisfied. The budget scales with the vault's size so a
+ * The criterion is the whole resolved-link table holding still — sources,
+ * their targets and the counts — while the cache's own file list has caught up
+ * with the vault. Never "resolved count equals file count": a file with no
+ * links never appears in `resolvedLinks`, so that comparison cannot be
+ * satisfied. The budget scales with the vault's size so a
  * larger generated fixture is not cut off by a fixed number; a wait that runs
  * out reports the last samples and returns rather than failing every case in
  * the file, since only the cases that count the cache would notice.
@@ -762,17 +763,31 @@ export async function waitForMetadataCache(): Promise<void> {
   // `cached` counts the vault's NOTES the cache lists, not the list's length:
   // the cache also reads attachments, so the two totals can agree while a note
   // is still missing. A cache without the method reports every note cached and
-  // leaves the resolved-link count as the only criterion.
-  type Sample = { files: number; cached: number; resolved: number };
+  // leaves the link table as the only criterion. `links` and `refs` fold the
+  // whole `resolvedLinks` table — every source's targets and their counts —
+  // because a source's key appears before its targets have all been filled
+  // in, and a count of keys would hold still through that.
+  type Sample = { files: number; cached: number; sources: number; links: number; refs: number };
   const sample = (): Promise<Sample> =>
     browser.executeObsidian(({ app }) => {
       const cache = app.metadataCache as unknown as { getCachedFiles?: () => string[] };
       const notes = app.vault.getMarkdownFiles().map((f) => f.path);
       const listed = cache.getCachedFiles ? new Set(cache.getCachedFiles()) : null;
+      let links = 0;
+      let refs = 0;
+      const table = app.metadataCache.resolvedLinks;
+      for (const source in table) {
+        for (const target in table[source]) {
+          links += 1;
+          refs += table[source]![target] ?? 0;
+        }
+      }
       return {
         files: notes.length,
         cached: listed ? notes.filter((p) => listed.has(p)).length : notes.length,
-        resolved: Object.keys(app.metadataCache.resolvedLinks).length,
+        sources: Object.keys(table).length,
+        links,
+        refs,
       };
     });
 
@@ -792,13 +807,15 @@ export async function waitForMetadataCache(): Promise<void> {
       previous !== undefined &&
       now.files === previous.files &&
       now.cached === previous.cached &&
-      now.resolved === previous.resolved;
+      now.sources === previous.sources &&
+      now.links === previous.links &&
+      now.refs === previous.refs;
     quiet = caughtUp && unchanged ? quiet + 1 : 0;
     if (quiet >= quietPolls) {
       // One line per spec file, so a CI log shows the rate the runner managed.
       console.log(
         `[e2e] metadata cache ready after ${Date.now() - started}ms: ${now.files} files, ` +
-          `${now.cached} cached, ${now.resolved} with resolved links`,
+          `${now.cached} cached, ${now.sources} sources with ${now.links} resolved links (${now.refs} references)`,
       );
       return;
     }
@@ -807,10 +824,10 @@ export async function waitForMetadataCache(): Promise<void> {
   }
   const trail = samples
     .slice(-8)
-    .map((s) => `${s.files}/${s.cached}/${s.resolved}`)
+    .map((s) => `${s.files}/${s.cached}/${s.sources}/${s.links}/${s.refs}`)
     .join(' → ');
   console.warn(
-    `[e2e] metadata cache still changing after ${budget}ms (files/cached/resolved): ${trail}`,
+    `[e2e] metadata cache still changing after ${budget}ms (files/cached/sources/links/references): ${trail}`,
   );
 }
 

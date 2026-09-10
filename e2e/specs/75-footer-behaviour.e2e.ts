@@ -209,7 +209,7 @@ describe('backlinks footer: behaviour', function () {
         browser.executeObsidian(({ app, obsidian }) => {
           const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
           if (!view) throw new Error('no active markdown view');
-          (view.editor as unknown as { undo(): void }).undo();
+          view.editor.undo();
         });
       await editorUndo();
       try {
