@@ -700,7 +700,10 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
       ),
     );
     const nestedGuides = new Map(computeLineGuides(nested).map((g) => [g.lineNumber, g]));
-    const at = (line: number, over: Record<string, unknown>): readonly number[] =>
+    const at = (
+      line: number,
+      over: Partial<Parameters<typeof visibleGuideDepths>[1]> = {},
+    ): readonly number[] =>
       visibleGuideDepths(
         nestedGuides.get(line)!.guideDepths,
         {
@@ -709,7 +712,7 @@ describe('visibleGuideDepths: which of a line’s guides are drawn', () => {
           singleRoot: hasSingleRoot(nested),
           caret: null,
           ...over,
-        } as Parameters<typeof visibleGuideDepths>[1],
+        },
         line,
       );
     const CARET_IN_MID = 2;
