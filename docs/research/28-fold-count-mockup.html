@@ -135,9 +135,9 @@
   .mark.num { width: auto; min-width: var(--icon); font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .mark.dot::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
   .mark.task .box { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 3px; }
-  /* Folded, in the treatment the change settled on: the glyph fills. */
+  /* Folded, in the treatment the change settled on: full text contrast, and
+     nothing heavier — a heading's filled glyph carries no stroke. */
   .mark.is-folded { color: var(--text); }
-  .mark.is-folded svg :is(line, polyline, rect[stroke]) { stroke-width: 2.4; }
 
   .chev { position: absolute; top: .18em; width: 14px; height: 14px; display: grid; place-items: center;
           color: var(--muted); opacity: 0; transition: opacity .1s ease; cursor: pointer; }
@@ -238,7 +238,7 @@ const ROWS = [
   { depth: 1, kind: 'heading', cls: 'h2', text: 'Mechanics', children: true, folded: false },
   { depth: 2, kind: 'bullet', text: 'a fold is CodeMirror’s, not Obsidian’s', children: false },
   { depth: 2, kind: 'bullet', text: 'the chevron is painted by another rule', children: true, folded: true, hidden: 3 },
-  { depth: 2, kind: 'ordered', text: 'a move destroys a fold an indent keeps', children: true, folded: true, hidden: 12 },
+  { depth: 2, kind: 'ordered', text: 'a move destroys a fold the carry brings back', children: true, folded: true, hidden: 12 },
   { depth: 2, kind: 'task', cls: 'done', text: 'measure before designing', children: false },
   { depth: 2, kind: 'task', text: 'decide the folded treatment', children: true, folded: true, hidden: 1 },
   { depth: 1, kind: 'paragraph', text: 'Everything below stays visible.', children: false },

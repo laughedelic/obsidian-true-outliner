@@ -178,6 +178,27 @@ describe('fold commands', () => {
     expect(await h.foldedLineRanges()).toEqual([]);
   });
 
+  it('offers unfold-all only for a fold inside the zoom', async () => {
+    // The document-wide commands act on the scope's own foldable nodes, so
+    // their availability has to be read from the same set. Counted over every
+    // fold in the document instead, unfold-all was offered while zoomed with
+    // the only fold outside the zoom — and then did nothing when run.
+    await h.setCursorSettled(4, 3);
+    await h.runCommand('fold-node');
+    expect(await h.foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+    await h.setCursorSettled(7, 3);
+    await h.runCommand('zoom-in');
+    try {
+      expect(await h.commandAvailable('unfold-all')).toBe(false);
+      expect(await h.commandAvailable('fold-less')).toBe(false);
+      await h.setCursorSettled(7, 3);
+      await h.runCommand('fold-node');
+      expect(await h.commandAvailable('unfold-all')).toBe(true);
+    } finally {
+      await h.runCommand('zoom-clear');
+    }
+  });
+
   it('walks the outline’s depth one level at a time', async () => {
     await h.setCursorSettled(0, 2);
     await h.runCommand('fold-more');

@@ -680,10 +680,15 @@ Concrete interaction ideas on top of the existing "marker as a click target" dir
       zero-width bullet span both fail while being perfectly clickable by a person.
 - ~~**Click on a guide → zoom into, or fold, the whole subtree**~~ — **done** as FOLD
   (`better-folding-ux`, D7). The caveat dissolved rather than being solved: no hit area needs
-  inventing, because the column can be found by arithmetic. A line's box left edge IS column 0 and
-  its own mark sits `depth` steps right of it, so one rendered mark gives the step without
-  resolving a CSS variable to pixels; the guides a line draws are its ancestors' columns. The
-  tolerance is a third of a step, and a press must land left of the line's own text. Guides stay
+  inventing, because the columns can be read from what was painted. The guide overlay is a
+  `::after` whose gradient is positioned per column, so `guideHit` (`zoom-click.ts`) reads its
+  computed `background-position-x` and `background-size` for the columns and the unit, and its
+  `left` plus `border-left-width` for the origin — the overlay is shifted back off the line by
+  the line's own margin and bled out by a border, so the line's box edge is NOT the origin on
+  any list whose root is indented, and a first version that measured from it put every column a
+  level out. The tolerance is a third of a unit, a press must land left of the line's own text,
+  and a fold control owns a press only when the point lies within its own hit box (a touch tap is
+  snapped to the nearest control by the browser without moving its coordinates). Guides stay
   `pointer-events: none` and nothing about their painting changed. Which of fold and zoom the
   gesture performs is still not configurable — one default action now, stated so a setting can be
   added without changing what the gesture means.

@@ -102,9 +102,10 @@
   /* Off unless a treatment turns it on. */
   .grid .mark::before, .doc .mark::before { display: none; }
 
-  /* A — solid fill */
+  /* A — full contrast. Drawn first as a heavier stroke as well; a heading's
+     glyph is filled rectangles no stroke reaches, so the stroke told kinds
+     apart rather than states, and the shipped treatment is contrast alone. */
   .t-fill .mark { color: var(--text); }
-  .t-fill .mark svg :is(line, polyline, rect[stroke], circle[stroke]) { stroke-width: 2.4; }
 
   /* B — halo, tight and muted */
   .t-halo .mark::before {
@@ -139,9 +140,8 @@
   }
   .t-under .mark { color: var(--text); }
 
-  /* G — fill + count */
+  /* G — contrast + count */
   .t-count .mark { color: var(--text); }
-  .t-count .mark svg :is(line, polyline, rect[stroke], circle[stroke]) { stroke-width: 2.4; }
   .count {
     margin-left: .4rem; font-size: .72rem; line-height: 1; color: var(--muted);
     border: 1px solid var(--line); border-radius: 999px; padding: .17em .45em; background: var(--panel);
@@ -282,23 +282,23 @@ function markHtml(key, opts = {}) {
 
 const TREATMENTS = [
   ['',         'Unfolded',            'the reference — outline glyph, muted'],
-  ['t-fill',   'A · Solid fill',      'the glyph thickens and takes full contrast'],
+  ['t-fill',   'A · Full contrast',   'the glyph takes full text contrast'],
   ['t-halo',   'B · Halo',            'a tight, muted disc behind the glyph, whatever its shape'],
   ['t-shaped', 'C · Shaped halo',     'the same fill, cut to the glyph’s own geometry'],
   ['t-box',    'D · Outline',         'a hairline around the glyph, shaped to it'],
   ['t-dashed', 'E · Dashed outline',  'the same outline, dashed — “there is more here”'],
   ['t-under',  'F · Underline',       'a rule under the glyph, in the gutter’s own width'],
-  ['t-count',  'G · Fill + count',    'solid glyph plus the hidden-descendant count<span class="badge">chosen</span>'],
+  ['t-count',  'G · Contrast + count', 'the glyph at full contrast plus the hidden-descendant count<span class="badge">chosen</span>'],
 ];
 
 const COSTS = [
-  ['A · Solid fill', 'Cheapest and quietest, and it composes with everything. It reads as emphasis rather than as “something is hidden”, and a bullet is already solid — the one mark it cannot say anything about.'],
+  ['A · Full contrast', 'Cheapest and quietest, and it composes with everything. It reads as emphasis rather than as “something is hidden”, and a bullet is already solid — the one mark it cannot say anything about.'],
   ['B · Halo', 'One shape for every mark, so one rule and one value to tune. Reads immediately; Logseq’s folded bullet is the same idea. A disc behind a wide glyph (the “H”, an ordered “12.”) crops its corners.'],
   ['C · Shaped halo', 'Fixes the cropping — square behind the H, the paragraph and the checkbox, round behind a bullet. Costs a per-kind shape the marker vocabulary does not otherwise need, and a rounded-rect behind a checkbox is nearly the checkbox again.'],
   ['D · Outline', 'Quietest of the shaped family, and the only one that adds no ink over the glyph. Risks reading as a focus ring, which the caret accent already owns, and a 1px outline 3px off a 14px glyph is close quarters.'],
   ['E · Dashed outline', 'Says “continues below” in a vocabulary nobody else in the editor uses, so it is unambiguous. Dashes at this size are fragile — 1px dashes render unevenly at fractional device pixels.'],
   ['F · Underline', 'Sits in the gutter’s dead space under the mark, so it never crowds the glyph, and it points down, where the hidden content is. Weakest signal of the seven, and it competes with the guide line that runs through that column.'],
-  ['G · Fill + count', 'The count carries the meaning and the fill is a nudge; it is the only candidate that says HOW MUCH is hidden. Two elements per folded row, and the count needs a place after the text where nothing else lives.'],
+  ['G · Contrast + count', 'The count carries the meaning and the contrast is a nudge; it is the only candidate that says HOW MUCH is hidden. Two elements per folded row, and the count needs a place after the text where nothing else lives.'],
 ];
 
 /* ---- the grid ---- */
@@ -331,7 +331,7 @@ const ROWS = [
   { depth: 1, kind: 'heading', cls: 'h2', text: 'Mechanics', children: true, folded: false },
   { depth: 2, kind: 'bullet', text: 'a fold is CodeMirror’s, not Obsidian’s', children: false },
   { depth: 2, kind: 'bullet', text: 'the chevron is painted by another rule', children: true, folded: true, hidden: 3 },
-  { depth: 2, kind: 'ordered', text: 'a move destroys a fold an indent keeps', children: true, folded: true, hidden: 2 },
+  { depth: 2, kind: 'ordered', text: 'a move destroys a fold the carry brings back', children: true, folded: true, hidden: 2 },
   { depth: 2, kind: 'task', cls: 'done', text: 'measure before designing', children: false },
   { depth: 2, kind: 'task', text: 'decide the folded treatment', children: true, folded: true, hidden: 7 },
   { depth: 1, kind: 'paragraph', text: 'Everything below stays visible.', children: false },
@@ -376,7 +376,6 @@ scoped.textContent = `
   .doc .mark.is-folded::before { display: block; }
   .doc .mark:not(.is-folded)::before { display: none !important; }
   .doc .mark:not(.is-folded) { color: var(--faint); }
-  .doc .mark:not(.is-folded) svg :is(line, polyline, rect[stroke], circle[stroke]) { stroke-width: 1.5; }
   .doc .mark { cursor: pointer; }
 `;
 document.head.appendChild(scoped);

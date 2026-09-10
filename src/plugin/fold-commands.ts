@@ -241,10 +241,16 @@ export function runFoldLevel(view: EditorView, direction: 'more' | 'less'): bool
   );
 }
 
-/** Whether the document has any fold at all — the availability answer for
- * unfold-all, which is otherwise offered on a document with nothing folded. */
+/**
+ * Whether anything in scope is folded — the availability answer for unfold-all
+ * and fold-less, which act on the scope's own foldable nodes and nothing else.
+ * Counting every fold in the document offered both while zoomed with the only
+ * fold outside the zoom, or with an atom's native fold, and either then did
+ * nothing when run.
+ */
 export function hasAnyFold(state: EditorState): boolean {
-  return currentFolds(state).length > 0;
+  if (!isOutlineMode(state)) return false;
+  return foldableInScope(state).some((entry) => isFolded(state, entry));
 }
 
 /**

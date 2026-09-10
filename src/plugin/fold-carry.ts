@@ -81,15 +81,14 @@ interface CarriedFold {
 }
 
 /**
- * How many of a hidden run's lines the fingerprint keeps.
- *
- * The whole run would be read on every document change, for every fold — a note
- * with a thousand hidden lines under one fold would pay for all of them on each
- * keystroke, and nested folds pay again for the same content. A bounded prefix
- * plus the run's length identifies a block well enough for the only thing this
- * does with it: finding where the same block went, near where it was.
+ * A fold's identity is EVERY line it hides, with indentation stripped, plus the
+ * run's length. Every line, not a prefix: the fingerprint is also what tells an
+ * edit inside the fold from a move of the fold, and a prefix cannot see an edit
+ * past its end — capped at thirty-two lines, a change to the thirty-third that
+ * kept the line count left the fold closed over changed content, against the
+ * reveal rule. Indentation is stripped because an indent or outdent moves the
+ * block and changes nothing the reader wrote.
  */
-const KEY_LINES = 32;
 
 function carriedFolds(state: EditorState): CarriedFold[] {
   const folds: CarriedFold[] = [];
@@ -100,7 +99,7 @@ function carriedFolds(state: EditorState): CarriedFold[] {
     const last = state.doc.lineAt(to).number;
     if (last <= head) return;
     const key: string[] = [];
-    for (let n = head + 1; n <= Math.min(last, head + KEY_LINES); n++) {
+    for (let n = head + 1; n <= last; n++) {
       key.push(state.doc.line(n).text.trimStart());
     }
     folds.push({
@@ -118,7 +117,7 @@ function carriedFolds(state: EditorState): CarriedFold[] {
  * block said? */
 function matchesAt(doc: Text, line: number, fold: CarriedFold): boolean {
   const key = fold.key;
-  // The run has to still FIT, whole — the key is only its first lines.
+  // The run has to still FIT, whole.
   if (line < 1 || line + fold.lineCount - 1 > doc.lines) return false;
   for (let i = 0; i < key.length; i++) {
     if (doc.line(line + i).text.trimStart() !== key[i]) return false;
@@ -172,11 +171,10 @@ function relocatedTo(fold: CarriedFold, tr: Transaction, touched: boolean): numb
  * change set never overlaps the folded range. Restating is idempotent —
  * CodeMirror ignores a `foldEffect` for a fold that already exists.
  *
- * What that costs is bounded on both axes it could grow along: the fingerprint
- * is capped at `KEY_LINES` however much a fold hides, and the document-wide
- * scan runs only for a fold whose interior the change actually touched. An
- * ordinary keystroke away from every fold therefore pays one mapped-position
- * comparison of at most `KEY_LINES` lines per fold.
+ * What that costs is one string comparison per hidden line per fold on a doc
+ * change, and the document-wide scan only for a fold whose interior the change
+ * actually touched. An ordinary keystroke away from every fold pays the
+ * mapped-position comparison alone.
  *
  * A fold whose block is gone gets an explicit UNFOLD rather than being left
  * alone, since mapping may well have preserved a range that now hides

@@ -1,10 +1,10 @@
 /**
- * How a folded node looks: the marker's folded weight, the hidden-descendant
- * count, and who draws the affordance.
+ * How a folded node looks: the marker's folded contrast, the hidden-descendant
+ * count, who draws the affordance, and where it sits.
  *
  * Relationships, never pixels — CI's fonts differ from macOS, so what is
- * asserted is "the folded mark differs from the unfolded one in stroke weight
- * and not in its box", not either number.
+ * asserted is "the folded mark differs from the unfolded one in colour and in
+ * nothing else — not its box, not its stroke", not any number.
  */
 
 import { expect } from '@wdio/globals';

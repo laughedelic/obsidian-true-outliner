@@ -110,6 +110,31 @@ describe('folds through edits', () => {
     expect(await h.renderedLineTexts()).toContain('  - nested a EDITED');
   });
 
+  it('an edit deep inside a large folded subtree opens it too', async () => {
+    // The fold's identity is every line it hides. A first version keyed it on
+    // the first thirty-two, as a bound on what a keystroke costs — and an edit
+    // to the thirty-third that kept the line count then matched the key at the
+    // mapped position, and the fold stayed closed over changed content.
+    const note = 'Scratch/fold-edits-large.md';
+    const children = Array.from({ length: 40 }, (_, i) => `  - child ${i + 1}`);
+    const text = ['- parent', ...children, ''].join('\n');
+    await h.createNote(note, text);
+    await h.openNote(note);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+    await h.setCursorSettled(0, 3);
+    await h.runCommand('fold-node');
+    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 40 }]);
+
+    const edited = text.replace('  - child 35', '  - child 35 EDITED');
+    expect(edited).not.toBe(text);
+    await h.processFileExternally(note, edited);
+    await browser.waitUntil(async () => (await h.foldedLineRanges()).length === 0, {
+      timeout: 3000,
+      timeoutMsg: 'an edit past the thirty-second hidden line left the fold closed',
+    });
+  });
+
   it('undo of an edit inside a folded subtree shows what it undid', async () => {
     // The case an editor typically gets wrong: edit inside a subtree, fold it,
     // undo — and the change happens where nobody can see it.

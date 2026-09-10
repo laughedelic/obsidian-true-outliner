@@ -117,8 +117,9 @@ import {
 } from './decorate';
 import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
-import { isNestedEditor } from './nested-editor';
-import { foldChromeTarget, foldedChrome } from './fold-service';
+import { isNestedEditor, nestedEditorField } from './nested-editor';
+import { foldedChrome } from './fold-service';
+import { foldableEntries } from './fold-model';
 import { toggleFoldAtLine } from './fold-commands';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
@@ -1260,9 +1261,16 @@ function computeFoldToggles(state: EditorState): DecorationSet {
   for (const fact of decorate(parsedDoc(state.doc).doc)) {
     if (fact.isFirstLine) placement.set(fact.lineNumber, foldToggleLeftExpr(fact));
   }
+  // One walk of the tree for every foldable node, rather than one lookup per
+  // document line: `foldChromeTarget` resolves a line's node by walking the
+  // tree to it, so asking it about every line was quadratic in the note, on
+  // every caret move. Same answer — a chrome target is a foldable node's
+  // first line — from the enumeration fold-all already uses.
+  if (state.field(nestedEditorField, false)) return Decoration.none;
   const builder = new RangeSetBuilder<Decoration>();
-  for (let line = 0; line < state.doc.lines; line++) {
-    if (!foldChromeTarget(state, line)) continue;
+  for (const entry of foldableEntries(parsedDoc(state.doc).doc)) {
+    const line = entry.startLine;
+    if (line >= state.doc.lines) continue; // a stale parse past a shrunk doc
     const left = placement.get(line);
     if (left === undefined) continue;
     const from = state.doc.line(line + 1).from;

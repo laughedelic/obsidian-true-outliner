@@ -465,7 +465,7 @@ describe('backlinks footer: behaviour', function () {
             }
           : null;
       });
-    const press = async () => {
+    const press = async (key: 'Enter' | 'Space') => {
       // Settled first: the footer repaints wholesale, and a repaint between the
       // focus and the press replaces the element the focus was on — measured,
       // the press then landed on the body.
@@ -475,7 +475,7 @@ describe('backlinks footer: behaviour', function () {
           .querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-fold')
           ?.focus();
       });
-      await browser.keys(['Enter']);
+      await browser.keys([key]);
       await browser.pause(400);
     };
 
@@ -484,11 +484,11 @@ describe('backlinks footer: behaviour', function () {
     // that a key press moves it in both directions.
     const start = await read();
     expect(start?.tag).toBe('BUTTON');
-    await press();
+    await press('Enter');
     const flipped = await read();
     expect(flipped?.expanded).not.toBe(start?.expanded);
     expect(flipped?.label).not.toBe(start?.label);
-    await press();
+    await press('Space');
     expect(await read()).toEqual(start);
   });
 

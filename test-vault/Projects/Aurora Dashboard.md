@@ -5,13 +5,7 @@ tags: [project, work]
 ---
 # Aurora Dashboard
 
-Redesign of the lskdfjslf lskdjf**alarm dashboard for industrial** monitoring customers.
-Q3 goal: cut mean time-to-acknowledge by 30%. sldkjfsdk
-lskdjfsldkfjsldkf
-
-- lsdkjfsdljf
-- slkjdfslj
-	- sdlkfjsdflkds
+Redesign of the alarm dashboard for industrial monitoring customers. Q3 goal: cut mean time-to-acknowledge by 30%.
 
 See also [[2026-07-10#Aurora review]].
 
@@ -22,7 +16,6 @@ The severity-first layout is the bet. Everything else serves it.
 - [x] pair with [[Priya Nair]] on session recordings
 - [x] severity-first prototype
 - [ ] touch fallback for timestamp-on-hover
-  lskdjf lskdfj sdklfjsdlfkjs slkdjfslkdfjs dflksjd fsld flskdjf sld fslkdjf sldkjf sdlfkj sdlkfldksjfls dflkjsdflkjsdf
 - [ ] PII review of alarm-name field ![[2026-07-10#^legal-followup]]
 
 ## Layout decision record

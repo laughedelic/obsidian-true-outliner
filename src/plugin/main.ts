@@ -1174,21 +1174,6 @@ export default class TrueOutlinerPlugin extends Plugin {
    * remove. A default hotkey is the version of this the user can actually undo.
    */
   /**
-   * A zoom command: outline-mode-gated, and routed to the live `EditorView`
-   * through the registry (`outline-zoom` design D5) — which is also where the
-   * mode itself is read from.
-   *
-   * `editorCheckCallback` rather than `editorCallback`, so the command is
-   * absent from the palette outside outline mode instead of present and inert —
-   * matching `toggle-outline-mode` and the structural commands. `available`
-   * is what makes CHECKING answer honestly: it has to be side-effect-free,
-   * since checking runs on every palette keystroke, so it is a SEPARATE
-   * argument from `act` rather than a dry-run of it — `act` dispatches.
-   * Defaulted to always-available for zoom-in, which is always meaningful in
-   * outline mode; a caret in the preamble is a documented no-op (design D6),
-   * not a case this hides.
-   */
-  /**
    * A fold command: outline-mode-gated and routed to the live `EditorView`,
    * the same shape `addZoomCommand` uses and for the same reasons — the mode
    * lives in editor state, and `checking` must not dispatch.
@@ -1221,6 +1206,21 @@ export default class TrueOutlinerPlugin extends Plugin {
     });
   }
 
+  /**
+   * A zoom command: outline-mode-gated, and routed to the live `EditorView`
+   * through the registry (`outline-zoom` design D5) — which is also where the
+   * mode itself is read from.
+   *
+   * `editorCheckCallback` rather than `editorCallback`, so the command is
+   * absent from the palette outside outline mode instead of present and inert —
+   * matching `toggle-outline-mode` and the structural commands. `available`
+   * is what makes CHECKING answer honestly: it has to be side-effect-free,
+   * since checking runs on every palette keystroke, so it is a SEPARATE
+   * argument from `act` rather than a dry-run of it — `act` dispatches.
+   * Defaulted to always-available for zoom-in, which is always meaningful in
+   * outline mode; a caret in the preamble is a documented no-op (design D6),
+   * not a case this hides.
+   */
   private addZoomCommand(
     id: string,
     name: string,
