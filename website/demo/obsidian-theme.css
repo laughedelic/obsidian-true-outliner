@@ -206,6 +206,21 @@ html.theme-dark {
 .to-demo .cm-hidden-formatting {
   display: none;
 }
+/* CodeMirror places a zero-width <img> either side of an inline widget; a
+ * page stylesheet that gives images margins (VitePress does) would grow every
+ * line that carries hidden formatting. Same rule Obsidian's app.css carries. */
+.to-demo img.cm-widgetBuffer {
+  display: inline !important;
+  width: 0 !important;
+  height: 1em;
+  border: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  vertical-align: text-top;
+}
+.to-demo .task-list-label {
+  line-height: 1;
+}
 .to-demo .cm-formatting {
   color: var(--text-faint);
 }
