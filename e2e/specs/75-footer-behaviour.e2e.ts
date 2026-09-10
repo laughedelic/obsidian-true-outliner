@@ -171,12 +171,31 @@ describe('backlinks footer: behaviour', function () {
               .querySelector('.workspace-leaf.mod-active .to-backlinks-head')
               ?.classList.contains('is-collapsed') ?? null,
         );
-      await h.clickClear(`${FOOTER} .to-backlinks-icon`);
-      await browser.pause(300);
-      const afterFirst = await folded();
-      await h.clickClear(`${FOOTER} .to-backlinks-icon`);
-      await browser.pause(300);
-      const afterSecond = await folded();
+      // Each click is checked against the state it should leave, and repeated
+      // when it did not, rather than a blind click, pause, click: on the
+      // emulated-mobile job a tap on the icon is sometimes not delivered, and
+      // a pair of blind clicks then folds the footer where it should have
+      // folded and unfolded it — every failure of this case on that job had
+      // the footer folded at the end, with the first click having done
+      // nothing and the second having folded it.
+      const toggleFold = async (expected: boolean): Promise<void> => {
+        for (let attempt = 0; ; attempt++) {
+          await h.clickClear(`${FOOTER} .to-backlinks-icon`);
+          try {
+            await browser.waitUntil(async () => (await folded()) === expected, {
+              timeout: h.waitBudget(1500),
+              interval: 100,
+            });
+            return;
+          } catch (error) {
+            if (attempt >= 2) {
+              throw new Error(`the footer never ${expected ? 'folded' : 'unfolded'} on click: ${String(error)}`);
+            }
+          }
+        }
+      };
+      await toggleFold(true);
+      await toggleFold(false);
       expect(await h.getBuffer()).toBe(edited);
       // One undo must land on the typed character, not on anything the footer
       // did. Waited for rather than paused for: undo is dispatched through the
@@ -188,11 +207,10 @@ describe('backlinks footer: behaviour', function () {
           timeout: h.waitBudget(4000),
         });
       } catch {
-        // A keystroke undo needs the editor's focus, and the two clicks above
-        // must have landed as a pair for the footer to be back where it was.
-        // Report both, with what the buffer holds and what one more undo does
-        // to it, so a miss on one platform says whether the keystroke never
-        // reached the editor or undid something reading the footer had added.
+        // A keystroke undo needs the editor's focus. Report where focus was,
+        // what the buffer holds and what one more undo does to it, so a miss
+        // on one platform says whether the keystroke never reached the editor
+        // or undid something reading the footer had added.
         const focused = await browser.executeObsidian(
           () => document.activeElement?.className ?? null,
         );
@@ -200,7 +218,7 @@ describe('backlinks footer: behaviour', function () {
         await h.keys.undo();
         await browser.pause(500);
         const afterSecondUndo = (await h.getBuffer()) === before ? 'restored' : 'still off';
-        const state = { focused, afterFirst, afterSecond, folded: await folded(), head, afterSecondUndo };
+        const state = { focused, folded: await folded(), head, afterSecondUndo };
         throw new Error(`undo did not restore the pre-edit buffer: ${JSON.stringify(state)}`);
       }
     } finally {

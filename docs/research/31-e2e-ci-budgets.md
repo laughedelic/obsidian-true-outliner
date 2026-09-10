@@ -101,3 +101,31 @@ an overlapping ordinal on the other, in three of the six branch runs read. Widen
 would have made that rarer, not impossible. The loop is now eight cases, one per fixture and
 theme, at 2.1–2.5 s each locally: an abandoned one can do at most one screenshot's worth of
 work underneath its successor, and the report names which fixture was slow.
+
+## A fourth case, found on the way: a tap the mobile job does not deliver
+
+`75` "leaves the note's bytes and undo stack untouched while being read" failed on the mobile
+`backlinks` job of every checkpoint on this branch and on two of `main`'s last twelve runs,
+never locally (three mobile runs and one desktop run in a row here, with the editor focused
+and the footer unfolded every time). The case types a character, scrolls to the footer,
+clicks its icon twice — fold and unfold — and expects one keystroke undo to remove the
+character within a fixed 4 s. Each checkpoint added a piece of the failure's message; read
+together, the four runs say what it lost:
+
+| Run | What the message said |
+| --- | --- |
+| first, second | only that the undo missed; CI's failure screenshot shows the footer folded |
+| third | the editor still had focus (`cm-content`), the footer was folded |
+| fourth | the first click left the footer unfolded, the second folded it; after one undo the buffer still began with the typed character; a second undo restored it |
+
+So focus is never lost. On that job a tap on the footer's icon is sometimes not delivered,
+and a blind click–pause–click then folds the footer where it should have folded and unfolded
+it; the undo keystroke that follows is dropped once, and the next one lands. The case now
+checks each click against the fold state it should produce and repeats a click that did
+nothing, up to three times, so a lost tap is retried rather than desynchronising the pair; a
+click that never toggles is a named failure. The undo's wait goes through `waitBudget`, and a
+miss still reports focus, the fold state, the buffer's head and what a second undo did.
+
+Whether a real touch on the footer's icon can be lost the same way is a question this harness
+cannot ask — the emulation synthesises its taps — and it stays with the mobile-safe-by-
+construction, desktop-tested decision (Q7) rather than becoming a claim either way.
