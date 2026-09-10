@@ -8,7 +8,7 @@
  * the vault's metadata cache, which a browser page does not have.
  */
 
-import { EditorState, Compartment, type Extension } from '@codemirror/state';
+import { EditorState, Compartment, Prec, type Extension } from '@codemirror/state';
 import { EditorView, drawSelection, highlightSpecialChars, keymap, placeholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { indentUnit } from '@codemirror/language';
@@ -94,7 +94,10 @@ export function createOutlineEditor(parent: HTMLElement, options: OutlineEditorO
     drawSelection(),
     EditorView.lineWrapping,
     indentUnit.of('\t'),
-    livePreviewExtension(),
+    // Lowest precedence, so its marks sit OUTSIDE the plugin's own: the
+    // plugin wraps an ordered marker's digits inside the formatting span the
+    // way Obsidian's renderer emits them.
+    Prec.lowest(livePreviewExtension()),
     // CodeMirror scrolls every scrollable ancestor to reveal the caret, the
     // page included, which would drag a reader along with a scripted tour.
     // The editor's own scroller is the only thing that moves.

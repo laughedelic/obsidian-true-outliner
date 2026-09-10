@@ -99,8 +99,10 @@ function inlineDecorations(text: string, base: number, active: boolean, out: Ran
         const pipe = contentStart + target.length;
         out.push(hidden.range(base + contentStart, base + pipe + 1));
         out.push(mark('cm-hmd-internal-link cm-link-alias').range(base + pipe + 1, base + contentEnd));
+        out.push(mark('cm-underline').range(base + pipe + 1, base + contentEnd));
       } else {
         out.push(mark('cm-hmd-internal-link').range(base + contentStart, base + contentEnd));
+        out.push(mark('cm-underline').range(base + contentStart, base + contentEnd));
       }
       out.push(hidden.range(base + contentEnd, base + e));
     }
@@ -180,7 +182,9 @@ function build(view: EditorView): DecorationSet {
     if (quote) {
       ranges.push(Decoration.line({ class: 'HyperMD-quote HyperMD-quote-1' }).range(line.from));
       const end = quote[1].length;
+      const gt = text.indexOf('>');
       ranges.push(mark('cm-formatting cm-formatting-quote cm-formatting-quote-1 cm-quote cm-quote-1').range(line.from, line.from + end));
+      if (!active) ranges.push(mark('cm-transparent').range(line.from + gt, line.from + gt + 1));
       if (end < text.length) ranges.push(mark('cm-quote cm-quote-1').range(line.from + end, line.to));
       inlineDecorations(text.slice(end), line.from + end, active, ranges);
       continue;
@@ -225,8 +229,18 @@ function build(view: EditorView): DecorationSet {
       const markerFrom = line.from + pos;
       const markerTo = markerFrom + marker.length + gap.length;
       const kind = ordered ? 'ol' : 'ul';
-      ranges.push(mark(`cm-formatting cm-formatting-list cm-formatting-list-${kind} cm-list-${depth}`).range(markerFrom, markerTo));
-      if (!ordered) ranges.push(mark('list-bullet').range(markerFrom, markerFrom + 1));
+      if (task && !active) {
+        // Live Preview drops a task's `- ` altogether and shows the checkbox.
+        ranges.push(hidden.range(markerFrom, markerTo));
+      } else {
+        ranges.push(mark(`cm-formatting cm-formatting-list cm-formatting-list-${kind} cm-list-${depth}`).range(markerFrom, markerTo));
+        if (ordered) {
+          ranges.push(mark('list-number').range(markerFrom, markerFrom + marker.length));
+          ranges.push(mark('list-number').range(markerFrom + marker.length, markerTo));
+        } else {
+          ranges.push(mark('list-bullet').range(markerFrom, markerFrom + 1));
+        }
+      }
       pos += marker.length + gap.length;
       if (task) {
         const boxFrom = line.from + pos;
