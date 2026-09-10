@@ -153,6 +153,13 @@ Two smaller threads, recorded so they are not rediscovered:
   narrow runs against a fresh vault, at an identical rate with the budget doubled — which is what
   rules timing out — and not at all across six whole-group runs. The group-mode difference is
   unexplained.
+
+  The footer's stability waits are unreliable on CI's mobile matrix beyond this case, and the
+  pattern belongs to the job rather than to any one spec: `mobile (backlinks)` failed on `main` at
+  `75-footer-behaviour`'s byte-and-undo case, and on this note's own branch at
+  `77-footer-controls`'s narrow-header case — each inside a footer stability wait, and each on a
+  spec the other run passed. A red `mobile (backlinks)` is therefore weak evidence about whatever
+  change sits under it until the failing case has been read.
 - **`test-vault/.obsidian/workspace.json` is untracked and local-only.** A saved layout changes
   which notes are warm when a spec starts, and CI never has one. Local reproduction of anything
   timing-sensitive in this area should delete it first, or it is measuring a different machine
