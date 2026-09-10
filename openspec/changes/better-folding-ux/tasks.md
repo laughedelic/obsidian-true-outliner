@@ -181,6 +181,11 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       instead; a multi-line node's tail control resolved no node; the chevron is anchored on the
       midpoint between guide and marker for both controls (D5); the footer's chevron pointed up
       when folded; and one visual language for marker and chevron across kinds (D6c)
+- [x] 10.3b Second manual round: the native chevron's horizontal place measured per line, on
+      the vault note that showed it wandering (a folded paragraph takes Obsidian's list padding,
+      the caret's line none, so one global sample put every paragraph's chevron onto its icon or
+      a level away); the folded marker's treatment is contrast alone, not a heavier stroke, which
+      a heading's filled glyph could not carry. Tests and negative controls for both
 - [ ] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
       two the measurements found (a moved folded node, Enter on a folded node) — and the one the
       harness could not settle: fold with Obsidian's "Fold heading" and "Fold indent" turned off

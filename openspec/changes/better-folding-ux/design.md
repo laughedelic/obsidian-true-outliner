@@ -185,6 +185,16 @@ a floor: at the mobile default unit it lands the glyph's right edge inside a che
 half-width, so the offset is never less than that half-width plus half the glyph and a gap — one
 CSS value, `--to-fold-chevron-offset`, that every placement reads.
 
+*How the native chevron gets there:* measured per line, on both axes, by the plugin's existing
+per-line pass. The horizontal transform's arithmetic assumes the wrapper's edge sits on the text
+origin, and Obsidian moves that edge by kind AND by state — a folded block line is tagged as a list
+line and takes the list padding with an inset that shifts the wrapper right by as much; the
+caret's own line takes neither. One dead-space sample from whichever chevron came first in the
+viewport therefore put every paragraph's chevron onto its icon, or a level too far from it,
+depending on where the caret was — the manual pass's "jumps onto the icon". The correction is
+the difference between where the glyph is and where it belongs, with what is already applied read
+from the computed transform, so it converges.
+
 *Alternative rejected:* a CM6 `gutter()` beside the content. It is the obvious mechanism and the
 wrong one here: a gutter sits outside the readable-line-width column, so the affordance would
 detach from the outline's own left edge and would not follow the zoom scope's re-based guides.
@@ -192,7 +202,7 @@ detach from the outline's own left edge and would not follow the zoom scope's re
 *Alternative rejected:* reusing the native chevron by making Obsidian paint more of them. Its rule
 is internal; there is no supported way to extend it.
 
-### D6. A folded marker is the same glyph, solid, plus the count — decided
+### D6. A folded marker is the same glyph at full contrast, plus the count — decided
 
 The mark's job is to say what kind of node this is; folding is a second fact about the same node,
 and the marker gutter's width is derived from the marks it must hold
@@ -201,7 +211,10 @@ move every line. That rules out anything drawn around the glyph before taste ent
 
 Seven candidates were drawn against every foldable mark at real geometry in
 [`28-fold-marker-mockup.html`](../../../docs/research/28-fold-marker-mockup.html) and reviewed
-rendered. **Chosen: solid glyph plus the hidden-descendant count.**
+rendered. **Chosen: the glyph at full text contrast plus the hidden-descendant count.** Contrast,
+not weight: the mockup drew "solid" as a heavier stroke, and the manual pass caught that a
+heading's glyph is filled rectangles no stroke reaches — so the stroke change told a paragraph
+from a heading, not a folded node from an open one.
 
 *Why not the others.* The halo (Logseq's answer,
 [12](../../../docs/research/12-decoration-follow-ups.md)) is too heavy at 14px and crops the
@@ -211,7 +224,7 @@ it is nearly the checkbox again. Outline and dashed outline sit 3px off a 14px g
 the fold affordance already shares, and an outline competes with the caret accent's own ring.
 The underline is the quietest but collides with the guide line running through that column.
 
-The weight change is the only treatment every mark can carry identically, and the count is the
+The contrast change is the only treatment every mark can carry identically, and the count is the
 only one that says HOW MUCH is hidden — which is the question a folded node actually raises, and
 the one thing a bullet, already solid, cannot answer on its own.
 

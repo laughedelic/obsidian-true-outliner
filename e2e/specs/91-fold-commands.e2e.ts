@@ -174,17 +174,10 @@ describe('fold commands', () => {
     // last saw.
     await h.setCursorSettled(0, 2);
     const expected = ['# Top8…', ''];
-    let seen: string[] = [];
-    await browser.waitUntil(
-      async () => {
-        seen = await h.renderedLineTexts();
-        return seen.length === expected.length && seen.every((t, i) => t === expected[i]);
-      },
-      {
-        timeout: h.waitBudget(3000),
-        interval: 100,
-        timeoutMsg: `expected ${JSON.stringify(expected)} on screen, last saw ${JSON.stringify(seen)}`,
-      },
+    await h.waitForRead(
+      () => h.renderedLineTexts(),
+      (seen) => seen.length === expected.length && seen.every((t, i) => t === expected[i]),
+      `${JSON.stringify(expected)} on screen`,
     );
     await h.runCommand('unfold-all');
     expect(await h.foldedLineRanges()).toEqual([]);

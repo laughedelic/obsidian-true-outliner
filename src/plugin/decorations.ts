@@ -77,6 +77,7 @@ import { editorInfoField } from 'obsidian';
 import { zoomScope } from './zoom-scope';
 import { MARKER_GUTTER_CSS, MARKER_ICON_CSS, UNIT_EXPR } from './chrome-tokens';
 import {
+  BLOCK_LINE_CLASS,
   chromeStyle,
   guideLayer,
   lineChrome,
@@ -2686,9 +2687,25 @@ class MarginCompensation implements PluginValue {
    * `measureChevron` takes, is not translation-invariant. One decimal place, so
    * sub-tenth-pixel wobble rounds away and the value settles.
    */
+  /** `--to-fold-chevron-offset` in pixels, or null before the stylesheet
+   * declares it. A probe rather than a parse: the value is a `max()` of unit,
+   * checkbox and glyph terms only the browser can resolve. */
+  private resolveChevronOffset(): number | null {
+    const probe = this.view.contentDOM.ownerDocument.createElement('div');
+    probe.style.cssText =
+      'position:absolute;visibility:hidden;height:0;width:var(--to-fold-chevron-offset)';
+    // eslint-disable-next-line no-restricted-syntax -- measurement probe on the editor root, removed before the next frame
+    this.view.dom.appendChild(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return width > 0 ? width : null;
+  }
+
   private measureChevronRows(): void {
-    const updates: { line: HTMLElement; dy: string }[] = [];
+    const updates: { line: HTMLElement; dy: string; dx: string | null }[] = [];
     const seen = new Set<HTMLElement>();
+    // The chevron offset, resolved once per pass where the lines resolve it.
+    const offsetPx = this.resolveChevronOffset();
     for (const line of Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'))) {
       const glyph = line.querySelector('.cm-fold-indicator .collapse-indicator svg');
       // The mark this line's chevron belongs to, in the order the kinds are
@@ -2714,15 +2731,48 @@ class MarginCompensation implements PluginValue {
       const applied = parseFloat(line.style.getPropertyValue('--to-chevron-dy')) || 0;
       const dy =
         markerRect.top + markerRect.height / 2 - (glyphRect.top + glyphRect.height / 2) + applied;
-      updates.push({ line, dy: `${dy.toFixed(1)}px` });
+      // The HORIZONTAL correction too, for a block line, by the same
+      // mechanism: where the glyph is against where it belongs — the chevron
+      // offset left of the marker's centre — adding back what is already
+      // applied so it converges rather than oscillates. Measured rather than
+      // derived because the transform's own arithmetic assumes the wrapper's
+      // edge sits on the text origin, and Obsidian moves that edge by kind AND
+      // by state: a folded block line is tagged as a list line and takes the
+      // list padding with an inset that shifts the wrapper right by as much,
+      // the caret's own line takes neither, any other block line a third
+      // amount. One dead-space sample from whichever chevron came first in the
+      // viewport (`measureChevron`, kept as the fallback for a line not yet
+      // measured) moved every paragraph's chevron by the difference — onto the
+      // icon, or a level too far from it, depending on where the caret was.
+      // A list line keeps the formula: its mark is not a box the column can be
+      // read from, and its chevron measured right.
+      // A DELTA on top of the stylesheet's own arithmetic, which stays live:
+      // the arithmetic is what follows the unit, and the error it makes — the
+      // wrapper's dead space not being the one number it assumes — does not
+      // depend on the unit. A measured position instead of a delta was right
+      // until the unit changed, and then held the chevron where the old unit
+      // had put it.
+      let dx: string | null = null;
+      if (line.classList.contains(BLOCK_LINE_CLASS) && offsetPx !== null) {
+        const appliedDx = parseFloat(line.style.getPropertyValue('--to-chevron-dx')) || 0;
+        const target = markerRect.left + markerRect.width / 2 - offsetPx;
+        dx = `${(target - (glyphRect.left + glyphRect.width / 2) + appliedDx).toFixed(1)}px`;
+      }
+      updates.push({ line, dy: `${dy.toFixed(1)}px`, dx });
       seen.add(line);
     }
     for (const line of this.chevronDyLines) {
-      if (!seen.has(line)) line.style.removeProperty('--to-chevron-dy');
+      if (!seen.has(line)) {
+        line.style.removeProperty('--to-chevron-dy');
+        line.style.removeProperty('--to-chevron-dx');
+      }
     }
-    for (const { line, dy } of updates) {
+    for (const { line, dy, dx } of updates) {
       if (line.style.getPropertyValue('--to-chevron-dy') !== dy) {
         line.style.setProperty('--to-chevron-dy', dy);
+      }
+      if (dx !== null && line.style.getPropertyValue('--to-chevron-dx') !== dx) {
+        line.style.setProperty('--to-chevron-dx', dx);
       }
     }
     this.chevronDyLines = updates.map((u) => u.line);

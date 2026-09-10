@@ -178,7 +178,7 @@ A folded node SHALL be distinguishable from an unfolded one at a glance, through
 rather than through chrome that appears elsewhere, and SHALL show how many descendants it hides.
 The count SHALL be of every hidden descendant, not only immediate children, because that is what
 the reader cannot see. `outline-decorations` states the visual treatment: the kind's own glyph in
-a solid weight, and the count after the node's text.
+full text contrast, and the count after the node's text.
 
 #### Scenario: Folding changes the node's marker
 - **WHEN** a node with children is folded

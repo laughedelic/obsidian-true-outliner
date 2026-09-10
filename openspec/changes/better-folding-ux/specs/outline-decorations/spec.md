@@ -2,10 +2,12 @@
 
 ### Requirement: A folded node's marker carries the fold, and the count of what it hides
 
-A folded node's marker SHALL render in a folded variant of its own kind's mark — the SAME glyph in
-a solid weight, taking full text contrast where an unfolded mark is muted. Nothing SHALL be added
+A folded node's marker SHALL render in a folded variant of its own kind's mark — the SAME glyph,
+taking full text contrast where an unfolded mark is muted, and nothing else: not a heavier stroke,
+which a heading's filled glyph cannot carry and which therefore told kinds apart rather than
+states. Nothing SHALL be added
 around the glyph: no halo, ring, outline or underline. The mark keeps saying what kind of node it
-is, and the weight change says something is beneath it.
+is, and the contrast change says something is beneath it.
 
 The variant SHALL NOT change the mark's box, since the marker gutter is derived from the marks it
 must hold and a folded mark is not a wider one, and it SHALL be legible in both themes.
@@ -13,7 +15,7 @@ must hold and a folded mark is not a wider one, and it SHALL be legible in both 
 The choice is recorded rather than left open: six alternatives were drawn against every mark at
 real geometry in `docs/research/28-fold-marker-mockup.html`. Everything drawn AROUND the glyph
 either crowds it — the gutter is 14px and the fold affordance already shares it — or has to change
-shape per kind to avoid cropping a wide glyph, which makes one state read as several. The weight
+shape per kind to avoid cropping a wide glyph, which makes one state read as several. The contrast
 change is the only treatment every mark can carry identically, including a bullet, which is
 already solid and where the count does the work instead.
 
@@ -78,6 +80,10 @@ only where a hover exists.
 #### Scenario: A hovered line accents its marker
 - **WHEN** the pointer rests on the text of a node the caret is not on
 - **THEN** its marker takes the colour the caret's own node carries
+
+#### Scenario: The control keeps its place whatever is folded and wherever the caret is
+- **WHEN** one of three paragraphs with children is folded and the caret is placed on each in turn
+- **THEN** every paragraph's control stays on the same offset from its marker
 
 #### Scenario: The control sits at the midpoint at every unit
 - **WHEN** a heading, a paragraph and a list item each offer a fold control

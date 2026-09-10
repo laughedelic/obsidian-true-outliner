@@ -1011,13 +1011,19 @@ body.is-mobile {
   .cm-line.to-decor-block
   .cm-fold-indicator
   .collapse-indicator {
+  /* The arithmetic stays live — it is what follows the unit — and
+   * `--to-chevron-dx` is the measured correction on top of it
+   * (`measureChevronRows`), per line: the wrapper's dead space is not the one
+   * number the arithmetic assumes, and the difference does not depend on the
+   * unit, so a delta survives a unit change where a measured position would
+   * not. */
   transform: translate(
     calc(
       -1 *
         (
           var(--to-marker-gutter) + var(--to-fold-chevron-offset) - var(--to-chevron-glyph, 10px) / 2 -
             var(--to-chevron-dead-right, 6px)
-        )
+        ) + var(--to-chevron-dx, 0px)
     ),
     var(--to-chevron-dy, 0px)
   );
@@ -3391,7 +3397,10 @@ body.is-mobile {
 /* ---- Folded nodes (better-folding-ux D6) ---------------------------------
  *
  * A folded node says so through its own mark, in the same box: the kind's glyph
- * in a solid weight, at full text contrast where an unfolded one is muted.
+ * at full text contrast where an unfolded one is muted. Contrast alone, not a
+ * heavier stroke: a heading's glyph is filled rectangles that no stroke width
+ * reaches, so a stroke change told a paragraph apart from a heading rather than
+ * a folded node from an open one.
  * Nothing is drawn AROUND the glyph — no halo, ring, outline or underline. Six
  * alternatives were drawn against every mark at real geometry
  * (docs/research/28-fold-marker-mockup.html); everything around the glyph
@@ -3407,14 +3416,6 @@ body.is-mobile {
   color: var(--text-normal);
 }
 
-.markdown-source-view.mod-cm6
-  .cm-content
-  > .to-decor-folded
-  .to-decor-marker-icon
-  svg
-  :is(line, polyline, rect, circle, path) {
-  stroke-width: 2.4;
-}
 
 /*
  * The folded chevron matches the folded marker: the two sit side by side and
@@ -3446,9 +3447,6 @@ body.is-mobile {
   color: var(--text-normal);
 }
 
-.to-backlinks-row.to-decor-folded .to-decor-marker-icon svg :is(line, polyline, rect, circle, path) {
-  stroke-width: 2.4;
-}
 
 /* A list line keeps its NATIVE mark — a bullet, an ordered number, a checkbox —
  * so the weight change is a contrast change there. The bullet's dot is a

@@ -70,7 +70,7 @@ describe('fold chrome', () => {
     expect(await h.foldedNodeLines()).toEqual([]);
   });
 
-  it('draws the folded marker in a heavier weight, in the same box', async () => {
+  it('draws the folded marker at a different contrast, in the same box and stroke', async () => {
     // Park the caret off the line before measuring: with it there, Live Preview
     // renders the raw source beside the widget.
     await h.setCursorSettled(2, 4);
@@ -83,8 +83,11 @@ describe('fold chrome', () => {
     await h.setCursorSettled(0, 3);
     const open = await h.markerGlyphStyle(2);
 
-    expect(parseFloat(folded.strokeWidth)).toBeGreaterThan(parseFloat(open.strokeWidth));
     expect(folded.color).not.toBe(open.color);
+    // Contrast alone: a heading's glyph is filled rectangles no stroke width
+    // reaches, so a heavier stroke told a paragraph from a heading rather than
+    // a folded node from an open one.
+    expect(folded.strokeWidth).toBe(open.strokeWidth);
     // The box is what the marker gutter is derived from, so it may not change.
     expect(folded.width).toBeCloseTo(open.width, 1);
     expect(folded.height).toBeCloseTo(open.height, 1);
@@ -262,6 +265,42 @@ describe('fold chrome', () => {
     const caret = (await h.foldChromeColors(2)).marker;
     await h.hoverLineText(0);
     expect((await h.foldChromeColors(0)).marker).toBe(caret);
+  });
+
+  it('holds the control’s place whatever line the caret is on and whatever is folded', async () => {
+    // Obsidian pads the chevron's wrapper by kind AND by state: a folded block
+    // line can be tagged as a list line and take the list padding, the caret's
+    // own line takes none, any other block line a third amount. Read once
+    // from whichever chevron came first in the viewport, that dead space moved
+    // every paragraph's control by the difference — onto the icon with a
+    // folded paragraph in view, a level too far from it with the caret on
+    // one — so the correction is measured per line.
+    //
+    // On the vault note the manual pass saw it on, because the tagging is
+    // Obsidian's and a fixture built to the same shape did not provoke it:
+    // three paragraphs with children, the first folded, and the caret on each
+    // in turn. Lines are addressed by document number — the fold takes sixteen
+    // of them out of the DOM.
+    await h.openNote('Backlinks/Family tree.md');
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+    try {
+      await h.setCursorSettled(0, 4);
+      await h.runCommand('fold-node');
+      expect((await h.foldedLineRanges()).map((r) => r.from)).toEqual([0]);
+      const settled = (line: number): Promise<unknown> =>
+        h.waitForRead(
+          () => h.foldControlGap(line, { doc: true }),
+          (read) => Math.abs(read.gap - read.offset) < 2,
+          `line ${line}'s control on its offset`,
+        );
+      for (const caret of [17, 0, 28]) {
+        await h.setCursorSettled(caret, 3);
+        for (const line of [0, 17, 28]) await settled(line);
+      }
+    } finally {
+      await h.clearFolds();
+    }
   });
 
   it('treats a multi-line node as one node, marker above and count below', async () => {

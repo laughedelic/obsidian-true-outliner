@@ -1070,43 +1070,72 @@ export function foldTailControlCount(line: number): Promise<number> {
  * with the unit those guides repeat at — for asserting the control sits on the
  * midpoint between the parent's guide and the marker, whatever the unit is.
  *
- * The column is read from the guide overlay's own origin and the line's depth,
- * the same way `guideColumnPoint` finds a guide; the control is whichever of
- * the two the line shows.
+ * The control is whichever of the two the line shows; where the column comes
+ * from is said inside. `doc: true` addresses the line by document number
+ * rather than by DOM order, for a note with folds in it.
  */
 export function foldControlGap(
   line: number,
+  opts: { doc?: boolean } = {},
 ): Promise<{ gap: number; unit: number; offset: number }> {
-  return browser.executeObsidian(({}, n: number) => {
-    const el = document.querySelectorAll<HTMLElement>(
-      '.workspace-leaf.mod-active .cm-content > .cm-line',
-    )[n];
-    if (!el) throw new Error(`no line ${n}`);
-    const box = el.getBoundingClientRect();
-    const after = getComputedStyle(el, '::after');
-    const unit = parseFloat(after.backgroundSize);
-    if (!(unit > 1)) throw new Error(`line ${n} paints no guides to measure a unit from`);
-    const origin = parseFloat(after.left) + parseFloat(after.borderLeftWidth);
-    const depth = Number(getComputedStyle(el).getPropertyValue('--to-depth'));
-    const column = box.left + origin + depth * unit;
-    const glyph = Array.from(
-      el.querySelectorAll('.cm-fold-indicator .collapse-indicator svg, .to-decor-fold-toggle svg'),
-    ).find((g) => g.getBoundingClientRect().width > 0);
-    if (!glyph) throw new Error(`line ${n} shows no fold control`);
-    const rect = glyph.getBoundingClientRect();
-    // The offset every placement reads, resolved where the line resolves it.
-    const probe = el.ownerDocument.createElement('div');
-    probe.style.cssText =
-      'position:absolute;visibility:hidden;height:0;width:var(--to-fold-chevron-offset);';
-    el.appendChild(probe);
-    const offset = probe.getBoundingClientRect().width;
-    probe.remove();
-    return {
-      gap: Number((column - (rect.left + rect.width / 2)).toFixed(1)),
-      unit,
-      offset: Number(offset.toFixed(1)),
-    };
-  }, line);
+  return browser.executeObsidian(
+    ({ app, obsidian }, n: number, byDoc: boolean) => {
+      let el: HTMLElement | null;
+      if (byDoc) {
+        // By DOCUMENT line, through the editor: a folded range's lines are
+        // absent from the DOM, so DOM order stops matching the document.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (app.workspace.getActiveViewOfType(obsidian.MarkdownView)!.editor as any).cm;
+        const node = cm.domAtPos(cm.state.doc.line(n + 1).from).node as Node;
+        el = (node.nodeType === 1 ? (node as Element) : node.parentElement!).closest('.cm-line');
+      } else {
+        el = document.querySelectorAll<HTMLElement>(
+          '.workspace-leaf.mod-active .cm-content > .cm-line',
+        )[n] ?? null;
+      }
+      if (!el) throw new Error(`no line ${n}`);
+      const box = el.getBoundingClientRect();
+      const probeWidth = (expr: string): number => {
+        const probe = el!.ownerDocument.createElement('div');
+        probe.style.cssText = `position:absolute;visibility:hidden;height:0;width:${expr};`;
+        el!.appendChild(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        return width;
+      };
+      // The marker column. A block line's own icon is centred on it, which is
+      // the reading that holds where no guide is painted — a depth-0 line has
+      // nothing to its left. A list line's mark is not a box the column can be
+      // read from, so there it comes from the guide overlay's origin and the
+      // line's depth, as `guideColumnPoint` finds a guide.
+      const icon = el.querySelector(':scope > .to-decor-marker-icon');
+      const after = getComputedStyle(el, '::after');
+      const paintedUnit = parseFloat(after.backgroundSize);
+      const unit = paintedUnit > 1 ? paintedUnit : probeWidth('var(--to-decor-unit)');
+      let column: number;
+      if (icon) {
+        const rect = icon.getBoundingClientRect();
+        column = rect.left + rect.width / 2;
+      } else {
+        if (!(paintedUnit > 1)) throw new Error(`line ${n} paints no guides to find its column from`);
+        const origin = parseFloat(after.left) + parseFloat(after.borderLeftWidth);
+        const depth = Number(getComputedStyle(el).getPropertyValue('--to-depth'));
+        column = box.left + origin + depth * unit;
+      }
+      const glyph = Array.from(
+        el.querySelectorAll('.cm-fold-indicator .collapse-indicator svg, .to-decor-fold-toggle svg'),
+      ).find((g) => g.getBoundingClientRect().width > 0);
+      if (!glyph) throw new Error(`line ${n} shows no fold control`);
+      const rect = glyph.getBoundingClientRect();
+      return {
+        gap: Number((column - (rect.left + rect.width / 2)).toFixed(1)),
+        unit,
+        offset: Number(probeWidth('var(--to-fold-chevron-offset)').toFixed(1)),
+      };
+    },
+    line,
+    opts.doc === true,
+  );
 }
 
 /** The painted colour of a line's marker and of the fold control it shows. */
@@ -1149,6 +1178,35 @@ export async function hoverLineText(line: number): Promise<void> {
     .move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' })
     .perform();
   await browser.pause(150);
+}
+
+/**
+ * Poll a read until it satisfies `ok`, and on giving up say what it last saw.
+ *
+ * `browser.waitUntil` takes its message as a string, built before the wait —
+ * so a message meant to carry the last reading carried the reading from before
+ * the first poll, every time. A read that throws is a reading too: the error
+ * is what is reported if it never stops throwing.
+ */
+export async function waitForRead<T>(
+  read: () => Promise<T>,
+  ok: (value: T) => boolean,
+  what: string,
+  budgetMs = 3000,
+): Promise<T> {
+  let last = 'never read';
+  const deadline = Date.now() + waitBudget(budgetMs);
+  do {
+    try {
+      const value = await read();
+      if (ok(value)) return value;
+      last = JSON.stringify(value);
+    } catch (error) {
+      last = String(error);
+    }
+    await browser.pause(100);
+  } while (Date.now() < deadline);
+  throw new Error(`${what}: last saw ${last}`);
 }
 
 /** Is the count part of the editable document, or chrome beside it? */
