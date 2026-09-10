@@ -124,34 +124,46 @@ the depth-0 guide column. The list case closes the 24px our own layer was withho
 `supplementalDepth` margin, which is exactly the "one level left, outside the list block"
 users report).
 
-### A provisional position inside a zoomed subtree renders its trail at the source document's depth
+### A provisional position inside a zoomed subtree renders the view at the source document's depth
 
-Found during `outline-zoom`'s review (PR #69, a suppressed Copilot comment on
-`decorations.ts`'s `computeTrail`). `zoomAwarePositionTrail` re-bases the caret trail to
-the zoom root for the ordinary case — a caret resting on a node, or on the gap line that
-node owns — by handing it the SCOPED subtree document and a root-relative line number
-(design D9, the same re-basing `baseFacts` does for the main decoration facts). A
-*provisional* position — an empty caret on a blank line, materialized as the node a
-keystroke there would create (the previous entry above) — takes a different path:
-`computeProvisional` parses `materializeProbe` against the WHOLE buffer, not the zoomed
-subtree, because re-deriving that probe against a scoped document was left unbuilt when
-the trail's own zoom-awareness landed. `computeTrail` hands that unscoped tree straight to
-`computePositionTrail` with the RAW (whole-document) line number, so a provisional
-position that happens to sit inside a zoomed subtree renders its marker and guides at the
-hidden ancestors' depth instead of the zoom root's.
+**Graduated** — closed by the `positions-re-base-with-the-zoom` change. Kept here with its
+measurement, because the entry as first written named only a quarter of it.
 
-Narrow by construction: it needs an EMPTY caret resting on a BLANK line that ALSO sits
-inside an active zoom scope — the ordinary "caret on a node" trail is unaffected, and so is
-every non-provisional zoomed render (the actual visible CONTENT, decorated through
-`baseFacts`, is already correctly re-based; only this transient highlight-trail is not).
+First found during `outline-zoom`'s review (PR #69, a suppressed Copilot comment on
+`decorations.ts`'s `computeTrail`) and recorded as a trail-only gap. It is not: every render
+path that a provisional position feeds parses the WHOLE buffer, and while zoomed each of them
+hands the decoration layer depths counted from the note's own root instead of from the zoom
+root.
 
-The fix, for whoever picks it up: thread `modes: DecorationSource` into `provisionalAt`/
-`computeProvisional` (neither takes it today), resolve `zoomScope` there, and when a scope
-is active, materialize the probe against `scope.document`'s text with the line number
-translated to root-relative before parsing — the same shift `baseFacts` already applies
-to its facts and guides, just applied one step earlier, before the probe is built rather
-than after. `computeTrail` would then hand `computePositionTrail` the resulting
-scope-relative doc and line exactly as it does for the non-provisional branch.
+`computeProvisional` builds `materializeProbe` against `state.doc.toString()` and parses that.
+Nothing downstream re-bases the result, so `factsFor` and `computeTrail` both spend a
+source-depth tree in a view that `baseFacts` has re-based (design D9). Three separate leaks
+follow, and which of them fires depends on what the position did to the parse:
+
+| While a position is open | Where the depths come from | What re-bases |
+| --- | --- | --- |
+| Position stands for a NEW node | its own fact: whole buffer | every other line's fact |
+| Position stands for a NEW node | guides, every visible line: whole buffer | nothing |
+| Position BISECTS a node | every line's facts AND guides: whole buffer | nothing |
+| Either | the position trail: whole buffer | nothing |
+
+Measured against `# Top` / `## Mid` / `- one` / `  - nested` / (blank) / `- two`, zoomed to
+`## Mid` with the caret on the blank line. The zoomed view renders `## Mid` at depth 0, `- one`
+at 1, `- nested` at 2; with the position open, the position's own row renders at depth 2 where
+a real line there renders at 1, and the guide columns of every visible row gain the hidden
+ancestor's: `## Mid` draws `[0]` where it drew none, `- one` draws `[0, 1]` where it drew `[0]`.
+Opening the position interior to a paragraph instead — the bisecting case — moves the whole
+subtree: `## Mid` renders at depth 1, its paragraph at 2, a sibling item at 3, one level right
+for the one hidden ancestor. Both violate `outline-zoom`'s "Depth is measured from the zoom root
+while zoomed" and `outline-decorations`' "Indentation guides re-base with the zoom scope", and
+both are transient — the view snaps back the moment the caret leaves the blank line.
+
+The fix is one step earlier than the entry originally proposed: build the probe from the SCOPE
+document rather than from the buffer, at a root-relative line, and shift the results back by the
+root's start line — the same translation `baseFacts` and `zoomAwarePositionTrail` already apply,
+applied before the probe is built rather than after. `tree-projection` guarantees the subtree
+document's line K is the source's line N + K with the node's own lines unchanged, so the caret's
+column carries over untouched and the probe asks the same question of a smaller document.
 
 ### A list item's continuation line does not align with the item's own content
 
