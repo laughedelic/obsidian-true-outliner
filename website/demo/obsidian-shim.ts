@@ -393,6 +393,29 @@ function installDomHelpers(): void {
   const W = window as unknown as Record<string, unknown>;
   if (!('activeDocument' in W)) Object.defineProperty(W, 'activeDocument', { get: () => document });
   if (!('activeWindow' in W)) Object.defineProperty(W, 'activeWindow', { get: () => window });
+  // Obsidian also exposes detached-element constructors as globals.
+  const detached = (tag: string, info?: string | DomElementInfo, cb?: (el: HTMLElement) => void) => {
+    const el = document.createElement(tag);
+    applyInfo(el, info);
+    if (typeof info === 'object' && info.parent) info.parent.appendChild(el);
+    cb?.(el);
+    return el;
+  };
+  W.createEl ??= detached;
+  W.createDiv ??= (info?: string | DomElementInfo, cb?: (el: HTMLElement) => void) => detached('div', info, cb);
+  W.createSpan ??= (info?: string | DomElementInfo, cb?: (el: HTMLElement) => void) => detached('span', info, cb);
+  W.createFragment ??= (cb?: (f: DocumentFragment) => void) => {
+    const f = document.createDocumentFragment();
+    cb?.(f);
+    return f;
+  };
+  W.createSvg ??= (tag: string, info?: string | DomElementInfo) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    if (typeof info === 'string') el.setAttribute('class', info);
+    else if (info?.cls) el.setAttribute('class', Array.isArray(info.cls) ? info.cls.join(' ') : info.cls);
+    if (typeof info === 'object' && info.attr) for (const [k, v] of Object.entries(info.attr)) if (v !== null) el.setAttribute(k, String(v));
+    return el;
+  };
 }
 
 installDomHelpers();
