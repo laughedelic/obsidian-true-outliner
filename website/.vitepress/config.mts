@@ -1,9 +1,25 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
 
 // Served from GitHub Pages under the repository path, so every internal link
 // and asset URL has to carry the base. The deploy workflow builds with the
 // same value, and `vitepress dev` serves the site at it too.
 export default defineConfig({
+  vite: {
+    resolve: {
+      alias: {
+        // The live demos import the plugin's editor extensions straight from
+        // `src/`, which import `obsidian`; the shim stands in for the few
+        // symbols they reach.
+        obsidian: fileURLToPath(new URL('../demo/obsidian-shim.ts', import.meta.url)),
+      },
+    },
+    ssr: {
+      // The editor extensions are bundled for the browser only; the shim
+      // touches `Element.prototype` at import time.
+      noExternal: ['@codemirror/state', '@codemirror/view', '@codemirror/commands', '@codemirror/language'],
+    },
+  },
   title: 'True Outliner',
   description: 'A true outliner for Obsidian — any note, plain markdown, structure that cannot break.',
   base: '/obsidian-true-outliner/',
