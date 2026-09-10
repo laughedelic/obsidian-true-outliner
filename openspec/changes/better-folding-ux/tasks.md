@@ -176,6 +176,11 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       whole matrix is CI's to prove on the pushed checkpoint
 - [x] 10.2 Add the folding group's label to `scripts/spec-groups.mjs` so the new decade reports
       under a name rather than its prefix
+- [x] 10.3a What the manual pass found, fixed with a test and a negative control each: a native
+      fold closing over the caret is reopened by the reveal rule (D4 note) — the caret moves out
+      instead; a multi-line node's tail control resolved no node; the chevron is anchored on the
+      midpoint between guide and marker for both controls (D5); the footer's chevron pointed up
+      when folded; and one visual language for marker and chevron across kinds (D6c)
 - [ ] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
       two the measurements found (a moved folded node, Enter on a folded node) — and the one the
       harness could not settle: fold with Obsidian's "Fold heading" and "Fold indent" turned off

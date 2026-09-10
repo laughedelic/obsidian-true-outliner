@@ -114,6 +114,9 @@ body {
     transparent
   );
   --to-decor-accent: var(--text-accent);
+  /* A control under the pointer. One step past the accent, which is what the
+   * theme's own hover colour is for. */
+  --to-decor-highlight: var(--text-accent-hover);
 
   /* A guide stripe's own width. Declared here rather than spelled where a
    * stripe is built, for the reason the unit above records: the gradient and
@@ -528,7 +531,7 @@ body.is-mobile {
   .cm-fold-indicator
   .collapse-indicator {
   transform: translate(
-    calc(-1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px)),
+    calc(-1 * (var(--to-decor-unit) / 2 - var(--to-chevron-glyph, 10px) / 2)),
     var(--to-chevron-dy, 0px)
   );
 }
@@ -999,7 +1002,7 @@ body.is-mobile {
     calc(
       -1 *
         (
-          var(--to-marker-gutter) + var(--to-marker-icon-size, 0.85rem) / 2 + 3px -
+          var(--to-marker-gutter) + var(--to-decor-unit) / 2 - var(--to-chevron-glyph, 10px) / 2 -
             var(--to-chevron-dead-right, 6px)
         )
     ),
@@ -1118,14 +1121,37 @@ body.is-mobile {
  * text, so the same state is three declarations rather than one — the same
  * split the current-node accent already makes for the same two elements.
  */
-.markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon:hover,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number:hover,
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .to-decor-ol-digits:hover {
+/*
+ * Two hover states, one for the LINE and one for the MARK, and they have to
+ * read as two.
+ *
+ * Hovering anywhere on a node's line accents its marker — the same colour the
+ * caret's own trail uses — and reveals its fold chevron: "this is the node the
+ * pointer is on". Hovering the mark ITSELF is the zoom gesture, and takes the
+ * HIGHLIGHT (`--to-decor-highlight`): a step brighter than the accent, so that
+ * a pointer travelling across a line to the mark sees the mark change twice,
+ * once for the node and once for the control. The chevron takes the same
+ * highlight under the pointer, for the same reason — it is the other control
+ * in the gutter, and the two say "interactive" the same way.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line:hover .to-decor-marker-icon,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list:hover .list-number,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list:hover .to-decor-ol-digits {
   color: var(--to-decor-accent);
 }
 
-.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet:hover::after {
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list:hover .list-bullet::after {
   background-color: var(--to-decor-accent);
+}
+
+.markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon:hover,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number:hover,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .to-decor-ol-digits:hover {
+  color: var(--to-decor-highlight);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet:hover::after {
+  background-color: var(--to-decor-highlight);
 }
 
 /*
@@ -3371,6 +3397,26 @@ body.is-mobile {
   stroke-width: 2.4;
 }
 
+/*
+ * The folded chevron matches the folded marker: the two sit side by side and
+ * say one thing, so they say it in one colour. Obsidian's own indicator turns
+ * to `--collapse-icon-color-collapsed` — the accent, in the bundled themes — the
+ * moment it collapses, which beside a marker at text contrast read as a control
+ * being HIGHLIGHTED while nothing was pointing at it. The highlight is kept for
+ * the pointer, where it means something.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .cm-fold-indicator.is-collapsed .collapse-indicator svg,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed,
+.to-backlinks-row.to-decor-folded .to-decor-fold-toggle.is-collapsed {
+  color: var(--text-normal);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .cm-fold-indicator.is-collapsed .collapse-indicator:hover svg,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed:hover,
+.to-backlinks-row.to-decor-folded .to-decor-fold-toggle.is-collapsed:hover {
+  color: var(--to-decor-highlight);
+}
+
 /* The footer draws its own markers, so the folded treatment needs its own
  * selector there: the editor's is scoped to `.cm-content`'s lines, and a footer
  * row is neither. Same weight change, same reasoning — what differs is only
@@ -3431,7 +3477,7 @@ body.is-mobile {
 }
 
 .to-decor-fold-count:hover {
-  color: var(--text-muted);
+  color: var(--to-decor-highlight);
 }
 
 /* Ours says everything the native placeholder says and takes the same click, so
@@ -3488,12 +3534,19 @@ body.is-mobile {
 
 /* What the two copies share: the glyph, and the states it is drawn in. Where
  * the control sits is the surface's own business — the editor's box is below,
- * the footer's is with the rest of the footer's column arithmetic. */
+ * the footer's is with the rest of the footer's column arithmetic.
+ *
+ * Drawn in Obsidian's own chevron colour, so that where ours stands in for the
+ * native indicator nothing about it reads as a different control. */
 .to-decor-fold-toggle {
-  color: var(--text-faint);
+  color: var(--collapse-icon-color, var(--text-faint));
   opacity: 0;
   cursor: var(--cursor, pointer);
   transition: opacity 100ms ease-in-out;
+}
+
+.to-decor-fold-toggle:hover {
+  color: var(--to-decor-highlight);
 }
 
 .to-decor-fold-toggle svg {

@@ -184,6 +184,77 @@ describe('fold chrome', () => {
     }
   });
 
+  it('centres the control between the parent’s guide and the marker, at any unit', async () => {
+    // Half a unit left of the marker column, for every kind and whichever of
+    // the two controls the line shows — so the affordance keeps its place when
+    // the indentation width is changed, and a paragraph's sits where a
+    // heading's and a list item's do. Anchored a fixed gutter off the marker
+    // instead, the three disagreed by the width of a glyph and none of them
+    // moved with the unit.
+    //
+    // At TWO units, because at the default one the fixed anchor and the
+    // midpoint are a pixel apart and either would pass: what is asserted is
+    // that the control follows the unit, which only a second unit can show.
+    const centred = async (lines: number[]): Promise<void> => {
+      for (const line of lines) {
+        const { gap, unit } = await h.foldControlGap(line);
+        expect({ line, unit, centred: Math.abs(gap - unit / 2) < 2 }).toEqual({
+          line,
+          unit,
+          centred: true,
+        });
+      }
+    };
+    const WIDER = 'body { --to-decor-unit: 3rem; }';
+    await centred([2, 4, 5]);
+    await h.applyStyleOverride('wider-unit', WIDER);
+    try {
+      await centred([2, 4, 5]);
+    } finally {
+      await h.applyStyleOverride('wider-unit', null);
+    }
+
+    // Ours, where it is the control shown: a folded paragraph over two lines,
+    // under a heading so a guide runs beside it to read the unit from.
+    await h.createNote(NOTE, ['# Head', '', ...MULTILINE.split('\n')].join('\n'));
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+    await h.setCursorSettled(2, 4);
+    await h.runCommand('fold-node');
+    await h.setCursorSettled(0, 0);
+    await centred([2]);
+    await h.applyStyleOverride('wider-unit', WIDER);
+    try {
+      await centred([2]);
+    } finally {
+      await h.applyStyleOverride('wider-unit', null);
+    }
+  });
+
+  it('gives the folded control the folded marker’s colour, and the hovered line the accent', async () => {
+    // One visual language for the mark and the chevron beside it, whichever of
+    // the two controls the line shows. Folded: the chevron takes the colour the
+    // marker's folded treatment gives it, rather than Obsidian's own collapsed
+    // colour — the accent, which beside a marker at text contrast read as a
+    // control being highlighted while nothing pointed at it. Hovered: the mark
+    // takes the caret trail's accent, saying which node the pointer is on.
+    await h.setCursorSettled(4, 3);
+    await h.runCommand('fold-node');
+    await h.setCursorSettled(0, 3);
+    await h.runCommand('fold-node');
+    await h.setCursorSettled(2, 4); // between the two, hovering neither
+    await h.hoverLineText(2);
+    const heading = await h.foldChromeColors(0);
+    const bullet = await h.foldChromeColors(4);
+    expect(heading.control).toBe(heading.marker);
+    expect(bullet.control).toBe(bullet.marker);
+    // The caret's own line carries the accent; a hovered line is drawn in it.
+    const caret = (await h.foldChromeColors(2)).marker;
+    await h.hoverLineText(0);
+    expect((await h.foldChromeColors(0)).marker).toBe(caret);
+  });
+
   it('treats a multi-line node as one node, marker above and count below', async () => {
     // A fold begins at the end of a node's own TEXT, so a paragraph running
     // over two source lines starts its fold on the second — while its marker,
@@ -211,6 +282,14 @@ describe('fold chrome', () => {
     expect(await h.foldAffordanceCount(0)).toBe(1);
     expect(await h.foldAffordanceCount(1)).toBe(0);
     expect(await h.foldAffordanceVisible(0)).toBe(true);
+
+    // And the count — on the node's LAST own line — still names the node. It
+    // resolved the node through the chrome target, which answers for a first
+    // line only, so on every multi-line node the one control after the text
+    // did nothing when pressed, while every single-line node's worked.
+    await h.setCursorSettled(0, 4);
+    await h.clickFoldCount(1);
+    expect(await h.foldedLineRanges()).toEqual([]);
   });
 
   it('keeps the count and the affordance when markers are hidden', async () => {

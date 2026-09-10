@@ -1423,8 +1423,12 @@ class FooterController {
       fold.setAttribute('aria-label', expanded ? 'Hide children' : `Show ${row.foldedCount} hidden`);
       fold.setAttribute('aria-expanded', expanded ? 'true' : 'false');
       fold.toggleClass('is-collapsed', !expanded);
+      // The DOWN chevron, as the editor's own control draws it: the shared
+      // `.is-collapsed` rotation turns a down-pointing glyph to the right,
+      // which is what "folded" looks like everywhere else. Starting from the
+      // right-pointing glyph turned it to point UP when folded.
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-      fold.appendChild(chevronGlyph(false));
+      fold.appendChild(chevronGlyph(true));
       const toggle = (event: Event) => {
         event.stopPropagation();
         const rows = viewStateFor(this.targetPath).expandedRows;

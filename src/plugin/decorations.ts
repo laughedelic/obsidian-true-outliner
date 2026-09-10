@@ -1230,20 +1230,23 @@ function buildChevron(): SVGSVGElement {
 
 /**
  * How far left of its own box the toggle's glyph belongs: from that box's
- * origin to one marker gutter left of the line's marker column.
+ * origin to the MIDPOINT between the parent's guide and the line's marker
+ * column — half a unit left of the column, whatever the unit is set to, so the
+ * control keeps its place when the indentation width changes.
  *
  * The box sits in the line's flow and takes up none of it (styles.css), so the
  * origin is wherever the line's first inline box starts — and that is not the
  * same place for both kinds. A block line's own text starts one gutter right of
- * its marker column, by the definition of the gutter, so the answer is two
- * gutters back whatever the depth. A LIST line hangs its indentation, which
+ * its marker column, by the definition of the gutter, so the answer is a gutter
+ * and a half-unit back whatever the depth. A LIST line hangs its indentation, which
  * puts that first box back at the line's own left edge, so the column has to be
  * named outright: the depth's column, less the shift the depth rules have
  * already given the box itself.
  */
 function foldToggleLeftExpr(fact: LineDecorationFact): string {
-  if (!fact.isListItem) return `calc(-2 * ${MARKER_GUTTER_CSS})`;
-  return `calc(${fact.depth} * ${UNIT_EXPR} - ${plainOwnShiftExpr(fact)} - ${MARKER_GUTTER_CSS})`;
+  const half = `${UNIT_EXPR} / 2`;
+  if (!fact.isListItem) return `calc(-1 * ${MARKER_GUTTER_CSS} - ${half})`;
+  return `calc(${fact.depth} * ${UNIT_EXPR} - ${plainOwnShiftExpr(fact)} - ${half})`;
 }
 
 function computeFoldToggles(state: EditorState): DecorationSet {
@@ -2541,6 +2544,7 @@ class MarginCompensation implements PluginValue {
    * `view.dom` serves the descendant chevron rule just as well).
    */
   private lastDeadRight = '';
+  private lastGlyphWidth: string | null = null;
 
   /** Last published `--to-space-advance`, so an unchanged one is not rewritten. */
   private lastSpaceAdvance = '';
@@ -2628,9 +2632,17 @@ class MarginCompensation implements PluginValue {
     // Found, but the browser has not laid it out yet — see `scheduleRemeasure`.
     if (wrapperRect.width === 0 || glyphRect.width === 0) return 'not-laid-out';
     const deadRight = `${(wrapperRect.right - glyphRect.right).toFixed(1)}px`;
-    if (deadRight === this.lastDeadRight) return 'done';
+    // The glyph's own width too: the chevron is centred on the midpoint between
+    // the parent's guide and the marker, and a centre is half a width from the
+    // edge the transform actually moves.
+    const glyphWidth = `${glyphRect.width.toFixed(1)}px`;
+    if (deadRight === this.lastDeadRight && glyphWidth === this.lastGlyphWidth) return 'done';
     this.lastDeadRight = deadRight;
-    this.view.dom.setCssProps({ '--to-chevron-dead-right': deadRight });
+    this.lastGlyphWidth = glyphWidth;
+    this.view.dom.setCssProps({
+      '--to-chevron-dead-right': deadRight,
+      '--to-chevron-glyph': glyphWidth,
+    });
     return 'done';
   }
 

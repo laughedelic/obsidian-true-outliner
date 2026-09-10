@@ -1065,6 +1065,79 @@ export function foldTailControlCount(line: number): Promise<number> {
   }, line);
 }
 
+/**
+ * How far LEFT of a line's marker column the fold control it shows is drawn,
+ * with the unit those guides repeat at — for asserting the control sits on the
+ * midpoint between the parent's guide and the marker, whatever the unit is.
+ *
+ * The column is read from the guide overlay's own origin and the line's depth,
+ * the same way `guideColumnPoint` finds a guide; the control is whichever of
+ * the two the line shows.
+ */
+export function foldControlGap(line: number): Promise<{ gap: number; unit: number }> {
+  return browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll<HTMLElement>(
+      '.workspace-leaf.mod-active .cm-content > .cm-line',
+    )[n];
+    if (!el) throw new Error(`no line ${n}`);
+    const box = el.getBoundingClientRect();
+    const after = getComputedStyle(el, '::after');
+    const unit = parseFloat(after.backgroundSize);
+    if (!(unit > 1)) throw new Error(`line ${n} paints no guides to measure a unit from`);
+    const origin = parseFloat(after.left) + parseFloat(after.borderLeftWidth);
+    const depth = Number(getComputedStyle(el).getPropertyValue('--to-depth'));
+    const column = box.left + origin + depth * unit;
+    const glyph = Array.from(
+      el.querySelectorAll('.cm-fold-indicator .collapse-indicator svg, .to-decor-fold-toggle svg'),
+    ).find((g) => g.getBoundingClientRect().width > 0);
+    if (!glyph) throw new Error(`line ${n} shows no fold control`);
+    const rect = glyph.getBoundingClientRect();
+    return { gap: Number((column - (rect.left + rect.width / 2)).toFixed(1)), unit };
+  }, line);
+}
+
+/** The painted colour of a line's marker and of the fold control it shows. */
+export function foldChromeColors(line: number): Promise<{ marker: string; control: string | null }> {
+  return browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll<HTMLElement>(
+      '.workspace-leaf.mod-active .cm-content > .cm-line',
+    )[n];
+    if (!el) throw new Error(`no line ${n}`);
+    const mark =
+      el.querySelector<HTMLElement>(':scope > .to-decor-marker-icon') ??
+      el.querySelector<HTMLElement>('.list-number') ??
+      el.querySelector<HTMLElement>('.list-bullet');
+    if (!mark) throw new Error(`line ${n} has no marker`);
+    // A bullet paints its dot as a background on its `::after`; every other
+    // mark is `color`.
+    const marker = mark.classList.contains('list-bullet')
+      ? getComputedStyle(mark, '::after').backgroundColor
+      : getComputedStyle(mark).color;
+    const glyph = Array.from(
+      el.querySelectorAll<SVGElement>('.cm-fold-indicator .collapse-indicator svg, .to-decor-fold-toggle svg'),
+    ).find((g) => g.getBoundingClientRect().width > 0);
+    return { marker, control: glyph ? getComputedStyle(glyph).color : null };
+  }, line);
+}
+
+/** Park the pointer on a line's text, so the line is hovered and nothing in
+ * its gutter is. */
+export async function hoverLineText(line: number): Promise<void> {
+  const point = await browser.executeObsidian(({}, n: number) => {
+    const el = document.querySelectorAll<HTMLElement>(
+      '.workspace-leaf.mod-active .cm-content > .cm-line',
+    )[n];
+    if (!el) throw new Error(`no line ${n}`);
+    const box = el.getBoundingClientRect();
+    return { x: box.left + parseFloat(getComputedStyle(el).paddingLeft) + 40, y: box.top + 10 };
+  }, line);
+  await browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' })
+    .perform();
+  await browser.pause(150);
+}
+
 /** Is the count part of the editable document, or chrome beside it? */
 export function foldCountIsEditable(line: number): Promise<boolean> {
   return browser.executeObsidian(({}, n: number) => {

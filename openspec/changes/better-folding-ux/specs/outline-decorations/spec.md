@@ -44,6 +44,40 @@ fold affordance SHALL still be offered — the setting governs the kind mark, no
 - **WHEN** the marker-visibility setting hides markers and a node is folded
 - **THEN** the hidden count and the fold affordance are still shown
 
+### Requirement: The marker and the fold control share one visual language
+
+The mark and the chevron beside it describe one node, and SHALL say so in one vocabulary, for
+every kind and whichever of the two controls — Obsidian's or the plugin's — a line shows:
+
+- **At rest**, unfolded: the chevron is hidden and the marker is muted, or carries the caret's
+  accent when the caret is on the node or in its subtree — the existing rule.
+- **Hovering the line**: the chevron appears and the marker takes the same ACCENT the caret's trail
+  uses, naming the node the pointer is on.
+- **Hovering the mark itself** — the zoom gesture — or hovering a chevron: the control takes the
+  HIGHLIGHT, one step past the accent, so a pointer travelling across a line to the mark sees it
+  change twice, once for the node and once for the control.
+- **Folded**: the marker carries the folded treatment above and the chevron SHALL match it, rather
+  than take Obsidian's own collapsed colour — the accent in the bundled themes, which beside a
+  marker at text contrast read as a control being highlighted while nothing pointed at it.
+- **Hovering a folded chevron**: the highlight, as for any control under the pointer.
+
+The chevron SHALL be centred between the parent's guide and the node's marker — half an
+indentation unit left of the marker column — for every kind, whatever the unit is set to. Anchored
+a fixed distance off the marker instead, a paragraph's control sat nearer its marker than a
+heading's, and none of them followed the unit.
+
+#### Scenario: A folded chevron matches its marker
+- **WHEN** a heading and a list item are folded
+- **THEN** each one's chevron is drawn in the same colour as its marker
+
+#### Scenario: A hovered line accents its marker
+- **WHEN** the pointer rests on the text of a node the caret is not on
+- **THEN** its marker takes the colour the caret's own node carries
+
+#### Scenario: The control sits at the midpoint at every unit
+- **WHEN** a heading, a paragraph and a list item each offer a fold control
+- **THEN** each control is half a unit left of its marker column
+
 ### Requirement: A node we make foldable, with no native chevron, receives our own
 
 Obsidian paints its fold indicator on heading and list lines by a rule of its own, which takes no

@@ -47,6 +47,10 @@ they SHALL NOT be written to the document and SHALL NOT persist beyond the foote
 - **WHEN** a row hiding two children renders beside a row with none
 - **THEN** the first carries the folded marker treatment and the second does not
 
+#### Scenario: A folded row's control points right
+- **WHEN** a row is folded
+- **THEN** its control reads as pointing right, the way a folded node's does in the editor
+
 #### Scenario: The control is operable from the keyboard
 
 - **WHEN** the reader tabs to a row's fold control and presses Enter, then Space

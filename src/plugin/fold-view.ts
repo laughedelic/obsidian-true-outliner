@@ -15,6 +15,7 @@
 
 import { EditorView, ViewPlugin, type PluginValue, type ViewUpdate } from '@codemirror/view';
 import type { EditorState, Extension } from '@codemirror/state';
+import { foldEffect } from '@codemirror/language';
 import { isOutlineMode } from './outline-state';
 import { currentFolds, unfoldEffectsWithin, type FoldRange } from './fold-ops';
 
@@ -54,11 +55,31 @@ class FoldRevealPlugin implements PluginValue {
     const hiding = this.foldsHidingSelection(update.state);
     if (hiding.length === 0) return;
     const positions = this.selectionPositions(update.state);
+    // Which of the two contradicted the other decides which one gives way. A
+    // fold that ARRIVED in this update, over a caret that was already there, is
+    // the reader folding a node from above the caret — Obsidian's own chevron
+    // dispatches the fold and nothing else — and undoing it would make every
+    // ancestor of the caret unfoldable, more of them the deeper the caret sat.
+    // The caret moves out instead, to where our own fold gesture would have put
+    // it. A caret that arrived in an existing fold is the other case, and the
+    // fold gives way.
+    const arrived = update.transactions.flatMap((tr) =>
+      tr.effects.filter((effect) => effect.is(foldEffect)).map((effect) => effect.value),
+    );
+    const justFolded = hiding.filter((range) =>
+      arrived.some((fold) => fold.from === range.from && fold.to === range.to),
+    );
     queueMicrotask(() => {
       // The selection may have moved on while this waited; re-derive rather
       // than acting on what was true a microtask ago.
       if (!isOutlineMode(this.view.state)) return;
       if (!sameNumbers(positions, this.selectionPositions(this.view.state))) return;
+      if (justFolded.length > 0) {
+        // The outermost: its start is on a visible line, whatever is nested.
+        const anchor = Math.min(...justFolded.map((range) => range.from));
+        this.view.dispatch({ selection: { anchor } });
+        return;
+      }
       const effects = this.foldsHidingSelection(this.view.state).flatMap((range) =>
         unfoldEffectsWithin(this.view.state, range.from, range.from),
       );

@@ -415,6 +415,37 @@ describe('backlinks footer: behaviour', function () {
     expect(await rows()).toEqual(start);
   });
 
+  it('draws the fold control pointing down, so folded reads as pointing right', async function () {
+    // The shared `.is-collapsed` rule rotates the glyph a quarter turn
+    // anticlockwise, which turns a DOWN chevron to the right — the folded
+    // reading every other control in the editor has. Built from the
+    // right-pointing glyph instead, the footer's pointed UP when folded and
+    // right when open. Read as geometry from the path rather than as a string:
+    // the two arms end level with each other, and the apex sits below them.
+    await openFooter(TARGET);
+    const points = await browser.executeObsidian(() => {
+      const d = document
+        .querySelector('.workspace-leaf.mod-active .to-backlinks-fold svg path')
+        ?.getAttribute('d');
+      if (!d) throw new Error('no fold glyph in the footer');
+      const nums = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+      const abs = /^M/.test(d);
+      const out: Array<[number, number]> = [];
+      let [x, y] = [0, 0];
+      for (let i = 0; i + 1 < nums.length; i += 2) {
+        if (i === 0 && abs) [x, y] = [nums[i]!, nums[i + 1]!];
+        else if (/l/.test(d)) [x, y] = [x + nums[i]!, y + nums[i + 1]!];
+        else [x, y] = [nums[i]!, nums[i + 1]!];
+        out.push([x, y]);
+      }
+      return out;
+    });
+    expect(points.length).toBe(3);
+    const [a, apex, b] = points as [[number, number], [number, number], [number, number]];
+    expect(a[1]).toBe(b[1]);
+    expect(apex[1]).toBeGreaterThan(a[1]);
+  });
+
   /**
    * The footer shares the editor's fold CHROME and none of its semantics. An
    * editor line has a fold command behind it; a footer row has nothing, so this

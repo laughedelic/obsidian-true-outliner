@@ -152,7 +152,13 @@ node with children. That is the whole reason the condition is written this way.
 `outline-decorations` states how both are positioned and how a folded one is drawn.
 
 A click on the affordance SHALL toggle the node's fold and SHALL NOT place the caret, begin a
-selection, or zoom.
+selection, or zoom. So SHALL a click on the folded node's tail control, on whichever of the
+node's own lines it is drawn — a node running over several source lines carries its marker on the
+first and its tail control after the last.
+
+#### Scenario: The tail control of a multi-line node unfolds it
+- **WHEN** a paragraph running over two source lines is folded and its tail control is clicked
+- **THEN** the paragraph unfolds
 
 #### Scenario: A paragraph with children gains a fold affordance
 - **WHEN** the pointer hovers a paragraph that has attached children
@@ -270,9 +276,19 @@ Any operation that would place the caret or a selection endpoint inside a folded
 that fold first. Hidden text the caret is in cannot be seen, edited with any confidence, or found
 again.
 
+The rule is about a caret ARRIVING in hidden content. A fold that closes over a caret already
+there — the reader folding an ancestor from above it, through Obsidian's own chevron, which
+dispatches the fold and nothing else — SHALL stand, and the caret SHALL move to the fold's own head
+line, where the plugin's own fold gestures leave it. Reopening such a fold made every ancestor of
+the caret unfoldable by pointer, more of them the deeper the caret sat.
+
 #### Scenario: Navigating into a folded subtree opens it
 - **WHEN** a command places the caret on a node inside a folded range
 - **THEN** the fold containing it opens and the caret is visible
+
+#### Scenario: A fold closing over the caret moves the caret out
+- **WHEN** the caret is on a nested item and an ancestor is folded through Obsidian's own control
+- **THEN** the ancestor stays folded and the caret is on its head line
 
 ### Requirement: Fold state persists per file, under a setting
 

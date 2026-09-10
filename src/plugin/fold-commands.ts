@@ -18,11 +18,11 @@
 import type { EditorState, StateEffect } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { parsedDoc } from './parsed-doc';
-import { foldChromeTarget } from './fold-service';
 import { isOutlineMode } from './outline-state';
 import { zoomScope } from './zoom-scope';
 import {
   ancestryAtLine,
+  entryAtLine,
   foldableEntries,
   foldTargetAtLine,
   isFoldable,
@@ -125,10 +125,19 @@ export function applyFold(view: EditorView, entries: FoldEntry[], action: FoldAc
  * entry point, which names its node by the line it was drawn on rather than by
  * the selection. No escalation: the affordance belongs to one node, and it is
  * the one the reader clicked.
+ *
+ * ANY of the node's own lines, not only its first. The toggle is drawn beside
+ * the marker on the first line, but the count is drawn after the text on the
+ * LAST, and for a node running over several source lines those differ —
+ * resolved through the chrome target, which answers for the first line only, a
+ * folded paragraph's count did nothing when pressed while every single-line
+ * node's worked.
  */
 export function toggleFoldAtLine(view: EditorView, lineNumber: number): boolean {
-  const entry = foldChromeTarget(view.state, lineNumber);
-  return entry ? applyFold(view, [entry], 'toggle') : false;
+  const { doc } = parsedDoc(view.state.doc);
+  const entry = entryAtLine(doc, lineNumber);
+  if (!entry || entry.node.children.length === 0) return false;
+  return applyFold(view, [entry], 'toggle');
 }
 
 /**

@@ -131,6 +131,14 @@ positions are already stated in the document the change produces. Measured: a fo
 an indent landed one line late, and one carried through a move landed inside deleted text and
 vanished.
 
+*A fold closing over the caret.* The reveal rule (caret never in hidden content) has one case it
+must not apply to: Obsidian's own chevron dispatches a fold and nothing else, so folding an
+ancestor from above a caret that sits deeper hides that caret — and reopening the fold made every
+ancestor of the caret unfoldable by pointer, more of them the deeper the caret sat. The view
+plugin tells the two apart by what arrived in the update: a fold effect over a caret that was
+already there moves the caret to the fold's head line (where our own gestures put it); a caret
+arriving in an existing fold opens the fold.
+
 ### D4a. Folding stays out of the history, and undo restores it anyway
 
 Folding is view state, not document state: a fold produces no `ChangeSet`, so nothing about it
@@ -166,6 +174,13 @@ more than it first appeared, because the configuration this was expected to serv
 settings off) turned out to be one the harness cannot drive reliably enough to test. The test
 takes Obsidian's indicators out of the DOM directly instead, which is the same condition and a
 deterministic one.
+
+*Where in the gutter:* the midpoint between the parent's guide and the marker — half a unit left
+of the marker column — for ours and for the native chevron alike, which the plugin already
+transforms per line. The first version anchored both a fixed gutter-and-a-half off the marker,
+which the manual pass caught two ways: a paragraph's control sat visibly nearer its marker than a
+heading's (a glyph's width of difference between the two anchors), and neither moved when the
+indentation width was changed. The footer had made the midpoint choice already.
 
 *Alternative rejected:* a CM6 `gutter()` beside the content. It is the obvious mechanism and the
 wrong one here: a gutter sits outside the readable-line-width column, so the affordance would
@@ -224,6 +239,34 @@ say.
 make a future Obsidian release that sets it a startup failure rather than a cosmetic clash. The
 native placeholder is left in place and hidden by a rule keyed on ours being present, which is the
 same mechanism the fold affordance already uses for the native chevron.
+
+### D6c. The marker and the chevron speak one language — decided
+
+Found in the manual pass: a folded paragraph looked different from a folded heading or list item,
+because the two controls came from different hands. Obsidian's chevron turns to
+`--collapse-icon-color-collapsed` — the accent, in the bundled themes — the moment it collapses,
+while ours stayed muted; beside a marker at text contrast the native one read as highlighted with
+nothing pointing at it, and ours read as inert.
+
+The states, for every kind and whichever control the line shows:
+
+| state | marker | chevron |
+| --- | --- | --- |
+| rest, unfolded | muted; caret accent when the caret is on or under the node | hidden |
+| line hovered | accent — "this node" | shown, Obsidian's chevron colour |
+| mark hovered (zoom) | highlight | — |
+| chevron hovered | — | highlight |
+| folded | solid, text contrast (D6) | the same colour as the marker |
+| folded, chevron hovered | solid | highlight |
+
+Two tokens carry it: `--to-decor-accent` (the caret trail's colour, already in use) and a new
+`--to-decor-highlight` (`--text-accent-hover`), one step past it, for a control under the pointer.
+The marker's own hover — the zoom gesture — moves from the accent to the highlight, so that
+hovering a line and hovering its mark are two states rather than one.
+
+Left open, deliberately: a keyboard focus ring on the footer's button (a real `button`, so the
+platform's own applies), and whether a touch layout should show every chevron at rest — it does
+today, under `(pointer: coarse)`, and nothing here changes that.
 
 ### D7. The guide gesture is hit-test arithmetic, not an element
 

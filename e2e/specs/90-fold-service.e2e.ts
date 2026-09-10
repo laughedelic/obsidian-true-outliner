@@ -26,7 +26,7 @@
  * route docs/research/28 measured through.
  */
 
-import { expect } from '@wdio/globals';
+import { browser, expect } from '@wdio/globals';
 import * as h from '../helpers.js';
 
 const NOTE = 'Scratch/fold-service.md';
@@ -151,6 +151,23 @@ describe('fold service', () => {
     ]);
     await h.runEditorExec('toggleFold');
     expect(await h.foldedLineRanges()).toEqual([]);
+  });
+
+  it('moves the caret out of a native fold that closes over it, rather than reopening', async () => {
+    // Obsidian's own chevron dispatches the fold and nothing else, so folding a
+    // parent from above a caret that sits deeper hides that caret. The reveal
+    // rule exists for a caret that MOVES into hidden text; applied here it
+    // undid every such fold the instant it landed — and the deeper the caret,
+    // the more ancestors could not be folded at all. The caret gives way
+    // instead, to the fold's own head line.
+    await h.setCursorSettled(5, 4); // "- nested a", inside "- one" inside the paragraph
+    await h.runEditorExec('foldAll');
+    await browser.pause(150);
+    const folded = await h.foldedLineRanges();
+    expect(folded.map((r) => r.from)).toContain(0); // # Top, the outermost, still folded
+    expect(folded.map((r) => r.from)).toContain(2); // the paragraph too
+    // On a visible line: the outermost fold's own head.
+    expect((await h.getCursor()).line).toBe(0);
   });
 
   it('gives every kind we fold a native chevron — including the paragraph', async () => {
