@@ -60,6 +60,17 @@ if (!existsSync(out)) {
  */
 const HALVE = 'scale=trunc(iw/4)*2:trunc(ih/4)*2';
 
+/**
+ * A desktop capture is a whole 1280x800 window in which the note sits in a
+ * 700px readable-width column; on a page that shows the capture at half that
+ * width the text would be unreadably small. The note column is kept and the
+ * empty margins go. The settings modal and the phone frame are their own
+ * shapes and stay whole.
+ */
+const NOTE_COLUMN = 'crop=760:ih:260:0';
+const keepsWholeWindow = (name) => /^(settings|mobile-)/.test(name);
+const filters = (name) => (keepsWholeWindow(name) ? HALVE : `${HALVE},${NOTE_COLUMN}`);
+
 const clipsDir = path.join(media, 'clips');
 const shotsDir = path.join(media, 'shots');
 mkdirSync(clipsDir, { recursive: true });
@@ -83,7 +94,7 @@ function encodeClip(dir) {
   writeFileSync(listFile, `${list}\nfile '${path.join(dir, last.file)}'\n`);
   const total = (frames.reduce((sum, f) => sum + f.dwellMs, 0) / 1000).toFixed(3);
 
-  const common = ['-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-vf', `${HALVE},fps=10`, '-t', total];
+  const common = ['-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-vf', `${filters(name)},fps=10`, '-t', total];
   const mp4 = path.join(clipsDir, `${name}.mp4`);
   run(ffmpeg, [...common, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '23', '-preset', 'slow', '-movflags', '+faststart', '-an', mp4]);
   const webm = path.join(clipsDir, `${name}.webm`);
@@ -94,7 +105,8 @@ function encodeClip(dir) {
 }
 
 function encodePng(from, to) {
-  run(ffmpeg, ['-loglevel', 'error', '-y', '-i', from, '-vf', HALVE, '-compression_level', '100', '-pred', 'mixed', to]);
+  const name = path.basename(to, '.png');
+  run(ffmpeg, ['-loglevel', 'error', '-y', '-i', from, '-vf', filters(name), '-compression_level', '100', '-pred', 'mixed', to]);
 }
 
 function encodeShot(file) {
