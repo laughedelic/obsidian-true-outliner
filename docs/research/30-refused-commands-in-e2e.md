@@ -111,18 +111,30 @@ The reproduction attempts, all against mobile emulation:
 
 ## What changed
 
-The operand moved to the last **top-level** node. Both it and the last node end the document, which
-is what the case is about, but only a top-level node here has a previous sibling, so all four
+The operand moved to the last **flush-left list item**. Both it and the last node end the document,
+which is what the case is about, but only the flush-left item has a previous sibling, so all four
 operations now apply.
+
+Flush-left is a source-level description, and the distinction is not pedantry. This fixture opens
+with a paragraph, and `parse`'s attachment rule makes a list that follows one a child of that
+paragraph — `doc.children` holds exactly one node, and `- kitchen` is the paragraph's last child
+rather than the document's. Calling it top-level would put the research record at odds with the
+model it cites.
 
 That restores an invariant the sequence should always have had, and it is now asserted absolutely
 in each half rather than only across them: four operations that undo one another must leave the
 document exactly as they found it.
 
 That round trip is necessary but **not sufficient**, and the first version of this fix stopped
-there. With a top-level operand a refused `indent-node` leaves `outdent-node` refused too —
-`outdentSurgery` rejects a top-level path as `at-top-level` — and the move pair then cancels on
-its own, so two refusals still return the document unchanged. Refusals can hide behind each other.
+there. Refusals can hide behind each other: if `move-node-up` is refused, the operand stays last
+among its siblings, so `move-node-down` is refused too (`no-sibling-below`), and a document that
+never moved is indistinguishable from one that moved and came back.
+
+An earlier version of this note gave a different example — a refused `indent-node` leaving
+`outdent-node` refused as `at-top-level` — which measurement does not support. That reading assumed
+a document-root operand; the attachment rule above means the operand's path is two deep, so outdent
+would apply and the round trip would in fact have caught it. The general claim holds and the
+concrete case above is the one this fixture actually offers.
 
 What closes that is requiring each step to **change** the document: the buffer is captured after
 every command, and a step that changed nothing is a step that was refused. Confirmed by putting

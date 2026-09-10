@@ -101,9 +101,10 @@ async function measure(): Promise<Observations> {
   const lines = original.split('\n');
   // The document's own last line and its last line WITH CONTENT are different when
   // the file ends with a newline, which every well-formed note does. Caret and
-  // selection questions want the former (that is where the widget sits);
-  // structural operations want the latter (an empty trailing line is a gap, not
-  // a node, and `content-space-caret` will not put a caret in column 1 of it).
+  // selection questions want the former (that is where the widget sits); the
+  // caret probes below want the latter (an empty trailing line is a gap, not a
+  // node, and `content-space-caret` will not put a caret in column 1 of it).
+  // The structural operations take neither — see their own operand below.
   const lastLine = lines.length - 1;
   const lastContentLine = lines.reduce((last, text, i) => (text.trim() ? i : last), 0);
 
@@ -146,10 +147,16 @@ async function measure(): Promise<Observations> {
   }
 
   // --- structural operations on the last node ---------------------------
-  // The operand is the last TOP-LEVEL node rather than the last node in the
-  // document. Both end the document, which is where the widget sits and what
-  // this case is about, but only a top-level node here has a previous sibling
-  // — and `indent-node` without one is refused.
+  // The operand is the last FLUSH-LEFT list item rather than the last node in
+  // the document. Both end the document, which is where the widget sits and
+  // what this case is about, but only the flush-left item has a previous
+  // sibling — and `indent-node` without one is refused.
+  //
+  // Flush-left is a source-level description, deliberately, and not a claim
+  // about the tree: this fixture opens with a paragraph, and the attachment
+  // rule in `parse` makes a list that follows one a child of that paragraph.
+  // `doc.children` here holds exactly one node. `- kitchen` is the paragraph's
+  // last child, not the document's.
   //
   // A refusal is invisible from the harness. `executeCommandById` reports that
   // the command RAN, because the operation declines inside it and says so with
@@ -157,7 +164,7 @@ async function measure(): Promise<Observations> {
   // indented therefore turned one of the four into a silent no-op, which is why
   // the assertions below require each operation to change the document rather
   // than only checking where the sequence ends up.
-  const lastTopLevelLine = lines.reduce(
+  const lastFlushLeftItemLine = lines.reduce(
     (last, text, i) => (text.trim() && !/^\s/.test(text) ? i : last),
     0,
   );
@@ -166,7 +173,7 @@ async function measure(): Promise<Observations> {
   // and it wins under mobile emulation where the plain set does not. Every
   // assertion about where a caret ENDS UP is still made after the gesture, so
   // settling the start cannot hide a placement bug.
-  await h.setCursorSettled(lastTopLevelLine, 1);
+  await h.setCursorSettled(lastFlushLeftItemLine, 1);
   const bufferBeforeOps = await h.getBuffer();
   // The buffer after EACH command, not only after the four. A round trip that
   // returns the document unchanged is necessary but not sufficient: with a
@@ -280,18 +287,21 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     expect(withWidget.caretArrowDownFromLast).toEqual(without.caretArrowDownFromLast);
     expect(withWidget.caretAfterClickBelowLast).toEqual(without.caretAfterClickBelowLast);
     expect(withWidget.selectAllLadder).toEqual(without.selectAllLadder);
-    expect(withWidget.bufferAfterOps).toEqual(without.bufferAfterOps);
-    expect(withWidget.buffersDuringOps).toEqual(without.buffersDuringOps);
-    // Absolutely, in BOTH halves, and not only across them. The differential
-    // comparison above cannot see an operation refused in both — it compares two
-    // identical wrong answers and passes — which is the blind spot that let a
-    // refused `indent-node` sit in this sequence unnoticed.
-    //
-    // Every step must have changed the document, which is the part a round trip
-    // alone does not give: refusals can cancel each other and still return the
-    // document unchanged.
+    // Named refusals FIRST, before the buffer comparisons below. A refusal in
+    // one half only is a difference between the halves, so a differential
+    // comparison reaches it first and reports it as a raw buffer diff — which
+    // is exactly the failure this case produced on CI, and exactly the diff
+    // someone then has to sit and decode. Asking which operation declined
+    // before asking whether the two halves agree costs nothing and answers the
+    // question the diff cannot.
     expect(changesPerOp(without)).toEqual(ALL_APPLIED);
     expect(changesPerOp(withWidget)).toEqual(ALL_APPLIED);
+
+    expect(withWidget.bufferAfterOps).toEqual(without.bufferAfterOps);
+    expect(withWidget.buffersDuringOps).toEqual(without.buffersDuringOps);
+    // Absolutely, in BOTH halves, and not only across them: a differential
+    // comparison cannot see an operation refused in both, because it compares
+    // two identical wrong answers and passes.
     expect(without.bufferAfterOps).toEqual(without.bufferBeforeOps);
     expect(withWidget.bufferAfterOps).toEqual(withWidget.bufferBeforeOps);
     expect(withWidget.caretAfterOps).toEqual(without.caretAfterOps);
