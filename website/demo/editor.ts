@@ -161,15 +161,17 @@ export function createOutlineEditor(parent: HTMLElement, options: OutlineEditorO
 
 // ---- Scripted keystrokes ----------------------------------------------------
 
-export type ScriptStep =
-  | { key: string; mod?: boolean; shift?: boolean; alt?: boolean; label?: string }
+export type ScriptStep = { label?: string } & (
+  | { key: string; mod?: boolean; shift?: boolean; alt?: boolean }
   | { type: string }
   | { cursor: [number, number] }
   | { select: [[number, number], [number, number]] }
   | { click: 'marker'; line: number }
+  | { zoom: 'out' }
   | { outline: boolean }
   | { pause: number }
-  | { say: string };
+  | { say: string }
+);
 
 export interface ScriptRunner {
   run(steps: ScriptStep[], onStep?: (step: ScriptStep, index: number) => void): Promise<void>;
@@ -262,6 +264,8 @@ export function scriptRunner(editor: OutlineEditor, delay = 700): ScriptRunner {
           }
         } else if ('click' in step) {
           editor.zoomToLine(step.line);
+        } else if ('zoom' in step) {
+          editor.zoomOut();
         } else if ('outline' in step) {
           editor.setOutline(step.outline);
         } else {
