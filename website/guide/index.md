@@ -1,6 +1,6 @@
 # Introduction
 
-True Outliner turns any Obsidian note into an outline: a tree of nodes that can be indented, moved, split, zoomed into and selected as whole units, with the guarantee that no operation ever leaves the note's structure broken. The file on disk stays plain markdown.
+True Outliner turns any Obsidian note into an outline: a tree of nodes that can be indented, moved, split, zoomed into and selected as whole units, with every operation working on the tree rather than on lines of text. The file on disk stays plain markdown.
 
 ::: warning Early preview
 True Outliner is under active development. It is usable today and every feature on this site is real, but the plugin is not yet in Obsidian's community plugin directory, defaults may still change, and a few rough edges are listed under [known limitations](../reference/limitations). Keep backups of anything irreplaceable, as with any plugin that edits notes.
@@ -10,12 +10,12 @@ True Outliner is under active development. It is usable today and every feature 
 
 Dedicated outliners such as Workflowy, Roam, Logseq and Tana share one invariant: the document is a **tree of nodes**, and every operation, whether typing, selecting, deleting, moving or pasting, respects node boundaries. The structure cannot be malformed by a careless keystroke.
 
-Obsidian's markdown lists have no such invariant. Plugins that add outliner keybindings work on flat text, so the structure is always one stray selection away from breaking: a Backspace at the wrong column merges two items, a paste lands half a subtree at the wrong depth, a drag leaves children orphaned.
+Obsidian's markdown lists have no such invariant. Plugins that add outliner keybindings work on flat text, so the structure is only as safe as the caret's position: a Backspace at the wrong column merges two items, a paste lands half a subtree at the wrong depth, a drag leaves children orphaned.
 
 True Outliner brings the enforced-tree invariant to Obsidian without leaving markdown behind:
 
 - **Any note is an outline.** Every note already has a block structure: headings, paragraphs, list items, code blocks, tables. That structure maps losslessly onto a node tree, so nothing has to be converted and no note is "an outliner note". The tree view is a way of looking at the notes that already exist.
-- **Structural integrity is enforced, not best-effort.** Indent, outdent, move, split, merge, delete and paste all go through the tree. An operation that would produce broken indentation, orphaned children or text floating outside the tree is either rewritten into the well-formed equivalent or refused with a short cue. There is no third outcome.
+- **Editing works on the tree.** Indent, outdent, move, split, merge, delete and paste all go through the tree: a node carries its children, a selection covers whole nodes, and an edit that would leave children without a parent or text outside the tree is rewritten into the well-formed equivalent or refused with a short cue.
 - **The file stays clean.** No front matter, IDs or hidden metadata are needed to make the outliner work. Parsing a note and encoding it back is byte-identical, and every structural edit resolves to the smallest diff that expresses it. Notes keep working with every other tool, plugin and sync method.
 - **Public APIs only.** The plugin is built on Obsidian's documented editor and plugin APIs, with no patching of private internals.
 

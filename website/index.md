@@ -3,7 +3,7 @@ layout: home
 hero:
   name: True Outliner
   text: A true outliner for Obsidian
-  tagline: Any note is an outline. The file stays plain markdown. The structure cannot break.
+  tagline: Edit the structure of any note, not just its text. The file stays plain markdown.
   actions:
     - theme: brand
       text: Get started
@@ -14,8 +14,8 @@ hero:
 features:
   - title: Any note
     details: Headings, paragraphs and lists are all nodes of one tree. Nothing to convert, no special note type.
-  - title: Structure that holds
-    details: Indent, move, split, select, delete and paste all respect node boundaries. A broken outline is not an outcome.
+  - title: Edit the tree
+    details: Indent, move, split, select, delete and paste act on nodes and carry their children along, wherever the caret is.
   - title: Clean files
     details: No IDs, no fold markers, no metadata. A note round-trips byte for byte, and works with every other tool.
 ---
