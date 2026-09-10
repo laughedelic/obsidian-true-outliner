@@ -535,6 +535,56 @@ describe('the footer’s controls', function () {
     expect(await expanded('sort')).toBe('false');
   });
 
+  it('closes an open popover on a press the editor takes for itself', async function () {
+    // A press the editor's own gestures claim never becomes a click: the guide
+    // gesture folds at pointerdown, which re-renders the lines under the
+    // pointer, and the browser then has nothing to deliver a click to —
+    // measured, the document saw the press and the release and nothing else.
+    // Dismissal that waits for a click waits forever, and the popover stays
+    // open behind a fold the reader just made.
+    await openFilters();
+    await clearFilters();
+    await openFilters();
+    await h.clearFolds();
+
+    const expanded = (): Promise<string> =>
+      browser.executeObsidian(
+        (_ctx, selector: string) =>
+          document.querySelector(selector)?.getAttribute('aria-expanded') ?? 'gone',
+        `.workspace-leaf.mod-active ${sel('folder')}`,
+      );
+
+    await clickIn(`${FOOTER} .to-backlinks-facet[data-axis="folder"]`);
+    expect(await expanded()).toBe('true');
+
+    // The guide column of a note line on screen beside the footer — the same
+    // gesture 94 drives, here for what it does to everything else.
+    const point = await browser.executeObsidian(() => {
+      const leaf = document.querySelector('.workspace-leaf.mod-active');
+      const footer = leaf?.querySelector('.to-backlinks')?.getBoundingClientRect();
+      const lines = Array.from(leaf?.querySelectorAll<HTMLElement>('.cm-line') ?? []).reverse();
+      for (const el of lines) {
+        const rect = el.getBoundingClientRect();
+        if (!(rect.height > 0 && rect.top > 0 && footer && rect.bottom < footer.top)) continue;
+        const after = getComputedStyle(el, '::after');
+        const unit = parseFloat(after.backgroundSize);
+        if (!(unit > 1)) continue; // paints no guide to press
+        const origin = parseFloat(after.left) + parseFloat(after.borderLeftWidth);
+        return { x: rect.left + origin, y: rect.top + rect.height / 2 };
+      }
+      return null;
+    });
+    if (!point) throw new Error('no guide-painting note line beside the footer');
+    await h.clickAtPoint(point.x, point.y);
+    await browser.pause(400);
+
+    // The gesture really took the press — without this the case would pass on a
+    // press that simply fell through to the editor as an ordinary click.
+    expect((await h.foldedLineRanges()).length).toBeGreaterThan(0);
+    expect(await expanded()).toBe('false');
+    await h.clearFolds();
+  });
+
   it('holds the row still when the reset appears and goes', async function () {
     await openFilters();
     await clearFilters();

@@ -51,3 +51,24 @@ they SHALL NOT be written to the document and SHALL NOT persist beyond the foote
 
 - **WHEN** the reader tabs to a row's fold control and presses Enter, then Space
 - **THEN** the row expands and folds again, and its `aria-expanded` reports each state
+
+## ADDED Requirements
+
+### Requirement: An open popover closes on any press outside the footer
+
+A popover the footer opens — a facet's menu, the sort menu — SHALL close when a press lands
+outside the footer, whether or not that press goes on to become a click.
+
+This change gives the editor a gesture that acts on `pointerdown` and re-renders the lines under
+the pointer, and a press taken that way never produces a click at all. Dismissal that waits for
+one waits forever: the popover stayed open behind a fold the reader had just made. Inside the
+footer, dismissal SHALL remain on the click, for the reason `backlink-filtering` records — a
+repaint at pointerdown destroys the control the press was about to focus.
+
+#### Scenario: A press the editor takes for itself still dismisses
+
+- **WHEN** a popover is open and the reader presses a guide column in the note, folding a subtree
+- **THEN** the subtree folds and the popover closes
+
+**Covered by**: `e2e/specs/77-footer-controls.e2e.ts` ("closes an open popover on a press the
+editor takes for itself").

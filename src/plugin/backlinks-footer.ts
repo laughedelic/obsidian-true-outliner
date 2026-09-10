@@ -289,13 +289,23 @@ class FooterController {
     // alone so the button's own handler decides, which is what makes pressing
     // an open facet close it rather than close-and-reopen.
     //
-    // On `click`, NOT `pointerdown`, and that is not a detail. Dismissing at
-    // pointerdown repaints the footer before the browser has acted on the
-    // press — so clicking the search field while a menu was open destroyed the
-    // input the press was about to focus, and the term the reader then typed
-    // went into the note. Caught by the read-only spec, which is what it is
-    // for. By `click` the focus has landed, and the repaint's own focus
-    // restoration carries it across.
+    // Inside the footer, on `click` and NOT `pointerdown`, and that is not a
+    // detail. Dismissing at pointerdown repaints the footer before the browser
+    // has acted on the press — so clicking the search field while a menu was
+    // open destroyed the input the press was about to focus, and the term the
+    // reader then typed went into the note. Caught by the read-only spec, which
+    // is what it is for. By `click` the focus has landed, and the repaint's own
+    // focus restoration carries it across.
+    //
+    // OUTSIDE it, on `pointerdown`, because a click is not guaranteed to
+    // arrive. A press the editor's own gestures take never becomes one: the
+    // guide gesture folds at pointerdown, which re-renders the lines under the
+    // pointer, and the browser then has no click to deliver — measured, the
+    // document saw the press and the release and nothing else, and the popover
+    // stayed open behind a fold the reader had just made. Nothing about the
+    // focus hazard applies out there: the press belongs to the note, and the
+    // footer has no element in it to destroy.
+    this.el.doc.addEventListener('pointerdown', this.closeOnOutsidePress, true);
     this.el.doc.addEventListener('click', this.closeOnOutsideClick, true);
     this.component.load();
     void this.render();
@@ -311,8 +321,20 @@ class FooterController {
     void this.render();
   };
 
+  /** The same dismissal, for a press that lands outside the footer entirely —
+   * where waiting for a click risks waiting for one that never comes. */
+  private readonly closeOnOutsidePress = (event: Event): void => {
+    const state = viewStates.get(this.targetPath);
+    if (!state || state.openFacet === null) return;
+    const target = event.target as HTMLElement | null;
+    if (target && this.el.contains(target)) return;
+    state.openFacet = null;
+    void this.render();
+  };
+
   destroy(): void {
     this.generation++;
+    this.el.doc.removeEventListener('pointerdown', this.closeOnOutsidePress, true);
     this.el.doc.removeEventListener('click', this.closeOnOutsideClick, true);
     this.component.unload();
     this.el.detach();
