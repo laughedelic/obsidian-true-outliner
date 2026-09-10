@@ -72,6 +72,9 @@ interface Observations {
   caretArrowDownFromLast: { line: number; ch: number };
   caretAfterClickBelowLast: { line: number; ch: number };
   selectAllLadder: string[];
+  /** The document the four operations start from, so their round trip can be
+   * asserted absolutely and not only across the two halves. */
+  bufferBeforeOps: string;
   bufferAfterOps: string;
   caretAfterOps: { line: number; ch: number };
   bufferAfterUndoAll: string;
@@ -134,7 +137,28 @@ async function measure(): Promise<Observations> {
   }
 
   // --- structural operations on the last node ---------------------------
-  await h.setCursor(lastContentLine, 1);
+  // The operand is the last TOP-LEVEL node rather than the last node in the
+  // document. Both end the document, which is where the widget sits and what
+  // this case is about, but only a top-level node here has a previous sibling
+  // — and `indent-node` without one is refused.
+  //
+  // A refusal is invisible from the harness. `executeCommandById` reports that
+  // the command RAN, because the operation declines inside it and says so with
+  // a Notice, so `runCommand` resolves either way. An operand that cannot be
+  // indented therefore turned one of the four into a silent no-op and cost the
+  // sequence the property that makes it self-checking: four operations that
+  // undo one another must leave the document exactly as they found it.
+  const lastTopLevelLine = lines.reduce(
+    (last, text, i) => (text.trim() && !/^\s/.test(text) ? i : last),
+    0,
+  );
+  // Settled, not merely set: `setCursorSettled` exists because a later,
+  // unannotated selection dispatch can move a caret that was only just placed,
+  // and it wins under mobile emulation where the plain set does not. Every
+  // assertion about where a caret ENDS UP is still made after the gesture, so
+  // settling the start cannot hide a placement bug.
+  await h.setCursorSettled(lastTopLevelLine, 1);
+  const bufferBeforeOps = await h.getBuffer();
   await h.runCommand('indent-node');
   await h.runCommand('outdent-node');
   await h.runCommand('move-node-up');
@@ -162,6 +186,7 @@ async function measure(): Promise<Observations> {
     caretArrowDownFromLast,
     caretAfterClickBelowLast,
     selectAllLadder,
+    bufferBeforeOps,
     bufferAfterOps,
     caretAfterOps,
     bufferAfterUndoAll,
@@ -221,6 +246,14 @@ describe('spike S1: end-of-document block widget vs. the enforcement layer', fun
     expect(withWidget.caretAfterClickBelowLast).toEqual(without.caretAfterClickBelowLast);
     expect(withWidget.selectAllLadder).toEqual(without.selectAllLadder);
     expect(withWidget.bufferAfterOps).toEqual(without.bufferAfterOps);
+    // Absolutely, in BOTH halves, and not only across them: indent, outdent,
+    // move up and move down undo one another, so the document must come back
+    // unchanged. The differential comparison above cannot see an operation that
+    // was refused in both halves — it compares two identical wrong answers and
+    // passes — which is the blind spot that let a refused `indent-node` sit in
+    // this sequence unnoticed.
+    expect(without.bufferAfterOps).toEqual(without.bufferBeforeOps);
+    expect(withWidget.bufferAfterOps).toEqual(withWidget.bufferBeforeOps);
     expect(withWidget.caretAfterOps).toEqual(without.caretAfterOps);
     expect(withWidget.bufferAfterUndoAll).toEqual(without.bufferAfterUndoAll);
     // Classification counts are DIAGNOSTIC, not a contract. The widget's presence
