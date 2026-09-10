@@ -164,10 +164,19 @@ describe('backlinks footer: behaviour', function () {
 
       // Now read the footer: scroll it, click its header, fold and unfold it.
       await scrollToEnd();
+      const folded = (): Promise<boolean | null> =>
+        browser.executeObsidian(
+          () =>
+            document
+              .querySelector('.workspace-leaf.mod-active .to-backlinks-head')
+              ?.classList.contains('is-collapsed') ?? null,
+        );
       await h.clickClear(`${FOOTER} .to-backlinks-icon`);
       await browser.pause(300);
+      const afterFirst = await folded();
       await h.clickClear(`${FOOTER} .to-backlinks-icon`);
       await browser.pause(300);
+      const afterSecond = await folded();
       expect(await h.getBuffer()).toBe(edited);
       // One undo must land on the typed character, not on anything the footer
       // did. Waited for rather than paused for: undo is dispatched through the
@@ -181,14 +190,17 @@ describe('backlinks footer: behaviour', function () {
       } catch {
         // A keystroke undo needs the editor's focus, and the two clicks above
         // must have landed as a pair for the footer to be back where it was.
-        // Report both, so a miss on one platform says which it lost.
-        const state = await browser.executeObsidian(() => ({
-          focused: document.activeElement?.className ?? null,
-          collapsed:
-            document
-              .querySelector('.workspace-leaf.mod-active .to-backlinks-head')
-              ?.classList.contains('is-collapsed') ?? null,
-        }));
+        // Report both, with what the buffer holds and what one more undo does
+        // to it, so a miss on one platform says whether the keystroke never
+        // reached the editor or undid something reading the footer had added.
+        const focused = await browser.executeObsidian(
+          () => document.activeElement?.className ?? null,
+        );
+        const head = (await h.getBuffer()).slice(0, 12);
+        await h.keys.undo();
+        await browser.pause(500);
+        const afterSecondUndo = (await h.getBuffer()) === before ? 'restored' : 'still off';
+        const state = { focused, afterFirst, afterSecond, folded: await folded(), head, afterSecondUndo };
         throw new Error(`undo did not restore the pre-edit buffer: ${JSON.stringify(state)}`);
       }
     } finally {
