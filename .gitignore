@@ -32,3 +32,7 @@ design/
 # VitePress build output and cache for the website under website/
 /website/.vitepress/dist/
 /website/.vitepress/cache/
+
+# Raw frames and stills from website/capture/capture.e2e.ts; the encoded
+# media under website/public/media/ is what the site ships.
+/website/capture/out/
