@@ -26,7 +26,12 @@ export default defineConfig({
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: false,
-  head: [['link', { rel: 'icon', href: '/obsidian-true-outliner/favicon.svg', type: 'image/svg+xml' }]],
+  head: [
+    ['link', { rel: 'icon', href: '/obsidian-true-outliner/favicon.svg', type: 'image/svg+xml' }],
+    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
+    ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
+    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&display=swap' }],
+  ],
   themeConfig: {
     logo: '/favicon.svg',
     nav: [
