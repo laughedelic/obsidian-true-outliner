@@ -1,24 +1,9 @@
 <script setup lang="ts">
 import { withBase } from 'vitepress';
 import OutlineDemo from './OutlineDemo.vue';
-import {
-  KITCHEN,
-  MIXED,
-  TOUR,
-  MOVE_SCRIPT,
-  SPLIT_SCRIPT,
-  SELECT_SCRIPT,
-  ZOOM_SCRIPT,
-  TOGGLE_SCRIPT,
-  GRID_SCRIPT,
-} from '../../demo/samples';
-
-const shot = (name: string) => ({
-  light: withBase(`/media/shots/${name}-light.png`),
-  dark: withBase(`/media/shots/${name}-dark.png`),
-});
-const footer = shot('backlinks-footer');
-const mobile = shot('mobile-outline');
+import Clip from '../theme/Clip.vue';
+import Shot from '../theme/Shot.vue';
+import { KITCHEN, TOUR } from '../../demo/samples';
 </script>
 
 <template>
@@ -79,6 +64,7 @@ const mobile = shot('mobile-outline');
 
     <section class="lp-features">
       <h2 class="lp-features-title">What it does</h2>
+      <p class="lp-features-note">The clips and screenshots below are captured from Obsidian with the plugin running; only the editor at the top of the page runs in the browser.</p>
 
       <article class="lp-row">
         <div class="lp-row-text">
@@ -90,7 +76,7 @@ const mobile = shot('mobile-outline');
           </p>
           <p class="lp-more"><a :href="withBase('/guide/appearance')">Appearance</a></p>
         </div>
-        <OutlineDemo :doc="MIXED" :script="GRID_SCRIPT" autoplay loop title="Trail race training.md" />
+        <Shot name="guides-markers" alt="A note with headings, paragraphs and nested lists on one grid, with guide lines and a marker per block" />
       </article>
 
       <article class="lp-row lp-row-flip">
@@ -104,7 +90,10 @@ const mobile = shot('mobile-outline');
           </p>
           <p class="lp-more"><a :href="withBase('/guide/structural-editing')">Structural editing</a></p>
         </div>
-        <OutlineDemo :doc="KITCHEN" :script="MOVE_SCRIPT" autoplay loop />
+        <div class="lp-stack">
+          <Clip name="indent-outdent" caption="Shift+Tab, Tab, Tab on a nested item." />
+          <Clip name="move-node" caption="Mod+Shift+Up moves a node past its siblings." />
+        </div>
       </article>
 
       <article class="lp-row">
@@ -118,7 +107,10 @@ const mobile = shot('mobile-outline');
           </p>
           <p class="lp-more"><a :href="withBase('/guide/structural-editing#enter')">Enter and Shift+Enter</a></p>
         </div>
-        <OutlineDemo :doc="KITCHEN" :script="SPLIT_SCRIPT" autoplay loop />
+        <div class="lp-stack">
+          <Clip name="enter-split" caption="Enter mid-item, Enter at the end, then typing." />
+          <Clip name="merge-backspace" caption="Backspace at a paragraph's first character joins it upward." />
+        </div>
       </article>
 
       <article class="lp-row lp-row-flip">
@@ -131,7 +123,10 @@ const mobile = shot('mobile-outline');
           </p>
           <p class="lp-more"><a :href="withBase('/guide/selection-and-caret')">Selection and the caret</a></p>
         </div>
-        <OutlineDemo :doc="KITCHEN" :script="SELECT_SCRIPT" autoplay loop />
+        <div class="lp-stack">
+          <Clip name="select-nodes" caption="Shift+Down, then Mod+A three times." />
+          <Clip name="escalation" caption="A drag across two items snaps to both." />
+        </div>
       </article>
 
       <article class="lp-row">
@@ -144,7 +139,7 @@ const mobile = shot('mobile-outline');
           </p>
           <p class="lp-more"><a :href="withBase('/guide/zoom')">Zoom</a></p>
         </div>
-        <OutlineDemo :doc="KITCHEN" :script="ZOOM_SCRIPT" autoplay loop />
+        <Clip name="zoom-in-out" caption="A click on a marker, editing inside, and zooming back out." />
       </article>
 
       <article class="lp-row lp-row-flip">
@@ -158,11 +153,7 @@ const mobile = shot('mobile-outline');
           </p>
           <p class="lp-more"><a :href="withBase('/guide/backlinks')">Structured backlinks</a></p>
         </div>
-        <figure class="lp-shot">
-          <img class="lp-img-light" :src="footer.light" alt="The structured backlinks footer below a note, listing references grouped by note, each shown with its ancestors" loading="lazy" />
-          <img class="lp-img-dark" :src="footer.dark" alt="" loading="lazy" />
-          <figcaption>Captured in Obsidian. The footer needs the vault's link index, so it is not part of the live demo.</figcaption>
-        </figure>
+        <Shot name="backlinks-footer" alt="The structured backlinks footer below a note, listing references grouped by note, each shown with its ancestors" caption="References grouped by note, each in the tree it came from." />
       </article>
 
       <article class="lp-row">
@@ -176,7 +167,7 @@ const mobile = shot('mobile-outline');
           </p>
           <p class="lp-more"><a :href="withBase('/guide/how-notes-become-outlines')">How a note becomes an outline</a></p>
         </div>
-        <OutlineDemo :doc="KITCHEN" :script="TOGGLE_SCRIPT" autoplay loop source />
+        <Clip name="outline-toggle" caption="Outline mode off, then on: the same file both times." />
       </article>
 
       <article class="lp-row lp-row-flip">
@@ -188,10 +179,7 @@ const mobile = shot('mobile-outline');
           </p>
           <p class="lp-more"><a :href="withBase('/guide/mobile')">Mobile</a> · <a :href="withBase('/reference/css-variables')">CSS variables</a></p>
         </div>
-        <figure class="lp-shot lp-shot-phone">
-          <img class="lp-img-light" :src="mobile.light" alt="A note in outline mode on a phone" loading="lazy" />
-          <img class="lp-img-dark" :src="mobile.dark" alt="" loading="lazy" />
-        </figure>
+        <Shot name="mobile-outline" alt="A note in outline mode on a phone" width="320" class="lp-shot-phone" />
       </article>
     </section>
 
@@ -421,36 +409,34 @@ const mobile = shot('mobile-outline');
 .lp-row .to-demo-body {
   min-height: 20rem;
 }
-.lp-shot {
-  margin: 0;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--vp-c-bg-soft);
+.lp-stack {
+  display: grid;
+  gap: 1rem;
 }
-.lp-shot img {
+.lp .media {
+  margin: 0;
+}
+.lp .media > video,
+.lp .media > img {
   display: block;
   width: 100%;
   height: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
 }
-.lp-shot figcaption {
-  padding: 0.5rem 0.9rem;
-  border-top: 1px solid var(--vp-c-divider);
+.lp .media > figcaption {
+  margin-top: 0.4rem;
   font-size: 13px;
   color: var(--vp-c-text-2);
 }
-.lp-shot-phone {
-  max-width: 320px;
+.lp .lp-shot-phone {
   justify-self: center;
 }
-.lp-img-dark {
-  display: none;
-}
-.dark .lp-img-dark {
-  display: block;
-}
-.dark .lp-img-light {
-  display: none;
+.lp-features-note {
+  color: var(--vp-c-text-2);
+  max-width: 62ch;
+  margin-bottom: 1rem;
 }
 
 .lp-compare {
