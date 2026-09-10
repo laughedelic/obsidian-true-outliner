@@ -1,61 +1,89 @@
-# Two things a CI runner does slower than a developer machine
+# Three CI-only failures, and what CI said when asked directly
 
-Measured 2026-09-10, macOS, Obsidian v1.13.7 (installer v1.5.8), with the CI figures taken
-from runs of the `ci.yml` matrix on GitHub's hosted runners at four Obsidian instances per job.
-Three cases failed there — one on roughly every other run, two on loaded runners only — and
-none of them reproduced locally. Running the plugin at two commits back to back showed the
-same local timings, so the plugin was not what had changed; the runner was.
+Measured 2026-09-10, macOS, Obsidian v1.13.7 (installer v1.5.8), with CI figures from runs of
+the `ci.yml` matrix on GitHub's hosted runners at four Obsidian instances per job. Three cases
+had been failing on CI — one intermittently, two on loaded runners — and none reproduced
+locally. Running the plugin at two commits of `feat/better-folding-ux` back to back gave
+identical local timings, and that was read as the runner being at fault rather than the
+plugin. Half of that reading survived measurement.
 
-## Obsidian's own cache is still reading the vault when the first case starts
+## What the branch's CI history actually shows
 
-`77-footer-controls` "shortens the header on the same narrow footer that sheds facet words"
-compares two reads of the footer's header and failed because the totals kept climbing between
+The three cases were all failing on `feat/better-folding-ux`. Asked the same question, the
+trunk gives a different answer:
+
+| Branch | Runs read | 74 "renders the corpus" | 77 "shortens the header" | 62 perf case |
+| --- | --- | --- | --- | --- |
+| `main`, last twelve | 12 (10 green) | never | never | never |
+| `feat/better-folding-ux`, last six failing | 6 | 4 | 1 (plus 1 as a `before all` hook failure) | 3 |
+
+The two red runs on `main` were other cases: `75` "leaves the note's bytes and undo stack
+untouched while being read" (an undo landing after a fixed 4 s wait, mobile) and `60`'s
+classification perf case (mobile). Both are flakes of their own, neither is one of the three.
+
+So the three failures are branch-specific on CI even though they are invisible locally. The
+branch changes the plugin's load path, registers a CM6 fold service, and edits the hub target
+note itself (`test-vault/Projects/Aurora Dashboard.md` carries scratch text there); the two
+cases that take longest on it are the two that drive the largest documents in the suite. That
+is a hypothesis for that branch to test, not a finding of this pass — nothing in its new files
+scans the vault or hooks a cache event, so the cost is not an obvious one.
+
+## The cache is already resolved when the first case starts
+
+The 77 failure compared two reads of the footer's header and watched the totals climb between
 them: `411 · 127 → 414 · 128` over 44 samples on one run, `408 · 126 → 411 · 127` on another.
+On the folding branch, a wait that logged its samples on CI had put Obsidian's metadata cache
+at two to four files a second after `resetVault`, thirty-five to seventy-five seconds for the
+149-note vault (29 tracked plus the 120 the hub generator adds), and the cache was named as
+what the footer was counting.
 
-Everything the footer counts comes from `app.metadataCache`, and every e2e session starts
-that cache cold — the service launches each worker on its own copy of the vault with its own
-user-data directory, so nothing from a previous session survives. Obsidian indexes the vault
-asynchronously after the window is already usable. A wait that logged its samples on CI put
-the rate at two to four files a second; the test vault is 29 tracked notes plus the 120 the
-hub generator adds, so the initial index takes between thirty-five and seventy-five seconds
-there. Locally it is over before the first spec's `before` finishes.
+`waitForMetadataCache` in `e2e/helpers.ts` now runs from the wdio `before` hook of both
+configs — before mocha starts, so outside any per-case budget — and prints one line per spec
+file. On the checkpoint run of this branch, all twenty spec files in the two `backlinks` jobs
+read the same:
 
-`resetVault` is not what restarts this. It compares hashes and rewrites only the files that
-differ from the fixture — on a fresh copy, none — so the initial index is the whole of what
-has to finish, and a wait belongs once per session, not after every reset.
+| | |
+| --- | --- |
+| Desktop, ten spec files | ready after 3.6–4.4 s: 149 notes, 150 cached, 149 in `resolvedLinks` |
+| Mobile, ten spec files | ready after 3.1–4.2 s, the same counts |
+| Locally | 3.1 s |
+
+The wait's own quiet window is five polls at 500 ms, so every one of those figures is the
+window plus one or two round trips: the cache had finished before the hook ran. Whatever was
+climbing on the folding branch was not the trunk's cache still reading the vault at session
+start.
+
+`resetVault` is not restarting it either. It compares Obsidian's stored hash for each file
+with a SHA-256 of the fixture bytes and rewrites only what differs; a probe counting `modify`,
+`create` and `delete` events across a reset on a fresh session saw none, and the two hashes
+for `README.md` were identical.
 
 ### What the wait may and may not gate on
 
+Three forms were tried on the folding branch and reverted before this one:
+
 | Criterion | Verdict |
 | --- | --- |
-| `Object.keys(resolvedLinks).length === getMarkdownFiles().length` | Unsafe. A file with no links has nothing to resolve; on the folding branch this comparison never became true on CI, so the wait ran to its budget every time. Locally the two happen to agree (149 and 149), which is what made it look sound. |
+| `Object.keys(resolvedLinks).length === getMarkdownFiles().length` | Unsafe as a gate: a note with no links has nothing to resolve. On this vault the two do agree (149 and 149, so the table carries an entry per note), which is what made it look sound; it is not a relationship to rely on. |
 | the same, inside `settle()` | Ran a dozen times per case in the footer specs and stacked past mocha's sixty seconds. |
 | once per spec file, in `openFooter`, memoised, one minute's budget | The minute was short on the slower runners, and a wait that never succeeds memoises nothing, so every open paid it again. |
-| resolved-link count held still across several polls, with the cache's own file list (`getCachedFiles()`, present at runtime and absent from the bundled typings) at or above the vault's note count | What `waitForMetadataCache` in `e2e/helpers.ts` does now. |
+| resolved-link count held still across several polls, with the cache's own file list (`getCachedFiles()`, present at runtime and absent from the bundled typings) at or above the vault's note count | What `waitForMetadataCache` does. The one extra cached file is the vault's single image: the list holds every file the cache has read, not only notes. |
 
-The wait runs from the wdio `before` hook of both configs, which the framework executes
-before mocha starts and outside any per-case budget. Its budget is a second per note in the
-vault with a sixty-second floor, then `waitBudget`'s widening under contention — half the
-slowest measured rate in reserve, and scaling with a larger generated fixture rather than
-hard-coding this one's size. A wait that runs out logs its last samples and returns instead
-of failing the file: only the cases that count the cache would notice, and they fail as they
-did before, now beneath a line naming the cause.
-
-| Locally | |
-| --- | --- |
-| Time to ready | 3.1 s per spec file, 2.5 s of which is the quiet window (five polls at 500 ms) |
-| Sample at ready | 149 notes, 150 cached files, 149 entries in `resolvedLinks` |
-
-The one extra cached file is the vault's single image: `getCachedFiles` lists every file the
-cache has read, not only notes, which is why the floor is "at or above" rather than equal.
+Its budget is a second per note with a sixty-second floor, then `waitBudget`'s widening under
+contention. A wait that runs out logs its last samples and returns instead of failing the
+file: only the cases that count the cache would notice, and they fail as before, beneath a
+line naming the cause. The wait stays in, at three to four seconds per spec file, as the
+instrument: its line is what showed the trunk's cache already resolved, and it is what would
+show a branch's cache still reading.
 
 ## A case that takes a third of the budget locally takes all of it on a loaded runner
 
-Two cases hit `mochaOpts.timeout` (60 s) on CI while their own local runs sat well inside it:
+Two cases hit `mochaOpts.timeout` (60 s) on the folding branch's CI while their own local
+runs sat well inside it:
 
 | Case | Local | CI |
 | --- | --- | --- |
-| `74` "renders the corpus in both bundled themes" (eight screenshots, hub note included) | 17.6 s in this session, ~33 s on another developer run | past 60 s on loaded runners |
+| `74` "renders the corpus in both bundled themes" (eight screenshots, hub note included) | 17.6 s in this session, ~33 s on another developer run | past 60 s |
 | `62` "performance: verdict computation stays within budget on a ~2000-line stress note" | 8.8 s under mobile emulation | past 60 s on the mobile job |
 
 Neither case measures wall-clock. The 62 case asserts in-app medians and 95th percentiles per
@@ -69,7 +97,7 @@ wrapped `it`.
 The 74 case had a second problem. Mocha abandons a case that outruns its budget, but it cannot
 stop it: the loop kept switching themes and opening notes while the next two cases ran, and
 those measured a footer part-way through a render they had not started — zero markers on one,
-an overlapping ordinal on the other. Widening the budget would have made that rarer, not
-impossible. The loop is now eight cases, one per fixture and theme, at 2.1–2.5 s each locally:
-an abandoned one can do at most one screenshot's worth of work underneath its successor, and
-the report names which fixture was slow.
+an overlapping ordinal on the other, in three of the six branch runs read. Widening the budget
+would have made that rarer, not impossible. The loop is now eight cases, one per fixture and
+theme, at 2.1–2.5 s each locally: an abandoned one can do at most one screenshot's worth of
+work underneath its successor, and the report names which fixture was slow.

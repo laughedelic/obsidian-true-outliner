@@ -739,12 +739,14 @@ export async function waitForBacklinkIndexReady(target: string, minSources = 10)
  *
  * Every session starts with a cold cache — the service gives each worker its
  * own vault copy and its own user-data directory — and Obsidian indexes the
- * vault asynchronously after the window is already usable. Locally that is over
- * before the first spec runs; on a CI runner it proceeds at a few files a
- * second, so the backlinks footer reads a vault Obsidian is still counting, and
- * a case that compares two of its reads watches the totals climb between them.
- * `resetVault` does not restart this: it rewrites only the files that differ
- * from the fixture, so the initial index is the whole of what has to finish.
+ * vault asynchronously after the window is already usable. Everything the
+ * backlinks footer counts comes from that cache, so a case that compares two
+ * footer reads while it is still filling watches the totals climb between
+ * them. `resetVault` does not restart it: it rewrites only the files that
+ * differ from the fixture, so the initial index is the whole of what has to
+ * finish. The line this logs per spec file is the record of how long that
+ * took on the runner — see docs/research/31-e2e-ci-budgets.md for what it
+ * showed the first time it was read.
  *
  * The criterion is the resolved-link table holding still while the cache's own
  * file list has caught up with the vault. Never "resolved count equals file
