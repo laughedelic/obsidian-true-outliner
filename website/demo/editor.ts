@@ -99,12 +99,17 @@ export function createOutlineEditor(parent: HTMLElement, options: OutlineEditorO
     // page included, which would drag a reader along with a scripted tour.
     // The editor's own scroller is the only thing that moves.
     EditorView.scrollHandler.of((v, range) => {
-      const rect = v.coordsAtPos(range.head);
-      if (!rect) return true;
+      // Called mid-measure, where DOM coordinates may not be read; the line
+      // block's cached geometry is enough to place the scroller.
+      const block = v.lineBlockAt(range.head);
       const scroller = v.scrollDOM;
-      const box = scroller.getBoundingClientRect();
-      if (rect.top < box.top) scroller.scrollTop -= box.top - rect.top + 12;
-      else if (rect.bottom > box.bottom) scroller.scrollTop += rect.bottom - box.bottom + 12;
+      const pad = parseFloat(getComputedStyle(scroller).paddingTop) || 0;
+      const top = block.top + pad;
+      const bottom = block.bottom + pad;
+      const viewTop = scroller.scrollTop;
+      const viewBottom = viewTop + scroller.clientHeight;
+      if (top < viewTop) scroller.scrollTop = Math.max(0, top - 12);
+      else if (bottom > viewBottom) scroller.scrollTop = bottom - scroller.clientHeight + 12;
       return true;
     }),
     readOnly.of(EditorState.readOnly.of(!!options.readOnly)),
