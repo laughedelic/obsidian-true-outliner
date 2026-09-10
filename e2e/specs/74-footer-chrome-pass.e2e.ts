@@ -306,17 +306,24 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     expect(Math.abs(sizes!.centreOffset)).toBeLessThan(0.5);
   });
 
-  it('renders the corpus in both bundled themes', async function () {
-    for (const [label, target] of [['small', SMALL], ['kinds', KINDS], ['hub', HUB], ['dormant', DORMANT]] as const) {
-      for (const dark of [true, false]) {
+  // One case per fixture and theme rather than one loop over all eight. Mocha
+  // abandons a case that outruns its budget without stopping it: the loop
+  // would keep switching themes and opening notes underneath the cases that
+  // follow, which then measure a footer part-way through a render they never
+  // started. A case per screenshot bounds what an abandoned one can still do,
+  // and names the fixture that was slow.
+  for (const [label, target] of [['small', SMALL], ['kinds', KINDS], ['hub', HUB], ['dormant', DORMANT]] as const) {
+    for (const dark of [true, false]) {
+      const theme = dark ? 'dark' : 'light';
+      it(`renders the ${label} fixture in the ${theme} theme`, async function () {
         await h.setTheme(dark);
         await h.openNote(target);
         await ensureOutlineMode(target);
         await scrollToEnd();
-        await shoot(`${label}-${dark ? 'dark' : 'light'}`);
-      }
+        await shoot(`${label}-${theme}`);
+      });
     }
-  });
+  }
 
   /**
    * The goal of the whole exercise, stated as a measurement: a marker sits on

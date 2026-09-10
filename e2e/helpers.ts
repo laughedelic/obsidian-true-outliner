@@ -734,6 +734,104 @@ export async function waitForBacklinkIndexReady(target: string, minSources = 10)
 }
 
 /**
+ * Waits for Obsidian's own metadata cache to finish reading the vault a fresh
+ * session was launched on.
+ *
+ * Every session starts with a cold cache — the service gives each worker its
+ * own vault copy and its own user-data directory — and Obsidian indexes the
+ * vault asynchronously after the window is already usable. Everything the
+ * backlinks footer counts comes from that cache, so a case that compares two
+ * footer reads while it is still filling watches the totals climb between
+ * them. `resetVault` does not restart it: it rewrites only the files that
+ * differ from the fixture, so the initial index is the whole of what has to
+ * finish. The line this logs per spec file is the record of how long that
+ * took on the runner — see docs/research/31-e2e-ci-budgets.md for what it
+ * showed the first time it was read.
+ *
+ * The criterion is the whole resolved-link table holding still — sources,
+ * their targets and the counts — while the cache's own file list has caught up
+ * with the vault. Never "resolved count equals file count": a file with no
+ * links never appears in `resolvedLinks`, so that comparison cannot be
+ * satisfied. The budget scales with the vault's size so a
+ * larger generated fixture is not cut off by a fixed number; a wait that runs
+ * out reports the last samples and returns rather than failing every case in
+ * the file, since only the cases that count the cache would notice.
+ *
+ * `getCachedFiles` exists at runtime and is not in the bundled typings.
+ */
+export async function waitForMetadataCache(): Promise<void> {
+  // `cached` counts the vault's NOTES the cache lists, not the list's length:
+  // the cache also reads attachments, so the two totals can agree while a note
+  // is still missing. A cache without the method reports every note cached and
+  // leaves the link table as the only criterion. `links` and `refs` fold the
+  // whole `resolvedLinks` table — every source's targets and their counts —
+  // because a source's key appears before its targets have all been filled
+  // in, and a count of keys would hold still through that.
+  type Sample = { files: number; cached: number; sources: number; links: number; refs: number };
+  const sample = (): Promise<Sample> =>
+    browser.executeObsidian(({ app }) => {
+      const cache = app.metadataCache as unknown as { getCachedFiles?: () => string[] };
+      const notes = app.vault.getMarkdownFiles().map((f) => f.path);
+      const listed = cache.getCachedFiles ? new Set(cache.getCachedFiles()) : null;
+      let links = 0;
+      let refs = 0;
+      const table = app.metadataCache.resolvedLinks;
+      for (const source in table) {
+        for (const target in table[source]) {
+          links += 1;
+          refs += table[source]![target] ?? 0;
+        }
+      }
+      return {
+        files: notes.length,
+        cached: listed ? notes.filter((p) => listed.has(p)).length : notes.length,
+        sources: Object.keys(table).length,
+        links,
+        refs,
+      };
+    });
+
+  const started = Date.now();
+  const first = await sample();
+  // One second per file leaves half the measured slowest rate in reserve.
+  const budget = waitBudget(Math.max(60_000, first.files * 1000));
+  const quietPolls = 5;
+  const interval = 500;
+  const samples: Sample[] = [first];
+  let quiet = 0;
+  while (Date.now() - started < budget) {
+    const now = samples[samples.length - 1]!;
+    const previous = samples[samples.length - 2];
+    const caughtUp = now.cached >= now.files;
+    const unchanged =
+      previous !== undefined &&
+      now.files === previous.files &&
+      now.cached === previous.cached &&
+      now.sources === previous.sources &&
+      now.links === previous.links &&
+      now.refs === previous.refs;
+    quiet = caughtUp && unchanged ? quiet + 1 : 0;
+    if (quiet >= quietPolls) {
+      // One line per spec file, so a CI log shows the rate the runner managed.
+      console.log(
+        `[e2e] metadata cache ready after ${Date.now() - started}ms: ${now.files} files, ` +
+          `${now.cached} cached, ${now.sources} sources with ${now.links} resolved links (${now.refs} references)`,
+      );
+      return;
+    }
+    await browser.pause(interval);
+    samples.push(await sample());
+  }
+  const trail = samples
+    .slice(-8)
+    .map((s) => `${s.files}/${s.cached}/${s.sources}/${s.links}/${s.refs}`)
+    .join(' → ');
+  console.warn(
+    `[e2e] metadata cache still changing after ${budget}ms (files/cached/sources/links/references): ${trail}`,
+  );
+}
+
+/**
  * Squeeze the active leaf's editor so the FOOTER becomes narrow, or let it go.
  *
  * The footer's controls answer to a container query on the footer itself, not

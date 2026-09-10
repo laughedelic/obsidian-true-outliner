@@ -164,21 +164,72 @@ describe('backlinks footer: behaviour', function () {
 
       // Now read the footer: scroll it, click its header, fold and unfold it.
       await scrollToEnd();
-      await h.clickClear(`${FOOTER} .to-backlinks-icon`);
-      await browser.pause(300);
-      await h.clickClear(`${FOOTER} .to-backlinks-icon`);
-      await browser.pause(300);
+      const folded = (): Promise<boolean | null> =>
+        browser.executeObsidian(
+          () =>
+            document
+              .querySelector('.workspace-leaf.mod-active .to-backlinks-head')
+              ?.classList.contains('is-collapsed') ?? null,
+        );
+      // Each click is checked against the state it should leave, and repeated
+      // when it did not, rather than a blind click, pause, click: on the
+      // emulated-mobile job a tap on the icon is sometimes not delivered, and
+      // a pair of blind clicks then folds the footer where it should have
+      // folded and unfolded it — every failure of this case on that job had
+      // the footer folded at the end, with the first click having done
+      // nothing and the second having folded it.
+      const toggleFold = async (expected: boolean): Promise<void> => {
+        for (let attempt = 0; ; attempt++) {
+          await h.clickClear(`${FOOTER} .to-backlinks-icon`);
+          try {
+            await browser.waitUntil(async () => (await folded()) === expected, {
+              timeout: h.waitBudget(1500),
+              interval: 100,
+            });
+            return;
+          } catch (error) {
+            if (attempt >= 2) {
+              throw new Error(`the footer never ${expected ? 'folded' : 'unfolded'} on click: ${String(error)}`);
+            }
+          }
+        }
+      };
+      await toggleFold(true);
+      await toggleFold(false);
       expect(await h.getBuffer()).toBe(edited);
-
       // One undo must land on the typed character, not on anything the footer
-      // did. Waited for rather than paused for: undo is dispatched through the
-      // editor and lands a frame or several later, and a fixed pause is a guess
-      // that gets it wrong on the slower platform only.
-      await h.keys.undo();
-      await browser.waitUntil(async () => (await h.getBuffer()) === before, {
-        timeout: 4000,
-        timeoutMsg: 'undo did not restore the pre-edit buffer',
-      });
+      // did. Through the editor's own history command rather than a keystroke:
+      // on the emulated-mobile job the first Mod-Z after a tap on the footer
+      // was dropped on every run, with the editor focused and the footer back
+      // where it started, and the next one restored the buffer — a delivery
+      // fault the claim here has nothing to do with. `undo` is on the editor at
+      // runtime and not in the typings; test-only. Waited for rather than
+      // paused for: the undo lands a frame or several later.
+      const editorUndo = (): Promise<void> =>
+        browser.executeObsidian(({ app, obsidian }) => {
+          const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+          if (!view) throw new Error('no active markdown view');
+          view.editor.undo();
+        });
+      await editorUndo();
+      try {
+        await browser.waitUntil(async () => (await h.getBuffer()) === before, {
+          timeout: h.waitBudget(4000),
+        });
+      } catch {
+        // Report where focus was, what the buffer holds and what one more
+        // undo does to it, so a miss says whether the undo did nothing or
+        // undid something reading the footer had added.
+        const focused = await browser.executeObsidian(
+          () => document.activeElement?.className ?? null,
+        );
+        const head = (await h.getBuffer()).slice(0, 12);
+        await editorUndo();
+        await browser.pause(500);
+        const afterSecondUndo = (await h.getBuffer()) === before ? 'restored' : 'still off';
+        const state = { focused, folded: await folded(), head, afterSecondUndo };
+        throw new Error(`undo did not restore the pre-edit buffer: ${JSON.stringify(state)}`);
+      }
     } finally {
       // Whatever happened, the next test starts from the fixture as written.
       // Without this, one failure here left an edited note behind and every
