@@ -169,16 +169,28 @@ describe('backlinks footer: behaviour', function () {
       await h.clickClear(`${FOOTER} .to-backlinks-icon`);
       await browser.pause(300);
       expect(await h.getBuffer()).toBe(edited);
-
       // One undo must land on the typed character, not on anything the footer
       // did. Waited for rather than paused for: undo is dispatched through the
       // editor and lands a frame or several later, and a fixed pause is a guess
       // that gets it wrong on the slower platform only.
       await h.keys.undo();
-      await browser.waitUntil(async () => (await h.getBuffer()) === before, {
-        timeout: 4000,
-        timeoutMsg: 'undo did not restore the pre-edit buffer',
-      });
+      try {
+        await browser.waitUntil(async () => (await h.getBuffer()) === before, {
+          timeout: h.waitBudget(4000),
+        });
+      } catch {
+        // A keystroke undo needs the editor's focus, and the two clicks above
+        // must have landed as a pair for the footer to be back where it was.
+        // Report both, so a miss on one platform says which it lost.
+        const state = await browser.executeObsidian(() => ({
+          focused: document.activeElement?.className ?? null,
+          collapsed:
+            document
+              .querySelector('.workspace-leaf.mod-active .to-backlinks-head')
+              ?.classList.contains('is-collapsed') ?? null,
+        }));
+        throw new Error(`undo did not restore the pre-edit buffer: ${JSON.stringify(state)}`);
+      }
     } finally {
       // Whatever happened, the next test starts from the fixture as written.
       // Without this, one failure here left an edited note behind and every

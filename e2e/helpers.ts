@@ -759,13 +759,19 @@ export async function waitForBacklinkIndexReady(target: string, minSources = 10)
  * `getCachedFiles` exists at runtime and is not in the bundled typings.
  */
 export async function waitForMetadataCache(): Promise<void> {
+  // `cached` counts the vault's NOTES the cache lists, not the list's length:
+  // the cache also reads attachments, so the two totals can agree while a note
+  // is still missing. A cache without the method reports every note cached and
+  // leaves the resolved-link count as the only criterion.
   type Sample = { files: number; cached: number; resolved: number };
   const sample = (): Promise<Sample> =>
     browser.executeObsidian(({ app }) => {
       const cache = app.metadataCache as unknown as { getCachedFiles?: () => string[] };
+      const notes = app.vault.getMarkdownFiles().map((f) => f.path);
+      const listed = cache.getCachedFiles ? new Set(cache.getCachedFiles()) : null;
       return {
-        files: app.vault.getMarkdownFiles().length,
-        cached: cache.getCachedFiles?.().length ?? -1,
+        files: notes.length,
+        cached: listed ? notes.filter((p) => listed.has(p)).length : notes.length,
         resolved: Object.keys(app.metadataCache.resolvedLinks).length,
       };
     });
@@ -781,7 +787,7 @@ export async function waitForMetadataCache(): Promise<void> {
   while (Date.now() - started < budget) {
     const now = samples[samples.length - 1]!;
     const previous = samples[samples.length - 2];
-    const caughtUp = now.cached < 0 || now.cached >= now.files;
+    const caughtUp = now.cached >= now.files;
     const unchanged =
       previous !== undefined &&
       now.files === previous.files &&

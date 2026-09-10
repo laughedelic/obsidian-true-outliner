@@ -44,7 +44,7 @@ read the same:
 
 | | |
 | --- | --- |
-| Desktop, ten spec files | ready after 3.6–4.4 s: 149 notes, 150 cached, 149 in `resolvedLinks` |
+| Desktop, ten spec files | ready after 3.6–4.4 s: 149 notes, all 149 listed by the cache, 149 in `resolvedLinks` |
 | Mobile, ten spec files | ready after 3.1–4.2 s, the same counts |
 | Locally | 3.1 s |
 
@@ -67,7 +67,7 @@ Three forms were tried on the folding branch and reverted before this one:
 | `Object.keys(resolvedLinks).length === getMarkdownFiles().length` | Unsafe as a gate: a note with no links has nothing to resolve. On this vault the two do agree (149 and 149, so the table carries an entry per note), which is what made it look sound; it is not a relationship to rely on. |
 | the same, inside `settle()` | Ran a dozen times per case in the footer specs and stacked past mocha's sixty seconds. |
 | once per spec file, in `openFooter`, memoised, one minute's budget | The minute was short on the slower runners, and a wait that never succeeds memoises nothing, so every open paid it again. |
-| resolved-link count held still across several polls, with the cache's own file list (`getCachedFiles()`, present at runtime and absent from the bundled typings) at or above the vault's note count | What `waitForMetadataCache` does. The one extra cached file is the vault's single image: the list holds every file the cache has read, not only notes. |
+| resolved-link count held still across several polls, once every note in the vault appears in the cache's own file list (`getCachedFiles()`, present at runtime and absent from the bundled typings) | What `waitForMetadataCache` does. The list holds every file the cache has read, attachments included — the vault's one image made it 150 long against 149 notes — so it is checked note by note, never as a total that a spare attachment could satisfy with a note still missing. |
 
 Its budget is a second per note with a sixty-second floor, then `waitBudget`'s widening under
 contention. A wait that runs out logs its last samples and returns instead of failing the
