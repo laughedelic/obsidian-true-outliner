@@ -164,6 +164,13 @@ describe('fold commands', () => {
     // Only the outermost fold is visible on screen; the rest are inside it.
     // `# Top…`, with its marker: the caret is on line 0 — the only line left —
     // and Live Preview shows the active line's raw source.
+    //
+    // Settled again first, and deliberately: which line Live Preview treats as
+    // active is read from the selection at RENDER time, so this assertion is
+    // about a caret rather than about a command's result. Taking the earlier
+    // settle on trust made it a race the fold commands have no part in — on CI
+    // it read the heading rendered rather than as source, once.
+    await h.setCursorSettled(0, 2);
     expect(await h.renderedLineTexts()).toEqual(['# Top8…', '']);
     await h.runCommand('unfold-all');
     expect(await h.foldedLineRanges()).toEqual([]);
