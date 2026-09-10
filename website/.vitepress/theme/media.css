@@ -1,0 +1,22 @@
+/* Captured media: a bordered frame in the page's own rhythm, caption below. */
+.vp-doc figure.media {
+  margin: 1.5rem 0;
+}
+
+.vp-doc figure.media > video,
+.vp-doc figure.media > img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-alt);
+}
+
+.vp-doc figure.media > figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--vp-c-text-2);
+  text-align: center;
+}
