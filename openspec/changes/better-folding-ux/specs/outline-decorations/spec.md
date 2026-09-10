@@ -82,6 +82,10 @@ them followed the unit.
 - **WHEN** the pointer rests on the text of a node the caret is not on, and then on its mark
 - **THEN** the marker is unchanged on the first and changes colour on the second
 
+#### Scenario: A folded mark highlights under the pointer too
+- **WHEN** the pointer rests on the mark of a folded node
+- **THEN** the mark changes colour from its folded one
+
 #### Scenario: The caret's node stays marked while folded
 - **WHEN** a node is folded and the caret is on it
 - **THEN** its marker carries the caret's colour, not the folded one

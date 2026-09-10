@@ -3453,6 +3453,23 @@ body.is-mobile {
 }
 
 /*
+ * The pointer wins over both. The hover rule and the folded rule weigh the
+ * same, and the folded one is declared later — so a folded mark did not
+ * answer the pointer at all, on the one kind of node where the reader is most
+ * likely to reach for the zoom. Restated here, after the folded and the caret
+ * rules, at a weight neither exceeds.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-marker-icon:hover,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-number:hover,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-ol-digits:hover {
+  color: var(--to-decor-highlight);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-bullet:hover::after {
+  background-color: var(--to-decor-highlight);
+}
+
+/*
  * Above the fold indicator. Obsidian's wrapper for the chevron is stacked at
  * `z-index: 1`, and on a folded block line — which Obsidian tags as a list line
  * and pads accordingly — it reaches right of its own glyph, over the marker.

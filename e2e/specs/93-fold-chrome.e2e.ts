@@ -274,6 +274,19 @@ describe('fold chrome', () => {
     await h.hoverMarker(2);
     expect((await h.foldChromeColors(2)).marker).not.toBe(rest);
     await h.hoverLineText(0);
+
+    // Folded too. The folded colour and the hover weigh the same, and the
+    // folded one was declared later, so a folded mark did not answer the
+    // pointer at all — on the one node a reader most reaches for the zoom.
+    await h.setCursorSettled(2, 4);
+    await h.runCommand('fold-node');
+    await h.setCursorSettled(0, 3);
+    await h.hoverLineText(0);
+    const foldedRest = (await h.foldChromeColors(2)).marker;
+    expect(foldedRest).not.toBe(rest);
+    await h.hoverMarker(2);
+    expect((await h.foldChromeColors(2)).marker).not.toBe(foldedRest);
+    await h.hoverLineText(0);
   });
 
   it('keeps the caret’s colour on a folded node the caret is on', async () => {
