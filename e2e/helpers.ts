@@ -1233,11 +1233,16 @@ export async function waitForMetadataResolved(): Promise<void> {
   let previous = -1;
   await browser.waitUntil(
     async () => {
-      const { cached, resolved, files } = await browser.executeObsidian(({ app }) => ({
-        cached: app.metadataCache.getCachedFiles().filter((f) => f.endsWith('.md')).length,
-        resolved: Object.keys(app.metadataCache.resolvedLinks).length,
-        files: app.vault.getMarkdownFiles().length,
-      }));
+      const { cached, resolved, files } = await browser.executeObsidian(({ app }) => {
+        // `getCachedFiles` is in the app's public surface and not in the
+        // bundled typings; measured present, listing every read file's path.
+        const cache = app.metadataCache as unknown as { getCachedFiles(): string[] };
+        return {
+          cached: cache.getCachedFiles().filter((f: string) => f.endsWith('.md')).length,
+          resolved: Object.keys(app.metadataCache.resolvedLinks).length,
+          files: app.vault.getMarkdownFiles().length,
+        };
+      });
       if (cached < files || resolved !== previous) {
         previous = resolved;
         held = 0;
