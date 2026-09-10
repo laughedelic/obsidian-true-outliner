@@ -31,7 +31,6 @@ import {
 } from './fold-model';
 import { ownSpan } from '../model';
 import {
-  currentFolds,
   dispatchFolds,
   foldEffectFor,
   foldRangeOf,
