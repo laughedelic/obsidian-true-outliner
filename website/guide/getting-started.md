@@ -48,7 +48,7 @@ Put the caret between `floor patch,` and ` then tile` and press Enter. The item 
 
 Put the caret in `handles: undecided` and press **Mod+A** repeatedly. The selection climbs a ladder: the item's text, then the item with its two children, then the whole **Materials** list, then the section, then the whole note. Press **Shift+ArrowDown** from any caret position instead to extend the selection one node at a time. A selection that covers whole nodes is drawn as a block, and Tab, Shift+Tab and the move commands act on everything it covers.
 
-Try to drag a selection from the middle of `brass` to the middle of `steel`. It snaps outward to cover both items whole: a selection can never start or end inside a node boundary in a way that would let a deletion break the tree.
+Try to drag a selection from the middle of `brass` to the middle of `steel`. It snaps outward to cover both items whole, so a deletion or a cut takes whole nodes and never half of one.
 
 ## 5. Zoom in
 
