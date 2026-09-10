@@ -563,6 +563,14 @@ describe('node-edit-enforcement: Phase C evidence', function () {
   // ---- 4.5 Perf ------------------------------------------------------------
 
   it('performance: verdict computation stays within budget on a ~2000-line stress note', async function () {
+    // The budget this case asserts is measured in-app, per verdict. This one
+    // is only how long the DRIVING may take: five rounds of keystrokes, each
+    // a WebDriver round trip, which the per-case default in the wdio config
+    // was never sized for — it fits a case that makes a handful of them. A
+    // loaded runner under mobile emulation ran out of the default with the
+    // measured medians nowhere near their bar.
+    this.timeout(h.waitBudget(180_000));
+
     const lines: string[] = [];
     for (let i = 0; i < 400; i++) {
       lines.push(`## Section ${i}`, '', `Paragraph text for section ${i}, some words here.`, '');

@@ -89,10 +89,15 @@ export const config: WebdriverIO.Config = {
    * action a spec is waiting on can vanish between polls; recording from
    * session start removes that race even for specs that produce a notice
    * before touching any note helper (see `armNoticeRecorder`).
+   *
+   * Then let Obsidian finish indexing the vault this session was launched on,
+   * once per spec file and outside mocha's per-case budget — see
+   * `waitForMetadataCache` for what a footer read sees without it.
    */
   before: async function () {
-    const { armNoticeRecorder } = await import('./helpers.js');
+    const { armNoticeRecorder, waitForMetadataCache } = await import('./helpers.js');
     await armNoticeRecorder();
+    await waitForMetadataCache();
   },
 
   afterTest: screenshotOnFailure('desktop'),
