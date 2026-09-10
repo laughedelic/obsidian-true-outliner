@@ -40,6 +40,7 @@ const mobile = shot('mobile-outline');
         autoplay
         loop
         source
+        :delay="1000"
         title="Kitchen renovation.md"
         hint="Live: this is the plugin's own editor code, running here. Try <kbd>Tab</kbd>, <kbd>⇧Tab</kbd>, <kbd>Enter</kbd>, <kbd>⇧↓</kbd>, <kbd>⌘A</kbd>, or click a marker."
         class="lp-hero-demo"
