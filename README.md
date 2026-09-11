@@ -1,38 +1,44 @@
 # True Outliner
 
-True outliner experience for Obsidian: edit the structure of any note, not just its text.
+Edit the structure of any Obsidian note, not just its text. Headings, paragraphs and lists become nodes of one tree that can be indented, moved, split, selected and zoomed as whole units. The file on disk stays plain markdown, byte for byte.
+
+![Outline mode on and off, indenting a subtree, splitting an item, selecting by node, zooming in and out](website/public/media/readme-tour.gif)
 
 > [!NOTE]
-> **Early preview.** True Outliner is usable today and under active development, but it is not yet in the community plugin directory and defaults may still change. The **[website](https://laughedelic.github.io/obsidian-true-outliner/)** has the user guide, the [installation steps](https://laughedelic.github.io/obsidian-true-outliner/guide/installation) (BRAT or manual, from the [releases](https://github.com/laughedelic/obsidian-true-outliner/releases)), a [comparison with other outliners](https://laughedelic.github.io/obsidian-true-outliner/guide/compared) and the [known limitations](https://laughedelic.github.io/obsidian-true-outliner/reference/limitations). Opinions on the direction are welcome in the [discussions](https://github.com/laughedelic/obsidian-true-outliner/discussions).
+> **Early preview.** Usable today and under active development. Not yet in the community plugin directory, and defaults may still change. The **[website](https://laughedelic.github.io/obsidian-true-outliner/)** has the guide, a live demo, and the [known limitations](https://laughedelic.github.io/obsidian-true-outliner/reference/limitations).
 
-## Vision
+## What it does
 
-- Outliner apps (Workflowy, Roam, Logseq, Tana) share one invariant: the document is a **tree of nodes**, and every operation (typing, selecting, deleting, moving, pasting) respects **node boundaries**. The structure can't be malformed.
-- Obsidian's markdown lists don't have that invariant.
-  - Existing outliner plugins bolt keyboard tricks onto flat text, so the structure is one careless selection away from breaking.
-  - This is fragile: the cursor has to be in just the right place, and copying or moving things around often breaks the file.
-- True Outliner aims to bring the enforced-tree invariant to Obsidian without leaving markdown behind.
-  - Any note is an outline: every note already has a block structure (headings, paragraphs, list items), and that structure maps losslessly onto a node tree.
-  - The plugin lets you view and edit that tree directly, with the same guarantees as a dedicated outliner.
-  - The file on disk stays plain, readable markdown, so it still works with every other tool, plugin, and sync method Obsidian offers.
+- **Any note is an outline.** Every block a note already has, whether heading, paragraph, list item, code block, table or callout, is a node. Nothing to convert, no special note type. Toggle outline mode per tab and the note is stock Obsidian again.
+- **Operations work on the tree.** Tab and Shift+Tab move a node with everything under it, wherever the caret is. Headings change level and their section follows. Enter splits a node and ordered lists renumber; Enter on an empty item walks back out of the nesting; Backspace at a node's first character joins it upward. Move up and down swap whole siblings.
+- **Selection snaps to nodes.** Shift+Arrow grows a selection one node at a time, Mod+A climbs from the node's text to its subtree, its list, its section, the note. A drag across a boundary snaps outward to whole nodes and is drawn as a block. Delete, Cut, Tab and the move commands act on everything it covers.
+- **Fold any branch.** Every node with children folds, headings, list items and paragraphs alike, with a count of what is hidden. A fold follows its node when it moves and is remembered per note without a byte written to the file.
+- **Zoom into anything.** Click a marker to show one node and its subtree as the whole note, with a breadcrumb trail back out. Editing is confined to what is visible.
+- **Backlinks in their own tree.** Below every note, each reference to it from the vault is shown in the tree of the note it came from: ancestors, the node, its children. Grouped by note, sortable, filterable, one click from the source.
+- **Clean files.** No IDs, no fold markers, no metadata. Parsing a note and writing it back is byte-identical, and a structural edit changes the lines it moved and nothing else. Works with every other plugin, tool and sync method.
+- **Desktop and mobile**, any theme, built on Obsidian's public APIs only.
 
-## Goals
+## Install
 
-- Structural integrity: no operation can produce broken indentation, orphaned children, or text floating outside the tree. This is enforced, not best-effort.
-- Lossless, isomorphic markdown mapping: the block tree and its markdown encoding are two views of the same thing.
-  - Parsing and re-encoding a file round-trips byte-for-byte.
-  - Every structural edit resolves to a well-defined, minimal diff, never hidden state, never a lossy rewrite of the whole file.
-- Any note, not a special mode: the outliner isn't a separate note type or a vault takeover, it's a way of looking at and editing the notes you already have.
-- Public APIs only: built on Obsidian's documented editor and plugin APIs, no monkey-patching private internals, so it stays compatible and passes the community plugin safety bar honestly.
-- Clean files: no required front matter, IDs, or metadata just to make the outliner work. What the outliner needs to track (like fold state) lives in plugin data, not in your notes.
+Until the plugin is in the community directory, install it through [BRAT](https://github.com/TfTHacker/obsidian42-brat): **Add beta plugin** → `laughedelic/obsidian-true-outliner`. Or copy `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/laughedelic/obsidian-true-outliner/releases/latest) into `.obsidian/plugins/true-outliner/`. Details in the [installation guide](https://laughedelic.github.io/obsidian-true-outliner/guide/installation).
 
-## Approach
+Obsidian 1.5.0 or later. If the **Outliner** or **Zoom** community plugin is enabled in the same vault, disable one of them: they bind the same keys.
 
-- The design splits into two layers:
-  - A pure mapping core: markdown parsing, encoding, and structural operations (indent, outdent, move, etc.) as a standalone library with no editor or Obsidian dependency. Correctness here (round-tripping, op closure, minimal edits) is verified independently of any UI.
-  - An editor integration: a CodeMirror 6 extension inside Obsidian's standard markdown view that renders and drives that model, giving the outliner experience without replacing the file format or the editor.
-- The mapping algebra has two structural regimes:
-  - Headings behave like org-mode promote/demote: indent/outdent shifts heading level.
-  - Everything else reparents relative to siblings, with markdown encoding recomputed from context.
-  - Either way, an operation produces a well-formed tree, or it's rejected with a clear, typed reason, never a partial or ambiguous result.
-- The research and design decisions behind these choices are written up in [docs/research/](docs/research/).
+## Learn more
+
+- [Getting started](https://laughedelic.github.io/obsidian-true-outliner/guide/getting-started), five minutes with any note, with a live editor to try the keys in
+- [How a note becomes an outline](https://laughedelic.github.io/obsidian-true-outliner/guide/how-notes-become-outlines), the mapping behind everything, and the two rules that surprise people
+- [Settings](https://laughedelic.github.io/obsidian-true-outliner/reference/settings) and [commands and keys](https://laughedelic.github.io/obsidian-true-outliner/reference/commands-and-keys)
+- [Compared to other outliners](https://laughedelic.github.io/obsidian-true-outliner/guide/compared): Workflowy, Roam, Logseq, Tana, outl, org-mode, and the existing Obsidian plugins
+
+## Why
+
+Outliner apps such as Workflowy, Roam, Logseq and Tana share one invariant: the document is a tree of nodes, and every operation respects node boundaries. Obsidian's markdown lists have no such invariant, and the plugins that add outliner keybindings work on flat text, so a move works only when the caret is in the right place and a careless selection can cut a subtree in half. True Outliner brings the tree to Obsidian without leaving markdown behind: every note already has block structure, the plugin reads it, draws it, and makes every operation work on it. The design decisions and measurements behind it are in [docs/research/](docs/research/).
+
+## Contributing
+
+Opinions on the direction are welcome in the [discussions](https://github.com/laughedelic/obsidian-true-outliner/discussions), and bugs in the [issues](https://github.com/laughedelic/obsidian-true-outliner/issues). The repository's [agent instructions](AGENTS.md) describe the branching, review and testing workflow.
+
+## License
+
+MIT
