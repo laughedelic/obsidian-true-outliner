@@ -140,12 +140,7 @@ describe('the guide gesture', () => {
     // column names it on the line — the stylesheet draws a band and shows the
     // cursor — and leaving clears it.
     if (h.IS_MOBILE_RUN) return;
-    const onGuide = await h.guideColumnPoint(2, 0);
-    await browser
-      .action('pointer', { parameters: { pointerType: 'mouse' } })
-      .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
-      .perform();
-    await browser.pause(150);
+    await h.hoverGuideColumn(2, 0);
     // The whole guide thickens — every line of "- root"'s subtree, which is
     // what a press would act on, through the width its own guide layer reads —
     // and only the pointer's own line takes the cursor.
@@ -283,12 +278,7 @@ describe('the guide gesture', () => {
     // rebuilds, it is there after the rebuild too.
     if (h.IS_MOBILE_RUN) return;
     await h.setCursorSettled(1, 4);
-    const onGuide = await h.guideColumnPoint(3, 0);
-    await browser
-      .action('pointer', { parameters: { pointerType: 'mouse' } })
-      .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
-      .perform();
-    await browser.pause(150);
+    await h.hoverGuideColumn(3, 0);
     expect((await h.litGuide()).thickened).toEqual([1, 2, 3, 4, 5]);
     await browser.keys(['ArrowDown']);
     await browser.pause(200);

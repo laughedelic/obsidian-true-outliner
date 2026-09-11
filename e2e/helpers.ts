@@ -1228,6 +1228,22 @@ export async function waitForRead<T>(
 }
 
 /**
+ * Rest the pointer on a guide column. Moved off the line's text first, always:
+ * a move to the point the pointer already occupies dispatches no pointer
+ * event, and a case that follows a press on the same guide then hovered
+ * nothing — on CI, where the previous case left the pointer exactly there.
+ */
+export async function hoverGuideColumn(line: number, column: number): Promise<void> {
+  await hoverLineText(line);
+  const point = await guideColumnPoint(line, column);
+  await browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x: Math.round(point.x), y: Math.round(point.y), origin: 'viewport' })
+    .perform();
+  await browser.pause(150);
+}
+
+/**
  * What the guide gesture's hover is showing: the lines whose guide background
  * the decoration pass painted with the hover width, and whether the editor
  * shows the hand.
