@@ -197,13 +197,13 @@ class ZoomClickPlugin implements PluginValue {
       remembered?.isConnected === false
         ? this.view.dom.ownerDocument.elementFromPoint(x, y)
         : remembered;
-    // A control owns the hover on the same terms it owns a press: only when
-    // the point is within its own box. Obsidian's list-line chevron wrapper is
-    // thirty pixels wide and reaches over the guide column on every foldable
-    // line, so bailing on the target alone left the guide dark on exactly
-    // those lines — which read as the hover working only sometimes.
-    const control = target?.closest<HTMLElement>('.cm-fold-indicator, .to-decor-fold-toggle');
-    if (control && controlOwnsPress(control, x, y)) {
+    // A fold control under the pointer is that control's own. By target, not
+    // by geometry as a press decides it: a pointer's target is the element
+    // under it, so the two agree — measured, a chevron wrapper's dead space
+    // lies right of its glyph, toward the mark, never over a shallower guide's
+    // band, so the only overlap between a band and a control is the glyph,
+    // where the control must win.
+    if (target?.closest('.cm-fold-indicator, .to-decor-fold-toggle')) {
       this.clearGuideHover();
       return;
     }

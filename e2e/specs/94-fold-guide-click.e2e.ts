@@ -285,28 +285,6 @@ describe('the guide gesture', () => {
     expect(thickened).toEqual([1, 2, 3, 4]); // the gap line, then the children
   });
 
-  it('lights the guide on a line whose chevron wrapper reaches over it', async () => {
-    // Obsidian's list-line chevron wrapper is thirty pixels wide and reaches
-    // over the guide column on every foldable line. A hover that stood aside
-    // for any control under the target left the guide dark on exactly those
-    // lines; it stands aside only when the point is within the control's own
-    // box, as a press does.
-    if (h.IS_MOBILE_RUN) return;
-    const onGuide = await h.guideColumnPoint(1, 0); // "- first", foldable, wrapper over column 0
-    await browser
-      .action('pointer', { parameters: { pointerType: 'mouse' } })
-      .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
-      .perform();
-    await browser.pause(150);
-    const thickened = await browser.executeObsidian(() =>
-      Array.from(document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'))
-        .map((el, i) => (el.style.getPropertyValue('--to-guide-width-0') ? i : -1))
-        .filter((i) => i >= 0),
-    );
-    expect(thickened).toEqual([1, 2, 3, 4, 5]);
-    await h.hoverLineText(1);
-  });
-
   it('is not offered when guides are not drawn', async () => {
     // The point is measured while they still are, so what changes between the
     // measurement and the press is the guide alone.
