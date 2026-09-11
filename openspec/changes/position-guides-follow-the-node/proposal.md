@@ -44,8 +44,9 @@ None.
 
 - Where a guide starts, which depths any content line carries, and where guides end when no
   position is open.
-- Guides under a zoom. Re-basing a position against the zoomed subtree is PR #87's subject; this
-  rule is stated against whichever document the guides come from.
+- How a position is re-based under a zoom (`positions-re-base-with-the-zoom`). This rule is
+  stated against whichever document the guides come from, which while zoomed is the zoom root's
+  subtree.
 - The position-indicator accents. They already render only at depths their line carries a guide
   at, so they follow the narrowed guide without a change of their own.
 - The childless-parent residual: the guide a node gains only once the position is typed. That is
@@ -57,7 +58,5 @@ None.
   materialized row carries instead of a bare line number.
 - `src/plugin/decorations.ts`: `factsFor`'s new-node branch hands that over.
 - `tests/decorate.test.ts`: the pure cases, and a differential property over the generated corpus.
-- `e2e/specs/51-guides-gradient.e2e.ts`: the reported shape driven through real keys.
-- Overlaps PR #87 (`fix/positions-re-base-with-the-zoom`) in `factsFor`'s call to
-  `computeLineGuides`, a textual overlap with no dependency either way. Whichever lands second
-  rebases.
+- `e2e/specs/51-guides-gradient.e2e.ts`: the reported shape driven through real keys, zoomed and
+  unzoomed.

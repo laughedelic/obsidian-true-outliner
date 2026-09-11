@@ -11,10 +11,11 @@
       different document": say what the row fact carries, and why the result is the intersection
       (the node's bound and the document's bound). Explain; do not advocate, and no figures.
 - [ ] 1.3 In `factsFor`'s new-node branch (src/plugin/decorations.ts), derive the position's row
-      from `computeLineGuides(provisional.doc)` and hand it over. Drop the no-op argument from the
-      bisecting branch, and correct both comments. The "Guides still come from the document as it
-      actually is" comment states the rule this change replaces (design D3). Verify:
-      `npm run build` and `npm run lint` pass.
+      from `computeLineGuides(provisional.doc)` at the scope-local line
+      (`provisional.line - provisional.offset`), and hand it over before the shift back. Drop the
+      no-op argument from the bisecting branch, and correct both comments. The "Guides still come
+      from the document as it actually is" comment states the rule this change replaces (design
+      D3). Verify: `npm run build` and `npm run lint` pass.
 
 ## 2. Unit tests (`tests/decorate.test.ts`)
 
@@ -49,7 +50,8 @@
 - [ ] 3.1 E2e in `e2e/specs/51-guides-gradient.e2e.ts`: create `# H` / blank / `para` / blank /
       `- a` / `- b`, put the caret at the end of `- b`, and press Enter twice through `h.keys`.
       The position's row must resolve fewer gradient layers than `- b`'s row. After typing one
-      character, that row must resolve the same count it did as a position. Assert the
+      character, that row must resolve the same count it did as a position. Repeat inside a zoom
+      on `# H`, where the guides are re-based and the same two relationships must hold. Assert the
       relationships, not pixel values. Negative control: revert 1.3's hand-over, and the first
       assertion fails. Run:
       `npm run test:e2e:narrow -- 51-guides-gradient "left a subtree"`, and again with `--mobile`.

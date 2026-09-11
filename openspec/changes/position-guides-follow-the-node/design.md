@@ -13,8 +13,11 @@ where the over-extension enters. The pass carries it upward onto the blank rows 
 `factsFor` (`src/plugin/decorations.ts`) has two branches for an open position. When the position
 bisects a node, every fact comes from `provisional.doc`, the probe's parse, where the row is one of
 a node's own lines. The corpus shows that branch already agrees with the typed row. Otherwise the
-facts come from the buffer's parse, and the guides are recomputed from it with the position's
-line handed over.
+facts come from the view's own document, and the guides are recomputed from it with the position's
+line handed over. Both branches work in the view's numbering since
+`positions-re-base-with-the-zoom`: while zoomed, `materializeProvisional` materializes the
+position against the zoom root's subtree, the same document the new-node branch computes guides
+from, and the result is shifted back by `provisional.offset`.
 
 ## Goals / Non-Goals
 
@@ -72,19 +75,20 @@ stops compiling instead of quietly keeping the old rule. That is the same reason
 
 ### D3: `factsFor`'s new-node branch derives the fact from `provisional.doc`
 
-`provisional.doc` is already the probe's parse, computed once per state by `computeProvisional`.
-The branch runs `computeLineGuides(provisional.doc)` and hands over the position's row. That is
-one extra walk per open position, cached per `EditorState` by `overlayCache` like everything else
-in that branch.
+`provisional.doc` is already the probe's parse, computed once per state by `computeProvisional`,
+in the same scope-local numbering as the document the branch computes guides from. The branch
+runs `computeLineGuides(provisional.doc)`, takes the row at `provisional.line - provisional.offset`,
+and hands it over before the shift back by `provisional.offset`. The row fact and the guides it
+narrows are then in one frame by construction. That is one extra walk per open position, cached
+per `EditorState` by `overlayCache` like everything else in that branch.
 
 The bisecting branch stops passing anything. There the row is one of a node's own lines, so the
 argument was a no-op before this change, and it stays one: D2 narrows only a gap line. The corpus
 measured that branch equal to the typed row at every position.
 
-*Alternative considered:* storing the row's guides on `Provisional` in `computeProvisional`.
-Rejected, because only `factsFor` reads them, and `Provisional` is the structure PR #87 reshapes
-(`materializeProvisional`, the zoom re-basing). Keeping the derivation at its single consumer
-keeps the overlap with that PR to the one call site both already edit.
+*Alternative considered:* adding the row's guides to `ProvisionalMaterialization` in
+`materializeProvisional`. Rejected, because the trail and the bisection gate read that structure
+too and have no use for them. Every consumer would pay for a walk only one of them needs.
 
 ### D4: The oracle is the typed document, asserted differentially over the generated corpus
 
@@ -108,10 +112,9 @@ so a broken consumer cannot make the property vacuous.
 - **On the gap before a node's first child, a caret at the node's column now drops that node's
   guide from the row** → That is what typing there produces: a second line of the node, which
   never carries the node's own guide. The row regains the guide when the caret leaves.
-- **Textual conflict with PR #87 in `factsFor`** → Both edit the same `computeLineGuides` call.
-  Under #87, that call takes zoom-local line numbers from a re-based document, and the
-  materialized row fact must come from the same re-based document with the same local line.
-  Whichever change lands second rebases and keeps that pairing.
+- **A row fact handed over in the wrong frame under a zoom** → The row fact and the guides it
+  narrows are both computed before the shift back, from documents in the same scope-local
+  numbering. The zoomed e2e case in task 3.1 is the rendered check.
 - **An extra walk per open position** → Linear in the document, and cached per state. It runs
   only while a position is open.
 

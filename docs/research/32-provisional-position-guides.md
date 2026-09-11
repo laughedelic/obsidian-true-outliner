@@ -1,6 +1,7 @@
 # A provisional position's guides: what the extension carries that the typed row does not
 
-**Measured 12 September 2026** at the pure level, against `main` at `c6b1b43`: `planKey` to drive
+**Measured 12 September 2026** at the pure level, against `main` at `c6b1b43`, and re-run with
+identical figures against `3e994a5`, once positions re-based with the zoom: `planKey` to drive
 the keys, `materializeProbe` for what typing at the caret would produce, and `computeLineGuides`
 composed the way `factsFor` composes it — the resolved outline for a position that bisects a
 node, the buffer's own parse with the position's line handed over for every other one. The
@@ -119,9 +120,11 @@ document already has.
 
 ## What this does not cover
 
-- **A zoom.** Measured unzoomed only. On `main`, the non-bisecting branch of `factsFor` computes
-  guides from the whole note even inside a zoom, and the materialized parse is of the whole note
-  too, so the two agree on line numbers. Re-basing positions under a zoom is PR #87's subject.
+- **A zoom.** Measured unzoomed only. Under a zoom, `factsFor` computes a new-node position's
+  guides from the zoom root's subtree as a document, and materializes the position against that
+  same document (`positions-re-base-with-the-zoom`). The rule therefore applies there unchanged,
+  in the subtree's own numbering. The report reproduces zoomed too, and the rendered check covers
+  it.
 - **The rendering itself.** Everything here is facts. The rendered check is the e2e case in the
   change that acts on this note.
 - **The accent layer.** An accent already renders only at a depth its line carries a guide at
