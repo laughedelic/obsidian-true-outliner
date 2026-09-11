@@ -77,14 +77,15 @@ import { editorInfoField } from 'obsidian';
 import { zoomScope } from './zoom-scope';
 import { MARKER_GUTTER_CSS, MARKER_ICON_CSS, UNIT_EXPR } from './chrome-tokens';
 import {
+  BLOCK_LINE_CLASS,
   chromeStyle,
+  GUIDE_WIDTH,
   guideLayer,
   lineChrome,
   markerAnchorLeftExpr,
   MARKER_LEFT_SHIFT_EXPR,
   OWN_CHROME_CLASS,
   ownShiftExpr as plainOwnShiftExpr,
-  plainGuideBackground,
   stripeStartExpr,
 } from './chrome-line';
 import type { NodeKind, OutlineDoc } from '../model';
@@ -116,7 +117,11 @@ import {
 } from './decorate';
 import { isOutlineMode } from './outline-state';
 import { parsedDoc } from './parsed-doc';
-import { isNestedEditor } from './nested-editor';
+import { isNestedEditor, nestedEditorField } from './nested-editor';
+import { foldedChrome } from './fold-service';
+import { foldableEntries } from './fold-model';
+import { guideHoverField, type GuideHover } from './guide-hover';
+import { toggleFoldAtLine } from './fold-commands';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
 //
@@ -261,12 +266,16 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
  * went unaccented and the path visibly broke into two pieces with a gap the
  * size of that padding. Which is why the gap "varied": it WAS the padding.
  */
-function accentLayer(depth: number, extent: TrailExtent): string {
-  const gradient = `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH})`;
+function accentLayer(depth: number, extent: TrailExtent, width: string = TRAIL_WIDTH): string {
+  // `width` is the trail's unless this is the guide under the pointer: an
+  // accented column is painted by THIS layer in place of the plain guide, so
+  // without the hover reaching it here, a guide the caret was under did not
+  // thicken at all, and nothing said it could be pressed.
+  const gradient = `linear-gradient(to right, ${ACCENT} 0 ${width}, transparent ${width})`;
   const height = extent === 'full' ? '100%' : 'var(--to-accent-stop, 50%)';
   // Centred on the column through the same helper the plain guide uses, so an
   // accent can never sit half a pixel off the guide it is brightening.
-  return `${gradient} ${stripeStartExpr(depth, TRAIL_WIDTH)} top / ${UNIT} ${height} no-repeat`;
+  return `${gradient} ${stripeStartExpr(depth, width)} top / ${UNIT} ${height} no-repeat`;
 }
 
 /**
@@ -285,16 +294,40 @@ function accentLayer(depth: number, extent: TrailExtent): string {
  * marker's icon on arrival. The accented ancestor marker is the junction
  * instead — see `MarkerHighlight` in decorate.ts.
  */
-function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFact): string {
-  if (!trail) return plainGuideBackground(guideDepths);
+/**
+ * The background for one line's guides. `lit` is the depth of the guide under
+ * the pointer, on a line that guide runs through, and is painted thicker —
+ * whether the plain layer or the caret trail's accent draws it.
+ */
+function guideBackground(
+  guideDepths: readonly number[],
+  trail?: PositionTrailFact,
+  lit?: number,
+): string {
+  const widthOf = (depth: number, rest: string): string =>
+    depth === lit ? GUIDE_HOVER_WIDTH : rest;
+  if (!trail) {
+    return guideDepths.map((depth) => guideLayer(depth, widthOf(depth, GUIDE_WIDTH))).join(', ');
+  }
   const accents = accentsOn(guideDepths, trail);
   const layers: string[] = [];
-  for (const [depth, extent] of accents) layers.push(accentLayer(depth, extent));
+  for (const [depth, extent] of accents) {
+    layers.push(accentLayer(depth, extent, widthOf(depth, TRAIL_WIDTH)));
+  }
   for (const depth of guideDepths) {
-    if (accents.get(depth) !== 'full') layers.push(guideLayer(depth));
+    if (accents.get(depth) !== 'full') layers.push(guideLayer(depth, widthOf(depth, GUIDE_WIDTH)));
   }
   return layers.join(', ');
 }
+
+/** The depth to paint thicker on `line`, if the hovered guide runs through it. */
+function litGuideOn(hover: GuideHover | null, line: number): number | undefined {
+  return hover && line >= hover.first && line <= hover.last ? hover.column : undefined;
+}
+
+/** What the guide under the pointer is painted at; styles.css declares it
+ * beside the trail's width and says why it is not the trail's. */
+const GUIDE_HOVER_WIDTH = 'var(--to-guide-hover-width)';
 
 /**
  * Every guide depth a line draws: the non-list ancestors the base layer has
@@ -330,10 +363,7 @@ function activeGuideDepths(guide: LineGuideFact): readonly number[] {
  * That clip is why hiding a guide hides its accent for free, and why marker
  * accents are untouched: they are not a treatment of a guide.
  */
-function drawnGuideDepths(
-  guide: LineGuideFact,
-  ctx: GuideVisibilityContext,
-): readonly number[] {
+function drawnGuideDepths(guide: LineGuideFact, ctx: GuideVisibilityContext): readonly number[] {
   return visibleGuideDepths(activeGuideDepths(guide), ctx, guide.lineNumber);
 }
 
@@ -751,15 +781,11 @@ const ANCESTOR_NATIVE_MARKER_CLASS = 'to-decor-ancestor-native';
  */
 function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: boolean): string {
   if (markerAccent && trail.currentLine === lineNumber) {
-    return trail.currentIsListItem
-      ? ` ${CURRENT_NATIVE_MARKER_CLASS}`
-      : ` ${CURRENT_MARKER_CLASS}`;
+    return trail.currentIsListItem ? ` ${CURRENT_NATIVE_MARKER_CLASS}` : ` ${CURRENT_MARKER_CLASS}`;
   }
   const ancestorIsListItem = trail.ancestorLines.get(lineNumber);
   if (ancestorIsListItem === undefined) return '';
-  return ancestorIsListItem
-    ? ` ${ANCESTOR_NATIVE_MARKER_CLASS}`
-    : ` ${ANCESTOR_MARKER_CLASS}`;
+  return ancestorIsListItem ? ` ${ANCESTOR_NATIVE_MARKER_CLASS}` : ` ${ANCESTOR_MARKER_CLASS}`;
 }
 
 // ---- Block markers (Experiment 5a: icon markers) ---------------------------
@@ -926,8 +952,20 @@ export function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       // Filled alert circle with an "!" bar.
       children.push(
         svgEl('circle', { cx: '8', cy: '8', r: '6', fill: 'currentColor' }),
-        svgEl('rect', { x: '7', y: '4', width: '2', height: '5', fill: 'var(--background-primary)' }),
-        svgEl('rect', { x: '7', y: '10', width: '2', height: '2', fill: 'var(--background-primary)' }),
+        svgEl('rect', {
+          x: '7',
+          y: '4',
+          width: '2',
+          height: '5',
+          fill: 'var(--background-primary)',
+        }),
+        svgEl('rect', {
+          x: '7',
+          y: '10',
+          width: '2',
+          height: '2',
+          fill: 'var(--background-primary)',
+        }),
       );
       break;
     case 'quote':
@@ -948,7 +986,9 @@ export function buildMarkerIcon(kind: NodeKind): SVGSVGElement {
       break;
     case 'hr':
       // A single bold horizontal bar.
-      children.push(svgEl('rect', { x: '2', y: '7', width: '12', height: '2', fill: 'currentColor' }));
+      children.push(
+        svgEl('rect', { x: '2', y: '7', width: '12', height: '2', fill: 'currentColor' }),
+      );
       break;
     case 'list-item':
       // A bullet. The EDITOR never asks for this one — a list line there keeps
@@ -1071,6 +1111,210 @@ class MarkerWidget extends WidgetType {
   }
 }
 
+/** The class a folded node's own line carries, so the marker can say so. */
+export const FOLDED_NODE_CLASS = 'to-decor-folded';
+
+/**
+ * The class a folded MULTI-LINE node's last own line carries.
+ *
+ * Obsidian paints its collapsed indicator on the line a fold STARTS on, which
+ * for a node spanning several source lines is not the line its marker is on —
+ * so a folded paragraph running over two lines shows a persistent chevron
+ * stranded beside its second line, and a second, stale one beside its marker.
+ * This is how the stylesheet finds the stranded one.
+ */
+export const FOLDED_TAIL_CLASS = 'to-decor-fold-tail';
+
+/**
+ * What a folded node shows after its own text: that something is hidden, how
+ * much of it, and the way back — in ONE control.
+ *
+ * Obsidian already renders a placeholder here (`.cm-foldPlaceholder`, an
+ * ellipsis that unfolds when clicked), and a count beside it made two pieces of
+ * adjacent chrome out of one idea: the reader saw a bordered pill next to a
+ * bordered control and had to learn which of them did anything. So this takes
+ * over the whole job — it carries the ellipsis, the count, and the click — and
+ * the stylesheet hides the native placeholder wherever this is drawn.
+ *
+ * The count is what a folded state cannot otherwise say. Solid ink says
+ * something is hidden; only a number says whether that is one line or forty,
+ * and a list bullet, already solid, cannot even say the first (design D6).
+ *
+ * Chrome, not content: `contenteditable="false"`, outside the document, absent
+ * from anything copied. The ellipsis is drawn by the stylesheet rather than
+ * written here, so the element's own text stays the number — what a reader
+ * copies out of a folded outline should be the node's text, and what an
+ * assistive reader hears comes from the label.
+ */
+class FoldCountWidget extends WidgetType {
+  constructor(
+    private readonly count: number,
+    private readonly lineNumber: number,
+  ) {
+    super();
+  }
+
+  override eq(other: FoldCountWidget): boolean {
+    return other.count === this.count && other.lineNumber === this.lineNumber;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const el = createSpan({ cls: 'to-decor-fold-count', text: String(this.count) });
+    el.setAttribute('aria-label', `Unfold, ${this.count} hidden`);
+    el.setAttribute('title', 'Unfold');
+    el.contentEditable = 'false';
+    el.addEventListener('mousedown', (event) => event.preventDefault());
+    el.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFoldAtLine(view, this.lineNumber);
+    });
+    return el;
+  }
+
+  /** True for the reason `FoldToggleWidget` gives: it is what stops CM6's own
+   * handlers from taking a press meant for this control. */
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/**
+ * Our own fold affordance, for a node we fold whose line Obsidian paints no
+ * chevron on.
+ *
+ * Rendered on EVERY line we fold and hidden by CSS wherever a native indicator
+ * is present (`.cm-line:has(.cm-fold-indicator)`), rather than being placed
+ * only where one is missing. Whether Obsidian decorates a line is Obsidian's
+ * decision, taken in its own decoration pass; asking the DOM about it from here
+ * would mean measuring during a build, and measuring the wrong frame. The
+ * condition is a real one either way — with "Fold heading" and "Fold indent"
+ * off, Obsidian paints no indicator anywhere and this is the only control the
+ * reader has (docs/research/28).
+ *
+ * The click is handled on the element itself. A widget with `ignoreEvent`
+ * true is exactly the case where CM6 skips its own handlers, so nothing else
+ * in the editor sees this press — including the marker gesture, which would
+ * otherwise zoom.
+ */
+class FoldToggleWidget extends WidgetType {
+  constructor(
+    private readonly lineNumber: number,
+    private readonly folded: boolean,
+    private readonly leftExpr: string,
+  ) {
+    super();
+  }
+
+  override eq(other: FoldToggleWidget): boolean {
+    return (
+      other.lineNumber === this.lineNumber &&
+      other.folded === this.folded &&
+      other.leftExpr === this.leftExpr
+    );
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const el = createSpan({
+      cls: `to-decor-fold-toggle${this.folded ? ' is-collapsed' : ''}`,
+    });
+    applyMarkerLeft(el, this.leftExpr);
+    el.setAttribute('aria-label', this.folded ? 'Unfold' : 'Fold');
+    el.contentEditable = 'false';
+    // eslint-disable-next-line no-restricted-syntax -- detached DOM: CM6 mounts toDOM()'s result via its own supported path
+    el.appendChild(buildChevron());
+    el.addEventListener('mousedown', (event) => event.preventDefault());
+    el.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFoldAtLine(view, this.lineNumber);
+    });
+    return el;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/** The same downward chevron Obsidian's own indicator paints, so the two are
+ * one affordance in two hands rather than two affordances. */
+function buildChevron(): SVGSVGElement {
+  const svg = svgEl('svg', {
+    viewBox: '0 0 24 24',
+    width: '100%',
+    height: '100%',
+    'aria-hidden': 'true',
+  });
+  const path = svgEl('path', {
+    d: 'M3 8L12 17L21 8',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  });
+  // eslint-disable-next-line no-restricted-syntax -- detached DOM: built here, never mounted by this code
+  svg.append(path);
+  return svg;
+}
+
+/**
+ * How far left of its own box the toggle's glyph belongs: from that box's
+ * origin to the point every fold chevron is centred on, `--to-fold-chevron-offset`
+ * left of the line's marker column (styles.css states it: the midpoint between
+ * the parent's guide and the marker, floored clear of the widest mark).
+ *
+ * The box sits in the line's flow and takes up none of it (styles.css), so the
+ * origin is wherever the line's first inline box starts — and that is not the
+ * same place for both kinds. A block line's own text starts one gutter right of
+ * its marker column, by the definition of the gutter, so the answer is a gutter
+ * and that offset back whatever the depth. A LIST line hangs its indentation, which
+ * puts that first box back at the line's own left edge, so the column has to be
+ * named outright: the depth's column, less the shift the depth rules have
+ * already given the box itself.
+ */
+function foldToggleLeftExpr(fact: LineDecorationFact): string {
+  const offset = 'var(--to-fold-chevron-offset)';
+  if (!fact.isListItem) return `calc(-1 * ${MARKER_GUTTER_CSS} - ${offset})`;
+  return `calc(${fact.depth} * ${UNIT_EXPR} - ${plainOwnShiftExpr(fact)} - ${offset})`;
+}
+
+function computeFoldToggles(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
+  // The toggle needs to know which marker lines are folded, so it can point its
+  // chevron the right way, and each line's own geometry, so it can find the
+  // marker column it belongs beside.
+  const folded = new Set(foldedChrome(state).map((chrome) => chrome.markerLine));
+  const placement = new Map<number, string>();
+  for (const fact of decorate(parsedDoc(state.doc).doc)) {
+    if (fact.isFirstLine) placement.set(fact.lineNumber, foldToggleLeftExpr(fact));
+  }
+  // One walk of the tree for every foldable node, rather than one lookup per
+  // document line: `foldChromeTarget` resolves a line's node by walking the
+  // tree to it, so asking it about every line was quadratic in the note, on
+  // every caret move. Same answer — a chrome target is a foldable node's
+  // first line — from the enumeration fold-all already uses.
+  if (state.field(nestedEditorField, false)) return Decoration.none;
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const entry of foldableEntries(parsedDoc(state.doc).doc)) {
+    const line = entry.startLine;
+    if (line >= state.doc.lines) continue; // a stale parse past a shrunk doc
+    const left = placement.get(line);
+    if (left === undefined) continue;
+    const from = state.doc.line(line + 1).from;
+    builder.add(
+      from,
+      from,
+      Decoration.widget({
+        widget: new FoldToggleWidget(line, folded.has(line), left),
+        side: -2, // before the marker icon, which is the order they read in
+      }),
+    );
+  }
+  return builder.finish();
+}
+
 function computeMarkers(state: EditorState, modes: DecorationSource): DecorationSet {
   if (!isOutlineMode(state)) return Decoration.none;
 
@@ -1114,13 +1358,19 @@ function lineDecoration(
   depths: readonly number[],
   trail: PositionTrail,
   markerAccent: boolean,
+  folded: boolean,
+  foldedTail: boolean,
+  lit?: number,
 ): Decoration {
   const guides = hasOverlay(depths)
-    ? guideBackground(depths, trail.byLine.get(fact.lineNumber))
+    ? guideBackground(depths, trail.byLine.get(fact.lineNumber), lit)
     : undefined;
   const chrome = lineChrome(fact, { lineText, guides });
   const cls =
-    chrome.classes.join(' ') + markerClasses(trail, fact.lineNumber, markerAccent);
+    chrome.classes.join(' ') +
+    markerClasses(trail, fact.lineNumber, markerAccent) +
+    (folded ? ` ${FOLDED_NODE_CLASS}` : '') +
+    (foldedTail ? ` ${FOLDED_TAIL_CLASS}` : '');
   return Decoration.line({ class: cls, attributes: { style: chromeStyle(chrome) } });
 }
 
@@ -1130,10 +1380,14 @@ function lineDecoration(
 // not the full lineDecoration() treatment. A trail accent can land on such a
 // line too (a path segment passing through the gap between two blocks), so the
 // background is built from both sources here as well.
-function gapLineDecoration(depths: readonly number[], lineTrail?: PositionTrailFact): Decoration {
+function gapLineDecoration(
+  depths: readonly number[],
+  lineTrail?: PositionTrailFact,
+  lit?: number,
+): Decoration {
   return Decoration.line({
     class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guideBackground(depths, lineTrail)}` },
+    attributes: { style: `--to-guides: ${guideBackground(depths, lineTrail, lit)}` },
   });
 }
 
@@ -1155,6 +1409,20 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   const { factsByLine, guides } = facts;
   const visibility = visibilityContext(state, modes, facts);
   const trail = positionTrail(state, modes);
+  // Two lookups from one pass: a folded node's treatment belongs on the line
+  // its marker is on, and the count of what it hides belongs after its own
+  // text — the same line only when the node is a single line long.
+  const hover = state.field(guideHoverField, false) ?? null;
+  const foldedMarkers = new Map<number, number>();
+  const foldedCounts = new Map<number, number>();
+  const foldedTails = new Set<number>();
+  for (const chrome of foldedChrome(state)) {
+    foldedMarkers.set(chrome.markerLine, chrome.hidden);
+    foldedCounts.set(chrome.textLine, chrome.hidden);
+    // Only when the two differ: a single-line node's own indicator is already
+    // beside its marker, and hiding it there would leave the line with none.
+    if (chrome.textLine !== chrome.markerLine) foldedTails.add(chrome.textLine);
+  }
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
   for (const guide of guides) {
@@ -1163,9 +1431,10 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const lineTrail = trail.byLine.get(guide.lineNumber);
     const fact = factsByLine.get(guide.lineNumber);
     const depths = drawnGuideDepths(guide, visibility);
+    const lit = litGuideOn(hover, guide.lineNumber);
     if (guide.isGapLine && !fact) {
       if (!hasOverlay(depths)) continue; // nothing to draw
-      builder.add(from, from, gapLineDecoration(depths, lineTrail));
+      builder.add(from, from, gapLineDecoration(depths, lineTrail, lit));
       continue;
     }
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
@@ -1178,8 +1447,26 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
         depths,
         trail,
         modes.markerHighlight !== 'off',
+        foldedMarkers.has(guide.lineNumber),
+        foldedTails.has(guide.lineNumber),
+        lit,
       ),
     );
+    // At the END of the node's own text, where a reader's eye already is when
+    // they reach the end of what is visible — and where Obsidian puts its own
+    // placeholder, which this one replaces.
+    const hidden = foldedCounts.get(guide.lineNumber);
+    if (hidden !== undefined && hidden > 0) {
+      const line = state.doc.line(guide.lineNumber + 1);
+      builder.add(
+        line.to,
+        line.to,
+        Decoration.widget({
+          widget: new FoldCountWidget(hidden, guide.lineNumber),
+          side: 1,
+        }),
+      );
+    }
   }
   return builder.finish();
 }
@@ -1594,6 +1881,9 @@ function clearWidgetPatch(el: HTMLElement): void {
   clearWidgetMarker(el);
 }
 
+/** A hidden, zero-height element whose only job is to resolve a CSS length
+ * the browser alone can compute (styles.css). */
+const MEASURE_PROBE_CLASS = 'to-decor-measure-probe';
 
 class DecorationsPlugin implements PluginValue {
   decorations: DecorationSet;
@@ -1708,6 +1998,27 @@ class MarkersPlugin implements PluginValue {
   private compute(): DecorationSet {
     if (isNestedEditor(this.view)) return Decoration.none;
     return computeMarkers(this.view.state, this.modes);
+  }
+}
+
+/** The fold affordance's own plugin, for the same reason every other widget
+ * layer here has one: CM6 merges decoration sets from separate sources, and a
+ * widget at a line's start would otherwise have to be ordered by hand against
+ * the marker and the line decoration already there. */
+class FoldTogglePlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(private readonly view: EditorView) {
+    this.decorations = this.compute();
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  private compute(): DecorationSet {
+    if (isNestedEditor(this.view)) return Decoration.none;
+    return computeFoldToggles(this.view.state);
   }
 }
 
@@ -2232,7 +2543,9 @@ class MarginCompensation implements PluginValue {
     const ref = this.view.contentDOM.querySelector<HTMLElement>(
       `.cm-line:not(.to-decor-atom):not(.to-decor-list):not(.hr)`,
     );
-    return ref ? ref.getBoundingClientRect().right : this.view.contentDOM.getBoundingClientRect().right;
+    return ref
+      ? ref.getBoundingClientRect().right
+      : this.view.contentDOM.getBoundingClientRect().right;
   }
 
   /**
@@ -2281,6 +2594,7 @@ class MarginCompensation implements PluginValue {
    * `view.dom` serves the descendant chevron rule just as well).
    */
   private lastDeadRight = '';
+  private lastGlyphWidth: string | null = null;
 
   /** Last published `--to-space-advance`, so an unchanged one is not rewritten. */
   private lastSpaceAdvance = '';
@@ -2368,9 +2682,17 @@ class MarginCompensation implements PluginValue {
     // Found, but the browser has not laid it out yet — see `scheduleRemeasure`.
     if (wrapperRect.width === 0 || glyphRect.width === 0) return 'not-laid-out';
     const deadRight = `${(wrapperRect.right - glyphRect.right).toFixed(1)}px`;
-    if (deadRight === this.lastDeadRight) return 'done';
+    // The glyph's own width too: the chevron is centred on the midpoint between
+    // the parent's guide and the marker, and a centre is half a width from the
+    // edge the transform actually moves.
+    const glyphWidth = `${glyphRect.width.toFixed(1)}px`;
+    if (deadRight === this.lastDeadRight && glyphWidth === this.lastGlyphWidth) return 'done';
     this.lastDeadRight = deadRight;
-    this.view.dom.setCssProps({ '--to-chevron-dead-right': deadRight });
+    this.lastGlyphWidth = glyphWidth;
+    this.view.dom.setCssProps({
+      '--to-chevron-dead-right': deadRight,
+      '--to-chevron-glyph': glyphWidth,
+    });
     return 'done';
   }
 
@@ -2399,12 +2721,25 @@ class MarginCompensation implements PluginValue {
    * `measureChevron` takes, is not translation-invariant. One decimal place, so
    * sub-tenth-pixel wobble rounds away and the value settles.
    */
+  /** `--to-fold-chevron-offset` in pixels, or null before the stylesheet
+   * declares it. A probe rather than a parse: the value is a `max()` of unit,
+   * checkbox and glyph terms only the browser can resolve. */
+  private resolveChevronOffset(): number | null {
+    // On the editor root, where the value is declared, and gone before the
+    // next frame: nothing lays out against it.
+    const probe = this.view.dom.createDiv({ cls: MEASURE_PROBE_CLASS });
+    probe.setCssProps({ width: 'var(--to-fold-chevron-offset)' });
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return width > 0 ? width : null;
+  }
+
   private measureChevronRows(): void {
-    const updates: { line: HTMLElement; dy: string }[] = [];
+    const updates: { line: HTMLElement; dy: string; dx: string | null }[] = [];
     const seen = new Set<HTMLElement>();
-    for (const line of Array.from(
-      this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'),
-    )) {
+    // The chevron offset, resolved once per pass where the lines resolve it.
+    const offsetPx = this.resolveChevronOffset();
+    for (const line of Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'))) {
       const glyph = line.querySelector('.cm-fold-indicator .collapse-indicator svg');
       // The mark this line's chevron belongs to, in the order the kinds are
       // mutually exclusive: a synthetic icon, a bullet, a checkbox.
@@ -2428,19 +2763,49 @@ class MarginCompensation implements PluginValue {
       if (glyphRect.height === 0 || markerRect.height === 0) continue; // not laid out
       const applied = parseFloat(line.style.getPropertyValue('--to-chevron-dy')) || 0;
       const dy =
-        markerRect.top +
-        markerRect.height / 2 -
-        (glyphRect.top + glyphRect.height / 2) +
-        applied;
-      updates.push({ line, dy: `${dy.toFixed(1)}px` });
+        markerRect.top + markerRect.height / 2 - (glyphRect.top + glyphRect.height / 2) + applied;
+      // The HORIZONTAL correction too, for a block line, by the same
+      // mechanism: where the glyph is against where it belongs — the chevron
+      // offset left of the marker's centre — adding back what is already
+      // applied so it converges rather than oscillates. Measured rather than
+      // derived because the transform's own arithmetic assumes the wrapper's
+      // edge sits on the text origin, and Obsidian moves that edge by kind AND
+      // by state: a folded block line is tagged as a list line and takes the
+      // list padding with an inset that shifts the wrapper right by as much,
+      // the caret's own line takes neither, any other block line a third
+      // amount. One dead-space sample from whichever chevron came first in the
+      // viewport (`measureChevron`, kept as the fallback for a line not yet
+      // measured) moved every paragraph's chevron by the difference — onto the
+      // icon, or a level too far from it, depending on where the caret was.
+      // A list line keeps the formula: its mark is not a box the column can be
+      // read from, and its chevron measured right.
+      // A DELTA on top of the stylesheet's own arithmetic, which stays live:
+      // the arithmetic is what follows the unit, and the error it makes — the
+      // wrapper's dead space not being the one number it assumes — does not
+      // depend on the unit. A measured position instead of a delta was right
+      // until the unit changed, and then held the chevron where the old unit
+      // had put it.
+      let dx: string | null = null;
+      if (line.classList.contains(BLOCK_LINE_CLASS) && offsetPx !== null) {
+        const appliedDx = parseFloat(line.style.getPropertyValue('--to-chevron-dx')) || 0;
+        const target = markerRect.left + markerRect.width / 2 - offsetPx;
+        dx = `${(target - (glyphRect.left + glyphRect.width / 2) + appliedDx).toFixed(1)}px`;
+      }
+      updates.push({ line, dy: `${dy.toFixed(1)}px`, dx });
       seen.add(line);
     }
     for (const line of this.chevronDyLines) {
-      if (!seen.has(line)) line.style.removeProperty('--to-chevron-dy');
+      if (!seen.has(line)) {
+        line.style.removeProperty('--to-chevron-dy');
+        line.style.removeProperty('--to-chevron-dx');
+      }
     }
-    for (const { line, dy } of updates) {
+    for (const { line, dy, dx } of updates) {
       if (line.style.getPropertyValue('--to-chevron-dy') !== dy) {
         line.style.setProperty('--to-chevron-dy', dy);
+      }
+      if (dx !== null && line.style.getPropertyValue('--to-chevron-dx') !== dx) {
+        line.style.setProperty('--to-chevron-dx', dx);
       }
     }
     this.chevronDyLines = updates.map((u) => u.line);
@@ -2661,7 +3026,9 @@ class MarginCompensation implements PluginValue {
       this.view.contentDOM.querySelectorAll<HTMLElement>(':scope > .cm-line:not(.hr)'),
     )) {
       try {
-        linesWithPlainRendering.add(this.view.state.doc.lineAt(this.view.posAtDOM(line)).number - 1);
+        linesWithPlainRendering.add(
+          this.view.state.doc.lineAt(this.view.posAtDOM(line)).number - 1,
+        );
       } catch {
         // Mid-update DOM the current document can't place — nothing to add.
       }
@@ -2737,7 +3104,11 @@ class MarginCompensation implements PluginValue {
         // never silently diverge. See widgetOwnShiftExpr's doc comment for
         // why nativeBasePx is added to `margin-left` here and nowhere else.
         const ownShiftExpr = widgetOwnShiftExpr(fact, nativePaddingLeft);
-        el.style.setProperty('margin-left', `calc(${nativeBasePx}px + ${ownShiftExpr})`, 'important');
+        el.style.setProperty(
+          'margin-left',
+          `calc(${nativeBasePx}px + ${ownShiftExpr})`,
+          'important',
+        );
 
         // Everything BELOW positions an absolutely-positioned box (the
         // marker child, the guide's `::after`, the chrome's `::before`)
@@ -2806,10 +3177,7 @@ class MarginCompensation implements PluginValue {
         // Only the synthetic-marker classes are reachable: `isMarkerEligible`
         // excludes list items, so the native-bullet variants never apply.
         const markerAccent = this.modes.markerHighlight !== 'off';
-        el.classList.toggle(
-          CURRENT_MARKER_CLASS,
-          markerAccent && trail.currentLine === lineNumber,
-        );
+        el.classList.toggle(CURRENT_MARKER_CLASS, markerAccent && trail.currentLine === lineNumber);
         el.classList.toggle(
           ANCESTOR_MARKER_CLASS,
           markerAccent && trail.ancestorLines.has(lineNumber),
@@ -2820,7 +3188,14 @@ class MarginCompensation implements PluginValue {
         const depths = guide ? drawnGuideDepths(guide, visibility) : [];
         if (guide && hasOverlay(depths)) {
           el.classList.add('to-decor-guides');
-          el.style.setProperty('--to-guides', guideBackground(depths, lineTrail));
+          el.style.setProperty(
+            '--to-guides',
+            guideBackground(
+              depths,
+              lineTrail,
+              litGuideOn(this.view.state.field(guideHoverField, false) ?? null, lineNumber),
+            ),
+          );
           el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
         } else {
           el.classList.remove('to-decor-guides');
@@ -2829,7 +3204,10 @@ class MarginCompensation implements PluginValue {
         }
 
         if (rootTarget !== undefined) {
-          el.style.setProperty('--to-selected-left', `calc(${rootTarget} - (${positionedShiftExpr}))`);
+          el.style.setProperty(
+            '--to-selected-left',
+            `calc(${rootTarget} - (${positionedShiftExpr}))`,
+          );
           // `right` resolves against the containing block's PADDING box,
           // whose edge sits INSET FROM THE BORDER BOX BY THE BORDER WIDTH
           // only (not by padding — a wrong assumption in an earlier version
@@ -2945,7 +3323,8 @@ class MarginCompensation implements PluginValue {
       if (icon) {
         const iconLineStyle = getComputedStyle(el);
         const nativeShift =
-          (parseFloat(iconLineStyle.paddingLeft) || 0) + (parseFloat(iconLineStyle.textIndent) || 0);
+          (parseFloat(iconLineStyle.paddingLeft) || 0) +
+          (parseFloat(iconLineStyle.textIndent) || 0);
         // Always SET (never remove) `left` here: this element is the SAME
         // node `MarkerWidget.toDOM()` already applied its own base
         // `left` to (in the same inline-style object) — `removeProperty`
@@ -2981,9 +3360,7 @@ class MarginCompensation implements PluginValue {
     // is not restored. The union with the selector keeps the sweep correct
     // even for an element patched before this class existed in a session.
     const widgets = new Set<HTMLElement>([
-      ...Array.from(
-        this.view.contentDOM.querySelectorAll<HTMLElement>(`.${WIDGET_PATCHED_CLASS}`),
-      ),
+      ...Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>(`.${WIDGET_PATCHED_CLASS}`)),
       ...Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>(WIDGET_LINE_SELECTOR)),
     ]);
     for (const el of widgets) clearWidgetPatch(el);
@@ -3025,6 +3402,11 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     ViewPlugin.define((view) => new OrderedDigitsPlugin(view, modes), {
       decorations: (v) => v.decorations,
     }),
+    // The fold affordance, drawn for every node we fold and hidden by CSS
+    // wherever Obsidian's own indicator is present — see `FoldToggleWidget`.
+    ViewPlugin.define((view) => new FoldTogglePlugin(view), {
+      decorations: (v) => v.decorations,
+    }),
     // A fourth, independent plugin for escalated-selection chrome
     // (selection-visual-treatment) — same reasoning as MarkersPlugin above:
     // a separate DecorationSet CM6 merges with the others at the same line
@@ -3055,13 +3437,9 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // `updateAttrs`, and `combineAttrs` concatenates `class` values, so this
     // composes with the theme's own classes instead of racing them.
     EditorView.editorAttributes.of((view) =>
-      !isNestedEditor(view) &&
-      isOutlineMode(view.state) &&
-      allRangesCovered(view.state)
+      !isNestedEditor(view) && isOutlineMode(view.state) && allRangesCovered(view.state)
         ? { class: BLOCK_SELECTING_CLASS }
         : null,
     ),
   ];
 }
-
-

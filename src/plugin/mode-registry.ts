@@ -157,6 +157,10 @@ export interface PluginData {
   outlineByDefault: boolean;
   /** See `StatusBarMode`. */
   statusBarMode: StatusBarMode;
+  /** Whether a note's folds come back when it is reopened. Obsidian stores
+   * them per file in workspace state; this decides whether we keep what it
+   * restores (`better-folding-ux` D8). */
+  rememberFolds: boolean;
   coexistenceWarned: boolean;
   debugCrossCheck: boolean;
   /** Experiment 5a leaf-visibility round (see docs/research/07-decoration-
@@ -203,6 +207,7 @@ export interface PluginData {
 export const DEFAULT_DATA: PluginData = {
   outlineByDefault: true,
   statusBarMode: DEFAULT_STATUS_BAR_MODE,
+  rememberFolds: true,
   coexistenceWarned: false,
   debugCrossCheck: false,
   markerVisibility: DEFAULT_MARKER_VISIBILITY,
@@ -342,6 +347,7 @@ export function normalizePluginData(raw: unknown): PluginData {
       stored.statusBarMode,
       DEFAULT_DATA.statusBarMode,
     ),
+    rememberFolds: bool(stored.rememberFolds, DEFAULT_DATA.rememberFolds),
     coexistenceWarned: bool(
       stored.coexistenceWarned,
       DEFAULT_DATA.coexistenceWarned,

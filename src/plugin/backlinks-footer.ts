@@ -45,7 +45,7 @@ import {
 import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
-import { buildMarkerIcon } from './decorations';
+import { buildMarkerIcon, FOLDED_NODE_CLASS } from './decorations';
 import { renderLineageContent } from './lineage-row';
 import {
   MARKER_LEFT_SHIFT_EXPR,
@@ -289,20 +289,50 @@ class FooterController {
     // alone so the button's own handler decides, which is what makes pressing
     // an open facet close it rather than close-and-reopen.
     //
-    // On `click`, NOT `pointerdown`, and that is not a detail. Dismissing at
-    // pointerdown repaints the footer before the browser has acted on the
-    // press — so clicking the search field while a menu was open destroyed the
-    // input the press was about to focus, and the term the reader then typed
-    // went into the note. Caught by the read-only spec, which is what it is
-    // for. By `click` the focus has landed, and the repaint's own focus
-    // restoration carries it across.
+    // Inside the footer, on `click` and NOT `pointerdown`, and that is not a
+    // detail. Dismissing at pointerdown repaints the footer before the browser
+    // has acted on the press — so clicking the search field while a menu was
+    // open destroyed the input the press was about to focus, and the term the
+    // reader then typed went into the note. Caught by the read-only spec, which
+    // is what it is for. By `click` the focus has landed, and the repaint's own
+    // focus restoration carries it across.
+    //
+    // OUTSIDE it, on `pointerdown`, because a click is not guaranteed to
+    // arrive. A press the editor's own gestures take never becomes one: the
+    // guide gesture folds at pointerdown, which re-renders the lines under the
+    // pointer, and the browser then has no click to deliver — measured, the
+    // document saw the press and the release and nothing else, and the popover
+    // stayed open behind a fold the reader had just made. Nothing about the
+    // focus hazard applies out there: the press belongs to the note, and the
+    // footer has no element in it to destroy.
+    this.el.doc.addEventListener('pointerdown', this.closeOnOutsidePress, true);
     this.el.doc.addEventListener('click', this.closeOnOutsideClick, true);
     this.component.load();
     void this.render();
   }
 
+  /**
+   * Whether this controller still has a place in the document.
+   *
+   * Its two dismissal listeners are on the DOCUMENT, so they keep firing after
+   * the element they speak for has left it — and a controller with a detached
+   * element contains nothing, so every press reads as "outside" and every
+   * popover closes, including a press on an option inside the live footer.
+   *
+   * That state is reachable: folding a subtree takes the footer out of the
+   * viewport, the widget is rebuilt when it comes back, and the controller that
+   * was there before is not always told (measured: two live controllers, one of
+   * them detached, both still listening). Guarded rather than disposed, because
+   * a detached element is also the ordinary state of a block widget scrolled
+   * out of view, which comes back.
+   */
+  private get placed(): boolean {
+    return this.el.isConnected;
+  }
+
   /** Bound once so it can be removed again; see the constructor. */
   private readonly closeOnOutsideClick = (event: Event): void => {
+    if (!this.placed) return;
     const state = viewStates.get(this.targetPath);
     if (!state || state.openFacet === null) return;
     const target = event.target as HTMLElement | null;
@@ -311,8 +341,21 @@ class FooterController {
     void this.render();
   };
 
+  /** The same dismissal, for a press that lands outside the footer entirely —
+   * where waiting for a click risks waiting for one that never comes. */
+  private readonly closeOnOutsidePress = (event: Event): void => {
+    if (!this.placed) return;
+    const state = viewStates.get(this.targetPath);
+    if (!state || state.openFacet === null) return;
+    const target = event.target as HTMLElement | null;
+    if (target && this.el.contains(target)) return;
+    state.openFacet = null;
+    void this.render();
+  };
+
   destroy(): void {
     this.generation++;
+    this.el.doc.removeEventListener('pointerdown', this.closeOnOutsidePress, true);
     this.el.doc.removeEventListener('click', this.closeOnOutsideClick, true);
     this.component.unload();
     this.el.detach();
@@ -1358,17 +1401,51 @@ class FooterController {
 
     if (row.isReference) el.addClass('is-reference');
 
-    if (row.foldedCount > 0) {
-      const fold = el.createEl('button', { cls: 'to-backlinks-fold' });
+    if (row.foldable) {
+      // Keyed on the row HAVING a subtree, never on it being folded right now.
+      // The old condition (`foldedCount > 0`) stopped being true the moment a
+      // reader expanded the row, so the control that could close it again was
+      // never drawn — expansion was a one-way door.
+      const key = `${sourcePath}:${row.nodeId}`;
+      const expanded = viewStateFor(this.targetPath).expandedRows.has(key);
+      // The editor's own fold chrome, in the editor's own column — but a real
+      // BUTTON, which the editor's is not. Chrome is what the two surfaces
+      // share; semantics are not. An editor line has a fold command behind it
+      // and a footer row has nothing, so this element is the only route a
+      // keyboard reader has, and it keeps its role, its label and a state that
+      // tracks both directions.
+      // The row itself carries the folded state, so its marker takes the same
+      // treatment a folded node's does in the editor. The class goes on the row
+      // rather than the control because that is what the marker is inside.
+      el.toggleClass(FOLDED_NODE_CLASS, !expanded);
+      const fold = el.createEl('button', { cls: 'to-backlinks-fold to-decor-fold-toggle' });
       fold.type = 'button';
-      fold.setAttribute('aria-label', `Show ${row.foldedCount} hidden`);
-      fold.setAttribute('aria-expanded', 'false');
+      fold.setAttribute('aria-label', expanded ? 'Hide children' : `Show ${row.foldedCount} hidden`);
+      fold.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      fold.toggleClass('is-collapsed', !expanded);
+      // The DOWN chevron, as the editor's own control draws it: the shared
+      // `.is-collapsed` rotation turns a down-pointing glyph to the right,
+      // which is what "folded" looks like everywhere else. Starting from the
+      // right-pointing glyph turned it to point UP when folded.
       // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
-      fold.appendChild(chevronGlyph(false));
-      fold.addEventListener('click', (event) => {
+      fold.appendChild(chevronGlyph(true));
+      const toggle = (event: Event) => {
         event.stopPropagation();
-        viewStateFor(this.targetPath).expandedRows.add(`${sourcePath}:${row.nodeId}`);
+        const rows = viewStateFor(this.targetPath).expandedRows;
+        if (expanded) rows.delete(key);
+        else rows.add(key);
         void this.render();
+      };
+      fold.addEventListener('click', toggle);
+      // Enter and Space handled explicitly, though a `button` activates on both
+      // by itself: inside the editor's own key handling the default action does
+      // not survive to reach it — measured, a focused row control that ignored
+      // every press. The row's own activation handler makes the same choice for
+      // the same reason.
+      fold.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggle(event);
       });
     }
 

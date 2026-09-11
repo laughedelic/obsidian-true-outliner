@@ -1135,6 +1135,26 @@ export function splitNode(
   nodeId: number,
   position: { line: number; ch: number },
   fallbackIndentUnit?: string,
+  /**
+   * True when this node's children are HIDDEN from the reader — folded.
+   *
+   * It inverts the two branches below that place the new node where the
+   * existing children are. Both are there for the same reason — a sibling
+   * would jump the caret over a subtree the reader can see — and when that
+   * subtree is not on screen the same reasoning gives the opposite answer: the
+   * new node would land inside content the reader has hidden, which is the one
+   * place they were not looking.
+   *
+   * A parameter rather than a fold lookup, because this layer has no view: what
+   * is folded is a property of an editor, and the caller is the only thing that
+   * can see one.
+   *
+   * Ignored for a HEADING, whose sibling shape does not exist: a paragraph
+   * written after a heading's section re-parses as that section's child, so
+   * there is nothing for the sibling path to encode. A folded heading takes the
+   * ordinary split, and the caller opens it first so the result is visible.
+   */
+  collapsed = false,
 ): OpResult<OpOutput> {
   const path = findPath(doc, nodeId);
   if (!path) return reject('node-not-found');
@@ -1201,7 +1221,8 @@ export function splitNode(
   // Headings always take this branch, even with no children: a heading's only
   // possible SIBLING is another heading, so a plain-text split has no sibling
   // encoding to fall back to — the remainder can only ever be a child.
-  if (node.children.length > 0 || node.kind === 'heading') {
+  const afterSubtree = collapsed && node.kind !== 'heading';
+  if (!afterSubtree && (node.children.length > 0 || node.kind === 'heading')) {
     const childKind = encodingKindAtDestination({
       parentKind: node.kind,
       precedingSiblings: [],
@@ -1291,7 +1312,11 @@ export function splitNode(
     }
   }
 
-  if (emptyRemainder && (node.kind !== 'list-item' || node.children.length > 0)) {
+  // `!collapsed`: for a folded node the gap-widening position is the wrong
+  // answer for the same reason the first-child branch above is — both put the
+  // new position among the node's hidden children. A folded node at its own end
+  // takes the SIBLING path below, the only one that lands after the subtree.
+  if (!afterSubtree && emptyRemainder && (node.kind !== 'list-item' || node.children.length > 0)) {
     // END of a node whose destination scope's kind has no empty encoding: no
     // empty-paragraph encoding exists, so widen the gap and put the cursor on
     // a line that is blank-separated on BOTH sides — typing there materializes

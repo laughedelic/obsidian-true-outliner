@@ -67,6 +67,19 @@ body {
    * so the default below is what resolves. */
   --to-decor-unit: var(--to-set-unit, var(--to-unit-default));
 
+  /* How far left of the marker column a fold chevron is centred: the midpoint
+   * between the parent's guide and the marker — half a unit — so the control
+   * keeps its place whatever the unit is set to. With a FLOOR, because a narrow
+   * unit brings the midpoint in over the widest centred mark: at the mobile
+   * default the glyph's right edge lands inside a checkbox's half-width. The
+   * floor is that half-width plus half the glyph and a visible gap, the same
+   * term the marker gutter is derived from. Every placement — ours, and both of
+   * Obsidian's chevron transforms — reads this one value. */
+  --to-fold-chevron-offset: max(
+    var(--to-decor-unit) / 2,
+    max(0.5rem, var(--checkbox-size, 1rem) / 2) + var(--to-chevron-glyph, 10px) / 2 + 2px
+  );
+
   /* The ladder the setting offers, measured against the grid's own floor — a
    * child's mark must begin right of its parent's text — on both device classes
    * (docs/research/22-outline-unit-width.md). A rung is named by its
@@ -114,6 +127,9 @@ body {
     transparent
   );
   --to-decor-accent: var(--text-accent);
+  /* A control under the pointer. One step past the accent, which is what the
+   * theme's own hover colour is for. */
+  --to-decor-highlight: var(--text-accent-hover);
 
   /* A guide stripe's own width. Declared here rather than spelled where a
    * stripe is built, for the reason the unit above records: the gradient and
@@ -140,6 +156,19 @@ body {
    * agree at every thickness, and a literal only agrees at the one it was
    * written for. */
   --to-trail-width: var(--to-guide-width);
+  /* The guide under the pointer, on every line it runs through: the guide
+   * gesture's own "this one". Thicker, where the trail is only a different
+   * colour — a hover has to read at a glance against neighbours the same
+   * colour as itself. A snippet moves it like the others. */
+  --to-guide-hover-width: calc(var(--to-guide-width) + 2px);
+}
+
+/* A measurement probe (`resolveChevronOffset`): laid out so a `max()` of unit,
+ * checkbox and glyph terms resolves to a width, and out of everyone's way. */
+.to-decor-measure-probe {
+  position: absolute;
+  visibility: hidden;
+  height: 0;
 }
 
 /* The one device-class branch in this file. See `--to-unit-default` above for
@@ -528,7 +557,7 @@ body.is-mobile {
   .cm-fold-indicator
   .collapse-indicator {
   transform: translate(
-    calc(-1 * (var(--to-marker-icon-size, 0.85rem) / 2 + 3px)),
+    calc(-1 * (var(--to-fold-chevron-offset) - var(--to-chevron-glyph, 10px) / 2)),
     var(--to-chevron-dy, 0px)
   );
 }
@@ -748,7 +777,7 @@ body.is-mobile {
    * earlier `max(1px, …)` covered only the trail: once the two agree by
    * default, both terms resolve to the same thickness and the literal silently
    * stopped being the guard it looks like. */
-  --to-stripe-bleed: max(var(--to-guide-width), var(--to-trail-width));
+  --to-stripe-bleed: max(var(--to-guide-width), var(--to-trail-width), var(--to-guide-hover-width));
   left: calc(-1 * var(--to-own-shift, 0px) - var(--to-stripe-bleed));
   border-left: var(--to-stripe-bleed) solid transparent;
   right: 0;
@@ -995,13 +1024,19 @@ body.is-mobile {
   .cm-line.to-decor-block
   .cm-fold-indicator
   .collapse-indicator {
+  /* The arithmetic stays live — it is what follows the unit — and
+   * `--to-chevron-dx` is the measured correction on top of it
+   * (`measureChevronRows`), per line: the wrapper's dead space is not the one
+   * number the arithmetic assumes, and the difference does not depend on the
+   * unit, so a delta survives a unit change where a measured position would
+   * not. */
   transform: translate(
     calc(
       -1 *
         (
-          var(--to-marker-gutter) + var(--to-marker-icon-size, 0.85rem) / 2 + 3px -
+          var(--to-marker-gutter) + var(--to-fold-chevron-offset) - var(--to-chevron-glyph, 10px) / 2 -
             var(--to-chevron-dead-right, 6px)
-        )
+        ) + var(--to-chevron-dx, 0px)
     ),
     var(--to-chevron-dy, 0px)
   );
@@ -1118,14 +1153,26 @@ body.is-mobile {
  * text, so the same state is three declarations rather than one — the same
  * split the current-node accent already makes for the same two elements.
  */
+/*
+ * The mark under the pointer — and only the mark — takes the highlight: it is
+ * the zoom gesture's target, and the change of colour together with the cursor
+ * says "this is clickable", which a 13px glyph hanging in a gutter next to
+ * several others cannot say on its own. Hovering the rest of the line changes
+ * nothing about the mark; that reveals the fold chevron, and the two controls
+ * keep their two meanings by each answering to its own hover.
+ *
+ * A bullet's dot is a background on its `::after`, and an ordered number is
+ * text, so the same state is three declarations rather than one — the same
+ * split the current-node accent already makes for the same two elements.
+ */
 .markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon:hover,
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-number:hover,
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-list .to-decor-ol-digits:hover {
-  color: var(--to-decor-accent);
+  color: var(--to-decor-highlight);
 }
 
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-list .list-bullet:hover::after {
-  background-color: var(--to-decor-accent);
+  background-color: var(--to-decor-highlight);
 }
 
 /*
@@ -2259,6 +2306,10 @@ body.is-mobile {
  * the marker's left edge with a fixed 3px gap, which put it hard against the
  * bullet and left the whole gap open on the other side.
  */
+/* The footer's control shares the editor toggle's class for its glyph, its
+ * hover reveal and its folded rotation; what stays here is where it sits, which
+ * is the footer's own column arithmetic. It is a real `button` — see
+ * `renderRow` for why the semantics are not shared along with the look. */
 .to-backlinks-fold {
   position: absolute;
   left: calc(
@@ -2278,6 +2329,29 @@ body.is-mobile {
 
 .to-backlinks-fold:hover {
   color: var(--text-normal);
+}
+
+/*
+ * The footer's control shares the editor toggle's GLYPH — its chevron, its
+ * rotation when folded — and none of its placement or its hover behaviour.
+ *
+ * Both declared here, in the two-class selector, so which of the two
+ * single-class rules happens to come later in this file cannot decide it. That
+ * ordering is exactly what broke first: the editor rule's `left` (built from
+ * the editor's marker gutter) won inside the footer and put the button
+ * somewhere no click could reach.
+ *
+ * Always visible, unlike the editor's: a footer row has no hover convention to
+ * inherit and no fold command behind it, so hiding it would leave a keyboard or
+ * touch reader with nothing.
+ */
+.to-backlinks-fold.to-decor-fold-toggle {
+  position: absolute;
+  left: calc((var(--to-depth, 0) - 0.5) * var(--to-decor-unit) - var(--to-fold-size) / 2);
+  width: var(--to-fold-size);
+  height: 1.5em;
+  top: 0.1rem;
+  opacity: 1;
 }
 
 /* A row whose markdown holds more than one block keeps them (`unwrapBlocks`
@@ -3314,4 +3388,348 @@ body.is-mobile {
 
 .true-outliner-ribbon-on:hover {
   color: var(--text-accent-hover);
+}
+
+/* ---- The guide gesture's hover (better-folding-ux D7) ----------------------
+ *
+ * A guide has no element, so the pointer resting on one is arithmetic the
+ * gesture already does (`guideHit`). The guide it names is thickened, not
+ * banded, and by the decoration pass: the hover is editor state, and the
+ * pass paints that depth's layer at `--to-guide-hover-width` on every line
+ * the guide runs through — so the lit guide is drawn by the same layer that
+ * draws it at rest, continuous across gap lines and widget atoms, and it
+ * survives every rebuild. What the stylesheet adds is the cursor, on the
+ * editor root: the pointer is over some child of a line, each with a cursor
+ * rule of its own, and a class on the line reached none of them — the pointer
+ * read as a caret, an arrow or a hand by where it happened to be. The class
+ * is on only while the pointer rests on a guide, so nothing else is under it.
+ */
+.markdown-source-view.mod-cm6 .cm-editor.to-decor-guide-hovering .cm-scroller,
+.markdown-source-view.mod-cm6 .cm-editor.to-decor-guide-hovering .cm-scroller * {
+  cursor: pointer;
+}
+
+/* ---- Folded nodes (better-folding-ux D6) ---------------------------------
+ *
+ * A folded node says so through its own mark, in the same box: the kind's glyph
+ * at full text contrast where an unfolded one is muted. Contrast alone, not a
+ * heavier stroke: a heading's glyph is filled rectangles that no stroke width
+ * reaches, so a stroke change told a paragraph apart from a heading rather than
+ * a folded node from an open one.
+ * Nothing is drawn AROUND the glyph — no halo, ring, outline or underline. Six
+ * alternatives were drawn against every mark at real geometry
+ * (docs/research/28-fold-marker-mockup.html); everything around the glyph
+ * either crowds a 14px gutter the fold affordance already shares, or has to
+ * change shape per kind to avoid cropping a wide one, which turns one state
+ * into several.
+ *
+ * The weight change is what every mark can carry identically. What it cannot
+ * say is HOW MUCH is hidden — a bullet is already solid — and that is the
+ * count's job, below.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-marker-icon {
+  color: var(--text-normal);
+}
+
+
+/*
+ * The folded chevron matches the folded marker: the two sit side by side and
+ * say one thing, so they say it in one colour. Obsidian's own indicator turns
+ * to `--collapse-icon-color-collapsed` — the accent, in the bundled themes — the
+ * moment it collapses, which beside a marker at text contrast read as a control
+ * being HIGHLIGHTED while nothing was pointing at it. The highlight is kept for
+ * the pointer, where it means something.
+ *
+ * The footer is not in this: its control is drawn in the footer's own mark
+ * colour and hovers to text contrast, a convention of that surface (`74` holds
+ * it), and its rows are not `.cm-line`s.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .cm-fold-indicator.is-collapsed .collapse-indicator svg,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed {
+  color: var(--text-normal);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .cm-fold-indicator.is-collapsed .collapse-indicator:hover svg,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-fold-toggle.is-collapsed:hover {
+  color: var(--to-decor-highlight);
+}
+
+/*
+ * The caret's own colour wins over the folded one. Both rules name the marker
+ * and both are one class deep, so the folded rule, declared later, took the
+ * caret's node too — a folded node the reader was editing showed no sign of
+ * being the one in play. Stated at two classes, after, so that neither the
+ * order of the two blocks nor a later addition can decide it again.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-current .to-decor-marker-icon,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-ancestor .to-decor-marker-icon {
+  color: var(--to-decor-accent);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-current-native .list-bullet::after,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-ancestor-native .list-bullet::after {
+  background-color: var(--to-decor-accent);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-current-native .list-number,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded.to-decor-ancestor-native .list-number {
+  color: var(--to-decor-accent);
+}
+
+/*
+ * The pointer wins over both. The hover rule and the folded rule weigh the
+ * same, and the folded one is declared later — so a folded mark did not
+ * answer the pointer at all, on the one kind of node where the reader is most
+ * likely to reach for the zoom. Restated here, after the folded and the caret
+ * rules, at a weight neither exceeds.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-marker-icon:hover,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-number:hover,
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .to-decor-ol-digits:hover {
+  color: var(--to-decor-highlight);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-bullet:hover::after {
+  background-color: var(--to-decor-highlight);
+}
+
+/*
+ * Above the fold indicator. Obsidian's wrapper for the chevron is stacked at
+ * `z-index: 1`, and on a folded block line — which Obsidian tags as a list line
+ * and pads accordingly — it reaches right of its own glyph, over the marker.
+ * Measured: the element under a folded paragraph's icon was the wrapper, so the
+ * pointer showed the chevron's cursor there and a click unfolded instead of
+ * zooming. The mark is the more specific control, and it is already positioned.
+ */
+.markdown-source-view.mod-cm6 .cm-content .to-decor-marker-icon {
+  z-index: 2;
+}
+
+/* The footer draws its own markers, so the folded treatment needs its own
+ * selector there: the editor's is scoped to `.cm-content`'s lines, and a footer
+ * row is neither. Same weight change, same reasoning — what differs is only
+ * which element the mark hangs off. */
+.to-backlinks-row.to-decor-folded .to-decor-marker-icon {
+  color: var(--text-normal);
+}
+
+
+/* A list line keeps its NATIVE mark — a bullet, an ordered number, a checkbox —
+ * so the weight change is a contrast change there. The bullet's dot is a
+ * `::after` background and the number is text, which is why both are named:
+ * the same split `to-decor-current-native` documents above. */
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-bullet::after {
+  background-color: var(--text-normal);
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-number {
+  color: var(--text-normal);
+}
+
+/* The hidden-descendant count, after the node's own text. Sized off the
+ * surrounding text rather than fixed, so it stays proportional on a heading;
+ * `cursor: default` because it is chrome and clicking it does nothing. */
+/*
+ * The one thing a folded node shows after its text: an ellipsis, the count, and
+ * the way back.
+ *
+ * It replaces Obsidian's placeholder rather than sitting beside it (the rule
+ * below hides that), so it is drawn as the placeholder is — the editor's own
+ * `…`, in the muted weight the rest of our chrome uses — with the number
+ * trailing it a size down. A bordered pill next to Obsidian's bordered
+ * placeholder was two controls' worth of chrome for one idea, and the louder of
+ * the two was the half that could not be clicked.
+ *
+ * The ellipsis is `content`, not text, so the element's own text stays the
+ * number: nothing here belongs in what a reader copies.
+ */
+.to-decor-fold-count {
+  display: inline-block;
+  margin-left: 0.35em;
+  color: var(--text-faint);
+  font-family: var(--font-interface);
+  font-size: 0.85em;
+  line-height: 1.4;
+  vertical-align: baseline;
+  cursor: var(--cursor, pointer);
+  user-select: none;
+}
+
+.to-decor-fold-count::before {
+  content: '…';
+  margin-right: 0.3em;
+  font-size: 1.15em;
+}
+
+.to-decor-fold-count:hover {
+  color: var(--to-decor-highlight);
+}
+
+/* Ours says everything the native placeholder says and takes the same click, so
+ * where ours is drawn, the native one is a second control for one action. */
+.markdown-source-view.mod-cm6 .cm-line:has(.to-decor-fold-count) .cm-foldPlaceholder {
+  display: none;
+}
+
+/*
+ * The plugin's own fold affordance.
+ *
+ * Drawn on every line whose node we fold, and hidden wherever Obsidian's own
+ * indicator is already on the line — `:has()` rather than a measurement,
+ * because whether Obsidian decorates a line is decided in its own decoration
+ * pass and asking the DOM from inside a decoration build measures the wrong
+ * frame. In the default configuration this rule hides all of them; with
+ * Obsidian's "Fold heading" / "Fold indent" settings off it hides none, which
+ * is the case this exists for.
+ *
+ * Positioned to land where the native chevron is transformed to — left of the
+ * marker column by the same decomposition (see the chevron rule above), so a
+ * reader who turns those settings off sees the control move nowhere.
+ */
+/*
+ * Ours yields to Obsidian's indicator wherever that indicator is doing the job.
+ *
+ * On an UNFOLDED line that is any indicator at all. On a FOLDED one it has to be
+ * the COLLAPSED indicator specifically, because Obsidian paints two different
+ * things: the collapsed one goes on the line a fold starts on, and for a node
+ * spanning several source lines that is not the line its marker is on. Beside
+ * the marker it leaves the ordinary hover chevron — pointing down, offering to
+ * fold what is already folded — and strands the real control beside the node's
+ * last line. So on a folded marker line ours takes over, and the two rules below
+ * clear what Obsidian left in both places.
+ */
+.markdown-source-view.mod-cm6
+  .cm-line:not(.to-decor-folded):has(.cm-fold-indicator)
+  .to-decor-fold-toggle,
+.markdown-source-view.mod-cm6
+  .cm-line.to-decor-folded:has(.cm-fold-indicator.is-collapsed)
+  .to-decor-fold-toggle {
+  display: none;
+}
+
+/* The stale down-chevron beside a folded node's marker. */
+.markdown-source-view.mod-cm6 .cm-line.to-decor-folded .cm-fold-indicator:not(.is-collapsed) {
+  display: none;
+}
+
+/* The collapsed one, stranded beside a folded node's last own line. */
+.markdown-source-view.mod-cm6 .cm-line.to-decor-fold-tail .cm-fold-indicator {
+  display: none;
+}
+
+/* What the two copies share: the glyph, and the states it is drawn in. Where
+ * the control sits is the surface's own business — the editor's box is below,
+ * the footer's is with the rest of the footer's column arithmetic.
+ *
+ * Drawn in Obsidian's own chevron colour, so that where ours stands in for the
+ * native indicator nothing about it reads as a different control. */
+.to-decor-fold-toggle {
+  color: var(--collapse-icon-color, var(--text-faint));
+  opacity: 0;
+  cursor: var(--cursor, pointer);
+  transition: opacity 100ms ease-in-out;
+}
+
+.to-decor-fold-toggle:hover {
+  color: var(--to-decor-highlight);
+}
+
+.to-decor-fold-toggle svg {
+  width: 0.7rem;
+  height: 0.7rem;
+  display: block;
+}
+
+/*
+ * The editor's copy sits IN the line's flow, at the start of its own text, and
+ * takes up none of it — a zero-size box the glyph hangs off, which is exactly
+ * how Obsidian's own indicator is built. Positioning it absolutely instead
+ * measures from the line's padding box, which knows nothing of the line's
+ * indentation: the control kept its distance from the window and lost it to the
+ * marker, one whole level further away on every step deeper.
+ *
+ * What that box's own origin IS still differs by kind, so the offset from it to
+ * the marker column is built per line, in `foldToggleLeftExpr`, and arrives
+ * through `--to-marker-left`.
+ *
+ * Vertically it is the marker icon's own mechanics, and `.to-decor-marker-icon`
+ * says why each of them: zero line-height, so the box's baseline is its bottom
+ * edge and lands on the text's; then the glyph centred `0.5ex` above that, the
+ * text's own optical middle. The two therefore stay on one line at any text
+ * size and in any theme, which a box centred on the LINE does not — a heading's
+ * line is half as tall again as its text.
+ */
+.cm-line .to-decor-fold-toggle {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+  line-height: 0;
+  vertical-align: baseline;
+  left: var(--to-marker-left, 0px);
+}
+
+.cm-line .to-decor-fold-toggle svg {
+  position: absolute;
+  top: -0.5ex;
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+/*
+ * Where there is no hover to reveal it, the control is simply visible — and
+ * given a real touch target.
+ *
+ * A coarse pointer never triggers the hover rule below, so the affordance would
+ * exist and never be seen; and the painted glyph is well under the 24px a
+ * finger needs.
+ *
+ * `(pointer: coarse)` alone, NOT `(hover: none)`. The two look
+ * interchangeable and are not: a browser with no pointing device attached —
+ * a WebDriver session, a kiosk — reports `hover: none` with a fine pointer,
+ * and inflating a gutter control to 24px there puts an invisible hit area
+ * over the first characters of every foldable line. The hit area comes from a centred pseudo-element rather than
+ * from the element's own box, so the glyph stays exactly where the native
+ * chevron sits — growing the box would move it off the column both controls
+ * share.
+ *
+ * Scoped to the EDITOR's copy. The footer's control shares this class for its
+ * glyph but nothing else: it is already visible without a hover, and its box is
+ * the footer's own arithmetic, so a hit area sized here would be a foreign
+ * element inside a row whose layout the footer measures.
+ */
+@media (pointer: coarse) {
+  .markdown-source-view.mod-cm6 .cm-content .to-decor-fold-toggle {
+    opacity: 1;
+  }
+
+  .markdown-source-view.mod-cm6 .cm-content .to-decor-fold-toggle::before {
+    content: '';
+    position: absolute;
+    /* On the GLYPH, which hangs off a zero-size box rather than filling it —
+     * the box's own centre is the text baseline. */
+    top: -0.5ex;
+    left: 0;
+    width: 24px;
+    height: 24px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Hover to reveal while the node is open; PERMANENT once it is folded, because
+ * a folded node's only route back must not be hidden behind a hover. */
+.cm-line:hover > .to-decor-fold-toggle,
+.to-decor-fold-toggle:hover,
+.to-decor-fold-toggle.is-collapsed {
+  opacity: 1;
+}
+
+.to-decor-fold-toggle.is-collapsed svg {
+  transform: rotate(-90deg);
+}
+
+/* The editor's copy centres its glyph with a transform, so the rotation has to
+ * carry that centring with it. */
+.cm-line .to-decor-fold-toggle.is-collapsed svg {
+  transform: translate(-50%, -50%) rotate(-90deg);
 }

@@ -35,6 +35,48 @@ export const zoomTo = StateEffect.define<number>();
 /** Clear the zoom, in this view. */
 export const zoomCleared = StateEffect.define();
 
+/**
+ * The folds a zoom opened on entering a scope, remembered so that leaving the
+ * scope can fold them again — a reader who zoomed into a folded node comes
+ * back to it folded, as they left it.
+ *
+ * A stack keyed by the anchor that opened them, because zooms nest: zooming
+ * out one level restores what the inner scope opened and nothing more, and
+ * clearing restores everything still on the stack. Ranges follow the document
+ * through changes; one that collapses to nothing is dropped, since the node it
+ * folded is no longer there as it was.
+ */
+export interface OpenedByZoom {
+  readonly anchor: number;
+  readonly ranges: readonly { from: number; to: number }[];
+}
+export const zoomOpened = StateEffect.define<OpenedByZoom>();
+/** Entries for these anchors have been restored (or given up on). */
+export const zoomRestored = StateEffect.define<readonly number[]>();
+
+export const zoomOpenedField = StateField.define<readonly OpenedByZoom[]>({
+  create: () => [],
+  update(value, tr) {
+    let next = value;
+    if (tr.docChanged) {
+      next = next.map((entry) => ({
+        anchor: tr.changes.mapPos(entry.anchor),
+        ranges: entry.ranges
+          .map((r) => ({ from: tr.changes.mapPos(r.from, 1), to: tr.changes.mapPos(r.to, -1) }))
+          .filter((r) => r.to > r.from),
+      }));
+    }
+    for (const effect of tr.effects) {
+      if (effect.is(zoomOpened)) next = [...next, effect.value];
+      if (effect.is(zoomRestored)) {
+        const gone = new Set(effect.value);
+        next = next.filter((entry) => !gone.has(entry.anchor));
+      }
+    }
+    return next;
+  },
+});
+
 export const zoomAnchorField = StateField.define<number | null>({
   create: () => null,
   update(value, tr) {
@@ -198,5 +240,5 @@ function mapAnchor(anchor: number, tr: Transaction): number {
 }
 
 export function zoomStateExtension(): Extension {
-  return zoomAnchorField;
+  return [zoomAnchorField, zoomOpenedField];
 }

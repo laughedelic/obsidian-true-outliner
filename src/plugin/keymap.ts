@@ -36,7 +36,7 @@
  * these targets are already addressable by construction.
  */
 
-import {
+import { type EditorState,
   ChangeSet,
   EditorSelection,
   Prec,
@@ -45,7 +45,7 @@ import {
   type Text,
 } from "@codemirror/state";
 import { Direction, EditorView, keymap } from "@codemirror/view";
-import { indentUnit } from "@codemirror/language";
+import { indentUnit, foldedRanges } from "@codemirror/language";
 import { Notice, editorInfoField } from "obsidian";
 import { planKey, type GrammarKey } from "./grammar";
 import { nextRungs } from "../select-all-ladder";
@@ -63,6 +63,8 @@ import { nodeAtLine, nodeStartLine } from "../locate";
 import { linePosToOffset, offsetToLinePos, toLineRange } from "./cm-pos";
 import { parsedDoc } from "./parsed-doc";
 import { zoomScope } from "./zoom-scope";
+import { foldedEntryAt } from "./fold-service";
+import { unfoldEffectsFor } from "./fold-ops";
 import { isNestedEditor } from "./nested-editor";
 import { isOutlineMode } from "./outline-state";
 import type { EditorChange } from "./dispatch";
@@ -112,6 +114,31 @@ function makeHandler(key: GrammarKey) {
     // editor setting, so reading it here respects that preference without
     // touching any Obsidian-private API (confirmed live: toggling the
     // setting flips this facet's value immediately).
+    // A folded node splits differently, and only at the end of its OWN TEXT —
+    // which is the end of its last own line, not of the line the caret happens
+    // to be on. There, the new node goes AFTER the hidden subtree; a first
+    // child would land inside content the reader has hidden, which is the one
+    // place they are not looking. Anywhere else in its text the split
+    // redistributes the node's own words, so the fold opens first and the
+    // ordinary rules apply — the reader has to see where its children end up.
+    //
+    // A HEADING is excluded, because the shape it would need does not exist: a
+    // paragraph written after a heading's section re-parses as that section's
+    // child, so there is no sibling encoding to put the new node in. A folded
+    // heading opens and splits like any other.
+    const foldedEntry = key === "split" ? foldedEntryAt(view.state, fromLine.number - 1) : null;
+    const ownTextEnd = foldedEntry
+      ? view.state.doc.line(foldedEntry.startLine + foldedEntry.node.lines.length).to
+      : -1;
+    const collapsed =
+      foldedEntry !== null && planFrom === ownTextEnd && foldedEntry.node.kind !== "heading";
+    if (foldedEntry && !collapsed) {
+      // Only this node's own fold: unfolding a range that ran to the end of the
+      // document took every later fold with it.
+      const effects = unfoldEffectsFor(view.state, foldedEntry);
+      if (effects.length > 0) view.dispatch({ effects });
+    }
+
     const outcome = planKey(
       view.state.doc.toString(),
       {
@@ -129,6 +156,7 @@ function makeHandler(key: GrammarKey) {
         ? undefined
         : { line: startLine.number - 1, ch: sel.from - startLine.from },
       zoomScope(view.state),
+      collapsed,
     );
 
     if (outcome === null) {
@@ -697,6 +725,29 @@ const tickCounter = EditorView.updateListener.of((update) => {
   }
 });
 
+/**
+ * The fold hiding a 0-based line, as the lines it spans, or null when the line
+ * is on screen. A fold begins at its head line's end, so the lines it hides are
+ * the ones after the head through the one its end sits on.
+ */
+function foldHidingLine(
+  state: EditorState,
+  line: number,
+): { headLine: number; lastLine: number } | null {
+  if (line < 0 || line >= state.doc.lines) return null;
+  const pos = state.doc.line(line + 1).from;
+  let found: { headLine: number; lastLine: number } | null = null;
+  foldedRanges(state).between(pos, pos, (from, to) => {
+    if (from < pos && pos <= to) {
+      found = {
+        headLine: state.doc.lineAt(from).number - 1,
+        lastLine: state.doc.lineAt(to).number - 1,
+      };
+    }
+  });
+  return found;
+}
+
 function makeVerticalHandler(forward: boolean) {
   return (view: EditorView): boolean => {
     if (!outlinePathOf(view)) return false;
@@ -802,7 +853,16 @@ function makeVerticalHandler(forward: boolean) {
     let node = nodeAtLine(outlineDoc, startLine);
     if (!node) return false; // preamble
     for (let guard = 0; guard < doc.lines + 1; guard++) {
-      const nextLine = forward ? line + 1 : line - 1;
+      let nextLine = forward ? line + 1 : line - 1;
+      // A folded node is one node to step over. The walk starts from the raw
+      // line beside the caret precisely because `moveVertically`'s landing is
+      // not trusted — and the raw line beside a folded head is the first line
+      // that fold hides. Landing there did not merely reveal it: CodeMirror's
+      // own fold state drops any fold the selection head lands inside, so the
+      // fold was gone in the same transaction, on every Down from a folded
+      // node and every Up from beneath one. The walk resumes on the far side.
+      const hidden = foldHidingLine(view.state, nextLine);
+      if (hidden) nextLine = forward ? hidden.lastLine + 1 : hidden.headLine;
       if (nextLine < 0 || nextLine >= doc.lines) {
         // Document edge reached mid-walk: land on this node's own content
         // boundary rather than leaving the caret on its gap.

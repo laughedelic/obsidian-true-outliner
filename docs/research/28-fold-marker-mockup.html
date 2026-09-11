@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folded marker treatments</title>
+<!--
+  Mockup for `better-folding-ux` (design.md D6): how a FOLDED node's marker says
+  so without changing its shape or its box.
+
+  The glyphs are the plugin's own, copied from `buildMarkerIcon` in
+  src/plugin/decorations.ts (viewBox 0 0 16 16) for the kinds it draws, plus the
+  marks Obsidian itself renders for list lines — the native bullet, an ordered
+  item's digits, and a task's checkbox — which the editor keeps as they are.
+
+  Only three kinds can be folded at all: a heading, a paragraph carrying
+  attached children, and a list item (bullet, ordered or task). An atom is never
+  a parent in the tree, so it is never foldable; the last row shows those for
+  contrast and is not a treatment.
+
+  Static page, no dependencies. Geometry follows the plugin's own values: a 14px
+  marker icon in the marker gutter, 1.75rem per outline level.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --panel: #fbfbfc;
+    --line: #e3e3e6;
+    --text: #1f2023;
+    --muted: #6a6c72;
+    --faint: #a8aab0;
+    --accent: #6c63d8;
+    --unit: 1.75rem;
+    --icon: 14px;
+    /* The one value every treatment shares: how far its chrome sits off the
+       glyph. Tight on purpose — the marker gutter is 14px and the fold
+       affordance shares it. */
+    --pad: 3px;
+  }
+  [data-theme="dark"] {
+    --bg: #1e1e20;
+    --panel: #232326;
+    --line: #37373d;
+    --text: #dcddde;
+    --muted: #9a9ba1;
+    --faint: #6b6d74;
+    --accent: #a79ffb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem clamp(1rem, 5vw, 4rem) 5rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
+  h1 { font-size: 1.5rem; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 1rem; margin: 2.5rem 0 .25rem; letter-spacing: -0.005em; }
+  p.note { color: var(--muted); max-width: 66ch; margin: .25rem 0 1rem; font-size: .9rem; }
+  code { font-size: .92em; }
+  button.theme {
+    margin-left: auto; border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); border-radius: 6px; padding: .35rem .7rem; cursor: pointer; font: inherit; font-size: .85rem;
+  }
+
+  table { border-collapse: collapse; width: 100%; max-width: 940px; }
+  th, td { text-align: left; padding: .6rem .75rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  th.k { text-align: center; width: 4.2rem; }
+  td.name { width: 13.5rem; }
+  td.name b { display: block; font-weight: 600; }
+  td.name span { color: var(--muted); font-size: .82rem; }
+  td.k { text-align: center; }
+  tr.ref td { background: color-mix(in srgb, var(--panel) 70%, transparent); }
+  tr.inert td { opacity: .75; }
+  tr.chosen td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .badge { display: inline-block; margin-top: .25rem; font-size: .7rem; font-weight: 700;
+           letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+
+  /* ---- one mark ------------------------------------------------------- */
+  .mark {
+    width: var(--icon); height: var(--icon);
+    display: inline-grid; place-items: center; position: relative;
+    color: var(--faint); vertical-align: middle;
+  }
+  .mark svg { width: var(--icon); height: var(--icon); display: block; }
+  /* Obsidian's own list marks, kept as the editor keeps them. */
+  .mark.num { width: auto; min-width: var(--icon); font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: -0.02em; }
+  .mark.dot::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .mark.task .box { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 3px; }
+
+  /* The chrome every treatment draws, shaped to the glyph it sits behind. */
+  .mark::before {
+    content: ""; position: absolute; inset: calc(-1 * var(--pad));
+    border-radius: 3px; pointer-events: none;
+  }
+  .mark[data-shape="round"]::before { border-radius: 50%; }
+  .mark.num::before { inset: -2px calc(-1 * var(--pad)); }
+
+  /* Off unless a treatment turns it on. */
+  .grid .mark::before, .doc .mark::before { display: none; }
+
+  /* A — full contrast. Drawn first as a heavier stroke as well; a heading's
+     glyph is filled rectangles no stroke reaches, so the stroke told kinds
+     apart rather than states, and the shipped treatment is contrast alone. */
+  .t-fill .mark { color: var(--text); }
+
+  /* B — halo, tight and muted */
+  .t-halo .mark::before {
+    display: block; border-radius: 50%;
+    background: color-mix(in srgb, var(--text) 13%, transparent);
+  }
+  .t-halo .mark { color: var(--text); }
+
+  /* C — shaped halo: the glyph's own geometry */
+  .t-shaped .mark::before {
+    display: block;
+    background: color-mix(in srgb, var(--text) 13%, transparent);
+  }
+  .t-shaped .mark { color: var(--text); }
+
+  /* D — outline, shaped */
+  .t-box .mark::before {
+    display: block;
+    border: 1px solid color-mix(in srgb, var(--text) 38%, transparent);
+  }
+
+  /* E — dashed outline, shaped */
+  .t-dashed .mark::before {
+    display: block;
+    border: 1px dashed color-mix(in srgb, var(--text) 42%, transparent);
+  }
+
+  /* F — underline */
+  .t-under .mark::before {
+    display: block; inset: auto calc(-1 * var(--pad)) -3px; height: 0;
+    border-radius: 0; border-bottom: 1.5px solid color-mix(in srgb, var(--text) 55%, transparent);
+  }
+  .t-under .mark { color: var(--text); }
+
+  /* G — contrast + count */
+  .t-count .mark { color: var(--text); }
+  .count {
+    margin-left: .4rem; font-size: .72rem; line-height: 1; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: .17em .45em; background: var(--panel);
+    vertical-align: middle;
+  }
+
+  /* ---- outline fragment ------------------------------------------------ */
+  .doc { max-width: 640px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.25rem 1.4rem 2.4rem; }
+  .row { position: relative; display: flex; align-items: flex-start; gap: .5rem; padding: .12rem 0; }
+  .row .gutter { width: var(--icon); flex: 0 0 var(--icon); display: grid; place-items: center; padding-top: .3em; }
+  .row .txt { min-width: 0; }
+  .row[data-depth="1"] { padding-left: var(--unit); }
+  .row[data-depth="2"] { padding-left: calc(2 * var(--unit)); }
+  .row[data-depth="3"] { padding-left: calc(3 * var(--unit)); }
+  .row.h1 .txt { font-size: 1.22rem; font-weight: 650; letter-spacing: -0.01em; }
+  .row.h2 .txt { font-size: 1.06rem; font-weight: 620; }
+  .row.done .txt { color: var(--muted); text-decoration: line-through; }
+  /* The painted guides stay inert, as they are in the editor; only the hit
+     bands inside them take the pointer. */
+  .guides { position: absolute; inset: 0; pointer-events: none; }
+  .guides i { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--faint) 60%, transparent); }
+  .hit { position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -6px; border-radius: 3px; cursor: pointer; pointer-events: auto; }
+  .hit.show { background: color-mix(in srgb, var(--accent) 15%, transparent); outline: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); }
+  /* The fold chevron, in the slot Obsidian's own is transformed into: left of
+     the marker, in the gutter, not in the text column. Hover-revealed while
+     the node is unfolded; persistent once it is folded, because it is the only
+     way back. */
+  .chev {
+    position: absolute; top: .18em; width: 14px; height: 14px;
+    display: grid; place-items: center; color: var(--muted);
+    opacity: 0; transition: opacity .1s ease; cursor: pointer;
+  }
+  .chev svg { width: 11px; height: 11px; display: block; transition: transform .12s ease; }
+  .row:hover .chev { opacity: .75; }
+  .chev:hover { opacity: 1 !important; }
+  .row.is-folded .chev { opacity: 1; }
+  .row.is-folded .chev svg { transform: rotate(-90deg); }
+  .row.leaf .chev { display: none; }
+
+  .caption { color: var(--muted); font-size: .82rem; margin-top: .5rem; }
+  .legend { display: flex; gap: .9rem; flex-wrap: wrap; margin: .6rem 0 0; color: var(--muted); font-size: .82rem; }
+  .legend label { cursor: pointer; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.75rem; align-items: start; max-width: 1140px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Folded marker treatments</h1>
+  <button class="theme" type="button">Toggle theme</button>
+</header>
+<p class="note">
+  Candidates for <code>better-folding-ux</code> D6: a folded node keeps its kind's glyph and its
+  box, and says it is folded by a change of state. The glyphs are the plugin's own
+  (<code>buildMarkerIcon</code>) plus the marks Obsidian renders for list lines. Every row shows
+  the same six marks, folded, in the treatment named on the left; the first row is the unfolded
+  reference.
+</p>
+
+<table id="grid" class="grid"></table>
+
+<h2>In context</h2>
+<p class="note">
+  A fragment at the plugin's real geometry — 14px marker gutter, 1.75rem per level — with four
+  folded nodes. Hover a row to see its fold chevron, in the slot Obsidian's own is transformed
+  into — left of the marker, in the gutter. A folded row keeps its chevron for good, since it is
+  the only way back. The dashed band is the guide-click tolerance from D7: click it to fold or
+  unfold every child under that guide. Marks are clickable too.
+</p>
+
+<div class="two">
+  <div>
+    <div class="doc" id="doc"></div>
+    <p class="caption">Treatment: <b id="ctxName"></b></p>
+    <div class="legend" id="picker"></div>
+  </div>
+  <div>
+    <h2 style="margin-top:0">What each one costs</h2>
+    <table id="costs"></table>
+  </div>
+</div>
+
+<script>
+/* The plugin's own icons, verbatim from src/plugin/decorations.ts. */
+const SVG = (inner) => `<svg viewBox="0 0 16 16" aria-hidden="true">${inner}</svg>`;
+const STROKE = 'stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+
+const MARKS = {
+  heading: {
+    shape: 'square', label: 'heading',
+    html: SVG(`<rect x="3" y="2" width="2" height="12" fill="currentColor"/>
+               <rect x="11" y="2" width="2" height="12" fill="currentColor"/>
+               <rect x="3" y="7" width="10" height="2" fill="currentColor"/>`),
+  },
+  paragraph: {
+    shape: 'square', label: 'paragraph',
+    html: SVG(`<line ${STROKE} x1="2" y1="4" x2="14" y2="4"/>
+               <line ${STROKE} x1="2" y1="8" x2="14" y2="8"/>
+               <line ${STROKE} x1="2" y1="12" x2="9" y2="12"/>`),
+  },
+  bullet:  { shape: 'round',  label: 'bullet',   cls: 'dot',  html: '' },
+  ordered: { shape: 'square', label: 'ordered',  cls: 'num',  html: '1.' },
+  task:    { shape: 'square', label: 'task',     cls: 'task', html: '<span class="box"></span>' },
+  footerBullet: {
+    shape: 'round', label: 'footer bullet',
+    html: SVG('<circle cx="8" cy="8" r="3" fill="currentColor"/>'),
+  },
+};
+
+/* Never foldable — an atom is never a parent in the tree. Shown for contrast. */
+const INERT = {
+  table: SVG(`<rect ${STROKE} x="2" y="2" width="12" height="12" rx="1"/>
+              <line ${STROKE} x1="2" y1="8" x2="14" y2="8"/>
+              <line ${STROKE} x1="8" y1="2" x2="8" y2="14"/>`),
+  code: SVG(`<polyline ${STROKE} points="6,3 2,8 6,13"/>
+             <line ${STROKE} x1="9.5" y1="2" x2="6.5" y2="14"/>
+             <polyline ${STROKE} points="10,3 14,8 10,13"/>`),
+  callout: SVG(`<circle cx="8" cy="8" r="6" fill="currentColor"/>
+                <rect x="7" y="4" width="2" height="5" fill="var(--panel)"/>
+                <rect x="7" y="10" width="2" height="2" fill="var(--panel)"/>`),
+  quote: SVG(`<circle cx="5" cy="5" r="2" fill="currentColor"/><rect x="4" y="5" width="2" height="4" fill="currentColor"/>
+              <circle cx="11" cy="5" r="2" fill="currentColor"/><rect x="10" y="5" width="2" height="4" fill="currentColor"/>`),
+  hr: SVG('<rect x="2" y="7" width="12" height="2" fill="currentColor"/>'),
+};
+
+const KEYS = ['heading', 'paragraph', 'bullet', 'ordered', 'task', 'footerBullet'];
+
+/* Obsidian's own collapse indicator, as measured in docs/research/28. */
+const CHEVRON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8L12 17L21 8"/></svg>';
+
+function markHtml(key, opts = {}) {
+  const m = MARKS[key];
+  return `<span class="mark ${m.cls || ''} ${opts.folded === false ? '' : 'is-folded'}"
+                data-shape="${m.shape}" ${opts.data || ''}>${m.html}</span>`;
+}
+
+const TREATMENTS = [
+  ['',         'Unfolded',            'the reference — outline glyph, muted'],
+  ['t-fill',   'A · Full contrast',   'the glyph takes full text contrast'],
+  ['t-halo',   'B · Halo',            'a tight, muted disc behind the glyph, whatever its shape'],
+  ['t-shaped', 'C · Shaped halo',     'the same fill, cut to the glyph’s own geometry'],
+  ['t-box',    'D · Outline',         'a hairline around the glyph, shaped to it'],
+  ['t-dashed', 'E · Dashed outline',  'the same outline, dashed — “there is more here”'],
+  ['t-under',  'F · Underline',       'a rule under the glyph, in the gutter’s own width'],
+  ['t-count',  'G · Contrast + count', 'the glyph at full contrast plus the hidden-descendant count<span class="badge">chosen</span>'],
+];
+
+const COSTS = [
+  ['A · Full contrast', 'Cheapest and quietest, and it composes with everything. It reads as emphasis rather than as “something is hidden”, and a bullet is already solid — the one mark it cannot say anything about.'],
+  ['B · Halo', 'One shape for every mark, so one rule and one value to tune. Reads immediately; Logseq’s folded bullet is the same idea. A disc behind a wide glyph (the “H”, an ordered “12.”) crops its corners.'],
+  ['C · Shaped halo', 'Fixes the cropping — square behind the H, the paragraph and the checkbox, round behind a bullet. Costs a per-kind shape the marker vocabulary does not otherwise need, and a rounded-rect behind a checkbox is nearly the checkbox again.'],
+  ['D · Outline', 'Quietest of the shaped family, and the only one that adds no ink over the glyph. Risks reading as a focus ring, which the caret accent already owns, and a 1px outline 3px off a 14px glyph is close quarters.'],
+  ['E · Dashed outline', 'Says “continues below” in a vocabulary nobody else in the editor uses, so it is unambiguous. Dashes at this size are fragile — 1px dashes render unevenly at fractional device pixels.'],
+  ['F · Underline', 'Sits in the gutter’s dead space under the mark, so it never crowds the glyph, and it points down, where the hidden content is. Weakest signal of the seven, and it competes with the guide line that runs through that column.'],
+  ['G · Contrast + count', 'The count carries the meaning and the contrast is a nudge; it is the only candidate that says HOW MUCH is hidden. Two elements per folded row, and the count needs a place after the text where nothing else lives.'],
+];
+
+/* ---- the grid ---- */
+document.getElementById('grid').innerHTML =
+  `<tr><th>Treatment</th>${KEYS.map((k) => `<th class="k">${MARKS[k].label}</th>`).join('')}</tr>` +
+  TREATMENTS.map(([cls, name, sub], i) => `
+    <tr class="${cls} ${i === 0 ? 'ref' : ''} ${cls === 't-count' ? 'chosen' : ''}">
+      <td class="name"><b>${name}</b><span>${sub}</span></td>
+      ${KEYS.map((k) => `<td class="k">${markHtml(k, { folded: i !== 0 })}${
+        cls === 't-count' ? '<span class="count">5</span>' : ''
+      }</td>`).join('')}
+    </tr>`).join('') +
+  `<tr class="inert">
+     <td class="name"><b>Never folded</b><span>an atom is never a parent in the tree, so it has no folded state at all</span></td>
+     <td class="k" colspan="${KEYS.length}">
+       <span style="display:inline-flex;gap:1.35rem;align-items:center">
+         ${Object.values(INERT).map((h) => `<span class="mark">${h}</span>`).join('')}
+       </span>
+     </td>
+   </tr>`;
+
+document.getElementById('costs').innerHTML =
+  '<tr><th>Candidate</th><th>Trade-off</th></tr>' +
+  COSTS.map(([n, t]) => `<tr><td class="name"><b>${n}</b></td><td>${t}</td></tr>`).join('');
+
+/* ---- context fragment ---- */
+const ROWS = [
+  { depth: 0, kind: 'heading', cls: 'h1', text: 'Folding', children: true, folded: false },
+  { depth: 1, kind: 'paragraph', text: 'What we know so far:', children: true, folded: true, hidden: 4 },
+  { depth: 1, kind: 'heading', cls: 'h2', text: 'Mechanics', children: true, folded: false },
+  { depth: 2, kind: 'bullet', text: 'a fold is CodeMirror’s, not Obsidian’s', children: false },
+  { depth: 2, kind: 'bullet', text: 'the chevron is painted by another rule', children: true, folded: true, hidden: 3 },
+  { depth: 2, kind: 'ordered', text: 'a move destroys a fold the carry brings back', children: true, folded: true, hidden: 2 },
+  { depth: 2, kind: 'task', cls: 'done', text: 'measure before designing', children: false },
+  { depth: 2, kind: 'task', text: 'decide the folded treatment', children: true, folded: true, hidden: 7 },
+  { depth: 1, kind: 'paragraph', text: 'Everything below stays visible.', children: false },
+];
+
+const doc = document.getElementById('doc');
+let treatment = 't-count';
+
+document.getElementById('picker').innerHTML =
+  TREATMENTS.slice(1).map(([cls, name]) =>
+    `<label><input type="radio" name="t" value="${cls}" ${cls === treatment ? 'checked' : ''}> ${
+      name.replace(/^[A-G] · /, '')}</label>`).join('') +
+  '<label><input type="checkbox" id="showHit" checked> show guide hit band</label>';
+
+function render() {
+  doc.className = 'doc ' + treatment;
+  document.getElementById('ctxName').textContent =
+    (TREATMENTS.find((t) => t[0] === treatment) || ['', ''])[1];
+  const showHit = document.getElementById('showHit').checked;
+  doc.innerHTML = ROWS.map((r, i) => {
+    const guides = Array.from({ length: r.depth }, (_, d) =>
+      `<i style="left:calc(${d} * var(--unit) + 6px)"></i>`).join('');
+    const bands = Array.from({ length: r.depth }, (_, d) =>
+      `<span class="hit ${showHit ? 'show' : ''}" data-guide="${d}" style="left:calc(${d} * var(--unit) + 6px)"></span>`).join('');
+    const folded = !!(r.children && r.folded);
+    return `<div class="row ${r.cls || ''} ${folded ? 'is-folded' : ''} ${r.children ? '' : 'leaf'}"
+                 data-depth="${r.depth}">
+      <span class="guides">${guides}${bands}</span>
+      <span class="chev" data-i="${i}" style="left:calc(${r.depth} * var(--unit) - 1.05rem)">${CHEVRON}</span>
+      <span class="gutter">${markHtml(r.kind, { folded, data: `data-i="${i}"` })}</span>
+      <span class="txt">${r.text}${
+        folded && treatment === 't-count' ? `<span class="count">${r.hidden}</span>` : ''
+      }</span>
+    </div>`;
+  }).join('');
+}
+
+/* In the grid every mark is folded; in the fragment only some are, so the
+   treatment has to apply per mark rather than per container. */
+const scoped = document.createElement('style');
+scoped.textContent = `
+  .doc .mark.is-folded::before { display: block; }
+  .doc .mark:not(.is-folded)::before { display: none !important; }
+  .doc .mark:not(.is-folded) { color: var(--faint); }
+  .doc .mark { cursor: pointer; }
+`;
+document.head.appendChild(scoped);
+
+doc.addEventListener('click', (e) => {
+  const mark = e.target.closest('.chev') || e.target.closest('.mark');
+  if (mark) {
+    const r = ROWS[+mark.dataset.i];
+    if (r && r.children) { r.folded = !r.folded; render(); }
+    return;
+  }
+  const band = e.target.closest('.hit');
+  if (band) {
+    const depth = +band.dataset.guide;
+    const kids = ROWS.filter((r) => r.depth === depth + 1 && r.children);
+    const anyOpen = kids.some((r) => !r.folded);
+    kids.forEach((r) => { r.folded = anyOpen; });
+    render();
+  }
+});
+document.getElementById('picker').addEventListener('change', (e) => {
+  if (e.target.name === 't') treatment = e.target.value;
+  render();
+});
+document.querySelector('button.theme').addEventListener('click', () => {
+  document.documentElement.dataset.theme =
+    document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+});
+if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+render();
+</script>
+</body>
+</html>

@@ -29,8 +29,23 @@ const LABELS = {
   5: 'decorations',
   6: 'selection',
   7: 'backlinks',
+  9: 'folding',
   // Its own group: the longest spec in the suite, and its own feature.
   55: 'position-indicators',
+  // Its own group, for a different reason than 55's: this spec asserts a
+  // decoration that persists at a fixed SCREEN POSITION after a real pointer
+  // move — `guideColumnPoint`/`clickAtPoint` drive an actual OS-level cursor,
+  // not a synthesised event. Under `max-instances` > 1, several Obsidian
+  // windows share one Xvfb display and one OS cursor, and another worker's own
+  // move can land on/near the same coordinates and steal it mid-test — nothing
+  // else in the suite depends on the cursor having STAYED somewhere, so
+  // nothing else is exposed the same way. Reproduced only on CI (twice,
+  // identically): locally `E2E_MAX_INSTANCES` is unset, so there is only ever
+  // one worker and nothing to contend with. Its own job removes the other
+  // workers it could collide with, which — unlike `EXCLUSIVE_GROUPS` — also
+  // costs nothing: the group holds one spec, so there is no sibling to
+  // serialise against within it either.
+  94: 'guide-pointer',
   // Lifted out of `selection` and run one-at-a-time: see EXCLUSIVE_GROUPS.
   61: 'clipboard',
   62: 'clipboard',

@@ -105,11 +105,13 @@ export function stripeStartExpr(depth: number, width: string): string {
  */
 export const GUIDE_WIDTH = `var(${CHROME_VARS.guideWidth})`;
 
-/** One vertical guide, centred on `depth`'s column. */
-export function guideLayer(depth: number): string {
+/** One vertical guide, centred on `depth`'s column, at `width` — the shared
+ * guide width unless the guide is the one under the pointer, which the
+ * decoration pass paints thicker. */
+export function guideLayer(depth: number, width: string = GUIDE_WIDTH): string {
   return (
-    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${GUIDE_WIDTH}, transparent ${GUIDE_WIDTH} ${UNIT_EXPR}) ` +
-    `${stripeStartExpr(depth, GUIDE_WIDTH)} 0 / ${UNIT_EXPR} 100% no-repeat`
+    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${width}, transparent ${width} ${UNIT_EXPR}) ` +
+    `${stripeStartExpr(depth, width)} 0 / ${UNIT_EXPR} 100% no-repeat`
   );
 }
 
@@ -120,7 +122,7 @@ export function guideLayer(depth: number): string {
  * treatment of the reader's current position and the footer has no such thing.
  */
 export function plainGuideBackground(guideDepths: readonly number[]): string {
-  return guideDepths.map(guideLayer).join(', ');
+  return guideDepths.map((depth) => guideLayer(depth)).join(', ');
 }
 
 /**

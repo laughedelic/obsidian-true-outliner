@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folded count treatments</title>
+<!--
+  Mockup for `better-folding-ux` (design.md D6, follow-up): how a folded node
+  says HOW MUCH it hides, without that number becoming the loudest thing on the
+  line.
+
+  What a folded row actually carries today, in order: the node's own text, our
+  count chip, and Obsidian's own `…` placeholder — which is a real control, not
+  an ornament: clicking it unfolds. Two pieces of chrome, adjacent, one of them
+  a bordered pill; the pill reads louder than the text it annotates and louder
+  than the control beside it.
+
+  Geometry follows the plugin's own values: a 14px marker icon in the marker
+  gutter, 1.75rem per outline level. The placeholder is drawn as Obsidian draws
+  it. Static page, no dependencies.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --panel: #fbfbfc;
+    --line: #e3e3e6;
+    --text: #1f2023;
+    --muted: #6a6c72;
+    --faint: #a8aab0;
+    --accent: #6c63d8;
+    --unit: 1.75rem;
+    --icon: 14px;
+  }
+  [data-theme="dark"] {
+    --bg: #1e1e20;
+    --panel: #232326;
+    --line: #37373d;
+    --text: #dcddde;
+    --muted: #9a9ba1;
+    --faint: #6b6d74;
+    --accent: #a79ffb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem clamp(1rem, 5vw, 4rem) 5rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
+  h1 { font-size: 1.5rem; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 1rem; margin: 2.5rem 0 .25rem; letter-spacing: -0.005em; }
+  p.note { color: var(--muted); max-width: 68ch; margin: .25rem 0 1rem; font-size: .9rem; }
+  code { font-size: .92em; }
+  button.theme {
+    margin-left: auto; border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); border-radius: 6px; padding: .35rem .7rem; cursor: pointer; font: inherit; font-size: .85rem;
+  }
+
+  table { border-collapse: collapse; width: 100%; max-width: 1040px; }
+  th, td { text-align: left; padding: .65rem .75rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  td.name { width: 15rem; }
+  td.name b { display: block; font-weight: 600; }
+  td.name span { color: var(--muted); font-size: .82rem; }
+  tr.ref td { background: color-mix(in srgb, var(--panel) 70%, transparent); }
+  tr.chosen td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .badge { display: inline-block; margin-top: .25rem; font-size: .7rem; font-weight: 700;
+           letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+
+  /* ---- the pieces a folded line carries -------------------------------- */
+
+  /* Obsidian's own placeholder, drawn as Obsidian draws it: a real control. */
+  .ph {
+    display: inline-block; margin-left: .25em; padding: 0 .4em;
+    border: 1px solid var(--line); border-radius: 4px; background: var(--panel);
+    color: var(--muted); font-size: .85em; line-height: 1.35; cursor: pointer;
+  }
+  .ph:hover { color: var(--text); }
+
+  /* Our count, in whichever treatment is showing. `.c-*` classes are set on an
+     ancestor, so one row can be re-dressed without being rebuilt. */
+  .n { color: var(--muted); user-select: none; }
+
+  /* A — the pill, as it is today */
+  .c-pill .n {
+    display: inline-block; margin-left: .45em; padding: .1em .4em;
+    border: 1px solid var(--line); border-radius: 1em; background: var(--panel);
+    font-size: .75em; line-height: 1.4; vertical-align: middle;
+  }
+  /* B — the same number, no chrome at all */
+  .c-bare .n { margin-left: .5em; font-size: .78em; color: var(--faint); vertical-align: middle; }
+  /* C — inside the placeholder: one control, and the number rides along */
+  .c-inside .n { display: none; }
+  .c-inside .ph::after { content: attr(data-n); margin-left: .3em; font-size: .85em; opacity: .8; }
+  /* D — the number IS the control; no ellipsis */
+  .c-only .n { display: none; }
+  .c-only .ph { font-size: .85em; }
+  .c-only .ph::before { content: attr(data-n); }
+  .c-only .ph span { display: none; }
+  /* E — in the gutter, under the chevron, off the text line entirely */
+  .c-gutter .n {
+    position: absolute; left: calc(var(--depth, 0) * var(--unit) - 1.05rem); top: 1.15em;
+    width: 14px; text-align: center; font-size: .62rem; line-height: 1; color: var(--faint);
+  }
+  /* F — only while the row is hovered */
+  .c-hover .n {
+    margin-left: .5em; font-size: .78em; color: var(--faint); vertical-align: middle;
+    opacity: 0; transition: opacity .1s ease;
+  }
+  .c-hover .row:hover .n, .c-hover tr:hover .n { opacity: 1; }
+  /* G — no count */
+  .c-none .n { display: none; }
+
+  /* ---- outline fragment ------------------------------------------------ */
+  .doc { max-width: 620px; background: var(--panel); border: 1px solid var(--line);
+         border-radius: 10px; padding: 1.1rem 1.25rem 1.4rem 2.4rem; }
+  .row { position: relative; display: flex; align-items: flex-start; gap: .5rem; padding: .12rem 0; }
+  .row .gutter { width: var(--icon); flex: 0 0 var(--icon); display: grid; place-items: center; padding-top: .3em; }
+  .row .txt { min-width: 0; }
+  .row[data-depth="1"] { padding-left: var(--unit); }
+  .row[data-depth="2"] { padding-left: calc(2 * var(--unit)); }
+  .row.h1 .txt { font-size: 1.22rem; font-weight: 650; letter-spacing: -0.01em; }
+  .row.h2 .txt { font-size: 1.06rem; font-weight: 620; }
+  .row.done .txt { color: var(--muted); text-decoration: line-through; }
+  .guides { position: absolute; inset: 0; pointer-events: none; }
+  .guides i { position: absolute; top: 0; bottom: 0; width: 1px;
+              background: color-mix(in srgb, var(--faint) 60%, transparent); }
+
+  .mark { width: var(--icon); height: var(--icon); display: inline-grid; place-items: center;
+          position: relative; color: var(--faint); vertical-align: middle; }
+  .mark svg { width: var(--icon); height: var(--icon); display: block; }
+  .mark.num { width: auto; min-width: var(--icon); font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .mark.dot::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .mark.task .box { width: 12px; height: 12px; border: 1.5px solid currentColor; border-radius: 3px; }
+  /* Folded, in the treatment the change settled on: full text contrast, and
+     nothing heavier — a heading's filled glyph carries no stroke. */
+  .mark.is-folded { color: var(--text); }
+
+  .chev { position: absolute; top: .18em; width: 14px; height: 14px; display: grid; place-items: center;
+          color: var(--muted); opacity: 0; transition: opacity .1s ease; cursor: pointer; }
+  .chev svg { width: 11px; height: 11px; display: block; }
+  .row:hover .chev { opacity: .75; }
+  .row.is-folded .chev { opacity: 1; }
+  .row.is-folded .chev svg { transform: rotate(-90deg); }
+  .row.leaf .chev { display: none; }
+
+  .caption { color: var(--muted); font-size: .82rem; margin-top: .5rem; }
+  .legend { display: flex; gap: .9rem; flex-wrap: wrap; margin: .6rem 0 0; color: var(--muted); font-size: .82rem; }
+  .legend label { cursor: pointer; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1.75rem; align-items: start; max-width: 1140px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Folded count treatments</h1>
+  <button class="theme" type="button">Toggle theme</button>
+</header>
+<p class="note">
+  A folded row carries three things after its own text: our count, Obsidian's <code>…</code>
+  placeholder — which is a control, and unfolds when clicked — and nothing else. Today the count
+  is a bordered pill sitting beside that control, and it reads louder than either the text it
+  annotates or the control it stands next to. Every candidate below keeps the same information
+  and spends less on saying it.
+</p>
+
+<table id="grid"></table>
+
+<h2>In context</h2>
+<p class="note">
+  The same fragment at the plugin's real geometry — 14px marker gutter, 1.75rem per level — with
+  four folded nodes, which is what makes prominence legible: one chip is quiet, four in a column
+  are a pattern. Click a mark, a chevron or a placeholder to fold and unfold.
+</p>
+
+<div class="two">
+  <div>
+    <div class="doc" id="doc"></div>
+    <p class="caption">Treatment: <b id="ctxName"></b></p>
+    <div class="legend" id="picker"></div>
+  </div>
+  <div>
+    <h2 style="margin-top:0">What each one costs</h2>
+    <table id="costs"></table>
+  </div>
+</div>
+
+<script>
+const SVG = (inner) => `<svg viewBox="0 0 16 16" aria-hidden="true">${inner}</svg>`;
+const STROKE = 'stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+
+const MARKS = {
+  heading: { html: SVG(`<rect x="3" y="2" width="2" height="12" fill="currentColor"/>
+                        <rect x="11" y="2" width="2" height="12" fill="currentColor"/>
+                        <rect x="3" y="7" width="10" height="2" fill="currentColor"/>`) },
+  paragraph: { html: SVG(`<line ${STROKE} x1="2" y1="4" x2="14" y2="4"/>
+                          <line ${STROKE} x1="2" y1="8" x2="14" y2="8"/>
+                          <line ${STROKE} x1="2" y1="12" x2="9" y2="12"/>`) },
+  bullet:  { cls: 'dot',  html: '' },
+  ordered: { cls: 'num',  html: '1.' },
+  task:    { cls: 'task', html: '<span class="box"></span>' },
+};
+
+const CHEVRON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8L12 17L21 8"/></svg>';
+
+/* The placeholder is Obsidian's control; the count is ours. Both are rendered
+   for every treatment, and the treatment decides what each one shows. */
+const chrome = (n) => `<span class="ph" data-n="${n}"><span>…</span></span><span class="n">${n}</span>`;
+
+const TREATMENTS = [
+  ['c-pill',   'A · Pill (today)',        'bordered, filled, beside the placeholder'],
+  ['c-bare',   'B · Bare number',         'the same digits, no border and no fill'],
+  ['c-inside', 'C · Inside the placeholder', 'one control carries both — <code>… 4</code><span class="badge">recommended</span>'],
+  ['c-only',   'D · The number is the control', 'no ellipsis at all; the count takes the click'],
+  ['c-gutter', 'E · In the gutter',       'under the chevron, off the text line entirely'],
+  ['c-hover',  'F · On hover',            'nothing at rest; the number appears with the row'],
+  ['c-none',   'G · No count',            'the placeholder alone says something is hidden'],
+];
+
+const COSTS = [
+  ['A · Pill (today)', 'Unmissable, and legible at any zoom. It is also the heaviest thing on the line — a filled, bordered box next to a filled, bordered control — and it doubles the chrome after the text without doubling what the reader learns.'],
+  ['B · Bare number', 'One line of CSS less than today and much quieter; the digits still read as an annotation because of their size and colour. Loses the affordance-like look, which is honest: the count was never clickable.'],
+  ['C · Inside the placeholder', 'One piece of chrome instead of two, and it lands the number on the control that already means “there is more here” — so the click target grows rather than competing. Costs us the native placeholder’s own text, which means owning what it renders.'],
+  ['D · The number is the control', 'The quietest of the one-element options, and the count becomes useful rather than decorative. But a bare number where the reader expects an ellipsis reads as content on first sight, and a count of 1 is a very small target.'],
+  ['E · In the gutter', 'Keeps the text line completely clean, and puts the number where the fold controls already live. The gutter is 14px wide — two digits fit, three do not — and it collides with the chevron, which occupies that slot whenever the row is hovered.'],
+  ['F · On hover', 'Zero cost at rest, which is the strongest possible answer to “too prominent”. It also makes the count unavailable exactly when a reader is scanning a folded outline, which is when it is worth having, and it is invisible on touch.'],
+  ['G · No count', 'Nothing to tune. The reader loses the one thing the folded state cannot otherwise say — whether a fold hides one line or forty — which was the reason the count was added.'],
+];
+
+const ROWS = [
+  { depth: 0, kind: 'heading', cls: 'h1', text: 'Folding', children: true, folded: false },
+  { depth: 1, kind: 'paragraph', text: 'What we know so far:', children: true, folded: true, hidden: 4 },
+  { depth: 1, kind: 'heading', cls: 'h2', text: 'Mechanics', children: true, folded: false },
+  { depth: 2, kind: 'bullet', text: 'a fold is CodeMirror’s, not Obsidian’s', children: false },
+  { depth: 2, kind: 'bullet', text: 'the chevron is painted by another rule', children: true, folded: true, hidden: 3 },
+  { depth: 2, kind: 'ordered', text: 'a move destroys a fold the carry brings back', children: true, folded: true, hidden: 12 },
+  { depth: 2, kind: 'task', cls: 'done', text: 'measure before designing', children: false },
+  { depth: 2, kind: 'task', text: 'decide the folded treatment', children: true, folded: true, hidden: 1 },
+  { depth: 1, kind: 'paragraph', text: 'Everything below stays visible.', children: false },
+];
+
+const markHtml = (kind, folded) =>
+  `<span class="mark ${MARKS[kind].cls || ''} ${folded ? 'is-folded' : ''}">${MARKS[kind].html}</span>`;
+
+/* ---- the grid: one folded line, re-dressed ---- */
+document.getElementById('grid').innerHTML =
+  '<tr><th>Treatment</th><th>A folded line</th><th>With a wide count</th></tr>' +
+  TREATMENTS.map(([cls, name, sub]) => `
+    <tr class="${cls} ${cls === 'c-pill' ? 'ref' : ''} ${cls === 'c-inside' ? 'chosen' : ''}">
+      <td class="name"><b>${name}</b><span>${sub}</span></td>
+      <td style="position:relative;--depth:0">${markHtml('paragraph', true)}
+          <span style="margin-left:.5rem">What we know so far:</span>${chrome(4)}</td>
+      <td style="position:relative;--depth:0">${markHtml('bullet', true)}
+          <span style="margin-left:.5rem">a move destroys a fold</span>${chrome(128)}</td>
+    </tr>`).join('');
+
+document.getElementById('costs').innerHTML =
+  '<tr><th>Candidate</th><th>Trade-off</th></tr>' +
+  COSTS.map(([n, t]) => `<tr><td class="name"><b>${n}</b></td><td>${t}</td></tr>`).join('');
+
+/* ---- context fragment ---- */
+const doc = document.getElementById('doc');
+let treatment = 'c-inside';
+
+document.getElementById('picker').innerHTML =
+  TREATMENTS.map(([cls, name]) =>
+    `<label><input type="radio" name="t" value="${cls}" ${cls === treatment ? 'checked' : ''}> ${
+      name.replace(/^[A-G] · /, '')}</label>`).join('');
+
+function render() {
+  doc.className = 'doc ' + treatment;
+  document.getElementById('ctxName').innerHTML =
+    (TREATMENTS.find((t) => t[0] === treatment) || ['', ''])[1];
+  doc.innerHTML = ROWS.map((r, i) => {
+    const guides = Array.from({ length: r.depth }, (_, d) =>
+      `<i style="left:calc(${d} * var(--unit) + 6px)"></i>`).join('');
+    const folded = !!(r.children && r.folded);
+    return `<div class="row ${r.cls || ''} ${folded ? 'is-folded' : ''} ${r.children ? '' : 'leaf'}"
+                 data-depth="${r.depth}" data-i="${i}" style="--depth:${r.depth}">
+      <span class="guides">${guides}</span>
+      <span class="chev" style="left:calc(${r.depth} * var(--unit) - 1.05rem)">${CHEVRON}</span>
+      <span class="gutter">${markHtml(r.kind, folded)}</span>
+      <span class="txt">${r.text}${folded ? chrome(r.hidden) : ''}</span>
+    </div>`;
+  }).join('');
+}
+
+doc.addEventListener('click', (e) => {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  const r = ROWS[+row.dataset.i];
+  if (r && r.children) { r.folded = !r.folded; render(); }
+});
+document.getElementById('picker').addEventListener('change', (e) => {
+  if (e.target.name === 't') treatment = e.target.value;
+  render();
+});
+document.querySelector('button.theme').addEventListener('click', () => {
+  document.documentElement.dataset.theme =
+    document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+});
+if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+render();
+</script>
+</body>
+</html>

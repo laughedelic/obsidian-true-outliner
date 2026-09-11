@@ -678,10 +678,20 @@ Concrete interaction ideas on top of the existing "marker as a click target" dir
       centre in viewport coordinates lands on the line behind it. `element.click()` is no better
       — it demands the element be "interactable", which a mark inside a widget atom and a
       zero-width bullet span both fail while being perfectly clickable by a person.
-- **Click on a guide → zoom into, or fold, the whole subtree** — which of the two should
-  be configurable. Still open, and still gated on the one caveat the marker work could not
-  dissolve: a guide is a `pointer-events: none` pseudo-element with no hit area, so a click
-  target has to be invented before the gesture can exist.
+- ~~**Click on a guide → zoom into, or fold, the whole subtree**~~ — **done** as FOLD
+  (`better-folding-ux`, D7). The caveat dissolved rather than being solved: no hit area needs
+  inventing, because the columns can be read from what was painted. The guide overlay is a
+  `::after` whose gradient is positioned per column, so `guideHit` (`zoom-click.ts`) reads its
+  computed `background-position-x` and `background-size` for the columns and the unit, and its
+  `left` plus `border-left-width` for the origin — the overlay is shifted back off the line by
+  the line's own margin and bled out by a border, so the line's box edge is NOT the origin on
+  any list whose root is indented, and a first version that measured from it put every column a
+  level out. The tolerance is a third of a unit, a press must land left of the line's own text,
+  and a fold control owns a press only when the point lies within its own hit box (a touch tap is
+  snapped to the nearest control by the browser without moving its coordinates). Guides stay
+  `pointer-events: none` and nothing about their painting changed. Which of fold and zoom the
+  gesture performs is still not configurable — one default action now, stated so a setting can be
+  added without changing what the gesture means.
 
 Lapel's menu positioning uses non-public API, so a public-API-only equivalent needs verifying
 first.
@@ -844,17 +854,13 @@ whole embedded block's height — visibly further from its first text row than a
 since an embed is usually taller. Confirmed in that change's own screenshot pass. Same
 fix, one more kind to cover.
 
-- **The backlinks footer's fold affordance is not the outline's.** Two defects, one
-  cause: the footer draws its own chevron rather than reusing the editor's fold chrome.
-  It is permanently visible, where the editor's appears on hover; and a folded row's own
-  appearance does not change, where the outline's marker is supposed to say that
-  something is hidden beneath it. Deliberately left out of `backlinks-footer`, which is
-  about the rendering model — this one is interaction, and fixing it properly means
-  touching fold chrome the editor already owns, so it belongs with that chrome rather
-  than beside it. `docs/research/18` D7 is the design decision it has to satisfy; the
-  footer's current implementation is `to-backlinks-fold` in `backlinks-footer.ts` and the
-  rule of the same name in `styles.css`, both of which should end up deleted rather than
-  fixed in place.
+- ~~**The backlinks footer's fold affordance is not the outline's.**~~ — **done**
+  (`better-folding-ux`, D9). The row's control now wears the editor's own fold chrome, and a
+  folded row's marker takes the folded treatment. One correction to the entry's own framing: the
+  permanent visibility was right, not a defect. A footer row has no hover convention to inherit
+  and no fold command behind it, so the control stays visible there while the editor's is
+  hover-revealed — and it stays a real `button` with a label and an `aria-expanded`, because what
+  the two surfaces share is chrome and never semantics.
 
 - **A node holding several references renders one row.** `place()` keeps the FIRST
   reference per node, so a table with mentions in two different cells, or a code
@@ -867,14 +873,30 @@ fix, one more kind to cover.
   model change rather than a rendering one, and the count/row contract should be
   decided with `backlinks-controls`' counting rules rather than ahead of them.
 
-- **A footer row's fold only goes one way.** Expanding a row that hides
-  grandchildren works; there is no way back. Same shape as the group cap's
-  problem and the same fix: once expanded, the row's `foldedCount` is 0, so the
-  branch that draws the chevron no longer runs and there is nothing left to
-  click. The cap solved it by remembering that a group WAS truncatable
-  (`ViewState.truncatable`); a row needs the equivalent, keyed by node id
-  alongside `expandedRows`. Small, and deliberately left for its own pass rather
-  than folded into a visual round.
+- ~~**A footer row's fold only goes one way.**~~ — **done** (`better-folding-ux`, section 8),
+  and by exactly the fix this entry predicted: the row model now carries `foldable` — whether the
+  row HAS a subtree — beside `foldedCount`, so the control survives the expansion that zeroes the
+  count.
+
+### Left in the lot by `better-folding-ux`
+
+- **The guide gesture is one action, not a choice.** Clicking a guide folds; zooming from a guide
+  is unbuilt, and which of the two a click performs is not configurable. The gesture is stated so
+  a setting can be added later without changing what it means, and nobody has asked for the zoom
+  form since click-to-zoom shipped on the mark.
+- **The footer's own controls are below a touch target.** The row fold and the header controls are
+  sized in `rem` against the footer's own column arithmetic — around 11px for the fold — where the
+  editor's affordance now gets a 24px hit area under a coarse pointer. It predates this change and
+  is the footer's sizing question rather than folding's, but a phone reader meets it on every row.
+- **A repaint drops focus inside the footer.** The footer rebuilds its whole tree on every render,
+  so a control a keyboard reader has focused is replaced under them — measured while testing the
+  row fold, where a press after a repaint landed on the body. It predates this change and belongs
+  with the footer's own rendering model rather than with folding.
+- ~~**Fold state is per file, and zoom clears nothing on exit.**~~ — **decided** the other way
+  (D7a): leaving a zoom folds again what entering it opened. The original note: Clearing a zoom leaves the folds
+  that zoom opened open (`outline-zoom` states this deliberately). Whether entering and leaving a
+  zoom should restore the fold arrangement it found is a real question and unanswered; it needs a
+  reader's judgment about what "where I was" means, not another measurement.
 
 ## Verification-infrastructure ideas
 
@@ -940,3 +962,25 @@ fix, one more kind to cover.
   settings toggle repainting a moment late is not the defect the mode toggle
   was, and because `forceRedraw` itself is already parked here for a revisit —
   worth folding into that revisit rather than doing twice.
+
+### The backlinks footer's first read races Obsidian's own cache on CI
+
+`77-footer-controls` "shortens the header on the same narrow footer that sheds facet words" fails
+on roughly every other CI run and never locally, and `readStable`'s diagnostic finally named the
+field: the header's totals climbing — `408 · 126 → 411 · 127` over ten seconds of samples. The
+cause is not the footer. `resetVault` reloads the vault, and Obsidian's metadata cache resolves
+the reloaded files asynchronously — measured through a wait that logged its samples on CI, at
+two to four files a second, so thirty-five to seventy-five seconds for this 149-file vault,
+against a moment locally. Everything the footer counts comes from that cache, so a footer whose
+DOM has long been quiet is still counting a vault Obsidian has not finished reading.
+
+Three forms of a wait were tried on the branch and reverted: gated on the resolved-link count
+reaching the file count (a link-less file never appears in it, so unreachable); gated on the
+cache's own file list plus a still resolved-link count, inside `settle()` (stacked past mocha's
+per-case budget in the specs that settle a dozen times); the same, once per spec file in
+`openFooter` with a minute's budget and memoised (the minute is not enough on the slower runners,
+and a wait that never succeeds memoises nothing, so every open pays it). What would work is a
+wait in the harness's per-spec-file setup, after the vault reset, with a budget sized from the
+measured rate and the vault's file count — and a resolved-link count held still as the criterion,
+never a comparison to the file count. Parked: it is harness work with a cost on every spec file,
+and the case it fixes is one intermittent read.

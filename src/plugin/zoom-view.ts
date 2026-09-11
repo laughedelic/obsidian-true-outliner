@@ -31,11 +31,11 @@
  */
 
 import { ViewPlugin, EditorView, type PluginValue, type ViewUpdate } from '@codemirror/view';
-import { foldedRanges, unfoldEffect } from '@codemirror/language';
+import { foldEffect, foldedRanges, unfoldEffect } from '@codemirror/language';
 import { StateEffect, type Extension } from '@codemirror/state';
 import { containsPos } from '../zoom';
 import { offsetToLinePos } from './cm-pos';
-import { zoomAnchorField } from './zoom-state';
+import { zoomAnchorField, zoomOpened, zoomOpenedField, zoomRestored } from './zoom-state';
 import { zoomScope } from './zoom-scope';
 
 class ZoomViewPlugin implements PluginValue {
@@ -62,11 +62,20 @@ class ZoomViewPlugin implements PluginValue {
   private settle(previous: number | null): void {
     const scope = zoomScope(this.view.state);
     const caret = this.caretTarget(scope);
-    const unfold = scope ? this.unfoldInside(scope) : [];
-    if (caret !== null || unfold.length > 0) {
+    // Leaving a scope folds again what entering it opened — before the new
+    // scope opens what IT finds, and excluded from that, so zooming out does
+    // not reopen on the way what the exit just restored.
+    const restored = this.restoreOnLeaving(previous, scope);
+    const unfold = scope ? this.unfoldForScope(scope, restored.ranges) : [];
+    const opened = unfold.map((effect) => effect.value as { from: number; to: number });
+    const effects: StateEffect<unknown>[] = [...restored.effects, ...unfold];
+    if (scope && opened.length > 0) {
+      effects.push(zoomOpened.of({ anchor: this.anchor ?? 0, ranges: opened }));
+    }
+    if (caret !== null || effects.length > 0) {
       this.view.dispatch({
         ...(caret !== null ? { selection: { anchor: caret } } : {}),
-        effects: unfold,
+        effects,
       });
     }
     if (!scope && previous !== null && previous <= this.view.state.doc.length) {
@@ -89,25 +98,64 @@ class ZoomViewPlugin implements PluginValue {
   }
 
   /**
-   * Every fold inside the new scope, as the effects that open them.
+   * Every fold the zoom opens on entering a scope, as the effects that open
+   * them.
    *
    * A zoomed view of a folded subtree shows a heading and nothing else, which is
    * the opposite of what the gesture asked for — and there is no way out of it
    * from inside, since the fold chevron of a collapsed root is the only control
    * left on screen. Opening them is what makes the view a focus view.
-   *
-   * Only what the scope CONTAINS. A fold elsewhere in the note is none of zoom's
-   * business, and clearing the zoom leaves it exactly as it was.
    */
-  private unfoldInside(scope: NonNullable<ReturnType<typeof zoomScope>>): StateEffect<unknown>[] {
-    const { doc } = this.view.state;
-    const from = doc.line(scope.cover.start.line + 1).from;
-    const to = doc.line(Math.min(scope.cover.end.line + 1, doc.lines)).to;
+  private unfoldForScope(
+    scope: NonNullable<ReturnType<typeof zoomScope>>,
+    except: readonly { from: number; to: number }[] = [],
+  ): StateEffect<unknown>[] {
+    // Every fold in the document, not only the scope's. A fold OUTSIDE the
+    // scope is hidden whole by the zoom, and Obsidian paints its collapsed
+    // indicator on the visual block that holds the fold's start — which, for
+    // anything the zoom's tail hides, is the block ending on the scope's last
+    // visible line. Measured: with a later sibling folded, the scope's last
+    // child wore a collapsed chevron and a click on it unfolded something
+    // off-screen. Opened for the zoom's duration and put back on leaving, the
+    // same way the scope's own folds are, so "left alone" holds as "left as
+    // found".
     const effects: StateEffect<unknown>[] = [];
-    foldedRanges(this.view.state).between(from, to, (a, b) => {
-      effects.push(unfoldEffect.of({ from: a, to: b }));
+    const skip = new Set(except.map((r) => `${r.from}:${r.to}`));
+    foldedRanges(this.view.state).between(0, this.view.state.doc.length, (a, b) => {
+      if (!skip.has(`${a}:${b}`)) effects.push(unfoldEffect.of({ from: a, to: b }));
     });
     return effects;
+  }
+
+  /**
+   * The folds to put back on leaving `previous`: the ones that scope opened,
+   * still intact, and not the one the caret now sits in — folding over the
+   * caret would only be undone by the reveal rule. Zooming out one level
+   * leaves exactly one scope; clearing leaves them all.
+   */
+  private restoreOnLeaving(
+    previous: number | null,
+    scope: ReturnType<typeof zoomScope>,
+  ): { effects: StateEffect<unknown>[]; ranges: { from: number; to: number }[] } {
+    const none = { effects: [], ranges: [] };
+    if (previous === null || (scope && this.anchor === previous)) return none;
+    const stack = this.view.state.field(zoomOpenedField, false) ?? [];
+    const leaving = scope
+      ? stack.filter((entry) => entry.anchor === previous)
+      : stack;
+    if (leaving.length === 0) return none;
+    const { doc, selection } = this.view.state;
+    const head = selection.main.head;
+    const ranges = leaving
+      .flatMap((entry) => entry.ranges)
+      .filter((r) => r.from < r.to && r.to <= doc.length && !(head > r.from && head <= r.to));
+    return {
+      effects: [
+        ...ranges.map((r) => foldEffect.of(r)),
+        zoomRestored.of(leaving.map((entry) => entry.anchor)),
+      ],
+      ranges,
+    };
   }
 
   /**

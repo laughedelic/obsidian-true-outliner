@@ -497,6 +497,15 @@ export function planKey(
    * (`outline-zoom` D8).
    */
   scope?: ZoomScope | null,
+  /**
+   * True when the node the key acts on has its children HIDDEN.
+   *
+   * Threaded from the editor for the same reason `scope` is: what is folded is
+   * a property of a view, and this layer has none. `splitNode` states what it
+   * changes — an end-of-node split becomes a sibling after the subtree rather
+   * than a first child inside content the reader cannot see.
+   */
+  collapsed = false,
 ): GrammarOutcome {
   if (
     selectionEnd !== undefined &&
@@ -716,7 +725,7 @@ export function planKey(
       }
       return planFromOp(
         lines,
-        splitNode(doc, node.id, cursor, fallbackIndentUnit),
+        splitNode(doc, node.id, cursor, fallbackIndentUnit, collapsed),
         'input.structure.split',
         { kind: 'exact' },
         doc,

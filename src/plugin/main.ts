@@ -66,6 +66,7 @@ import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
+import { guideHoverExtension } from './guide-hover';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
 import { zoomDecorationsExtension } from './zoom-decorations';
@@ -78,6 +79,19 @@ import { operandEscapes, parentOf, reresolveZoom, resolveZoom } from '../zoom';
 import { toLineRange } from './cm-pos';
 import { nodeStartLine } from '../locate';
 import { parsedDoc } from './parsed-doc';
+import { foldable } from '@codemirror/language';
+import { foldChromeTarget, foldRangeAt, foldServiceExtension } from './fold-service';
+import { currentFolds } from './fold-ops';
+import { foldViewExtension } from './fold-view';
+import { foldCarryExtension } from './fold-carry';
+import {
+  foldGestureAvailable,
+  hasAnyFold,
+  hasOpenFoldable,
+  runFoldAll,
+  runFoldGesture,
+  runFoldLevel,
+} from './fold-commands';
 import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
@@ -233,6 +247,55 @@ export default class TrueOutlinerPlugin extends Plugin {
    */
   readonly motionCounts: Record<string, { invoked: number; consumed: number }> = {};
 
+  /**
+   * What the fold layer currently believes, in LINE numbers, for the harness.
+   *
+   * Same "public for the harness" rationale as `stats` and `motionCounts`, with
+   * one reason of its own: CM6's fold exports resolve only inside plugin module
+   * scope — the renderer's `require` has neither `@codemirror/language` nor
+   * `obsidian` — so a spec cannot read a folded range without going through the
+   * plugin. Measured while writing docs/research/28, which had to hang a
+   * temporary probe on the instance to ask anything at all.
+   *
+   * Three separate answers, because the change turns on their differences: what
+   * the EDITOR calls foldable (which includes lines we deliberately decline,
+   * such as a raw HTML block), what WE claim, and where our own fold chrome
+   * belongs.
+   */
+  foldState(): {
+    folded: { from: number; to: number }[];
+    editorFoldable: { line: number; from: number; to: number }[];
+    ourFoldable: { line: number; from: number; to: number }[];
+    chromeLines: number[];
+  } {
+    const view = viewFor(this.app.workspace.getActiveViewOfType(MarkdownView));
+    if (!view) return { folded: [], editorFoldable: [], ourFoldable: [], chromeLines: [] };
+    const { state } = view;
+    const lineOf = (pos: number): number => state.doc.lineAt(pos).number - 1;
+    const editorFoldable: { line: number; from: number; to: number }[] = [];
+    const ourFoldable: { line: number; from: number; to: number }[] = [];
+    const chromeLines: number[] = [];
+    for (let n = 1; n <= state.doc.lines; n++) {
+      const line = state.doc.line(n);
+      const editor = foldable(state, line.from, line.to);
+      if (editor)
+        editorFoldable.push({ line: n - 1, from: lineOf(editor.from), to: lineOf(editor.to) });
+      const ours = foldRangeAt(state, n - 1);
+      if (ours) ourFoldable.push({ line: n - 1, from: lineOf(ours.from), to: lineOf(ours.to) });
+      if (foldChromeTarget(state, n - 1)) chromeLines.push(n - 1);
+    }
+    return {
+      // Sorted: `foldedRanges` iterates a RangeSet, whose order across nested
+      // ranges is an implementation detail no assertion should depend on.
+      folded: currentFolds(state)
+        .map((r) => ({ from: lineOf(r.from), to: lineOf(r.to) }))
+        .sort((a, b) => a.from - b.from || a.to - b.to),
+      editorFoldable,
+      ourFoldable,
+      chromeLines,
+    };
+  }
+
   /** The stamp compiled into THIS bundle. Public so the dev hot-reload plugin
    * can name the build it just loaded: `manifest.json` is copied verbatim and
    * cached by Obsidian anyway, so it only ever reports the base package
@@ -278,6 +341,50 @@ export default class TrueOutlinerPlugin extends Plugin {
     this.addStructuralCommand('move-node-down', 'Move node down', moveGroupsDown, false, [
       { modifiers: ['Mod', 'Shift'], key: 'ArrowDown' },
     ]);
+
+    // Folding's three gestures, and the four document-wide ones.
+    //
+    // Default hotkeys here, unlike zoom's, because the bindings are free and
+    // the gesture is one users reach for constantly: measured against Obsidian
+    // 1.13.7, no core command claims Mod+Alt+ArrowUp, Mod+Alt+ArrowDown or
+    // Mod+Alt+Period. (Mod+Alt+ArrowLeft/Right ARE taken — by back and forward
+    // — which is the pair worth remembering about that modifier.) The same
+    // deliberate departure from the no-default-hotkeys guideline the move
+    // commands document, for the same reason: a gesture nobody can find is not
+    // a gesture.
+    this.addFoldCommand('fold-node', 'Fold node', (view) => runFoldGesture(view, 'fold'), [
+      { modifiers: ['Mod', 'Alt'], key: 'ArrowUp' },
+    ]);
+    this.addFoldCommand('unfold-node', 'Unfold node', (view) => runFoldGesture(view, 'unfold'), [
+      { modifiers: ['Mod', 'Alt'], key: 'ArrowDown' },
+    ]);
+    this.addFoldCommand('toggle-fold', 'Toggle fold', (view) => runFoldGesture(view, 'toggle'), [
+      { modifiers: ['Mod', 'Alt'], key: 'Period' },
+    ]);
+    // Document-wide, and unbound: these are palette operations, and every
+    // remaining modifier combination is worth more to the per-node gestures.
+    // `hasAnyFold` gates the two that would otherwise be offered on a document
+    // with nothing to act on.
+    this.addFoldCommand('fold-all', 'Fold all nodes', (view) => runFoldAll(view, 'fold'), undefined, (view) =>
+      hasOpenFoldable(view.state),
+    );
+    this.addFoldCommand(
+      'unfold-all',
+      'Unfold all nodes',
+      (view) => runFoldAll(view, 'unfold'),
+      undefined,
+      (view) => hasAnyFold(view.state),
+    );
+    this.addFoldCommand('fold-more', 'Fold one level more', (view) => runFoldLevel(view, 'more'), undefined, (view) =>
+      hasOpenFoldable(view.state),
+    );
+    this.addFoldCommand(
+      'fold-less',
+      'Fold one level less',
+      (view) => runFoldLevel(view, 'less'),
+      undefined,
+      (view) => hasAnyFold(view.state),
+    );
 
     // Zoom's three gestures. No default hotkeys: unlike the move commands there
     // is no dominant convention to inherit, and every plausible binding
@@ -406,9 +513,20 @@ export default class TrueOutlinerPlugin extends Plugin {
     // extensions that READ the scope are registered after the state that holds
     // it and the reading order matches the dependency.
     this.registerEditorExtension(zoomStateExtension());
+    this.registerEditorExtension(guideHoverExtension());
     // Before every extension that GATES on the mode, so the field it reads is
     // installed by the time their own `create` runs.
     this.registerEditorExtension(outlineStateExtension(this));
+    // After the mode field it gates on, and before the decorations that draw
+    // fold chrome from the same answer. Registering it is what makes an outline
+    // node foldable at all — Obsidian's own fold command, placeholder and
+    // per-file persistence all follow from this one provider
+    // (docs/research/28-fold-mechanics.md).
+    this.registerEditorExtension(foldServiceExtension());
+    // Beside it: the rule that a computed caret never lands in hidden content,
+    // and the one that decides what a change does to a fold.
+    this.registerEditorExtension(foldViewExtension(this));
+    this.registerEditorExtension(foldCarryExtension());
     this.registerEditorExtension(grammarExtension());
     this.registerEditorExtension(decorationsExtension(this));
     this.registerEditorExtension(transactionFilterExtension(this, this.stats));
@@ -466,6 +584,16 @@ export default class TrueOutlinerPlugin extends Plugin {
       // an already-open note reads "0 references" until an unrelated edit.
       repaintFooters();
     });
+  }
+
+  get rememberFolds(): boolean {
+    return this.data.rememberFolds;
+  }
+
+  async setRememberFolds(value: boolean): Promise<void> {
+    this.data.rememberFolds = value;
+    await this.saveData(this.data);
+    this.app.workspace.updateOptions();
   }
 
   get outlineByDefault(): boolean {
@@ -1048,6 +1176,39 @@ export default class TrueOutlinerPlugin extends Plugin {
    * remove. A default hotkey is the version of this the user can actually undo.
    */
   /**
+   * A fold command: outline-mode-gated and routed to the live `EditorView`,
+   * the same shape `addZoomCommand` uses and for the same reasons — the mode
+   * lives in editor state, and `checking` must not dispatch.
+   *
+   * Folding needs no `Notice` on refusal. Every other command here can fail for
+   * a reason the user cannot see (an operand that would leave the zoom scope, a
+   * move with nowhere to go); a fold that finds nothing to fold is a node
+   * without children, which the absence of any chevron beside it already says.
+   */
+  private addFoldCommand(
+    id: string,
+    name: string,
+    act: (view: EditorView) => boolean,
+    hotkeys?: Hotkey[],
+    available: (view: EditorView) => boolean = (view) => foldGestureAvailable(view.state),
+  ): void {
+    this.addCommand({
+      id,
+      name,
+      ...(hotkeys ? { hotkeys } : {}),
+      editorCheckCallback: (checking, editor, ctx) => {
+        const view = viewFor(ctx);
+        if (!view || !isOutlineMode(view.state)) return false;
+        // Multi-cursor declines, matching the structural commands: acting would
+        // silently pick one range out of several.
+        if (editor.listSelections().length !== 1) return false;
+        if (checking) return available(view);
+        return act(view);
+      },
+    });
+  }
+
+  /**
    * A zoom command: outline-mode-gated, and routed to the live `EditorView`
    * through the registry (`outline-zoom` design D5) — which is also where the
    * mode itself is read from.
@@ -1331,6 +1492,11 @@ const SETTING_STATUS_BAR_MODE = {
   desc: 'What the status bar shows for the active tab, and whether it shows anything at all. Obsidian can hide the ribbon icon from its own right-click menu but offers no equivalent for a plugin\u2019s status bar item, so this is where that chip is turned off. Desktop only \u2014 there is no status bar on mobile.',
 } as const;
 
+const SETTING_REMEMBER_FOLDS = {
+  name: 'Remember folds',
+  desc: 'Whether a note reopens with the nodes you left folded. Fold state lives in Obsidian\u2019s own workspace data, never in the note \u2014 a file is byte-identical whether its nodes are folded or not, and always readable without this plugin. Turn this off to have every note open fully expanded.',
+} as const;
+
 const SETTING_DEBUG_CROSSCHECK = {
   name: 'Debug: cross-check parser against metadata cache',
   desc: 'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
@@ -1439,6 +1605,14 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           key: 'statusBarMode',
           options: STATUS_BAR_MODE_LABELS,
           defaultValue: DEFAULT_DATA.statusBarMode,
+        },
+      },
+      {
+        ...SETTING_REMEMBER_FOLDS,
+        control: {
+          type: 'toggle',
+          key: 'rememberFolds',
+          defaultValue: DEFAULT_DATA.rememberFolds,
         },
       },
       {
@@ -1576,6 +1750,8 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         return this.plugin.outlineByDefault;
       case 'statusBarMode':
         return this.plugin.statusBarMode;
+      case 'rememberFolds':
+        return this.plugin.rememberFolds;
       case 'debugCrossCheck':
         return this.plugin.debugCrossCheck;
       case 'backlinksFooter':
@@ -1618,6 +1794,9 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
         break;
       case 'statusBarMode':
         await this.plugin.setStatusBarMode(value as StatusBarMode);
+        break;
+      case 'rememberFolds':
+        await this.plugin.setRememberFolds(Boolean(value));
         break;
       case 'debugCrossCheck':
         await this.plugin.setDebugCrossCheck(Boolean(value));
@@ -1686,6 +1865,14 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
           .addOptions(STATUS_BAR_MODE_LABELS)
           .setValue(this.plugin.statusBarMode)
           .onChange((value) => void this.plugin.setStatusBarMode(value as StatusBarMode)),
+      );
+    new Setting(this.containerEl)
+      .setName(SETTING_REMEMBER_FOLDS.name)
+      .setDesc(SETTING_REMEMBER_FOLDS.desc)
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.rememberFolds)
+          .onChange((value) => void this.plugin.setRememberFolds(value)),
       );
     new Setting(this.containerEl)
       .setName(SETTING_DEBUG_CROSSCHECK.name)

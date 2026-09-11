@@ -931,18 +931,22 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     );
 
     // The negative control for the bleed, and the reason it is stated as a max
-    // of BOTH widths. With the trail pinned narrow, an accent-only bleed
+    // of EVERY stripe width. With the trail pinned narrow, an accent-only bleed
     // (`max(1px, var(--to-trail-width))`, what this rule used to say) resolves
     // to 1px — less than half the guide — and clips the depth-0 stripe. The
-    // guide's own width has to be in the maximum for this to hold.
+    // guide's own width has to be in the maximum for this to hold; so does the
+    // hovered guide's, which is wider than either by design and is what the
+    // bleed resolves to.
     await h.applyStyleOverride(
       'to-guide-width-probe',
       'body { --to-guide-width: 3px; --to-trail-width: 1px; }',
     );
     const parted = await overlay();
     expect(await resolve('--to-trail-width')).toBe(1);
-    expect(parted.bleed).toBeGreaterThanOrEqual(3 / 2);
-    expect(parted.bleed).toBe(3);
+    expect(parted.bleed).toBeGreaterThanOrEqual(3);
+    expect(parted.bleed).toBe(
+      Math.max(3, 1, await resolve('--to-guide-hover-width')),
+    );
 
     await h.applyStyleOverride('to-guide-width-probe', null);
     expect(await resolve('--to-guide-width')).toBe(base.width);

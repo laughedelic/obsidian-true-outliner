@@ -81,14 +81,24 @@ export async function readStable<T>(read: () => Promise<T>, baseDeadlineMs = 800
   // so 8 seconds is not everyone's floor.
   const deadline = Date.now() + h.waitBudget(baseDeadlineMs);
   let previous = '';
+  let samples = 0;
   do {
     const value = await read();
     const serialised = JSON.stringify(value);
     if (serialised === previous) return value;
     previous = serialised;
+    samples++;
     await browser.pause(250);
   } while (Date.now() < deadline);
-  throw new Error('the footer never held one shape long enough to read');
+  // The two readings it last disagreed on, and how many it took: a shape that
+  // never settles is a symptom whose cause is in WHICH field moves, and a
+  // failure that withholds that costs a rerun to learn it — measured, on CI,
+  // where this has failed without ever reproducing locally.
+  const last = await read();
+  throw new Error(
+    `the footer never held one shape long enough to read — ${samples} samples, ` +
+      `last two: ${previous} → ${JSON.stringify(last)}`,
+  );
 }
 
 /** Open a note in outline mode and bring its footer's header on screen. */

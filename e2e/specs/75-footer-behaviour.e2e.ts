@@ -393,6 +393,140 @@ describe('backlinks footer: behaviour', function () {
   });
 
   /**
+   * The way back. Expansion used to be a one-way door: the control was drawn
+   * only while `foldedCount > 0`, which stops being true the moment a reader
+   * expands the row, so nothing was left to close it with. What draws it now is
+   * the row HAVING a subtree — the same shape a capped group's `truncatable`
+   * uses, for the same reason.
+   */
+  it('folds an expanded row again', async function () {
+    await openFooter(TARGET);
+    // Whatever state the previous test left: expansion is per note and outlives
+    // a test, the same way the section's own collapse does (see `openFooter`).
+    // What this asserts is the round trip, from wherever it starts.
+    const start = await rows();
+    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
+    await browser.pause(400);
+    const flipped = await rows();
+    expect(flipped.length).not.toBe(start.length);
+
+    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
+    await browser.pause(400);
+    expect(await rows()).toEqual(start);
+  });
+
+  it('draws the fold control pointing down, so folded reads as pointing right', async function () {
+    // The shared `.is-collapsed` rule rotates the glyph a quarter turn
+    // anticlockwise, which turns a DOWN chevron to the right — the folded
+    // reading every other control in the editor has. Built from the
+    // right-pointing glyph instead, the footer's pointed UP when folded and
+    // right when open. Read as geometry from the path rather than as a string:
+    // the two arms end level with each other, and the apex sits below them.
+    await openFooter(TARGET);
+    const points = await browser.executeObsidian(() => {
+      const d = document
+        .querySelector('.workspace-leaf.mod-active .to-backlinks-fold svg path')
+        ?.getAttribute('d');
+      if (!d) throw new Error('no fold glyph in the footer');
+      const nums = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+      const abs = /^M/.test(d);
+      const out: Array<[number, number]> = [];
+      let [x, y] = [0, 0];
+      for (let i = 0; i + 1 < nums.length; i += 2) {
+        if (i === 0 && abs) [x, y] = [nums[i]!, nums[i + 1]!];
+        else if (/l/.test(d)) [x, y] = [x + nums[i]!, y + nums[i + 1]!];
+        else [x, y] = [nums[i]!, nums[i + 1]!];
+        out.push([x, y]);
+      }
+      return out;
+    });
+    expect(points.length).toBe(3);
+    const [a, apex, b] = points as [[number, number], [number, number], [number, number]];
+    expect(a[1]).toBe(b[1]);
+    expect(apex[1]).toBeGreaterThan(a[1]);
+  });
+
+  /**
+   * The footer shares the editor's fold CHROME and none of its semantics. An
+   * editor line has a fold command behind it; a footer row has nothing, so this
+   * control is the only route a keyboard reader has and it stays a real button
+   * with a state that tracks both directions.
+   */
+  it('keeps its button semantics, operable from the keyboard', async function () {
+    await openFooter(TARGET);
+    const read = () =>
+      browser.executeObsidian(() => {
+        const el = document.querySelector('.workspace-leaf.mod-active .to-backlinks-fold');
+        return el
+          ? {
+              tag: el.tagName,
+              expanded: el.getAttribute('aria-expanded'),
+              label: el.getAttribute('aria-label')?.slice(0, 4) ?? '',
+            }
+          : null;
+      });
+    const press = async (key: 'Enter' | 'Space') => {
+      // Settled first: the footer repaints wholesale, and a repaint between the
+      // focus and the press replaces the element the focus was on — measured,
+      // the press then landed on the body.
+      await browser.pause(800);
+      await browser.executeObsidian(() => {
+        document
+          .querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-fold')
+          ?.focus();
+      });
+      await browser.keys([key]);
+      await browser.pause(400);
+    };
+
+    // Whatever state an earlier test left — expansion is per note and outlives
+    // one. What matters is that it is a button, that its state is readable, and
+    // that a key press moves it in both directions.
+    const start = await read();
+    expect(start?.tag).toBe('BUTTON');
+    await press('Enter');
+    const flipped = await read();
+    expect(flipped?.expanded).not.toBe(start?.expanded);
+    expect(flipped?.label).not.toBe(start?.label);
+    await press('Space');
+    expect(await read()).toEqual(start);
+  });
+
+  /**
+   * A folded row has to LOOK folded, not merely have a chevron that points a
+   * different way. The editor's own folded-marker rule is scoped to its lines,
+   * so the footer needs the class on its row and a selector of its own.
+   */
+  it('gives a folded row the folded marker treatment', async function () {
+    await openFooter(TARGET);
+    const read = () =>
+      browser.executeObsidian(() => {
+        const row = document
+          .querySelector('.workspace-leaf.mod-active .to-backlinks-fold')
+          ?.closest('.to-backlinks-row');
+        const icon = row?.querySelector<HTMLElement>('.to-decor-marker-icon');
+        return {
+          folded: row?.classList.contains('to-decor-folded') ?? null,
+          color: icon ? getComputedStyle(icon).color : null,
+        };
+      });
+
+    const before = await read();
+    await h.clickClear(`${FOOTER} .to-backlinks-fold`);
+    await browser.pause(400);
+    const after = await read();
+
+    // One of the two states is folded and the other is not, whichever way the
+    // row started — expansion is per note and outlives a test.
+    expect(before.folded).not.toBe(after.folded);
+    // The treatment is contrast — the editor's rule, which the footer shares —
+    // and nothing heavier: a stroke change reached a paragraph's glyph and not
+    // a heading's, so it told kinds apart rather than states.
+    expect(before.color).not.toBeNull();
+    expect(before.color).not.toBe(after.color);
+  });
+
+  /**
    * The index answers about the vault as it is now. Reported in review: a
    * deletion updated the reverse map but left the group on screen, because
    * nothing repainted.

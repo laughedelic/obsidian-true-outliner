@@ -1,0 +1,252 @@
+# Folding mechanics: what Obsidian's fold actually is, measured before designing on it
+
+`better-folding-ux` rests on one question the design cannot answer by reasoning: is Obsidian's
+folding a private mechanism we would have to replace, or CodeMirror's, which we can extend? The
+answer decides whether "fold a paragraph" costs a provider function or a parallel fold engine
+with its own chrome, its own commands and its own persistence.
+
+Measured 8 September 2026, Obsidian 1.13.7 (installer 1.5.8, macOS), through a throwaway
+`99-fold-probe.e2e.ts` driving a real instance, with the CM6 fold exports reached from a
+temporary probe hung on the plugin instance (the renderer's own `require` resolves neither
+`obsidian` nor `@codemirror/*`; only plugin module scope does). Fixture:
+
+```markdown
+# Top
+
+Paragraph with children:
+
+- one
+  - nested a
+  - nested b
+- two
+
+## Second
+
+Tail para.
+```
+
+## Verdict: it is CodeMirror's fold, and the facet is open to us
+
+Obsidian's fold state IS `@codemirror/language`'s — `foldedRanges`, `foldEffect` and
+`unfoldEffect` read and write the same state the native chevron does, and `foldable()` answers
+from a `foldService` facet that already holds **three** providers. A fourth, registered as an
+ordinary editor extension, changes what Obsidian itself will fold.
+
+What that one provider buys, measured rather than assumed:
+
+| Capability | Without a provider | With one |
+| --- | --- | --- |
+| `foldable()` on a paragraph with attached list children | `null` | our range |
+| Obsidian's own `editor:toggle-fold` on that paragraph | does nothing | folds it |
+| Fold survives close + reopen | **no** | **yes** |
+| Native fold chevron on that line | no | **still no** |
+
+## The three findings that shape the design
+
+### 1. Persistence is free, and it never touches the file
+
+`app.foldManager.save`/`load` keeps fold info per file in workspace state, as
+`{ folds: [{ from, to }], lines }` in **line numbers**. It saved a fold we had created with a raw
+`foldEffect` over a paragraph subtree — but on reopen the fold did not come back. With the
+`foldService` provider registered, the same sequence restored it. So the restore path validates a
+saved fold against `foldable()`: Obsidian will only re-apply folds something still claims are
+foldable, and the provider is what makes ours claimable.
+
+This satisfies the clean-files invariant (Q3) with nothing to build: fold state lives in the
+workspace, never in the note.
+
+### 2. The chevron is NOT driven by `foldable()`
+
+With the provider registered and `foldable()` returning a range for the paragraph line, the
+rendered `.cm-fold-indicator` elements stayed on exactly the lines they were on before —
+`# Top`, `- one`, `## Second`. Obsidian decides where to paint a fold indicator by its own rule
+(heading and list lines), not by asking the fold service. So the affordance is the part we own:
+the mechanism folds anything, the chrome offers it on two kinds out of three.
+
+Two consequences. A fold affordance for paragraph-kind nodes has to be ours to draw — which is
+also the opening for the folded-state indication, since the marker icon we already draw sits in
+the same gutter the chevron is being pulled onto (`--to-chevron-dy`, `--to-chevron-dead-right`).
+And a folded line's collapsed state is visible in the DOM: the indicator gains `is-collapsed`,
+and the line gains a `<span class="cm-foldPlaceholder" title="unfold">…</span>`. Neither is a
+class on the line itself, so a line-level signal is ours to add too.
+
+### 3. A fold survives indent; a move destroys it
+
+> **Corrected 9 September 2026, while building the carry.** The measurement below is right about
+> the move and wrong about the indent: an indent drops the fold too. The first reading folded a
+> node's children and indented the PARENT, where the fold's own lines are shifted but not
+> rewritten; indenting the folded node itself rewrites the hidden lines' indentation and the fold
+> goes. Worse, a move drops the fold even when the change set never overlaps the folded range —
+> mapping is simply not something a fold layer can lean on here. What replaced the whole idea is
+> in `better-folding-ux` design D4: restate every fold from the lines it hid.
+
+Same fold (`- one`'s two children hidden), two operations:
+
+| Operation | Fold after |
+| --- | --- |
+| `indent-node` | **kept** — the line still renders `- one…` |
+| `move-node-down` | **lost** — the subtree comes back unfolded |
+
+Both go through the same minimal-changeset dispatch, so this is not a policy difference: indent
+rewrites only the indentation prefix of each line, and CM6 maps the folded range through that
+untouched; a move deletes a run of lines and inserts it elsewhere, and a range whose ends are
+inside deleted text has nowhere to map to. Folding a subtree in order to move it as one unit is
+the ordinary reason to fold, so this is a defect the change has to answer, and the answer is
+positional: re-derive the fold from the node's new position after the operation, rather than
+hoping the range maps.
+
+Adjacent, same cause: Enter at the end of a folded node's line unfolds it and inserts the new
+node **inside** the revealed subtree (measured: `- one`, `  - x`, `  - nested a`, …). What a
+reader who folded a node expects from Enter is a sibling after the whole subtree.
+
+## Also measured, in passing
+
+- `editor:toggle-fold`, `editor:fold-all`, `editor:unfold-all`, `editor:fold-less`,
+  `editor:fold-more` all exist as core commands, so our commands are additions beside a working
+  native set, not replacements for a missing one. `foldHeading` and `foldIndent` both default to
+  `true` and were left at their defaults throughout.
+- Zoom's unfold-inside-scope requirement (`outline-zoom`, "Zooming into a folded node opens it")
+  behaves as specified: zooming into a folded node renders the whole subtree, and clearing the
+  zoom leaves it unfolded, as that spec deliberately states.
+- Guides remain what [09](09-experiment-2-guide-lines.md) made them: a `--to-guides`
+  repeating-linear-gradient painted on one `::after` per line, with each level's column at
+  `depth × 1.75rem`. There is still no per-guide element to click — but the columns are stated in
+  the same arithmetic our decorations already publish, so a pointer gesture can hit-test a click's
+  x-offset against them without inventing an element. That is what unblocks the parking-lot entry
+  in [12](12-decoration-follow-ups.md) ("Click on a guide → zoom into, or fold, the whole
+  subtree"), which was gated on exactly this.
+
+## How many kinds this is actually about
+
+Three, not seven. `parse` gives children to a heading (its section), to a list item (by
+indentation, in any notation — bullet, ordered, task), and to a paragraph (the attachment rule,
+Q34). An ATOM is never a parent: a probe over a document with a list after a table, after a code
+fence and after a quote puts each list at SIBLING level, never inside. So an atom has no folded
+state to draw and no affordance to offer, and the "fold anything" ambition reduces to one missing
+kind — the paragraph, which is exactly the kind Obsidian paints no chevron on.
+
+### Declining is not a veto
+
+A `foldService` provider that returns `null` does not make a line unfoldable — `foldable()` simply
+asks the next provider, and then syntax folding. Measured across every atom kind in one note (code
+fence, table, callout, quote, raw HTML, rule), the editor still reports exactly one of them as
+foldable: a **raw HTML block** (`<div>` … `</div>`). No chevron is painted for it, consistent with
+the finding above that the indicator follows Obsidian's own heading/list rule.
+
+So "an atom is never foldable" is true of OUR rule and false of the editor's, and the two have to
+be kept apart in the specs: the plugin offers no fold on an atom and draws no affordance there,
+while whatever Obsidian does inside an atom's own notation is left alone. Anything that keyed our
+affordance off `foldable()` rather than off our own answer would have surfaced that HTML fold with
+a control Obsidian deliberately does not give it.
+
+## The folded-node indication
+
+Candidate treatments for a folded node's marker are drawn side by side, at the plugin's own
+geometry and in both themes, in [28-fold-marker-mockup.html](28-fold-marker-mockup.html) — open
+it in a browser. It is a mockup, not a measurement: what it settles is which treatment to build.
+
+**Settled: the kind's own glyph in a solid weight, plus the count of hidden descendants.**
+Everything drawn AROUND the glyph — halo, shaped halo, outline, dashed outline, underline — is
+either too heavy in a 14px gutter the fold affordance already shares, or has to change shape per
+kind to avoid cropping a wide glyph, which turns one state into several. The weight change is the
+only treatment every mark carries identically, and the count is the only candidate that says how
+much is hidden rather than only that something is. `better-folding-ux`'s design D6 records the
+reasoning per candidate.
+
+The page also carries a working model of the fold affordance (hover-revealed while unfolded,
+persistent once folded) and of the guide-click gesture including its hit band, which is the
+cheapest way to feel the tolerance question D7 leaves open.
+
+## What was NOT measured
+
+- Whether a fold of ours still works with Obsidian's `foldHeading` / `foldIndent` turned OFF.
+  `foldable()` itself takes no notice of either setting, but whether Obsidian's own click and
+  command paths consult them before asking is untested — and the claim that our folding is
+  independent of those settings rests on it. First thing to put on the instrument.
+- Whether overriding the native heading/list answers (our provider at higher precedence) changes
+  any observable fold extent. Our subtree cover includes a node's trailing gap, which Obsidian's
+  heading fold does not obviously do; the difference is a blank line at a fold's end and was not
+  put on the instrument.
+- The mobile chevron. Obsidian reveals the fold indicator on hover, and a touch device has no
+  hover; the affordance question there is open and untouched by this pass.
+- Anything in reading mode, which renders through the post-processor and has no CM6 fold at all.
+
+## The gate, re-measured against the real provider (8 September 2026)
+
+`better-folding-ux`'s task 1 built the provider for real — `Prec.high`, answering from the cached
+parse — and re-ran every question above against it, in outline mode, through
+`e2e/specs/90-fold-service.e2e.ts`. Two answers came back different from the first pass, and both
+change what has to be built.
+
+### The chevron DOES follow `foldable()`
+
+The finding above — "the chevron is not driven by `foldable()`" — was an artefact of how it was
+measured. That probe registered a provider into a LIVE editor through `registerEditorExtension` +
+`updateOptions` and then read the DOM; a reconfigure does not rebuild the fold decoration for a
+line that has not otherwise changed, so the absent chevron said nothing about the rule.
+
+Registered at load, as the plugin does, the indicator appears on exactly the lines the provider
+claims — the paragraph with attached children included. So the affordance is NOT ours to draw in
+the default configuration; Obsidian draws it, in the column our decorations already transform it
+into.
+
+**What those settings do is UNRESOLVED, and the attempt to settle it is worth recording.** The
+first reading said the indicators vanish with "Fold heading" and "Fold indent" both off while
+every fold path keeps working, and the spec was written on it. Re-measured while building the
+chrome, the same harness produced three mutually exclusive answers:
+
+| Sequence | Indicators | Folding |
+| --- | --- | --- |
+| toggle off, then read | gone | works (through Obsidian's own path, then ours) |
+| toggle off in a list-only note, then fold | gone | **never lands**, over eight attempts across 2.8s |
+| fresh note per configuration, all four combinations | **still there in all four** | works in all four |
+
+The third row is the one that condemns the instrument: with both settings off, the indicators were
+still painted, so the configuration had not applied at all. `vault.setConfig` plus
+`workspace.updateOptions()` is evidently not equivalent to changing the setting in Obsidian's own
+UI, and every reading taken through it — including the first one — is untrustworthy.
+
+So: no code in the plugin reads those settings, and nothing here claims what happens with them
+off. The specs were corrected to say so, and the affordance test now removes Obsidian's indicators
+from the DOM directly, which is the same condition and a deterministic one. Answering the question
+properly needs a human toggling the setting in a real vault, which is what the change's manual
+pass is for.
+
+### What we take over, diffed across the corpus
+
+Native fold extents against ours over seven vault notes (`Edge Case Zoo`, `List decoration demo`,
+`Kinds gallery`, `Family tree`, `Deep chain`, a journal entry, `README`). Every divergence falls
+into one of four buckets, three of them intended:
+
+| Bucket | Example | Verdict |
+| --- | --- | --- |
+| Ours ends one line earlier | heading at line 0: native `0–39`, ours `0–38` | intended (D2): the trailing blank line stays visible |
+| We fold where nothing did | `List decoration demo` lines 52, 59, 78 | the point of the change — paragraphs with attached children |
+| Native folds a node's OWN continuation line | `Deep chain` line 5, journal lines 4 and 17 | intended: a fold hides a node's children, never part of its own text |
+| Native folds inside an atom | `Edge Case Zoo` line 17, inside a code fence | left alone; declining is not a veto |
+
+**D1 stands as written.** No divergence needed the precedence narrowed.
+
+### One defect the diff caught
+
+Keying our answer off the node's LAST own line put the fold control one line below the marker on
+every wrapped list item in the vault — a bullet on one line and its fold on the next. The chrome
+belongs on the node's FIRST line, where the marker is, while the RANGE still begins after the
+node's last own line. The two coincide for every single-line node, which is why a fixture of short
+lines cannot see it; the corpus could.
+
+## Two mechanics the carry ran into (9 September 2026)
+
+**A second transaction spec is merged NON-sequentially by default.** A transaction filter that
+returns `[tr, {effects}]` has those effects mapped through the transaction's change set, and a
+fold's positions are already stated in the document the change produces — so they are mapped
+twice. Measured: a fold carried through an indent landed one line late; one carried through a move
+landed inside deleted text and vanished. `sequential: true` on the appended spec is what says
+"already in the new coordinate space". `resolveTransaction` in `@codemirror/state` is where this
+lives; `mergeTransaction`'s `sequential` branch sets `mapForB` to an empty change set.
+
+**Obsidian's own editor COMMANDS decline without editor focus, and under WebDriver the OS window
+is never focused.** `editor:toggle-fold` does nothing in a spec however many times the test calls
+`focus()`, while `Editor.exec('toggleFold')` — the same operation through the public API — works.
+Any spec asserting native editor behaviour needs the `exec` route, and `runEditorExec` in the
+helpers exists for it.

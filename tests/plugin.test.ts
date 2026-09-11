@@ -45,6 +45,7 @@ describe('persisted plugin data', () => {
       // Non-default on purpose, like the fields below it.
       outlineByDefault: false,
       statusBarMode: 'text' as const,
+      rememberFolds: false,
       coexistenceWarned: true,
       debugCrossCheck: true,
       // Non-default on purpose: the assertion is that a stored value survives
