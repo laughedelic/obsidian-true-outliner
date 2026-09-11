@@ -13,6 +13,8 @@ Every operation is one undo step, however many lines it touched. Undo restores t
 
 The node is the one the caret is in, or every node covered by a [block selection](./selection-and-caret). Its whole subtree travels with it.
 
+<Clip name="indent-outdent" caption="Shift+Tab makes the item a sibling of its former parent; Tab makes it the last child of the item above." />
+
 **Headings change level.** Tab on `## Budget` makes it `### Budget`, and every heading inside the section shifts one level too; the tree re-derives from the new levels. Shift+Tab does the reverse. A heading first consumes a skipped level (`### Monday` under `# Log` becomes `## Monday`, still inside `Log`) before it leaves its parent. Tab is refused at level 6 and Shift+Tab at level 1.
 
 **Everything else moves between parents.**
@@ -33,6 +35,8 @@ Two placements have no markdown encoding and are refused with *Markdown can't ex
 
 A move swaps the node, subtree included, with its neighbour at the same level. Nothing changes level and nothing is re-encoded, except that a run of ordered items is renumbered. Heading sections swap whole. With no neighbour to swap with the key is refused (*Nothing above to move past*, *Nothing below to move past*).
 
+<Clip name="move-node" caption="An item with children moves up past two siblings and back down, children in tow." />
+
 A swap that would leave a section-level list item directly after a paragraph is refused (*Markdown would nest that under the paragraph instead*), whether it is the moved node or the displaced one that would end up there. Headings only swap with headings of the same level (*Sections only swap with same-level sections*).
 
 These two commands ship with default hotkeys, matching the Outliner plugin and Logseq. Rebind or remove them under Settings → Hotkeys.
@@ -46,6 +50,8 @@ Enter splits the node at the caret. Where the two halves land depends on where t
 - **In the middle** → the text after the caret becomes a new node. If the node has children, the new node is its first child; otherwise it is the next sibling of the same kind. On a heading the remainder becomes the heading's first child, as a paragraph.
 
 Whitespace right after the split point is dropped. Splitting a task item carries the task box to the new item, unchecked. Splitting an ordered item renumbers the run.
+
+<Clip name="enter-split" caption="Enter mid-item splits an ordered item and renumbers the run; Enter at the end opens an empty item to type into." />
 
 Where the new empty node can be written as markdown, it is: an empty `- ` item in the list's own style, an empty `# ` heading. An empty paragraph has no markdown of its own, so there the caret lands on a blank line that is drawn as the paragraph it will become. Typing creates it; moving away, or pressing Backspace or Delete, removes the blank line again as if Enter had never been pressed. No stray blank lines are left behind.
 
@@ -68,6 +74,8 @@ Ordinary typing inside a node is never touched: a `# ` typed at the start of a p
 **Deleting across nodes deletes whole subtrees.** A deletion whose range crosses a boundary, or exactly covers one or more nodes, removes every covered node together with its children and the blank lines it owns. Text typed over such a selection is inserted where the deletion happened. The caret lands at the end of the node above.
 
 **Backspace and Delete at the edge of a node merge.** Backspace with the caret at the first character of a node's content joins the node onto the end of the nearest content above, even across a blank line, in one keystroke; the joined node's children are re-parented. Delete at the last character pulls the next node's content up. The caret lands at the join, so typing continues where the two texts meet. Where the two kinds cannot be joined, the key is refused: *These blocks can't be joined into one*, *Joining here would leave a node's children without a parent*, or *Nothing here to join with* at the very top of the note.
+
+<Clip name="merge-backspace" caption="Backspace at the first character of a paragraph joins it onto the paragraph above, across the blank line; the same for an item after a gap." />
 
 Backspace inside a marker (inside a heading's `#` run, inside a task's `[ ]`) is ordinary editing and is left alone.
 

@@ -20,6 +20,10 @@ A selection that reaches across a node boundary, or into a node's trailing blank
 
 A selection that covers whole nodes is drawn as a **block**: one shaded band per covered subtree, anchored one level in from the covered root's column, instead of the native per-character highlight. That is the signal that Tab, Shift+Tab, the move commands, Delete and Cut will act on those nodes as units.
 
+<Clip name="escalation" caption="A mouse drag inside one item stays a character selection; crossing into the next item snaps it to both nodes whole." />
+
+<Shot name="block-selection" alt="A block selection covering an item, its children and the quote after it" caption="A block selection: one band over the covered subtrees, in place of the per-character highlight." />
+
 ## Growing a selection one node at a time
 
 | Key | Action |
@@ -41,6 +45,8 @@ Inside a single node, Shift+Arrow is the ordinary character-wise extension. The 
 6. Native Select All, which also takes front matter.
 
 The ladder is derived from the current selection alone, so it works after a click, after Shift+Arrow, and after undo, and it never remembers a previous press. With several carets, each range climbs its own ladder.
+
+<Clip name="select-nodes" caption="Shift+ArrowDown covers the item and then the quote; from a fresh caret, Mod+A selects the text, the subtree, then the whole list." />
 
 ## Where selection and structure meet
 

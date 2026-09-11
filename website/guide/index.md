@@ -23,7 +23,11 @@ True Outliner brings the enforced-tree invariant to Obsidian without leaving mar
 
 In outline mode a note is drawn on a single indentation grid. Every node kind steps right by the same amount per level, guide lines connect each node to its ancestors, and a small marker in the gutter names each node's kind. The caret only ever sits on content, never on a blank line or a list marker. Tab and Shift+Tab move whole subtrees; Enter splits a node into two; Shift+Arrow grows a selection one node at a time; any node with children folds, and a fold follows the node when it moves; a click on a marker zooms into that node. Below the note, every reference to it from elsewhere in the vault is listed in the tree of the note it came from.
 
+<Shot name="hero-outline" alt="The Kitchen Renovation note in outline mode" caption="The same note, in outline mode: one grid, guides from each heading to its section, a marker per block." />
+
 Switch outline mode off and the note is stock Obsidian again, byte for byte.
+
+<Shot name="hero-stock" alt="The Kitchen Renovation note with outline mode off, rendered by stock Obsidian" caption="Outline mode off. Nothing was written to the file." />
 
 ## Where it works
 

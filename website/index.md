@@ -4,6 +4,10 @@ hero:
   name: True Outliner
   text: A true outliner for Obsidian
   tagline: Edit the structure of any note, not just its text. The file stays plain markdown.
+  image:
+    light: /media/shots/hero-outline-light.png
+    dark: /media/shots/hero-outline-dark.png
+    alt: A note in outline mode, with markers, guide lines and the caret's lineage highlighted
   actions:
     - theme: brand
       text: Get started
