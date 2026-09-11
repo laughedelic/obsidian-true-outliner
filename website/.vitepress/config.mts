@@ -31,6 +31,7 @@ export default defineConfig({
             { text: 'Structural editing', link: '/guide/structural-editing' },
             { text: 'Selection and the caret', link: '/guide/selection-and-caret' },
             { text: 'Appearance', link: '/guide/appearance' },
+            { text: 'Folding', link: '/guide/folding' },
             { text: 'Zoom', link: '/guide/zoom' },
             { text: 'Structured backlinks', link: '/guide/backlinks' },
             { text: 'Mobile', link: '/guide/mobile' },

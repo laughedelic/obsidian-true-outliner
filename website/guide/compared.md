@@ -55,7 +55,7 @@ What defines a true outliner, and where True Outliner stands today.
 | Structured backlinks with ancestors and children | ✓ Read-only |
 | Undo restores structure and caret together | ✓ |
 | Multiline nodes and inline formatting | ✓ Obsidian's own editor |
-| Fold any node, with persistent fold state | Partial: Obsidian's native folding today; per-node folding and persistence are in progress |
+| Fold any node, with persistent fold state | ✓ Every node with children; remembered per note in plugin data, never in the file |
 | Drag and drop with depth indicators | Not yet |
 | Block references and mirrors | Not yet; Obsidian's native block links work as usual |
 | Search results with ancestor context | Not yet |

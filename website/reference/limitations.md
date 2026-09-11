@@ -4,7 +4,6 @@ An honest list of what does not work yet, what works differently from a dedicate
 
 ## Not yet built
 
-- **Folding per node with persistent state.** Folding is Obsidian's own today, so a paragraph with children cannot fold and a fold does not survive moving the node. Per-node folding on the outline's own tree, remembered per file in plugin data, is in progress.
 - **Drag and drop** of nodes with depth indicators.
 - **Block references and mirrors.** Obsidian's native `[[note#^id]]` links keep working as usual, and the footer lists them.
 - **Search results with outline context.**
@@ -16,6 +15,7 @@ An honest list of what does not work yet, what works differently from a dedicate
 - **Outline mode is per tab, with no per-note memory.** A note reopened later starts from the default. Zoom is likewise forgotten when the tab closes or switches notes.
 - **Ordinary typing is never enforced.** Deleting a `- ` marker or typing `# ` at the start of a paragraph changes the node's kind, exactly as in stock Obsidian. Enforcement applies to edits that cross node boundaries.
 - **A list after a paragraph belongs to that paragraph**, and a blank line between an item and indented text turns a continuation into a child. See [the mapping page](../guide/how-notes-become-outlines).
+- **Folding is independent of Obsidian's own fold settings in intent, not yet in evidence.** Whether *Fold heading* and *Fold indent* being off changes anything in outline mode has not been settled; nothing in the plugin reads them.
 - **Task items are not zoomed by clicking**, because their mark is Obsidian's checkbox. Use the command, the right-click menu or a hotkey.
 - **Multiple carets** fall back to native behaviour for the structural keys and the motion keys. Shift+Arrow extension and Mod+A handle every caret.
 - **Right-to-left text.** Within a line, movement is native and correct; crossing a line boundary with the arrow keys lands at the logical start or end rather than the visual one.
