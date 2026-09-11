@@ -156,6 +156,11 @@ body {
    * agree at every thickness, and a literal only agrees at the one it was
    * written for. */
   --to-trail-width: var(--to-guide-width);
+  /* The guide under the pointer, on every line it runs through: the guide
+   * gesture's own "this one". Thicker, where the trail is only a different
+   * colour — a hover has to read at a glance against neighbours the same
+   * colour as itself. A snippet moves it like the others. */
+  --to-guide-hover-width: calc(var(--to-guide-width) + 2px);
 }
 
 /* A measurement probe (`resolveChevronOffset`): laid out so a `max()` of unit,
@@ -772,7 +777,7 @@ body.is-mobile {
    * earlier `max(1px, …)` covered only the trail: once the two agree by
    * default, both terms resolve to the same thickness and the literal silently
    * stopped being the guard it looks like. */
-  --to-stripe-bleed: max(var(--to-guide-width), var(--to-trail-width));
+  --to-stripe-bleed: max(var(--to-guide-width), var(--to-trail-width), var(--to-guide-hover-width));
   left: calc(-1 * var(--to-own-shift, 0px) - var(--to-stripe-bleed));
   border-left: var(--to-stripe-bleed) solid transparent;
   right: 0;
@@ -3388,39 +3393,18 @@ body.is-mobile {
 /* ---- The guide gesture's hover (better-folding-ux D7) ----------------------
  *
  * A guide has no element, so the pointer resting on one is arithmetic the
- * gesture already does (`guideHit`); it names the column on every line the
- * guide runs through, and this draws the band down all of them — the whole
- * guide lights, which is the subtree a press would fold. Without it the
- * gesture was working and invisible — nothing said where a press would land.
- *
- * The band is the line's `::before`, which nothing else uses; the guides
- * themselves are its `::after`. It is positioned the way the overlay positions
- * its stripes: from the overlay's origin, which is the line's own box shifted
- * back by `--to-own-shift`, at the hovered column times the unit. Painted in
- * the accent, which is what this plugin uses for "the node in play" — the band
- * says which subtree the press would fold.
+ * gesture already does (`guideHit`). The guide it names is thickened, not
+ * banded: each depth's guide layer reads a per-depth width property
+ * (`guideWidthExpr`), and the gesture sets that property, to the caret trail's
+ * width, on every element the guide runs through — so the lit guide is drawn
+ * by the same layer that draws it at rest, continuous across gap lines and
+ * widget atoms where a band drawn per row broke into pieces. What the
+ * stylesheet adds is the cursor, on the pointer's own line only: a pointer
+ * cursor over the other lines' text would promise a click that lands in the
+ * text.
  */
-/* The cursor only where the pointer is: the band runs down every line of the
- * subtree, and a pointer cursor over those lines' text would promise a click
- * that lands in the text. */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guide-hover-here {
   cursor: pointer;
-}
-
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guide-hover::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  left: calc(
-    -1 * var(--to-own-shift, 0px) + var(--to-guide-hover, 0) * var(--to-decor-unit) - 1px
-  );
-  border-radius: 2px;
-  background: var(--to-decor-accent);
-  opacity: 0.55;
-  pointer-events: none;
-  z-index: 1;
 }
 
 /* ---- Folded nodes (better-folding-ux D6) ---------------------------------

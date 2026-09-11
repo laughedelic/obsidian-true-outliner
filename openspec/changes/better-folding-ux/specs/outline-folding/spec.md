@@ -207,8 +207,9 @@ affordance remain.
 
 #### Scenario: The pointer shows which guide a press would act on
 - **WHEN** the pointer rests on a guide column
-- **THEN** the whole guide is marked, down every line of the subtree a press would act on, the
-  pointer's own line shows the cursor, and moving off clears it
+- **THEN** the whole guide thickens, down every line of the subtree a press would act on and
+  continuously across gap lines and atoms, the pointer's own line shows the cursor, and moving off
+  clears it
 
 #### Scenario: A guide inside a zoom names the level it is drawn at
 - **WHEN** the view is zoomed into a nested node and the user presses one of its descendants' guides
@@ -220,7 +221,7 @@ affordance remain.
 
 #### Scenario: The guide stays lit after a press
 - **WHEN** the user presses a guide and leaves the pointer where it is
-- **THEN** the guide is still marked and the cursor still says it is clickable
+- **THEN** the guide is still thickened and the cursor still says it is clickable
 
 #### Scenario: Clicking a guide collapses the branch beside it
 - **WHEN** the user clicks the guide column belonging to a node whose four children each have

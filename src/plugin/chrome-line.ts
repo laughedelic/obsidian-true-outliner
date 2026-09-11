@@ -105,11 +105,28 @@ export function stripeStartExpr(depth: number, width: string): string {
  */
 export const GUIDE_WIDTH = `var(${CHROME_VARS.guideWidth})`;
 
+/**
+ * The width one depth's guide is painted at: its own property when something
+ * has set one on the line — the guide gesture's hover thickens the guide it
+ * would act on, on every line that guide runs through — and the shared width
+ * otherwise. Per depth, because a line paints all of its guides in one
+ * background and a shared width could only thicken all of them at once.
+ */
+export function guideWidthExpr(depth: number): string {
+  return `var(${guideWidthVar(depth)}, ${GUIDE_WIDTH})`;
+}
+
+/** The property `guideWidthExpr` reads for `depth`. */
+export function guideWidthVar(depth: number): string {
+  return `--to-guide-width-${depth}`;
+}
+
 /** One vertical guide, centred on `depth`'s column. */
 export function guideLayer(depth: number): string {
+  const width = guideWidthExpr(depth);
   return (
-    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${GUIDE_WIDTH}, transparent ${GUIDE_WIDTH} ${UNIT_EXPR}) ` +
-    `${stripeStartExpr(depth, GUIDE_WIDTH)} 0 / ${UNIT_EXPR} 100% no-repeat`
+    `repeating-linear-gradient(to right, var(--to-guide-color) 0 ${width}, transparent ${width} ${UNIT_EXPR}) ` +
+    `${stripeStartExpr(depth, width)} 0 / ${UNIT_EXPR} 100% no-repeat`
   );
 }
 

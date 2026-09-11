@@ -47,7 +47,7 @@ import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from '
 import type { Extension } from '@codemirror/state';
 import { resolveZoom } from '../zoom';
 import { parsedDoc } from './parsed-doc';
-import { GUIDES_CLASS } from './chrome-line';
+import { GUIDES_CLASS, guideWidthVar } from './chrome-line';
 import { guideOwnerAt, toggleGuideAt } from './fold-commands';
 import { foldLines } from './fold-model';
 import { ownSpan } from '../model';
@@ -71,11 +71,11 @@ import { isOutlineMode } from './outline-state';
  */
 const MARK_SELECTOR = '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
 
-/** A line the hovered guide runs through, and which column it is; and the one
- * line the pointer itself is on, which alone shows the cursor. */
-const GUIDE_HOVER_CLASS = 'to-decor-guide-hover';
+/** The one line the pointer itself is on, which alone shows the cursor. */
 const GUIDE_HOVER_HERE_CLASS = 'to-decor-guide-hover-here';
-const GUIDE_HOVER_VAR = '--to-guide-hover';
+/** What a lit guide is painted at — styles.css declares it, beside the
+ * trail's width, and says why it is not the trail's. */
+const GUIDE_HOVER_WIDTH = 'var(--to-guide-hover-width)';
 
 /** The events a handled press has to swallow, in the order they arrive. */
 const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
@@ -158,9 +158,9 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   /**
-   * The guide gesture's hover feedback: the guide under the pointer, named on
-   * every line it runs through, so the stylesheet can draw the whole of it as
-   * one band — and the cursor on the one line the pointer is on.
+   * The guide gesture's hover feedback: the guide under the pointer, thickened
+   * on every line it runs through — and the cursor on the one line the pointer
+   * is on.
    *
    * A guide has no element, so it cannot be hovered — the same fact that makes
    * the gesture arithmetic (`guideHit`) makes its feedback arithmetic too. The
@@ -233,8 +233,15 @@ class ZoomClickPlugin implements PluginValue {
     if (!lines) return;
     const first = owner.startLine + ownSpan(owner.node);
     const last = lines.lastLine;
+    // Every element that paints guides — lines, gap lines and widget atoms
+    // alike — because the guide is thickened in the layer that already draws
+    // it there, which is what makes the lit guide one line: a band drawn per
+    // row broke at every gap line and every atom, and the pieces did not meet.
     const marked: HTMLElement[] = [];
-    for (const el of Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'))) {
+    const widthVar = guideWidthVar(column);
+    for (const el of Array.from(
+      this.view.contentDOM.querySelectorAll<HTMLElement>(`.${GUIDES_CLASS}`),
+    )) {
       let at: number;
       try {
         at = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
@@ -242,8 +249,7 @@ class ZoomClickPlugin implements PluginValue {
         continue;
       }
       if (at < first || at > last) continue;
-      el.style.setProperty(GUIDE_HOVER_VAR, String(column));
-      el.classList.add(GUIDE_HOVER_CLASS);
+      el.style.setProperty(widthVar, GUIDE_HOVER_WIDTH);
       marked.push(el);
     }
     lineEl.classList.add(GUIDE_HOVER_HERE_CLASS);
@@ -275,10 +281,7 @@ class ZoomClickPlugin implements PluginValue {
   private clearGuideHover(): void {
     const hovered = this.hoveredGuide;
     if (!hovered) return;
-    for (const el of hovered.marked) {
-      el.classList.remove(GUIDE_HOVER_CLASS);
-      el.style.removeProperty(GUIDE_HOVER_VAR);
-    }
+    for (const el of hovered.marked) el.style.removeProperty(guideWidthVar(hovered.column));
     hovered.lineEl.classList.remove(GUIDE_HOVER_HERE_CLASS);
     this.hoveredGuide = null;
   }

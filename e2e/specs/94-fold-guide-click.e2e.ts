@@ -146,27 +146,22 @@ describe('the guide gesture', () => {
       .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
       .perform();
     await browser.pause(150);
-    // The whole guide lights — every line of "- root"'s subtree, which is what
-    // a press would act on — and only the pointer's own line takes the cursor.
-    const hovered = await browser.executeObsidian(() => {
-      const lines = Array.from(
-        document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'),
-      );
-      return {
-        banded: lines.map((el, i) => (el.classList.contains('to-decor-guide-hover') ? i : -1)).filter((i) => i >= 0),
-        column: lines[2]!.style.getPropertyValue('--to-guide-hover'),
-        cursors: lines.map((el, i) => (getComputedStyle(el).cursor === 'pointer' ? i : -1)).filter((i) => i >= 0),
-      };
-    });
-    expect(hovered).toEqual({ banded: [1, 2, 3, 4, 5], column: '0', cursors: [2] });
+    // The whole guide thickens — every line of "- root"'s subtree, which is
+    // what a press would act on, through the width its own guide layer reads —
+    // and only the pointer's own line takes the cursor.
+    const lit = () =>
+      browser.executeObsidian(() => {
+        const lines = Array.from(
+          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'),
+        );
+        return {
+          thickened: lines.map((el, i) => (el.style.getPropertyValue('--to-guide-width-0') ? i : -1)).filter((i) => i >= 0),
+          cursors: lines.map((el, i) => (getComputedStyle(el).cursor === 'pointer' ? i : -1)).filter((i) => i >= 0),
+        };
+      });
+    expect(await lit()).toEqual({ thickened: [1, 2, 3, 4, 5], cursors: [2] });
     await h.hoverLineText(2);
-    expect(
-      await browser.executeObsidian(() =>
-        document
-          .querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line')[2]!
-          .classList.contains('to-decor-guide-hover'),
-      ),
-    ).toBe(false);
+    expect(await lit()).toEqual({ thickened: [], cursors: [] });
   });
 
   it('names the guide by the level the zoom draws it at', async () => {
@@ -226,13 +221,13 @@ describe('the guide gesture', () => {
         document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'),
       );
       return {
-        banded: lines.map((el, i) => (el.classList.contains('to-decor-guide-hover') ? i : -1)).filter((i) => i >= 0),
+        thickened: lines.map((el, i) => (el.style.getPropertyValue('--to-guide-width-0') ? i : -1)).filter((i) => i >= 0),
         cursors: lines.map((el, i) => (getComputedStyle(el).cursor === 'pointer' ? i : -1)).filter((i) => i >= 0),
       };
     });
-    // Lines 2 and 4 are folded away; the band runs down what is left of the
+    // Lines 2 and 4 are folded away; the guide runs down what is left of the
     // subtree, and the pointer's line — DOM line 2, "second" now — has the cursor.
-    expect(lit).toEqual({ banded: [1, 2, 3], cursors: [2] });
+    expect(lit).toEqual({ thickened: [1, 2, 3], cursors: [2] });
   });
 
   it('is not offered when guides are not drawn', async () => {

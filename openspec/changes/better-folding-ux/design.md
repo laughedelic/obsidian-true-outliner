@@ -322,8 +322,13 @@ only when the point lies within its own hit box.
 A guide has no element, so nothing hovers it — and the manual pass found the gesture working and
 invisible: nothing said where a press would land, and a press a few pixels off the band did
 nothing a reader could tell from there being nothing to press. The same arithmetic now runs on
-pointer moves and names the column on its line, and the stylesheet draws a band over that guide
-in the accent and shows the cursor.
+pointer moves and thickens the guide it names, on every element the guide runs through, and the
+stylesheet shows the cursor on the pointer's own line. Thickened rather than banded: each depth's
+guide layer reads a per-depth width property, and the gesture sets it — so the lit guide is drawn
+by the layer that draws it at rest, continuous across gap lines and widget atoms, where a band
+drawn per row (the first version) broke into pieces that did not meet. Its own width token,
+two pixels over the guide's: the caret trail's width defaults to the guide's — the trail is a
+colour — so "the trail's width" would have lit nothing.
 
 Four things the third and fourth manual rounds settled about the arithmetic. Painted columns count
 from what the view roots at, so inside a zoom the column is offset by the root's depth before the
