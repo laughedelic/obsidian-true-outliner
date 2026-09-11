@@ -196,6 +196,10 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       by the level the zoom draws it at, takes a press left of the line box, keeps its band after
       the press that folds under it, and reaches nearly half a unit to the left. Tests and negative
       controls for each
+- [x] 10.3e Fifth manual round: the lit guide is editor state painted by the decoration pass
+      (a per-line style was rewritten by every rebuild), thickened under the caret's accent and
+      through the gap above a first child; the hand is on the editor root; a guide press with
+      nothing to fold no longer places the caret. Tests and negative controls
 - [ ] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
       two the measurements found (a moved folded node, Enter on a folded node) — and the one the
       harness could not settle: fold with Obsidian's "Fold heading" and "Fold indent" turned off

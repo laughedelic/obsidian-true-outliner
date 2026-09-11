@@ -79,14 +79,13 @@ import { MARKER_GUTTER_CSS, MARKER_ICON_CSS, UNIT_EXPR } from './chrome-tokens';
 import {
   BLOCK_LINE_CLASS,
   chromeStyle,
+  GUIDE_WIDTH,
   guideLayer,
-  guideWidthVar,
   lineChrome,
   markerAnchorLeftExpr,
   MARKER_LEFT_SHIFT_EXPR,
   OWN_CHROME_CLASS,
   ownShiftExpr as plainOwnShiftExpr,
-  plainGuideBackground,
   stripeStartExpr,
 } from './chrome-line';
 import type { NodeKind, OutlineDoc } from '../model';
@@ -121,6 +120,7 @@ import { parsedDoc } from './parsed-doc';
 import { isNestedEditor, nestedEditorField } from './nested-editor';
 import { foldedChrome } from './fold-service';
 import { foldableEntries } from './fold-model';
+import { guideHoverField, type GuideHover } from './guide-hover';
 import { toggleFoldAtLine } from './fold-commands';
 
 // ---- Shared per-document fact computation (hardening 5.4) ------------------
@@ -266,13 +266,11 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
  * went unaccented and the path visibly broke into two pieces with a gap the
  * size of that padding. Which is why the gap "varied": it WAS the padding.
  */
-function accentLayer(depth: number, extent: TrailExtent): string {
-  // The trail's width, unless the depth's own width property is set: the
-  // guide gesture thickens the guide under the pointer by setting that, and
-  // an accented column is painted by THIS layer in place of the plain guide —
-  // so without reading it here, a guide the caret was under did not thicken
-  // at all, and nothing said it could be pressed.
-  const width = `var(${guideWidthVar(depth)}, ${TRAIL_WIDTH})`;
+function accentLayer(depth: number, extent: TrailExtent, width: string = TRAIL_WIDTH): string {
+  // `width` is the trail's unless this is the guide under the pointer: an
+  // accented column is painted by THIS layer in place of the plain guide, so
+  // without the hover reaching it here, a guide the caret was under did not
+  // thicken at all, and nothing said it could be pressed.
   const gradient = `linear-gradient(to right, ${ACCENT} 0 ${width}, transparent ${width})`;
   const height = extent === 'full' ? '100%' : 'var(--to-accent-stop, 50%)';
   // Centred on the column through the same helper the plain guide uses, so an
@@ -296,16 +294,40 @@ function accentLayer(depth: number, extent: TrailExtent): string {
  * marker's icon on arrival. The accented ancestor marker is the junction
  * instead — see `MarkerHighlight` in decorate.ts.
  */
-function guideBackground(guideDepths: readonly number[], trail?: PositionTrailFact): string {
-  if (!trail) return plainGuideBackground(guideDepths);
+/**
+ * The background for one line's guides. `lit` is the depth of the guide under
+ * the pointer, on a line that guide runs through, and is painted thicker —
+ * whether the plain layer or the caret trail's accent draws it.
+ */
+function guideBackground(
+  guideDepths: readonly number[],
+  trail?: PositionTrailFact,
+  lit?: number,
+): string {
+  const widthOf = (depth: number, rest: string): string =>
+    depth === lit ? GUIDE_HOVER_WIDTH : rest;
+  if (!trail) {
+    return guideDepths.map((depth) => guideLayer(depth, widthOf(depth, GUIDE_WIDTH))).join(', ');
+  }
   const accents = accentsOn(guideDepths, trail);
   const layers: string[] = [];
-  for (const [depth, extent] of accents) layers.push(accentLayer(depth, extent));
+  for (const [depth, extent] of accents) {
+    layers.push(accentLayer(depth, extent, widthOf(depth, TRAIL_WIDTH)));
+  }
   for (const depth of guideDepths) {
-    if (accents.get(depth) !== 'full') layers.push(guideLayer(depth));
+    if (accents.get(depth) !== 'full') layers.push(guideLayer(depth, widthOf(depth, GUIDE_WIDTH)));
   }
   return layers.join(', ');
 }
+
+/** The depth to paint thicker on `line`, if the hovered guide runs through it. */
+function litGuideOn(hover: GuideHover | null, line: number): number | undefined {
+  return hover && line >= hover.first && line <= hover.last ? hover.column : undefined;
+}
+
+/** What the guide under the pointer is painted at; styles.css declares it
+ * beside the trail's width and says why it is not the trail's. */
+const GUIDE_HOVER_WIDTH = 'var(--to-guide-hover-width)';
 
 /**
  * Every guide depth a line draws: the non-list ancestors the base layer has
@@ -1338,9 +1360,10 @@ function lineDecoration(
   markerAccent: boolean,
   folded: boolean,
   foldedTail: boolean,
+  lit?: number,
 ): Decoration {
   const guides = hasOverlay(depths)
-    ? guideBackground(depths, trail.byLine.get(fact.lineNumber))
+    ? guideBackground(depths, trail.byLine.get(fact.lineNumber), lit)
     : undefined;
   const chrome = lineChrome(fact, { lineText, guides });
   const cls =
@@ -1357,10 +1380,14 @@ function lineDecoration(
 // not the full lineDecoration() treatment. A trail accent can land on such a
 // line too (a path segment passing through the gap between two blocks), so the
 // background is built from both sources here as well.
-function gapLineDecoration(depths: readonly number[], lineTrail?: PositionTrailFact): Decoration {
+function gapLineDecoration(
+  depths: readonly number[],
+  lineTrail?: PositionTrailFact,
+  lit?: number,
+): Decoration {
   return Decoration.line({
     class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guideBackground(depths, lineTrail)}` },
+    attributes: { style: `--to-guides: ${guideBackground(depths, lineTrail, lit)}` },
   });
 }
 
@@ -1385,6 +1412,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
   // Two lookups from one pass: a folded node's treatment belongs on the line
   // its marker is on, and the count of what it hides belongs after its own
   // text — the same line only when the node is a single line long.
+  const hover = state.field(guideHoverField, false) ?? null;
   const foldedMarkers = new Map<number, number>();
   const foldedCounts = new Map<number, number>();
   const foldedTails = new Set<number>();
@@ -1403,9 +1431,10 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
     const lineTrail = trail.byLine.get(guide.lineNumber);
     const fact = factsByLine.get(guide.lineNumber);
     const depths = drawnGuideDepths(guide, visibility);
+    const lit = litGuideOn(hover, guide.lineNumber);
     if (guide.isGapLine && !fact) {
       if (!hasOverlay(depths)) continue; // nothing to draw
-      builder.add(from, from, gapLineDecoration(depths, lineTrail));
+      builder.add(from, from, gapLineDecoration(depths, lineTrail, lit));
       continue;
     }
     if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
@@ -1420,6 +1449,7 @@ function computeDecorations(state: EditorState, modes: DecorationSource): Decora
         modes.markerHighlight !== 'off',
         foldedMarkers.has(guide.lineNumber),
         foldedTails.has(guide.lineNumber),
+        lit,
       ),
     );
     // At the END of the node's own text, where a reader's eye already is when
@@ -3158,7 +3188,14 @@ class MarginCompensation implements PluginValue {
         const depths = guide ? drawnGuideDepths(guide, visibility) : [];
         if (guide && hasOverlay(depths)) {
           el.classList.add('to-decor-guides');
-          el.style.setProperty('--to-guides', guideBackground(depths, lineTrail));
+          el.style.setProperty(
+            '--to-guides',
+            guideBackground(
+              depths,
+              lineTrail,
+              litGuideOn(this.view.state.field(guideHoverField, false) ?? null, lineNumber),
+            ),
+          );
           el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
         } else {
           el.classList.remove('to-decor-guides');

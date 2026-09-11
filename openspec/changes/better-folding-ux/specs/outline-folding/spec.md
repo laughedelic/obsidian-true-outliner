@@ -208,8 +208,8 @@ affordance remain.
 #### Scenario: The pointer shows which guide a press would act on
 - **WHEN** the pointer rests on a guide column
 - **THEN** the whole guide thickens, down every line of the subtree a press would act on and
-  continuously across gap lines and atoms, the pointer's own line shows the cursor, and moving off
-  clears it
+  continuously across gap lines and atoms, the pointer shows a hand, and moving off clears both —
+  through any caret move or rebuild in between
 
 #### Scenario: A guide inside a zoom names the level it is drawn at
 - **WHEN** the view is zoomed into a nested node and the user presses one of its descendants' guides
@@ -231,6 +231,10 @@ affordance remain.
 #### Scenario: Clicking the same guide again reopens them
 - **WHEN** every child under that guide is folded and the user clicks it again
 - **THEN** they all unfold
+
+#### Scenario: A guide press with nothing to fold moves nothing
+- **WHEN** the user presses a guide whose subtree has nothing left to fold
+- **THEN** the caret stays where it was
 
 #### Scenario: A click on text is still a click on text
 - **WHEN** the user clicks within a node's text, past the guide tolerance

@@ -47,9 +47,10 @@ import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from '
 import type { Extension } from '@codemirror/state';
 import { resolveZoom } from '../zoom';
 import { parsedDoc } from './parsed-doc';
-import { GUIDES_CLASS, guideWidthVar } from './chrome-line';
+import { GUIDES_CLASS } from './chrome-line';
 import { guideOwnerAt, toggleGuideAt } from './fold-commands';
 import { foldLines } from './fold-model';
+import { guideHoverField, setGuideHover, type GuideHover } from './guide-hover';
 import { isNestedEditor } from './nested-editor';
 import { OWN_CHROME_CLASS } from './chrome-line';
 import { zoomTo } from './zoom-state';
@@ -70,11 +71,10 @@ import { isOutlineMode } from './outline-state';
  */
 const MARK_SELECTOR = '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
 
-/** The one line the pointer itself is on, which alone shows the cursor. */
-const GUIDE_HOVER_HERE_CLASS = 'to-decor-guide-hover-here';
-/** What a lit guide is painted at — styles.css declares it, beside the
- * trail's width, and says why it is not the trail's. */
-const GUIDE_HOVER_WIDTH = 'var(--to-guide-hover-width)';
+/** On the editor root while the pointer rests on a guide: the one place the
+ * cursor can be set that every element under the pointer inherits, and that
+ * no line decoration rewrites. */
+const GUIDE_HOVERING_CLASS = 'to-decor-guide-hovering';
 
 /** The events a handled press has to swallow, in the order they arrive. */
 const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
@@ -83,10 +83,6 @@ class ZoomClickPlugin implements PluginValue {
   private readonly onPointerDown: (event: Event) => void;
   private readonly onTrailing: (event: Event) => void;
   private readonly onPointerMove: (event: Event) => void;
-  /** The guide currently lit, so it can be cleared: the pointer's line and
-   * column, and every line the band was drawn on. */
-  private hoveredGuide: { lineEl: HTMLElement; column: number; marked: HTMLElement[] } | null =
-    null;
   /** Where the pointer last was, so the hover can be re-applied after the
    * view rebuilds under it — the fold a press makes replaces the very lines
    * the band was on, and left the guide dark until the pointer moved. */
@@ -116,10 +112,10 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   update(update: ViewUpdate): void {
-    // The lines the band was on may be gone — a fold replaces them — while the
-    // pointer has not moved. Re-derive from where it last was.
+    // A change clears the hover state (its line numbers moved) while the
+    // pointer has not. Re-derive from where it last was.
     if (!this.lastPointer) return;
-    if (!update.docChanged && !update.viewportChanged && !update.transactions.some((t) => t.effects.length > 0)) return;
+    if (!update.docChanged && !update.viewportChanged) return;
     const { x, y, target } = this.lastPointer;
     queueMicrotask(() => this.hoverGuideAt(x, y, target));
   }
@@ -157,9 +153,10 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   /**
-   * The guide gesture's hover feedback: the guide under the pointer, thickened
-   * on every line it runs through — and the cursor on the one line the pointer
-   * is on.
+   * The guide gesture's hover feedback: the guide under the pointer, as editor
+   * state the decoration pass paints thicker on every line it runs through
+   * (`guide-hover.ts` says why state and not a style) — and the cursor, on the
+   * editor root.
    *
    * A guide has no element, so it cannot be hovered — the same fact that makes
    * the gesture arithmetic (`guideHit`) makes its feedback arithmetic too. The
@@ -175,6 +172,14 @@ class ZoomClickPlugin implements PluginValue {
   private trackGuide(event: MouseEvent): void {
     if (event.type === 'pointerleave') {
       this.lastPointer = null;
+      this.clearGuideHover();
+      return;
+    }
+    // A held button is a drag, not a hover — and the hover dispatches a
+    // transaction, which lands in the middle of CodeMirror's own mouse
+    // selection and breaks it (measured: a drag onto a gap line lost its
+    // chrome). Nothing lights while a button is down.
+    if (event.buttons !== 0) {
       this.clearGuideHover();
       return;
     }
@@ -214,14 +219,6 @@ class ZoomClickPlugin implements PluginValue {
       this.clearGuideHover();
       return;
     }
-    if (
-      this.hoveredGuide?.lineEl === lineEl &&
-      this.hoveredGuide.column === column &&
-      this.hoveredGuide.marked.every((el) => el.isConnected)
-    ) {
-      return;
-    }
-    this.clearGuideHover();
     let pos: number;
     try {
       pos = this.view.posAtDOM(lineEl);
@@ -230,38 +227,41 @@ class ZoomClickPlugin implements PluginValue {
     }
     const lineNumber = this.view.state.doc.lineAt(pos).number - 1;
     const owner = guideOwnerAt(this.view.state, lineNumber, column);
-    if (!owner) return;
-    // The lines the owner's guide runs through: its subtree below its own
-    // lines, to the last CONTENT line — a trailing gap is in the subtree's
-    // span and carries no guide.
-    const lines = foldLines(owner.node, owner.startLine);
-    if (!lines) return;
-    // From the line after the node's own TEXT, not after its own span: a
-    // node's span includes the gap it owns before its first child, and the
-    // guide runs through that gap — it was the one stretch left thin.
-    const first = owner.startLine + owner.node.lines.length;
-    const last = lines.lastLine;
-    // Every element that paints guides — lines, gap lines and widget atoms
-    // alike — because the guide is thickened in the layer that already draws
-    // it there, which is what makes the lit guide one line: a band drawn per
-    // row broke at every gap line and every atom, and the pieces did not meet.
-    const marked: HTMLElement[] = [];
-    const widthVar = guideWidthVar(column);
-    for (const el of Array.from(
-      this.view.contentDOM.querySelectorAll<HTMLElement>(`.${GUIDES_CLASS}`),
-    )) {
-      let at: number;
-      try {
-        at = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
-      } catch {
-        continue;
-      }
-      if (at < first || at > last) continue;
-      el.style.setProperty(widthVar, GUIDE_HOVER_WIDTH);
-      marked.push(el);
+    if (!owner) {
+      this.clearGuideHover();
+      return;
     }
-    lineEl.classList.add(GUIDE_HOVER_HERE_CLASS);
-    this.hoveredGuide = { lineEl, column, marked };
+    // The lines the owner's guide runs through: from the line after the
+    // node's own TEXT — a node's span includes the gap it owns before its
+    // first child, and the guide runs through that gap — to the last CONTENT
+    // line, since a trailing gap is in the span and carries no guide.
+    const lines = foldLines(owner.node, owner.startLine);
+    if (!lines) {
+      this.clearGuideHover();
+      return;
+    }
+    const hover: GuideHover = {
+      first: owner.startLine + owner.node.lines.length,
+      last: lines.lastLine,
+      column,
+    };
+    const current = this.view.state.field(guideHoverField, false) ?? null;
+    if (
+      !current ||
+      current.first !== hover.first ||
+      current.last !== hover.last ||
+      current.column !== hover.column
+    ) {
+      this.view.dispatch({ effects: setGuideHover.of(hover) });
+    }
+    this.view.dom.classList.add(GUIDE_HOVERING_CLASS);
+  }
+
+  private clearGuideHover(): void {
+    this.view.dom.classList.remove(GUIDE_HOVERING_CLASS);
+    if (this.view.state.field(guideHoverField, false)) {
+      this.view.dispatch({ effects: setGuideHover.of(null) });
+    }
   }
 
   /**
@@ -284,14 +284,6 @@ class ZoomClickPlugin implements PluginValue {
     const node = this.view.domAtPos(this.view.state.doc.lineAt(pos).from).node;
     const el = node.nodeType === 1 ? (node as Element) : node.parentElement;
     return el?.closest<HTMLElement>('.cm-line') ?? null;
-  }
-
-  private clearGuideHover(): void {
-    const hovered = this.hoveredGuide;
-    if (!hovered) return;
-    for (const el of hovered.marked) el.style.removeProperty(guideWidthVar(hovered.column));
-    hovered.lineEl.classList.remove(GUIDE_HOVER_HERE_CLASS);
-    this.hoveredGuide = null;
   }
 
   /**
@@ -328,7 +320,12 @@ class ZoomClickPlugin implements PluginValue {
     const lineNumber = this.view.state.doc.lineAt(pos).number - 1;
     const column = guideHit(lineEl, event.clientX);
     if (column === null) return false;
-    return toggleGuideAt(this.view, lineNumber, column);
+    // A press on a guide is a guide press whatever it finds to fold. Returned
+    // false when there was nothing, the press fell through to the editor and
+    // placed the caret on the line — a valid gesture on a guide must not move
+    // the caret.
+    toggleGuideAt(this.view, lineNumber, column);
+    return true;
   }
 
   private handle(event: MouseEvent): void {

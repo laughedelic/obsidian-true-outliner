@@ -66,6 +66,7 @@ import { decorationsExtension, type MarkerVisibility } from './decorations';
 import { transactionFilterExtension } from './transaction-filter';
 import { viewRegistryExtension } from './view-registry';
 import { zoomStateExtension } from './zoom-state';
+import { guideHoverExtension } from './guide-hover';
 import { isOutlineMode, outlineStateExtension, outlineToggled } from './outline-state';
 import { zoomClickExtension } from './zoom-click';
 import { zoomDecorationsExtension } from './zoom-decorations';
@@ -512,6 +513,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // extensions that READ the scope are registered after the state that holds
     // it and the reading order matches the dependency.
     this.registerEditorExtension(zoomStateExtension());
+    this.registerEditorExtension(guideHoverExtension());
     // Before every extension that GATES on the mode, so the field it reads is
     // installed by the time their own `create` runs.
     this.registerEditorExtension(outlineStateExtension(this));

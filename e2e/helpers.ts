@@ -1227,6 +1227,25 @@ export async function waitForRead<T>(
   throw new Error(`${what}: last saw ${last}`);
 }
 
+/**
+ * What the guide gesture's hover is showing: the lines whose guide background
+ * the decoration pass painted with the hover width, and whether the editor
+ * shows the hand.
+ */
+export function litGuide(): Promise<{ thickened: number[]; hand: boolean }> {
+  return browser.executeObsidian(() => {
+    const leaf = document.querySelector('.workspace-leaf.mod-active')!;
+    const lines = Array.from(leaf.querySelectorAll<HTMLElement>('.cm-content > .cm-line'));
+    const scroller = leaf.querySelector<HTMLElement>('.cm-scroller');
+    return {
+      thickened: lines
+        .map((el, i) => (el.style.getPropertyValue('--to-guides').includes('--to-guide-hover-width') ? i : -1))
+        .filter((i) => i >= 0),
+      hand: scroller ? getComputedStyle(scroller).cursor === 'pointer' : false,
+    };
+  });
+}
+
 /** Is the count part of the editable document, or chrome beside it? */
 export function foldCountIsEditable(line: number): Promise<boolean> {
   return browser.executeObsidian(({}, n: number) => {

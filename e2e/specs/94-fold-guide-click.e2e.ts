@@ -149,19 +149,9 @@ describe('the guide gesture', () => {
     // The whole guide thickens — every line of "- root"'s subtree, which is
     // what a press would act on, through the width its own guide layer reads —
     // and only the pointer's own line takes the cursor.
-    const lit = () =>
-      browser.executeObsidian(() => {
-        const lines = Array.from(
-          document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'),
-        );
-        return {
-          thickened: lines.map((el, i) => (el.style.getPropertyValue('--to-guide-width-0') ? i : -1)).filter((i) => i >= 0),
-          cursors: lines.map((el, i) => (getComputedStyle(el).cursor === 'pointer' ? i : -1)).filter((i) => i >= 0),
-        };
-      });
-    expect(await lit()).toEqual({ thickened: [1, 2, 3, 4, 5], cursors: [2] });
+    expect(await h.litGuide()).toEqual({ thickened: [1, 2, 3, 4, 5], hand: true });
     await h.hoverLineText(2);
-    expect(await lit()).toEqual({ thickened: [], cursors: [] });
+    expect(await h.litGuide()).toEqual({ thickened: [], hand: false });
   });
 
   it('names the guide by the level the zoom draws it at', async () => {
@@ -216,18 +206,9 @@ describe('the guide gesture', () => {
       { from: 1, to: 2 },
       { from: 3, to: 4 },
     ]);
-    const lit = await browser.executeObsidian(() => {
-      const lines = Array.from(
-        document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'),
-      );
-      return {
-        thickened: lines.map((el, i) => (el.style.getPropertyValue('--to-guide-width-0') ? i : -1)).filter((i) => i >= 0),
-        cursors: lines.map((el, i) => (getComputedStyle(el).cursor === 'pointer' ? i : -1)).filter((i) => i >= 0),
-      };
-    });
     // Lines 2 and 4 are folded away; the guide runs down what is left of the
-    // subtree, and the pointer's line — DOM line 2, "second" now — has the cursor.
-    expect(lit).toEqual({ thickened: [1, 2, 3], cursors: [2] });
+    // subtree, and the hand stays.
+    expect(await h.litGuide()).toEqual({ thickened: [1, 2, 3], hand: true });
   });
 
   it('thickens a guide the caret trail is accenting', async () => {
@@ -277,12 +258,43 @@ describe('the guide gesture', () => {
       .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
       .perform();
     await browser.pause(150);
-    const thickened = await browser.executeObsidian(() =>
-      Array.from(document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'))
-        .map((el, i) => (el.style.getPropertyValue('--to-guide-width-0') ? i : -1))
-        .filter((i) => i >= 0),
-    );
-    expect(thickened).toEqual([1, 2, 3, 4]); // the gap line, then the children
+    expect((await h.litGuide()).thickened).toEqual([1, 2, 3, 4]); // the gap line, then the children
+  });
+
+  it('leaves the caret alone on a guide press that finds nothing to fold', async () => {
+    // A press on a guide is a guide press whatever it finds. Reported as not
+    // handled when there was nothing to fold, it fell through to the editor
+    // and placed the caret on the line — and that caret move rebuilt the
+    // decorations, which also put out the lit guide.
+    await h.createNote(NOTE, ['- root', '  - a', '  - b', ''].join('\n'));
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+    await h.setCursorSettled(0, 3);
+    await h.clickGuideColumn(1, 0);
+    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 3 });
+  });
+
+  it('keeps the guide lit through a caret move under the resting pointer', async () => {
+    // Every caret move rebuilds the decorations, and a thickening written as a
+    // line's own style went with the rebuild — CodeMirror's line decorations
+    // own that attribute. Held as editor state and painted by the pass that
+    // rebuilds, it is there after the rebuild too.
+    if (h.IS_MOBILE_RUN) return;
+    await h.setCursorSettled(1, 4);
+    const onGuide = await h.guideColumnPoint(3, 0);
+    await browser
+      .action('pointer', { parameters: { pointerType: 'mouse' } })
+      .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
+      .perform();
+    await browser.pause(150);
+    expect((await h.litGuide()).thickened).toEqual([1, 2, 3, 4, 5]);
+    await browser.keys(['ArrowDown']);
+    await browser.pause(200);
+    expect((await h.getCursor()).line).toBe(2);
+    expect(await h.litGuide()).toEqual({ thickened: [1, 2, 3, 4, 5], hand: true });
+    await h.hoverLineText(3);
   });
 
   it('is not offered when guides are not drawn', async () => {

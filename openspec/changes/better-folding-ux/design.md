@@ -335,9 +335,15 @@ from what the view roots at, so inside a zoom the column is offset by the root's
 ancestry chain is indexed. The line under the pointer is found by coordinates when the target is
 not a line, because the outermost guide's band is half outside every line's box. The band is wider
 on the left (nearly half a unit) than on the right (a third): right of a guide sit the next level's
-mark and chevron; left of it is the parent level's empty run. And the hover is re-applied after the
-view rebuilds under a resting pointer, since the fold a press makes replaces the lines the band was
-on.
+mark and chevron; left of it is the parent level's empty run. The hover is editor STATE — a field
+the pointer tracker sets, read by the decoration pass, which paints that depth's layer thicker on
+every line the guide runs through. A first version wrote a per-line style property from the tracker,
+and CodeMirror's line decorations own that attribute and rewrite it on every rebuild, which every
+caret move causes: the lit guide went dark on the click that placed a caret and on any move that
+reshaped the trail. The cursor is a class on the editor root, for the same family of reason: the
+pointer is over some child of a line, each with a cursor rule of its own, so a class on the line
+reached none of them. And a press on a guide is a guide press whatever it finds to fold — reported
+as unhandled when there was nothing, it fell through and placed the caret.
 
 This dissolves the parking-lot blocker, which assumed a hit area had to be invented. It also keeps
 the guides themselves `pointer-events: none`, so nothing about their painting changes.

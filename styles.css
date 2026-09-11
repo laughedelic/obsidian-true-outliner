@@ -3394,16 +3394,18 @@ body.is-mobile {
  *
  * A guide has no element, so the pointer resting on one is arithmetic the
  * gesture already does (`guideHit`). The guide it names is thickened, not
- * banded: each depth's guide layer reads a per-depth width property
- * (`guideWidthExpr`), and the gesture sets that property, to the caret trail's
- * width, on every element the guide runs through — so the lit guide is drawn
- * by the same layer that draws it at rest, continuous across gap lines and
- * widget atoms where a band drawn per row broke into pieces. What the
- * stylesheet adds is the cursor, on the pointer's own line only: a pointer
- * cursor over the other lines' text would promise a click that lands in the
- * text.
+ * banded, and by the decoration pass: the hover is editor state, and the
+ * pass paints that depth's layer at `--to-guide-hover-width` on every line
+ * the guide runs through — so the lit guide is drawn by the same layer that
+ * draws it at rest, continuous across gap lines and widget atoms, and it
+ * survives every rebuild. What the stylesheet adds is the cursor, on the
+ * editor root: the pointer is over some child of a line, each with a cursor
+ * rule of its own, and a class on the line reached none of them — the pointer
+ * read as a caret, an arrow or a hand by where it happened to be. The class
+ * is on only while the pointer rests on a guide, so nothing else is under it.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guide-hover-here {
+.markdown-source-view.mod-cm6 .cm-editor.to-decor-guide-hovering .cm-scroller,
+.markdown-source-view.mod-cm6 .cm-editor.to-decor-guide-hovering .cm-scroller * {
   cursor: pointer;
 }
 
