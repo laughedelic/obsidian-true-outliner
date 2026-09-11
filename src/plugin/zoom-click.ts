@@ -113,9 +113,12 @@ class ZoomClickPlugin implements PluginValue {
 
   update(update: ViewUpdate): void {
     // A change clears the hover state (its line numbers moved) while the
-    // pointer has not. Re-derive from where it last was.
-    if (!this.lastPointer) return;
-    if (!update.docChanged && !update.viewportChanged) return;
+    // pointer has not. Re-derive from where it last was — and only then. The
+    // state survives everything else, the fold a press makes included; and
+    // re-deriving after that fold read whatever the fold had just moved under
+    // the resting pointer, a chevron among the candidates, and put the guide
+    // out on the press that acted on it.
+    if (!this.lastPointer || !update.docChanged) return;
     const { x, y, target } = this.lastPointer;
     queueMicrotask(() => this.hoverGuideAt(x, y, target));
   }

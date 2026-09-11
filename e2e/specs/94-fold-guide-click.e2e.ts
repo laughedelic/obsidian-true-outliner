@@ -202,7 +202,18 @@ describe('the guide gesture', () => {
       { from: 3, to: 4 },
     ]);
     // Lines 2 and 4 are folded away; the guide runs down what is left of the
-    // subtree, and the hand stays.
+    // subtree, and the hand stays. What is under the pointer is logged first:
+    // this case has disagreed between CI and a local run, and the element the
+    // fold left under the resting pointer is the question.
+    console.log(
+      '[guide] under the pointer after the press: ' +
+        JSON.stringify(
+          await browser.executeObsidian(({}, x: number, y: number) => {
+            const under = document.elementFromPoint(x, y) as HTMLElement | null;
+            return { under: under?.className?.toString?.().slice(0, 60) ?? under?.nodeName ?? null };
+          }, onGuide.x, onGuide.y),
+        ),
+    );
     expect(await h.litGuide()).toEqual({ thickened: [1, 2, 3], hand: true });
   });
 
