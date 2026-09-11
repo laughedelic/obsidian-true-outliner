@@ -509,6 +509,16 @@ export interface LineGuideFact {
 }
 
 /**
+ * The row an open provisional position becomes once a character is typed at
+ * the caret: the materialized parse's own guide fact for that line, in the
+ * numbering of the document `computeLineGuides` is handed alongside it.
+ */
+export type ProvisionalGuideRow = Pick<
+  LineGuideFact,
+  'lineNumber' | 'guideDepths' | 'listGuideDepths'
+>;
+
+/**
  * Walks the tree in the same document order as `decorate()` (own lines,
  * then children) plus blank trailingGap lines between siblings (see the
  * doc comment above) — decorations.ts keys this by `lineNumber`, not by
@@ -516,7 +526,7 @@ export interface LineGuideFact {
  */
 export function computeLineGuides(
   doc: OutlineDoc,
-  provisionalLine?: number,
+  provisional?: ProvisionalGuideRow,
 ): LineGuideFact[] {
   const facts: LineGuideFact[] = [];
   let current = doc.preamble.length;
@@ -571,7 +581,7 @@ export function computeLineGuides(
   };
 
   doc.children.forEach((node) => walk(node, 0, [], []));
-  return trimGapTails(facts, provisionalLine);
+  return trimGapTails(facts, provisional);
 }
 
 /**
@@ -584,27 +594,51 @@ export function computeLineGuides(
  * next content line below it. Consecutive gap lines therefore compare against
  * the same content line and trim identically.
  *
- * An open PROVISIONAL POSITION counts as a content line, which is the whole of
- * what `provisionalLine` does. The position stands for a node that would be
- * there, so the guide reaches its row — and because the pass carries that
- * upward, every blank row between it and the last real content line keeps its
- * guides too, leaving no hole in the extension.
+ * An open PROVISIONAL POSITION counts as a content line. The position stands
+ * for a node that would be there, so a guide reaches its row — and because the
+ * pass carries that row's depths upward, every blank row between it and the
+ * last real content line carries them too, leaving no hole in the extension.
  *
- * A line number rather than a different document: the caller could hand over
- * the MATERIALIZED parse instead, in which that row really is a node's own
- * line, but a position that bisected nothing must contribute nothing to any
- * other line (`outline-decorations`) and the materialized parse is a document
- * in which the node it stands for already exists. A line number changes the
- * trim and provably nothing else.
+ * Which depths the row keeps is the intersection of two bounds. `provisional`
+ * is the row as it will be once typed, so it names the guides the node the
+ * position stands for would carry: a guide belonging to a subtree the position
+ * has LEFT is not among them, although the gap the row sits in inherited it
+ * from the node that gap follows. The walk's own fact for the row names the
+ * guides the document already has: a node the position would give its first
+ * child owns none yet, and must not start to while the position is open
+ * (`outline-decorations`). The row keeps what both carry.
+ *
+ * One row rather than the materialized document: in that document the node
+ * already exists, so the lines around it would change with it, and a position
+ * that bisected nothing contributes nothing to any other line. One row changes
+ * that row and the blank run above it, which the carry narrows with it. On a
+ * node's own line — the resolved outline's case, where the row is content
+ * already — it changes nothing at all.
  */
-function trimGapTails(facts: LineGuideFact[], provisionalLine?: number): LineGuideFact[] {
+function trimGapTails(
+  facts: LineGuideFact[],
+  provisional?: ProvisionalGuideRow,
+): LineGuideFact[] {
   let below: readonly number[] = [];
   let belowList: readonly number[] = [];
   for (let i = facts.length - 1; i >= 0; i--) {
     const fact = facts[i]!;
-    if (!fact.isGapLine || fact.lineNumber === provisionalLine) {
+    if (!fact.isGapLine) {
       below = fact.guideDepths;
       belowList = fact.listGuideDepths;
+      continue;
+    }
+    if (fact.lineNumber === provisional?.lineNumber) {
+      const row = {
+        ...fact,
+        guideDepths: fact.guideDepths.filter((d) => provisional.guideDepths.includes(d)),
+        listGuideDepths: fact.listGuideDepths.filter((d) =>
+          provisional.listGuideDepths.includes(d),
+        ),
+      };
+      facts[i] = row;
+      below = row.guideDepths;
+      belowList = row.listGuideDepths;
       continue;
     }
     // The fact stays, with its depths narrowed — a gap line that keeps none is

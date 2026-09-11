@@ -597,12 +597,10 @@ function factsFor(state: EditorState): DocFacts {
     // zoomed — so everything derived from it is shifted back the same way
     // `baseFacts` shifts its own, and by the same offset.
     const offset = provisional.offset;
-    const local = provisional.line - offset;
     const facts = shiftLines(decorate(provisional.doc), offset);
-    // The row is one of a node's own lines in the resolved outline, so the
-    // provisional argument is a no-op here — passed anyway rather than gated,
-    // since a gate is one more thing to get wrong and this one buys nothing.
-    const guides = shiftLines(computeLineGuides(provisional.doc, local), offset);
+    // The row is one of a node's own lines in the resolved outline — content
+    // already, so there is no row to hand over for where a guide ends.
+    const guides = shiftLines(computeLineGuides(provisional.doc), offset);
     computed = {
       facts,
       factsByLine: new Map(facts.map((f) => [f.lineNumber, f])),
@@ -613,21 +611,20 @@ function factsFor(state: EditorState): DocFacts {
   } else {
     const base = baseFacts(state);
     const facts = [...base.facts, provisional.fact].sort((a, b) => a.lineNumber - b.lineNumber);
-    // Guides still come from the document as it actually is — the position adds
-    // no depth to any line — but its row counts as content for where a guide
-    // ENDS, so a position opened past a subtree's last content line is not left
-    // with its marker below a guide that stopped above it. Recomputed rather
-    // than reused from `base`, which was trimmed without knowing about it.
-    //
-    // "As it actually is" means as the VIEW has it: the zoom root's subtree
+    // Guides come from the document the VIEW has — the zoom root's subtree
     // while zoomed, the whole note otherwise — the same document `base` was
     // built from, so the guides and the facts they sit under agree about depth.
+    // The position's row counts as content for where a guide ENDS, so a
+    // position opened past a subtree's last content line is not left with its
+    // marker below a guide that stopped above it; and it keeps only the guides
+    // its row will carry once typed, read from the materialized parse, which
+    // `materializeProvisional` builds in that same numbering. Recomputed rather
+    // than reused from `base`, which was trimmed without knowing about it.
     const scope = zoomScope(state);
     const source = scope ? scope.document : parsedDoc(state.doc).doc;
-    const guides = shiftLines(
-      computeLineGuides(source, provisional.line - provisional.offset),
-      provisional.offset,
-    );
+    const local = provisional.line - provisional.offset;
+    const typedRow = computeLineGuides(provisional.doc).find((g) => g.lineNumber === local);
+    const guides = shiftLines(computeLineGuides(source, typedRow), provisional.offset);
     computed = {
       ...base,
       facts,

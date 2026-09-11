@@ -474,6 +474,52 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
     expect(await layers(4)).toBe(0);
   });
 
+  it('a position that left a subtree drops its guide, as the typed row will, zoomed or not', async function () {
+    // A list whose parent is a paragraph. Enter, Enter at the end of "- b"
+    // leaves a position standing for "para"'s sibling, so "para"'s guide is
+    // not the position's to carry: the row renders what it renders once a
+    // character is typed there. "# Top" sits above the zoomed section, so the
+    // zoomed half has hidden rows and runs in the scope's own numbering.
+    const md = ['# Top', '', '## H', '', 'para', '', '- a', '- b', ''].join('\n');
+    const layers = async (n: number) =>
+      gradientLayerCount(await h.getLinePseudoComputedStyle(n, 'background-image'));
+
+    for (const zoomed of [false, true]) {
+      const note = `Scratch/decorations-guide-position-left-subtree-${zoomed ? 'zoomed' : 'plain'}.md`;
+      await h.createNote(note, md);
+      await ensureOutlineMode(note);
+      if (zoomed) {
+        await h.setCursorSettled(2, 4);
+        await h.runCommand('zoom-in'); // into "## H"
+        await browser.pause(300);
+      }
+      await h.setCursorSettled(7, 3);
+      await h.keys.enter();
+      await h.keys.enter();
+      await browser.pause(300);
+      expect(await h.getCursor()).toEqual({ line: 8, ch: 0 });
+
+      // Rendered rows, not document lines: a zoom leaves hidden lines out of
+      // the DOM, so the rows are found from "para", whose text renders as is.
+      const para = (await h.renderedLineTexts()).findIndex((t) => t === 'para');
+      expect(para).toBeGreaterThan(-1);
+      const item = para + 3;
+      const position = para + 4;
+
+      const asPosition = await layers(position);
+      expect(asPosition).toBeLessThan(await layers(item));
+
+      await h.keys.type('x');
+      await browser.pause(300);
+      expect(await layers(position)).toBe(asPosition);
+
+      if (zoomed) {
+        await h.runCommand('zoom-clear');
+        await browser.pause(200);
+      }
+    }
+  });
+
   it('updates after a document edit without a mode toggle', async function () {
     const note = 'Scratch/decorations-guide-live-edit.md';
     await h.createNote(note, '# Parent\n\nfirst\n');
