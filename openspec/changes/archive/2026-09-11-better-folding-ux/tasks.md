@@ -200,10 +200,12 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       (a per-line style was rewritten by every rebuild), thickened under the caret's accent and
       through the gap above a first child; the hand is on the editor root; a guide press with
       nothing to fold no longer places the caret. Tests and negative controls
-- [ ] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
+- [x] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
       two the measurements found (a moved folded node, Enter on a folded node) — and the one the
       harness could not settle: fold with Obsidian's "Fold heading" and "Fold indent" turned off
-      in the real settings UI, which is the only place they can be trusted to apply (task 1.3)
+      in the real settings UI, which is the only place they can be trusted to apply (task 1.3).
+      Five rounds (10.3a–e above), each against a real vault note, closed with the reader's own
+      sign-off
 - [x] 10.4 Update `docs/research/12-decoration-follow-ups.md`: close the guide-click entry, the
       footer fold-chrome entry and the one-way-row-fold entry, and record anything this change
       deliberately left in the parking lot
