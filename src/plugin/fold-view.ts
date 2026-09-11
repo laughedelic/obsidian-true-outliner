@@ -102,10 +102,15 @@ class FoldRevealPlugin implements PluginValue {
    */
   private foldsHidingSelection(state: EditorState): FoldRange[] {
     const positions = this.selectionPositions(state);
-    // Strictly inside: a position AT a fold's start is the head line's own end,
-    // which is visible and is exactly where folding a node leaves the caret.
+    // Strictly inside, at both ends. A position AT a fold's start is the head
+    // line's own end, which is visible and is exactly where folding a node
+    // leaves the caret; a position AT its end is the end of the last hidden
+    // line, which renders after the placeholder and is where extending a
+    // selection over a folded node — Shift+Down from its head — puts the head.
+    // Counting that end as hidden opened the fold under every such selection,
+    // which had selected the node whole and correctly.
     return currentFolds(state).filter((range) =>
-      positions.some((pos) => pos > range.from && pos <= range.to),
+      positions.some((pos) => pos > range.from && pos < range.to),
     );
   }
 }

@@ -186,6 +186,11 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       the caret's line none, so one global sample put every paragraph's chevron onto its icon or
       a level away); the folded marker's treatment is contrast alone, not a heavier stroke, which
       a heading's filled glyph could not carry. Tests and negative controls for both
+- [x] 10.3c Third manual round: Up/Down step over a folded node instead of opening it (our raw-line
+      walk landed on the first hidden line, and CodeMirror's fold state dropped the fold there),
+      and Shift+Down keeps it folded (the reveal rule counted the fold's own end as hidden);
+      leaving a zoom folds again what it opened (D7a, an `outline-zoom` delta); the guide gesture
+      shows its band under the pointer. Tests and negative controls for each
 - [ ] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
       two the measurements found (a moved folded node, Enter on a folded node) — and the one the
       harness could not settle: fold with Obsidian's "Fold heading" and "Fold indent" turned off

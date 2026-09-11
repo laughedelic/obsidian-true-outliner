@@ -205,6 +205,11 @@ guides are not rendered, the gesture SHALL NOT be offered: an affordance that di
 display setting cannot be the only route to an operation, and the commands and the per-node
 affordance remain.
 
+#### Scenario: The pointer shows which guide a press would act on
+- **WHEN** the pointer rests on a guide column
+- **THEN** that guide is marked on its line and the cursor says it is clickable, and moving off
+  clears it
+
 #### Scenario: Clicking a guide collapses the branch beside it
 - **WHEN** the user clicks the guide column belonging to a node whose four children each have
   children of their own, none folded
@@ -285,6 +290,14 @@ the caret unfoldable by pointer, more of them the deeper the caret sat.
 #### Scenario: Navigating into a folded subtree opens it
 - **WHEN** a command places the caret on a node inside a folded range
 - **THEN** the fold containing it opens and the caret is visible
+
+#### Scenario: Vertical motion steps over a folded node
+- **WHEN** the caret is on a folded node's line and the user presses Down, then Up from below it
+- **THEN** the caret lands on the far side each time and the node stays folded
+
+#### Scenario: Extending a selection over a folded node keeps it folded
+- **WHEN** the caret is on a folded node's line and the user presses Shift+Down
+- **THEN** the selection covers the node whole and the node stays folded
 
 #### Scenario: A fold closing over the caret moves the caret out
 - **WHEN** the caret is on a nested item and an ancestor is folded through Obsidian's own control

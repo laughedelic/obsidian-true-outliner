@@ -69,12 +69,19 @@ import { isOutlineMode } from './outline-state';
  */
 const MARK_SELECTOR = '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
 
+/** The line under a pointer that rests on one of its guides, and which one. */
+const GUIDE_HOVER_CLASS = 'to-decor-guide-hover';
+const GUIDE_HOVER_VAR = '--to-guide-hover';
+
 /** The events a handled press has to swallow, in the order they arrive. */
 const TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
 
 class ZoomClickPlugin implements PluginValue {
   private readonly onPointerDown: (event: Event) => void;
   private readonly onTrailing: (event: Event) => void;
+  private readonly onPointerMove: (event: Event) => void;
+  /** The line currently showing the guide-hover band, so it can be cleared. */
+  private hoveredGuideLine: HTMLElement | null = null;
   /** This view's OWN `Element`, not the module's global — see the module
    * comment on pop-out windows. Read once: a live view's DOM does not move to
    * a different window without being torn down and rebuilt. */
@@ -90,13 +97,19 @@ class ZoomClickPlugin implements PluginValue {
     // which needs the real check because nothing pins its type this way.
     this.onPointerDown = (event) => this.handle(event as MouseEvent);
     this.onTrailing = (event) => this.swallow(event);
+    this.onPointerMove = (event) => this.trackGuide(event as MouseEvent);
     this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
+    this.view.dom.addEventListener('pointermove', this.onPointerMove, { passive: true });
+    this.view.dom.addEventListener('pointerleave', this.onPointerMove, { passive: true });
     for (const type of TRAILING_EVENTS) {
       this.view.dom.addEventListener(type, this.onTrailing, true);
     }
   }
 
   destroy(): void {
+    this.clearGuideHover();
+    this.view.dom.removeEventListener('pointermove', this.onPointerMove);
+    this.view.dom.removeEventListener('pointerleave', this.onPointerMove);
     this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
     for (const type of TRAILING_EVENTS) {
       this.view.dom.removeEventListener(type, this.onTrailing, true);
@@ -123,6 +136,52 @@ class ZoomClickPlugin implements PluginValue {
     event.preventDefault();
     event.stopPropagation();
     if (event.type === 'click') this.consuming = false;
+  }
+
+  /**
+   * The guide gesture's hover feedback: the column under the pointer, named on
+   * its line so the stylesheet can draw a band there and show the cursor.
+   *
+   * A guide has no element, so it cannot be hovered — the same fact that makes
+   * the gesture arithmetic (`guideHit`) makes its feedback arithmetic too. The
+   * manual pass found the gesture working and invisible: nothing said where a
+   * press would land, and a reader who missed the band by a few pixels saw a
+   * click that did nothing and concluded there was nothing to click.
+   *
+   * Two custom properties on the line, only when they change: pointer moves
+   * are frequent, and an unchanged band costs one arithmetic pass and no
+   * style write.
+   */
+  private trackGuide(event: MouseEvent): void {
+    if (event.type === 'pointerleave' || isNestedEditor(this.view) || !isOutlineMode(this.view.state)) {
+      this.clearGuideHover();
+      return;
+    }
+    const target = event.target instanceof this.Element ? event.target : null;
+    const lineEl = target?.closest<HTMLElement>('.cm-line');
+    const column =
+      lineEl && lineEl.classList.contains(GUIDES_CLASS) && !target?.closest('.cm-fold-indicator, .to-decor-fold-toggle')
+        ? guideHit(lineEl, event.clientX)
+        : null;
+    if (!lineEl || column === null) {
+      this.clearGuideHover();
+      return;
+    }
+    if (this.hoveredGuideLine !== lineEl) this.clearGuideHover();
+    const value = String(column);
+    if (lineEl.style.getPropertyValue(GUIDE_HOVER_VAR) !== value) {
+      lineEl.style.setProperty(GUIDE_HOVER_VAR, value);
+      lineEl.classList.add(GUIDE_HOVER_CLASS);
+    }
+    this.hoveredGuideLine = lineEl;
+  }
+
+  private clearGuideHover(): void {
+    const line = this.hoveredGuideLine;
+    if (!line) return;
+    line.classList.remove(GUIDE_HOVER_CLASS);
+    line.style.removeProperty(GUIDE_HOVER_VAR);
+    this.hoveredGuideLine = null;
   }
 
   /**

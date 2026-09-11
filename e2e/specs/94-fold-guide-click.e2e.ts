@@ -133,6 +133,40 @@ describe('the guide gesture', () => {
     ]);
   });
 
+  it('shows the pointer which guide a press would act on', async () => {
+    // A guide has no element, so nothing hovered it: the gesture worked and
+    // was invisible, and a press a few pixels off the band did nothing a
+    // reader could tell from there being nothing to press. Resting on a
+    // column names it on the line — the stylesheet draws a band and shows the
+    // cursor — and leaving clears it.
+    if (h.IS_MOBILE_RUN) return;
+    const onGuide = await h.guideColumnPoint(2, 0);
+    await browser
+      .action('pointer', { parameters: { pointerType: 'mouse' } })
+      .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
+      .perform();
+    await browser.pause(150);
+    const hovered = await browser.executeObsidian(() => {
+      const el = document.querySelectorAll<HTMLElement>(
+        '.workspace-leaf.mod-active .cm-content > .cm-line',
+      )[2]!;
+      return {
+        band: el.classList.contains('to-decor-guide-hover'),
+        column: el.style.getPropertyValue('--to-guide-hover'),
+        cursor: getComputedStyle(el).cursor,
+      };
+    });
+    expect(hovered).toEqual({ band: true, column: '0', cursor: 'pointer' });
+    await h.hoverLineText(2);
+    expect(
+      await browser.executeObsidian(() =>
+        document
+          .querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line')[2]!
+          .classList.contains('to-decor-guide-hover'),
+      ),
+    ).toBe(false);
+  });
+
   it('is not offered when guides are not drawn', async () => {
     // The point is measured while they still are, so what changes between the
     // measurement and the press is the guide alone.

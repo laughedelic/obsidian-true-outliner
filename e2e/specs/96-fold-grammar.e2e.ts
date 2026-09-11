@@ -128,6 +128,43 @@ describe('folding and the editing grammar', () => {
     expect(await h.getBuffer()).toContain('# Section\n\nX\n');
   });
 
+  it('steps the caret over a folded node, and leaves it folded', async () => {
+    // Our own Up and Down walk raw lines from the one beside the caret, since
+    // `moveVertically`'s landing is not trusted — and the raw line beside a
+    // folded head is the first line the fold hides. Landing there did not
+    // merely reveal the fold: CodeMirror's own fold state drops any fold the
+    // selection head lands inside, so every Down from a folded node opened it
+    // in the same transaction. A folded node is one node to step over.
+    await h.setCursorSettled(0, 3); // "- one", whose children are folded below
+    await h.runCommand('fold-node');
+    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    await browser.keys(['ArrowDown']);
+    await browser.pause(200);
+    expect((await h.getCursor()).line).toBe(3); // "- two", the far side
+    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+    await browser.keys(['ArrowUp']);
+    await browser.pause(200);
+    expect((await h.getCursor()).line).toBe(0);
+    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+  });
+
+  it('extends a selection over a folded node as one node, and leaves it folded', async () => {
+    // Shift+Down from a folded head selects the node whole, with the head at
+    // the fold's end — a visible position, after the placeholder. The reveal
+    // rule counted that end as hidden and opened the fold under every such
+    // selection.
+    await h.setCursorSettled(0, 3);
+    await h.runCommand('fold-node');
+    await browser.keys(['Shift', 'ArrowDown']);
+    await browser.pause(200);
+    const sel = await browser.executeObsidian(({ app, obsidian }) => {
+      const editor = app.workspace.getActiveViewOfType(obsidian.MarkdownView)!.editor;
+      return { from: editor.getCursor('from').line, to: editor.getCursor('to').line };
+    });
+    expect(sel).toEqual({ from: 0, to: 2 });
+    expect(await h.foldedLineRanges()).toEqual([{ from: 0, to: 2 }]);
+  });
+
   it('deleting a folded node takes its hidden children with it', async () => {
     await h.setCursorSettled(0, 3);
     await h.runCommand('fold-node');

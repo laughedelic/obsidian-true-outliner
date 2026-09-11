@@ -139,6 +139,17 @@ plugin tells the two apart by what arrived in the update: a fold effect over a c
 already there moves the caret to the fold's head line (where our own gestures put it); a caret
 arriving in an existing fold opens the fold.
 
+*A caret stepping over a fold.* Our own Up and Down walk raw lines from the one beside the caret,
+because `moveVertically`'s landing line is not trusted (a widget-rendered block can be crossed in
+one step) — and the raw line beside a folded head is the first line the fold hides. Landing there
+did not merely reveal the fold: CodeMirror's own fold state drops any fold the selection head
+lands inside, so every Down from a folded node opened it in the same transaction, before the
+reveal rule could see it. The walk now resumes on the far side of a fold it meets. Extending a
+selection over a folded node (Shift+Down) needed no change of its own: it already selected the
+node whole, with the head at the fold's END — a visible position, after the placeholder — and
+only the reveal rule, counting that end as hidden, opened the fold under it. The rule is strict
+at both ends now.
+
 ### D4a. Folding stays out of the history, and undo restores it anyway
 
 Folding is view state, not document state: a fold produces no `ChangeSet`, so nothing about it
@@ -308,6 +319,12 @@ chevron — the case at a phone's narrow unit — arrives targeting the chevron'
 emulated phone: the guide's second press reopened one child instead of two. A control owns a press
 only when the point lies within its own hit box.
 
+A guide has no element, so nothing hovers it — and the manual pass found the gesture working and
+invisible: nothing said where a press would land, and a press a few pixels off the band did
+nothing a reader could tell from there being nothing to press. The same arithmetic now runs on
+pointer moves and names the column on its line, and the stylesheet draws a band over that guide
+in the accent and shows the cursor.
+
 This dissolves the parking-lot blocker, which assumed a hit area had to be invented. It also keeps
 the guides themselves `pointer-events: none`, so nothing about their painting changes.
 
@@ -319,6 +336,16 @@ be decided in one place. Marks win; they are the smaller target and the more spe
 *Touch:* the same `pointerdown`, as `outline-zoom` established — a mouse-only listener makes the
 gesture not exist on mobile, and the guide tolerance may need to be wider there. Left to the
 implementation pass with a mobile e2e run as the check.
+
+### D7a. Leaving a zoom folds again what entering it opened — decided
+
+The first version left them open, deliberately (`outline-zoom` said so). The manual pass made
+the call the other way: a reader who zoomed into a folded node expects to come back to it folded.
+The zoom view records, per scope it enters, the folds it opened; leaving that scope — zooming out
+past it, or clearing — folds them again if still intact and not the one the caret now sits in, and
+the scope being entered on the way out opens only what it finds folded *less* those, so zooming
+out does not reopen what the exit restored. Nested zooms keep a stack keyed by anchor: the inner
+scope restores what it opened and nothing more.
 
 ### D8. Persistence is Obsidian's, and the setting is a suppression
 

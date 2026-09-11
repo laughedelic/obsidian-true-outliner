@@ -892,7 +892,8 @@ fix, one more kind to cover.
   so a control a keyboard reader has focused is replaced under them — measured while testing the
   row fold, where a press after a repaint landed on the body. It predates this change and belongs
   with the footer's own rendering model rather than with folding.
-- **Fold state is per file, and zoom clears nothing on exit.** Clearing a zoom leaves the folds
+- ~~**Fold state is per file, and zoom clears nothing on exit.**~~ — **decided** the other way
+  (D7a): leaving a zoom folds again what entering it opened. The original note: Clearing a zoom leaves the folds
   that zoom opened open (`outline-zoom` states this deliberately). Whether entering and leaving a
   zoom should restore the fold arrangement it found is a real question and unanswered; it needs a
   reader's judgment about what "where I was" means, not another measurement.

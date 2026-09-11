@@ -3385,6 +3385,40 @@ body.is-mobile {
   color: var(--text-accent-hover);
 }
 
+/* ---- The guide gesture's hover (better-folding-ux D7) ----------------------
+ *
+ * A guide has no element, so the pointer resting on one is arithmetic the
+ * gesture already does (`guideHit`); it names the column on the line, and this
+ * draws a band over that guide and shows the cursor. Without it the gesture
+ * was working and invisible — nothing said where a press would land.
+ *
+ * The band is the line's `::before`, which nothing else uses; the guides
+ * themselves are its `::after`. It is positioned the way the overlay positions
+ * its stripes: from the overlay's origin, which is the line's own box shifted
+ * back by `--to-own-shift`, at the hovered column times the unit. Painted in
+ * the accent, which is what this plugin uses for "the node in play" — the band
+ * says which subtree the press would fold.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guide-hover {
+  cursor: pointer;
+}
+
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guide-hover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  left: calc(
+    -1 * var(--to-own-shift, 0px) + var(--to-guide-hover, 0) * var(--to-decor-unit) - 1px
+  );
+  border-radius: 2px;
+  background: var(--to-decor-accent);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* ---- Folded nodes (better-folding-ux D6) ---------------------------------
  *
  * A folded node says so through its own mark, in the same box: the kind's glyph

@@ -199,6 +199,38 @@ describe('fold commands', () => {
     }
   });
 
+  it('folds again on leaving a zoom what the zoom opened', async () => {
+    // A reader who zoomed into a folded node comes back to it folded, as they
+    // left it. Only what a scope OPENED: the inner zoom below finds "one"
+    // already open and so has nothing to restore, and the outer one, on
+    // clearing, restores both.
+    await h.setCursorSettled(4, 3);
+    await h.runCommand('fold-node');
+    await h.setCursorSettled(7, 3);
+    await h.runCommand('fold-node');
+    expect(await h.foldedLineRanges()).toEqual([
+      { from: 4, to: 6 },
+      { from: 7, to: 8 },
+    ]);
+    await h.setCursorSettled(0, 3);
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+    expect(await h.foldedLineRanges()).toEqual([]);
+    await h.setCursorSettled(4, 3);
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+    await h.runCommand('zoom-out');
+    await browser.pause(200);
+    expect(await h.foldedLineRanges()).toEqual([]); // the inner scope opened nothing
+    await h.setCursorSettled(0, 3);
+    await h.runCommand('zoom-clear');
+    await browser.pause(200);
+    expect(await h.foldedLineRanges()).toEqual([
+      { from: 4, to: 6 },
+      { from: 7, to: 8 },
+    ]);
+  });
+
   it('walks the outline’s depth one level at a time', async () => {
     await h.setCursorSettled(0, 2);
     await h.runCommand('fold-more');

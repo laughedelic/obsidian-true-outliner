@@ -36,7 +36,7 @@
  * these targets are already addressable by construction.
  */
 
-import {
+import { type EditorState,
   ChangeSet,
   EditorSelection,
   Prec,
@@ -45,7 +45,7 @@ import {
   type Text,
 } from "@codemirror/state";
 import { Direction, EditorView, keymap } from "@codemirror/view";
-import { indentUnit } from "@codemirror/language";
+import { indentUnit, foldedRanges } from "@codemirror/language";
 import { Notice, editorInfoField } from "obsidian";
 import { planKey, type GrammarKey } from "./grammar";
 import { nextRungs } from "../select-all-ladder";
@@ -725,6 +725,29 @@ const tickCounter = EditorView.updateListener.of((update) => {
   }
 });
 
+/**
+ * The fold hiding a 0-based line, as the lines it spans, or null when the line
+ * is on screen. A fold begins at its head line's end, so the lines it hides are
+ * the ones after the head through the one its end sits on.
+ */
+function foldHidingLine(
+  state: EditorState,
+  line: number,
+): { headLine: number; lastLine: number } | null {
+  if (line < 0 || line >= state.doc.lines) return null;
+  const pos = state.doc.line(line + 1).from;
+  let found: { headLine: number; lastLine: number } | null = null;
+  foldedRanges(state).between(pos, pos, (from, to) => {
+    if (from < pos && pos <= to) {
+      found = {
+        headLine: state.doc.lineAt(from).number - 1,
+        lastLine: state.doc.lineAt(to).number - 1,
+      };
+    }
+  });
+  return found;
+}
+
 function makeVerticalHandler(forward: boolean) {
   return (view: EditorView): boolean => {
     if (!outlinePathOf(view)) return false;
@@ -830,7 +853,16 @@ function makeVerticalHandler(forward: boolean) {
     let node = nodeAtLine(outlineDoc, startLine);
     if (!node) return false; // preamble
     for (let guard = 0; guard < doc.lines + 1; guard++) {
-      const nextLine = forward ? line + 1 : line - 1;
+      let nextLine = forward ? line + 1 : line - 1;
+      // A folded node is one node to step over. The walk starts from the raw
+      // line beside the caret precisely because `moveVertically`'s landing is
+      // not trusted — and the raw line beside a folded head is the first line
+      // that fold hides. Landing there did not merely reveal it: CodeMirror's
+      // own fold state drops any fold the selection head lands inside, so the
+      // fold was gone in the same transaction, on every Down from a folded
+      // node and every Up from beneath one. The walk resumes on the far side.
+      const hidden = foldHidingLine(view.state, nextLine);
+      if (hidden) nextLine = forward ? hidden.lastLine + 1 : hidden.headLine;
       if (nextLine < 0 || nextLine >= doc.lines) {
         // Document edge reached mid-walk: land on this node's own content
         // boundary rather than leaving the caret on its gap.
