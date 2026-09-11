@@ -47,7 +47,7 @@
 
 ## 3. Rendered verification
 
-- [ ] 3.1 E2e in `e2e/specs/51-guides-gradient.e2e.ts`: create `# H` / blank / `para` / blank /
+- [x] 3.1 E2e in `e2e/specs/51-guides-gradient.e2e.ts`: create `# H` / blank / `para` / blank /
       `- a` / `- b`, put the caret at the end of `- b`, and press Enter twice through `h.keys`.
       The position's row must resolve fewer gradient layers than `- b`'s row. After typing one
       character, that row must resolve the same count it did as a position. Repeat inside a zoom
@@ -55,7 +55,7 @@
       relationships, not pixel values. Negative control: revert 1.3's hand-over, and the first
       assertion fails. Run:
       `npm run test:e2e:narrow -- 51-guides-gradient "left a subtree"`, and again with `--mobile`.
-- [ ] 3.2 The existing extension case still passes:
+- [x] 3.2 The existing extension case still passes:
       `npm run test:e2e:narrow -- 51-guides-gradient "caret parked past the end of a section"`.
 - [ ] 3.3 Manual pass in `test-vault/`: the report's steps with and without a zoom. The guide no
       longer crosses the position's marker, and typing a character changes nothing on that row.
