@@ -19,8 +19,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { parse } from '../src/parse';
+import { encodeLines } from '../src/encode';
+import { documentLineCount } from '../src/locate';
+import { resolveZoom } from '../src/zoom';
+import { arbMarkdownText } from './generators';
 import { project } from '../src/project';
 import { decorate, type LineDecorationFact } from '../src/plugin/decorate';
 import type { OutlineNode } from '../src/model';
@@ -135,5 +140,37 @@ describe('S3: decorate() on a projected tree', () => {
     const texts = renderTree(projected.children);
     expect(texts).toContain('Follow-ups from the review:');
     expect(texts).toContain('[[Aurora Dashboard#Current sprint]]');
+  });
+});
+
+/**
+ * The coordinate premise every zoomed derivation rests on, stated where the
+ * projection contract itself is pinned.
+ *
+ * `subtreeDocument`'s own doc comment states it — a node's subtree occupies a
+ * contiguous run of source lines and the result has no preamble, so line K of
+ * the result is line N + K of the source. `outline-zoom`'s D9 re-basing spends
+ * it on every render, and `materializeProvisional` spends it one step earlier
+ * still, building a probe from the scoped text and mapping the caret's own
+ * column across unchanged. A projection that rewrote a line, or a cover that
+ * ended anywhere but on the subtree's last line, would break both silently:
+ * every fact would still be well-formed, just about the wrong row.
+ */
+describe('a subtree document is the source lines it covers, unchanged', () => {
+  it('encodes back to the source slice, ending on the cover’s last line', () => {
+    fc.assert(
+      fc.property(arbMarkdownText, (text: string) => {
+        const doc = parse(text);
+        const lines = text === '' ? [] : text.split('\n');
+        for (let anchor = 0; anchor < documentLineCount(doc); anchor++) {
+          const scope = resolveZoom(doc, anchor);
+          if (!scope) continue;
+          const scoped = encodeLines(scope.document);
+          expect(scoped).toEqual(lines.slice(scope.startLine, scope.startLine + scoped.length));
+          expect(scope.startLine + scoped.length - 1).toBe(scope.cover.end.line);
+        }
+      }),
+      { numRuns: 200 },
+    );
   });
 });

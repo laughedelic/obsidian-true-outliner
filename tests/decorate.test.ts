@@ -15,7 +15,12 @@ import {
   positionBisectsANode,
   resolvedOutline,
   materializeProbe,
+  materializeProvisional,
   provisionalFact,
+  shiftCaretScope,
+  shiftLines,
+  shiftTrail,
+  zoomAwareCaretScope,
   zoomAwarePositionTrail,
   type LineDecorationFact,
   type PositionHighlight,
@@ -1251,6 +1256,190 @@ describe('zoomAwarePositionTrail: the caret trail re-based against a zoom scope'
     const scope = resolveZoom(doc, 1)!;
     const zoomed = zoomAwarePositionTrail(doc, 2, scope, LINEAGE);
     expect(zoomed.byLine.get(1)).toBeUndefined();
+  });
+});
+
+describe('materializeProvisional: the position derived against the view’s own document', () => {
+  // The document docs/research/12 measures the leak on: one hidden ancestor
+  // above the zoom root, so every source-frame depth is exactly one too many.
+  const ZOOMED = ['# Top', '', '## Mid', '', '- one', '  - nested', '', '- two', ''].join('\n');
+  const MID_LINE = 2;
+  const POSITION_LINE = 6;
+
+  it('answers exactly what the unscoped helpers do when no zoom is active', () => {
+    fc.assert(
+      fc.property(arbMarkdownText, (text: string) => {
+        const lines = text === '' ? [] : text.split('\n');
+        for (let line = 0; line < lines.length; line++) {
+          const derived = materializeProvisional(text, line, undefined, null);
+          expect(derived?.fact ?? null).toEqual(provisionalFact(text, line));
+          const probe = materializeProbe(text, line);
+          // By its facts and its text, not by identity: every parse allocates
+          // fresh node ids (`zoom.ts`'s `reresolveZoom`), so two parses of the
+          // same bytes are deep-unequal by construction.
+          expect(derived === null ? null : encode(derived.doc)).toEqual(probe);
+          expect(derived === null ? null : decorate(derived.doc)).toEqual(
+            probe === null ? null : decorate(parse(probe)),
+          );
+          expect(derived?.offset ?? 0).toBe(0);
+        }
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it('renders a new-node position at the depth the zoomed view gives its siblings', () => {
+    const scope = resolveZoom(parse(ZOOMED), MID_LINE)!;
+    const derived = materializeProvisional(ZOOMED, POSITION_LINE, undefined, scope)!;
+    // `- one` is what a sibling of this position renders as, and the zoomed view
+    // puts it one level in from the root.
+    const sibling = decorate(scope.document).find(
+      (fact) => fact.lineNumber === 4 - scope.startLine,
+    )!;
+    expect(derived.fact.depth).toBe(sibling.depth);
+    expect(derived.fact.lineNumber).toBe(POSITION_LINE);
+    expect(derived.offset).toBe(scope.startLine);
+    // And the whole-buffer derivation is what put it a level too deep.
+    expect(materializeProvisional(ZOOMED, POSITION_LINE, undefined, null)!.fact.depth).toBe(
+      sibling.depth + 1,
+    );
+  });
+
+  it('leaves every visible line where the zoomed view had it, for a bisecting position', () => {
+    const md = ['# Top', '', '## Mid', '', 'para one', '', 'para two', '', '- item', ''].join('\n');
+    const scope = resolveZoom(parse(md), MID_LINE)!;
+    const derived = materializeProvisional(md, 5, undefined, scope)!;
+    expect(derived.joins).toBe(true);
+
+    const zoomed = decorate(scope.document);
+    const shifted = decorate(derived.doc);
+    for (const line of [2, 4, 6, 8]) {
+      const local = line - scope.startLine;
+      expect(shifted.find((f) => f.lineNumber === local)!.depth).toBe(
+        zoomed.find((f) => f.lineNumber === local)!.depth,
+      );
+    }
+
+    // Derived from the whole buffer instead, the same lines come back one level
+    // right — the hidden ancestor counted twice.
+    const unscoped = decorate(materializeProvisional(md, 5, undefined, null)!.doc);
+    for (const line of [2, 4, 6, 8]) {
+      expect(unscoped.find((f) => f.lineNumber === line)!.depth).toBe(
+        zoomed.find((f) => f.lineNumber === line - scope.startLine)!.depth + 1,
+      );
+    }
+  });
+
+  it('declines for a caret outside the scope, rather than probing a line the view has not got', () => {
+    const scope = resolveZoom(parse(ZOOMED), MID_LINE)!;
+    expect(materializeProvisional(ZOOMED, 1, undefined, scope)).toBeNull();
+  });
+});
+
+describe('a zoomed render composed the way the decoration layer composes it', () => {
+  // `factsFor` and `computeTrail` read an `EditorState`, which the unit suite
+  // cannot build — `decorations.ts` imports `obsidian`. What they DO with the
+  // materialization is arithmetic on line numbers, and that is what these pin;
+  // that the right branch performs it is what `80-outline-zoom` checks.
+  const NESTED = ['# Top', '', '## Mid', '', '- one', '  - nested', '', '- two', ''].join('\n');
+  const BISECTED = ['# Top', '', '## Mid', '', 'para one', '', 'para two', '', '- item', ''].join(
+    '\n',
+  );
+  const LINEAGE: PositionHighlight = { guides: 'lineage', markers: 'lineage' };
+
+  it('lands a bisected subtree on its own source lines, at the zoomed depths', () => {
+    const scope = resolveZoom(parse(BISECTED), 2)!;
+    const derived = materializeProvisional(BISECTED, 5, undefined, scope)!;
+    expect(derived.joins).toBe(true);
+    const before = shiftLines(decorate(scope.document), scope.startLine);
+    const after = shiftLines(decorate(derived.doc), derived.offset);
+
+    // The absolute rows the editor renders, not the sub-document's own — the
+    // shift is the whole of what this branch adds to the derivation.
+    expect(after.map((f) => f.lineNumber)).toEqual([2, 4, 5, 6, 8]);
+    // Depth is the invariant across the position, line by line. WHICH node a
+    // line belongs to is not: the resolved outline reads the position's
+    // neighbours as one node, which is the bisecting case's whole rule.
+    for (const fact of before) {
+      expect(after.find((f) => f.lineNumber === fact.lineNumber)!.depth).toBe(fact.depth);
+    }
+  });
+
+  it('draws no guide column for a hidden ancestor while a position is open', () => {
+    const scope = resolveZoom(parse(NESTED), 2)!;
+    const derived = materializeProvisional(NESTED, 6, undefined, scope)!;
+    const guides = shiftLines(
+      computeLineGuides(scope.document, derived.line - derived.offset),
+      derived.offset,
+    );
+    // The zoom root owns no ancestor column, and its child carries exactly one:
+    // the root's. The whole-note derivation adds `# Top`'s to both.
+    expect(guides.find((g) => g.lineNumber === 2)!.guideDepths).toEqual([]);
+    expect(guides.find((g) => g.lineNumber === 4)!.guideDepths).toEqual([0]);
+
+    const unscoped = computeLineGuides(parse(NESTED), derived.line);
+    expect(unscoped.find((g) => g.lineNumber === 2)!.guideDepths).toEqual([0]);
+    expect(unscoped.find((g) => g.lineNumber === 4)!.guideDepths).toEqual([0, 1]);
+  });
+
+  it('accents the position on a column the zoomed guides actually draw', () => {
+    const scope = resolveZoom(parse(NESTED), 2)!;
+    const derived = materializeProvisional(NESTED, 6, undefined, scope)!;
+    const trail = shiftTrail(
+      computePositionTrail(derived.doc, derived.line - derived.offset, LINEAGE),
+      derived.offset,
+    );
+    const guides = shiftLines(
+      computeLineGuides(scope.document, derived.line - derived.offset),
+      derived.offset,
+    );
+    // Every accent sits on a depth its own line carries a guide at — the clip
+    // `accentsOn` applies, here satisfied rather than papered over.
+    for (const [line, fact] of trail.byLine) {
+      const drawn = guides.find((g) => g.lineNumber === line);
+      const carried = [...(drawn?.guideDepths ?? []), ...(drawn?.listGuideDepths ?? [])];
+      for (const accent of fact.accents) expect(carried).toContain(accent.depth);
+    }
+    expect(trail.byLine.size).toBeGreaterThan(0);
+  });
+
+  it('reads the caret’s ancestors in the zoomed frame, as the typed line would', () => {
+    // `caretScope` feeds the caret-scoped guide modes, which the default `all`
+    // never consults, so this is where that path is pinned. The probe types a
+    // character at the caret, so the position's scope has to be exactly the
+    // scope a caret there has once that character is really typed.
+    const scope = resolveZoom(parse(NESTED), 2)!;
+    const derived = materializeProvisional(NESTED, 6, undefined, scope)!;
+    const provisional = shiftCaretScope(
+      caretGuideScope(derived.doc, derived.line - derived.offset),
+      derived.offset,
+    );
+    const typedText = NESTED.split('\n')
+      .map((line, i) => (i === 6 ? `x${line}` : line))
+      .join('\n');
+    const typed = zoomAwareCaretScope(parse(typedText), 6, resolveZoom(parse(typedText), 2));
+    expect(provisional).toEqual(typed);
+
+    // And what `ancestors` draws from it: the zoom root's column on every row of
+    // its subtree, the position's own row included, and no column for `# Top`,
+    // which the view is hiding.
+    const guides = new Map(
+      shiftLines(
+        computeLineGuides(scope.document, derived.line - derived.offset),
+        derived.offset,
+      ).map((g) => [g.lineNumber, g]),
+    );
+    const ctx = {
+      visibility: 'ancestors' as const,
+      hideSingleRoot: false,
+      singleRoot: hasSingleRoot(scope.document),
+      caret: provisional,
+    };
+    for (const row of [3, 4, 5, 6, 7]) {
+      const g = guides.get(row)!;
+      const depths = [...g.guideDepths, ...g.listGuideDepths].sort((a, b) => a - b);
+      expect(visibleGuideDepths(depths, ctx, row)).toEqual([0]);
+    }
   });
 });
 
