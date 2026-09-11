@@ -224,12 +224,7 @@ describe('the guide gesture', () => {
             ).backgroundImage,
         );
       const rest = await paint();
-      const onGuide = await h.guideColumnPoint(2, 0);
-      await browser
-        .action('pointer', { parameters: { pointerType: 'mouse' } })
-        .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
-        .perform();
-      await browser.pause(150);
+      await h.hoverGuideColumn(2, 0);
       expect(await paint()).not.toBe(rest);
       await h.hoverLineText(2);
     } finally {
@@ -247,12 +242,7 @@ describe('the guide gesture', () => {
     await h.setOutlineMode(true);
     await h.clearFolds();
     await h.setCursorSettled(4, 2);
-    const onGuide = await h.guideColumnPoint(2, 0); // the heading's guide, on "- a"
-    await browser
-      .action('pointer', { parameters: { pointerType: 'mouse' } })
-      .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
-      .perform();
-    await browser.pause(150);
+    await h.hoverGuideColumn(2, 0);
     expect((await h.litGuide()).thickened).toEqual([1, 2, 3, 4]); // the gap line, then the children
   });
 
