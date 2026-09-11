@@ -119,8 +119,22 @@ class ZoomClickPlugin implements PluginValue {
     // the resting pointer, a chevron among the candidates, and put the guide
     // out on the press that acted on it.
     if (!this.lastPointer || !update.docChanged) return;
-    const { x, y, target } = this.lastPointer;
-    queueMicrotask(() => this.hoverGuideAt(x, y, target));
+    // Snapshotted by REFERENCE, and re-checked before acting: a real
+    // `pointermove` between now and the microtask replaces `lastPointer` with
+    // a new object, and that move's own `hoverGuideAt` call already set the
+    // correct state — for a position this doc change knows nothing about,
+    // since it landed after this update was queued. Without the check, the
+    // stale re-derive ran anyway and overwrote the correct hover with one
+    // computed from where the pointer used to be, against whatever geometry
+    // is at that position now. Reached in practice one call in several: a
+    // fresh note load (this same trigger, in another view's `beforeEach`)
+    // races a `pointermove` from the gesture the next moment tests.
+    const snapshot = this.lastPointer;
+    queueMicrotask(() => {
+      if (this.lastPointer !== snapshot) return;
+      const { x, y, target } = snapshot;
+      this.hoverGuideAt(x, y, target);
+    });
   }
 
   destroy(): void {
