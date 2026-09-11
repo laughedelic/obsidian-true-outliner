@@ -1,0 +1,73 @@
+/* ---- PROTOTYPE: search palette shells (throwaway) ------------------------ */
+
+.to-search-prompt .to-search-results {
+  margin-top: 0;
+  padding-top: 0;
+  white-space: normal;
+}
+
+.to-search-prompt .to-search-group {
+  margin-bottom: 0.4rem;
+}
+
+.to-search-prompt .to-search-group-head {
+  cursor: default;
+  font-size: var(--font-ui-small);
+  margin-bottom: 0.15rem;
+}
+
+.to-search-prompt .to-backlinks-group-count {
+  margin-left: auto;
+}
+
+/* A SuggestModal item is the unit of selection: a hit AND the lineage rows
+ * and group head drawn inside it all take the selection background. */
+.to-search-prompt.is-suggest .suggestion-item.to-search-item {
+  white-space: normal;
+  padding: 0.15rem 0.6rem;
+}
+
+/* The CSS-mitigated variant: the item's own selection background is dropped
+ * and only the hit row inside it is marked. */
+.to-search-prompt.is-restyled .suggestion-item.to-search-item.is-selected {
+  background: transparent;
+}
+
+.to-search-prompt.is-restyled .suggestion-item.to-search-item.is-selected .to-search-hit,
+.to-search-prompt.is-custom .to-search-hit.is-active {
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-s);
+  box-shadow: 0 0 0 1px var(--background-modifier-border-hover);
+}
+
+.to-search-prompt.is-custom .prompt-results {
+  padding: 0.4rem 0.6rem;
+}
+
+.to-search-prompt .to-search-hit {
+  cursor: pointer;
+}
+
+.to-search-prompt .to-backlinks-content mark {
+  background: var(--text-highlight-bg);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.to-search-prompt .prompt-input-container {
+  position: relative;
+}
+
+.to-search-prompt .to-search-chip {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-s);
+  padding: 0.1rem 0.4rem;
+  margin-right: 0.5rem;
+  white-space: nowrap;
+}

@@ -1,0 +1,18 @@
+    // PROTOTYPE commands — search palette shells, for comparison only.
+    const look = () => ({ icons: this.backlinksSegmentIcons, separator: this.backlinksSeparator });
+    this.addCommand({
+      id: 'prototype-search-suggest',
+      name: 'Prototype: search palette (SuggestModal)',
+      callback: () => new SuggestSearchPalette(this.app, look(), false).open(),
+    });
+    this.addCommand({
+      id: 'prototype-search-suggest-restyled',
+      name: 'Prototype: search palette (SuggestModal, restyled selection)',
+      callback: () => new SuggestSearchPalette(this.app, look(), true).open(),
+    });
+    this.addCommand({
+      id: 'prototype-search-custom',
+      name: 'Prototype: search palette (custom Modal)',
+      callback: () => new CustomSearchPalette(this.app, look()).open(),
+    });
+
