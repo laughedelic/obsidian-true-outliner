@@ -80,6 +80,7 @@ import {
   BLOCK_LINE_CLASS,
   chromeStyle,
   guideLayer,
+  guideWidthVar,
   lineChrome,
   markerAnchorLeftExpr,
   MARKER_LEFT_SHIFT_EXPR,
@@ -266,11 +267,17 @@ const TRAIL_WIDTH = 'var(--to-trail-width)';
  * size of that padding. Which is why the gap "varied": it WAS the padding.
  */
 function accentLayer(depth: number, extent: TrailExtent): string {
-  const gradient = `linear-gradient(to right, ${ACCENT} 0 ${TRAIL_WIDTH}, transparent ${TRAIL_WIDTH})`;
+  // The trail's width, unless the depth's own width property is set: the
+  // guide gesture thickens the guide under the pointer by setting that, and
+  // an accented column is painted by THIS layer in place of the plain guide —
+  // so without reading it here, a guide the caret was under did not thicken
+  // at all, and nothing said it could be pressed.
+  const width = `var(${guideWidthVar(depth)}, ${TRAIL_WIDTH})`;
+  const gradient = `linear-gradient(to right, ${ACCENT} 0 ${width}, transparent ${width})`;
   const height = extent === 'full' ? '100%' : 'var(--to-accent-stop, 50%)';
   // Centred on the column through the same helper the plain guide uses, so an
   // accent can never sit half a pixel off the guide it is brightening.
-  return `${gradient} ${stripeStartExpr(depth, TRAIL_WIDTH)} top / ${UNIT} ${height} no-repeat`;
+  return `${gradient} ${stripeStartExpr(depth, width)} top / ${UNIT} ${height} no-repeat`;
 }
 
 /**

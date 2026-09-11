@@ -230,6 +230,83 @@ describe('the guide gesture', () => {
     expect(lit).toEqual({ thickened: [1, 2, 3], cursors: [2] });
   });
 
+  it('thickens a guide the caret trail is accenting', async () => {
+    // An accented column is painted by the trail's own layer in place of the
+    // plain guide, at the trail's width. Unless that layer reads the same
+    // per-depth width, a guide the caret is under does not thicken at all —
+    // and nothing says it can be pressed, though the press works.
+    if (h.IS_MOBILE_RUN) return;
+    await h.setGuideVisibility('ancestors');
+    try {
+      await h.setCursorSettled(2, 6); // inside "- root"'s subtree: its guide is accented
+      const paint = () =>
+        browser.executeObsidian(
+          () =>
+            getComputedStyle(
+              document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line')[2]!,
+              '::after',
+            ).backgroundImage,
+        );
+      const rest = await paint();
+      const onGuide = await h.guideColumnPoint(2, 0);
+      await browser
+        .action('pointer', { parameters: { pointerType: 'mouse' } })
+        .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
+        .perform();
+      await browser.pause(150);
+      expect(await paint()).not.toBe(rest);
+      await h.hoverLineText(2);
+    } finally {
+      await h.setGuideVisibility('all');
+    }
+  });
+
+  it('thickens the gap line between a node and its first child', async () => {
+    // A node's span includes the gap it owns before its first child, and the
+    // guide runs through that gap; a run that began after the SPAN left that
+    // one stretch thin.
+    if (h.IS_MOBILE_RUN) return;
+    await h.createNote(NOTE, ['# Head', '', '- a', '  - b', '- c', ''].join('\n'));
+    await h.openNote(NOTE);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+    await h.setCursorSettled(4, 2);
+    const onGuide = await h.guideColumnPoint(2, 0); // the heading's guide, on "- a"
+    await browser
+      .action('pointer', { parameters: { pointerType: 'mouse' } })
+      .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
+      .perform();
+    await browser.pause(150);
+    const thickened = await browser.executeObsidian(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'))
+        .map((el, i) => (el.style.getPropertyValue('--to-guide-width-0') ? i : -1))
+        .filter((i) => i >= 0),
+    );
+    expect(thickened).toEqual([1, 2, 3, 4]); // the gap line, then the children
+  });
+
+  it('lights the guide on a line whose chevron wrapper reaches over it', async () => {
+    // Obsidian's list-line chevron wrapper is thirty pixels wide and reaches
+    // over the guide column on every foldable line. A hover that stood aside
+    // for any control under the target left the guide dark on exactly those
+    // lines; it stands aside only when the point is within the control's own
+    // box, as a press does.
+    if (h.IS_MOBILE_RUN) return;
+    const onGuide = await h.guideColumnPoint(1, 0); // "- first", foldable, wrapper over column 0
+    await browser
+      .action('pointer', { parameters: { pointerType: 'mouse' } })
+      .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
+      .perform();
+    await browser.pause(150);
+    const thickened = await browser.executeObsidian(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'))
+        .map((el, i) => (el.style.getPropertyValue('--to-guide-width-0') ? i : -1))
+        .filter((i) => i >= 0),
+    );
+    expect(thickened).toEqual([1, 2, 3, 4, 5]);
+    await h.hoverLineText(1);
+  });
+
   it('is not offered when guides are not drawn', async () => {
     // The point is measured while they still are, so what changes between the
     // measurement and the press is the guide alone.

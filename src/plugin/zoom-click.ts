@@ -50,7 +50,6 @@ import { parsedDoc } from './parsed-doc';
 import { GUIDES_CLASS, guideWidthVar } from './chrome-line';
 import { guideOwnerAt, toggleGuideAt } from './fold-commands';
 import { foldLines } from './fold-model';
-import { ownSpan } from '../model';
 import { isNestedEditor } from './nested-editor';
 import { OWN_CHROME_CLASS } from './chrome-line';
 import { zoomTo } from './zoom-state';
@@ -198,7 +197,13 @@ class ZoomClickPlugin implements PluginValue {
       remembered?.isConnected === false
         ? this.view.dom.ownerDocument.elementFromPoint(x, y)
         : remembered;
-    if (target?.closest('.cm-fold-indicator, .to-decor-fold-toggle')) {
+    // A control owns the hover on the same terms it owns a press: only when
+    // the point is within its own box. Obsidian's list-line chevron wrapper is
+    // thirty pixels wide and reaches over the guide column on every foldable
+    // line, so bailing on the target alone left the guide dark on exactly
+    // those lines — which read as the hover working only sometimes.
+    const control = target?.closest<HTMLElement>('.cm-fold-indicator, .to-decor-fold-toggle');
+    if (control && controlOwnsPress(control, x, y)) {
       this.clearGuideHover();
       return;
     }
@@ -231,7 +236,10 @@ class ZoomClickPlugin implements PluginValue {
     // span and carries no guide.
     const lines = foldLines(owner.node, owner.startLine);
     if (!lines) return;
-    const first = owner.startLine + ownSpan(owner.node);
+    // From the line after the node's own TEXT, not after its own span: a
+    // node's span includes the gap it owns before its first child, and the
+    // guide runs through that gap — it was the one stretch left thin.
+    const first = owner.startLine + owner.node.lines.length;
     const last = lines.lastLine;
     // Every element that paints guides — lines, gap lines and widget atoms
     // alike — because the guide is thickened in the layer that already draws
