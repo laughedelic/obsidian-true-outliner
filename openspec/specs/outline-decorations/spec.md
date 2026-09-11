@@ -1105,14 +1105,32 @@ only where a real line of the same shape would — a new-node position is a firs
 marker-eligible, subject to the `markerVisibility` setting; a continuation position is not a
 first line and renders no marker; a position whose materialized line would be a list item
 renders no synthetic marker at all. A provisional position SHALL count as CONTENT for the guide
-extent (`outline-decorations`' guide requirement): every guide that reaches the last content
-line above the position SHALL reach the position's own row as well, and SHALL render on each
-blank row in between, so the extension is one unbroken run. WHICH guides those are still comes
-from the document as it actually is — a position adds no depth to a line and removes none, and a
-position that is not past its subtree's last content line extends nothing, because the guides
-already reach it. When the caret leaves, the extension leaves with it and each guide ends at its
-subtree's last content line again. Where a bisection has moved another line's guides, those come
-from the resolved outline with that line's other facts.
+extent (`outline-decorations`' guide requirement). The guides its own row carries SHALL be
+exactly those the node it stands for would carry once its content is really there, among the
+guides the document already has: each belongs to a strict ancestor of that node which already has
+children. Each of those guides SHALL reach the position's own row and SHALL render on each blank
+row between it and the last content line above it, so the extension is one unbroken run, and no
+row in that run SHALL render a guide the position's own row does not.
+
+What decides the set is therefore the node the position stands for, not the node whose trailing
+gap the position's line happens to be. The two differ wherever the position has LEFT a subtree:
+the list whose parent is a paragraph, where Enter on the empty last item stands for a sibling of
+that paragraph, or the blank line below a paragraph with children, where typing at the
+paragraph's column continues the paragraph. A guide belonging to the subtree the position has
+left SHALL NOT render on the position's row or on the rows between, although the gap it sits in
+is inside that subtree. The document still bounds the set from the other side: a position adds no
+depth, so a node that the position would give its first child SHALL NOT render a guide on the
+position's account while it is open. A position still inside every subtree whose guide reaches
+the last content line above it carries all of those guides, and one that is not past its
+subtree's last content line extends nothing, because the guides already reach it. When the caret
+leaves, the extension leaves with it and each guide ends at its subtree's last content line
+again. Where a bisection has moved another line's guides, those come from the resolved outline
+with that line's other facts.
+
+An earlier version of this rule took WHICH guides extend from the document as it actually is,
+keeping on the position's row every guide the gap it sits in inherited. That extended the guide
+of a subtree the position had left, and the row lost that guide the moment a character was typed
+there, contradicting the row-renders-as-it-will-be promise below.
 
 This is a caret-derived layer: it renders only where the user currently is, and it SHALL
 contribute no geometry of its own. The position's own row SHALL render at exactly the column
@@ -1173,6 +1191,29 @@ of its own.
 - **THEN** each guide ends at its subtree's last content line again, and no blank row below it
   renders a guide
 
+#### Scenario: A position that has left a subtree does not carry its guide
+- **WHEN** a list whose parent is a paragraph ends, and Enter on its empty last item leaves a
+  position standing for a new paragraph beside that parent
+- **THEN** the position's row renders the guides of that paragraph's own ancestors and not the
+  paragraph's own guide, exactly the guides the row renders once a character is typed there
+
+#### Scenario: A position still inside the subtree keeps its guide
+- **WHEN** the same keys are pressed on a list whose parent is a heading, so the position stands
+  for a node inside that heading's section
+- **THEN** the heading's guide reaches the position's row
+
+#### Scenario: A position that continues a node does not carry that node's own guide
+- **WHEN** the caret sits on the blank line between a paragraph and its first child, at the
+  column where typing continues the paragraph
+- **THEN** the row renders no guide at the paragraph's own depth, as the paragraph's second line
+  will not once typed
+
+#### Scenario: The rows between narrow with the position
+- **WHEN** a position that has left a subtree sits below blank rows that follow that subtree's
+  last content line
+- **THEN** none of those blank rows renders the left subtree's guide, and each renders the same
+  guides as the position's own row
+
 #### Scenario: A guide does not blink out on an untouched line
 - **WHEN** a bisection changes which node a following list attaches to, so an ancestor's guide
   would stop reaching it
@@ -1198,6 +1239,10 @@ of its own.
   provisional
 - **AND** no OTHER line's indentation, marker, or guides change either, including the lines of
   a node the position had bisected
+- **AND** the one exception is the typing's own doing rather than this layer's: where the
+  position stands for the first child of a node that had none, that node now has a child, so its
+  guide appears on the new line and on the blank rows between the two — the guide the position
+  deliberately did not draw while it was open
 
 #### Scenario: A materialized BLOCK line does not move the caret either
 - **WHEN** a character is typed on a position whose materialized line is a block line, where
@@ -1258,7 +1303,13 @@ displaced line); `e2e/specs/53-decoration-contracts.e2e.ts` (buffer, cursor, and
 unchanged by the rendering); and, for the guide extension, `tests/decorate.test.ts` (a position
 past a subtree's last content line, the blank rows between the two, and the same document
 without the position as the negative control) plus `e2e/specs/51-guides-gradient.e2e.ts` (the
-gradient present on the position's row and absent once the caret leaves).
+gradient present on the position's row and absent once the caret leaves); and, for WHICH guides
+the extension carries, `tests/decorate.test.ts` (the paragraph-parent shape and its heading-parent
+control, the continuation case, the blank rows between, and a differential property over the
+generated corpus — the position's row and the blank rows above it carry what they carry once a
+character is typed, the only allowed difference being a childless parent's depth, asserted by
+mechanism) plus `e2e/specs/51-guides-gradient.e2e.ts` (the paragraph-parent shape driven through
+real keys, its row's gradient layer count against the same row once typed).
 
 ### Requirement: Indentation guides re-base with the zoom scope
 While a zoom scope is active, the indentation guides drawn for a visible line SHALL correspond to

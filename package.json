@@ -1,6 +1,6 @@
 {
   "name": "obsidian-true-outliner",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "A true outliner for Obsidian — mapping core library",
   "main": "src/index.ts",
   "directories": {

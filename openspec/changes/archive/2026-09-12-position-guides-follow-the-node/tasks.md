@@ -57,15 +57,15 @@
       `npm run test:e2e:narrow -- 51-guides-gradient "left a subtree"`, and again with `--mobile`.
 - [x] 3.2 The existing extension case still passes:
       `npm run test:e2e:narrow -- 51-guides-gradient "caret parked past the end of a section"`.
-- [ ] 3.3 Manual pass in `test-vault/`: the report's steps with and without a zoom. The guide no
+- [x] 3.3 Manual pass in `test-vault/`: the report's steps with and without a zoom. The guide no
       longer crosses the position's marker, and typing a character changes nothing on that row.
       Fold anything the fixtures could not judge into `docs/research/32` or
       `docs/research/12-decoration-follow-ups.md`.
 
 ## 4. Land
 
-- [ ] 4.1 Push a checkpoint and confirm the CI matrix is green across every group, desktop and
+- [x] 4.1 Push a checkpoint and confirm the CI matrix is green across every group, desktop and
       mobile.
-- [ ] 4.2 Sync the delta into `openspec/specs/outline-decorations/spec.md`, archive the change,
+- [x] 4.2 Sync the delta into `openspec/specs/outline-decorations/spec.md`, archive the change,
       and bump the version with `npm version patch`, all on the branch before merging.
-- [ ] 4.3 `openspec validate position-guides-follow-the-node --strict`
+- [x] 4.3 `openspec validate position-guides-follow-the-node --strict`
