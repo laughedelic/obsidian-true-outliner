@@ -207,8 +207,8 @@ affordance remain.
 
 #### Scenario: The pointer shows which guide a press would act on
 - **WHEN** the pointer rests on a guide column
-- **THEN** that guide is marked on its line and the cursor says it is clickable, and moving off
-  clears it
+- **THEN** the whole guide is marked, down every line of the subtree a press would act on, the
+  pointer's own line shows the cursor, and moving off clears it
 
 #### Scenario: Clicking a guide collapses the branch beside it
 - **WHEN** the user clicks the guide column belonging to a node whose four children each have

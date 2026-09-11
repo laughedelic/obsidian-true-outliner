@@ -3388,9 +3388,10 @@ body.is-mobile {
 /* ---- The guide gesture's hover (better-folding-ux D7) ----------------------
  *
  * A guide has no element, so the pointer resting on one is arithmetic the
- * gesture already does (`guideHit`); it names the column on the line, and this
- * draws a band over that guide and shows the cursor. Without it the gesture
- * was working and invisible — nothing said where a press would land.
+ * gesture already does (`guideHit`); it names the column on every line the
+ * guide runs through, and this draws the band down all of them — the whole
+ * guide lights, which is the subtree a press would fold. Without it the
+ * gesture was working and invisible — nothing said where a press would land.
  *
  * The band is the line's `::before`, which nothing else uses; the guides
  * themselves are its `::after`. It is positioned the way the overlay positions
@@ -3399,7 +3400,10 @@ body.is-mobile {
  * the accent, which is what this plugin uses for "the node in play" — the band
  * says which subtree the press would fold.
  */
-.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guide-hover {
+/* The cursor only where the pointer is: the band runs down every line of the
+ * subtree, and a pointer cursor over those lines' text would promise a click
+ * that lands in the text. */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line.to-decor-guide-hover-here {
   cursor: pointer;
 }
 

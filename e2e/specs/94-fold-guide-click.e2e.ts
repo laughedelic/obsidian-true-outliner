@@ -146,17 +146,19 @@ describe('the guide gesture', () => {
       .move({ x: Math.round(onGuide.x), y: Math.round(onGuide.y), origin: 'viewport' })
       .perform();
     await browser.pause(150);
+    // The whole guide lights — every line of "- root"'s subtree, which is what
+    // a press would act on — and only the pointer's own line takes the cursor.
     const hovered = await browser.executeObsidian(() => {
-      const el = document.querySelectorAll<HTMLElement>(
-        '.workspace-leaf.mod-active .cm-content > .cm-line',
-      )[2]!;
+      const lines = Array.from(
+        document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'),
+      );
       return {
-        band: el.classList.contains('to-decor-guide-hover'),
-        column: el.style.getPropertyValue('--to-guide-hover'),
-        cursor: getComputedStyle(el).cursor,
+        banded: lines.map((el, i) => (el.classList.contains('to-decor-guide-hover') ? i : -1)).filter((i) => i >= 0),
+        column: lines[2]!.style.getPropertyValue('--to-guide-hover'),
+        cursors: lines.map((el, i) => (getComputedStyle(el).cursor === 'pointer' ? i : -1)).filter((i) => i >= 0),
       };
     });
-    expect(hovered).toEqual({ band: true, column: '0', cursor: 'pointer' });
+    expect(hovered).toEqual({ banded: [1, 2, 3, 4, 5], column: '0', cursors: [2] });
     await h.hoverLineText(2);
     expect(
       await browser.executeObsidian(() =>

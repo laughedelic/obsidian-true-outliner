@@ -49,6 +49,8 @@ import { resolveZoom } from '../zoom';
 import { parsedDoc } from './parsed-doc';
 import { GUIDES_CLASS } from './chrome-line';
 import { toggleGuideAt } from './fold-commands';
+import { ancestryAtLine, subtreeSpan } from './fold-model';
+import { ownSpan } from '../model';
 import { isNestedEditor } from './nested-editor';
 import { OWN_CHROME_CLASS } from './chrome-line';
 import { zoomTo } from './zoom-state';
@@ -69,8 +71,10 @@ import { isOutlineMode } from './outline-state';
  */
 const MARK_SELECTOR = '.to-decor-marker-icon, .list-bullet, .list-number, .to-decor-ol-digits';
 
-/** The line under a pointer that rests on one of its guides, and which one. */
+/** A line the hovered guide runs through, and which column it is; and the one
+ * line the pointer itself is on, which alone shows the cursor. */
 const GUIDE_HOVER_CLASS = 'to-decor-guide-hover';
+const GUIDE_HOVER_HERE_CLASS = 'to-decor-guide-hover-here';
 const GUIDE_HOVER_VAR = '--to-guide-hover';
 
 /** The events a handled press has to swallow, in the order they arrive. */
@@ -80,8 +84,10 @@ class ZoomClickPlugin implements PluginValue {
   private readonly onPointerDown: (event: Event) => void;
   private readonly onTrailing: (event: Event) => void;
   private readonly onPointerMove: (event: Event) => void;
-  /** The line currently showing the guide-hover band, so it can be cleared. */
-  private hoveredGuideLine: HTMLElement | null = null;
+  /** The guide currently lit, so it can be cleared: the pointer's line and
+   * column, and every line the band was drawn on. */
+  private hoveredGuide: { lineEl: HTMLElement; column: number; marked: HTMLElement[] } | null =
+    null;
   /** This view's OWN `Element`, not the module's global — see the module
    * comment on pop-out windows. Read once: a live view's DOM does not move to
    * a different window without being torn down and rebuilt. */
@@ -139,18 +145,20 @@ class ZoomClickPlugin implements PluginValue {
   }
 
   /**
-   * The guide gesture's hover feedback: the column under the pointer, named on
-   * its line so the stylesheet can draw a band there and show the cursor.
+   * The guide gesture's hover feedback: the guide under the pointer, named on
+   * every line it runs through, so the stylesheet can draw the whole of it as
+   * one band — and the cursor on the one line the pointer is on.
    *
    * A guide has no element, so it cannot be hovered — the same fact that makes
    * the gesture arithmetic (`guideHit`) makes its feedback arithmetic too. The
    * manual pass found the gesture working and invisible: nothing said where a
-   * press would land, and a reader who missed the band by a few pixels saw a
-   * click that did nothing and concluded there was nothing to click.
+   * press would land. And a band on the hovered line alone said which column
+   * but not which subtree, which is what a press acts on: the guide is the
+   * owner's, from its first child through its last, and lights up whole.
    *
-   * Two custom properties on the line, only when they change: pointer moves
-   * are frequent, and an unchanged band costs one arithmetic pass and no
-   * style write.
+   * Recomputed only when the pointer changes line or column: pointer moves are
+   * frequent, and an unchanged guide costs one arithmetic pass and no style
+   * write.
    */
   private trackGuide(event: MouseEvent): void {
     if (event.type === 'pointerleave' || isNestedEditor(this.view) || !isOutlineMode(this.view.state)) {
@@ -167,21 +175,47 @@ class ZoomClickPlugin implements PluginValue {
       this.clearGuideHover();
       return;
     }
-    if (this.hoveredGuideLine !== lineEl) this.clearGuideHover();
-    const value = String(column);
-    if (lineEl.style.getPropertyValue(GUIDE_HOVER_VAR) !== value) {
-      lineEl.style.setProperty(GUIDE_HOVER_VAR, value);
-      lineEl.classList.add(GUIDE_HOVER_CLASS);
+    if (this.hoveredGuide?.lineEl === lineEl && this.hoveredGuide.column === column) return;
+    this.clearGuideHover();
+    let pos: number;
+    try {
+      pos = this.view.posAtDOM(lineEl);
+    } catch {
+      return;
     }
-    this.hoveredGuideLine = lineEl;
+    const { doc } = parsedDoc(this.view.state.doc);
+    const lineNumber = this.view.state.doc.lineAt(pos).number - 1;
+    const owner = ancestryAtLine(doc, lineNumber)[column];
+    if (!owner) return;
+    // The lines the owner's guide runs through: its subtree below its own lines.
+    const first = owner.startLine + ownSpan(owner.node);
+    const last = owner.startLine + subtreeSpan(owner.node) - 1;
+    const marked: HTMLElement[] = [];
+    for (const el of Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'))) {
+      let at: number;
+      try {
+        at = this.view.state.doc.lineAt(this.view.posAtDOM(el)).number - 1;
+      } catch {
+        continue;
+      }
+      if (at < first || at > last) continue;
+      el.style.setProperty(GUIDE_HOVER_VAR, String(column));
+      el.classList.add(GUIDE_HOVER_CLASS);
+      marked.push(el);
+    }
+    lineEl.classList.add(GUIDE_HOVER_HERE_CLASS);
+    this.hoveredGuide = { lineEl, column, marked };
   }
 
   private clearGuideHover(): void {
-    const line = this.hoveredGuideLine;
-    if (!line) return;
-    line.classList.remove(GUIDE_HOVER_CLASS);
-    line.style.removeProperty(GUIDE_HOVER_VAR);
-    this.hoveredGuideLine = null;
+    const hovered = this.hoveredGuide;
+    if (!hovered) return;
+    for (const el of hovered.marked) {
+      el.classList.remove(GUIDE_HOVER_CLASS);
+      el.style.removeProperty(GUIDE_HOVER_VAR);
+    }
+    hovered.lineEl.classList.remove(GUIDE_HOVER_HERE_CLASS);
+    this.hoveredGuide = null;
   }
 
   /**
