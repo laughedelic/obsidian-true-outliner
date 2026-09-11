@@ -43,13 +43,13 @@
  * `zoom-view.ts` already uses for the same reason.
  */
 
-import { ViewPlugin, type EditorView, type PluginValue } from '@codemirror/view';
+import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import { resolveZoom } from '../zoom';
 import { parsedDoc } from './parsed-doc';
 import { GUIDES_CLASS } from './chrome-line';
-import { toggleGuideAt } from './fold-commands';
-import { ancestryAtLine, foldLines } from './fold-model';
+import { guideOwnerAt, toggleGuideAt } from './fold-commands';
+import { foldLines } from './fold-model';
 import { ownSpan } from '../model';
 import { isNestedEditor } from './nested-editor';
 import { OWN_CHROME_CLASS } from './chrome-line';
@@ -88,6 +88,10 @@ class ZoomClickPlugin implements PluginValue {
    * column, and every line the band was drawn on. */
   private hoveredGuide: { lineEl: HTMLElement; column: number; marked: HTMLElement[] } | null =
     null;
+  /** Where the pointer last was, so the hover can be re-applied after the
+   * view rebuilds under it — the fold a press makes replaces the very lines
+   * the band was on, and left the guide dark until the pointer moved. */
+  private lastPointer: { x: number; y: number; target: EventTarget | null } | null = null;
   /** This view's OWN `Element`, not the module's global — see the module
    * comment on pop-out windows. Read once: a live view's DOM does not move to
    * a different window without being torn down and rebuilt. */
@@ -110,6 +114,15 @@ class ZoomClickPlugin implements PluginValue {
     for (const type of TRAILING_EVENTS) {
       this.view.dom.addEventListener(type, this.onTrailing, true);
     }
+  }
+
+  update(update: ViewUpdate): void {
+    // The lines the band was on may be gone — a fold replaces them — while the
+    // pointer has not moved. Re-derive from where it last was.
+    if (!this.lastPointer) return;
+    if (!update.docChanged && !update.viewportChanged && !update.transactions.some((t) => t.effects.length > 0)) return;
+    const { x, y, target } = this.lastPointer;
+    queueMicrotask(() => this.hoverGuideAt(x, y, target));
   }
 
   destroy(): void {
@@ -161,21 +174,48 @@ class ZoomClickPlugin implements PluginValue {
    * write.
    */
   private trackGuide(event: MouseEvent): void {
-    if (event.type === 'pointerleave' || isNestedEditor(this.view) || !isOutlineMode(this.view.state)) {
+    if (event.type === 'pointerleave') {
+      this.lastPointer = null;
       this.clearGuideHover();
       return;
     }
-    const target = event.target instanceof this.Element ? event.target : null;
-    const lineEl = target?.closest<HTMLElement>('.cm-line');
+    this.lastPointer = { x: event.clientX, y: event.clientY, target: event.target };
+    this.hoverGuideAt(event.clientX, event.clientY, event.target);
+  }
+
+  /** The hover, from a point — so it can be re-applied after the view rebuilds
+   * under a resting pointer, as a fold does. */
+  private hoverGuideAt(x: number, y: number, eventTarget: EventTarget | null): void {
+    if (isNestedEditor(this.view) || !isOutlineMode(this.view.state)) {
+      this.clearGuideHover();
+      return;
+    }
+    // A target the view has since replaced — the fold a press makes rebuilds
+    // the lines the band was on — still answers `closest` and measures as
+    // nothing. Whatever is under the point NOW stands in for it.
+    const remembered = eventTarget instanceof this.Element ? eventTarget : null;
+    const target =
+      remembered?.isConnected === false
+        ? this.view.dom.ownerDocument.elementFromPoint(x, y)
+        : remembered;
+    if (target?.closest('.cm-fold-indicator, .to-decor-fold-toggle')) {
+      this.clearGuideHover();
+      return;
+    }
+    const lineEl = this.lineElementAt(target, x, y);
     const column =
-      lineEl && lineEl.classList.contains(GUIDES_CLASS) && !target?.closest('.cm-fold-indicator, .to-decor-fold-toggle')
-        ? guideHit(lineEl, event.clientX)
-        : null;
+      lineEl && lineEl.classList.contains(GUIDES_CLASS) ? guideHit(lineEl, x) : null;
     if (!lineEl || column === null) {
       this.clearGuideHover();
       return;
     }
-    if (this.hoveredGuide?.lineEl === lineEl && this.hoveredGuide.column === column) return;
+    if (
+      this.hoveredGuide?.lineEl === lineEl &&
+      this.hoveredGuide.column === column &&
+      this.hoveredGuide.marked.every((el) => el.isConnected)
+    ) {
+      return;
+    }
     this.clearGuideHover();
     let pos: number;
     try {
@@ -183,9 +223,8 @@ class ZoomClickPlugin implements PluginValue {
     } catch {
       return;
     }
-    const { doc } = parsedDoc(this.view.state.doc);
     const lineNumber = this.view.state.doc.lineAt(pos).number - 1;
-    const owner = ancestryAtLine(doc, lineNumber)[column];
+    const owner = guideOwnerAt(this.view.state, lineNumber, column);
     if (!owner) return;
     // The lines the owner's guide runs through: its subtree below its own
     // lines, to the last CONTENT line — a trailing gap is in the subtree's
@@ -209,6 +248,28 @@ class ZoomClickPlugin implements PluginValue {
     }
     lineEl.classList.add(GUIDE_HOVER_HERE_CLASS);
     this.hoveredGuide = { lineEl, column, marked };
+  }
+
+  /**
+   * The line a point is on. The event's own target when it is in one; by
+   * coordinates otherwise, because a guide's band is centred on a line the
+   * pointer can be LEFT of — the outermost guide runs along the line box's
+   * own edge, and half of its band, and a press there, landed on the content
+   * container and on nothing. `posAtCoords` in its imprecise mode answers for
+   * a point outside any line's box with the nearest line at that height.
+   */
+  private lineElementAt(target: Element | null, x: number, y: number): HTMLElement | null {
+    const own = target?.closest<HTMLElement>('.cm-line');
+    if (own) return own;
+    // The editor, not the content: the strip left of every line box belongs to
+    // the scroller (measured), and that strip is where the outermost guide's
+    // outer half lies. The text side is excluded downstream, where a press
+    // right of a line's own text start is never a guide press.
+    if (!target || !this.view.dom.contains(target)) return null;
+    const pos = this.view.posAtCoords({ x, y }, false);
+    const node = this.view.domAtPos(this.view.state.doc.lineAt(pos).from).node;
+    const el = node.nodeType === 1 ? (node as Element) : node.parentElement;
+    return el?.closest<HTMLElement>('.cm-line') ?? null;
   }
 
   private clearGuideHover(): void {
@@ -240,7 +301,7 @@ class ZoomClickPlugin implements PluginValue {
     // guide's second press reopened one child instead of two.
     const control = target?.closest<HTMLElement>('.cm-fold-indicator, .to-decor-fold-toggle');
     if (control && controlOwnsPress(control, event.clientX, event.clientY)) return false;
-    const lineEl = target?.closest<HTMLElement>('.cm-line');
+    const lineEl = this.lineElementAt(target, event.clientX, event.clientY);
     if (!lineEl) return false;
     // A guide is drawn only when guides are drawn: an affordance that
     // disappears with a display setting cannot be the only route to an
@@ -393,11 +454,20 @@ function guideHit(lineEl: HTMLElement, clientX: number): number | null {
   // text, whatever column it happens to line up with. Measured in the same
   // frame, so the text's own start moves back by the overlay's origin too.
   if (offset > parseFloat(getComputedStyle(lineEl).paddingLeft) - origin) return null;
-  const tolerance = unit / 3;
+  // Wider on the left than on the right. Right of a guide, within a gutter,
+  // sits the mark of the node one level in, and the chevron beside it — the
+  // band must stop short of both, and a third of a unit does. Left of a guide
+  // is the parent level's own empty run: nothing else claims it until the next
+  // guide, half a unit away, so the band reaches nearly to the midpoint. The
+  // chevron of a node at THIS level sits in that run too, but only on the
+  // node's own line, where this guide is not painted at all.
+  const toleranceRight = unit / 3;
+  const toleranceLeft = unit / 2 - 2;
   for (const part of after.backgroundPositionX.split(',')) {
     const x = parseFloat(part);
     if (Number.isNaN(x)) continue;
-    if (Math.abs(offset - x) > tolerance) continue;
+    const delta = offset - x;
+    if (delta > toleranceRight || -delta > toleranceLeft) continue;
     // The painted position is inset by half the guide's own width; rounding
     // against the unit recovers the level it stands for.
     return Math.max(0, Math.round(x / unit));

@@ -66,7 +66,7 @@ class ZoomViewPlugin implements PluginValue {
     // scope opens what IT finds, and excluded from that, so zooming out does
     // not reopen on the way what the exit just restored.
     const restored = this.restoreOnLeaving(previous, scope);
-    const unfold = scope ? this.unfoldInside(scope, restored.ranges) : [];
+    const unfold = scope ? this.unfoldForScope(scope, restored.ranges) : [];
     const opened = unfold.map((effect) => effect.value as { from: number; to: number });
     const effects: StateEffect<unknown>[] = [...restored.effects, ...unfold];
     if (scope && opened.length > 0) {
@@ -98,26 +98,30 @@ class ZoomViewPlugin implements PluginValue {
   }
 
   /**
-   * Every fold inside the new scope, as the effects that open them.
+   * Every fold the zoom opens on entering a scope, as the effects that open
+   * them.
    *
    * A zoomed view of a folded subtree shows a heading and nothing else, which is
    * the opposite of what the gesture asked for — and there is no way out of it
    * from inside, since the fold chevron of a collapsed root is the only control
    * left on screen. Opening them is what makes the view a focus view.
-   *
-   * Only what the scope CONTAINS. A fold elsewhere in the note is none of zoom's
-   * business, and clearing the zoom leaves it exactly as it was.
    */
-  private unfoldInside(
+  private unfoldForScope(
     scope: NonNullable<ReturnType<typeof zoomScope>>,
     except: readonly { from: number; to: number }[] = [],
   ): StateEffect<unknown>[] {
-    const { doc } = this.view.state;
-    const from = doc.line(scope.cover.start.line + 1).from;
-    const to = doc.line(Math.min(scope.cover.end.line + 1, doc.lines)).to;
+    // Every fold in the document, not only the scope's. A fold OUTSIDE the
+    // scope is hidden whole by the zoom, and Obsidian paints its collapsed
+    // indicator on the visual block that holds the fold's start — which, for
+    // anything the zoom's tail hides, is the block ending on the scope's last
+    // visible line. Measured: with a later sibling folded, the scope's last
+    // child wore a collapsed chevron and a click on it unfolded something
+    // off-screen. Opened for the zoom's duration and put back on leaving, the
+    // same way the scope's own folds are, so "left alone" holds as "left as
+    // found".
     const effects: StateEffect<unknown>[] = [];
     const skip = new Set(except.map((r) => `${r.from}:${r.to}`));
-    foldedRanges(this.view.state).between(from, to, (a, b) => {
+    foldedRanges(this.view.state).between(0, this.view.state.doc.length, (a, b) => {
       if (!skip.has(`${a}:${b}`)) effects.push(unfoldEffect.of({ from: a, to: b }));
     });
     return effects;

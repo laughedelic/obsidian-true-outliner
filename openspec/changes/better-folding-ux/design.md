@@ -325,6 +325,15 @@ nothing a reader could tell from there being nothing to press. The same arithmet
 pointer moves and names the column on its line, and the stylesheet draws a band over that guide
 in the accent and shows the cursor.
 
+Four things the third and fourth manual rounds settled about the arithmetic. Painted columns count
+from what the view roots at, so inside a zoom the column is offset by the root's depth before the
+ancestry chain is indexed. The line under the pointer is found by coordinates when the target is
+not a line, because the outermost guide's band is half outside every line's box. The band is wider
+on the left (nearly half a unit) than on the right (a third): right of a guide sit the next level's
+mark and chevron; left of it is the parent level's empty run. And the hover is re-applied after the
+view rebuilds under a resting pointer, since the fold a press makes replaces the lines the band was
+on.
+
 This dissolves the parking-lot blocker, which assumed a hit area had to be invented. It also keeps
 the guides themselves `pointer-events: none`, so nothing about their painting changes.
 
@@ -346,6 +355,12 @@ past it, or clearing — folds them again if still intact and not the one the ca
 the scope being entered on the way out opens only what it finds folded *less* those, so zooming
 out does not reopen what the exit restored. Nested zooms keep a stack keyed by anchor: the inner
 scope restores what it opened and nothing more.
+
+Folds OUTSIDE the scope are opened for the zoom's duration as well, and restored the same way.
+Measured on the fourth round: Obsidian paints a hidden fold's collapsed indicator on the visual
+block holding the fold's start, and everything the zoom's tail hides is one block ending on the
+scope's last visible line — so a later sibling's fold put a collapsed chevron on the scope's last
+child, and a press on it unfolded something off-screen.
 
 ### D8. Persistence is Obsidian's, and the setting is a suppression
 

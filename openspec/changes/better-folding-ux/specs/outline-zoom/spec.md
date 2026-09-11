@@ -9,9 +9,12 @@ on a mark — so the caret and the current-node highlight never disagree about w
 
 A subtree that is FOLDED SHALL be opened when it becomes the zoom scope. A focus view of a
 collapsed node shows its first line and nothing else, and the only control left on screen is the
-fold chevron that got it there. Folds outside the scope SHALL be left alone.
+fold chevron that got it there. Folds OUTSIDE the scope SHALL be opened for the zoom's duration
+as well, and put back on leaving: Obsidian paints a hidden fold's collapsed indicator on the
+nearest visible line, which under a zoom is the scope's own edge — a control there would unfold
+something off-screen.
 
-Leaving a zoom SHALL restore the folds it opened: clearing the zoom, or zooming out past the
+Leaving a zoom SHALL restore the folds it opened, inside the scope or out: clearing the zoom, or zooming out past the
 scope, SHALL fold again every node the zoom unfolded that is still intact — so a reader who zoomed
 into a folded node comes back to it folded, as they left it. A node the reader unfolded themselves
 while zoomed, or one that no longer exists as it was, or the one the caret now sits in, is not
@@ -33,6 +36,11 @@ content belongs to no line, and a click there SHALL leave the caret inside the s
 #### Scenario: Zooming into a folded node opens it
 - **WHEN** the user zooms into a node whose subtree is folded
 - **THEN** the whole subtree renders
+
+#### Scenario: A fold outside the zoom shows no control on the scope's edge
+- **WHEN** a later sibling is folded and the user zooms into a node before it
+- **THEN** the scope's last line carries no collapsed indicator, and clearing the zoom folds the
+  sibling again
 
 #### Scenario: Clearing the zoom folds it again
 - **WHEN** the user zooms into a folded node and clears the zoom

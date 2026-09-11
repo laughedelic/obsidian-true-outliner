@@ -210,6 +210,18 @@ affordance remain.
 - **THEN** the whole guide is marked, down every line of the subtree a press would act on, the
   pointer's own line shows the cursor, and moving off clears it
 
+#### Scenario: A guide inside a zoom names the level it is drawn at
+- **WHEN** the view is zoomed into a nested node and the user presses one of its descendants' guides
+- **THEN** the children of the node at that drawn level fold, not those of an ancestor above the zoom
+
+#### Scenario: The outermost guide takes a press from either side
+- **WHEN** the user presses just left of the line box, on the outermost guide's band
+- **THEN** the guide's children fold
+
+#### Scenario: The guide stays lit after a press
+- **WHEN** the user presses a guide and leaves the pointer where it is
+- **THEN** the guide is still marked and the cursor still says it is clickable
+
 #### Scenario: Clicking a guide collapses the branch beside it
 - **WHEN** the user clicks the guide column belonging to a node whose four children each have
   children of their own, none folded

@@ -191,6 +191,11 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       and Shift+Down keeps it folded (the reveal rule counted the fold's own end as hidden);
       leaving a zoom folds again what it opened (D7a, an `outline-zoom` delta); the guide gesture
       shows its band under the pointer. Tests and negative controls for each
+- [x] 10.3d Fourth manual round: a fold outside a zoom painted its collapsed indicator on the
+      scope's edge (opened for the zoom, restored on leaving); the guide gesture names its owner
+      by the level the zoom draws it at, takes a press left of the line box, keeps its band after
+      the press that folds under it, and reaches nearly half a unit to the left. Tests and negative
+      controls for each
 - [ ] 10.3 Manual pass in a real vault against the proposal's bullets, one by one, including the
       two the measurements found (a moved folded node, Enter on a folded node) — and the one the
       harness could not settle: fold with Obsidian's "Fold heading" and "Fold indent" turned off

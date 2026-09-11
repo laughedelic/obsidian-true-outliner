@@ -140,6 +140,25 @@ export function toggleFoldAtLine(view: EditorView, lineNumber: number): boolean 
 }
 
 /**
+ * The node a guide belongs to: the ancestor of this line at the level the
+ * guide is DRAWN at.
+ *
+ * Painted columns count from what the VIEW roots at. Unzoomed, that is the
+ * document's own root, and the ancestry chain is indexed by the column
+ * directly. Zoomed, the scope's root is drawn at column 0 whatever its depth
+ * in the document, so the column is offset by that depth before indexing —
+ * without which a press on a guide inside a zoom resolved to an ancestor above
+ * the zoom, and the hover band ran across lines whose own marks sit on that
+ * column.
+ */
+export function guideOwnerAt(state: EditorState, lineNumber: number, column: number): FoldEntry | null {
+  const { doc } = parsedDoc(state.doc);
+  const chain = ancestryAtLine(doc, lineNumber);
+  const scope = zoomScope(state);
+  return chain[column + (scope ? scope.depth : 0)] ?? null;
+}
+
+/**
  * The guide gesture: fold or unfold every child of the node that guide belongs
  * to.
  *
@@ -148,15 +167,11 @@ export function toggleFoldAtLine(view: EditorView, lineNumber: number): boolean 
  * single branch by collapsing everything beside it is what this exists for, and
  * that reading is reached in one click from any starting state.
  *
- * `depth` is the level the guide is DRAWN at, and the ancestry chain is indexed
- * by exactly that: both count from the document's own root. The guide at column
- * 0 therefore belongs to the top-level node whose subtree the line sits in, not
- * to the line itself.
+ * `depth` is the level the guide is DRAWN at — `guideOwnerAt` says how that
+ * names a node.
  */
 export function toggleGuideAt(view: EditorView, lineNumber: number, depth: number): boolean {
-  const { doc } = parsedDoc(view.state.doc);
-  const chain = ancestryAtLine(doc, lineNumber);
-  const owner = chain[depth];
+  const owner = guideOwnerAt(view.state, lineNumber, depth);
   if (!owner) return false;
   const children: FoldEntry[] = [];
   let startLine = owner.startLine + ownSpan(owner.node);

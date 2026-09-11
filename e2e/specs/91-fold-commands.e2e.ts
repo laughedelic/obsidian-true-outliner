@@ -231,6 +231,34 @@ describe('fold commands', () => {
     ]);
   });
 
+  it('opens a fold outside the zoom too, and folds it again on leaving', async () => {
+    // Obsidian paints a fold's collapsed indicator on the visual block holding
+    // the fold's start, and everything the zoom's tail hides is one block
+    // ending on the scope's last visible line — so with "- two" folded, zooming
+    // into "- one" wore a collapsed chevron on "nested b", and a press on it
+    // unfolded something off-screen. Opened for the zoom, put back on leaving.
+    await h.setCursorSettled(7, 3);
+    await h.runCommand('fold-node');
+    await h.setCursorSettled(4, 3);
+    await h.runCommand('zoom-in');
+    await browser.pause(200);
+    try {
+      expect(await h.foldedLineRanges()).toEqual([]);
+      const collapsedOnEdge = await browser.executeObsidian(({ app, obsidian }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cm = (app.workspace.getActiveViewOfType(obsidian.MarkdownView)!.editor as any).cm;
+        const node = cm.domAtPos(cm.state.doc.line(7).from).node as Node; // "  - nested b", line 6
+        const el = (node.nodeType === 1 ? (node as Element) : node.parentElement!).closest('.cm-line');
+        return el?.querySelector('.cm-fold-indicator.is-collapsed') !== null;
+      });
+      expect(collapsedOnEdge).toBe(false);
+    } finally {
+      await h.runCommand('zoom-clear');
+      await browser.pause(200);
+    }
+    expect(await h.foldedLineRanges()).toEqual([{ from: 7, to: 8 }]);
+  });
+
   it('walks the outline’s depth one level at a time', async () => {
     await h.setCursorSettled(0, 2);
     await h.runCommand('fold-more');

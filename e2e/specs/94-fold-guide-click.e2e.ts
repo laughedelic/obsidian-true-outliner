@@ -169,6 +169,72 @@ describe('the guide gesture', () => {
     ).toBe(false);
   });
 
+  it('names the guide by the level the zoom draws it at', async () => {
+    // Painted columns count from what the view roots at. Zoomed into "- work",
+    // its own guide is column 0 and "thread"'s is column 1 — while the
+    // document's ancestry chain still starts at the heading. Indexed by the
+    // painted column directly, a press on "thread"'s guide resolved to
+    // "work" and folded "thread" whole, and the hover band ran across lines
+    // whose own bullets sit on that column.
+    await h.createNote(HEADED, HEADED_DOC);
+    await h.openNote(HEADED);
+    await h.setOutlineMode(true);
+    await h.clearFolds();
+    await h.setCursorSettled(2, 3);
+    await h.runCommand('zoom-in');
+    try {
+      await h.setCursorSettled(6, 3);
+      // Column 1 in the zoom is "thread"'s guide; its children with children
+      // are "prototype review" and "open questions".
+      await h.clickGuideColumn(4, 1); // DOM line 4 is document line 6 in the zoom
+      expect(await h.foldedLineRanges()).toEqual([
+        { from: 5, to: 6 },
+        { from: 7, to: 8 },
+      ]);
+    } finally {
+      await h.runCommand('zoom-clear');
+    }
+  });
+
+  it('takes a press left of the line box, on the outermost guide', async () => {
+    // The outermost guide runs along the line box's own edge, so half of its
+    // band is outside every line — and a press there landed on the content
+    // container and on nothing. The line is found by coordinates when the
+    // target is not one. The band is wider on the left than the right, too:
+    // nothing else claims the run between a guide and the one before it.
+    await h.clickGuideColumn(2, 0, { offsetFraction: -0.35 });
+    expect(await h.foldedLineRanges()).toEqual([
+      { from: 1, to: 2 },
+      { from: 3, to: 4 },
+    ]);
+  });
+
+  it('keeps the guide lit after the press that folds under it', async () => {
+    // The fold replaces the very lines the band was on while the pointer has
+    // not moved, which left the guide dark — and the cursor a caret — after
+    // the first press, though a second press still worked.
+    if (h.IS_MOBILE_RUN) return;
+    const onGuide = await h.guideColumnPoint(2, 0);
+    await h.clickAtPoint(onGuide.x, onGuide.y);
+    await browser.pause(300);
+    expect(await h.foldedLineRanges()).toEqual([
+      { from: 1, to: 2 },
+      { from: 3, to: 4 },
+    ]);
+    const lit = await browser.executeObsidian(() => {
+      const lines = Array.from(
+        document.querySelectorAll<HTMLElement>('.workspace-leaf.mod-active .cm-content > .cm-line'),
+      );
+      return {
+        banded: lines.map((el, i) => (el.classList.contains('to-decor-guide-hover') ? i : -1)).filter((i) => i >= 0),
+        cursors: lines.map((el, i) => (getComputedStyle(el).cursor === 'pointer' ? i : -1)).filter((i) => i >= 0),
+      };
+    });
+    // Lines 2 and 4 are folded away; the band runs down what is left of the
+    // subtree, and the pointer's line — DOM line 2, "second" now — has the cursor.
+    expect(lit).toEqual({ banded: [1, 2, 3], cursors: [2] });
+  });
+
   it('is not offered when guides are not drawn', async () => {
     // The point is measured while they still are, so what changes between the
     // measurement and the press is the guide alone.
