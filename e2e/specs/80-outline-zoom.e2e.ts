@@ -716,6 +716,30 @@ describe('outline zoom', function () {
     expect(await h.getBuffer()).toBe(DOC);
   });
 
+  it('lights the zoom root’s guide for a provisional position under the ancestors mode', async function () {
+    // The caret-scoped modes are the only readers of the caret's ancestor
+    // chain, and the default `all` never consults it — so this runs under
+    // `ancestors`, where a chain read in the wrong frame leaves the rows below
+    // the position dark. `- two` is the reference: a real node with the same
+    // ancestors as the position, so the row measured never holds the caret.
+    await openZoomable();
+    await zoomAt(DOC, '## Mid');
+    await h.setPluginSetting('guideVisibility', 'ancestors');
+    try {
+      await h.setCursorSettled(6, 5); // '- two'
+      await browser.pause(150);
+      const reference = await h.getLineElementInfo(8); // 'Trailing para.'
+      expect(reference.guideBackground).not.toBe('');
+
+      await h.setCursorSettled(7, 0); // the provisional position
+      await browser.pause(150);
+      const during = await h.getLineElementInfo(8);
+      expect(during.guideBackground).toBe(reference.guideBackground);
+    } finally {
+      await h.setPluginSetting('guideVisibility', 'all');
+    }
+  });
+
   it('keeps a visible line chrome intact while hiding', async function () {
     await openZoomable();
     await zoomAt(DOC, '## Mid');

@@ -17,8 +17,10 @@ import {
   materializeProbe,
   materializeProvisional,
   provisionalFact,
+  shiftCaretScope,
   shiftLines,
   shiftTrail,
+  zoomAwareCaretScope,
   zoomAwarePositionTrail,
   type LineDecorationFact,
   type PositionHighlight,
@@ -1399,6 +1401,45 @@ describe('a zoomed render composed the way the decoration layer composes it', ()
       for (const accent of fact.accents) expect(carried).toContain(accent.depth);
     }
     expect(trail.byLine.size).toBeGreaterThan(0);
+  });
+
+  it('reads the caret’s ancestors in the zoomed frame, as the typed line would', () => {
+    // `caretScope` feeds the caret-scoped guide modes, which the default `all`
+    // never consults, so this is where that path is pinned. The probe types a
+    // character at the caret, so the position's scope has to be exactly the
+    // scope a caret there has once that character is really typed.
+    const scope = resolveZoom(parse(NESTED), 2)!;
+    const derived = materializeProvisional(NESTED, 6, undefined, scope)!;
+    const provisional = shiftCaretScope(
+      caretGuideScope(derived.doc, derived.line - derived.offset),
+      derived.offset,
+    );
+    const typedText = NESTED.split('\n')
+      .map((line, i) => (i === 6 ? `x${line}` : line))
+      .join('\n');
+    const typed = zoomAwareCaretScope(parse(typedText), 6, resolveZoom(parse(typedText), 2));
+    expect(provisional).toEqual(typed);
+
+    // And what `ancestors` draws from it: the zoom root's column on every row of
+    // its subtree, the position's own row included, and no column for `# Top`,
+    // which the view is hiding.
+    const guides = new Map(
+      shiftLines(
+        computeLineGuides(scope.document, derived.line - derived.offset),
+        derived.offset,
+      ).map((g) => [g.lineNumber, g]),
+    );
+    const ctx = {
+      visibility: 'ancestors' as const,
+      hideSingleRoot: false,
+      singleRoot: hasSingleRoot(scope.document),
+      caret: provisional,
+    };
+    for (const row of [3, 4, 5, 6, 7]) {
+      const g = guides.get(row)!;
+      const depths = [...g.guideDepths, ...g.listGuideDepths].sort((a, b) => a - b);
+      expect(visibleGuideDepths(depths, ctx, row)).toEqual([0]);
+    }
   });
 });
 
