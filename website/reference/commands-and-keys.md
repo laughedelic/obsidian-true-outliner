@@ -11,6 +11,13 @@ All commands are in the command palette under the **True Outliner** prefix. Exce
 | **Outdent node** | none | Move it one level shallower. Same as Shift+Tab. |
 | **Move node up** | Mod+Shift+ArrowUp | Swap the node, subtree included, with its previous sibling. |
 | **Move node down** | Mod+Shift+ArrowDown | Swap it with its next sibling. |
+| **Fold node** | Mod+Alt+ArrowUp | Fold the node at the caret, or its nearest ancestor with children. |
+| **Unfold node** | Mod+Alt+ArrowDown | Unfold it. |
+| **Toggle fold** | Mod+Alt+Period | Fold or unfold it. |
+| **Fold all nodes** | none | Fold every node with children; inside a zoom, only within it. |
+| **Unfold all nodes** | none | Unfold everything. |
+| **Fold one level more** | none | Fold the deepest level still open. |
+| **Fold one level less** | none | Unfold the shallowest folded level. |
 | **Zoom in to node** | none | Show only the node at the caret, or the first node of a selection, with a breadcrumb trail. |
 | **Zoom out one level** | none | Make the zoomed node's parent the zoom root. Only while zoomed. |
 | **Zoom out fully** | none | Return to the whole note. Only while zoomed. |
@@ -42,6 +49,8 @@ These bindings are part of outline mode and are not rebindable; switch outline m
 | Gesture | Action |
 | --- | --- |
 | **Click a marker** (gutter icon, bullet or number) | Zoom into that node |
+| **Click the fold chevron** on a marker | Fold or unfold that node |
+| **Click a guide line** | Fold every child under it that has children, or unfold them all if every one is folded |
 | **Click a breadcrumb** in the zoom trail | Zoom to that ancestor; the note's name zooms out fully |
 | **Click the backlinks header** | Fold or unfold the footer |
 | **Click a backlink row** | Open the source note at that node; Mod+click opens it in a new pane |

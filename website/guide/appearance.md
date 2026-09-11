@@ -33,7 +33,7 @@ Two highlights show the caret's place in the tree. Both are paint only, never mo
 
 ## Folding
 
-Folding is Obsidian's own. In outline mode the fold chevron is centred on the node's marker and kept clear of the guides, so it reads as part of the node. Zooming into a folded node unfolds it.
+A folded node keeps its marker, drawn in a solid weight, and shows the number of hidden descendants after its text; nothing else appears. The fold chevron sits on the node's marker, clear of the guides. See [Folding](./folding).
 
 ## Themes and snippets
 

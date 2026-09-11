@@ -13,6 +13,14 @@ Every setting, in the order it appears under **Settings → True Outliner**. On 
 
 **Show outline mode in the status bar** picks what the status bar chip shows for the active tab: an icon, the words *Outline on* / *Outline off*, or nothing at all. Desktop only.
 
+## Folding
+
+| Setting | Choices | Default |
+| --- | --- | --- |
+| **Remember folds** | on / off | on |
+
+**Remember folds** decides whether a note reopens with the nodes that were folded when it was left. Fold state lives in Obsidian's workspace data, never in the note, so a file is byte-identical however much of it is folded. Off, every note opens fully expanded.
+
 ## Structured backlinks
 
 | Setting | Choices | Default |
