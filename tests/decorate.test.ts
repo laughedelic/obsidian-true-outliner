@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { makeNode, type OutlineDoc } from '../src/model';
 import { parse } from '../src/parse';
 import { encode } from '../src/encode';
-import { arbMarkdownText } from './generators';
+import { arbMarkdownText, arbTree } from './generators';
 import { planKey } from '../src/plugin/grammar';
 import {
   caretGuideScope,
@@ -23,9 +23,27 @@ import {
   zoomAwareCaretScope,
   zoomAwarePositionTrail,
   type LineDecorationFact,
+  type LineGuideFact,
   type PositionHighlight,
+  type ProvisionalMaterialization,
 } from '../src/plugin/decorate';
 import { resolveZoom } from '../src/zoom';
+
+/**
+ * The row a provisional position's line becomes once a character is typed at
+ * `ch` — what `factsFor` hands `computeLineGuides` for a position that stands
+ * for a new node.
+ */
+function typedRow(md: string, line: number, ch?: number): LineGuideFact {
+  const probe = materializeProbe(md, line, ch)!;
+  return computeLineGuides(parse(probe)).find((g) => g.lineNumber === line)!;
+}
+
+/** The same row, for a position materialized against a zoom scope. */
+function typedRowOf(derived: ProvisionalMaterialization): LineGuideFact {
+  const local = derived.line - derived.offset;
+  return computeLineGuides(derived.doc).find((g) => g.lineNumber === local)!;
+}
 
 describe('decorate: indentation depth', () => {
   it('agrees across heading, list, and paragraph-adjacency encodings', () => {
@@ -617,7 +635,7 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       // The SAME document with a position open on line 6, which is what makes
       // this control exact: nothing about the text differs, only the caret.
       const open = new Map(
-        computeLineGuides(parse(md), 6).map((f) => [f.lineNumber, f]),
+        computeLineGuides(parse(md), typedRow(md, 6)).map((f) => [f.lineNumber, f]),
       );
       expect(open.get(6)?.guideDepths).toEqual([0, 1]);
       // And the row between, or the extension would have a hole in it.
@@ -630,7 +648,7 @@ describe('computeLineGuides: per-line active guide depths (Experiment 2b)', () =
       // that does not exist yet.
       const md = ['# H', '', '## A', ''].join('\n');
       const open = new Map(
-        computeLineGuides(parse(md), 3).map((f) => [f.lineNumber, f]),
+        computeLineGuides(parse(md), typedRow(md, 3)).map((f) => [f.lineNumber, f]),
       );
       expect(open.get(3)?.guideDepths).toEqual([0]);
     });
@@ -943,7 +961,7 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       const md = ['# H', '', '## A', '', 'para', '', ''].join('\n');
       const probe = md.split('\n');
       probe[6] = 'x';
-      const open = new Map(computeLineGuides(parse(md), 6).map((g) => [g.lineNumber, g]));
+      const open = new Map(computeLineGuides(parse(md), typedRow(md, 6)).map((g) => [g.lineNumber, g]));
       expect(open.get(6)?.guideDepths).toEqual([0, 1]);
       expect(trail(probe.join('\n'), 6, FULL).byLine.get(6)?.accents.map((a) => a.depth)).toEqual([
         0, 1,
@@ -960,7 +978,7 @@ describe('computePositionTrail: caret-derived accents (hierarchy-position-indica
       const md = ['# H', '', '## A', ''].join('\n');
       const t = trail(['# H', '', '## A', 'x'].join('\n'), 3, FULL);
       expect(t.byLine.get(3)?.accents.map((a) => a.depth)).toEqual([0, 1]);
-      const guides = new Map(computeLineGuides(parse(md), 3).map((g) => [g.lineNumber, g]));
+      const guides = new Map(computeLineGuides(parse(md), typedRow(md, 3)).map((g) => [g.lineNumber, g]));
       expect(guides.get(3)?.guideDepths).toEqual([0]);
     });
 
@@ -1369,7 +1387,7 @@ describe('a zoomed render composed the way the decoration layer composes it', ()
     const scope = resolveZoom(parse(NESTED), 2)!;
     const derived = materializeProvisional(NESTED, 6, undefined, scope)!;
     const guides = shiftLines(
-      computeLineGuides(scope.document, derived.line - derived.offset),
+      computeLineGuides(scope.document, typedRowOf(derived)),
       derived.offset,
     );
     // The zoom root owns no ancestor column, and its child carries exactly one:
@@ -1377,7 +1395,7 @@ describe('a zoomed render composed the way the decoration layer composes it', ()
     expect(guides.find((g) => g.lineNumber === 2)!.guideDepths).toEqual([]);
     expect(guides.find((g) => g.lineNumber === 4)!.guideDepths).toEqual([0]);
 
-    const unscoped = computeLineGuides(parse(NESTED), derived.line);
+    const unscoped = computeLineGuides(parse(NESTED), typedRow(NESTED, derived.line));
     expect(unscoped.find((g) => g.lineNumber === 2)!.guideDepths).toEqual([0]);
     expect(unscoped.find((g) => g.lineNumber === 4)!.guideDepths).toEqual([0, 1]);
   });
@@ -1390,7 +1408,7 @@ describe('a zoomed render composed the way the decoration layer composes it', ()
       derived.offset,
     );
     const guides = shiftLines(
-      computeLineGuides(scope.document, derived.line - derived.offset),
+      computeLineGuides(scope.document, typedRowOf(derived)),
       derived.offset,
     );
     // Every accent sits on a depth its own line carries a guide at — the clip
@@ -1425,7 +1443,7 @@ describe('a zoomed render composed the way the decoration layer composes it', ()
     // which the view is hiding.
     const guides = new Map(
       shiftLines(
-        computeLineGuides(scope.document, derived.line - derived.offset),
+        computeLineGuides(scope.document, typedRowOf(derived)),
         derived.offset,
       ).map((g) => [g.lineNumber, g]),
     );
@@ -1546,8 +1564,11 @@ describe('provisionalFact: what a caret-occupied blank line would become', () =>
       [['# H', '', 'para', '', '', '', 'next', ''].join('\n'), 4],
       [['# H', '', '- alpha', '  - beta', '    ', ''].join('\n'), 4],
       [['- item', '', '\t', '', '\tpara', ''].join('\n'), 2],
+      // The list whose parent is a paragraph: the position stands for that
+      // paragraph's sibling, so the paragraph's own guide is not its to carry.
+      [['# H', '', 'para', '', '- a', '- b', '', ''].join('\n'), 6],
     ] as const) {
-      const real = computeLineGuides(parse(md), line).find((g) => g.lineNumber === line)!;
+      const real = computeLineGuides(parse(md), typedRow(md, line)).find((g) => g.lineNumber === line)!;
       const probe = md.split('\n');
       probe[line] = `${probe[line]}x`;
       const previewed = computeLineGuides(parse(probe.join('\n'))).find(
@@ -1984,5 +2005,149 @@ describe('the overlay reproduces the facts the keypress displaced (design D1/D2)
       }),
       { numRuns: 300 },
     );
+  });
+});
+
+describe('a position carries the guides of the node it stands for', () => {
+  // `outline-decorations`: a position's row renders as it will once typed, its
+  // guides included. The row keeps what the gap it sits in inherited only where
+  // the node the position stands for would carry it too.
+
+  /** Enter at `cursor`, as the grammar writes it, with the caret it leaves. */
+  function enter(
+    text: string,
+    cursor: { line: number; ch: number },
+  ): { text: string; cursor: { line: number; ch: number } } {
+    const outcome = planKey(text, cursor, 'split');
+    if (outcome === null || 'notice' in outcome) throw new Error('Enter was refused');
+    const next = applyPlanChanges(text, outcome.plan.changes);
+    const selection = outcome.plan.selection;
+    const head = typeof selection === 'number' ? selection : selection.head;
+    const before = next.slice(0, head).split('\n');
+    return { text: next, cursor: { line: before.length - 1, ch: before[before.length - 1]!.length } };
+  }
+
+  function enterTwiceAtEndOf(md: string, line: number) {
+    const first = enter(md, { line, ch: (md.split('\n')[line] ?? '').length });
+    return enter(first.text, first.cursor);
+  }
+
+  const open = (md: string, line: number, ch?: number) =>
+    new Map(computeLineGuides(parse(md), typedRow(md, line, ch)).map((g) => [g.lineNumber, g]));
+  const closed = (md: string) =>
+    new Map(computeLineGuides(parse(md)).map((g) => [g.lineNumber, g]));
+
+  it('drops the guide of a subtree the position has left', () => {
+    // A list whose parent is a paragraph: Enter, Enter at the end of "- b"
+    // leaves a position standing for a new paragraph, "para"'s sibling.
+    const { text, cursor } = enterTwiceAtEndOf(['# H', '', 'para', '', '- a', '- b', ''].join('\n'), 5);
+    expect(text).toBe(['# H', '', 'para', '', '- a', '- b', '', ''].join('\n'));
+    expect(cursor).toEqual({ line: 6, ch: 0 });
+
+    const withPosition = open(text, cursor.line, cursor.ch);
+    expect(withPosition.get(6)?.guideDepths).toEqual([0]);
+    expect(withPosition.get(6)?.guideDepths).toEqual(typedRow(text, 6, 0).guideDepths);
+    // Nothing above the position moves.
+    const without = closed(text);
+    for (let row = 0; row < 6; row++) {
+      expect({ row, g: withPosition.get(row)?.guideDepths }).toEqual({
+        row,
+        g: without.get(row)?.guideDepths,
+      });
+    }
+  });
+
+  it('keeps the guide of a subtree the position is still inside', () => {
+    // The control: the list's parent is the heading, and the position stays in
+    // the heading's section, so the guide it inherits is its own.
+    const { text, cursor } = enterTwiceAtEndOf(['# H', '', '- a', '- b', ''].join('\n'), 3);
+    expect(cursor).toEqual({ line: 4, ch: 0 });
+    expect(open(text, cursor.line, cursor.ch).get(4)?.guideDepths).toEqual([0]);
+  });
+
+  it('carries no guide of the node a position continues', () => {
+    // Column 0 of the blank line below "para" continues "para", and a node's
+    // own line never carries that node's guide — although the gap before its
+    // first child does, with the caret elsewhere.
+    const md = ['para', '', '- a', ''].join('\n');
+    expect(closed(md).get(1)?.guideDepths).toEqual([0]);
+    expect(open(md, 1, 0).get(1)?.guideDepths).toEqual([]);
+  });
+
+  it('narrows the blank rows between the position and the content above', () => {
+    // 0 "# H"  1 ""  2 "para"  3 ""  4 "- a"  5 ""  6 "" (caret)
+    const md = ['# H', '', 'para', '', '- a', '', ''].join('\n');
+    const g = open(md, 6, 0);
+    expect(g.get(6)?.guideDepths).toEqual([0]);
+    expect(g.get(5)?.guideDepths).toEqual([0]);
+  });
+
+  describe('matches the row once typed, over generated documents', () => {
+    /**
+     * Every blank line the probe accepts, at its end and at column 0, compared
+     * with the same buffer once a character is typed there — on the position's
+     * row and the blank run directly above it, which are the rows the
+     * extension governs. Composed the way `factsFor` composes it, with the
+     * bisection gate read inline rather than through `positionBisectsANode`.
+     */
+    function check(md: string): void {
+      const lines = md === '' ? [] : md.split('\n');
+      const raw = decorate(parse(md));
+      const content = new Set(raw.map((f) => f.lineNumber));
+      for (let line = 0; line < lines.length; line++) {
+        for (const ch of new Set([lines[line]!.length, 0])) {
+          const probe = materializeProbe(md, line, ch);
+          if (probe === null) continue;
+          const materialized = decorate(parse(probe));
+          const own = materialized.find((f) => f.lineNumber === line)!;
+          const next = materialized.find((f) => f.lineNumber === line + 1);
+          const bisects = !own.isFirstLine && next !== undefined && !next.isFirstLine;
+          const typed = new Map(computeLineGuides(parse(probe)).map((g) => [g.lineNumber, g]));
+          const row = typed.get(line)!;
+          const opened = new Map(
+            (bisects ? computeLineGuides(parse(probe)) : computeLineGuides(parse(md), row)).map(
+              (g) => [g.lineNumber, g],
+            ),
+          );
+
+          // The node the position would give its first child, if it has none.
+          let childlessParent: number | null = null;
+          for (let q = line - 1; q >= 0; q--) {
+            const f = raw.find((x) => x.lineNumber === q);
+            if (f && f.isFirstLine && f.depth === own.depth - 1) {
+              if (!f.hasChildren) childlessParent = own.depth - 1;
+              break;
+            }
+          }
+
+          for (let r = line; r === line || (r >= 0 && !content.has(r)); r--) {
+            const o = opened.get(r);
+            const t = typed.get(r);
+            if (!o || !t) break;
+            for (const track of ['guideDepths', 'listGuideDepths'] as const) {
+              const extra = o[track].filter((d) => !t[track].includes(d));
+              const missing = t[track].filter((d) => !o[track].includes(d));
+              expect({ md, line, ch, r, track, extra }).toEqual({ md, line, ch, r, track, extra: [] });
+              expect({ md, line, ch, r, track, missing }).toEqual({
+                md,
+                line,
+                ch,
+                r,
+                track,
+                missing: missing.length > 0 && missing.every((d) => d === childlessParent) ? missing : [],
+              });
+            }
+          }
+        }
+      }
+    }
+
+    it('holds over arbMarkdownText', () => {
+      fc.assert(fc.property(arbMarkdownText, check), { numRuns: 300 });
+    });
+
+    it('holds over arbTree', () => {
+      fc.assert(fc.property(arbTree().map(encode), check), { numRuns: 100 });
+    });
   });
 });
