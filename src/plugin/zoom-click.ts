@@ -49,7 +49,7 @@ import { resolveZoom } from '../zoom';
 import { parsedDoc } from './parsed-doc';
 import { GUIDES_CLASS } from './chrome-line';
 import { toggleGuideAt } from './fold-commands';
-import { ancestryAtLine, subtreeSpan } from './fold-model';
+import { ancestryAtLine, foldLines } from './fold-model';
 import { ownSpan } from '../model';
 import { isNestedEditor } from './nested-editor';
 import { OWN_CHROME_CLASS } from './chrome-line';
@@ -187,9 +187,13 @@ class ZoomClickPlugin implements PluginValue {
     const lineNumber = this.view.state.doc.lineAt(pos).number - 1;
     const owner = ancestryAtLine(doc, lineNumber)[column];
     if (!owner) return;
-    // The lines the owner's guide runs through: its subtree below its own lines.
+    // The lines the owner's guide runs through: its subtree below its own
+    // lines, to the last CONTENT line — a trailing gap is in the subtree's
+    // span and carries no guide.
+    const lines = foldLines(owner.node, owner.startLine);
+    if (!lines) return;
     const first = owner.startLine + ownSpan(owner.node);
-    const last = owner.startLine + subtreeSpan(owner.node) - 1;
+    const last = lines.lastLine;
     const marked: HTMLElement[] = [];
     for (const el of Array.from(this.view.contentDOM.querySelectorAll<HTMLElement>('.cm-line'))) {
       let at: number;
