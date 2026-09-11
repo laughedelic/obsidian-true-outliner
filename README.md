@@ -1,9 +1,9 @@
 # True Outliner
 
-True outliner experience for Obsidian
+True outliner experience for Obsidian: edit the structure of any note, not just its text.
 
-> [!WARNING]
-> **Work in progress.** This is an early-stage, research-heavy project, not a usable plugin yet. It's public because the work happens in the open, not because it's ready for users. There's no release, no install instructions, and no support yet, check back later. If you want to support the project or have opinions on the direction, please open a [discussion](https://github.com/laughedelic/obsidian-true-outliner/discussions).
+> [!NOTE]
+> **Early preview.** True Outliner is usable today and under active development, but it is not yet in the community plugin directory and defaults may still change. The **[website](https://laughedelic.github.io/obsidian-true-outliner/)** has the user guide, the [installation steps](https://laughedelic.github.io/obsidian-true-outliner/guide/installation) (BRAT or manual, from the [releases](https://github.com/laughedelic/obsidian-true-outliner/releases)), a [comparison with other outliners](https://laughedelic.github.io/obsidian-true-outliner/guide/compared) and the [known limitations](https://laughedelic.github.io/obsidian-true-outliner/reference/limitations). Opinions on the direction are welcome in the [discussions](https://github.com/laughedelic/obsidian-true-outliner/discussions).
 
 ## Vision
 
