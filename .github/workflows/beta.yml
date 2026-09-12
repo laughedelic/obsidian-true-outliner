@@ -1,0 +1,104 @@
+name: Beta
+
+# Testing a branch on mobile, where there is no vault folder to copy a build
+# into. BRAT installs a plugin from a GitHub release, and reads prereleases
+# when it is tracking a beta — so every push to a branch publishes one, and the
+# phone picks it up with "Check for updates".
+#
+# Prereleases are invisible to the community-plugin updater and to the Release
+# workflow, which fires on `manifest.json` landing on main. The version here is
+# computed at build time and never committed, so the two cannot collide.
+
+on:
+  push:
+    branches-ignore: [main]
+  delete:
+  schedule:
+    # Sweeps betas whose branch is gone. Weekly: this only reclaims clutter.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One beta per branch matters more than every push producing one: a push that
+# supersedes another leaves the older build's release unpublished, which is
+# what we would have deleted anyway.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: npm
+
+      - run: npm ci
+        shell: bash
+
+      - name: Derive the beta version
+        id: version
+        shell: bash
+        run: node scripts/beta-version.mjs "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+      # Written into the built manifest only. Committing it would move
+      # manifest.json, which is what triggers a real release from main.
+      - name: Stamp the version into manifest.json
+        shell: bash
+        run: |
+          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' manifest.json > manifest.tmp
+          mv manifest.tmp manifest.json
+
+      - run: npm run build:plugin
+        shell: bash
+
+      - name: Publish the prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          assets="main.js manifest.json"
+          [[ -f styles.css ]] && assets="$assets styles.css"
+          gh release create "${{ steps.version.outputs.version }}" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.version.outputs.version }}" \
+            --notes "Beta build of \`$GITHUB_REF_NAME\` at ${GITHUB_SHA:0:7}. Install with BRAT; deleted when the branch is." \
+            $assets
+
+      # Only the newest build of a branch is worth keeping — BRAT installs the
+      # highest version and nothing reaches back for an earlier one.
+      - name: Drop this branch's older betas
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/beta-cleanup.mjs \
+            --keep "${{ steps.version.outputs.version }}" \
+            --slug "${{ steps.version.outputs.slug }}"
+
+  # A branch deleted on merge takes its betas with it. This job lives on the
+  # default branch's copy of the workflow, so it only starts working once this
+  # change is merged; the scheduled sweep covers anything it misses.
+  cleanup:
+    if: github.event_name == 'delete' || github.event_name == 'schedule'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - name: Delete betas with no live branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/beta-cleanup.mjs --orphans
