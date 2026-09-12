@@ -361,3 +361,45 @@ function pastTaskMarker(doc: OutlineDoc, caret: LinePos): LinePos {
   const task = taskMarkerLength(line.slice(boundary));
   return task === 0 ? caret : { line: caret.line, ch: boundary + task };
 }
+
+/**
+ * Where "delete to the start of the line" — Mod-Backspace on macOS — stops
+ * on a list item's own line (`content-space-caret`).
+ *
+ * `delete`: the caret is past the line's content start, and the range from
+ * that start to the caret is what goes. The start is `contentBoundaryCh`,
+ * the same boundary Home reaches on the same raw line — past the marker on
+ * the item's first line, past the alignment whitespace on a continuation
+ * line, spaces and tabs only, as markdown indentation is — plus a task
+ * marker on the first line when the item carries one, so the checkbox
+ * survives as it does when a caret is placed past it. A bare `[ ]` at the
+ * end of the line is not a task marker here, as it is not to split or to
+ * the Backspace merge: the item has no text, and the plan removes the
+ * checkbox, leaving `- `, rather than a single `]`. The range never starts
+ * at column 0, which is what keeps it out of the exact-subtree-cover reading
+ * that turned CodeMirror's own line-start deletion into a node deletion
+ * (docs/research/delete-to-content-start).
+ *
+ * `backspace`: the caret is at or inside the content start, and the key does
+ * what Backspace does there — the merge or veto the content-start rules
+ * already give, and ordinary editing inside the marker.
+ *
+ * `null`: not a list item's own line — a paragraph, a heading, an atom, or a
+ * gap line the caret was placed on — and the key stays stock. A paragraph's
+ * content start is column 0, so there is nothing for this rule to add there.
+ */
+export type DeleteToContentStartPlan =
+  | { readonly kind: 'delete'; readonly from: LinePos }
+  | { readonly kind: 'backspace' }
+  | null;
+
+export function planDeleteToContentStart(doc: OutlineDoc, caret: LinePos): DeleteToContentStartPlan {
+  const node = nodeAtLine(doc, caret.line);
+  if (!node || node.kind !== 'list-item') return null;
+  const lineIndex = caret.line - nodeStartLine(doc, node.id);
+  const line = node.lines[lineIndex];
+  if (line === undefined) return null;
+  const boundary = contentBoundaryCh(node, line);
+  const start = lineIndex === 0 ? boundary + taskMarkerLength(line.slice(boundary)) : boundary;
+  return caret.ch > start ? { kind: 'delete', from: { line: caret.line, ch: start } } : { kind: 'backspace' };
+}

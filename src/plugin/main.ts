@@ -61,7 +61,7 @@ import { planCaret, type CaretOp } from '../caret-policy';
 import { editsToChanges, mapCursorForward, type EditorChange } from './dispatch';
 import { REJECTION_MESSAGES } from './messages';
 import { compareWithSections, type SectionInfo } from './crosscheck';
-import { grammarExtension, setMotionProbe } from './keymap';
+import { deleteToContentStart, grammarExtension, setMotionProbe } from './keymap';
 import { nestedEditorExtension } from './nested-editor';
 import {
   backlinksFooterExtension,
@@ -82,6 +82,7 @@ import { zoomDecorationsExtension } from './zoom-decorations';
 import { zoomTrailExtension } from './zoom-trail';
 import { zoomViewExtension } from './zoom-view';
 import { viewFor } from './view-registry';
+import { deleteLineBoundaryBackward } from '@codemirror/commands';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
 import { operandEscapes, parentOf, reresolveZoom, resolveZoom } from '../zoom';
@@ -270,6 +271,21 @@ export default class TrueOutlinerPlugin extends Plugin {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view?.file) return false;
         if (!checking) this.toggleActiveTab();
+        return true;
+      },
+    });
+
+    // The Mod-Backspace rule as a command, so it can be given a hotkey on the
+    // platforms where the key itself is not bound (see `deleteToContentStart`).
+    // Outside a list item's own line it falls back to what the key does
+    // natively, so the command is the key, wherever it is invoked from.
+    this.addCommand({
+      id: 'delete-to-content-start',
+      name: 'Delete to content start',
+      editorCheckCallback: (checking, _editor, ctx) => {
+        const cm = viewFor(ctx);
+        if (!cm || !isOutlineMode(cm.state)) return false;
+        if (!checking && !deleteToContentStart(cm)) deleteLineBoundaryBackward(cm);
         return true;
       },
     });

@@ -654,3 +654,84 @@ describe('content-space-caret', function () {
     });
   });
 });
+
+describe('content-space-caret: delete to content start (delete-to-content-start)', function () {
+  // Mod-Backspace is bound on macOS only, as CodeMirror's own binding is, so
+  // the e2e runner (Linux) drives the same handler through the
+  // `delete-to-content-start` command; the command falls back to CodeMirror's
+  // line-boundary deletion wherever the handler declines, which is what the
+  // key does there. Measured shapes: docs/research/delete-to-content-start.
+  const NOTE = 'Scratch/delete-to-content-start.md';
+  async function outlineNote(content: string): Promise<void> {
+    await h.createNote(NOTE, content);
+    await h.setOutlineMode(true);
+  }
+  const deleteToContentStart = (): Promise<void> => h.runCommand('delete-to-content-start');
+
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+
+  afterEach(async function () {
+    await h.dismissNotices();
+  });
+
+  it('D1 - an item followed directly by its sibling keeps its line and its marker; the node is not deleted', async function () {
+    // Stock: the range 0–12 is an exact subtree cover, so the enforcement layer
+    // removed the whole node and put the caret on the next item.
+    await outlineNote('- alpha beta\n- gamma\n');
+    await h.resetStats();
+    await h.setCursor(0, 12);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- \n- gamma\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
+    expect((await h.getStats()).verdictCounts.rewrite).toBe(0);
+  });
+
+  it('D2 - a nested item keeps its indentation and marker, caret at its content start', async function () {
+    await outlineNote('- alpha\n  - gamma delta\n');
+    await h.setCursor(1, 15);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha\n  - \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 4 });
+  });
+
+  it('D3 - a task item keeps its checkbox', async function () {
+    // Settled, not merely set: the checkbox widget's mount moves the caret on a
+    // later pass, and under mobile emulation it lands before the command runs
+    // (measured on CI: the command then ran from the content start, a
+    // Backspace with no predecessor, and the buffer stayed as it was).
+    await outlineNote('- [ ] task text\n');
+    await h.setCursorSettled(0, 15);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- [ ] \n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 6 });
+  });
+
+  it('D4 - a continuation line keeps its alignment', async function () {
+    await outlineNote('- first\n  second line\n');
+    await h.setCursor(1, 13);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- first\n  \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+  });
+
+  it('D5 - at the content start it is a Backspace: the merge the content-start rules give', async function () {
+    await outlineNote('- alpha\n- beta\n');
+    await h.resetStats();
+    await h.setCursor(1, 2);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alphabeta\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 7 });
+    expect((await h.getStats()).verdictCounts.rewrite).toBe(1);
+  });
+
+  it('D6 - a paragraph stays stock: the whole line goes', async function () {
+    await outlineNote('Para text\n');
+    await h.setCursor(0, 9);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 0 });
+  });
+});
