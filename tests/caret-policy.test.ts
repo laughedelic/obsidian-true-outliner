@@ -260,10 +260,9 @@ describe('the deletion convention answers positionally across a re-parse', () =>
    */
   // Its own budget, three times the configured one: every run walks every
   // node of a generated tree and deletes each in turn, re-encoding and
-  // re-walking the result, so its cost grows with the square of a tree's size.
-  // Measured at 8 s alone on a developer machine and 23 s on a hosted runner
-  // sharing its CPU with the other test files — past the 20 s the config
-  // gives, on a pull request that changed nothing this test reads.
+  // re-walking the result, so its cost grows with the square of a tree's size
+  // and outruns the shared budget on a runner whose CPU the other test files
+  // share.
   it('predecessor content end is identical before and after the deletion', { timeout: 60_000 }, () => {
     fc.assert(
       fc.property(arbTree(), (doc) => {
