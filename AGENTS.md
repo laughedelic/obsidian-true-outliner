@@ -178,6 +178,10 @@ per-group matrix — CI already gives that; this path exists for a headless run,
   a change does, and that pair's row in `WRITERS`. The persisted shape, the defaults, the allow-list
   and both settings-tab renderings derive from `settings.ts`'s list of slices, which changes when a
   feature area is added, not when a setting is.
+- **A feature's e2e helpers live beside its specs**, imported by name — `e2e/footer.ts`, `e2e/folding.ts` —
+  and `e2e/helpers.ts` keeps what every spec reaches for: the buffer, the caret, the pointer, the
+  vault, commands, notices, keys. A helper that only one feature's specs call goes in that feature's
+  module, and a feature that has none gets one when it needs one.
 - **A feature's CSS goes in its own part under `styles/`**, not in the editor's. The root
   `styles.css` is a build output (`scripts/styles.mjs` joins the parts in filename order, which
   is cascade order), so a new feature adds a part with the next prefix and edits no shared file.

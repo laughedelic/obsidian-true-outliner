@@ -11,6 +11,7 @@
 import { browser, expect } from '@wdio/globals';
 
 import * as h from '../helpers.js';
+import { clearFolds, foldedLineRanges, renderedLineTexts, waitForRead } from '../folding.js';
 
 const NOTE = 'Scratch/fold-commands.md';
 
@@ -51,7 +52,7 @@ async function freshNote(): Promise<void> {
   await h.setOutlineMode(true);
   // Rewriting the note does not reset its folds — they live in workspace state,
   // per file, which is exactly what `92-fold-persistence` asserts on purpose.
-  await h.clearFolds();
+  await clearFolds();
 }
 
 describe('fold commands', () => {
@@ -62,7 +63,7 @@ describe('fold commands', () => {
   it('folds the node the caret is in', async () => {
     await h.setCursorSettled(4, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
   });
 
   it('escalates from a leaf to the branch above it', async () => {
@@ -71,9 +72,9 @@ describe('fold commands', () => {
     // caret, which the fold is about to hide, comes back to the folded line.
     await h.setCursorSettled(5, 6);
     await h.runCommand('toggle-fold');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
     expect(await h.getCursor()).toEqual({ line: 4, ch: 5 });
-    expect(await h.renderedLineTexts()).toEqual([
+    expect(await renderedLineTexts()).toEqual([
       'Top',
       '',
       'Intro paragraph:',
@@ -100,11 +101,11 @@ describe('fold commands', () => {
     await h.setCursorSettled(4, 3);
     await h.runCommand('fold-node');
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
     await h.runCommand('unfold-node');
-    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await foldedLineRanges()).toEqual([]);
     await h.runCommand('unfold-node');
-    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await foldedLineRanges()).toEqual([]);
   });
 
   it('changes neither the document nor the undo history', async () => {
@@ -125,23 +126,23 @@ describe('fold commands', () => {
   it('opens a fold when a position is placed inside what it hides', async () => {
     await h.setCursorSettled(4, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
     // A computed position — a command, a breadcrumb, a backlink — can land
     // inside hidden text where an arrow key cannot. The fold opens rather than
     // leaving a caret in content nobody can see.
     await h.setCursor(6, 4);
-    await browser.waitUntil(async () => (await h.foldedLineRanges()).length === 0, {
+    await browser.waitUntil(async () => (await foldedLineRanges()).length === 0, {
       timeout: 2000,
       timeoutMsg: 'the fold did not open for a caret inside it',
     });
-    expect(await h.renderedLineTexts()).toContain('  - nested b');
+    expect(await renderedLineTexts()).toContain('  - nested b');
   });
 
   it('folds every covered subtree under a block selection', async () => {
     // Lines 4–8: "- one" and "- two", both with children.
     await h.setSelection({ line: 4, ch: 0 }, { line: 8, ch: 3 });
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 4, to: 6 },
       { from: 7, to: 8 },
     ]);
@@ -150,7 +151,7 @@ describe('fold commands', () => {
   it('folds all, including the paragraph Obsidian’s own fold-all cannot reach', async () => {
     await h.setCursorSettled(0, 2);
     await h.runCommand('fold-all');
-    const folded = await h.foldedLineRanges();
+    const folded = await foldedLineRanges();
     // Every node with children, the paragraph among them. Obsidian's own
     // fold-all reaches headings and list items only, so the `2 → 8` range is
     // the one that could not exist without this plugin.
@@ -169,13 +170,13 @@ describe('fold commands', () => {
     // heading every time, after two attempts to wait it out. The FOLD is what
     // is asserted here, and the focus is not part of it.
     await h.setCursorSettled(0, 2);
-    await h.waitForRead(
-      () => h.renderedLineTexts(),
+    await waitForRead(
+      () => renderedLineTexts(),
       (seen) => seen.length === 2 && /^(# )?Top8…$/.test(seen[0] ?? '') && seen[1] === '',
       'the folded head line and the trailing line on screen',
     );
     await h.runCommand('unfold-all');
-    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await foldedLineRanges()).toEqual([]);
   });
 
   it('offers unfold-all only for a fold inside the zoom', async () => {
@@ -185,7 +186,7 @@ describe('fold commands', () => {
     // the only fold outside the zoom — and then did nothing when run.
     await h.setCursorSettled(4, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 4, to: 6 }]);
     await h.setCursorSettled(7, 3);
     await h.runCommand('zoom-in');
     try {
@@ -208,24 +209,24 @@ describe('fold commands', () => {
     await h.runCommand('fold-node');
     await h.setCursorSettled(7, 3);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 4, to: 6 },
       { from: 7, to: 8 },
     ]);
     await h.setCursorSettled(0, 3);
     await h.runCommand('zoom-in');
     await browser.pause(200);
-    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await foldedLineRanges()).toEqual([]);
     await h.setCursorSettled(4, 3);
     await h.runCommand('zoom-in');
     await browser.pause(200);
     await h.runCommand('zoom-out');
     await browser.pause(200);
-    expect(await h.foldedLineRanges()).toEqual([]); // the inner scope opened nothing
+    expect(await foldedLineRanges()).toEqual([]); // the inner scope opened nothing
     await h.setCursorSettled(0, 3);
     await h.runCommand('zoom-clear');
     await browser.pause(200);
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 4, to: 6 },
       { from: 7, to: 8 },
     ]);
@@ -243,7 +244,7 @@ describe('fold commands', () => {
     await h.runCommand('zoom-in');
     await browser.pause(200);
     try {
-      expect(await h.foldedLineRanges()).toEqual([]);
+      expect(await foldedLineRanges()).toEqual([]);
       const collapsedOnEdge = await browser.executeObsidian(({ app, obsidian }) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cm = (app.workspace.getActiveViewOfType(obsidian.MarkdownView)!.editor as any).cm;
@@ -256,27 +257,27 @@ describe('fold commands', () => {
       await h.runCommand('zoom-clear');
       await browser.pause(200);
     }
-    expect(await h.foldedLineRanges()).toEqual([{ from: 7, to: 8 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 7, to: 8 }]);
   });
 
   it('walks the outline’s depth one level at a time', async () => {
     await h.setCursorSettled(0, 2);
     await h.runCommand('fold-more');
     // The deepest unfolded level first: the two list parents at depth 2.
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 4, to: 6 },
       { from: 7, to: 8 },
     ]);
     await h.runCommand('fold-more');
     // Depth 1 is the paragraph AND the second heading — a level, not a node.
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 2, to: 8 },
       { from: 4, to: 6 },
       { from: 7, to: 8 },
       { from: 10, to: 12 },
     ]);
     await h.runCommand('fold-less');
-    expect(await h.foldedLineRanges()).toEqual([
+    expect(await foldedLineRanges()).toEqual([
       { from: 4, to: 6 },
       { from: 7, to: 8 },
     ]);
@@ -320,7 +321,7 @@ describe('fold commands', () => {
     );
     await h.openNote(withFrontmatter);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
 
     await h.setCursorSettled(1, 3); // inside the frontmatter — no node at all
     expect(await h.commandAvailable('toggle-fold')).toBe(false); // no operand, correctly
@@ -328,7 +329,7 @@ describe('fold commands', () => {
     expect(await h.commandAvailable('fold-more')).toBe(true);
 
     await h.runCommand('fold-all');
-    expect((await h.foldedLineRanges()).length).toBeGreaterThan(0);
+    expect((await foldedLineRanges()).length).toBeGreaterThan(0);
     // And once everything is folded there is no level left to fold.
     expect(await h.commandAvailable('fold-all')).toBe(false);
     expect(await h.commandAvailable('unfold-all')).toBe(true);

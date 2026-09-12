@@ -9,6 +9,7 @@
 
 import { expect } from '@wdio/globals';
 import * as h from '../helpers.js';
+import { clearFolds, closeActiveLeaf, foldedLineRanges, renderedLineTexts } from '../folding.js';
 
 const NOTE = 'Scratch/fold-persistence.md';
 
@@ -26,35 +27,35 @@ describe('fold persistence', () => {
     await h.createNote(NOTE, DOC);
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
   });
 
   it('brings the same folds back when the note is reopened', async () => {
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
     await h.setCursorSettled(0, 3);
-    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 5 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 2, to: 5 }]);
 
-    await h.closeActiveLeaf();
+    await closeActiveLeaf();
     await h.openNote(NOTE);
     // The paragraph is the case that could not persist before this change:
     // Obsidian's restore validates a saved fold against `foldable()`, and
     // nothing called a paragraph foldable.
-    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 5 }]);
-    expect(await h.renderedLineTexts()).not.toContain('  - nested');
+    expect(await foldedLineRanges()).toEqual([{ from: 2, to: 5 }]);
+    expect(await renderedLineTexts()).not.toContain('  - nested');
   });
 
   it('opens everything when "Remember folds" is off', async () => {
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 5 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 2, to: 5 }]);
 
     await h.setPluginSetting('rememberFolds', false);
     try {
-      await h.closeActiveLeaf();
+      await closeActiveLeaf();
       await h.openNote(NOTE);
-      expect(await h.foldedLineRanges()).toEqual([]);
-      expect(await h.renderedLineTexts()).toContain('  - nested');
+      expect(await foldedLineRanges()).toEqual([]);
+      expect(await renderedLineTexts()).toContain('  - nested');
     } finally {
       await h.setPluginSetting('rememberFolds', true);
     }
