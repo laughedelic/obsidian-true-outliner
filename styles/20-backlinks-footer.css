@@ -3,7 +3,7 @@
  * BACKLINKS FOOTER — the outline vocabulary on a DOM that is not `.cm-line`
  * ===========================================================================
  *
- * The second surface the chrome token layer at the top of this file exists for.
+ * The second surface the chrome token layer at the top of `10-editor.css` exists for.
  * Geometry and colour come from those tokens; nothing here restates a number
  * the editor also uses, which is the whole point of having them.
  *
@@ -11,7 +11,7 @@
  * content, with depth applied to the row's own box — so the two scopes stay
  * legible against each other. What is NOT shared is the DOM: the footer's rows
  * are ordinary divs, and trying to make them `.cm-line`s in order to reuse the
- * selectors above was considered and rejected (design.md D-C).
+ * editor's selectors was considered and rejected (design.md D-C).
  *
  * Carded, not flowing: at full note width the identical chrome would otherwise
  * make another note's tree read as part of this one (docs/research/structured-backlinks, D6).
@@ -301,7 +301,7 @@
 
 /*
  * A row IS an outline line. Its depth, its marker column and its guides all
- * come from the shared contract above (`.to-decor-block` / `.to-decor-atom` /
+ * come from the shared contract in `10-editor.css` (`.to-decor-block` / `.to-decor-atom` /
  * `.to-decor-guides`), so nothing here positions anything — this rule only says
  * how a footer row differs from an editor line: it is clickable, and it is a
  * little tighter vertically.
@@ -828,7 +828,7 @@
  *
  * Placed where the editor places its own — right edge at
  * `column - icon/2 - 3px`, clear of the marker's left edge by the same 3px
- * visual gap (see the `.cm-fold-indicator` rules above, whose gutter term is a
+ * visual gap (see the `.cm-fold-indicator` rules in `10-editor.css`, whose gutter term is a
  * block chevron's anchor at the TEXT origin; this one is anchored on the row
  * box, so the column is spelled out instead). Absolutely positioned inside the
  * row, which `.to-decor-block` has already made a containing block, so it takes

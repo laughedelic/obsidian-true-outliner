@@ -125,7 +125,7 @@
 /* A list line keeps its NATIVE mark — a bullet, an ordered number, a checkbox —
  * so the weight change is a contrast change there. The bullet's dot is a
  * `::after` background and the number is text, which is why both are named:
- * the same split `to-decor-current-native` documents above. */
+ * the same split `to-decor-current-native` documents in `10-editor.css`. */
 .markdown-source-view.mod-cm6 .cm-content > .to-decor-folded .list-bullet::after {
   background-color: var(--text-normal);
 }
