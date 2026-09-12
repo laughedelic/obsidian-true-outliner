@@ -471,10 +471,8 @@ describe('escalated-selection-decoration: chrome anchors to the covered root\'s 
     // suite is single-rooted and passes under both implementations; without
     // this one, that regression is invisible.
     //
-    // Headings, not list items: a list item's own additive shift is 0 (list
-    // guides are deferred to Obsidian's native rendering), so a pure-list
-    // mixed-depth cover anchors identically either way and would prove
-    // nothing.
+    // Headings here; the pure-list mixed-depth cover has its own case below,
+    // since `lists-on-the-outline-grid` put list items on the same depth grid.
     const md = '# Alpha\n\n## Beta\n\nPara in Beta.\n\n# Gamma\n\nPara in Gamma.\n';
     await outlineNote(md);
     // 0 '# Alpha' / 2 '## Beta' / 4 'Para in Beta.' / 6 '# Gamma' / 8 'Para in Gamma.'
@@ -498,6 +496,62 @@ describe('escalated-selection-decoration: chrome anchors to the covered root\'s 
     // Alpha and Beta sit above the span and stay uncovered.
     expect(await h.getLineClassList(0)).not.toContain(CLASS);
     expect(await classListAtLine(2)).not.toContain(CLASS);
+  });
+
+  it('a NESTED list-item root anchors one level out from its own depth, not at the view edge', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    // Reported from real-vault use: a block selection rooted at a nested
+    // bullet reached the view edge, over every guide, instead of stopping at
+    // the parent's guide. The list-item branch of the root target took the
+    // list ROOT's depth for every item in the list, so a nested item anchored
+    // one level out from the top of its list rather than from its own parent
+    // (docs/research/selection-chrome-list-root).
+    //
+    // 0 '- a' / 1 '  - b' / 2 '    - c' / 3 '  - d' / 4 '- e'
+    await outlineNote('- a\n  - b\n    - c\n  - d\n- e\n');
+    const contentLeft = await h.contentLeftAbsoluteX();
+
+    // Root `c` (depth 2): one level out is `b`'s column.
+    await h.setCursor(2, 6);
+    await h.pressSelectAll();
+    await h.pressSelectAll();
+    expect(await h.getSelection()).toEqual({ anchor: { line: 2, ch: 0 }, head: { line: 2, ch: 7 } });
+    const cX = await chromeLeftAbsoluteX(2);
+
+    // Root `b` (depth 1): one level out is `a`'s column, the content origin.
+    await h.setCursor(1, 4);
+    await h.pressSelectAll();
+    await h.pressSelectAll();
+    expect(await h.getSelection()).toEqual({ anchor: { line: 1, ch: 0 }, head: { line: 2, ch: 7 } });
+    const bX = await chromeLeftAbsoluteX(1);
+    expect(await chromeLeftAbsoluteX(2)).toBeCloseTo(bX, 0); // the descendant shares its root's edge
+    expect(bX).toBeCloseTo(contentLeft, 0);
+    expect(await classListAtLine(0)).not.toContain(CLASS); // the parent stays outside
+
+    // Root `a` (depth 0): one level out from the origin, like any top-level root.
+    await h.setCursor(0, 3);
+    await h.pressSelectAll();
+    await h.pressSelectAll();
+    const aX = await chromeLeftAbsoluteX(0);
+    expect(aX).toBeLessThan(contentLeft - 8);
+
+    // The edge steps by one level per depth: c is as far from b as b is from a.
+    expect(cX - bX).toBeGreaterThan(8);
+    expect(cX - bX).toBeCloseTo(bX - aX, 0);
+  });
+
+  it('a pure-list MIXED-DEPTH cover anchors each root to its own column too', async function () {
+    if (h.IS_MOBILE_RUN) this.skip();
+    // 0 '- a' / 1 '  - b' / 2 '    - c' / 3 '- d'
+    await outlineNote('- a\n  - b\n    - c\n- d\n');
+    // Roots: `c` (deep) and the whole `d` item (shallow).
+    await h.mouseDragSelect({ line: 2, ch: 6 }, { line: 3, ch: 2 });
+    // `d` is the last node, so its cover owns the trailing gap line.
+    expect(await h.getSelection()).toEqual({ anchor: { line: 2, ch: 0 }, head: { line: 4, ch: 0 } });
+    const deepX = await chromeLeftAbsoluteX(2);
+    const shallowX = await chromeLeftAbsoluteX(3);
+    expect(shallowX).toBeLessThan(deepX - 8);
+    expect(await classListAtLine(1)).not.toContain(CLASS);
   });
 
   it('a blockquote line inside a cover renders full-width chrome, not a 1px sliver (regression guard)', async function () {
