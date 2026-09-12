@@ -173,10 +173,6 @@ per-group matrix — CI already gives that; this path exists for a headless run,
   merges by union (`.gitattributes`), so branches adding notes in parallel do not conflict over
   it, and `npm run lint` checks the rows against the directory. Cite a note by its path
   (`docs/research/open-questions` Q26), never by a number.
-- **A setting is one declaration** in `src/plugin/mode-registry.ts` — key, default, options with
-  their labels, the tab's row — plus the getter/setter pair on the plugin that says what a change
-  does, and that pair's row in `WRITERS`. The persisted shape, the defaults, the allow-list and
-  both settings-tab renderings derive from the declaration; nothing else is edited.
 
 ## Agent files
 
