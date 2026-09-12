@@ -1342,30 +1342,132 @@ function computeMarkers(state: EditorState, modes: DecorationSource): Decoration
   return builder.finish();
 }
 
+// ---- One render's per-line inputs (decoration-line-inputs) -----------------
+//
+// Two consumers render this layer's per-line chrome: the line decorations,
+// for every plain `.cm-line`, and `MarginCompensation`'s DOM patch, for every
+// widget-rendered line a `Decoration.line` cannot reach. Each used to
+// assemble the inputs itself — the facts, the guide visibility, the trail,
+// the hovered guide, the folded chrome — and combine them per line in its
+// own words, so a feature adding an input threaded it through both. The
+// builder below assembles them once per render, and a consumer reads the
+// record for a line and draws it; an input is added here and read where it
+// is drawn, and nowhere else.
+
+/** What one document line renders, whichever element renders it. */
+interface LineRender {
+  readonly lineNumber: number;
+  /** The line's own fact; absent on a line only a guide runs through. */
+  readonly fact: LineDecorationFact | undefined;
+  /** A trailing-gap line, which draws its guides and nothing else. */
+  readonly gap: boolean;
+  /** The guide background, rendered; absent when the line draws no guide. */
+  readonly guides: string | undefined;
+  /** The marker accent's class list, leading space included, or empty. */
+  readonly marker: string;
+  /** A folded node's marker line. */
+  readonly folded: boolean;
+  /** A folded multi-line node's last own line (`FOLDED_TAIL_CLASS`). */
+  readonly foldedTail: boolean;
+  /** What a fold hides, counted after this line's text; 0 where nothing. */
+  readonly hidden: number;
+}
+
+interface RenderInputs {
+  /** One record per line `computeLineGuides` covers, ascending — every line
+   * with a fact, and every gap line a guide runs through. */
+  readonly lines: readonly LineRender[];
+  readonly byLine: ReadonlyMap<number, LineRender>;
+  /** The trail itself, for the consumer that measures its accent stops. */
+  readonly trail: PositionTrail;
+}
+
+interface RenderInputsCacheEntry {
+  /** The settings the records were built under. */
+  readonly key: string;
+  readonly inputs: RenderInputs;
+}
+
+const renderInputsCache = new WeakMap<EditorState, RenderInputsCacheEntry>();
+
+/**
+ * The records for one render, cached per state the way the trail is: the
+ * field's recompute and the view plugin's `docViewUpdate` both read them on
+ * the same state. A settings change reaches here as a new state, through
+ * `forceRedraw`, so the key only has to tell two settings apart on one.
+ */
+function renderInputs(state: EditorState, modes: DecorationSource): RenderInputs {
+  const key = [
+    modes.guideHighlight,
+    modes.markerHighlight,
+    modes.guideVisibility,
+    modes.guideHideSingleRoot,
+  ].join('|');
+  const cached = renderInputsCache.get(state);
+  if (cached && cached.key === key) return cached.inputs;
+
+  const facts = factsFor(state);
+  const visibility = visibilityContext(state, modes, facts);
+  const trail = positionTrail(state, modes);
+  const hover = state.field(guideHoverField, false) ?? null;
+  const markerAccent = modes.markerHighlight !== 'off';
+  // Two lookups from one pass: a folded node's treatment belongs on the line
+  // its marker is on, and the count of what it hides belongs after its own
+  // text — the same line only when the node is a single line long.
+  const foldedMarkers = new Set<number>();
+  const foldedCounts = new Map<number, number>();
+  const foldedTails = new Set<number>();
+  for (const chrome of foldedChrome(state)) {
+    foldedMarkers.add(chrome.markerLine);
+    foldedCounts.set(chrome.textLine, chrome.hidden);
+    // Only when the two differ: a single-line node's own indicator is already
+    // beside its marker, and hiding it there would leave the line with none.
+    if (chrome.textLine !== chrome.markerLine) foldedTails.add(chrome.textLine);
+  }
+
+  // `computeLineGuides` is a strict superset of `decorate()` by line coverage
+  // (every line a fact covers, plus gap-only lines), and `factsFor` has
+  // already put the caret's own provisional line among both, so walking the
+  // guides is walking every line either consumer can ask about.
+  const lines: LineRender[] = [];
+  for (const guide of facts.guides) {
+    const lineNumber = guide.lineNumber;
+    const fact = facts.factsByLine.get(lineNumber);
+    const depths = drawnGuideDepths(guide, visibility);
+    lines.push({
+      lineNumber,
+      fact,
+      gap: guide.isGapLine,
+      guides: hasOverlay(depths)
+        ? guideBackground(depths, trail.byLine.get(lineNumber), litGuideOn(hover, lineNumber))
+        : undefined,
+      marker: fact ? markerClasses(trail, lineNumber, markerAccent) : '',
+      folded: foldedMarkers.has(lineNumber),
+      foldedTail: foldedTails.has(lineNumber),
+      hidden: foldedCounts.get(lineNumber) ?? 0,
+    });
+  }
+  const inputs: RenderInputs = {
+    lines,
+    byLine: new Map(lines.map((line) => [line.lineNumber, line])),
+    trail,
+  };
+  renderInputsCache.set(state, { key, inputs });
+  return inputs;
+}
+
 /**
  * One line's decoration: the shared class-and-property contract, plus the two
  * things only an editor has — the caret trail's marker classes, and the accent
  * layers folded into the guide background.
  */
-function lineDecoration(
-  lineText: string,
-  fact: LineDecorationFact,
-  depths: readonly number[],
-  trail: PositionTrail,
-  markerAccent: boolean,
-  folded: boolean,
-  foldedTail: boolean,
-  lit?: number,
-): Decoration {
-  const guides = hasOverlay(depths)
-    ? guideBackground(depths, trail.byLine.get(fact.lineNumber), lit)
-    : undefined;
-  const chrome = lineChrome(fact, { lineText, guides });
+function lineDecoration(lineText: string, fact: LineDecorationFact, render: LineRender): Decoration {
+  const chrome = lineChrome(fact, { lineText, guides: render.guides });
   const cls =
     chrome.classes.join(' ') +
-    markerClasses(trail, fact.lineNumber, markerAccent) +
-    (folded ? ` ${FOLDED_NODE_CLASS}` : '') +
-    (foldedTail ? ` ${FOLDED_TAIL_CLASS}` : '');
+    render.marker +
+    (render.folded ? ` ${FOLDED_NODE_CLASS}` : '') +
+    (render.foldedTail ? ` ${FOLDED_TAIL_CLASS}` : '');
   return Decoration.line({ class: cls, attributes: { style: chromeStyle(chrome) } });
 }
 
@@ -1373,91 +1475,47 @@ function lineDecoration(
 // comment) has no decorate() fact at all — no depth, no kind, nothing to
 // indent — so it gets a minimal decoration with just the guide class/style,
 // not the full lineDecoration() treatment. A trail accent can land on such a
-// line too (a path segment passing through the gap between two blocks), so the
-// background is built from both sources here as well.
-function gapLineDecoration(
-  depths: readonly number[],
-  lineTrail?: PositionTrailFact,
-  lit?: number,
-): Decoration {
+// line too (a path segment passing through the gap between two blocks), and
+// the record's background already carries it.
+function gapLineDecoration(guides: string): Decoration {
   return Decoration.line({
     class: 'to-decor-guides',
-    attributes: { style: `--to-guides: ${guideBackground(depths, lineTrail, lit)}` },
+    attributes: { style: `--to-guides: ${guides}` },
   });
 }
 
 function computeDecorations(state: EditorState, modes: DecorationSource): DecorationSet {
   if (!isOutlineMode(state)) return Decoration.none;
 
-  // computeLineGuides is a strict superset of decorate() by line coverage
-  // (every line decorate() covers, plus gap-only lines) — iterate it as
-  // the primary sequence (still ascending by lineNumber, required by
-  // RangeSetBuilder) and look up the matching decorate() fact by line
-  // number instead of assuming index alignment, since gap lines have no
-  // corresponding entry there at all.
-  // `factsFor` has already put the caret's own provisional line among the facts,
-  // so a position takes the full treatment here rather than the guide-only one,
-  // and a bisected node's displaced lines take the facts they had. Every OTHER
-  // gap line still keeps the guide-only decoration: this layer renders where the
-  // user currently is, not every blank line in the document.
-  const facts = factsFor(state);
-  const { factsByLine, guides } = facts;
-  const visibility = visibilityContext(state, modes, facts);
-  const trail = positionTrail(state, modes);
-  // Two lookups from one pass: a folded node's treatment belongs on the line
-  // its marker is on, and the count of what it hides belongs after its own
-  // text — the same line only when the node is a single line long.
-  const hover = state.field(guideHoverField, false) ?? null;
-  const foldedMarkers = new Map<number, number>();
-  const foldedCounts = new Map<number, number>();
-  const foldedTails = new Set<number>();
-  for (const chrome of foldedChrome(state)) {
-    foldedMarkers.set(chrome.markerLine, chrome.hidden);
-    foldedCounts.set(chrome.textLine, chrome.hidden);
-    // Only when the two differ: a single-line node's own indicator is already
-    // beside its marker, and hiding it there would leave the line with none.
-    if (chrome.textLine !== chrome.markerLine) foldedTails.add(chrome.textLine);
-  }
+  // The records are ascending by line, which `RangeSetBuilder` requires. A
+  // provisional position is among them with a fact of its own, so it takes
+  // the full treatment rather than the guide-only one, and a bisected node's
+  // displaced lines take the facts they had; every OTHER gap line keeps the
+  // guide-only decoration — this layer renders where the user currently is,
+  // not every blank line in the document.
   const totalLines = state.doc.lines;
   const builder = new RangeSetBuilder<Decoration>();
-  for (const guide of guides) {
-    if (guide.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
-    const from = state.doc.line(guide.lineNumber + 1).from; // CM6 lines are 1-indexed
-    const lineTrail = trail.byLine.get(guide.lineNumber);
-    const fact = factsByLine.get(guide.lineNumber);
-    const depths = drawnGuideDepths(guide, visibility);
-    const lit = litGuideOn(hover, guide.lineNumber);
-    if (guide.isGapLine && !fact) {
-      if (!hasOverlay(depths)) continue; // nothing to draw
-      builder.add(from, from, gapLineDecoration(depths, lineTrail, lit));
+  for (const render of renderInputs(state, modes).lines) {
+    if (render.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
+    const line = state.doc.line(render.lineNumber + 1); // CM6 lines are 1-indexed
+    if (!render.fact) {
+      // A line with no fact is a gap line — the walks are in sync, so the
+      // other case is defensive only — and draws its guides or nothing.
+      if (render.gap && render.guides !== undefined) {
+        builder.add(line.from, line.from, gapLineDecoration(render.guides));
+      }
       continue;
     }
-    if (!fact) continue; // decorate()/computeLineGuides walks are in sync; defensive only
-    builder.add(
-      from,
-      from,
-      lineDecoration(
-        state.doc.line(guide.lineNumber + 1).text,
-        fact,
-        depths,
-        trail,
-        modes.markerHighlight !== 'off',
-        foldedMarkers.has(guide.lineNumber),
-        foldedTails.has(guide.lineNumber),
-        lit,
-      ),
-    );
+    builder.add(line.from, line.from, lineDecoration(line.text, render.fact, render));
     // At the END of the node's own text, where a reader's eye already is when
     // they reach the end of what is visible — and where Obsidian puts its own
     // placeholder, which this one replaces.
-    const hidden = foldedCounts.get(guide.lineNumber);
-    if (hidden !== undefined && hidden > 0) {
-      const line = state.doc.line(guide.lineNumber + 1);
+    if (render.hidden > 0) {
       builder.add(
         line.to,
         line.to,
         Decoration.widget({
-          widget: new FoldCountWidget(hidden, guide.lineNumber),
+          widget: new FoldCountWidget(render.hidden, render.lineNumber),
           side: 1,
         }),
       );
@@ -2967,20 +3025,17 @@ class MarginCompensation implements PluginValue {
     // retrying on that would re-arm a frame callback for the life of the view.
     if (chevron === 'not-laid-out' || advance === 'not-laid-out') this.scheduleRemeasure();
 
-    // `factsFor`, not `docFacts`: a line Obsidian renders as a widget takes the
-    // same overlay a plain one does, or a displaced line would move here while
-    // its plain neighbour did not (`decorate-widget-rendered-lines`' own rule,
-    // applied to this change's facts).
-    const facts = factsFor(this.view.state);
-    const { factsByLine, guidesByLine } = facts;
-    const visibility = visibilityContext(this.view.state, this.modes, facts);
+    // The same records the line decorations draw from: a line Obsidian renders
+    // as a widget takes the same overlay a plain one does, or a displaced line
+    // would move here while its plain neighbour did not
+    // (`decorate-widget-rendered-lines`' own rule). Position indicators reach
+    // widget atoms the same way everything else does — through this
+    // imperative patch, since a CM6 decoration has no effect on them at all
+    // (module doc comment).
+    const inputs = renderInputs(this.view.state, this.modes);
     const nativeBasePx = this.nativeMarginBasePx();
     const selectedLineTargets = selectedLineRootTargets(this.view.state);
-    // Position indicators reach widget atoms the same way everything else
-    // does — through this imperative patch, since a CM6 decoration has no
-    // effect on them at all (module doc comment).
-    const trail = positionTrail(this.view.state, this.modes);
-    this.measureAccentStops(trail);
+    this.measureAccentStops(inputs.trail);
     // The right edge every plain `.cm-line` naturally reaches — read live
     // (not assumed to be `right: 0` relative to a widget's OWN box), since
     // a widget atom's own box can be WIDER than that on the right (a table
@@ -3076,7 +3131,8 @@ class MarginCompensation implements PluginValue {
       // below, wherever this widget's own `ownShiftExpr` is in scope.
       const rootTarget = selectedLineTargets.get(lineNumber);
       el.classList.toggle(SELECTED_NODE_CLASS, rootTarget !== undefined);
-      const fact = factsByLine.get(lineNumber);
+      const render = inputs.byLine.get(lineNumber);
+      const fact = render?.fact;
       // Keyed on "this element renders a line that HAS a fact", not on the
       // line's node kind. The gate here used to be `fact?.isAtom`, which
       // asked what kind of node the line held when the only thing that
@@ -3171,27 +3227,15 @@ class MarginCompensation implements PluginValue {
         // unable to accent an embed it had descended from.
         //
         // Only the synthetic-marker classes are reachable: `isMarkerEligible`
-        // excludes list items, so the native-bullet variants never apply.
-        const markerAccent = this.modes.markerHighlight !== 'off';
-        el.classList.toggle(CURRENT_MARKER_CLASS, markerAccent && trail.currentLine === lineNumber);
-        el.classList.toggle(
-          ANCESTOR_MARKER_CLASS,
-          markerAccent && trail.ancestorLines.has(lineNumber),
-        );
+        // excludes list items, so the native-bullet variants the record can
+        // name for a plain line never apply here.
+        const accent = render.marker.trim();
+        el.classList.toggle(CURRENT_MARKER_CLASS, accent === CURRENT_MARKER_CLASS);
+        el.classList.toggle(ANCESTOR_MARKER_CLASS, accent === ANCESTOR_MARKER_CLASS);
 
-        const guide = guidesByLine.get(lineNumber);
-        const lineTrail = trail.byLine.get(lineNumber);
-        const depths = guide ? drawnGuideDepths(guide, visibility) : [];
-        if (guide && hasOverlay(depths)) {
+        if (render.guides !== undefined) {
           el.classList.add('to-decor-guides');
-          el.style.setProperty(
-            '--to-guides',
-            guideBackground(
-              depths,
-              lineTrail,
-              litGuideOn(this.view.state.field(guideHoverField, false) ?? null, lineNumber),
-            ),
-          );
+          el.style.setProperty('--to-guides', render.guides);
           el.style.setProperty('--to-own-shift', `calc(${positionedShiftExpr})`);
         } else {
           el.classList.remove('to-decor-guides');
