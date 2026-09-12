@@ -14,7 +14,7 @@ import {
   splitNode,
 } from '../src/ops';
 import { applyEdits, diffLines, type Edit } from '../src/result';
-import { DEFAULT_DATA, normalizePluginData } from '../src/plugin/mode-registry';
+import { DEFAULT_DATA, normalizePluginData, settingDefinitions } from '../src/plugin/mode-registry';
 import { nodeAtLine } from '../src/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
 import { planKey } from '../src/plugin/grammar';
@@ -1218,5 +1218,52 @@ describe('metadata cross-check', () => {
       { type: 'heading', startLine: 5, endLine: 5 },
     ]);
     expect(issues).toEqual(['heading at line 5: Obsidian only']);
+  });
+});
+
+describe('the settings tab, derived from the declarations', () => {
+  it('offers the same rows, in the same order, with the same defaults and options', () => {
+    // Pinned as a list rather than read back from the declarations, so a
+    // reordered or renamed declaration fails here instead of moving a row
+    // under a reader. Every default agrees with `DEFAULT_DATA`, which is the
+    // same declaration read the other way.
+    const rows = settingDefinitions().map((d) => [
+      d.control.key,
+      d.control.type,
+      d.control.type === 'dropdown' ? Object.keys(d.control.options) : null,
+    ]);
+    expect(rows).toEqual([
+      ['outlineByDefault', 'toggle', null],
+      ['statusBarMode', 'dropdown', ['none', 'icon', 'text']],
+      ['rememberFolds', 'toggle', null],
+      ['debugCrossCheck', 'toggle', null],
+      ['backlinksFooter', 'toggle', null],
+      ['backlinksOverallCap', 'dropdown', ['25', '50', '100', 'none']],
+      ['backlinksGroupHeight', 'dropdown', ['compact', 'standard', 'tall', 'unlimited']],
+      ['backlinksSuppressCore', 'toggle', null],
+      ['backlinksSegmentIcons', 'dropdown', ['all', 'own', 'none']],
+      ['backlinksSeparator', 'dropdown', ['none', 'chevron']],
+      ['backlinksGuides', 'toggle', null],
+      ['outlineUnit', 'dropdown', ['auto', 'compact', 'balanced', 'roomy', 'wide']],
+      ['guideVisibility', 'dropdown', ['all', 'ancestors', 'subtree', 'off']],
+      ['guideHideSingleRoot', 'toggle', null],
+      ['guideIntensity', 'dropdown', ['subtle', 'normal', 'strong']],
+      ['markerVisibility', 'dropdown', ['all', 'with-children', 'headings-and-paragraphs']],
+      ['guideHighlight', 'dropdown', ['off', 'full', 'lineage']],
+      ['markerHighlight', 'dropdown', ['off', 'current', 'lineage']],
+    ]);
+    for (const d of settingDefinitions()) {
+      expect(d.control.defaultValue).toBe(DEFAULT_DATA[d.control.key]);
+      expect(d.name.length).toBeGreaterThan(0);
+      expect(d.desc.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps the two values persisted without a row out of the tab', () => {
+    const keys = settingDefinitions().map((d) => d.control.key);
+    expect(keys).not.toContain('coexistenceWarned');
+    expect(keys).not.toContain('backlinksSort');
+    expect(Object.keys(DEFAULT_DATA)).toContain('coexistenceWarned');
+    expect(Object.keys(DEFAULT_DATA)).toContain('backlinksSort');
   });
 });

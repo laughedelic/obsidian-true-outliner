@@ -23,7 +23,10 @@ import { applyEdits } from '../result';
 import { applyAppearance, clearAppearance } from './appearance';
 import {
   DEFAULT_DATA,
+  isSettingKey,
+  SETTINGS,
   normalizePluginData,
+  settingDefinitions,
   type GroupHeight,
   type GuideHighlight,
   type GuideIntensity,
@@ -34,6 +37,8 @@ import {
   type OverallCap,
   type PluginData,
   type SegmentIcons,
+  type SettingKey,
+  type SettingRowKey,
   type SortOrder,
   type StatusBarMode,
 } from './mode-registry';
@@ -95,76 +100,6 @@ import {
 import type { EditorView } from '@codemirror/view';
 import { historyCaretExtension } from './history-caret';
 import { TransactionStats } from './stats';
-
-const STATUS_BAR_MODE_LABELS: Record<StatusBarMode, string> = {
-  none: 'Nothing',
-  icon: 'An icon',
-  text: 'Words',
-};
-
-const MARKER_VISIBILITY_LABELS: Record<MarkerVisibility, string> = {
-  all: 'All eligible kinds (status quo)',
-  'with-children': 'Only nodes that have children',
-  'headings-and-paragraphs': 'Only headings and paragraphs',
-};
-
-const OVERALL_CAP_LABELS: Record<OverallCap, string> = {
-  '25': '25 references',
-  '50': '50 references',
-  '100': '100 references',
-  none: 'No limit',
-};
-
-const GROUP_HEIGHT_LABELS: Record<GroupHeight, string> = {
-  compact: 'Compact',
-  standard: 'Standard',
-  tall: 'Tall',
-  unlimited: 'Uncapped',
-};
-
-const SEGMENT_ICONS_LABELS: Record<SegmentIcons, string> = {
-  all: 'Every ancestor',
-  own: 'Only the row’s own marker',
-  none: 'No markers',
-};
-
-const LINEAGE_SEPARATOR_LABELS: Record<LineageSeparator, string> = {
-  none: 'Nothing',
-  chevron: 'A chevron',
-};
-
-const OUTLINE_UNIT_LABELS: Record<OutlineUnit, string> = {
-  auto: 'Auto',
-  compact: 'Compact',
-  balanced: 'Balanced',
-  roomy: 'Roomy',
-  wide: 'Wide',
-};
-
-const GUIDE_VISIBILITY_LABELS: Record<GuideVisibility, string> = {
-  all: 'Every level',
-  ancestors: 'The levels the cursor is inside',
-  subtree: 'The levels inside the current node',
-  off: 'None',
-};
-
-const GUIDE_INTENSITY_LABELS: Record<GuideIntensity, string> = {
-  subtle: 'Subtle',
-  normal: 'Normal',
-  strong: 'Strong',
-};
-
-const GUIDE_HIGHLIGHT_LABELS: Record<GuideHighlight, string> = {
-  off: 'No highlight',
-  full: 'Whole guide of every ancestor',
-  lineage: 'Only the part leading down to the cursor',
-};
-
-const MARKER_HIGHLIGHT_LABELS: Record<MarkerHighlight, string> = {
-  off: 'No highlight',
-  current: 'The current node only',
-  lineage: 'The current node and all its ancestors',
-};
 
 /**
  * Note: `indent`/`outdent` also accept an optional trailing
@@ -228,6 +163,13 @@ const CONFLICTING_PLUGINS = ['obsidian-outliner', 'obsidian-zoom'];
 
 export default class TrueOutlinerPlugin extends Plugin {
   private data: PluginData = { ...DEFAULT_DATA };
+
+  /** One setting's current value, for the tab's controls. The typed getters
+   * below are the same reads with a name each; this is the one the tab can
+   * reach with a key. */
+  setting<K extends SettingKey>(key: K): PluginData[K] {
+    return this.data[key];
+  }
   /** Which notes reference which — see backlink-index.ts. */
   readonly backlinks = new BacklinkIndex(this.app);
   /** Public so the e2e harness can read classification evidence the same
@@ -1482,95 +1424,34 @@ export default class TrueOutlinerPlugin extends Plugin {
   }
 }
 
-const SETTING_OUTLINE_BY_DEFAULT = {
-  name: 'Open new tabs in outline mode',
-  desc: 'Whether a note opens outlined or as stock Obsidian. Applies to notes opened from now on \u2014 in a new tab, or in an existing tab that switches to another note. It never retoggles a tab that is already open, the way Obsidian\u2019s own default view mode works. Toggle a single tab from the command palette (\u201cToggle outline mode\u201d), the editor right-click menu, the ribbon icon, or the status bar item.',
-} as const;
-
-const SETTING_STATUS_BAR_MODE = {
-  name: 'Show outline mode in the status bar',
-  desc: 'What the status bar shows for the active tab, and whether it shows anything at all. Obsidian can hide the ribbon icon from its own right-click menu but offers no equivalent for a plugin\u2019s status bar item, so this is where that chip is turned off. Desktop only \u2014 there is no status bar on mobile.',
-} as const;
-
-const SETTING_REMEMBER_FOLDS = {
-  name: 'Remember folds',
-  desc: 'Whether a note reopens with the nodes you left folded. Fold state lives in Obsidian\u2019s own workspace data, never in the note \u2014 a file is byte-identical whether its nodes are folded or not, and always readable without this plugin. Turn this off to have every note open fully expanded.',
-} as const;
-
-const SETTING_DEBUG_CROSSCHECK = {
-  name: 'Debug: cross-check parser against metadata cache',
-  desc: 'Logs disagreements between the plugin parser and Obsidian metadata to the developer console when a structural command runs.',
-} as const;
-
-const SETTING_BACKLINKS_FOOTER = {
-  name: 'Show structured backlinks below notes',
-  desc: 'Renders every reference to the open note beneath it, each in the tree of the note it came from. Outline mode only.',
-} as const;
-
-const SETTING_BACKLINKS_OVERALL_CAP = {
-  name: 'Backlinks: how many references to show',
-  desc: 'An upper bound on the whole footer. Notes are added whole and in order until the next one would cross it, so a note past the bound is never read. The header always reports the true total.',
-} as const;
-
-const SETTING_BACKLINKS_GROUP_HEIGHT = {
-  name: 'Backlinks: how tall one note’s references may be',
-  desc: 'How much of the screen a single referencing note may take before the rest is folded away behind a control. A height rather than a number of references, because a reference’s height depends on how its content wraps.',
-} as const;
-
-const SETTING_BACKLINKS_SUPPRESS_CORE = {
-  name: 'Backlinks: hide Obsidian’s own in-document section',
-  desc: 'Hides Obsidian’s in-document backlinks section entirely in notes where this plugin renders its own — including unlinked mentions, which this plugin does not reproduce and has no way to hide selectively. Obsidian’s own Backlinks pane still shows both, unaffected. Presentational only: no other plugin’s settings are read or changed, and turning this off restores the section immediately.',
-} as const;
-
-const SETTING_BACKLINKS_SEGMENT_ICONS = {
-  name: 'Backlinks: markers on a lineage row',
-  desc: 'A lineage row names every ancestor between the source note and the reference. This chooses how many of them carry their own marker icon.',
-} as const;
-
-const SETTING_BACKLINKS_SEPARATOR = {
-  name: 'Backlinks: what separates ancestors',
-  desc: 'What stands between two ancestors named on the same lineage row.',
-} as const;
-
-const SETTING_BACKLINKS_GUIDES = {
-  name: 'Backlinks: draw guide lines in the footer',
-  desc: 'Draws the same indentation guides the editor uses down the footer’s own rows.',
-} as const;
-
-const SETTING_OUTLINE_UNIT = {
-  name: 'Outline width',
-  desc: 'How far one level of the outline steps to the right — in the editor and in the backlinks footer alike. “Auto” takes a narrower step on a phone or tablet, where the width is worth more, and a roomier one on a desktop. Every step keeps a child’s marker clear of its parent’s text; a CSS snippet setting --to-decor-unit still overrides whatever is chosen here.',
-} as const;
-
-const SETTING_GUIDE_VISIBILITY = {
-  name: 'Which indentation guides to draw',
-  desc: 'The vertical lines that connect a node to the levels above it. The two middle choices follow the cursor: the route down to the node it is in, or the ladder inside that node. Obsidian’s own indent guides stay hidden in outline mode whichever is chosen — they sit on columns this grid does not use.',
-} as const;
-
-const SETTING_GUIDE_SINGLE_ROOT = {
-  name: 'Hide the outermost guide under a single root',
-  desc: 'Where a whole note hangs off one top-level node — a single “# Title”, or any zoomed-in view — that node’s guide runs down every line while telling the reader nothing. This drops it and keeps every deeper level. Nothing moves: guides are painted, not laid out.',
-} as const;
-
-const SETTING_GUIDE_INTENSITY = {
-  name: 'Guide line strength',
-  desc: 'How strongly a guide stands out, as a proportion of the theme’s own faintest text — so it stays right in a light theme and a dark one. A snippet can change the colour, and the line’s weight, itself.',
-} as const;
-
-const SETTING_MARKER_VISIBILITY = {
-  name: 'Debug: block marker visibility (experiment 5a)',
-  desc: 'Which nodes get a block marker icon at all. Most leaf atom kinds (code, table, callout, quote, HTML, hr) already carry their own native visual style, so a marker may only be worth showing on branch nodes. Takes effect on the next edit or note switch.',
-} as const;
-
-const SETTING_GUIDE_HIGHLIGHT = {
-  name: 'Highlight guides at the cursor’s position',
-  desc: 'Which indentation guides to accent for the node the cursor is in. “Whole guide” accents each ancestor’s guide along its full length — everything the cursor is inside of. “Only the part leading down to the cursor” accents just the stretch of each guide between that ancestor and the next level, so the accent traces the route to the cursor instead.',
-} as const;
-
-const SETTING_MARKER_HIGHLIGHT = {
-  name: 'Highlight markers at the cursor’s position',
-  desc: 'Which block markers — or a list item’s native bullet or number — to accent. “The current node only” marks where the cursor is; adding the ancestors makes each level of the lineage visible, which is the only indication available inside a plain list, where there are no guides to accent.',
-} as const;
+/**
+ * What a change to each control does: the typed setter that owns the effect —
+ * a repaint, a footer nudge, a property write — so the tab reaches it by key.
+ * One row per tab row, typed against the row keys, so a control with no writer
+ * is a compile error.
+ */
+const WRITERS: {
+  [K in SettingRowKey]: (plugin: TrueOutlinerPlugin, value: PluginData[K]) => Promise<void>;
+} = {
+  outlineByDefault: (p, v) => p.setOutlineByDefault(v),
+  statusBarMode: (p, v) => p.setStatusBarMode(v),
+  rememberFolds: (p, v) => p.setRememberFolds(v),
+  debugCrossCheck: (p, v) => p.setDebugCrossCheck(v),
+  backlinksFooter: (p, v) => p.setBacklinksFooter(v),
+  backlinksOverallCap: (p, v) => p.setBacklinksOverallCap(v),
+  backlinksGroupHeight: (p, v) => p.setBacklinksGroupHeight(v),
+  backlinksSuppressCore: (p, v) => p.setBacklinksSuppressCore(v),
+  backlinksSegmentIcons: (p, v) => p.setBacklinksSegmentIcons(v),
+  backlinksSeparator: (p, v) => p.setBacklinksSeparator(v),
+  backlinksGuides: (p, v) => p.setBacklinksGuides(v),
+  outlineUnit: (p, v) => p.setOutlineUnit(v),
+  guideVisibility: (p, v) => p.setGuideVisibility(v),
+  guideHideSingleRoot: (p, v) => p.setGuideHideSingleRoot(v),
+  guideIntensity: (p, v) => p.setGuideIntensity(v),
+  markerVisibility: (p, v) => p.setMarkerVisibility(v),
+  guideHighlight: (p, v) => p.setGuideHighlight(v),
+  markerHighlight: (p, v) => p.setMarkerHighlight(v),
+};
 
 class TrueOutlinerSettingTab extends PluginSettingTab {
   constructor(
@@ -1586,158 +1467,12 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
    * settings search. `display()` below is kept ONLY as the documented
    * fallback for pre-1.13 Obsidian (`minAppVersion` is older, and the e2e
    * harness's pinned runtime still exercises it) — on 1.13+ it is never
-   * called once this returns a non-empty array. Keep the two in sync.
+   * called once this returns a non-empty array. Both render the one list
+   * `settingDefinitions` derives from the declarations, so neither can fall
+   * behind the other.
    */
   override getSettingDefinitions(): SettingDefinitionItem[] {
-    return [
-      {
-        ...SETTING_OUTLINE_BY_DEFAULT,
-        control: {
-          type: 'toggle',
-          key: 'outlineByDefault',
-          defaultValue: DEFAULT_DATA.outlineByDefault,
-        },
-      },
-      {
-        ...SETTING_STATUS_BAR_MODE,
-        control: {
-          type: 'dropdown',
-          key: 'statusBarMode',
-          options: STATUS_BAR_MODE_LABELS,
-          defaultValue: DEFAULT_DATA.statusBarMode,
-        },
-      },
-      {
-        ...SETTING_REMEMBER_FOLDS,
-        control: {
-          type: 'toggle',
-          key: 'rememberFolds',
-          defaultValue: DEFAULT_DATA.rememberFolds,
-        },
-      },
-      {
-        ...SETTING_DEBUG_CROSSCHECK,
-        control: { type: 'toggle', key: 'debugCrossCheck', defaultValue: false },
-      },
-      {
-        ...SETTING_BACKLINKS_FOOTER,
-        control: { type: 'toggle', key: 'backlinksFooter', defaultValue: true },
-      },
-      {
-        ...SETTING_BACKLINKS_OVERALL_CAP,
-        control: {
-          type: 'dropdown',
-          key: 'backlinksOverallCap',
-          options: OVERALL_CAP_LABELS,
-          defaultValue: DEFAULT_DATA.backlinksOverallCap,
-        },
-      },
-      {
-        ...SETTING_BACKLINKS_GROUP_HEIGHT,
-        control: {
-          type: 'dropdown',
-          key: 'backlinksGroupHeight',
-          options: GROUP_HEIGHT_LABELS,
-          defaultValue: DEFAULT_DATA.backlinksGroupHeight,
-        },
-      },
-      {
-        ...SETTING_BACKLINKS_SUPPRESS_CORE,
-        control: {
-          type: 'toggle',
-          key: 'backlinksSuppressCore',
-          defaultValue: DEFAULT_DATA.backlinksSuppressCore,
-        },
-      },
-      {
-        ...SETTING_BACKLINKS_SEGMENT_ICONS,
-        control: {
-          type: 'dropdown',
-          key: 'backlinksSegmentIcons',
-          options: SEGMENT_ICONS_LABELS,
-          defaultValue: DEFAULT_DATA.backlinksSegmentIcons,
-        },
-      },
-      {
-        ...SETTING_BACKLINKS_SEPARATOR,
-        control: {
-          type: 'dropdown',
-          key: 'backlinksSeparator',
-          options: LINEAGE_SEPARATOR_LABELS,
-          defaultValue: DEFAULT_DATA.backlinksSeparator,
-        },
-      },
-      {
-        ...SETTING_BACKLINKS_GUIDES,
-        control: {
-          type: 'toggle',
-          key: 'backlinksGuides',
-          defaultValue: DEFAULT_DATA.backlinksGuides,
-        },
-      },
-      {
-        ...SETTING_OUTLINE_UNIT,
-        control: {
-          type: 'dropdown',
-          key: 'outlineUnit',
-          options: OUTLINE_UNIT_LABELS,
-          defaultValue: DEFAULT_DATA.outlineUnit,
-        },
-      },
-      {
-        ...SETTING_GUIDE_VISIBILITY,
-        control: {
-          type: 'dropdown',
-          key: 'guideVisibility',
-          options: GUIDE_VISIBILITY_LABELS,
-          defaultValue: DEFAULT_DATA.guideVisibility,
-        },
-      },
-      {
-        ...SETTING_GUIDE_SINGLE_ROOT,
-        control: {
-          type: 'toggle',
-          key: 'guideHideSingleRoot',
-          defaultValue: DEFAULT_DATA.guideHideSingleRoot,
-        },
-      },
-      {
-        ...SETTING_GUIDE_INTENSITY,
-        control: {
-          type: 'dropdown',
-          key: 'guideIntensity',
-          options: GUIDE_INTENSITY_LABELS,
-          defaultValue: DEFAULT_DATA.guideIntensity,
-        },
-      },
-      {
-        ...SETTING_MARKER_VISIBILITY,
-        control: {
-          type: 'dropdown',
-          key: 'markerVisibility',
-          options: MARKER_VISIBILITY_LABELS,
-          defaultValue: 'all',
-        },
-      },
-      {
-        ...SETTING_GUIDE_HIGHLIGHT,
-        control: {
-          type: 'dropdown',
-          key: 'guideHighlight',
-          options: GUIDE_HIGHLIGHT_LABELS,
-          defaultValue: 'full',
-        },
-      },
-      {
-        ...SETTING_MARKER_HIGHLIGHT,
-        control: {
-          type: 'dropdown',
-          key: 'markerHighlight',
-          options: MARKER_HIGHLIGHT_LABELS,
-          defaultValue: 'current',
-        },
-      },
-    ];
+    return settingDefinitions();
   }
 
   /** This plugin doesn't use the conventional `this.plugin.settings` shape
@@ -1745,264 +1480,37 @@ class TrueOutlinerSettingTab extends PluginSettingTab {
    * through the plugin's own accessors (which also own persistence and the
    * decoration refresh on change). */
   override getControlValue(key: string): unknown {
-    switch (key) {
-      case 'outlineByDefault':
-        return this.plugin.outlineByDefault;
-      case 'statusBarMode':
-        return this.plugin.statusBarMode;
-      case 'rememberFolds':
-        return this.plugin.rememberFolds;
-      case 'debugCrossCheck':
-        return this.plugin.debugCrossCheck;
-      case 'backlinksFooter':
-        return this.plugin.backlinksFooter;
-      case 'backlinksOverallCap':
-        return this.plugin.backlinksOverallCap;
-      case 'backlinksGroupHeight':
-        return this.plugin.backlinksGroupHeight;
-      case 'backlinksSuppressCore':
-        return this.plugin.backlinksSuppressCore;
-      case 'backlinksSegmentIcons':
-        return this.plugin.backlinksSegmentIcons;
-      case 'backlinksSeparator':
-        return this.plugin.backlinksSeparator;
-      case 'backlinksGuides':
-        return this.plugin.backlinksGuides;
-      case 'outlineUnit':
-        return this.plugin.outlineUnit;
-      case 'guideVisibility':
-        return this.plugin.guideVisibility;
-      case 'guideHideSingleRoot':
-        return this.plugin.guideHideSingleRoot;
-      case 'guideIntensity':
-        return this.plugin.guideIntensity;
-      case 'markerVisibility':
-        return this.plugin.markerVisibility;
-      case 'guideHighlight':
-        return this.plugin.guideHighlight;
-      case 'markerHighlight':
-        return this.plugin.markerHighlight;
-      default:
-        return undefined;
-    }
+    return isSettingKey(key) ? this.plugin.setting(key) : undefined;
   }
 
   override async setControlValue(key: string, value: unknown): Promise<void> {
-    switch (key) {
-      case 'outlineByDefault':
-        await this.plugin.setOutlineByDefault(Boolean(value));
-        break;
-      case 'statusBarMode':
-        await this.plugin.setStatusBarMode(value as StatusBarMode);
-        break;
-      case 'rememberFolds':
-        await this.plugin.setRememberFolds(Boolean(value));
-        break;
-      case 'debugCrossCheck':
-        await this.plugin.setDebugCrossCheck(Boolean(value));
-        break;
-      case 'backlinksFooter':
-        await this.plugin.setBacklinksFooter(Boolean(value));
-        break;
-      case 'backlinksOverallCap':
-        await this.plugin.setBacklinksOverallCap(value as OverallCap);
-        break;
-      case 'backlinksGroupHeight':
-        await this.plugin.setBacklinksGroupHeight(value as GroupHeight);
-        break;
-      case 'backlinksSuppressCore':
-        await this.plugin.setBacklinksSuppressCore(Boolean(value));
-        break;
-      case 'backlinksSegmentIcons':
-        await this.plugin.setBacklinksSegmentIcons(value as SegmentIcons);
-        break;
-      case 'backlinksSeparator':
-        await this.plugin.setBacklinksSeparator(value as LineageSeparator);
-        break;
-      case 'backlinksGuides':
-        await this.plugin.setBacklinksGuides(Boolean(value));
-        break;
-      case 'outlineUnit':
-        await this.plugin.setOutlineUnit(value as OutlineUnit);
-        break;
-      case 'guideVisibility':
-        await this.plugin.setGuideVisibility(value as GuideVisibility);
-        break;
-      case 'guideHideSingleRoot':
-        await this.plugin.setGuideHideSingleRoot(Boolean(value));
-        break;
-      case 'guideIntensity':
-        await this.plugin.setGuideIntensity(value as GuideIntensity);
-        break;
-      case 'markerVisibility':
-        await this.plugin.setMarkerVisibility(value as MarkerVisibility);
-        break;
-      case 'guideHighlight':
-        await this.plugin.setGuideHighlight(value as GuideHighlight);
-        break;
-      case 'markerHighlight':
-        await this.plugin.setMarkerHighlight(value as MarkerHighlight);
-        break;
-    }
+    const declared = SETTINGS.find((s) => s.key === key);
+    if (!declared || !('row' in declared)) return;
+    // The declaration says what the control hands over — a toggle's boolean,
+    // a dropdown's option — and the writer it names takes exactly that.
+    const coerced = declared.control === 'toggle' ? Boolean(value) : String(value);
+    await WRITERS[declared.key](this.plugin, coerced as never);
   }
 
   /** Pre-1.13 fallback only — see getSettingDefinitions() above. */
   override display(): void {
     this.containerEl.empty();
-    new Setting(this.containerEl)
-      .setName(SETTING_OUTLINE_BY_DEFAULT.name)
-      .setDesc(SETTING_OUTLINE_BY_DEFAULT.desc)
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.outlineByDefault)
-          .onChange((value) => void this.plugin.setOutlineByDefault(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_STATUS_BAR_MODE.name)
-      .setDesc(SETTING_STATUS_BAR_MODE.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(STATUS_BAR_MODE_LABELS)
-          .setValue(this.plugin.statusBarMode)
-          .onChange((value) => void this.plugin.setStatusBarMode(value as StatusBarMode)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_REMEMBER_FOLDS.name)
-      .setDesc(SETTING_REMEMBER_FOLDS.desc)
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.rememberFolds)
-          .onChange((value) => void this.plugin.setRememberFolds(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_DEBUG_CROSSCHECK.name)
-      .setDesc(SETTING_DEBUG_CROSSCHECK.desc)
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.debugCrossCheck)
-          .onChange((value) => void this.plugin.setDebugCrossCheck(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_BACKLINKS_FOOTER.name)
-      .setDesc(SETTING_BACKLINKS_FOOTER.desc)
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.backlinksFooter)
-          .onChange((value) => void this.plugin.setBacklinksFooter(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_BACKLINKS_OVERALL_CAP.name)
-      .setDesc(SETTING_BACKLINKS_OVERALL_CAP.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(OVERALL_CAP_LABELS)
-          .setValue(this.plugin.backlinksOverallCap)
-          .onChange((value) => void this.plugin.setBacklinksOverallCap(value as OverallCap)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_BACKLINKS_GROUP_HEIGHT.name)
-      .setDesc(SETTING_BACKLINKS_GROUP_HEIGHT.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(GROUP_HEIGHT_LABELS)
-          .setValue(this.plugin.backlinksGroupHeight)
-          .onChange((value) => void this.plugin.setBacklinksGroupHeight(value as GroupHeight)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_BACKLINKS_SUPPRESS_CORE.name)
-      .setDesc(SETTING_BACKLINKS_SUPPRESS_CORE.desc)
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.backlinksSuppressCore)
-          .onChange((value) => void this.plugin.setBacklinksSuppressCore(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_BACKLINKS_SEGMENT_ICONS.name)
-      .setDesc(SETTING_BACKLINKS_SEGMENT_ICONS.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(SEGMENT_ICONS_LABELS)
-          .setValue(this.plugin.backlinksSegmentIcons)
-          .onChange((value) => void this.plugin.setBacklinksSegmentIcons(value as SegmentIcons)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_BACKLINKS_SEPARATOR.name)
-      .setDesc(SETTING_BACKLINKS_SEPARATOR.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(LINEAGE_SEPARATOR_LABELS)
-          .setValue(this.plugin.backlinksSeparator)
-          .onChange((value) => void this.plugin.setBacklinksSeparator(value as LineageSeparator)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_BACKLINKS_GUIDES.name)
-      .setDesc(SETTING_BACKLINKS_GUIDES.desc)
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.backlinksGuides)
-          .onChange((value) => void this.plugin.setBacklinksGuides(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_OUTLINE_UNIT.name)
-      .setDesc(SETTING_OUTLINE_UNIT.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(OUTLINE_UNIT_LABELS)
-          .setValue(this.plugin.outlineUnit)
-          .onChange((value) => void this.plugin.setOutlineUnit(value as OutlineUnit)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_GUIDE_VISIBILITY.name)
-      .setDesc(SETTING_GUIDE_VISIBILITY.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(GUIDE_VISIBILITY_LABELS)
-          .setValue(this.plugin.guideVisibility)
-          .onChange((value) => void this.plugin.setGuideVisibility(value as GuideVisibility)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_GUIDE_SINGLE_ROOT.name)
-      .setDesc(SETTING_GUIDE_SINGLE_ROOT.desc)
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.guideHideSingleRoot)
-          .onChange((value) => void this.plugin.setGuideHideSingleRoot(value)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_GUIDE_INTENSITY.name)
-      .setDesc(SETTING_GUIDE_INTENSITY.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(GUIDE_INTENSITY_LABELS)
-          .setValue(this.plugin.guideIntensity)
-          .onChange((value) => void this.plugin.setGuideIntensity(value as GuideIntensity)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_MARKER_VISIBILITY.name)
-      .setDesc(SETTING_MARKER_VISIBILITY.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(MARKER_VISIBILITY_LABELS)
-          .setValue(this.plugin.markerVisibility)
-          .onChange((value) => void this.plugin.setMarkerVisibility(value as MarkerVisibility)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_GUIDE_HIGHLIGHT.name)
-      .setDesc(SETTING_GUIDE_HIGHLIGHT.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(GUIDE_HIGHLIGHT_LABELS)
-          .setValue(this.plugin.guideHighlight)
-          .onChange((value) => void this.plugin.setGuideHighlight(value as GuideHighlight)),
-      );
-    new Setting(this.containerEl)
-      .setName(SETTING_MARKER_HIGHLIGHT.name)
-      .setDesc(SETTING_MARKER_HIGHLIGHT.desc)
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions(MARKER_HIGHLIGHT_LABELS)
-          .setValue(this.plugin.markerHighlight)
-          .onChange((value) => void this.plugin.setMarkerHighlight(value as MarkerHighlight)),
-      );
+    for (const { name, desc, control } of settingDefinitions()) {
+      const setting = new Setting(this.containerEl).setName(name).setDesc(desc);
+      if (control.type === 'toggle') {
+        setting.addToggle((toggle) =>
+          toggle
+            .setValue(Boolean(this.plugin.setting(control.key)))
+            .onChange((value) => void this.setControlValue(control.key, value)),
+        );
+      } else {
+        setting.addDropdown((dropdown) =>
+          dropdown
+            .addOptions(control.options)
+            .setValue(String(this.plugin.setting(control.key)))
+            .onChange((value) => void this.setControlValue(control.key, value)),
+        );
+      }
+    }
   }
 }
