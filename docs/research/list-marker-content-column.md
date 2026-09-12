@@ -82,6 +82,24 @@ non-zero width, the three-space span wider than the one-space, on desktop and un
 emulation alike. The span needs `white-space: pre`: whitespace-only, it otherwise collapses at a
 wrap point.
 
+Where the mark sits was measured next. The marker-sizing rules size a bullet and its first
+space to the gutter, and were gated on a marker followed by exactly one space, so that a wider
+run did not push the item's text off its siblings' column. On `-  two` that left the formatting
+span at its 14px minimum with 10.2px of content: the bullet's box at 0 with no width, the
+marker's space at 0–5.1, the marked surplus at 5.1–10.2, and the text at 14 — the highlight
+inside the gutter's slack, between a bullet and text that had not moved. On `-    four` the span
+grew to 20.4 and the mark reached the text; on `1.  ord` and `- [ ]  task` the mark was adjacent
+to the text as well. Gating the sizing on a marker followed by a space, surplus or not, puts the
+bullet and its space in the gutter on every such line, the mark at the one-space text column,
+and the text at the mark's end: measured, `-  b`'s and `-    e`'s marks begin where `- a`'s text
+begins, and each text begins at its mark's right edge. A tab after the marker stays outside the
+gate and on its own stop.
+
+A press on the mark removes the run, dispatched as a `delete` user event from a capture-phase
+`pointerdown` with the trailing mouse events swallowed (the shape `zoom-click.ts` records the
+reasons for). Measured: a pointer press at the centre of `-    e`'s mark leaves `- e` with the
+caret at column 2 and no mark, and one undo restores the line.
+
 Removing the run by hand was not possible in outline mode. The caret's boundary
 (`contentBoundaryCh`) spans the whole run, so no column inside it is addressable — a caret set
 at column 1 of `-  b` reads back at 3 — and Backspace at column 3 was classified as the

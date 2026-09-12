@@ -1928,28 +1928,27 @@ class DecorationsPlugin implements PluginValue {
 export const ORDERED_DIGITS_CLASS = 'to-decor-ol-digits';
 
 /**
- * Set on a list line whose marker is followed by EXACTLY ONE space — the shape
- * the marker-sizing rules in styles.css compensate for, and the only one they
- * can.
+ * Set on a list line whose marker is followed by a SPACE — the shape the
+ * marker-sizing rules in styles.css compensate for.
  *
  * Those rules add a fixed width to the mark, sized as "the gutter, less one
- * space". That is right when the marker's own whitespace IS one space, and
- * wrong otherwise: the width is added ON TOP of whatever whitespace the line
- * carries, so `-  foo` and `-\tfoo` — both ordinary markdown — had their text
- * pushed past the column their one-space siblings sit on, and a tab crossed to
- * the next stop. Measured: `-  foo` moved 20 → 24.18, `2.  foo` 22.58 → 24.19,
- * and `3.\tfoo` 24 → 41.2.
+ * space": the marker and its first space then fill the gutter exactly. The class
+ * was first gated on EXACTLY one space, because the width is added on top of
+ * whatever whitespace the line carries, and `-  foo` had its text pushed past the
+ * column its one-space siblings sit on — measured, 20 → 24.18 — with nothing on
+ * the line to say why. Now that the surplus of the run is marked
+ * (`SURPLUS_MARKER_SPACE_CLASS`), the push is the point: the marker and its own
+ * space take the gutter as on every other line, the marked surplus follows the
+ * gutter, and the text begins after the mark. Ungated, the surplus sat INSIDE the
+ * gutter's slack — measured, `-  two`'s mark at 5.1–10.2px with the text at 14 —
+ * a highlight in a space the caret cannot reach, between a bullet and text that
+ * had not moved.
  *
- * A rule that adapts to the actual run needs the free space distributed by the
- * layout engine, which means making the marker span a flex container — measured
- * too, and it moves the bullet's dot off its column (the growth lands on the
- * content box, where Obsidian centres the dot) and re-anchors a tab to a
- * different stop. So the compensation is gated instead: a marker whose
- * whitespace is not one space renders exactly as it did before this change, with
- * its column intact and its caret still short of it — a pre-existing defect left
- * standing rather than a new one introduced.
+ * A tab after the marker is still excluded: it is quantised to its own stop, and
+ * a rule that adapted to the actual run would need the marker span to be a flex
+ * container — measured, and it moves the bullet's dot off its column.
  */
-export { ONE_SPACE_MARKER_CLASS } from './chrome-line';
+export { SPACED_MARKER_CLASS } from './chrome-line';
 
 /** `1.`, `12)` — the run a mark covers, with its offset in the line. */
 const ORDERED_DIGITS_RE = /^([ \t]*)(\d{1,9}[.)])/;
@@ -2056,7 +2055,20 @@ class OrderedDigitsPlugin implements PluginValue {
 export const SURPLUS_MARKER_SPACE_CLASS = 'to-decor-marker-surplus';
 
 const SURPLUS_MARKER_SPACE_TITLE =
-  'Extra space after the marker. Child items must be indented past it; Backspace at the start of the text removes it.';
+  'Extra space after the marker. Child items must be indented past it; click, or press Backspace at the start of the text, to remove it.';
+
+/** The surplus runs on one line, as offsets into it, ascending. */
+function surplusRuns(lineText: string): readonly { from: number; to: number }[] {
+  const columns = [contentColumnCh(lineText), markerPrefixCh(lineText)];
+  // Ascending, and each column once: the builder takes ranges in order, and a
+  // plain item's two columns coincide.
+  const runs: { from: number; to: number }[] = [];
+  for (const col of [...new Set(columns)].sort((a, b) => a - b)) {
+    const surplus = surplusMarkerSpace(lineText, col);
+    if (surplus > 0) runs.push({ from: col - surplus, to: col });
+  }
+  return runs;
+}
 
 function computeSurplusMarkerSpace(state: EditorState): DecorationSet {
   if (!isOutlineMode(state)) return Decoration.none;
@@ -2068,15 +2080,10 @@ function computeSurplusMarkerSpace(state: EditorState): DecorationSet {
     if (!fact.hasNativeMarker) continue;
     if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
     const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
-    const columns = [contentColumnCh(line.text), markerPrefixCh(line.text)];
-    // Ascending, and each column once: the builder takes ranges in order, and
-    // a plain item's two columns coincide.
-    for (const col of [...new Set(columns)].sort((a, b) => a - b)) {
-      const surplus = surplusMarkerSpace(line.text, col);
-      if (surplus === 0) continue;
+    for (const run of surplusRuns(line.text)) {
       builder.add(
-        line.from + col - surplus,
-        line.from + col,
+        line.from + run.from,
+        line.from + run.to,
         Decoration.mark({
           class: SURPLUS_MARKER_SPACE_CLASS,
           attributes: { title: SURPLUS_MARKER_SPACE_TITLE },
@@ -2087,20 +2094,100 @@ function computeSurplusMarkerSpace(state: EditorState): DecorationSet {
   return builder.finish();
 }
 
+/** The events a handled press has to swallow, in the order they arrive. */
+const SURPLUS_TRAILING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
+
+/**
+ * The mark, and the press that removes what it marks.
+ *
+ * A press on the mark deletes the surplus run and leaves the caret at the
+ * item's content start — the same edit Backspace there makes, reachable
+ * without first finding that column. The listener is `zoom-click.ts`'s shape
+ * for the same reasons recorded there: `pointerdown` in the capture phase on
+ * the editor's own element, since a touch device produces no mouse event and
+ * CM6's own handler on `contentDOM` would otherwise start a selection drag from
+ * the mark; and the trailing mouse events of a handled press swallowed, since
+ * `preventDefault` on `pointerdown` does not suppress them for a mouse and they
+ * would place a caret from coordinates that now mean something else.
+ *
+ * The run is re-read from the document at the press, not carried on the mark:
+ * the DOM the press landed on may be a render behind.
+ */
 class SurplusMarkerSpacePlugin implements PluginValue {
   decorations: DecorationSet;
+  private readonly onPointerDown: (event: Event) => void;
+  private readonly onTrailing: (event: Event) => void;
+  /** This view's OWN `Element` — a pop-out leaf runs in another window. */
+  private readonly Element: typeof Element;
+  /** A press this gesture took, until its own trailing events are spent. */
+  private consuming = false;
 
   constructor(private readonly view: EditorView) {
     this.decorations = this.compute();
+    this.Element = view.dom.ownerDocument.defaultView?.Element ?? Element;
+    this.onPointerDown = (event) => this.handle(event as MouseEvent);
+    this.onTrailing = (event) => this.swallow(event);
+    this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
+    for (const type of SURPLUS_TRAILING_EVENTS) {
+      this.view.dom.addEventListener(type, this.onTrailing, true);
+    }
   }
 
   update(): void {
     this.decorations = this.compute();
   }
 
+  destroy(): void {
+    this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
+    for (const type of SURPLUS_TRAILING_EVENTS) {
+      this.view.dom.removeEventListener(type, this.onTrailing, true);
+    }
+  }
+
   private compute(): DecorationSet {
     if (isNestedEditor(this.view)) return Decoration.none;
     return computeSurplusMarkerSpace(this.view.state);
+  }
+
+  private handle(event: MouseEvent): void {
+    // A fresh gesture is also the point to notice a previous one that dragged
+    // off the mark and never produced its `click`.
+    this.consuming = false;
+    if (event.button !== 0) return;
+    // A modified click is someone else's gesture.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const target = event.target instanceof this.Element ? event.target : null;
+    const mark = target?.closest<HTMLElement>(`.${SURPLUS_MARKER_SPACE_CLASS}`);
+    if (!mark) return;
+    if (isNestedEditor(this.view) || !isOutlineMode(this.view.state)) return;
+    let pos: number;
+    try {
+      pos = this.view.posAtDOM(mark);
+    } catch {
+      return; // a mark the current document cannot place: mid-render DOM
+    }
+    const line = this.view.state.doc.lineAt(pos);
+    const run = surplusRuns(line.text).find(
+      (r) => pos >= line.from + r.from && pos < line.from + r.to,
+    );
+    if (!run) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.consuming = true;
+    const from = line.from + run.from;
+    this.view.dispatch({
+      changes: { from, to: line.from + run.to },
+      selection: { anchor: from },
+      scrollIntoView: true,
+      userEvent: 'delete',
+    });
+  }
+
+  private swallow(event: Event): void {
+    if (!this.consuming) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.type === 'click') this.consuming = false;
   }
 }
 

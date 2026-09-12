@@ -60,6 +60,43 @@ describe('a list marker\'s surplus whitespace', function () {
     expect((await markTitles(1))[0]).toContain('Backspace');
   });
 
+  it('sits between the gutter and the text, never inside the gutter', async function () {
+    // The bullet and its own space fill the gutter as on a one-space line, so
+    // the mark begins where a one-space item's text begins, and the text begins
+    // where the mark ends: `- ` then the highlight then the text.
+    await h.createNote(NOTE, '- a\n-  b\n-    e\n');
+    await h.setOutlineMode(true);
+    await h.setCursor(2, 6);
+    const textLeft = async (line: number): Promise<number> =>
+      (await h.getLineChildRects(line, '.cm-list-1:not(.cm-formatting)'))[0]!.left;
+    const oneSpaceText = await textLeft(0);
+    for (const line of [1, 2]) {
+      const [mark] = await h.getLineChildRects(line, MARK);
+      expect(mark!.left).toBeCloseTo(oneSpaceText, 0);
+      expect(await textLeft(line)).toBeCloseTo(mark!.left + mark!.width, 0);
+    }
+  });
+
+  it('a press on the mark removes the run and leaves the caret at the content start', async function () {
+    await h.createNote(NOTE, '- a\n-    e\n');
+    await h.setOutlineMode(true);
+    await h.setCursorSettled(0, 3);
+    const [mark] = await h.getLineChildRects(1, MARK);
+    await h.clickAtPoint(mark!.left + mark!.width / 2, mark!.top + mark!.height / 2);
+    await browser.waitUntil(async () => (await h.getBuffer()) === '- a\n- e\n', {
+      timeout: 2000,
+      timeoutMsg: 'the press did not remove the surplus',
+    });
+    // The caret is where the text begins, not where the press landed, and the
+    // trailing mouse events of the press did not move it.
+    await browser.pause(150);
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+    expect(await h.getLineChildRects(1, MARK)).toHaveLength(0);
+    // One undo step.
+    await h.keys.undo();
+    expect(await h.getBuffer()).toBe('- a\n-    e\n');
+  });
+
   it('is an outline-mode decoration', async function () {
     await h.createNote(NOTE, '-  b\n');
     await h.setOutlineMode(false);
