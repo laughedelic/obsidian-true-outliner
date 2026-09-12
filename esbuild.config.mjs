@@ -2,7 +2,7 @@ import esbuild from 'esbuild';
 import process from 'node:process';
 import builtins from 'builtin-modules';
 import { installToVault, buildStamp } from './scripts/install-to-vault.mjs';
-import { stylesheetParts, writeStylesheet } from './scripts/styles.mjs';
+import { STYLES_DIR, stylesheetParts, writeStylesheet } from './scripts/styles.mjs';
 
 const production = process.argv[2] === 'production';
 
@@ -51,9 +51,11 @@ const stampPlugin = {
       return {
         contents: `export const BUILD_STAMP = ${JSON.stringify(currentStamp)};`,
         loader: 'js',
-        // The stylesheet parts, so the watcher rebuilds on a saved part (see
+        // The stylesheet parts, so the watcher rebuilds on a saved part, and
+        // their directory, so it rebuilds on a part added or removed (see
         // `stylesPlugin`).
         watchFiles: stylesheetParts(),
+        watchDirs: [STYLES_DIR],
       };
     });
   },
@@ -103,8 +105,9 @@ const installPlugin = {
 /**
  * Assembles the root `styles.css` from the parts under `styles/` on every
  * build (scripts/styles.mjs). The parts are not in the module graph — nothing
- * imports them — so the stamp plugin's load declares them as watch files; a
- * saved part then triggers a rebuild the same way a saved source file does.
+ * imports them — so the stamp plugin's load declares them as watch files and
+ * their directory as a watch dir; a saved, added or removed part then triggers
+ * a rebuild the same way a saved source file does.
  * Declared there rather than from a load callback of this plugin's own: a
  * load result carrying only `watchFiles` ends the callback chain with the
  * module still unloaded.
