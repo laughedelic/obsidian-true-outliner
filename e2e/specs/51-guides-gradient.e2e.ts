@@ -32,6 +32,7 @@ import * as path from 'node:path';
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
+import { renderedLineTexts } from '../folding.js';
 import { ALL_DECORATION_FIXTURES, createFixture } from '../fixtures/decorations.js';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), '.obsidian-cache', 'guides-gradient-screenshots');
@@ -501,7 +502,7 @@ describe('outline decorations: experiment 2b (guide lines, CSS stacked-gradient)
 
       // Rendered rows, not document lines: a zoom leaves hidden lines out of
       // the DOM, so the rows are found from "para", whose text renders as is.
-      const para = (await h.renderedLineTexts()).findIndex((t) => t === 'para');
+      const para = (await renderedLineTexts()).findIndex((t) => t === 'para');
       expect(para).toBeGreaterThan(-1);
       const item = para + 3;
       const position = para + 4;

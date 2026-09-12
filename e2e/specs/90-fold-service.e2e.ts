@@ -28,6 +28,14 @@
 
 import { browser, expect } from '@wdio/globals';
 import * as h from '../helpers.js';
+import {
+  clearFolds,
+  foldChromeLines,
+  foldableLines,
+  foldedLineRanges,
+  nativeChevronLines,
+  renderedLineTexts,
+} from '../folding.js';
 
 const NOTE = 'Scratch/fold-service.md';
 
@@ -100,12 +108,12 @@ describe('fold service', () => {
     await h.createNote(NOTE, DOC);
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     await h.setCursor(0, 0);
   });
 
   it('reports our range on every kind that can hold children', async () => {
-    const foldable = await h.foldableLines();
+    const foldable = await foldableLines();
     // A paragraph with attached children is the case Obsidian cannot fold on
     // its own, and the ordered and task items are the list notations whose
     // marks differ. The nested leaves report nothing: the provider answers for
@@ -129,7 +137,7 @@ describe('fold service', () => {
     // without our provider.
     await h.setCursorSettled(2, 3);
     await h.runEditorExec('toggleFold');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 10 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 2, to: 10 }]);
     // The list block is gone from the DOM entirely, rather than hidden in
     // place, which is the point of folding through Obsidian's mechanism rather
     // than beside it.
@@ -139,7 +147,7 @@ describe('fold service', () => {
     // placeholder, still in the DOM and hidden by CSS wherever ours is drawn
     // (93 asserts that only one of the two is SHOWN, which textContent cannot
     // answer).
-    expect(await h.renderedLineTexts()).toEqual([
+    expect(await renderedLineTexts()).toEqual([
       'Top',
       '',
       'Paragraph with children:7…',
@@ -150,7 +158,7 @@ describe('fold service', () => {
       '',
     ]);
     await h.runEditorExec('toggleFold');
-    expect(await h.foldedLineRanges()).toEqual([]);
+    expect(await foldedLineRanges()).toEqual([]);
   });
 
   it('moves the caret out of a native fold that closes over it, rather than reopening', async () => {
@@ -163,7 +171,7 @@ describe('fold service', () => {
     await h.setCursorSettled(5, 4); // "- nested a", inside "- one" inside the paragraph
     await h.runEditorExec('foldAll');
     await browser.pause(150);
-    const folded = await h.foldedLineRanges();
+    const folded = await foldedLineRanges();
     expect(folded.map((r) => r.from)).toContain(0); // # Top, the outermost, still folded
     expect(folded.map((r) => r.from)).toContain(2); // the paragraph too
     // On a visible line: the outermost fold's own head.
@@ -178,7 +186,7 @@ describe('fold service', () => {
     // at load, as the plugin does, the chevron appears on every line our
     // provider claims — so in the default configuration nothing of ours needs
     // to be drawn.
-    expect(await h.nativeChevronLines()).toEqual(await h.foldChromeLines());
+    expect(await nativeChevronLines()).toEqual(await foldChromeLines());
   });
 
   it('leaves an atom’s own native fold alone, and draws nothing for it', async () => {
@@ -191,12 +199,12 @@ describe('fold service', () => {
     // What WE claim: only the list parent. Declining for an atom is not a veto,
     // so the editor may still consider one foldable — measured, a raw HTML
     // block is one — and that fold stays Obsidian's business.
-    expect(await h.foldableLines({ oursOnly: true })).toEqual([{ line: 19, from: 19, to: 20 }]);
+    expect(await foldableLines({ oursOnly: true })).toEqual([{ line: 19, from: 19, to: 20 }]);
 
-    const ours = await h.foldChromeLines();
+    const ours = await foldChromeLines();
     expect(ours).toEqual([19]);
     // The HTML block is foldable to the editor and carries no chrome of ours.
-    const editorFoldable = (await h.foldableLines()).map((f) => f.line);
+    const editorFoldable = (await foldableLines()).map((f) => f.line);
     expect(editorFoldable).toContain(19);
     for (const line of editorFoldable) {
       if (line !== 19) expect(ours).not.toContain(line);

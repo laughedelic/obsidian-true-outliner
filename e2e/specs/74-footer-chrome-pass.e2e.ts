@@ -17,6 +17,7 @@ import { obsidianPage } from 'wdio-obsidian-service';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as h from '../helpers.js';
+import { pinBacklinksCapOff } from '../footer.js';
 
 const OUT = path.join(process.cwd(), '.obsidian-cache', 'footer-chrome');
 /** Committed, and diffed on every run — see the baseline test at the bottom. */
@@ -105,7 +106,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
     // Not a volume spec: see `pinBacklinksCapOff`.
-    await h.pinBacklinksCapOff();
+    await pinBacklinksCapOff();
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });

@@ -10,7 +10,7 @@
 import { browser, expect } from '@wdio/globals';
 import { obsidianPage } from 'wdio-obsidian-service';
 import * as h from '../helpers.js';
-import { openFooter, readStable } from '../footer.js';
+import { openFooter, pinBacklinksCapOff, readStable } from '../footer.js';
 
 /**
  * The hub target's footer, on screen.
@@ -119,7 +119,7 @@ describe('the footer’s appearance settings', function () {
     await obsidianPage.resetVault();
     await h.resetPluginState();
     // Not a volume spec: see `pinBacklinksCapOff`.
-    await h.pinBacklinksCapOff();
+    await pinBacklinksCapOff();
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });
