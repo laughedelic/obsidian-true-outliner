@@ -140,6 +140,48 @@ describe('nextRung: the ladder for this fixture (progressive-select-all)', () =>
   });
 });
 
+describe('nextRung: a task item\'s first rung starts after its task marker (select-all-task-content)', () => {
+  // - [ ] buy milk
+  // - [x] done
+  //   - child
+  // - [ ]
+  // 1. [ ] ordered
+  // [ ] note
+  const tasks = parse('- [ ] buy milk\n- [x] done\n  - child\n- [ ] \n1. [ ] ordered\n[ ] note\n');
+
+  it('an open task selects its text only, never the checkbox, then climbs to the whole line', () => {
+    const steps = climbIn(tasks, cursor(pos(0, 9)));
+    expect(steps[0]).toEqual(range(pos(0, 6), pos(0, 14))); // "buy milk"
+    expect(steps[1]).toEqual(range(pos(0, 0), pos(0, 14))); // the whole line, checkbox included (no gap to own)
+  });
+
+  it('a done task with children selects its text, then its subtree', () => {
+    const steps = climbIn(tasks, cursor(pos(1, 8)));
+    expect(steps[0]).toEqual(range(pos(1, 6), pos(1, 10))); // "done"
+    expect(steps[1]).toEqual(range(pos(1, 0), pos(2, 9))); // subtree: the child comes along
+  });
+
+  it('an ordered task item excludes both its number and its checkbox', () => {
+    const steps = climbIn(tasks, cursor(pos(4, 9)));
+    expect(steps[0]).toEqual(range(pos(4, 7), pos(4, 14))); // "ordered"
+  });
+
+  it('an empty task item has no text rung: the first press takes the whole line', () => {
+    const steps = climbIn(tasks, cursor(pos(3, 6)));
+    expect(steps[0]).toEqual(range(pos(3, 0), pos(3, 6)));
+  });
+
+  it('a paragraph that merely starts with `[ ]` keeps its full text: no list marker, no task marker', () => {
+    const steps = climbIn(tasks, cursor(pos(5, 5)));
+    expect(steps[0]).toEqual(range(pos(5, 0), pos(5, 8)));
+  });
+
+  it('a plain item is unchanged: its text starts right after the list marker', () => {
+    const steps = climbIn(tasks, cursor(pos(2, 6)));
+    expect(steps[0]).toEqual(range(pos(2, 4), pos(2, 9))); // "child"
+  });
+});
+
 describe('nextRung: the siblings-run rung (real-vault experiment)', () => {
   // # Head
   //

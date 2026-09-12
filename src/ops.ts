@@ -979,8 +979,9 @@ function itemStyleFrom(donor: OutlineNode | undefined): ListStyle {
  *   there, so the keypress fell through to an ordinary character deletion and
  *   left `- [ ]bar` — a broken checkbox rather than a join.
  *
- * These gestures only. `[ ]` stays content to the caret, to `contentColumnCh`'s
- * other callers, and to the selection ladder — the question
+ * These gestures, and the selection ladder's first rung (`select-all-ladder.ts`,
+ * which needs a range Obsidian's checkbox widget can render). `[ ]` stays
+ * content to the caret and to `contentColumnCh`'s other callers — the question
  * `enter-and-shift-enter-grammar` D5 holds out of scope stays out of it. A hard
  * continuation line still pads to the list marker alone (`itemMarkerText`),
  * which is markdown's own rule about what continues a list item and not this

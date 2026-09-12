@@ -27,7 +27,7 @@
 import type { OutlineDoc, OutlineNode } from './model';
 import { childrenAt, findPath, nodeAt } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
-import { contentColumnCh } from './ops';
+import { markerPrefixCh } from './ops';
 import { subtreeCoverOf, type Cover } from './escalate';
 import { isBackward, posBefore, posEqual, type LinePos, type LineRange } from './line-pos';
 
@@ -44,21 +44,29 @@ function containsBounds(cover: Cover, lo: LinePos, hi: LinePos): boolean {
 
 /**
  * A node's own content cover (rung 1): its own lines only, excluding
- * descendants and its trailing gap. A list item's cover starts after its
- * marker (`contentColumnCh`, the same boundary `splitNode` uses) — headings and
- * paragraphs have no marker to exclude (design.md D4), so their content
- * starts at column 0 of their first line.
+ * descendants and its trailing gap. A list item's cover starts where its own
+ * text begins (`markerPrefixCh`, the boundary `splitNode` and the Backspace
+ * merge use): after the list marker, and after the task marker too when the
+ * item has one, so the first press on `- [ ] buy milk` selects `buy milk`.
+ * Headings and paragraphs have no marker to exclude (design.md D4), so their
+ * content starts at column 0 of their first line.
  *
- * NOT `./caret.ts`'s `contentBoundaryCh`, which deliberately answers a
- * different question: it leaves an ATX prefix inside a list item addressable and
- * covers a marker with no trailing space. The two agree on ordinary items and
- * differ on `- # title` and a bare `-`; this ladder keeps `contentColumnCh`'s
- * semantics, unchanged by the caret work.
+ * The task marker is excluded for a reason the caret's boundary does not
+ * share. Obsidian's checkbox-widget mount dispatches a selection change of its
+ * own that moves a range boundary sitting at the list marker's end to column
+ * 0 — the same late dispatch `content-space-caret` C8 records for a caret —
+ * so a rung starting after `- ` alone settles as the whole line, marker and
+ * all, with outline mode on or off (docs/research/select-all-task-content). A
+ * boundary past the task marker survives it. `caret.ts`'s `contentBoundaryCh`
+ * still stops after `- `, because a caret is one position, the filter clamps
+ * it back off the marker, and the checkbox is addressable on purpose (Home
+ * lands before it). An empty task item has no text to select, so its first
+ * rung collapses to a cursor and the ladder climbs straight to the whole line.
  */
 function ownContentCover(doc: OutlineDoc, node: OutlineNode): Cover {
   const start = nodeStartLine(doc, node.id);
   const firstLine = node.lines[0] ?? '';
-  const startCh = node.kind === 'list-item' ? contentColumnCh(firstLine) : 0;
+  const startCh = node.kind === 'list-item' ? markerPrefixCh(firstLine) : 0;
   const lastLine = node.lines[node.lines.length - 1] ?? '';
   return {
     start: { line: start, ch: startCh },
