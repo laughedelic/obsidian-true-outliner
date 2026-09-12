@@ -140,10 +140,23 @@ export function nextRung(
   const node = nodeAtLine(doc, range.anchor.line);
   if (!node) return null;
 
-  const lo = isBackward(range) ? range.head : range.anchor;
-  const hi = isBackward(range) ? range.anchor : range.head;
+  let lo = isBackward(range) ? range.head : range.anchor;
+  let hi = isBackward(range) ? range.anchor : range.head;
 
-  for (const cover of ladderFor(doc, node)) {
+  const ladder = ladderFor(doc, node);
+  // A cursor inside the node's marker prefix — where Home leaves it on a task
+  // item, where a click on the checkbox lands, where Obsidian's widget mount
+  // moves it — climbs from the content rung like a cursor on the text does.
+  // The rung is the first place to climb TO, not one the caret has to have
+  // reached: without this the first press skipped the text and took the
+  // whole line.
+  const own = ladder[0];
+  if (own && posEqual(lo, hi) && lo.line === own.start.line && lo.ch < own.start.ch) {
+    lo = own.start;
+    hi = own.start;
+  }
+
+  for (const cover of ladder) {
     // `outline-zoom` D7: an active scope BOUNDS the enumeration rather than
     // truncating its output. Rungs that reach past the zoom root are dropped
     // from the sequence, so the root's own subtree becomes the top and every

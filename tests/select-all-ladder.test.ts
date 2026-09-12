@@ -184,6 +184,16 @@ describe('nextRung: a task item\'s first rung starts after its task marker (sele
     expect(steps[0]).toEqual(range(pos(6, 0), pos(6, 8)));
   });
 
+  it('a cursor inside the marker prefix climbs from the text rung, not past it', () => {
+    // Where Home leaves the caret on a task item (after `- `), where a click on
+    // the checkbox lands, where Obsidian's widget mount moves it.
+    expect(climbIn(tasks, cursor(pos(0, 2)))[0]).toEqual(range(pos(0, 6), pos(0, 14)));
+    expect(climbIn(tasks, cursor(pos(0, 4)))[0]).toEqual(range(pos(0, 6), pos(0, 14)));
+    expect(climbIn(tasks, cursor(pos(3, 3)))[0]).toEqual(range(pos(3, 8), pos(3, 19)));
+    // A plain item's marker too: column 0 is before its text as well.
+    expect(climbIn(tasks, cursor(pos(2, 0)))[0]).toEqual(range(pos(2, 4), pos(2, 9)));
+  });
+
   it('a plain item is unchanged: its text starts right after the list marker', () => {
     const steps = climbIn(tasks, cursor(pos(2, 6)));
     expect(steps[0]).toEqual(range(pos(2, 4), pos(2, 9))); // "child"
@@ -352,8 +362,13 @@ describe('property: the ladder always terminates and never shrinks', () => {
           if (next === null) return true; // terminated
           const lo = next.anchor.line < next.head.line || (next.anchor.line === next.head.line && next.anchor.ch < next.head.ch) ? next.anchor : next.head;
           const hi = lo === next.anchor ? next.head : next.anchor;
+          // The one sanctioned sideways move: a CURSOR in a list item's marker
+          // prefix takes the item's text rung, which starts past it on the same
+          // line (select-all-task-content). Every later step must contain its
+          // predecessor.
+          const fromPrefix = i === 0 && lo.line === prevLo.line && lo.ch > prevLo.ch;
           const grew =
-            (lo.line < prevLo.line || (lo.line === prevLo.line && lo.ch <= prevLo.ch)) &&
+            (fromPrefix || lo.line < prevLo.line || (lo.line === prevLo.line && lo.ch <= prevLo.ch)) &&
             (hi.line > prevHi.line || (hi.line === prevHi.line && hi.ch >= prevHi.ch));
           if (!grew) return false; // shrank or moved sideways — violates the never-shrink invariant
           prevLo = lo;
