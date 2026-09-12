@@ -97,17 +97,20 @@ const PATTERNS = {
   ],
 };
 
+// A stylesheet rule is named `<block>:<class>` (regions.mjs); the block is the
+// part seam 1 cuts it into. Selection chrome stays with the editor, as it does
+// in the proposed parts.
+const CSS_BLOCK_GROUP = { editor: "editor+tokens", footer: "footer", zoom: "zoom", indicators: "indicators", folding: "folding" };
 function cssGroup(name) {
-  if (/to-backlinks/.test(name)) return 'footer';
-  if (/to-zoom|true-outliner-mode|true-outliner-ribbon/.test(name)) return 'zoom+indicators';
-  if (/fold/.test(name)) return 'folding';
-  if (/selected|selecting/.test(name)) return 'selection';
-  return 'editor+tokens';
+  return CSS_BLOCK_GROUP[name.split(":")[0]] ?? "editor+tokens";
 }
 
 export function group(file, name) {
   if (file === 'e2e/helpers.ts') return helperGroup.get(name) ?? (name === '(imports)' ? 'core' : '(gone)');
-  if (file === 'styles.css') return cssGroup(name);
+  if (file === "styles.css") return cssGroup(name);
+  // Paths a seam introduces: one group per file, so an edit inside a part or a
+  // slice counts as that part's own.
+  if (/^styles\//.test(file) || /^src\/plugin\/settings/.test(file) || file === "e2e/footer.ts" || file === "e2e/folding.ts") return file;
   if (file === 'src/plugin/decorations.ts' && decorationGroup.has(name)) return decorationGroup.get(name);
   for (const [re, g] of PATTERNS[file] ?? []) if (re.test(name)) return g;
   return 'other';

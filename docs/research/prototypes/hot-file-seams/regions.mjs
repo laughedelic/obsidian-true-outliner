@@ -77,18 +77,32 @@ export function regionsTS(src, ts, splitMethods = new Set()) {
   return out;
 }
 
-// A top-level rule is named by the first `.to-*` class in its selector, or by
-// the selector's first token when it has none.
+// The stylesheet's feature blocks, each opened by a banner comment that has
+// been stable since the block landed. A rule before the first banner is the
+// editor's own.
+const CSS_BLOCKS = [
+  [/BACKLINKS FOOTER/, 'footer'],
+  [/Zoom's breadcrumb trail/, 'zoom'],
+  [/Mode indicators — the status bar item/, 'indicators'],
+  [/The guide gesture's hover/, 'folding'],
+];
+
+// A top-level rule is named `<block>:<class>` — the block it sits in and the
+// first `.to-*` class in its selector, or, for an at-rule, the first `.to-*`
+// class inside it; a rule with none takes its selector's first token.
 export function regionsCSS(src) {
   const out = [];
   const lines = src.split('\n');
+  let block = 'editor';
   let depth = 0;
   let selector = '';
   let inComment = false;
   let pending = null;
   let start = null;
+  const className = (text) => text.match(/\.to-[a-z0-9]+(?:-[a-z0-9]+)?/)?.[0];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    for (const [re, name] of CSS_BLOCKS) if (re.test(line)) block = name;
     for (let j = 0; j < line.length; j++) {
       const two = line.slice(j, j + 2);
       if (inComment) {
@@ -111,8 +125,11 @@ export function regionsCSS(src) {
         depth--;
         if (depth === 0) {
           const sel = selector.trim();
-          const name = sel.match(/\.to-[a-z0-9]+(?:-[a-z0-9]+)?/)?.[0] ?? sel.split(/[\s,]/)[0].slice(0, 30);
-          out.push({ name, start, end: i + 1 });
+          const cls =
+            className(sel) ??
+            (sel.startsWith('@') ? className(lines.slice(start - 1, i + 1).join('\n')) : undefined) ??
+            sel.split(/[\s,]/)[0].slice(0, 30);
+          out.push({ name: `${block}:${cls}`, start, end: i + 1 });
           selector = '';
           pending = null;
           start = null;

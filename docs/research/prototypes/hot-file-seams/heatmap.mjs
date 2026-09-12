@@ -4,6 +4,10 @@
 // parent held it. Writes `heatmap.json` into SEAMS_DIR.
 //
 //   SEAMS_DIR=/tmp/seams REF=3e994a5 N=120 node docs/research/prototypes/hot-file-seams/heatmap.mjs
+//
+// Hot files are matched by pattern against each commit's own file list, so a
+// path a seam introduces — a stylesheet part, a settings slice, a feature's
+// e2e helpers — is measured at a later REF without editing this list.
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -14,16 +18,16 @@ import { regionsCSS, regionsTS, regionAt } from './regions.mjs';
 const ts = createRequire(join(process.cwd(), 'package.json'))('typescript');
 const DIR = process.env.SEAMS_DIR ?? join(tmpdir(), 'hot-file-seams');
 const N = Number(process.env.N ?? 120);
-export const HOT_FILES = [
-  'e2e/helpers.ts',
-  'src/plugin/decorations.ts',
-  'src/plugin/main.ts',
-  'styles.css',
-  'src/ops.ts',
-  'src/plugin/keymap.ts',
-  'src/plugin/backlinks-footer.ts',
-  'src/plugin/mode-registry.ts',
+const REF = process.env.REF ?? 'origin/main';
+export const HOT_FILE_PATTERNS = [
+  /^e2e\/(helpers|footer|folding)\.ts$/,
+  /^src\/plugin\/(decorations|main|keymap|backlinks-footer|mode-registry)\.ts$/,
+  /^src\/plugin\/settings(\/[^/]+)?\.ts$/,
+  /^src\/ops\.ts$/,
+  /^styles\.css$/,
+  /^styles\/[^/]+\.css$/,
 ];
+export const isHotFile = (file) => HOT_FILE_PATTERNS.some((re) => re.test(file));
 // Methods long enough that crediting the whole member says nothing.
 const SPLIT_METHODS = new Set(['onload', 'display']);
 
@@ -45,7 +49,6 @@ function regionsAt(sha, file) {
   return cache.get(key);
 }
 
-const REF = process.env.REF ?? 'origin/main';
 const log = git('log', '--format=%H%x09%P%x09%ad%x09%s', '--date=short', `-${N}`, '--first-parent', REF)
   .trim()
   .split('\n');
@@ -56,7 +59,8 @@ for (const row of log) {
   if (!parent) continue;
   const conventional = subject.match(/^(\w+)(?:\(([^)]+)\))?!?:/);
   const pr = subject.match(/\(#(\d+)\)\s*$/)?.[1] ?? null;
-  for (const file of HOT_FILES) {
+  const files = (git('diff', '--name-only', '--no-renames', parent, sha) ?? '').split('\n').filter(isHotFile);
+  for (const file of files) {
     const diff = git('diff', '-U0', '--no-renames', parent, sha, '--', file);
     if (!diff) continue;
     const regions = {};
