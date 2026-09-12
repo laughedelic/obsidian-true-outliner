@@ -2379,6 +2379,18 @@ export function getLineClassList(lineIndex: number): Promise<string[]> {
   }, lineIndex);
 }
 
+/** The absolute viewport X of the editor content's left edge — the column a
+ * depth-0 line's own box starts at, which every chrome edge is measured
+ * against. */
+export function contentLeftAbsoluteX(): Promise<number> {
+  return browser.executeObsidian(({ app, obsidian }) => {
+    const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+    if (!view) throw new Error('no active markdown view');
+    const cm = (view.editor as any).cm;
+    return cm.contentDOM.getBoundingClientRect().left as number;
+  });
+}
+
 /** Bounding rects of every element matching `selector` within the Nth `.cm-line`. */
 export function getLineChildRects(lineIndex: number, selector: string): Promise<Rect[]> {
   return browser.executeObsidian(
