@@ -1573,10 +1573,11 @@ const MODIFIER_ONLY_KEYS: ReadonlySet<string> = new Set([
  * selection background under the indentation" gap). The root's own fact is
  * looked up at the cover's start line — exactly the root's own first line,
  * by construction of `coveredSubtreeRoots`/`siblingRunCover`. A list-item
- * root has no additive column of its own (list guides are deferred entirely
- * to native rendering, same as `computeLineGuides`'s own precedent) — its
- * target is just its own line's shift, i.e. the rectangle starts at the
- * root's own box with no further leftward reach.
+ * root sits on the same depth grid as every other kind since
+ * `lists-on-the-outline-grid`, so its column is `depth * unit` like theirs;
+ * an earlier reading gave it no column of its own and anchored the chrome at
+ * the list's ROOT depth less one, which for a nested bullet reached past
+ * every guide to the view edge (docs/research/selection-chrome-list-root).
  */
 function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string> {
   const { doc } = parsedDoc(state.doc);
@@ -1627,10 +1628,10 @@ function selectedLineRootTargets(state: EditorState): ReadonlyMap<number, string
       // rather than clamping to 0 (which would put the edge right back at the
       // root's own column, reintroducing the exact problem this fixes) and
       // stays within the leftward-overflow margin the guide layer's own doc
-      // comment already confirmed is never clipped.
-      const rootTarget = rootFact.isListItem
-        ? `calc(${plainOwnShiftExpr(rootFact)} - ${UNIT})`
-        : `calc((${rootFact.depth} - 1) * ${UNIT})`;
+      // comment already confirmed is never clipped. One formula for every
+      // kind: a list item's depth is its grid column too, and the line's own
+      // box shift is subtracted below, per line, whatever kind the line is.
+      const rootTarget = `calc((${rootFact.depth} - 1) * ${UNIT})`;
       const rootEnd = Math.min(root.cover.end.line, hiLine);
       for (let line = rootLine; line <= rootEnd; line++) targets.set(line, rootTarget);
     }
