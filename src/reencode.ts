@@ -6,13 +6,34 @@
 
 import type { OutlineNode } from './model';
 import { isAtom } from './model';
-import { indentWidth, TAB_WIDTH } from './parse';
+import { indentWidth, parseListMarker, TAB_WIDTH } from './parse';
 
-const LIST_MARKER_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]?)/;
+/**
+ * The columns between a list item's indentation and its content: the marker
+ * and the whitespace after it, as the parser measures them, so a child this
+ * module writes lands exactly on the column the parser (and Obsidian's
+ * reader) require of a child. An earlier reading counted one space whatever
+ * the line held, which left every child of `-  a` one column short.
+ */
+const LIST_MARKER_STRIP_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]*/;
 
 export function markerWidth(node: OutlineNode): number {
-  const match = LIST_MARKER_RE.exec(node.lines[0] ?? '');
-  return match ? match[2]!.length + 1 : 2;
+  return markerWidthOf(node.lines[0] ?? '');
+}
+
+function markerWidthOf(line: string): number {
+  const parsed = parseListMarker(line);
+  return parsed ? parsed.contentCol - indentWidth(line) : 2;
+}
+
+const MARKER_RUN_RE = /^([ \t]*(?:[-+*]|\d{1,9}[.)]))([ \t]+)/;
+
+/** `-  a` and `-\ta` as `- a`; a line already at one space, and a marker with
+ * no whitespace after it at all, come back unchanged. */
+export function normalizeMarkerRun(line: string): string {
+  const match = MARKER_RUN_RE.exec(line);
+  if (!match || match[2] === ' ') return line;
+  return `${match[1]} ${line.slice(match[0].length)}`;
 }
 
 /** The column at which a node's children must be indented. */
@@ -127,7 +148,15 @@ export function reencodeForDestination(
   // Atoms and no-conversion cases: rewrite the first line's leading
   // whitespace exactly; shift the rest by the width delta.
   if (!newKind || newKind === node.kind) {
-    const shifted = shiftSubtree(node, delta);
+    // A list item's marker run is rewritten with the line it sits on: `-  a`
+    // lands as `- a`. The line is being rewritten anyway, and a run wider than
+    // one space is what makes the item's content column hard to see and its
+    // children easy to nest one column short. The item's continuation lines
+    // and children move with the column, so what was under the item stays
+    // under it at the same relative depth.
+    const normalized = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
+    const columnDelta = normalized === first ? 0 : markerWidthOf(normalized) - markerWidthOf(first);
+    const shifted = shiftSubtree({ ...node, lines: [normalized, ...node.lines.slice(1)] }, delta + columnDelta);
     return {
       ...shifted,
       lines: [
@@ -153,8 +182,11 @@ export function reencodeForDestination(
   }
 
   if (node.kind === 'list-item' && newKind === 'paragraph') {
+    // The marker goes with the whole whitespace run after it, which is the
+    // item's chrome: a paragraph that kept `-  a`'s second space would start
+    // with indentation nobody wrote.
     const lines = node.lines.map((line, i) =>
-      i === 0 ? `${indentText}${line.replace(LIST_MARKER_RE, '')}` : `${indentText}${line.trimStart()}`,
+      i === 0 ? `${indentText}${line.replace(LIST_MARKER_STRIP_RE, '')}` : `${indentText}${line.trimStart()}`,
     );
     const childDelta = targetIndent - childBaseCol(node);
     const result: OutlineNode = {

@@ -1040,6 +1040,24 @@ export function isContentStartCh(line: string, ch: number): boolean {
 }
 
 /**
+ * The characters a whitespace run ending at `ch` holds beyond the one its
+ * marker needs: `-  a` has one at its content column, `- a` none, and so does a
+ * paragraph's indentation, which no marker precedes.
+ *
+ * A run is measured from the marker character it follows — a list marker's
+ * last character, a heading's `#`, a task marker's `]` — so a run that is
+ * indentation alone is not a marker's and reports nothing. The count is what a
+ * Backspace at `ch` may remove and still leave the marker a marker:
+ * `classify.ts` reads it to let that keypress through as an ordinary deletion
+ * instead of a merge intent, and the decoration that marks the run reads it to
+ * know how much of the run to mark.
+ */
+export function surplusMarkerSpace(line: string, ch: number): number {
+  const run = /(?:[-+*]|\d[.)]|#|\])([ \t]+)$/.exec(line.slice(0, ch));
+  return run ? run[1]!.length - 1 : 0;
+}
+
+/**
  * The content-start outcome of `splitNode`: an empty node of the SAME KIND
  * immediately BEFORE `node`, which keeps its own lines, children and depth
  * verbatim. The node's own kind IS its sibling scope's kind, so no destination
