@@ -1062,3 +1062,18 @@ block-selection state this track parks — so it stays filed rather than pre-dec
 
 *(An earlier version of this paragraph called the subject case unreachable, reasoning only
 about the keymap path. Corrected in the same review round that corrected the claim above.)*
+
+## Parked: an exact subtree cover is read off a caret-derived range (opened 2026-09-12, `delete-to-content-start`)
+
+`node-edit-enforcement` reads a deletion whose range exactly covers a node's subtree as a
+structural deletion of that node. The requirement was written for a SELECTION that covers the
+node, but classification sees only the range: a "delete to the start of the line" from the end
+of a childless paragraph that owns no trailing gap — a paragraph followed directly by another
+node — produces the same range as selecting the line, and the paragraph is removed with its line
+and its gap, the caret landing at the previous node's content end, where the user expected an
+empty line under the caret. `delete-to-content-start` moved the list-item case out of reach by
+starting its range at the content start, which is never column 0; a paragraph's content start is
+column 0, so the key stays stock there and the reading still applies
+(`docs/research/delete-to-content-start`). Whether an exact cover should require a non-empty
+selection before the edit, or a `userEvent` the caret-derived commands do not carry, is the
+open question.
