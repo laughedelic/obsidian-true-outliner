@@ -80,6 +80,7 @@ import {
 import {
   GROUP_HEIGHT_CSS,
   OVERALL_CAP_REFERENCES,
+  SORT_ORDER_LABELS,
   type GroupHeight,
   type GuideVisibility,
   type LineageSeparator,
@@ -932,7 +933,7 @@ class FooterController {
     button.toggleClass('is-active', open);
     button.setAttribute('aria-expanded', String(open));
     button.setAttribute('aria-haspopup', 'true');
-    button.setAttribute('aria-label', `Sort backlinks — ${SORT_LABELS[current]}`);
+    button.setAttribute('aria-label', `Sort backlinks — ${SORT_ORDER_LABELS[current]}`);
     // eslint-disable-next-line no-restricted-syntax -- detached DOM before mount
     button.appendChild(sortGlyph());
     button.addEventListener('click', (event) => {
@@ -951,7 +952,7 @@ class FooterController {
     menu.setAttribute('aria-label', 'Sort');
     menu.createDiv({ cls: 'to-backlinks-facet-cap' }).createSpan({ text: 'sort' });
     const list = menu.createDiv({ cls: 'to-backlinks-facet-list to-backlinks-sort-list' });
-    for (const [value, label] of Object.entries(SORT_LABELS)) {
+    for (const [value, label] of Object.entries(SORT_ORDER_LABELS)) {
       const chosen = value === current;
       // No box: a facet's box says "on or off", which is right for a set of
       // independent toggles and wrong for four mutually exclusive orders. One
@@ -2158,13 +2159,6 @@ interface FacetSpec {
   /** Whether the axis's value set is unbounded, and so carries a find box. */
   readonly findable: boolean;
 }
-
-const SORT_LABELS: Record<SortOrder, string> = {
-  recent: 'Recently modified',
-  oldest: 'Oldest first',
-  name: 'Note name',
-  references: 'Most references',
-};
 
 /** Kind names as a reader would say them (docs/research/structured-backlinks, D14). */
 const KIND_LABELS: Record<ReferenceKind, string> = {
