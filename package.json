@@ -25,7 +25,7 @@
     "build:e2e": "tsc --noEmit -p e2e",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
-  "license": "MIT",
+  "license": "MPL-2.0",
   "type": "module",
   "devDependencies": {
     "@codemirror/commands": "^6.10.4",
