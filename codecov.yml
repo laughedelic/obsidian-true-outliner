@@ -1,0 +1,62 @@
+# Coverage source today is unit tests only (vitest, see vitest.config.ts) —
+# the e2e suite doesn't instrument or upload coverage yet. Everything here is
+# scoped to the "unittests" flag; add e2e flags/components alongside it once
+# that exists instead of reworking this file.
+#
+# vitest.config.ts already hard-fails CI on an absolute floor for src/*.ts, so
+# Codecov's project check would just repeat that gate. Codecov's real value
+# add here is patch (diff) coverage — did the lines a PR actually touches get
+# tested — so that's the one check set to actually gate; everything else is
+# informational (visible in the PR comment, doesn't block merging).
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+      core:
+        target: 90%
+        threshold: 2%
+        flags:
+          - unittests
+        paths:
+          - src/*.ts
+
+flags:
+  unittests:
+    paths:
+      - src/
+    carryforward: false
+
+# Path-based breakdown of the single unittests upload — not a substitute for
+# flags (which separate coverage by upload/test-type), but a view onto one
+# upload's coverage by area. "plugin" is intentionally not held to any target:
+# most of its untested surface is CM6/Obsidian wiring exercised by e2e, not by
+# vitest (see vitest.config.ts's coverage.thresholds comment), so a numeric
+# bar on it would just measure that split, not signal a regression.
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        informational: true
+      - type: patch
+        informational: true
+  individual_components:
+    - component_id: core
+      name: core library (src/*.ts)
+      paths:
+        - src/*.ts
+    - component_id: plugin
+      name: plugin integration (src/plugin/**)
+      paths:
+        - src/plugin/**
+
+comment:
+  layout: "header, diff, flags, components, files"
+
+# The colored per-line hit/miss highlighting Codecov overlays on GitHub's own
+# "Files changed" diff view, independent of the comment above.
+github_checks:
+  annotations: false

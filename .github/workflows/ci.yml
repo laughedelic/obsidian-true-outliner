@@ -57,7 +57,15 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm test
+      - run: npm run test:coverage
+
+      - if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          flags: unittests
+          fail_ci_if_error: false
 
   # Builds the e2e matrix from the specs that exist rather than a list in YAML.
   # See scripts/spec-groups.mjs.
