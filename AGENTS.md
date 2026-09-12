@@ -173,6 +173,11 @@ per-group matrix — CI already gives that; this path exists for a headless run,
   merges by union (`.gitattributes`), so branches adding notes in parallel do not conflict over
   it, and `npm run lint` checks the rows against the directory. Cite a note by its path
   (`docs/research/open-questions` Q26), never by a number.
+- **A feature's CSS goes in its own part under `styles/`**, not in the editor's. The root
+  `styles.css` is a build output (`scripts/styles.mjs` joins the parts in filename order, which
+  is cascade order), so a new feature adds a part with the next prefix and edits no shared file.
+  Rules two surfaces share — the editor and the footer — stay in `10-editor.css`, as its
+  comments say.
 
 ## Agent files
 

@@ -32,3 +32,6 @@ dist/
 # The published canvas is the artifact; these are its source and are regenerated
 # from `gen.py` whenever a round changes.
 design/
+
+# Assembled from styles/ by the build (scripts/styles.mjs), like main.js.
+/styles.css
