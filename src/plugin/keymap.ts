@@ -45,10 +45,12 @@ import { type EditorState,
   type Text,
 } from "@codemirror/state";
 import { Direction, EditorView, keymap } from "@codemirror/view";
+import { deleteCharBackward } from "@codemirror/commands";
 import { indentUnit, foldedRanges } from "@codemirror/language";
 import { Notice, editorInfoField } from "obsidian";
 import { planKey, type GrammarKey } from "./grammar";
 import { nextRungs } from "../select-all-ladder";
+import { planDeleteToContentStart } from "../caret-policy";
 import { extendSelections, type ExtendDirection } from "../select-extend";
 import { coveredForestOf } from "../escalate";
 import {
@@ -994,6 +996,44 @@ function makeHomeEndHandler(forward: boolean) {
 }
 
 /**
+ * Mod-Backspace on macOS (`content-space-caret`): delete back to the caret's
+ * line's content start, never into the marker. Stock CodeMirror deletes to
+ * the VISUAL row's start — column 0 on an unwrapped line — which takes the
+ * indentation and the marker with it, and, when the range happens to be an
+ * exact subtree cover, the whole node (docs/research/delete-to-content-start).
+ *
+ * Exported for the `delete-to-content-start` command, which is the same
+ * gesture reachable from Settings > Hotkeys on every platform — the key
+ * itself is bound only where CodeMirror binds it, so Ctrl-Backspace on
+ * Windows and Linux stays the word deletion it is there.
+ *
+ * Declines on a non-empty range or multi-cursor (stock deletes the selection,
+ * see `soleCursor`), outside a list item's own line (stock, per the planner),
+ * and never on a provisional position: Backspace's own cancel runs first
+ * there, so the two keys agree about a place a keypress just created.
+ */
+export function deleteToContentStart(view: EditorView): boolean {
+  if (!outlinePathOf(view)) return false;
+  const sel = soleCursor(view);
+  if (!sel) return false;
+  if (cancelOnDelete(view, false)) return true;
+
+  const doc = view.state.doc;
+  const { doc: outlineDoc } = parsedDoc(doc);
+  const plan = planDeleteToContentStart(outlineDoc, offsetToLinePos(doc, sel.head));
+  if (plan === null) return false;
+  if (plan.kind === "backspace") return deleteCharBackward(view);
+  const from = linePosToOffset(doc, plan.from);
+  view.dispatch({
+    changes: { from, to: sel.head },
+    selection: { anchor: from },
+    scrollIntoView: true,
+    userEvent: "delete.backward",
+  });
+  return true;
+}
+
+/**
  * Backspace/Delete on a place a structural keypress just created cancel it,
  * treating a provisional position as the empty node it stands for. Declines in
  * every other case, so the merge rules and native gap editing are untouched —
@@ -1057,6 +1097,9 @@ export function grammarExtension(): Extension {
         },
         { key: "Home", run: probed("Home", makeHomeEndHandler(false)) },
         { key: "End", run: probed("End", makeHomeEndHandler(true)) },
+        // `mac` only, exactly as CodeMirror's own `standardKeymap` binds it:
+        // elsewhere Mod-Backspace is word deletion, which this must not take.
+        { mac: "Mod-Backspace", run: probed("Mod-Backspace", deleteToContentStart) },
       ]),
     ),
   ];
