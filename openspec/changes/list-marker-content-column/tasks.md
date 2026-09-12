@@ -48,6 +48,14 @@
 - [x] 4.3 Add e2e cases: `- a` unmarked, `-  b`, `1.  c`, `- [ ]  d`, `-   e` each carry one
       mark of non-zero width, the three-space mark wider than the one-space; off-mode carries
       none; Backspace removes the mark with the space.
+- [x] 4.4 Widen the marker-sizing gate from "exactly one space" to "followed by a space"
+      (`SPACED_MARKER_CLASS`), so the mark follows the gutter and the text follows the mark.
+      Amend the `56-list-grid` case that pinned the old column, and add a `57` case asserting
+      each mark's left edge at a one-space item's text start and each text at its mark's end.
+- [x] 4.5 Add the press: `pointerdown` in the capture phase, trailing mouse events swallowed,
+      the run re-read from the document, dispatched as a `delete` user event. E2e case: a
+      press on `-    e`'s mark leaves `- e`, caret at 2, no mark, one undo step. Desktop and
+      mobile.
 
 ## 5. Normalize a rewritten first line
 

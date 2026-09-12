@@ -472,7 +472,7 @@ body.is-mobile {
 
 /*
  * The shift's own compensation, gated with the sizing it belongs to
- * (`to-decor-marker-1sp`).
+ * (`to-decor-marker-sp`: a marker followed by a space, not a tab).
  *
  * `transform` moves ink, not layout, so the item's own text kept starting at the
  * box's untransformed right edge — a gap between a number and its text as wide
@@ -483,7 +483,7 @@ body.is-mobile {
  */
 .markdown-source-view.mod-cm6
   .cm-content
-  > .cm-line.to-decor-list.to-decor-marker-1sp:not(.HyperMD-task-line)
+  > .cm-line.to-decor-list.to-decor-marker-sp:not(.HyperMD-task-line)
   .cm-formatting-list-ol {
   margin-inline-end: calc(var(--to-marker-icon-size, 0.85rem) / -2);
 }
@@ -505,7 +505,7 @@ body.is-mobile {
  */
 .markdown-source-view.mod-cm6
   .cm-content
-  > .cm-line.to-decor-list.to-decor-marker-1sp:not(.HyperMD-task-line)
+  > .cm-line.to-decor-list.to-decor-marker-sp:not(.HyperMD-task-line)
   .to-decor-ol-digits {
   display: inline-block;
   min-width: calc(
@@ -662,15 +662,15 @@ body.is-mobile {
 }
 
 /*
- * The bullet's own share of the gutter, gated on `to-decor-marker-1sp`
- * (`ONE_SPACE_MARKER_CLASS`, decorations.ts). What it adds is "the gutter, less
- * one space", which is the shortfall only when the marker's whitespace IS one
- * space; on `-  foo` or `-\tfoo` it was added on top of the whitespace already
- * there and pushed the item's own text off its column.
+ * The bullet's own share of the gutter, gated on `to-decor-marker-sp`
+ * (`SPACED_MARKER_CLASS`, decorations.ts). What it adds is "the gutter, less
+ * one space": the bullet and the marker's own space then fill the gutter. On
+ * `-  foo` the marked surplus follows the gutter and the text begins after it;
+ * on `-\tfoo` nothing is added, and the tab lands on its own stop.
  */
 .markdown-source-view.mod-cm6
   .cm-content
-  > .cm-line.to-decor-list.to-decor-marker-1sp:not(.HyperMD-task-line)
+  > .cm-line.to-decor-list.to-decor-marker-sp:not(.HyperMD-task-line)
   .list-bullet {
   /*
    * The caret's own share of the gutter.
@@ -1473,10 +1473,15 @@ body.is-mobile {
  * light and dark alike, and the dotted rule underneath keeps it visible where a
  * theme's highlight is faint. A whitespace-only span collapses to nothing under
  * `white-space: pre-wrap` at a wrap point; `pre` keeps its width.
+ *
+ * It sits between the gutter and the text — the sizing rules above put the
+ * marker and its own space in the gutter — and a press on it removes the run
+ * (`SurplusMarkerSpacePlugin`), hence the pointer.
  */
 .markdown-source-view.mod-cm6 .cm-content > .cm-line .to-decor-marker-surplus {
   background-color: var(--text-highlight-bg);
   border-bottom: 1px dotted var(--text-warning);
   border-radius: 2px;
   white-space: pre;
+  cursor: pointer;
 }

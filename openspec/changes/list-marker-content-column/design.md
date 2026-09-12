@@ -48,6 +48,26 @@ sources but by hand within one builder. Both of a task item's columns are examin
 `white-space: pre` — a whitespace-only span at a wrap point otherwise collapses to nothing —
 and colours it with the theme's own highlight and a dotted rule, so it reads in light and dark.
 
+**The mark follows the gutter; the text follows the mark.** The marker-sizing rules were gated
+on a marker followed by EXACTLY one space, so that `-  a`'s text stayed on its one-space
+siblings' column; the surplus then sat inside the gutter's slack — measured, at 5.1–10.2px on
+a line whose text began at 14 — a highlight in a column the caret cannot reach, between a
+bullet and text that had not moved. The gate is now "followed by a space"
+(`SPACED_MARKER_CLASS`), so the bullet and its own space fill the gutter on every such line,
+the mark begins where a one-space item's text begins, and the text begins where the mark ends.
+The text moving right by the run's width is the point: that is where the content column is. A
+tab after the marker stays outside the gate and on its own stop, as before.
+
+**A press on the mark removes the run.** The same edit Backspace makes at the content start,
+reachable without first finding that column. The listener takes `zoom-click.ts`'s shape:
+`pointerdown` in the capture phase on the editor's element, since a touch screen produces no
+mouse event and CM6's own handler would otherwise start a selection drag from the mark; the
+trailing mouse events of a handled press swallowed, since they would place a caret from
+coordinates that now mean something else. The run is re-read from the document at the press
+rather than carried on the mark, and dispatched as a `delete` user event, which the classifier
+reads as a within-node edit: wider than one character it matches no chrome shape, and one
+character wide it is the surplus rule above.
+
 **Backspace at the content start removes the surplus, and the rule lives in the classifier.**
 `crossesViaChromeDeletion` recognizes the marker-space shape only when `surplusMarkerSpace`
 reports nothing at the deletion's end; otherwise the keypress is a `within-node-edit` and
@@ -91,3 +111,6 @@ of these shapes and the one Obsidian's mode and CommonMark disagree on.
 - **The mark is one more thing on the line** → it appears only where a run is wider than one
   space, which a plain Obsidian document never has, and it carries the explanation in its
   title.
+- **A two-space item's text no longer aligns with its siblings'** → by exactly the marked
+  surplus, which is the content column it really has; before, the misalignment was hidden and
+  the cause with it. The caret requirement's scenario is amended to say so.
