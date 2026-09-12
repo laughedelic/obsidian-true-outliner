@@ -9,6 +9,11 @@ and, on a task item, the task marker (`[ ]` or `[x]`) and the space after
 that. For heading and paragraph nodes, which have no marker, the "own content"
 rung SHALL start at column 0 of the node's first line.
 
+A caret that sits before that column on the item's first line — in the marker
+prefix: after `- ` on a task item, where Home lands, or inside its checkbox —
+SHALL take this rung as its first, as a caret in the text does; it is the first
+rung to climb to, not one the caret must already lie within.
+
 A task item whose text is empty has no content rung: its first press SHALL
 take the next rung, the whole line.
 
@@ -29,6 +34,13 @@ starting there cannot be the item's content on screen.
 - **THEN** the selection covers `buy milk` only, and stays there once Obsidian's
   checkbox widget has mounted
 - **AND** a further press takes the whole line, checkbox included
+
+#### Scenario: A caret in the marker prefix climbs from the content rung
+- **WHEN** the caret sits between a list item's line start and where its text begins —
+  after `- ` on a task item, where Home lands, or inside its checkbox — and the user
+  presses Mod-A
+- **THEN** the selection becomes the item's text, the same first rung a caret in the text
+  reaches, not the whole line
 
 #### Scenario: An empty task item has no content to select
 - **WHEN** the cursor sits after the marker of `- [ ] ` and the user presses Mod-A

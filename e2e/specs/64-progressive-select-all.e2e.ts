@@ -148,6 +148,20 @@ describe('progressive-select-all', function () {
     expect(sel.head).toEqual({ line: 0, ch: '- [ ] buy milk'.length });
   });
 
+  it("a task item's first press selects its text from a caret in the marker prefix too — where Home leaves it, and where the widget mount moves it", async function () {
+    // Measured under mobile emulation: the widget mount moved the caret from
+    // the text to column 0 before the press, the filter clamped it to ch 2, and
+    // a ladder that required the caret INSIDE the text rung skipped to the
+    // whole line. A cursor before the rung climbs from it.
+    await outlineNote('- [ ] buy milk\n- [x] done\n');
+    await h.setCursorSettled(0, 2);
+    await h.pressSelectAll();
+    await browser.pause(80);
+    const sel = await h.getSelection();
+    expect(sel.anchor).toEqual({ line: 0, ch: '- [ ] '.length });
+    expect(sel.head).toEqual({ line: 0, ch: '- [ ] buy milk'.length });
+  });
+
   it('each range in a multi-range selection climbs its own ladder independently', async function () {
     const md = '# Head\n\nBody one.\n\nBody two.\n';
     await outlineNote(md);
