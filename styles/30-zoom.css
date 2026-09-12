@@ -1,0 +1,167 @@
+/*
+ * Zoom's breadcrumb trail (`outline-zoom` D10).
+ *
+ * Almost nothing here, on purpose. The row inside is a `.to-backlinks-row
+ * .is-lineage` built by the shared lineage primitive, so it already carries the
+ * footer's marker gutter, segment icons, separators and hover — one visual
+ * language for a squashed ancestor chain, wherever one is shown. The first
+ * version of this trail styled its own pill buttons; deleting them is most of
+ * what this rule set does.
+ *
+ * What remains is the trail's relationship to the content it heads: a little air
+ * beneath it, and a rule that says the subtree begins here.
+ *
+ * No left inset. The footer's rows container insets by half a mark, because a
+ * depth-0 marker is centred on column 0 and its card CLIPS; the trail sits
+ * inside `.cm-content`, where a depth-0 marker overhangs into the content
+ * padding as a matter of course and nothing clips. The inset only pushed the
+ * trail's mark half an icon right of the column every top-level marker below it
+ * sits on.
+ *
+ * The air is PADDING, not margin: it has to survive being the first thing in a
+ * CM6 block widget, where a margin has a collapsing edge and a padding does not.
+ * The rule sits on the row, so the space below it is real space.
+ */
+.to-zoom-trail {
+  padding-bottom: 0.85rem;
+}
+
+.to-zoom-trail .to-backlinks-row.is-lineage {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Level with the note it heads, and muted rather than faint: the trail is
+ * context, not chrome, and the footer's 0.92em left it smaller than the outline
+ * it belongs to. Set on the ROW so the mark's own `ex` correction resolves
+ * against the same font as the text beside it. */
+.to-zoom-trail .to-backlinks-row {
+  font-size: 1em;
+  cursor: default;
+}
+
+/*
+ * The mark at the head of the trail is the zoom-OUT control (design D10).
+ *
+ * It reuses `.to-decor-marker-icon`'s placement — the arithmetic that puts a
+ * mark's centre on its column — and overrides only what a control needs: its
+ * own size, and the pointer events that class turns off for decorative chrome.
+ * Every placement term is restated because they all follow the size; changing
+ * one alone takes the mark off its column.
+ */
+.to-zoom-trail {
+  --to-zoom-mark-size: 1.0625rem;
+}
+
+.to-zoom-trail .to-zoom-out {
+  width: var(--to-zoom-mark-size);
+  height: var(--to-zoom-mark-size);
+  margin-left: calc(-1 * var(--to-zoom-mark-size));
+  left: calc(var(--to-zoom-mark-size) * 0.5 - var(--to-marker-gutter, 0px));
+  top: calc(var(--to-zoom-mark-size) / 2 - 0.5ex);
+  /* The text's own colour, not a marker's faint one and not a hover highlight:
+   * the arms spreading is what says "armed", so a colour change on top of it is
+   * a second signal for one state. */
+  color: var(--text-normal);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Armed from the NOTE's own crumb, the segment that means the same thing this
+ * control does — leaving the zoom entirely. Armed from anywhere on the row it
+ * said the opposite of what it does: hovering a mid-chain ancestor promises
+ * zooming to THAT ancestor, and the mark answering was a second, contradictory
+ * signal for the same gesture. The arrows push apart along their own diagonal;
+ * a transform on a `<g>`, so nothing reflows and the mark stays on its column. */
+.to-zoom-out-tl,
+.to-zoom-out-br {
+  transition: transform 120ms ease-out;
+}
+
+.to-zoom-trail .to-backlinks-row:has(.to-backlinks-seg:first-child:hover) .to-zoom-out-tl,
+.to-zoom-trail .to-zoom-out:hover .to-zoom-out-tl,
+.to-zoom-trail .to-zoom-out:focus-visible .to-zoom-out-tl {
+  transform: translate(-1.1px, -1.1px);
+}
+
+.to-zoom-trail .to-backlinks-row:has(.to-backlinks-seg:first-child:hover) .to-zoom-out-br,
+.to-zoom-trail .to-zoom-out:hover .to-zoom-out-br,
+.to-zoom-trail .to-zoom-out:focus-visible .to-zoom-out-br {
+  transform: translate(1.1px, 1.1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .to-zoom-out-tl,
+  .to-zoom-out-br {
+    transition: none;
+  }
+}
+
+/*
+ * A step fainter than the names, so the eye reads name-name-name and takes the
+ * joins peripherally. Scoped to the trail: the footer's own separator is off by
+ * default and is that surface's decision.
+ *
+ * Restated against the kind icons rather than inherited from the footer, and in
+ * both dimensions, because the shared chevron is drawn on a 24-unit viewBox
+ * where every kind glyph uses 16. At the footer's 0.65em its ink stands 0.38em
+ * tall against a kind icon's 0.5em and its stroke lands a third lighter, so the
+ * same nominal size reads as a different, smaller family of mark. The box is
+ * sized for equal INK height and the stroke restated for equal weight; both
+ * numbers are the 16-unit ones scaled by 24/16.
+ */
+.to-zoom-trail .to-backlinks-seg-sep {
+  width: 0.8em;
+  height: 0.8em;
+  color: var(--text-faint);
+  /* Its centring term follows its own box, which is larger here than the
+   * footer's; the construction itself is the shared rule's. */
+  top: calc(0.4em - 0.5ex);
+}
+
+@supports (top: 1cap) {
+  .to-zoom-trail .to-backlinks-seg-sep {
+    top: calc(0.4em - 0.5cap);
+  }
+}
+
+.to-zoom-trail .to-backlinks-seg-sep svg * {
+  stroke-width: 2.75;
+}
+
+@supports (top: 1cap) {
+  .to-zoom-trail .to-zoom-out {
+    top: calc(var(--to-zoom-mark-size) / 2 - 0.5cap);
+  }
+}
+
+/*
+ * A zoomed view is the lineage, the subtree, and the footer — nothing else.
+ *
+ * The inline title and the properties block are siblings of
+ * `.cm-contentContainer` inside `.cm-sizer`, NOT document lines, so zoom's block
+ * replacements cannot reach them: hiding them is a stylesheet rule gated on the
+ * editor's own zoomed class. Frontmatter's SOURCE lines are hidden by the
+ * replacement like any other line outside the scope; this hides the UI Obsidian
+ * renders from them.
+ */
+.cm-editor.to-zoomed .inline-title,
+.cm-editor.to-zoomed .metadata-container {
+  /* `!important` because Obsidian's own rule for the properties block wins
+   * otherwise — measured, not assumed: with a plain declaration the inline title
+   * hid and `.metadata-container` stayed at `display: block`, 117px tall. Both
+   * take it, so neither reads as the special case. This is the same lever the
+   * decoration layer already uses where a native rule would otherwise win. */
+  display: none !important;
+}
+
+/*
+ * ===========================================================================
+ * Mode indicators — the status bar item and the ribbon icon
+ * ===========================================================================
+ *
+ * Both state the ACTIVE tab's outline mode and toggle that tab
+ * (`per-tab-outline-mode` design D7). Obsidian's own chrome is untouched: these
+ * are a plugin status bar item and a plugin ribbon icon, both public API, and
+ * nothing here selects a core element.
+ */
