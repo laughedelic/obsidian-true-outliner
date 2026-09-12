@@ -1,8 +1,9 @@
 ## 1. The net first
 
 - [ ] 1.1 Capture a baseline of what the decoration layer puts in the DOM for the e2e corpus: for
-  every rendered line, the class list, `--to-guides`, `--to-own-shift`, the marker `data-*`
-  attributes and the widgets present, under each `markerHighlight` and `guideHighlight` state and
+  every rendered line, every `to-*` class, every `--to-*` inline custom property, every `data-*`
+  attribute and the plugin's widgets present — collected by prefix, so the whole plugin-owned
+  contract is in it (design D5) — under each `markerHighlight` and `guideHighlight` state and
   with a fold open and closed. Keep it as a probe spec in the decorations group, run once against
   the current build to record the baseline under `e2e/baselines/`, and asserted against the build
   from then on. Negative control: change one guide layer's width in `guideBackground` — the
@@ -36,7 +37,10 @@
   confirm no existing case regresses; push, and read CI's sweep.
 - [ ] 3.2 A manual pass on the real vault: a note with a table, a callout, an embed and a folded
   heading, with the caret moved through each under every indicator setting, comparing against the
-  same note on `main`.
+  same note on `main`. While there, measure whether a widget-rendered line can be a foldable
+  node (a whole-line embed with a list attached), and what fold chrome it carries on `main`; if
+  it can and carries none, record that in docs/research/decoration-follow-ups with the
+  measurement, as a gap this change preserves rather than closes.
 
 ## 4. Landing
 
