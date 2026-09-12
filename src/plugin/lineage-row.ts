@@ -17,7 +17,7 @@
 
 import type { NodeKind } from '../model';
 import type { LineageSegment } from './footer-model';
-import type { LineageSeparator, SegmentIcons } from './settings';
+import type { LineageSeparator, SegmentIcons } from './settings/footer';
 
 /** The appearance settings are the footer's own, imported rather than restated,
  * so one choice governs both surfaces and neither can drift from the settings

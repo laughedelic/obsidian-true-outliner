@@ -82,11 +82,11 @@ import {
   OVERALL_CAP_REFERENCES,
   SORT_ORDER_LABELS,
   type GroupHeight,
-  type GuideVisibility,
   type LineageSeparator,
   type OverallCap,
   type SegmentIcons,
-} from './settings';
+} from './settings/footer';
+import type { GuideVisibility } from './settings/appearance';
 import type { PlacedReference, ReferenceKind } from './backlink-index';
 import type { BacklinkIndex } from './backlink-index';
 import type { NodeKind, OutlineNode } from '../model';

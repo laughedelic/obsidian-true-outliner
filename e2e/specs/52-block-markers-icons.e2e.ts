@@ -534,7 +534,7 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
   describe('marker visibility setting', function () {
     // Markers read well as "a crown on the guide line" for a branch node,
     // but add little for a leaf — most leaf atom kinds already carry their
-    // own native visual style. `markerVisibility` (settings.ts) is a
+    // own native visual style. `markerVisibility` (settings/appearance.ts) is a
     // real, persisted, live setting so it's triable against a real vault
     // without a rebuild.
     async function setVisibilityAndNudge(visibility: string): Promise<void> {
