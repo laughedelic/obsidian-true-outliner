@@ -698,8 +698,12 @@ describe('content-space-caret: delete to content start (delete-to-content-start)
   });
 
   it('D3 - a task item keeps its checkbox', async function () {
+    // Settled, not merely set: the checkbox widget's mount moves the caret on a
+    // later pass, and under mobile emulation it lands before the command runs
+    // (measured on CI: the command then ran from the content start, a
+    // Backspace with no predecessor, and the buffer stayed as it was).
     await outlineNote('- [ ] task text\n');
-    await h.setCursor(0, 15);
+    await h.setCursorSettled(0, 15);
     await deleteToContentStart();
     expect(await h.getBuffer()).toBe('- [ ] \n');
     expect(await h.getCursor()).toEqual({ line: 0, ch: 6 });

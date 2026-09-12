@@ -484,6 +484,15 @@ describe('planDeleteToContentStart: Mod-Backspace stops at the content start (de
     expect(plan('- first\n  second line\n', 1, 13)).toEqual({ kind: 'delete', from: { line: 1, ch: 2 } });
   });
 
+  it('alignment is spaces and tabs, as indentation is: a no-break space is content, as it is to Home', () => {
+    expect(plan('- first\n  \u00a0text\n', 1, 7)).toEqual({ kind: 'delete', from: { line: 1, ch: 2 } });
+    expect(plan('- first\n\t\ttext\n', 1, 6)).toEqual({ kind: 'delete', from: { line: 1, ch: 2 } });
+  });
+
+  it('a bare `[ ]` at the end of the line is not a marker: the plan removes the checkbox, as split and merge read it', () => {
+    expect(plan('- [ ]\n', 0, 5)).toEqual({ kind: 'delete', from: { line: 0, ch: 2 } });
+  });
+
   it('at or inside the content start the key is a Backspace', () => {
     expect(plan('- alpha\n- beta\n', 1, 2)).toEqual({ kind: 'backspace' }); // the merge intent's own position
     expect(plan('- [ ] beta\n', 0, 6)).toEqual({ kind: 'backspace' }); // after the task marker
