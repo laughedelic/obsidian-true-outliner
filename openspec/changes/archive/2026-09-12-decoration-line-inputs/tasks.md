@@ -47,6 +47,6 @@
 
 - [x] 4.1 Update docs/research/hot-file-seams: seam 3's row records what landed, and the
   re-measuring section is the test of it.
-- [ ] 4.2 Archive the change on this branch.
+- [x] 4.2 Archive the change on this branch.
 - [x] 4.3 No version bump: nothing shipped changes.
-- [ ] 4.4 `openspec validate decoration-line-inputs --strict`.
+- [x] 4.4 `openspec validate decoration-line-inputs --strict`.
