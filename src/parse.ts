@@ -31,7 +31,7 @@ const isBlank = (line: string): boolean => line.trim() === '';
 
 const ATX_RE = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
 const FENCE_OPEN_RE = /^([ \t]*)(`{3,}|~{3,})/;
-const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])(?:[ \t]+|$)/;
+const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+|$)/;
 const QUOTE_RE = /^ {0,3}>/;
 const CALLOUT_RE = /^ {0,3}>\s*\[!/;
 const HR_RE = /^ {0,3}(?:(?:\* *){3,}|(?:- *){3,}|(?:_ *){3,})$/;
@@ -39,10 +39,33 @@ const SETEXT_RE = /^ {0,3}(=+|-+)[ \t]*$/;
 const TABLE_DELIM_RE = /^[ \t]*\|?[ \t:|-]*-[ \t:|-]*\|?[ \t]*$/;
 const HTML_OPEN_RE = /^ {0,3}<[a-zA-Z!/]/;
 
-function parseListMarker(line: string): { style: ListStyle; contentCol: number } | undefined {
+/**
+ * Columns a whitespace run occupies when it starts at `col`, with tabs
+ * advancing to the next stop the way `indentWidth` expands leading ones.
+ */
+function whitespaceWidth(ws: string, col: number): number {
+  let width = 0;
+  for (const ch of ws) {
+    if (ch === '\t') width += TAB_WIDTH - ((col + width) % TAB_WIDTH);
+    else width += 1;
+  }
+  return width;
+}
+
+/**
+ * A list item's marker and CONTENT COLUMN: the column its text begins at,
+ * past the marker and the whole whitespace run after it — `-  a` puts its
+ * content at column 3, not 2. That column is what nesting is measured
+ * against, here and in Obsidian's own reader, so a child written one column
+ * short of it is a sibling to Obsidian and, once the list stack pops, its
+ * deeper descendants an indented code block
+ * (docs/research/list-marker-content-column). A marker at the end of its
+ * line has no run to measure and takes the one space a child would need.
+ */
+export function parseListMarker(line: string): { style: ListStyle; contentCol: number } | undefined {
   const match = LIST_ITEM_RE.exec(line);
   if (!match) return undefined;
-  const [, indentText, marker] = match as unknown as [string, string, string];
+  const [, indentText, marker, spacing] = match as unknown as [string, string, string, string];
   const indent = indentWidth(indentText);
   const style: ListStyle =
     marker === '-' || marker === '*' || marker === '+'
@@ -52,8 +75,8 @@ function parseListMarker(line: string): { style: ListStyle; contentCol: number }
           number: parseInt(marker, 10),
           delimiter: marker.endsWith(')') ? ')' : '.',
         };
-  // Content column: marker end + one space, in expanded-tab columns.
-  const contentCol = indent + marker.length + 1;
+  const markerEnd = indent + marker.length;
+  const contentCol = markerEnd + Math.max(1, whitespaceWidth(spacing, markerEnd));
   return { style, contentCol };
 }
 

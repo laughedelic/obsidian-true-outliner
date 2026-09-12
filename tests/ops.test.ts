@@ -259,6 +259,16 @@ describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
     expect(text).toBe('- x\n  - y\n1. a\n   - b\n');
   });
 
+  it('a bullet followed by two spaces widens the indentation to its real content column', () => {
+    // `-  a` puts its content at column 3, and Obsidian nests only what reaches
+    // it: a child at two columns is a sibling there, and its own deeper
+    // children after a blank line render as an indented code block
+    // (docs/research/list-marker-content-column).
+    const { text, doc } = applyWithUnit(indent, '-  a\n- b\n', '- b', undefined);
+    expect(parentLineOf(doc, '   - b')).toBe('-  a');
+    expect(text).toBe('-  a\n   - b\n');
+  });
+
   it("a wide ordered marker widens the indentation to match", () => {
     // `10. ` is four columns, wider than the two spaces inferred from `  - y`.
     const { doc } = applyWithUnit(indent, '- x\n  - y\n10. a\n- b\n', '- b', undefined);

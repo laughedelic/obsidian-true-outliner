@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shiftSubtree } from '../src/reencode';
+import { markerWidth, reencodeForDestination, shiftSubtree } from '../src/reencode';
 import { indentWidth, parse } from '../src/parse';
 import { walkNodes, type OutlineNode } from '../src/model';
 
@@ -47,5 +47,52 @@ describe('shiftSubtree: a dedent lands on the column it was asked for', () => {
     // ` \t` is a tab starting at column 1, so it still runs to the stop at 4.
     // Dropping the space leaves a tab that re-expands from zero — unmoved.
     expect(shiftSubtree(itemWith(' \t'), -1).lines[0]).toBe('   - x');
+  });
+});
+
+describe('a list item\'s content column counts the whole whitespace run after its marker (list-marker-content-column)', () => {
+  // Obsidian's reader and CommonMark both put `-  a`'s content at column 3. A
+  // child written at column 2 is a sibling to them, and once Obsidian pops its
+  // list stack, deeper descendants after a blank line turn into an indented
+  // code block — the raw dashes and checkboxes reported from real-vault use
+  // (docs/research/list-marker-content-column).
+  it('two spaces after the marker: a child at two columns is a sibling, at three a child', () => {
+    const siblings = parse('-  a\n  - b\n');
+    expect(siblings.children.map((n) => n.lines[0])).toEqual(['-  a', '  - b']);
+    const nested = parse('-  a\n   - b\n');
+    expect(nested.children).toHaveLength(1);
+    expect(nested.children[0]!.children[0]!.lines[0]).toBe('   - b');
+  });
+
+  it('a continuation line is measured against the same column', () => {
+    // Two columns of indentation no longer continue `-  a`; three do.
+    expect(parse('-  a\n  text\n').children).toHaveLength(2);
+    expect(parse('-  a\n   text\n').children[0]!.lines).toEqual(['-  a', '   text']);
+  });
+
+  it('a tab after the marker advances to the next tab stop', () => {
+    // `-` sits at column 0, the tab reaches column 4.
+    expect(parse('-\ta\n   - b\n').children).toHaveLength(2);
+    expect(parse('-\ta\n    - b\n').children[0]!.children).toHaveLength(1);
+  });
+
+  it('a marker alone on its line keeps the one-space column', () => {
+    const doc = parse('-\n  - b\n');
+    expect(doc.children[0]!.children).toHaveLength(1);
+    expect(markerWidth(doc.children[0]!)).toBe(2);
+  });
+
+  it('markerWidth agrees with the parser, whatever the run after the marker', () => {
+    const width = (line: string): number => markerWidth(parse(line + '\n').children[0]!);
+    expect(width('- a')).toBe(2);
+    expect(width('-  a')).toBe(3);
+    expect(width('1.  a')).toBe(4);
+    expect(width('  -   a')).toBe(4); // indentation is not part of the width
+  });
+
+  it('a list item turned paragraph sheds the whole run, not one space of it', () => {
+    const doc = parse('-  a\n');
+    const asParagraph = reencodeForDestination(doc.children[0]!, 'paragraph', '');
+    expect(asParagraph.lines).toEqual(['a']);
   });
 });
