@@ -42,8 +42,18 @@ threading. The builder is about the shape of the code, not its cost.
 guide depths it draws, the guide background already rendered to a string (or `undefined` when
 there is nothing to draw), the accent classes for its marker, whether it is a folded node's
 marker line, whether it is a folded node's last own line, and the hidden-descendant count that
-belongs after its text (or zero). Every one of those is something both consumers ask for today,
-in the same words or in two spellings of the same decision.
+belongs after its text (or zero).
+
+The guide and accent fields are what both consumers ask for today, in the same words or in two
+spellings of the same decision. The three fold fields are read by the plain path alone: today
+only `lineDecoration` adds the folded classes and only `computeDecorations` emits the count
+widget, and the widget path applies no fold treatment to a widget-rendered line at all. They are
+in the record anyway because they come out of the one `foldedChrome` walk the builder makes,
+and a record that carried the walk's other answers but not these would have the builder and a
+consumer each reading fold state. The widget path ignores them, as it does today; whether a
+widget-rendered foldable node — a whole-line embed that a list attaches to — should carry fold
+chrome is a question this change does not answer, and task 3.2 measures whether such a line
+exists before it is parked.
 
 What is NOT in the record is what only one consumer needs: the CSS class list and style that
 `lineChrome` produces for a plain `.cm-line` (the widget path has a different box and computes
@@ -69,8 +79,8 @@ consumer can ask about; a widget line's lookup by document line number replaces 
 with no fact and `lineDecoration` for one with, and the fold-count widget where the record says
 so. `lineDecoration` takes the record and the line text, and `gapLineDecoration` the record, in
 place of the six positional arguments each takes today. `MarginCompensation.apply` looks a
-widget line's record up and applies it — the guide background, the accent classes, the folded
-treatment — where it derives them now.
+widget line's record up and applies the two things it draws from it — the guide background and
+the accent classes — where it derives them now.
 
 The accent classes on a widget line come from `markerClasses`, the same function the plain path
 uses; `isMarkerEligible` already excludes list items from the widget path, so the native-bullet
@@ -87,8 +97,13 @@ site to edit.
 ### D5. Byte-identical output is the acceptance test, not a design goal to argue about
 
 The change is verified by comparing what the DOM holds before and after, on the e2e corpus, for
-every line: class list, `--to-guides`, `--to-own-shift`, `data-*` attributes, and the widgets
-present. `53-decoration-contracts` and `54-widget-rendered-lines` assert most of this already;
+every rendered line: the whole plugin-owned contract — every `to-*` class, every `--to-*`
+custom property on the element's inline style (`--to-depth`, `--to-marker-gutter`,
+`--to-supp-depth`, `--to-list-marker-cols`, `--to-guides`, `--to-own-shift` and whatever else
+`lineChrome` and the widget path write), every `data-*` attribute — and the plugin's widgets
+present on the line. Collected by prefix rather than by a list, so a property added later is in
+the comparison without anyone remembering it. `53-decoration-contracts` and
+`54-widget-rendered-lines` assert most of this already;
 the plan adds one case for the accent classes on a widget line across the `markerHighlight`
 states, which today have no assertion, and runs the four groups whose rendering passes through
 here.
