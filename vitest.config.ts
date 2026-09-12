@@ -2,9 +2,12 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // Property-based tests (fast-check) run hundreds of cases; the default
-    // 5s timeout is too tight for slower CI hardware.
-    testTimeout: 20_000,
+    // Property-based tests (fast-check) run hundreds of cases, some of them
+    // quadratic in the size of a generated tree, and the hosted runner shares
+    // its CPU across every test file at once. The default 5 s was too tight
+    // there; so was 20 s, which one property or another crossed on a busy
+    // runner while passing in half that time alone.
+    testTimeout: 60_000,
 
     coverage: {
       provider: 'v8',
