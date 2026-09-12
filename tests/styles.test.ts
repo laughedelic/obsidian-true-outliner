@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { buildStylesheet, stylesheetParts } from '../scripts/styles.mjs';
 
 /**
  * The stylesheet's own structural integrity.
@@ -11,8 +13,13 @@ import { describe, expect, it } from 'vitest';
  * makes the same point about custom properties — "a CSS variable that nobody
  * defines fails by falling back, not by complaining" — and this is that hazard
  * one level up.
+ *
+ * Checked per part rather than on the joined output, so a failure names the
+ * file — and so a part with an unclosed rule cannot be rescued by a stray brace
+ * in the part after it.
  */
-const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf-8');
+const parts = stylesheetParts().map((file) => ({ name: basename(file), css: readFileSync(file, 'utf-8') }));
+const css = buildStylesheet();
 
 /** Braces inside comments and strings are not structure. */
 function structuralCss(text: string): string {
@@ -22,8 +29,8 @@ function structuralCss(text: string): string {
     .replace(/'(?:[^'\\]|\\.)*'/g, "''");
 }
 
-describe('styles.css structure', () => {
-  it('has balanced braces', () => {
+describe('styles/ structure', () => {
+  it.each(parts)('$name has balanced braces', ({ css }) => {
     const src = structuralCss(css);
     let depth = 0;
     let line = 1;
@@ -36,6 +43,22 @@ describe('styles.css structure', () => {
       }
     }
     expect(depth, 'unclosed rule — some rule swallowed everything after it').toBe(0);
+  });
+
+  it.each(parts)('$name is a whole file: one trailing newline, no leading blank', ({ css }) => {
+    // The join's contract (scripts/styles.mjs): a part ends with exactly one
+    // newline and the join supplies the blank line between neighbours, so
+    // the spacing between parts never depends on which part came before.
+    expect(css.endsWith('\n')).toBe(true);
+    expect(css.endsWith('\n\n')).toBe(false);
+    expect(css.startsWith('\n')).toBe(false);
+  });
+
+  it('joins the parts in filename order', () => {
+    // Filename order is cascade order — the prefixes exist to state it.
+    const names = parts.map((p) => p.name);
+    expect(names).toEqual([...names].sort());
+    expect(names.length).toBeGreaterThan(1);
   });
 
   it('declares the zoom trail and the zoomed-editor rule', () => {
