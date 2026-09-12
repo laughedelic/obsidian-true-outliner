@@ -1,5 +1,5 @@
 /**
- * Spike S5 (docs/research/19): what the footer actually costs on a hub note.
+ * Spike S5 (docs/research/backlinks-footer-spikes): what the footer actually costs on a hub note.
  *
  * The numbers `backlinks-controls` needs before it can choose cap defaults —
  * D10 defers them to this spike precisely so the caps are set from measurement

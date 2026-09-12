@@ -108,12 +108,12 @@ reader who folded a node expects from Enter is a sibling after the whole subtree
 - Zoom's unfold-inside-scope requirement (`outline-zoom`, "Zooming into a folded node opens it")
   behaves as specified: zooming into a folded node renders the whole subtree, and clearing the
   zoom leaves it unfolded, as that spec deliberately states.
-- Guides remain what [09](09-experiment-2-guide-lines.md) made them: a `--to-guides`
+- Guides remain what [experiment-2-guide-lines.md](experiment-2-guide-lines.md) made them: a `--to-guides`
   repeating-linear-gradient painted on one `::after` per line, with each level's column at
   `depth × 1.75rem`. There is still no per-guide element to click — but the columns are stated in
   the same arithmetic our decorations already publish, so a pointer gesture can hit-test a click's
   x-offset against them without inventing an element. That is what unblocks the parking-lot entry
-  in [12](12-decoration-follow-ups.md) ("Click on a guide → zoom into, or fold, the whole
+  in [decoration-follow-ups.md](decoration-follow-ups.md) ("Click on a guide → zoom into, or fold, the whole
   subtree"), which was gated on exactly this.
 
 ## How many kinds this is actually about
@@ -142,7 +142,7 @@ a control Obsidian deliberately does not give it.
 ## The folded-node indication
 
 Candidate treatments for a folded node's marker are drawn side by side, at the plugin's own
-geometry and in both themes, in [28-fold-marker-mockup.html](28-fold-marker-mockup.html) — open
+geometry and in both themes, in [fold-marker-mockup.html](fold-marker-mockup.html) — open
 it in a browser. It is a mockup, not a measurement: what it settles is which treatment to build.
 
 **Settled: the kind's own glyph in a solid weight, plus the count of hidden descendants.**

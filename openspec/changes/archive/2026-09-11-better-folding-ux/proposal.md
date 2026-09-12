@@ -8,7 +8,7 @@ plugin whose whole claim is that every block is a node, "some nodes collapse" is
 of the abstraction.
 
 The mechanism turned out to be open. Measured against a real instance
-([28-fold-mechanics.md](../../../docs/research/28-fold-mechanics.md)), Obsidian's fold IS
+([fold-mechanics.md](../../../../docs/research/fold-mechanics.md)), Obsidian's fold IS
 CodeMirror's fold: the state is `@codemirror/language`'s, and what is foldable comes from a
 `foldService` facet that already holds three providers and accepts a fourth. One provider that
 answers from our tree makes every node with children foldable, makes Obsidian's own fold command
@@ -31,12 +31,12 @@ engine, and none of which writes to the note.
   so a line Obsidian stops decorating, for whatever reason, keeps a control.
 - **A folded node reads as folded.** The marker itself carries the state: the kind's own glyph,
   solid, with the count of hidden descendants after the node's text. Chosen from a rendered
-  mockup ([28-fold-marker-mockup.html](../../../docs/research/28-fold-marker-mockup.html)) against
+  mockup ([fold-marker-mockup.html](../../../../docs/research/fold-marker-mockup.html)) against
   six alternatives — halos, outlines and underlines all read as either too heavy at 14px or
   inconsistent across the marks, and the count is the only candidate that says how much is
   hidden rather than merely that something is. The count is also the line's only tail control: it
   carries Obsidian's placeholder ellipsis and its click, chosen from a second mockup
-  ([28-fold-count-mockup.html](../../../docs/research/28-fold-count-mockup.html)) after a badge
+  ([fold-count-mockup.html](../../../../docs/research/fold-count-mockup.html)) after a badge
   beside that placeholder proved to be two pieces of chrome for one idea.
 - **Clicking a guide toggles the subtree under it.** The default action for the guide column at
   depth *d*: fold, or unfold, every child of the node that guide belongs to. Configurable later;
@@ -49,7 +49,7 @@ engine, and none of which writes to the note.
   node takes its hidden children with it.
 - **Fold and unfold in the backlinks footer**, both ways, with the same chrome and the same
   gesture as the editor — replacing the footer's own one-way chevron and the two defects recorded
-  against it in [12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).
+  against it in [decoration-follow-ups.md](../../../../docs/research/decoration-follow-ups.md).
 - **Persistence, with a setting.** Fold state already survives close and reopen through Obsidian's
   per-file workspace state once a fold is `foldable()`; the setting decides whether we keep it,
   and the note file is never involved either way.
@@ -89,7 +89,7 @@ engine, and none of which writes to the note.
 - **Any claim about Obsidian's own "Fold heading" and "Fold indent" settings.** No code here reads
   them, and what folding does with them off is UNRESOLVED: driving them from the harness produced
   contradictory readings, one of which showed the configuration never applying at all
-  (docs/research/28). The question is recorded rather than answered, and the affordance is written
+  (docs/research/fold-mechanics). The question is recorded rather than answered, and the affordance is written
   so that a line Obsidian stops decorating keeps a control either way.
 
 ## Impact

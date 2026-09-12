@@ -7,7 +7,7 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       from the cached parse for EVERY node with children. Verify through a probe spec that
       `foldable()` returns our range on a heading, on each list notation (bullet, ordered, task)
       and on a paragraph with attached children — the same instrument
-      `docs/research/28-fold-mechanics.md` used, which is `browser.executeObsidian` against the
+      `docs/research/fold-mechanics.md` used, which is `browser.executeObsidian` against the
       CM6 exports reached from the plugin instance
 - [x] 1.2 **What survives our `null`.** Declining to answer is not a veto: `foldable()` falls
       through to the providers below us and then to syntax folding. Probe every atom kind — code
@@ -19,7 +19,7 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
 
 - [x] 1.3 **The settings question — UNRESOLVED, and recorded as such.** Driving "Fold heading"
       and "Fold indent" from the harness produced three mutually exclusive readings, including one
-      where the configuration plainly never applied (docs/research/28 has the table).
+      where the configuration plainly never applied (docs/research/fold-mechanics has the table).
       `vault.setConfig` + `updateOptions()` is not equivalent to changing the setting in
       Obsidian's own UI. No code reads those settings and no spec now claims anything about them;
       the affordance test removes Obsidian's indicators from the DOM instead, which is the same
@@ -31,7 +31,7 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       Atoms are covered by 1.2, not here: we answer `null` for them, so what matters is what
       the editor still does underneath us, not what changes. Any divergence that is not clearly an improvement is a reason to
       narrow D1's precedence, and that decision belongs here, not in review
-- [x] 1.5 Verdict appended to `docs/research/28-fold-mechanics.md` under a dated heading: what
+- [x] 1.5 Verdict appended to `docs/research/fold-mechanics.md` under a dated heading: what
       held, what did not, and whether D1 stands as written
 
 ## 2. Fold model
@@ -83,14 +83,14 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       node containing folded children, group-move a mixed selection, indent and outdent a folded
       node. Negative control — dropping the reapply must fail the move test while leaving the
       indent test passing, which is exactly the asymmetry
-      `docs/research/28-fold-mechanics.md` measured
+      `docs/research/fold-mechanics.md` measured
 - [x] 4.3 One undo step still means one: a folded node moved and undone restores text, selection
       and fold together, with no intermediate state where the text has moved back and the fold has
       not. `structural-history-integration` is the contract this must not break
 
 ## 5. Affordance and folded-state chrome
 
-- [x] 5.1 Folded-marker treatment chosen from `docs/research/28-fold-marker-mockup.html`: the
+- [x] 5.1 Folded-marker treatment chosen from `docs/research/fold-marker-mockup.html`: the
       kind's own glyph in a solid weight, plus the count. Design D6 records why the six
       alternatives lost
 - [x] 5.2 The solid-weight folded marker in `decorations.ts` + `styles.css`: same glyph, same box,
@@ -206,7 +206,7 @@ about to take over. Nothing in section 3 onward is built until 1.4 records a ver
       in the real settings UI, which is the only place they can be trusted to apply (task 1.3).
       Five rounds (10.3a–e above), each against a real vault note, closed with the reader's own
       sign-off
-- [x] 10.4 Update `docs/research/12-decoration-follow-ups.md`: close the guide-click entry, the
+- [x] 10.4 Update `docs/research/decoration-follow-ups.md`: close the guide-click entry, the
       footer fold-chrome entry and the one-way-row-fold entry, and record anything this change
       deliberately left in the parking lot
 - [x] 10.5 `openspec validate better-folding-ux --strict`

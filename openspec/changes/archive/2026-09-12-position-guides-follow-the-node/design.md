@@ -1,7 +1,7 @@
 ## Context
 
 See proposal.md — Why. The diagnosis, the reported shape row by row and the corpus figures are in
-`docs/research/32-provisional-position-guides.md`. The mechanism being narrowed is
+`docs/research/provisional-position-guides.md`. The mechanism being narrowed is
 `guides-end-with-content`'s D1 and D4 (`openspec/changes/archive/2026-08-27-guides-end-with-content/design.md`).
 
 Today, `computeLineGuides(doc, provisionalLine)` builds per-line facts in one walk, and a
@@ -44,7 +44,7 @@ from, and the result is shifted back by `provisional.offset`.
 Take the position row's depths, on both tracks, as the depths the walk gave it intersected with
 the depths the typed row carries. The first term is the document's bound: guides the document
 already has. The second is the node's bound: guides the node the position stands for would have.
-The corpus in `docs/research/32` shows the result equals the typed row on every governed row,
+The corpus in `docs/research/provisional-position-guides` shows the result equals the typed row on every governed row,
 except exactly the depth of a childless materialized parent. That depth is the case the
 requirement keeps.
 

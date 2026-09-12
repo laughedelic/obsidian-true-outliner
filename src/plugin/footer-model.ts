@@ -144,7 +144,7 @@ export interface LineageSegment {
    * Inline markdown, not a finished string: `render` says what to do with it.
    * A bare `text` was what left the renderer no choice but `appendText`, so a
    * segment showed `**bold**` while the row beneath it rendered the same
-   * syntax (docs/research/27). */
+   * syntax (docs/research/lineage-text-rendering). */
   readonly markdown: string;
   /** How `markdown` becomes DOM, by the same rule a node row follows. */
   readonly render: RowRender;
@@ -299,7 +299,7 @@ export function buildRows(
         // The same per-kind rule a node row's content comes from, so a segment
         // and a row naming the same node say the same thing. First line only:
         // continuation lines are context for reading a node, not for naming it
-        // (docs/research/18, D5).
+        // (docs/research/structured-backlinks, D5).
         segments: row.elements.map((n) => {
           visible.add(n.id);
           return {

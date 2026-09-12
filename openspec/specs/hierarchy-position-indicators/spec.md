@@ -97,7 +97,7 @@ render any accent.
 - **THEN** the accent renders on the node's first line, and no accent renders on any
   continuation or gap line
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents an ORDERED list item’s number, which is a different element", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-marker findings themselves are `docs/research/14`’s findings 1 and 4.
+**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents an ORDERED list item’s number, which is a different element", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-marker findings themselves are `docs/research/experiment-position-indicators`’s findings 1 and 4.
 
 ### Requirement: Guides and markers are two independent three-state settings
 

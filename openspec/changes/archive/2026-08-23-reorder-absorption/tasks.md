@@ -14,7 +14,7 @@
       would make the group accept where the composition rejects, and break both the "Group
       closure" scenario and the oracle equality property.
 - [x] 1.4 Comment the refusal as intended for deletion (D7): name the mapping question, name
-      `docs/research/17-list-paragraph-mapping.md`, and state that under two of the four
+      `docs/research/list-paragraph-mapping.md`, and state that under two of the four
       candidate readings the branch is unreachable. Explain the mechanism — why the arrangement
       has no encoding — and not the measurements.
 
@@ -61,15 +61,15 @@
 
 ## 4. Record the question this does not answer
 
-- [x] 4.1 Write `docs/research/17-list-paragraph-mapping.md`: the defect that raised the
+- [x] 4.1 Write `docs/research/list-paragraph-mapping.md`: the defect that raised the
       question, the four candidate readings with their consequences, every measurement taken
       (with seeds and method, so each is reproducible), the external research on how other
       formats and tools handle a list after a paragraph, the Obsidian indent-quantization
       constraint, and the interaction with `lists-on-the-outline-grid`.
-- [x] 4.2 Add `Q34` to `docs/research/04-open-questions.md` registering the question as OPEN,
-      with the one-paragraph summary and a pointer to doc 17 — the decision log is where a
+- [x] 4.2 Add `Q34` to `docs/research/open-questions.md` registering the question as OPEN,
+      with the one-paragraph summary and a pointer to docs/research/list-paragraph-mapping — the decision log is where a
       reader looks for what is undecided.
-- [x] 4.3 Add doc 17 to the table in `docs/research/README.md`.
+- [x] 4.3 Add docs/research/list-paragraph-mapping to the table in `docs/research/README.md`.
 
 ## 5. Integrate
 

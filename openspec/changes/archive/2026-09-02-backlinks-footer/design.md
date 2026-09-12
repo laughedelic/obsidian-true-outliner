@@ -21,7 +21,7 @@ See proposal.md — Why. The design inputs that constrain the approach:
   invariants over the document and the caret. A block widget at `doc.length` enters that
   environment.
 - **The repo has a method for this kind of risk.** The decoration-experiments series
-  (`docs/research/07`–`11`) established: one technique per experiment, isolated; a fixed shared
+  (`docs/research/decoration-experiments-plan`–`11`) established: one technique per experiment, isolated; a fixed shared
   fixture corpus screenshotted every time; a mandatory real-vault pass; verdicts recorded before
   moving on; green unit tests are never the gate for anything visual.
 
@@ -55,7 +55,7 @@ between surfaces; a change to indentation semantics moves both at once.
 *Alternative considered*: a footer-local walk over the projected tree emitting its own row
 shape. Rejected — it is a second definition of what a line's depth means, and this project's
 whole history is a case against two sources of truth for one fact (see the caret-placement
-postmortem in `docs/research/04` and `caret-placement-policy`'s Purpose).
+postmortem in `docs/research/open-questions` and `caret-placement-policy`'s Purpose).
 
 *Consequence*: `decorate()` gains a second consumer and must stay free of editor assumptions.
 That is what `outline-decorations` is modified for in the proposal.
@@ -116,7 +116,7 @@ A second, subtly different tree model is exactly the divergence this project exi
 
 ### D-F. The spike series runs first and may veto the surface
 
-Built as an experiment series in the shape of `docs/research/07`, with its own hub doc. Each
+Built as an experiment series in the shape of `docs/research/decoration-experiments-plan`, with its own hub doc. Each
 spike is isolated, run against a shared fixture corpus, given a real-vault pass, and closed with
 a recorded verdict before the next begins. The series gates the rest of the change: a negative
 verdict on S1 reopens D1 (surface) rather than being worked around.
@@ -129,7 +129,7 @@ verdict on S1 reopens D1 (surface) rather than being worked around.
 | **S4** | What does chrome cost outside `.cm-line`? | Port the guide gradient, marker widget and depth rules to a non-CM6 DOM against the corpus, in both bundled themes. Screenshot every fixture. | Establishes whether D-C's token split is sufficient or the chrome needs restructuring |
 | **S5** | What does a real vault cost? | Index build and per-note projection timed on a vault with a hub note of several hundred references. Measure: reverse-map build, `cachedRead` + `parse` per source, projection, first paint. | Sets the cap defaults `backlinks-controls` will need, and tells us whether progressive paint (D11) is sufficient |
 
-Ground rules are inherited verbatim from `docs/research/07` — including that green unit tests
+Ground rules are inherited verbatim from `docs/research/decoration-experiments-plan` — including that green unit tests
 are never the gate for anything visual, and that the real-vault pass is mandatory.
 
 ### D-H. The footer is a `StateField`, not a `ViewPlugin` (S1 result)
@@ -160,7 +160,7 @@ Measured consequence: the widget's presence changes no observable behaviour — 
 the select-all ladder, structural operations and undo are identical with and without it — at a
 cost of a few extra `programmatic` transactions where caret resolution runs one more correction
 next to the widget and reaches the same position. Full write-up:
-`docs/research/19-backlinks-footer-spikes.md`, S1.
+`docs/research/backlinks-footer-spikes.md`, S1.
 
 ### D-G. Progressive paint, and why the footer can afford it
 
@@ -176,7 +176,7 @@ not only for the loading state.
 STRUCTURE a footer row carries and were silent on its CONTENT, so the implementation answered
 "whatever `MarkdownRenderer.render` returns" — a document. Reproducing each kind's own typography
 turned out to fight the chrome rather than support it: kind was said twice, and the louder
-channel won. Recorded as D18 in docs/research/18; the spec now carries the requirement whose
+channel won. Recorded as D18 in docs/research/structured-backlinks; the spec now carries the requirement whose
 absence allowed it.
 
 Mechanically, the decision is one function and one deletion. `inlineTextOf(node)` strips the

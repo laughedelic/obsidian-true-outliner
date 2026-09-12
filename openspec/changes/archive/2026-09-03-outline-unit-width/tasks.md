@@ -3,7 +3,7 @@
 - [x] 1.1 Set `--to-decor-unit` to `1.75rem` in its single `styles.css` declaration. No other
       rule changes: every column on both surfaces derives from this one
 - [x] 1.2 Confirm the gutter is untouched — a mark's distance from its own text is derived from
-      the marks it holds (docs/research/21) and must not move with the unit
+      the marks it holds (docs/research/marker-text-gap) and must not move with the unit
 
 ## 2. Make the adjustment supported rather than incidental
 

@@ -38,6 +38,6 @@
 - [x] 4.1 Measure the new file's wall time and keep `numRuns` in the 1500–3000 band the
       neighbouring property suites use (Risks).
 - [x] 4.2 Run `npm test`, `npm run lint` and `npm run build`; the full suite stays green.
-- [x] 4.3 Cross-reference the new suite from docs/research/04-open-questions.md Q33, where the
+- [x] 4.3 Cross-reference the new suite from docs/research/open-questions.md Q33, where the
       technique is recorded, so the permanent guard is findable from the finding that motivated
       it.

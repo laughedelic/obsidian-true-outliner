@@ -8,7 +8,7 @@ funnel in `transaction-filter.ts`, never asks — and it is the one that decides
 and pastes.
 
 Standing in for the missing check is `zoom-state.ts`'s trigger 2, an offset comparison in the
-before state. docs/research/26 measures what it does and does not catch, and its "Consequences"
+before state. docs/research/zoom-editing-boundary measures what it does and does not catch, and its "Consequences"
 section is the input to every decision below. Two facts from it shape the whole design:
 `touchesOutside` mis-classifies every append at the tail of the scope, and no formulation over
 changed POSITIONS — before-state or after-state — survives all the measured rows.
@@ -45,12 +45,12 @@ Clause 0 asks about the whole change, not only about the cover. A transaction th
 cover AND took a hidden subtree with it — the multi-range shape — still carries an escape, and
 keying the exception on the cover alone would mean nothing ever looked at the second range.
 
-Every simpler formulation was tried against docs/research/26's tables and each fails a measured
+Every simpler formulation was tried against docs/research/zoom-editing-boundary's tables and each fails a measured
 row. "Changed positions inside the before-cover" fails X2 — one insertion offset, two structural
 answers depending only on the inserted text. "Changed positions inside the after-cover" fails B1 —
 the change removes a single line break and a whole hidden node is absorbed by it. Any offset rule
 at all fails every tail append unless the cover's end is redefined to include its own terminating
-line break, which is the same off-by-one docs/research/23 already had to fix one layer down on
+line break, which is the same off-by-one docs/research/zoom-hiding-mechanism already had to fix one layer down on
 the hiding decorations. Stating the invariant directly costs one string comparison and stops the
 recurrence.
 
@@ -72,7 +72,7 @@ Node ids are allocated by a global counter and never survive a re-parse, which `
 `reresolveZoom` already documents at length; comparing them across a parse boundary silently
 answers "different" always. `startLine` is the parse-independent fact the module already leans on,
 but it is not identity — after an unwrap a DIFFERENT node begins on the same line, which is
-exactly the measured retarget (docs/research/26, R4).
+exactly the measured retarget (docs/research/zoom-editing-boundary, R4).
 
 The line is resolved by OWNERSHIP, the way `nodeAtLine` resolves every other line-to-node question
 in this codebase, rather than by "which node begins here".
@@ -193,7 +193,7 @@ deriving it.
 With clause 0 in front, the predicate says "inside", nothing is refused, and
 trigger 1a — the whole old cover mapped away — clears the zoom, exactly as `outline-zoom`
 specifies today. This is deliberate and it is the one place the design does NOT follow Logseq,
-whose focused root cannot be deleted at all (docs/research/26). An explicit selection of the whole
+whose focused root cannot be deleted at all (docs/research/zoom-editing-boundary). An explicit selection of the whole
 subtree is an unambiguous request; a Backspace on an emptied line is not.
 
 ### D8: No new rejection reason

@@ -103,7 +103,7 @@
       several nested sections that end together, a file ending in a blank line, and a list at
       the end of a section. The fixtures cannot judge whether the shortened guides read well;
       this is the check that can. Passed — the shortened guides read as intended, and the pass
-      turned up nothing to fold into `docs/research/12-decoration-follow-ups.md`.
+      turned up nothing to fold into `docs/research/decoration-follow-ups.md`.
 
 The full unit and e2e suites run in CI. Locally this change was verified against the whole unit
 suite and the `decorations` and `position-indicators` e2e groups, each new rule

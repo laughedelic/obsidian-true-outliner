@@ -117,7 +117,7 @@ tree. One resolved tree, threaded to all of them, is the fix (design D4).
       `keymap.ts` carries a note where it would have gone.
 - [x] 4.6 Withdrawn with 4.5. The two unit blocks asserted `nextRung`/`extendSelection` against a
       tree no adapter supplies — a contract with no holder — so they went with the deltas. The
-      measurements they were written from stay in the Findings and in docs/research/12.
+      measurements they were written from stay in the Findings and in docs/research/decoration-follow-ups.
 - [x] 4.7 Negative control for each of 4.3 and 4.5: revert the fix locally, confirm the new tests
       fail with the exact documents and ranges the Findings recorded, restore it.
 - [x] 4.8 Add live coverage in `e2e/specs/30-keyboard-grammar.e2e.ts` for the gesture a real user
@@ -125,11 +125,11 @@ tree. One resolved tree, threaded to all of them, is the fix (design D4).
 
 ## 5. Close the loop
 
-- [x] 5.1 Add the interior position to `docs/research/15-enter-and-shift-enter-catalogue.md`
+- [x] 5.1 Add the interior position to `docs/research/enter-and-shift-enter-catalogue.md`
       under C2 ("The result SHALL re-parse as one (multiline) node"), beside S10 — same
       mechanism, measured at a node's middle rather than its end, with the node counts and the
       displacement table from the proposal.
-- [x] 5.2 Record the leftover blank line in `docs/research/12-decoration-follow-ups.md`: any
+- [x] 5.2 Record the leftover blank line in `docs/research/decoration-follow-ups.md`: any
       document change drops the abandon record, so a structural key pressed on a position leaves
       it in the file and the node split on disk. Include that it is byte-identical to stock and
       what closing it would cost.
@@ -231,7 +231,7 @@ handlers to that gate anyway; the wiring was unreachable and is removed.
 
 Closing it needs a provisional position to carry provenance that survives undo and redo — a
 `StateField` mapped through changes rather than a per-view record — which is a change of its own.
-Recorded with these measurements in docs/research/12.
+Recorded with these measurements in docs/research/decoration-follow-ups.
 
 The four STRUCTURAL keys have no such qualification. They change the document, and the cleanup
 drops its record on any document change rather than cancelling, so the place survives the

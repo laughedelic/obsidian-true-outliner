@@ -8,7 +8,7 @@ pass-through contract for programmatic/remote/composition transactions, the
 keystroke-latency budget, nested-editor safety, and the dev-facing observability that
 turns each choke-point assumption into a permanent regression test. Architecture and
 rationale: the outline-selection-enforcement change's design.md; evidence and findings:
-`docs/research/04` Q14.
+`docs/research/open-questions` Q14.
 
 ## Requirements
 
@@ -165,7 +165,7 @@ interop guarantee that other tools' edits are never fought or rewritten.
 external replacements…", "undo restores state exactly…" — which also records the
 finding that on desktop Obsidian's undo bypasses the filter entirely, a stronger
 guarantee; under mobile emulation the bypass is platform-dependent, see
-docs/research/04 Q14)
+docs/research/open-questions Q14)
 
 ### Requirement: Grammar and command transactions are recognized as plugin-own
 Transactions dispatched by this plugin's own keyboard grammar and structural commands
@@ -203,7 +203,7 @@ what spans they touch.
 - **THEN** every composition transaction applies unmodified and composition completes
   exactly as in stock Obsidian
 
-**Covered by**: manual verification (2026-07-20, Chinese IME — see docs/research/04
+**Covered by**: manual verification (2026-07-20, Chinese IME — see docs/research/open-questions
 Q14: composition transactions classify `composition`, the candidate-commit transaction
 classifies `programmatic`; both pass-through). Not automatable in the e2e harness.
 
@@ -235,7 +235,7 @@ selection-only transactions never re-parse.
   written into the change documentation
 
 **Covered by**: `e2e/specs/60-transaction-classification.e2e.ts` ("performance:
-classification stays within budget…"); measured numbers in docs/research/04 Q14
+classification stays within budget…"); measured numbers in docs/research/open-questions Q14
 
 ### Requirement: Classification is observable for verification
 The plugin SHALL maintain a classification stats surface (per-class counters, timing

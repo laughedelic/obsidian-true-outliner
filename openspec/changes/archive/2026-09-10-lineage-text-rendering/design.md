@@ -1,12 +1,12 @@
 ## Context
 
-D18 in docs/research/18 settled what a footer row's content looks like: the chrome carries
+D18 in docs/research/structured-backlinks settled what a footer row's content looks like: the chrome carries
 structure, and a row's content is inline markdown only. It was written about reference rows and
 implemented for reference rows, and the two surfaces that quote an ancestor CHAIN were never
 brought under it — the backlinks footer's lineage rows and zoom's breadcrumb trail both reach
 the DOM through `appendText`.
 
-docs/research/27 measures what that produces, per node kind, on both surfaces, in a live
+docs/research/lineage-text-rendering measures what that produces, per node kind, on both surfaces, in a live
 Obsidian. The five defects it records all come from one structural fact: `LineageSegment` is
 `{ text: string }`, so a lineage segment cannot be handed to `renderContent` even in principle,
 and the two answers to "what does this node say" — `contentOf` per kind, `nodeLabel` first-line

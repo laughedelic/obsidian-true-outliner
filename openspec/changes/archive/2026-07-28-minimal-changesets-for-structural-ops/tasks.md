@@ -75,7 +75,7 @@ record what was actually done — compute that assoc-1 mapping ourselves and sta
       over-generalised from indent/outdent: redo after a MOVE landed the caret on the
       sibling that swapped into the moved node's old lines, at every depth, and that
       position is addressable so nothing downstream could detect it (design.md D5a,
-      docs/research/04 Q29 follow-on). `SemanticCursorRecorder` in
+      docs/research/open-questions Q29 follow-on). `SemanticCursorRecorder` in
       `src/plugin/history-caret.ts` re-asserts the cursor for the operations that CHOOSE
       one — keyed off `classify.ts`'s new `SEMANTIC_CURSOR_USER_EVENTS`, which is
       `PLUGIN_OWN_USER_EVENTS` minus indent/outdent, so the two sets cannot drift. It
@@ -112,7 +112,7 @@ record what was actually done — compute that assoc-1 mapping ourselves and sta
 
 ## 5. Documentation
 
-- [x] 5.1 Updated `docs/research/04-open-questions.md` Q21's status line and added an
+- [x] 5.1 Updated `docs/research/open-questions.md` Q21's status line and added an
       "Update" section recording the actual outcome: mostly closed, with the narrower
       residual (outdent, cursor inside the removed marker) found during implementation
       and cross-referenced to `content-space-caret`.
@@ -137,7 +137,7 @@ record what was actually done — compute that assoc-1 mapping ourselves and sta
       parked on a gap line after undo→redo of a block deletion. Root-caused to
       `filter: false` — CodeMirror dispatches history transactions with transaction
       filtering disabled, so the enforcement funnel provably never observes an undo or a
-      redo (docs/research/04 Q29, design.md D5a).
+      redo (docs/research/open-questions Q29, design.md D5a).
       The FIRST fix was a view-level caret RESOLVER running the restored caret through
       `resolvePlacement`. It closed the reported symptom but guaranteed only that the
       caret was addressable, not that it was right — review then found redo after a MOVE
@@ -162,7 +162,7 @@ record what was actually done — compute that assoc-1 mapping ourselves and sta
       2. A bare modifier keypress defeating the block-selection blur, restoring both the
          caret and the raw-markdown reveal — `decorations.ts`'s `onDocumentKeyDown` had
          to refocus before knowing whether a key could act. Fixed by skipping
-         modifier-only keys; recorded in docs/research/13.
+         modifier-only keys; recorded in docs/research/selection-follow-ups.
       3. Tab on a block-selected paragraph dispatching a caret onto a gap line — the
          mapped position is the selection HEAD, a caret only when the selection is
          empty. Fixed in `grammar.ts`'s `planFromOp` by using the mapped position only
@@ -171,4 +171,4 @@ record what was actually done — compute that assoc-1 mapping ourselves and sta
       `ops.ts`'s delete-cursor convention (untouched by this change, reproducing on
       `main`): the caret alternating between the next and previous node after a delete,
       and deleting a node after a table stranding undo inside the table's nested editor.
-      Both parked in docs/research/13 with measurements and a candidate fix.
+      Both parked in docs/research/selection-follow-ups with measurements and a candidate fix.

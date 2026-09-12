@@ -9,7 +9,7 @@
  * no DOM). And testing it directly is the point: the history tests build the
  * re-assertion themselves, so they stay green whether or not this predicate
  * selects the right dispatches — the "test that cannot fail for the right
- * reason" shape docs/research/04 Q28 catalogues.
+ * reason" shape docs/research/open-questions Q28 catalogues.
  */
 
 import { Transaction } from '@codemirror/state';

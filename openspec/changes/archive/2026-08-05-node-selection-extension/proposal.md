@@ -97,7 +97,7 @@ Independent of `content-space-caret`, which touches caret placement only.
 ## Out of scope
 
 - **Stored** modal block-selection state, and the `Cmd`-click cherry-picking gesture
-  (docs/research/13) — a mode with entry and exit gestures and a flag to keep in sync. The shape
+  (docs/research/selection-follow-ups) — a mode with entry and exit gestures and a flag to keep in sync. The shape
   discriminator is deliberately the simplest thing that works; its known edge is recorded in
   design.md and revisited after real use.
 
@@ -113,5 +113,5 @@ Independent of `content-space-caret`, which touches caret placement only.
   `[tr, { selection }]`, which CM6 resolves into a single transaction; the flicker is the
   focus/refocus cycle in `decorations.ts` (design D9).
 - Removing the blur mechanism itself, or making Live Preview keep its rendered form while
-  focused. The CSS-only approach to that was tried and abandoned (docs/research/13). D9 states
+  focused. The CSS-only approach to that was tried and abandoned (docs/research/selection-follow-ups). D9 states
   when focus changes, not how rendering responds to it.

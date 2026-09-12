@@ -22,7 +22,7 @@ choice, per gesture and per release — not something a correction layer can enu
 advance, and the reason motion moves to bound keys instead (design.md D1).
 
 The gap-line half of this was filed as deferred work in
-[docs/research/13](../../../docs/research/13-selection-follow-ups.md) ("Gap-line cursor
+[docs/research/selection-follow-ups](../../../../docs/research/selection-follow-ups.md) ("Gap-line cursor
 transparency"), with a specific risk (CM6's goal-column tracking) and a specific instruction:
 prototype vertical motion first, do not decide from code review.
 
@@ -74,7 +74,7 @@ prototype vertical motion first, do not decide from code review.
 - `node-edit-enforcement`: the "Editing semantics are chrome-transparent" requirement's
   deliberate escape hatch — an edit made with the caret placed ON a gap line stays native —
   becomes unreachable in outline mode. The escape hatch becomes the outline-mode toggle, as
-  anticipated in docs/research/13.
+  anticipated in docs/research/selection-follow-ups.
 
 ## Impact
 
@@ -87,7 +87,7 @@ prototype vertical motion first, do not decide from code review.
 - New pure decision modules, unit- and property-tested independently of Obsidian, following the
   established `escalate.ts` pattern.
 - Manual verification is a gate, not a formality: the goal-column risk recorded in
-  docs/research/13 needs hands-on testing against real navigation before the motion rules are
+  docs/research/selection-follow-ups needs hands-on testing against real navigation before the motion rules are
   settled.
 
 ## Sequencing

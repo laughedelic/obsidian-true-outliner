@@ -101,7 +101,7 @@ export function setCursor(line: number, ch: number): Promise<void> {
  *
  * On a line Obsidian renders a widget for — a task item's checkbox — the mount
  * issues a SEPARATE, later, unannotated selection dispatch that moves the caret
- * (docs/research/04 Q25; `resolveForeignCursors` in transaction-filter.ts
+ * (docs/research/open-questions Q25; `resolveForeignCursors` in transaction-filter.ts
  * corrects where such a caret lands, not the fact that it moved). A test that
  * sets the cursor and immediately presses a key races that mount: on desktop the
  * set wins, under mobile emulation it does not, and the keypress then acts from
@@ -495,7 +495,7 @@ export async function dispatchSelectOnlyRanges(
  * per-test timeout, turning a real failure that names the element covering the
  * target into a bare timeout that names nothing. The one interception this
  * suite has actually met was the phone drawer below, which no wait closes.
- * Figures and the diagnosis are in `docs/research/29-e2e-click-retry-costs.md`.
+ * Figures and the diagnosis are in `docs/research/e2e-click-retry-costs.md`.
  */
 const CLICK_ATTEMPTS = 4;
 
@@ -745,7 +745,7 @@ export async function waitForBacklinkIndexReady(target: string, minSources = 10)
  * them. `resetVault` does not restart it: it rewrites only the files that
  * differ from the fixture, so the initial index is the whole of what has to
  * finish. The line this logs per spec file is the record of how long that
- * took on the runner — see docs/research/31-e2e-ci-budgets.md for what it
+ * took on the runner — see docs/research/e2e-ci-budgets.md for what it
  * showed the first time it was read.
  *
  * The criterion is the whole resolved-link table holding still — sources,
@@ -925,7 +925,7 @@ export function runEditorExec(verb: string): Promise<void> {
  * Through the plugin because CM6's fold exports resolve only in plugin module
  * scope: neither `@codemirror/language` nor `obsidian` is reachable from the
  * renderer's own `require`, so a spec has no way to read a folded range
- * directly (docs/research/28).
+ * directly (docs/research/fold-mechanics).
  */
 interface FoldStateSnapshot {
   folded: { from: number; to: number }[];
@@ -1604,7 +1604,7 @@ export interface StatsSnapshot {
  * outcome: a caret can land correctly without our keymap ever running, because
  * the transaction filter corrects native motion after the fact, so an
  * outcome-only assertion passes identically whether our handler fired or never
- * existed at all. See docs/research/04 Q27 — that blind spot hid a real defect
+ * existed at all. See docs/research/open-questions Q27 — that blind spot hid a real defect
  * (Home never routed to our keymap) through three rewrites of the Home/End
  * logic, all of which the outcome-only tests happily passed. */
 /**
@@ -1905,13 +1905,13 @@ const INDICATOR_SELECTORS = {
  * about, and the mobile spec separately asserts the icon EXISTS and carries its
  * state — a surface that went missing fails there rather than passing here.
  * What no run in this harness can cover is that a real mobile user can see and
- * press it; that is a manual check, recorded in docs/research/24.
+ * press it; that is a manual check, recorded in docs/research/outline-mode-surfaces.
  */
 export async function clickIndicator(which: 'status' | 'ribbon'): Promise<void> {
   await armNoticeRecorder();
   // Reaching the ribbon means opening the sidebar that holds it — and then
   // putting it back. On a phone viewport the left split is a DRAWER covering
-  // most of the screen (measured at 327 of 390px in docs/research/29), so one
+  // most of the screen (measured at 327 of 390px in docs/research/e2e-click-retry-costs), so one
   // left open intercepts every later click in the same session; that is the
   // failure mode `clickClear` is being taught to recover from one layer up, and
   // this helper should not be a second source of it. Restored to whatever it
@@ -2032,7 +2032,7 @@ export async function waitForOutlineMode(on: boolean): Promise<void> {
  * The marker gutter as the RENDERED document publishes it, in px.
  *
  * Read rather than restated, and RESOLVED rather than parsed. The gutter is
- * derived (`MARKER_GUTTER_CSS`, docs/research/21-marker-text-gap.md) and its
+ * derived (`MARKER_GUTTER_CSS`, docs/research/marker-text-gap.md) and its
  * checkbox term reads a live theme value, so its published form is a `calc()`
  * expression rather than a length — parsing the token gives the first number in
  * it, which is not the gutter and is not even close.

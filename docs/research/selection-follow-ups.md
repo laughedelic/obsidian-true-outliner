@@ -512,7 +512,7 @@ Threads that genuinely feed the edit-rewriting change:
   gap-line escalation trigger, expand-only retention of gap ends). Related but
   separate: *visual* gap treatment (ownership cues, cursor snapping, collapsing
   multi-blank gaps on structural moves) is decoration/UX territory — see
-  docs/research/12 and Track 2.
+  docs/research/decoration-follow-ups and Track 2.
 
 ## Track 2: Selection UX (separate future change)
 
@@ -551,7 +551,7 @@ decoration work — independent of Phase C:
   lines are item-owned gaps). The keyboard path is the selection ladder above; the
   natural mouse path is a click-the-bullet/marker-selects-the-subtree gesture
   (Logseq/Workflowy bullet semantics) — a DOM/decoration-layer interaction that
-  belongs with the decorations work (docs/research/12), not the transaction funnel.
+  belongs with the decorations work (docs/research/decoration-follow-ups), not the transaction funnel.
 - **Modal block-level keyboard selection.** ~~Once a selection is escalated, keyboard
   extension (Shift+Down etc.) currently moves the underlying character cursor and
   re-escalates per transaction~~ — **largely SHIPPED by `node-selection-extension`
@@ -594,7 +594,7 @@ decoration work — independent of Phase C:
   the cover of the nodes that moved. The original report was right that it needed real design: the
   measurement found that reorders SCATTER a mixed-depth cover (every accepted multi-parent move up,
   3100 of 3100) and now require a single sibling run, while indent and outdent are safe at any
-  shape. Three pre-existing `ops.ts` bugs surfaced on the way — see `docs/research/04` Q33 for all
+  shape. Three pre-existing `ops.ts` bugs surfaced on the way — see `docs/research/open-questions` Q33 for all
   of it, including why `closure.test.ts` was structurally unable to catch them.
 
   The original entry, kept for its framing:
@@ -621,7 +621,7 @@ decoration work — independent of Phase C:
   *renders* as character-level highlight even when escalated to whole nodes; a
   block-level selection indication (whole-node highlight chrome) was judged out of
   scope for the enforcement change — it belongs with the decoration/polish layer
-  (docs/research/12) but becomes more valuable once escalated selections are the
+  (docs/research/decoration-follow-ups) but becomes more valuable once escalated selections are the
   operand of structural edits (Phase C) and of the ladder/modal gestures above.
 - **Gap-line cursor transparency (vertical navigation) — filed 2026-07-21, second
   Phase C manual pass.** The chrome-transparency principle (design.md D9, Phase C)
@@ -662,11 +662,11 @@ decoration work — independent of Phase C:
     modal block selection) as one future selection/cursor-UX change — both are
     keymap-adjacent, cursor/selection-level work built on the same escalation core,
     independent of edit rewriting.
-  - **Visual pairing**: docs/research/12's "Collapsing gap lines" idea is the
+  - **Visual pairing**: docs/research/decoration-follow-ups's "Collapsing gap lines" idea is the
     decoration-layer half of the same eventual feature (hiding, not just
     non-navigating, the gap) — cross-referenced there.
   - **✅ RESOLVED by `content-space-caret` (2026-07-25).** The vertical-motion
-    prototype this entry called for ran (docs/research/04 Q24): the goal-column drift
+    prototype this entry called for ran (docs/research/open-questions Q24): the goal-column drift
     risk is real but small (a one-character discrepancy, only when a chase bounces off
     a node shorter than the goal column, under a non-monospace font — the direct,
     no-bounce cases land pixel-exact) and does not change the direction this entry
@@ -809,7 +809,7 @@ the gap line before the caret settles into the first cell.
 
 `content-space-caret` shipped Home/End as a single step within the caret's own raw line, after three
 attempts at an escalating ladder (visual row → node, and a variant with the raw line between) were
-each retired following real-vault use. The full account is `docs/research/04` Q26; the short version
+each retired following real-vault use. The full account is `docs/research/open-questions` Q26; the short version
 is that an escalating Home makes one keypress mean different things depending on state the user
 cannot see — where the previous press left the caret, and where the renderer chose to wrap the text.
 
@@ -836,7 +836,7 @@ A raw-keydown log in dev builds — `key`, `code`, modifiers, `defaultPrevented`
 handler claimed it — would have answered "you pressed Mod-ArrowLeft, we bind Home" on the first
 press. Small, and it closes a whole class of cross-purposes debugging.
 
-Related, deliberately NOT done (see `docs/research/04` Q27): binding `Mod-ArrowLeft`/`Mod-ArrowRight`
+Related, deliberately NOT done (see `docs/research/open-questions` Q27): binding `Mod-ArrowLeft`/`Mod-ArrowRight`
 to the same content-space motion as Home/End. cmd+Left already cannot land on chrome — the
 transaction filter clamps its column-0 rung off the marker — so there is no invariant to gain, and
 overriding a native ladder users may prefer is a real cost. Revisit only if the native ladder turns

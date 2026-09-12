@@ -5,11 +5,11 @@ it load-bearing:
 
 - Every column on both surfaces derives from one declaration, `--to-decor-unit` on `body`, and
   nothing anywhere holds a second copy of its value
-  ([22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md)). `UNIT_EXPR` is
+  ([outline-unit-width.md](../../../../docs/research/outline-unit-width.md)). `UNIT_EXPR` is
   the only way JS may refer to it, and `e2e/specs/58-unit-override.e2e.ts` holds the guarantee
   that overriding that declaration retargets every layer.
 - Guides are a comma-joined list of gradient layers built in JS and consumed by one `::after`
-  ([09-experiment-2-guide-lines.md](../../../docs/research/09-experiment-2-guide-lines.md)).
+  ([experiment-2-guide-lines.md](../../../../docs/research/experiment-2-guide-lines.md)).
   Which depths a line draws is therefore a JS decision, not a CSS one.
 - Caret accents ride in the same background list, and `accentsOn`/`hasOverlay` already enforce
   that an accent only exists where a guide does.
@@ -31,7 +31,7 @@ it load-bearing:
 
 - Reworking `forceRedraw`. The visibility modes still need it; its active-view-only reach is a
   pre-existing limitation shared by every setting the plugin has, and replacing it is a deferred
-  item of its own in `docs/research/12-decoration-follow-ups.md`.
+  item of its own in `docs/research/decoration-follow-ups.md`.
 - A settings-driven way to reach anything the chrome vocabulary does not already publish.
 
 ## Decisions
@@ -84,7 +84,7 @@ sets these classes where we assume it does is a measurement, not an assumption �
 A stored length cannot be validated: `data.json` is a file a reader can edit and an older build
 can have written (`normalizePluginData`'s own reasoning), and a length below the floor —
 `unit > gutter + widest ink-left`, measured in
-[22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md) — puts a child's mark
+[outline-unit-width.md](../../../../docs/research/outline-unit-width.md) — puts a child's mark
 left of its parent's text, which is the one way this grid actually breaks. An enum makes an
 unknown value fall back to the default like every other setting here, and makes the floor a
 property of the ladder rather than of a validator.
@@ -92,7 +92,7 @@ property of the ladder rather than of a validator.
 The candidate rungs are the ones already rendered and read side by side in that note; the bottom
 rung and the mobile default are decided by re-measuring the floor on **both** device classes
 first, because the gutter's checkbox term is larger on mobile
-([21-marker-text-gap.md](../../../docs/research/21-marker-text-gap.md)) and the floor moves with
+([marker-text-gap.md](../../../../docs/research/marker-text-gap.md)) and the floor moves with
 it. The specs state the invariant; the numbers land in the research note and then in the code.
 
 **Measured, and one rung lower than expected.** The floor is 22.0px on desktop and 24.4px on
@@ -104,7 +104,7 @@ previous default — puts a nested task's checkbox 0.4px left of its parent's te
 first measurement pass missed that by sweeping a fixture long enough that CodeMirror never
 rendered its task list; the e2e case, which re-derives the relationship per device class, is what
 caught it. Both are recorded in
-[22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md).
+[outline-unit-width.md](../../../../docs/research/outline-unit-width.md).
 
 ### D4 — The guide's own width becomes a declaration, and stays one
 

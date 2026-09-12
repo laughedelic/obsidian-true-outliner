@@ -137,15 +137,15 @@
 
 ## 8. Close the record
 
-- [x] 8.0 Record the accepted per-root cost of the group forms (design D12 and `docs/research/04`
+- [x] 8.0 Record the accepted per-root cost of the group forms (design D12 and `docs/research/open-questions`
       Q33): measured k=2 1.7 ms / k=10 2.3 ms / k=50 7.0 ms / k=200 15.4 ms on a ~2000-line note,
       with the fix, its two traps, and what makes it safe to attempt. Raised in PR #50 review;
       deliberately not fixed in the initial implementation
 
-- [x] 8.1 Update the Track 2 entry in `docs/research/13-selection-follow-ups.md` — mark the
+- [x] 8.1 Update the Track 2 entry in `docs/research/selection-follow-ups.md` — mark the
       structural-keymap item resolved, with what was measured
-- [x] 8.2 Record in `docs/research/04` as numbered entries: the 1.1 measurement and the
+- [x] 8.2 Record in `docs/research/open-questions` as numbered entries: the 1.1 measurement and the
       reorder restriction it forced (D8), and the `destinationIndent` blind spot with the reason
       `closure.test.ts` structurally cannot catch that class of bug (D9)
 - [x] 8.3 File the scope-crossing move (a node into its parent's sibling) as a follow-up in
-      `docs/research/13`, with the note that it should inherit this change's group operand
+      `docs/research/selection-follow-ups`, with the note that it should inherit this change's group operand

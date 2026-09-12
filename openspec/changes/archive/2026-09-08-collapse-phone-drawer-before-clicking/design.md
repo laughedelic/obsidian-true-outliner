@@ -10,7 +10,7 @@ issues the click a second time, immediately, then lets the second failure throug
 failure is not a click that was never retried.
 
 And the obstruction does not pass. Probed at the refused click, the drawer is open, covering
-the click point, unchanged across attempts — `docs/research/29-e2e-click-retry-costs.md`.
+the click point, unchanged across attempts — `docs/research/e2e-click-retry-costs.md`.
 
 ## Goals / Non-Goals
 

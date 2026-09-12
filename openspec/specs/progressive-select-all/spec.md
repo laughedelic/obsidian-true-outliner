@@ -8,7 +8,7 @@ Stateless, keymap-level (not the transaction funnel), built on
 `node-selection-enforcement`'s existing subtree-cover geometry (`escalate.ts`'s
 `subtreeCoverOf`, gap-inclusive per `escalate-include-owned-gap`). Architecture and
 rationale: the `progressive-select-all` change's design.md; originating discussion:
-`docs/research/13`'s "Progressive Select All (the selection ladder)".
+`docs/research/selection-follow-ups`'s "Progressive Select All (the selection ladder)".
 ## Requirements
 ### Requirement: Repeated Mod-A climbs a node-aware selection ladder
 In outline mode, pressing Mod-A (Select All) SHALL be intercepted before CM6's/

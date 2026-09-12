@@ -197,5 +197,5 @@
       redo soft-lock, and — the subtlest — that leaving a list left a blank line behind ONLY
       when the list sat under a paragraph, which is what showed the recorder was keyed on the
       wrong thing. Findings and their dispositions are recorded in
-      `docs/research/15-enter-and-shift-enter-catalogue.md`; the catalogue itself stays a
+      `docs/research/enter-and-shift-enter-catalogue.md`; the catalogue itself stays a
       PRE-change record rather than being rewritten

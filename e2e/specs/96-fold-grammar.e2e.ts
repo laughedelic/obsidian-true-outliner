@@ -1,7 +1,7 @@
 /**
  * Enter against a folded node, and what a deletion does to one.
  *
- * The measured defect this answers (docs/research/28): Enter at the end of a
+ * The measured defect this answers (docs/research/fold-mechanics): Enter at the end of a
  * folded node's line unfolded it and inserted the new node INSIDE the revealed
  * subtree — the one place the reader had just hidden.
  */

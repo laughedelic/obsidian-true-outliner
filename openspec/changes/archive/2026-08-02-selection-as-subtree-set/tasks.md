@@ -9,7 +9,7 @@
 - [x] 1.3 Rebuild `coveredSubtreeRoots` on the same function — one implementation, now FOUR
       consumers (`decorations.ts` ×2, `enforce.ts`'s `coverIdsOf` and
       `computeMultiRangeDeletionVerdict`, `classify.ts`'s `isExactSubtreeCoverDeletion`),
-      per design D4 and the two "silently-stale duplicate" incidents in docs/research/04
+      per design D4 and the two "silently-stale duplicate" incidents in docs/research/open-questions
       (Q18, Q19)
 - [x] 1.4 Unit tests for the geometry: the cross-scope case that used to pull in a parent,
       ancestor/descendant ends, mixed-depth roots, and the ANCESTOR-SWALLOWED-MID-SPAN case
@@ -140,11 +140,11 @@
 
 ## 8. Documentation
 
-- [x] 8.1 Close out `docs/research/13`. Two entries, and neither needs what the original task
+- [x] 8.1 Close out `docs/research/selection-follow-ups`. Two entries, and neither needs what the original task
       assumed: the "Escalation math re-examination candidate" entry's actual question was
       GAP inclusion, already answered by `escalate-include-owned-gap`; and "The
       selection/cursor-UX track" entry already records this pivot and already states that it
       resolves the former. All that remains is marking change 2 of the five as shipped and
       recording whatever the manual pass (7.x) found
-- [x] 8.2 Note in `docs/research/05-org-mode-comparison.md`'s divergence table that our
+- [x] 8.2 Note in `docs/research/org-mode-comparison.md`'s divergence table that our
       selection model now matches the outliner mainstream on downward-vs-upward closure

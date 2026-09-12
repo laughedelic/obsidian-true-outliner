@@ -9,7 +9,7 @@ other plugins) reaches the document unchecked, which is exactly the "one careles
 selection away from breaking" failure the manifest calls out. The architecture bet behind
 fixing this — a CM6 `transactionFilter` as a single choke point over all document and
 selection changes — was scored "High confidence, novel engineering" in the feasibility
-research (docs/research/03) but has never been validated in a real Obsidian editor. This
+research (docs/research/obsidian-api-feasibility) but has never been validated in a real Obsidian editor. This
 change builds the smallest slice that both validates the bet with falsifiable checks
 (Phase A) and ships the first user-visible enforcement: node-boundary selection
 normalization (Phase B).

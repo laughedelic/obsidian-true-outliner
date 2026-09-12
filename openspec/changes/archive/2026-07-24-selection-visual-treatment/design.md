@@ -7,7 +7,7 @@ multi-range selection where any range escalates. What it deliberately does NOT d
 change how the result *renders*: the escalated range is still just a wider native
 `EditorSelection` range, painted with CM6's stock character-level selection background.
 The 2026-07-20 manual pass that validated escalation flagged this mismatch, and
-design.md scoped it out of that change on purpose (docs/research/13, "Escalated-selection
+design.md scoped it out of that change on purpose (docs/research/selection-follow-ups, "Escalated-selection
 visual treatment").
 
 The decoration system this change extends is `src/plugin/decorations.ts` /
@@ -50,13 +50,13 @@ node/subtree-selected chrome.
   nit). Reached via blurring the editor on a covering selection and recovering keyboard
   interaction through a real keymap replay, after a CSS-only approach was tried and
   reverted — see "Live Preview stays rendered while block-selected" below and
-  docs/research/13-selection-follow-ups.md for the full investigation, including a
+  docs/research/selection-follow-ups.md for the full investigation, including a
   handful of known, accepted residual limitations.
 
 **Non-Goals:**
 - No change to *when* or *how* selections escalate — that's `node-selection-enforcement`,
   unchanged by this proposal.
-- No new selection-creation gesture (the ladder, bullet-click) — docs/research/13's other
+- No new selection-creation gesture (the ladder, bullet-click) — docs/research/selection-follow-ups's other
   Track 2 threads, left for their own future change.
 - No modal block-selection keyboard mode — same deferral.
 - Reading view: untouched by construction (this is a CM6/Live-Preview-only decoration
@@ -404,7 +404,7 @@ for character-level editing, distracting once a whole block is selected. This sp
 TWO real, substantially different attempts; only a short summary lives here — the full
 investigation (root cause, exact class names, every regression found on real vault
 content across two review rounds, and the reasoning behind each decision) is recorded in
-docs/research/13-selection-follow-ups.md's "Live Preview raw-markdown reveal during
+docs/research/selection-follow-ups.md's "Live Preview raw-markdown reveal during
 block selection" section, since it's more detail than belongs in this change's own
 design doc and is exactly the kind of learning worth preserving if this gets picked up
 again later.
@@ -499,7 +499,7 @@ accepted limitation rather than attempted, deliberately — speculative here mea
 untestable across IMEs/platforms, the exact kind of fragile-workaround-chasing already
 backed off from once with the CSS approach (attempt 1 above).
 
-Full detail on all three findings is in docs/research/13-selection-follow-ups.md. No e2e
+Full detail on all three findings is in docs/research/selection-follow-ups.md. No e2e
 coverage was added for any of this listener logic, deliberately: focus/blur timing
 interacting with real keyboard/drag input is exactly the kind of thing unlikely to test
 reliably through the automated harness — validation here was manual, in a real vault, by
@@ -546,7 +546,7 @@ own focused follow-up if wanted later, not as a corner of an already-large chang
   first keystroke to literal Latin insertion, since an input method's decision to
   compose is tied to focus state at the moment the OS delivers the keystroke — our
   reactive refocus is structurally too late to influence that decision for the SAME
-  keystroke that triggered it. See docs/research/13-selection-follow-ups.md for the
+  keystroke that triggered it. See docs/research/selection-follow-ups.md for the
   full investigation, including the abandoned CSS-based alternative this replaced.
 - **[Risk] Recomputing cover-membership on every selection-only view update adds cost
   on very large/deep documents.** → Mitigation: the check is per-range (typically one or
@@ -554,7 +554,7 @@ own focused follow-up if wanted later, not as a corner of an already-large chang
   cost the transaction filter already pays on every escalating selection change; no
   worse asymptotically than what's already shipped. Revisit only if profiling on a real
   large vault shows it matters (ties into the parked "viewport-limited decoration
-  building" idea in docs/research/12, not specific to this change).
+  building" idea in docs/research/decoration-follow-ups, not specific to this change).
 - **[Risk] Visual noise from over-triggering on ordinary selections that coincidentally
   match a leaf node's exact bounds** (e.g. selecting one short paragraph's full text via
   Home/Shift+End). → Confirmed by the manual visual pass (Open Questions below): reads
@@ -585,7 +585,7 @@ own focused follow-up if wanted later, not as a corner of an already-large chang
   that doesn't recompute when `margin-left` changes, unlike the bundled themes' `width:
   auto`. The chrome merely inherits whatever box width these atoms end up with. Confirmed
   live (Minimal theme, already present in the test vault via the existing e2e
-  infrastructure) and diagnosed in full in docs/research/12's "Known gaps."
+  infrastructure) and diagnosed in full in docs/research/decoration-follow-ups's "Known gaps."
 - **[Deferred, out of scope] A same-node selection that reaches a node's own text doesn't
   yet include that node's owned trailing gap — only dragging INTO the gap does.**
   Confirmed live: this is `node-selection-enforcement`'s own escalation math (`D4`'s
@@ -593,7 +593,7 @@ own focused follow-up if wanted later, not as a corner of an already-large chang
   node at all (not just dragging past it) should be enough to pull its gap into the
   cover is a real, worthwhile question, but changing that math ripples into a different
   capability's own spec and property tests — deliberately not touched here. Full
-  diagnosis in docs/research/13's "Escalation math re-examination candidate."
+  diagnosis in docs/research/selection-follow-ups's "Escalation math re-examination candidate."
 
 ## Open Questions — resolved by the manual visual pass
 

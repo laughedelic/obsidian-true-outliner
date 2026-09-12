@@ -46,7 +46,7 @@
  *
  * ## The cost, taken deliberately
  *
- * Unchanged from `fix-redo-cursor-after-structural-ops` (docs/research/04
+ * Unchanged from `fix-redo-cursor-after-structural-ops` (docs/research/open-questions
  * Q21): this makes every redo exact, and makes a SECOND undo restore the
  * recorded cursor rather than the pre-operation one — the event a second undo
  * reads from is created on history's undone branch, and `addSelection` only

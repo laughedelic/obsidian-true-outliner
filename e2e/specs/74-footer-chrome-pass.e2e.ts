@@ -1,7 +1,7 @@
 /**
- * Spike S4's screenshot pass (docs/research/19, task 7.1): the outline's chrome
- * rendered on a surface that is not `.cm-line`, across the fixture corpus and
- * both bundled themes.
+ * Spike S4's screenshot pass (docs/research/backlinks-footer-spikes, task 7.1):
+ * the outline's chrome rendered on a surface that is not `.cm-line`, across the
+ * fixture corpus and both bundled themes.
  *
  * The assertions here are deliberately about MECHANISM, not appearance — a
  * screenshot is what a human reads, and a test that claimed to judge it would
@@ -526,7 +526,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
    * it.
    *
    * Read from the published gap rather than spelled: it is one half of the
-   * gutter's derivation (docs/research/21-marker-text-gap.md).
+   * gutter's derivation (docs/research/marker-text-gap.md).
    */
   it('keeps every ordinal clear of its own text, however wide the number', async function () {
     await h.openNote(KINDS);

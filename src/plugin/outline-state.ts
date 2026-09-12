@@ -9,7 +9,7 @@
  * decoration that reads it recomputes because the field moved.
  *
  * The reset boundary is CM6's own, not a rule this module enforces. Measured
- * (docs/research/24): Obsidian keeps ONE `EditorView` per leaf and rebuilds its
+ * (docs/research/outline-mode-surfaces): Obsidian keeps ONE `EditorView` per leaf and rebuilds its
  * `EditorState` only when the leaf switches files, so `create` runs when a tab
  * opens and when a tab changes notes — and NOT when a pane goes to reading view
  * and back, which keeps the state chain. That is exactly the ephemerality the

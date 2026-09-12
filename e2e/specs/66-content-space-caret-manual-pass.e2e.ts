@@ -3,7 +3,7 @@
  * node kinds outside the primary examples.md fixtures — code fences,
  * tables, callouts, horizontal rules — plus the Escape double-press
  * oddity design.md D6 records as measured-but-not-a-blocker. Findings are
- * recorded in docs/research/04-open-questions.md; this file is the
+ * recorded in docs/research/open-questions.md; this file is the
  * repeatable regression coverage for what that pass turned up.
  */
 

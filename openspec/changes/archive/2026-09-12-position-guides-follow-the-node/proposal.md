@@ -7,7 +7,7 @@ its marker. The spec itself prescribes this. Its extension rule takes "which gui
 that owns the gap rather than from the node the position stands for, and that contradicts the same
 requirement's promise that the row renders as it will once its content is really there. The
 diagnosis and the measurement across the generated corpus are in
-`docs/research/32-provisional-position-guides.md`. It found the over-extension in most new-node
+`docs/research/provisional-position-guides.md`. It found the over-extension in most new-node
 positions there, not only in the reported shape.
 
 ## What Changes

@@ -2,7 +2,7 @@
 
 Answers the postmortem's open question — is cross-kind visual unification achievable, and
 how — by running small, isolated, falsifiable prototypes instead of another multi-attempt
-scramble. See [06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md)
+scramble. See [outline-decorations-postmortem.md](outline-decorations-postmortem.md)
 for what failed and why, and the git history of this doc's own introduction for the
 external research that shaped this plan (obsidian-outliner's measure-don't-fight technique,
 Logseq's per-block-component architecture, Silverbullet's declined-to-unify precedent).
@@ -17,10 +17,10 @@ their purpose and are preserved in this file's git history, not here.
 
 | Doc | Contents |
 | --- | --- |
-| [08-experiment-1-additive-indentation.md](08-experiment-1-additive-indentation.md) | Experiment 1: additive-only indentation — design, results, 3 real bugs. **Keep** — the foundation everything else builds on |
-| [09-experiment-2-guide-lines.md](09-experiment-2-guide-lines.md) | Experiment 2: guide lines, 2a (pixel-measured overlay) vs. 2b (CSS stacked-gradient) head to head — **2b chosen** |
-| [10-experiment-5-block-markers.md](10-experiment-5-block-markers.md) | Experiment 5: per-kind block markers, 5a (SVG icons, DOM mechanism) vs. 5b (CSS shapes → uniform dot) head to head — **5a chosen**; includes the comparison verdict and the hardening checklist for productionizing 5a |
-| [11-decoration-lessons.md](11-decoration-lessons.md) | Accumulated cross-experiment findings, grouped by theme — read before touching decorations, CM6 extensions, or native-chrome interactions |
+| [experiment-1-additive-indentation.md](experiment-1-additive-indentation.md) | Experiment 1: additive-only indentation — design, results, 3 real bugs. **Keep** — the foundation everything else builds on |
+| [experiment-2-guide-lines.md](experiment-2-guide-lines.md) | Experiment 2: guide lines, 2a (pixel-measured overlay) vs. 2b (CSS stacked-gradient) head to head — **2b chosen** |
+| [experiment-5-block-markers.md](experiment-5-block-markers.md) | Experiment 5: per-kind block markers, 5a (SVG icons, DOM mechanism) vs. 5b (CSS shapes → uniform dot) head to head — **5a chosen**; includes the comparison verdict and the hardening checklist for productionizing 5a |
+| [decoration-lessons.md](decoration-lessons.md) | Accumulated cross-experiment findings, grouped by theme — read before touching decorations, CM6 extensions, or native-chrome interactions |
 
 ## Results
 
@@ -30,13 +30,13 @@ and closed in favor of their head-to-head counterparts, with all learnings prese
 
 | # | Technique | Status | Verdict |
 |---|---|---|---|
-| 1 | Additive indentation, no marker | Done, three real bugs found and fixed — [details](08-experiment-1-additive-indentation.md) | **Keep** — merging (PR #8) |
-| 2a | Guides — overlay-measured | Done, three real bugs found and fixed — [details](09-experiment-2-guide-lines.md) | Fully capable, **superseded by 2b** (simpler at equal coverage); PR #9 to be closed |
-| 2b | Guides — CSS stacked-gradient | Done, full corpus coverage confirmed — [details](09-experiment-2-guide-lines.md) | **Keep — chosen** (PR #10): full parity with 2a at smaller code size, zero pixel measurement |
+| 1 | Additive indentation, no marker | Done, three real bugs found and fixed — [details](experiment-1-additive-indentation.md) | **Keep** — merging (PR #8) |
+| 2a | Guides — overlay-measured | Done, three real bugs found and fixed — [details](experiment-2-guide-lines.md) | Fully capable, **superseded by 2b** (simpler at equal coverage); PR #9 to be closed |
+| 2b | Guides — CSS stacked-gradient | Done, full corpus coverage confirmed — [details](experiment-2-guide-lines.md) | **Keep — chosen** (PR #10): full parity with 2a at smaller code size, zero pixel measurement |
 | 3 | Minimal marker fallback (conditional) | Not triggered — see below | Deprioritized; the marker question was later answered properly by Experiment 5 |
 | 4 | Widget-spacer spike (optional) | Not triggered — see below | No fragility observed that would call for it |
-| 5a | Block markers — real icons, DOM widget mechanism | Done; four follow-up rounds (fold-chevron fix, centered placement, visibility setting, nested-editor leak found & fixed) — [details](10-experiment-5-block-markers.md) | **Keep — chosen** (PR #12, merged): mechanism solves vertical alignment/opacity/coupling by construction; icons proved expressive on real content |
-| 5b | Block markers — CSS shapes → uniform dot | Done; pivoted from 8 per-kind shapes to one dot after real-content review; 8 real bugs found and fixed — [details](10-experiment-5-block-markers.md) | Closed (PR #13): mechanism superseded by 5a (shared-opacity limit, coordinate coupling, live-measurement irony); design restraint lesson and findings preserved in [10](10-experiment-5-block-markers.md)/[11](11-decoration-lessons.md) |
+| 5a | Block markers — real icons, DOM widget mechanism | Done; four follow-up rounds (fold-chevron fix, centered placement, visibility setting, nested-editor leak found & fixed) — [details](experiment-5-block-markers.md) | **Keep — chosen** (PR #12, merged): mechanism solves vertical alignment/opacity/coupling by construction; icons proved expressive on real content |
+| 5b | Block markers — CSS shapes → uniform dot | Done; pivoted from 8 per-kind shapes to one dot after real-content review; 8 real bugs found and fixed — [details](experiment-5-block-markers.md) | Closed (PR #13): mechanism superseded by 5a (shared-opacity limit, coordinate coupling, live-measurement irony); design restraint lesson and findings preserved in [experiment-5-block-markers.md](experiment-5-block-markers.md)/[decoration-lessons.md](decoration-lessons.md) |
 
 ## Ground rules for every experiment below
 
@@ -59,7 +59,7 @@ and closed in favor of their head-to-head counterparts, with all learnings prese
 ## The fixture corpus (shared across all experiments)
 
 - **Flat**: 3 top-level paragraphs, no lists or headings at all — the original motivating
-  bug (`04-open-questions.md`: "with no bullets/indent chrome, outline mode is hard to
+  bug (`open-questions.md`: "with no bullets/indent chrome, outline mode is hard to
   verify by eye in flat documents").
 - **Mixed**: heading → heading → nested bullet list → paragraph-as-sibling-of-list-item →
   code fence, matching `MIXED_MD` in the existing e2e spec.
@@ -108,7 +108,7 @@ reserve since it's more implementation work than the compromise Experiment 1 pro
 **Outcome.** Not triggered in practice. Its trigger condition (flat fixture unreadable) technically
 fires, but our real-content read is that it's not actually a legibility gap (see
 Experiment 1's "also confirmed not a bug" note in
-[08-experiment-1-additive-indentation.md](08-experiment-1-additive-indentation.md)). Markers are judged less important than
+[experiment-1-additive-indentation.md](experiment-1-additive-indentation.md)). Markers are judged less important than
 initially scoped now that indentation alone reads as hierarchy.
 
 ## Experiment 4 (optional risk-spike — only if Experiment 1 still feels fragile on real content)
@@ -125,7 +125,7 @@ discipline.
 
 **Outcome.** Not triggered. Experiment 1 showed no cascade fragility against the synthetic corpus or
 real vault notes once its three bugs were fixed
-(see [08-experiment-1-additive-indentation.md](08-experiment-1-additive-indentation.md)) — nothing suggests the
+(see [experiment-1-additive-indentation.md](experiment-1-additive-indentation.md)) — nothing suggests the
 `padding-left`/`margin-left` approach is running out of road.
 
 ## Verification infrastructure (Track 5 — applied across all experiments)

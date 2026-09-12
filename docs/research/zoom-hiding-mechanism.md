@@ -2,7 +2,7 @@
 
 `outline-zoom`'s design rests on hiding everything outside a subtree with two block-level
 replace decorations (its D2). That is the shape of bet
-[06](06-outline-decorations-postmortem.md) was written about — a visual mechanism assumed to
+[outline-decorations-postmortem.md](outline-decorations-postmortem.md) was written about — a visual mechanism assumed to
 work, with the design built on top of it, and the assumption verified last. This time the
 mechanism was verified first, and the change's task 1 was a gate: a negative verdict here would
 have stopped it.

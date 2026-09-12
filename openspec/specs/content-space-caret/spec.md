@@ -218,7 +218,7 @@ for a continuation line it is that line's alignment column. `End` needs no such 
 chrome is always a line PREFIX, never a suffix.
 
 This supersedes two earlier escalating designs (visual row → node, and before that visual row →
-raw line → node), both retired after real-vault use; see `docs/research/04` Q26. Escalation made
+raw line → node), both retired after real-vault use; see `docs/research/open-questions` Q26. Escalation made
 one keypress mean different things depending on state the user cannot see — where the previous
 press left the caret, and where the renderer chose to wrap — which is the class of guessing this
 change exists to remove. Reaching a block's own start or end is a separate motion, not a second

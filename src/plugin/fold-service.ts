@@ -4,7 +4,7 @@
  * Obsidian's folding IS CodeMirror's folding: the state is
  * `@codemirror/language`'s, and `foldable()` asks a `foldService` facet that
  * already holds three providers and takes a fourth
- * (docs/research/28-fold-mechanics.md). Registering one is therefore not a
+ * (docs/research/fold-mechanics.md). Registering one is therefore not a
  * parallel fold engine — it changes what Obsidian itself folds, which is why
  * one provider buys the native fold command, the native placeholder, and
  * per-file persistence with nothing else built.

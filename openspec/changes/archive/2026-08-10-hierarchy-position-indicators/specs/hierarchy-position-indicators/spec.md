@@ -96,7 +96,7 @@ render any accent.
 - **THEN** the accent renders on the node's first line, and no accent renders on any
   continuation or gap line
 
-**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents an ORDERED list item’s number, which is a different element", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-marker findings themselves are `docs/research/14`’s findings 1 and 4.
+**Covered by**: `e2e/specs/55-position-indicators.e2e.ts` ("accents the marker of the heading the caret is in, and no other", "accents a list item's NATIVE bullet, which the caret does not swap for raw text", "accents an ORDERED list item’s number, which is a different element", "accents only the node’s FIRST line, never a continuation or gap line", "turns off independently of the trail"); the native-marker findings themselves are `docs/research/experiment-position-indicators`’s findings 1 and 4.
 
 ### Requirement: Guides and markers are two independent three-state settings
 
@@ -243,7 +243,7 @@ level.
 - **THEN** every ancestor list item renders its native bullet accented, and no segment renders
   anywhere
 
-**Covered by**: `tests/decorate.test.ts` ("list levels (native columns this layer cannot address)" suite, including "still accents the ancestor bullets in a pure list, where no line can be drawn"); `e2e/specs/55-position-indicators.e2e.ts` ("reaches a list item without drawing at a native list column", "accents ancestor BULLETS in a list, where no segment can be drawn"). Segments at native list columns are the deliberate omission — rationale and the measurements a later pass needs: `docs/research/14`.
+**Covered by**: `tests/decorate.test.ts` ("list levels (native columns this layer cannot address)" suite, including "still accents the ancestor bullets in a pure list, where no line can be drawn"); `e2e/specs/55-position-indicators.e2e.ts` ("reaches a list item without drawing at a native list column", "accents ancestor BULLETS in a list, where no segment can be drawn"). Segments at native list columns are the deliberate omission — rationale and the measurements a later pass needs: `docs/research/experiment-position-indicators`.
 
 ### Requirement: Position indicators never change layout geometry
 

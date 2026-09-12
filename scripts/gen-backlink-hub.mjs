@@ -31,8 +31,8 @@ const TARGET = 'Aurora Dashboard';
 
 /**
  * Deterministic pseudo-random: the corpus has to be byte-identical across runs and
- * machines, or "the same fixture every time" (docs/research/07, ground rule 2) is a
- * claim rather than a fact. Mulberry32 with a fixed seed.
+ * machines, or "the same fixture every time" (docs/research/decoration-experiments-plan,
+ * ground rule 2) is a claim rather than a fact. Mulberry32 with a fixed seed.
  */
 function rng(seed) {
   return () => {

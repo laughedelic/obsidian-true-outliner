@@ -29,7 +29,7 @@ import { ViewPlugin, type EditorView } from '@codemirror/view';
  * cell and move the caret by outline rules through a document that is just the
  * cell's raw text. Measured before the guard: Home, Right and ArrowDown all
  * reported invoked AND consumed with focus inside `.cm-embed-block`
- * (docs/research/04 Q27). `transaction-filter.ts` deliberately does NOT use
+ * (docs/research/open-questions Q27). `transaction-filter.ts` deliberately does NOT use
  * this — a state-level filter has no `view` and so cannot ask the DOM. */
 export function isNestedEditor(view: EditorView): boolean {
   return view.dom.closest('.cm-embed-block') !== null;

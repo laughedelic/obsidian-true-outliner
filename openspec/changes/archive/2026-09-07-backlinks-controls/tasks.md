@@ -205,7 +205,7 @@ never glyph-width pixels — CI's font is not macOS's.
 
 ## 8. Wrap-up
 
-- [x] 8.1 Fill in `docs/research/18-structured-backlinks.md` where this change answers it: D8's
+- [x] 8.1 Fill in `docs/research/structured-backlinks.md` where this change answers it: D8's
       search field is source-note names only, D10's caps are two different mechanisms for two
       different questions, and the cap defaults chosen on S5's legibility footing
 - [x] 8.2 Confirm the deferred items are written where they will be found: chronological mode

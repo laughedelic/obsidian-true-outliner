@@ -13,7 +13,7 @@ child replaces all 3 lines to add two tab characters; merging two paragraphs rep
 CodeMirror maps cursor/selection positions through a transaction's changes to compute
 where they land after undo/redo. A position that falls *inside* a replaced range maps to
 one end of the replacement (the exact end depends on associativity and CM6 version — see
-`fix-redo-cursor-after-structural-ops`, `docs/research/04-open-questions.md` Q18–Q21) —
+`fix-redo-cursor-after-structural-ops`, `docs/research/open-questions.md` Q18–Q21) —
 never to a semantically meaningful spot inside it. That change landed a workaround:
 `src/plugin/history-cursor.ts` re-asserts the operation's own cursor into CM6 history via
 a follow-up selection-only transaction, so **redo** restores it. Q21 root-caused why that
@@ -186,7 +186,7 @@ twice already").
 ### D5a: Operations that CHOOSE a cursor keep the recorder; only indent/outdent lose it
 
 Found by a real-vault pass after rebasing onto `content-space-caret`, then sharpened by
-review (docs/research/04 Q29 and its follow-ons). D5's reasoning holds for INSERTIONS
+review (docs/research/open-questions Q29 and its follow-ons). D5's reasoning holds for INSERTIONS
 only, and over-generalised from them. D4 had already said the rest: move, split, merge,
 paste and structural delete choose a cursor that "mapping cannot recover even with
 minimal changes." Removing the recorder wholesale contradicted that, in the same design.
@@ -340,7 +340,7 @@ affected. Rollout is a single change:
    redo-cursor correctness has neither the old workaround nor the new root-cause fix.
    Indent and outdent leave it behind entirely; move, split, merge, paste and structural
    delete keep it (D5a).
-4. Update `docs/research/04-open-questions.md` Q21's status line once the known
+4. Update `docs/research/open-questions.md` Q21's status line once the known
    limitation it documents no longer exists, per this project's convention of recording
    findings against the question that raised them (Q16, Q19 follow this pattern already).
 

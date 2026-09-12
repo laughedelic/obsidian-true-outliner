@@ -12,7 +12,7 @@
  *
  * `chrome-tokens.ts` shares the vocabulary: the unit, the gutter, the variable
  * names. That was not enough, and the backlinks footer is the measurement that
- * showed it (docs/research/19, S4's corrected verdict). A surface holding only
+ * showed it (docs/research/backlinks-footer-spikes, S4's corrected verdict). A surface holding only
  * the vocabulary writes its own layout rules from it, and they diverge in ways
  * that all look like small CSS bugs: guides absent because nothing set
  * `--to-guides`, markers off-column because a fixed gutter is not

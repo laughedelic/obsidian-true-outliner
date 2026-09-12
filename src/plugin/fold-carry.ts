@@ -6,7 +6,7 @@
  * - A structural MOVE destroys the fold on the subtree it moves. CodeMirror
  *   maps a folded range through a change set, and a move deletes the block from
  *   one place and inserts it in another, so both ends of the range land in
- *   deleted text and the fold is gone (measured, docs/research/28). Folding a
+ *   deleted text and the fold is gone (measured, docs/research/fold-mechanics). Folding a
  *   subtree in order to move it as one unit is the ordinary reason to fold, so
  *   losing it there is the worst possible case.
  * - An EDIT INSIDE a folded subtree leaves the reader watching a fold that no

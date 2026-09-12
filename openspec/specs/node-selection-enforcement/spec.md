@@ -8,7 +8,7 @@ orientation guarantees, uniform multi-range semantics, and the stock-behavior
 guarantees outside outline mode and outside the funnel's jurisdiction. Architecture
 and rationale: the outline-selection-enforcement change's design.md (D4/D5 and their
 amendments from two real-vault manual passes); deferred selection-UX threads:
-`docs/research/13`.
+`docs/research/selection-follow-ups`.
 ## Requirements
 ### Requirement: Within-node content selections and cursors are untouched
 Selection ranges whose two ends both rest on a single node's own content lines SHALL
@@ -23,7 +23,7 @@ that GAP-LINE cursor placement stays byte-for-byte native is REVERSED for outlin
 a caret can no longer be placed on a gap line, and a placement that would land there
 resolves to the owning node's content end. Both changes are deliberate reversals of
 invariants adopted in Phase B and recorded as needing their own design pass in
-`docs/research/13` ("Gap-line cursor transparency"); see the `content-space-caret`
+`docs/research/selection-follow-ups` ("Gap-line cursor transparency"); see the `content-space-caret`
 change's design.md (D1, D2, D11) for the rationale, including the measured finding that
 the clamp's claimed input-agnosticism did not hold — Home reached positions ArrowLeft and
 mouse clicks were both prevented from reaching.

@@ -11,7 +11,7 @@
 - [ ] 2.1 Write `examples.md` in this change, showing each of design D1's three options against
       the same shapes, in the outline-codeblock format the caret and extension changes use
 - [ ] 2.2 Decide D1 with the examples in hand; record the choice and its reasoning in design.md
-- [ ] 2.3 Record the decision in `docs/research/04` as a numbered finding, since it settles a
+- [ ] 2.3 Record the decision in `docs/research/open-questions` as a numbered finding, since it settles a
       question open since Q2
 
 ## 3. Implementation
@@ -36,4 +36,4 @@
 - [ ] 5.1 E2E paste scenarios matching the examples file
 - [ ] 5.2 Undo restores the pre-paste buffer byte-identically in one step
 - [ ] 5.3 Real-vault manual pass on the reporter's own shapes
-- [ ] 5.4 Record findings in `docs/research/04`
+- [ ] 5.4 Record findings in `docs/research/open-questions`

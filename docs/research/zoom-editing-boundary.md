@@ -112,7 +112,7 @@ Round 4 recorded the dispatched changed ranges against the visible bounds
 | X4 | Backspace at the root's content start | 8–29 | **7–10** | no | cleared (correctly detected) |
 | R6 | Delete on the cover's own trailing gap line | 17–34 | 34–35 | yes — only the cover's own gap goes | **cleared** |
 
-The arithmetic is exact and it is the same class of error `docs/research/23` found on the
+The arithmetic is exact and it is the same class of error `docs/research/zoom-hiding-mechanism` found on the
 hiding decorations, one layer over. `bounds.to` is the last visible line's END, before its
 newline. Appending a line after the last visible line necessarily inserts at `bounds.to + 1` —
 the first HIDDEN line's start — because that is where the text goes. `touchesOutside` tests

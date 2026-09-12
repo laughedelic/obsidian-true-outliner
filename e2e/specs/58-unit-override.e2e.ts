@@ -475,7 +475,7 @@ describe('the outline unit is one declaration the whole grid follows', function 
   it('keeps a child’s mark right of its parent’s text, at every step', async function () {
     // The one direction that can actually break the grid. Its floor is not one
     // number — the gutter it is built from holds a checkbox Obsidian sizes
-    // differently per platform (docs/research/22) — so this runs on both device
+    // differently per platform (docs/research/outline-unit-width) — so this runs on both device
     // classes and asserts the RELATIONSHIP, never a pixel.
     //
     // Every rung, not just the narrowest: the bottom of the ladder is the
@@ -569,7 +569,7 @@ describe('the outline unit is one declaration the whole grid follows', function 
 
   it('leaves a mark’s distance from its own text alone', async function () {
     // The gutter is derived from the marks it holds, not from the unit
-    // (docs/research/21). Widening a level must not touch it — the two are
+    // (docs/research/marker-text-gap). Widening a level must not touch it — the two are
     // independent, and a change that moved both would be an indentation change
     // wearing a gutter change's clothes.
     await openFixture('unit-override-gap');

@@ -10,22 +10,22 @@ where node boundaries fell.
 The design recorded here is not the one originally proposed. Three prior implementation
 attempts failed in real vault use (cascade/`!important` fights, em/rem marker-size bugs,
 native list hanging-indent corruption, fold-indicator collisions) — see
-[docs/research/06-outline-decorations-postmortem.md](../../../docs/research/06-outline-decorations-postmortem.md).
+[docs/research/outline-decorations-postmortem.md](../../../../docs/research/outline-decorations-postmortem.md).
 A subsequent series of isolated, falsifiable experiments validated a different mechanism
 per layer; this file records the architecture **as built and merged** (PRs #8, #10, #11),
 not the original proposal. For the experiment-by-experiment rationale, the bugs found, and
 the alternatives rejected along the way, see:
 
-- [docs/research/07-decoration-experiments-plan.md](../../../docs/research/07-decoration-experiments-plan.md) —
+- [docs/research/decoration-experiments-plan.md](../../../../docs/research/decoration-experiments-plan.md) —
   series hub, ground rules, fixture corpus, final results table
-- [docs/research/08-experiment-1-additive-indentation.md](../../../docs/research/08-experiment-1-additive-indentation.md) —
+- [docs/research/experiment-1-additive-indentation.md](../../../../docs/research/experiment-1-additive-indentation.md) —
   additive-only indentation (kept)
-- [docs/research/09-experiment-2-guide-lines.md](../../../docs/research/09-experiment-2-guide-lines.md) —
+- [docs/research/experiment-2-guide-lines.md](../../../../docs/research/experiment-2-guide-lines.md) —
   guide lines, overlay (2a) vs. CSS stacked-gradient (2b, chosen)
-- [docs/research/10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md) —
+- [docs/research/experiment-5-block-markers.md](../../../../docs/research/experiment-5-block-markers.md) —
   block markers, SVG/DOM (5a, chosen) vs. CSS shapes (5b), head-to-head verdict, and the
   hardening checklist `tasks.md` section 3 draws from
-- [docs/research/11-decoration-lessons.md](../../../docs/research/11-decoration-lessons.md) —
+- [docs/research/decoration-lessons.md](../../../../docs/research/decoration-lessons.md) —
   cross-experiment findings (CSS cascade/box model, CM6 coordinate systems, Obsidian
   internals) worth reading before touching this code again
 
@@ -125,7 +125,7 @@ it stays correct across themes) and clamped at zero so a depth-0 atom never goes
 
 Full history, the three real-vault bugs found and fixed, and the deferred (not fixed) list
 hang-width cosmetic gap:
-[docs/research/08-experiment-1-additive-indentation.md](../../../docs/research/08-experiment-1-additive-indentation.md).
+[docs/research/experiment-1-additive-indentation.md](../../../../docs/research/experiment-1-additive-indentation.md).
 
 ### Layer 2 — indentation guides (CSS stacked-gradient)
 
@@ -162,7 +162,7 @@ lines, not just through node content.
 
 Full history including the "guides can't reach past a shifted box" false claim and its
 correction, the blockquote `::before` collision, the readable-line-width interaction, and
-the table fix: [docs/research/09-experiment-2-guide-lines.md](../../../docs/research/09-experiment-2-guide-lines.md).
+the table fix: [docs/research/experiment-2-guide-lines.md](../../../../docs/research/experiment-2-guide-lines.md).
 
 ### Layer 3 — block markers (SVG icons, DOM mechanism)
 
@@ -180,7 +180,7 @@ Two delivery mechanisms, split the same way indentation is:
   this gets correct vertical alignment "for free" from the browser's own text layout,
   scaling naturally with heading font size, instead of needing a live-measured Y-position
   (the alternative CSS-shape design, 5b, needed exactly this and it was the more expensive
-  path — see the head-to-head verdict in doc 10).
+  path — see the head-to-head verdict in docs/research/experiment-5-block-markers).
 - **Widget-replaced atoms** (table/callout/html/hr): a real DOM child injected directly by
   `MarginCompensation`, the same escape hatch already used for their `margin-left` — CM6
   decorations have zero effect on these elements.
@@ -211,7 +211,7 @@ itself is drawn changes.
 
 Full history, including the fold-chevron collision fix, the three placement variants
 explored, and the 5a-vs-5b comparison table:
-[docs/research/10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md).
+[docs/research/experiment-5-block-markers.md](../../../../docs/research/experiment-5-block-markers.md).
 
 ### Nested-editor gating
 
@@ -231,7 +231,7 @@ not) — `isNestedEditor(view)` is checked by each before computing anything, re
 `Decoration.none` / doing nothing for a nested instance. Independently confirmed in the wild
 (obsidian-lapel hits the identical leak in its own gutter markers, fixed there only as a CSS
 hide rather than stopping computation). Full account:
-[docs/research/10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md#follow-up-round-4-a-genuine-architectural-bug-found-via-a-flaky-test--decorations-leaking-into-obsidians-own-nested-per-cell-editors).
+[docs/research/experiment-5-block-markers.md](../../../../docs/research/experiment-5-block-markers.md#follow-up-round-4-a-genuine-architectural-bug-found-via-a-flaky-test--decorations-leaking-into-obsidians-own-nested-per-cell-editors).
 
 ## Decisions
 
@@ -261,7 +261,7 @@ bugs from sharing one pseudo-element's coordinate space with the guide gradient.
 DOM-element variant (5a) gets correct vertical alignment for free from the browser's own
 inline-flow text layout, at full opacity (not sharing the guide's `0.6 opacity`), and stays
 open to future interactivity if a later change ever wants it. Full comparison:
-doc 10's "Head-to-head: comparison and verdict."
+docs/research/experiment-5-block-markers's "Head-to-head: comparison and verdict."
 
 ### D3. Depth is derived by walking the parsed tree, not from source indentation/level
 Unchanged from the original proposal and confirmed as built: a node's depth is its distance
@@ -352,7 +352,7 @@ disabling the plugin, which already restores stock rendering.
 
 *(All deferred decoration work — these open questions plus the gaps found after the
 hardening pass — is consolidated in
-[docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).)*
+[docs/research/decoration-follow-ups.md](../../../../docs/research/decoration-follow-ups.md).)*
 
 - **Shrinking only our own added list margin** — raised during Experiment 1's review, not
   yet decided. List items sit visibly further right than a same-depth sibling
@@ -362,7 +362,7 @@ hardening pass — is consolidated in
   root's own native hang width, read live) stays open as a possible follow-up. Two risks
   noted but unresolved: clamping so a shallow `supplementalDepth` never goes negative, and
   compensating from the list *root*'s own hang, not each item's (nested items can have
-  wider markers with different native hang widths). See doc 10's "Open question" section.
+  wider markers with different native hang widths). See docs/research/experiment-5-block-markers's "Open question" section.
 - **Marker/guide interactivity** (click-to-select, click-to-fold, per-heading-level markers)
   remains explicitly deferred, per the Non-Goals above. Doc 10's prior-art addendum
   (obsidian-lapel) records a concrete idea for how a future change might attach this to the

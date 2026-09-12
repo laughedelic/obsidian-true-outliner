@@ -5,7 +5,7 @@ end-of-node Enter or a Shift+Enter — is rendered from a parse of the WHOLE not
 the zoom root's subtree. Every depth that parse carries is counted from the note's own root, so
 the moment the caret lands on such a line the zoomed view jumps one level right per hidden
 ancestor and grows guide columns for ancestors it is not showing, then snaps back when the caret
-leaves. The breadth is measured in docs/research/12 ("A provisional position inside a zoomed
+leaves. The breadth is measured in docs/research/decoration-follow-ups ("A provisional position inside a zoomed
 subtree renders the view at the source document's depth"): it is not the trail-only gap that
 entry was first written as.
 
@@ -34,12 +34,12 @@ with the zoom scope" — so it is a defect against the specs as they stand, not 
 
 - The nested-list-item half of zoom re-basing. A zoom root that is itself a nested list item
   keeps Obsidian's own within-list indentation; that is a separate deferred item in
-  docs/research/12 ("A zoomed list-item root keeps its within-list indentation") and this change
+  docs/research/decoration-follow-ups ("A zoomed list-item root keeps its within-list indentation") and this change
   neither closes nor worsens it.
 - What a provisional position MEANS to the grammar. The structural keys and
   `provisional-cleanup`'s record act on the buffer, where whole-document derivation is correct;
   only the render is re-based.
-- The other provisional-position gaps parked in docs/research/12 (a structural key leaving the
+- The other provisional-position gaps parked in docs/research/decoration-follow-ups (a structural key leaving the
   blank line behind, node-granular selection halving a bisected node, a caret parked on a
   user-authored blank line).
 - Zoom enforcement, caret confinement, and the breadcrumb trail, none of which read these

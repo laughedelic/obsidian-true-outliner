@@ -5,7 +5,7 @@ everywhere else, what the failure shape can and cannot mean, and the two propert
 that let a refused operation sit in it unnoticed.
 
 The spike this case belongs to is S1 in
-[19-backlinks-footer-spikes.md](19-backlinks-footer-spikes.md); its veto condition — a
+[backlinks-footer-spikes.md](backlinks-footer-spikes.md); its veto condition — a
 perturbation the transaction filter cannot absorb — is what a genuine failure here would trip.
 This note exists so that reading is not reached by default the next time the case goes red.
 

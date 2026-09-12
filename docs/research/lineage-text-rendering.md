@@ -1,6 +1,6 @@
 # Lineage text: what the two ancestor-chain surfaces actually render
 
-D18 (in [18-structured-backlinks.md](18-structured-backlinks.md)) settled how a footer row's
+D18 (in [structured-backlinks.md](structured-backlinks.md)) settled how a footer row's
 content becomes DOM: **the chrome carries structure, and a row's content is inline markdown
 only**. That decision was implemented for reference rows and never reached the two surfaces
 that quote an ancestor *chain* — the backlinks footer's lineage rows and zoom's breadcrumb

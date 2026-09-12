@@ -137,7 +137,7 @@ other outliner already expect.
 nodes are children of one scope. Both become forest-aware: given a span, return the maximal
 subtrees it contains. The forest computation SHALL live in ONE exported function that every
 consumer uses — the same "one correct call site, one silently-stale duplicate" hazard recorded
-twice in docs/research/04 (Q18's detection-gate split, Q19's re-encode split).
+twice in docs/research/open-questions (Q18's detection-gate split, Q19's re-encode split).
 
 `coveredSubtreeRoots` is that function's read-only face, and since this change was first
 drafted it acquired two consumers beyond the selection chrome. All four move together:
@@ -227,7 +227,7 @@ re-derived:
   is the gesture for widening to an ancestor, and it is unchanged.
 - **The downward-closure invariant is enforced by the transaction filter, and undo/redo bypass
   the filter entirely.** Found during `minimal-changesets-for-structural-ops`
-  (docs/research/04 Q29 and its follow-on): `@codemirror/commands` dispatches history
+  (docs/research/open-questions Q29 and its follow-on): `@codemirror/commands` dispatches history
   transactions with `filter: false`, and CM6's `resolveTransaction` honours that by skipping
   `filterTransaction` — verified against the installed package, not inferred. What undo/redo
   restore is the pre-operation selection MAPPED FORWARD through the operation's changes, and
@@ -265,7 +265,7 @@ plugin or toggling outline mode off, both of which restore stock selection byte-
   this reason.** Yes, in full: `subtreeCoverEnd` ends at the gap's LAST line at `ch: 0`, so gap
   ownership stays all-or-nothing and a whitespace-only gap line matches regardless of its
   incidental trailing whitespace. That change also chose CLASSIFICATION rather than geometry as
-  the layer to fix (docs/research/04 Q22), which is why the gate in D4 exists at all. Every
+  the layer to fix (docs/research/open-questions Q22), which is why the gate in D4 exists at all. Every
   span rule here is written against this end convention; nothing in it is still provisional.
 - Does mixed-depth chrome read clearly, or does it need per-root treatment? Manual pass.
 - ~~Does the widened classification gate (D4) admit any deletion shape the verdict layer does

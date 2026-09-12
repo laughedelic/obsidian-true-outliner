@@ -2,7 +2,7 @@
  * Zoom's hiding layer: two block-level replace decorations bracketing the
  * visible range (`outline-zoom` design D2).
  *
- * Proven before this was written — docs/research/23 measured the mechanism
+ * Proven before this was written — docs/research/zoom-hiding-mechanism measured the mechanism
  * against a real Obsidian with the three established decoration sources and the
  * backlinks footer mounted, which is the composition question that mattered.
  * What it found: hidden lines leave the layout entirely (content height 770px →

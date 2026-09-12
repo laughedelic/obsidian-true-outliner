@@ -5,7 +5,7 @@ rejection cue, because absorbing the heading would destroy its section's anchor.
 the keypress deletes the heading marker's trailing space and leaves a paragraph where a heading
 was, with no cue and no verdict computed at all. Measured, with the full funnel trace and the
 neighbouring shapes that already behave, in
-[docs/research/25-heading-content-start-backspace.md](../../../docs/research/25-heading-content-start-backspace.md).
+[docs/research/heading-content-start-backspace.md](../../../../docs/research/heading-content-start-backspace.md).
 
 The consequence is not cosmetic: the demoted heading's section dissolves and its children
 re-parent, which is exactly the corruption the enforcement layer exists to prevent. The same

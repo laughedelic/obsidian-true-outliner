@@ -31,11 +31,11 @@ pure function has nothing to do).
   `node-selection-enforcement` behavior — this only adds a new keymap consumer of the
   existing geometry.
 - Not the "click the bullet to select the subtree" mouse gesture
-  (docs/research/13 Track 2, separate item) — keyboard-only here.
+  (docs/research/selection-follow-ups Track 2, separate item) — keyboard-only here.
 - Not modal block-selection keyboard extension (Shift+Down escalating by subtree per
-  keypress) — a separate, larger piece per docs/research/13.
+  keypress) — a separate, larger piece per docs/research/selection-follow-ups.
 - Not fixing the structural keymap commands' (Tab/Shift-Tab/move) lack of
-  multi-node-selection awareness — filed separately in docs/research/13 (2026-07-24
+  multi-node-selection awareness — filed separately in docs/research/selection-follow-ups (2026-07-24
   entry); a ladder-selected multi-subtree range hitting Tab today still only touches the
   last node, and this change does not alter that.
 
@@ -55,11 +55,11 @@ duplication lowest — decided at implementation time, not a spec-level concern)
 — escalation is triggered by TRANSACTION SHAPE (a drag/paste that already crosses a
 boundary) and lives in the transaction filter; the ladder is triggered by a REPEATED KEY
 PRESS and needs its own keymap entry point per the design already agreed in
-docs/research/13. Conflating them would make `escalateRange`'s contract harder to reason
+docs/research/selection-follow-ups. Conflating them would make `escalateRange`'s contract harder to reason
 about for both call sites.
 
 ### D2: Keymap interception, not the transaction filter
-docs/research/13 already settled this: the transaction filter sees a dispatched
+docs/research/selection-follow-ups already settled this: the transaction filter sees a dispatched
 transaction, and Mod-A dispatched twice in a row produces two IDENTICAL "select
 everything" transactions — nothing in the transaction itself distinguishes "first
 press" from "second press," so the filter cannot implement a ladder. A `Prec.highest`
@@ -68,7 +68,7 @@ selection to decide the NEXT one, exactly like `grammarExtension` already does f
 Tab/Enter.
 
 **Alternative considered**: a stored "press count" or "last selection" field on the
-editor. Rejected per the stateless design goal already agreed in docs/research/13 — a
+editor. Rejected per the stateless design goal already agreed in docs/research/selection-follow-ups — a
 timer/counter approach breaks the moment the user clicks away, edits, or switches panes
 between presses, and Workflowy/obsidian-outliner's own two-step versions are stateless
 for the same reason.
@@ -96,7 +96,7 @@ it rather than requiring an exact match to advance). If the current range alread
 the topmost non-document rung, fall through to native Select All for rung 5.
 
 ### D4: List-item "own content" rung starts after the marker
-Per docs/research/13's flagged detail: rung 1 for a list item starts at
+Per docs/research/selection-follow-ups's flagged detail: rung 1 for a list item starts at
 `contentColumnCh` of its first line (the same marker-transparent boundary
 `clampCursorToContent`/`splitNode` already use in `ops.ts`), not column 0 — matching
 obsidian-outliner and reading better for copy (copying a list item's content shouldn't
@@ -126,7 +126,7 @@ agreed design.
   the existing pattern `escalateRange`'s same-node case already exhibits.
 - **Deep documents produce long ladders (many ancestor rungs)** → Mitigation: none
   needed functionally (this is the intended, wanted behavior — Logseq-style
-  parent-by-parent escalation per the precedent docs/research/13 cites); flag only as a
+  parent-by-parent escalation per the precedent docs/research/selection-follow-ups cites); flag only as a
   UX note for manual testing, not a defect.
 - **No automated coverage for the keymap dispatch path itself** (same class of
   focus/timing concern already accepted for `SelectionDecorationPlugin`) → Mitigation:

@@ -5,7 +5,7 @@ editing modes (`editorCheckCallback`, the editor context menu), so a note that o
 view — which the core default view mode can be — offers no way to see or change the mode; the
 only feedback is a 1.5s toast; and every new file starts stock unless toggled by hand. The mode
 needs to be an explicit, persistent, visible state rather than a hidden per-file fact.
-docs/research/24 records the surface research and the mode-shape decision this change rests on.
+docs/research/outline-mode-surfaces records the surface research and the mode-shape decision this change rests on.
 
 ## What Changes
 
@@ -13,7 +13,7 @@ docs/research/24 records the surface research and the mode-shape decision this c
   "open new tabs in outline mode", on by default, governs every note a tab newly opens; the
   per-file `outlinePaths` store is retired with no migration (the `normalizePluginData`
   allow-list drops the key on first save). An upgrading install's next file open is outlined,
-  which is deliberate — see docs/research/24, "The mode's shape".
+  which is deliberate — see docs/research/outline-mode-surfaces, "The mode's shape".
 - **The toggle acts on the active tab only.** Switching a tab back to stock editing changes
   that tab and nothing else: other tabs keep their state, and every newly opened note still
   follows the default. Two tabs on the same file can differ, exactly as two panes already can
@@ -21,7 +21,7 @@ docs/research/24 records the surface research and the mode-shape decision this c
 - **A tab's manual state is ephemeral.** It dies with the tab's editor state: closing the tab or
   switching it to another note resets the tab to the default. A reading-view round-trip does not
   — measured, Obsidian keeps one editor per leaf and rebuilds its state only on a file switch
-  (docs/research/24, "Measured"), so a pane the user flipped to reading view and back comes back
+  (docs/research/outline-mode-surfaces, "Measured"), so a pane the user flipped to reading view and back comes back
   as they left it. Nothing is persisted per file or per tab — the same shape zoom's scope already
   has.
 - **Changing the setting touches future opens only.** Like the built-in "default view mode for
@@ -29,9 +29,9 @@ docs/research/24 records the surface research and the mode-shape decision this c
 - **The toggle works from any view mode.** The command switches from `editorCheckCallback` to a
   `checkCallback` over the active `MarkdownView`, so the palette offers it in reading view and
   in both editing modes. No default hotkey — there is no dominant convention to inherit, so the
-  no-default-hotkeys guideline is followed (docs/research/24, table).
+  no-default-hotkeys guideline is followed (docs/research/outline-mode-surfaces, table).
 - **Toggling from reading view enters outlined editing.** Reading view renders no outline
-  (doc 20, the two renderers), so the ON direction switches the pane to an editing mode via the
+  (docs/research/surfaces-and-embedding, the two renderers), so the ON direction switches the pane to an editing mode via the
   public `View.setState` route — the editing mode the view was last in, which the view's own
   state round-trips verbatim (measured; a pane with no editing history reports Live Preview
   itself, so nothing has to default it). The OFF direction is a no-op: nothing is
@@ -100,16 +100,16 @@ None — the mode already has a capability; this change reshapes it.
 
 - **Per-file persistence of a tab's manual off state.** Reopening a note starts from the
   default every time; if real use demands remembered opt-outs, that is an explicit-off list
-  with its own rename/delete hygiene, recorded in docs/research/24 with the shape it would take.
+  with its own rename/delete hygiene, recorded in docs/research/outline-mode-surfaces with the shape it would take.
 - **Strictly tab-scoped state across file switches.** A manual off that survives the tab
   switching notes needs leaf-keyed state outside the editor; the editor-rebuild reset is
   accepted instead (design D4).
 - **A global off switch.** The setting is the only global control and it touches future opens
   only; there is no "turn everything off now" command.
 - **Outline rendering in reading view.** The reading-view entry behavior exists because
-  reading view is untouched by construction (doc 20, Surface 3); making it render the outline is
-  the parking-lot entry in doc 12, unchanged.
+  reading view is untouched by construction (docs/research/surfaces-and-embedding, Surface 3); making it render the outline is
+  the parking-lot entry in docs/research/decoration-follow-ups, unchanged.
 - **Extending core chrome.** The mode switcher and the core status-bar pencil stay untouched —
-  no public API, and CSS-hacking core DOM is barred (docs/research/24).
+  no public API, and CSS-hacking core DOM is barred (docs/research/outline-mode-surfaces).
 - **A default hotkey for the toggle.** Palette, context menu, status bar, ribbon, and a
   user-assigned binding remain the entry points.

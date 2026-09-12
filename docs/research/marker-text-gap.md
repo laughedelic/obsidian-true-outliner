@@ -4,7 +4,7 @@
 text. Every kind's position is stated from it — block lines, atoms, native bullets,
 checkboxes, ordered numbers, the fold chevron, and the backlinks footer — and until this pass
 its value was `1.25rem` because that is what worked in Experiment 5a
-([10](10-experiment-5-block-markers.md)). Nothing recorded what it had to be big enough for.
+([experiment-5-block-markers.md](experiment-5-block-markers.md)). Nothing recorded what it had to be big enough for.
 
 This document is that statement: one pass of commensurable measurements, the derivation they
 support, the one number chosen rather than derived, and the defects the derivation exposed.
@@ -74,7 +74,7 @@ text happens to begin `[ ]`.
 
 The consequence is that changing the gutter widens the distance between a one-space row and a
 tab-separated one, from 4px to 10px. That divergence is pre-existing and out of scope here;
-it is filed in [12](12-decoration-follow-ups.md).
+it is filed in [decoration-follow-ups.md](decoration-follow-ups.md).
 
 ## The derivation
 
@@ -88,7 +88,7 @@ its own content. That is four marks: the block icon, the bullet, the checkbox an
 On the measured font the widest is the **task checkbox at +8.00px**, which is
 `--checkbox-size / 2` — a theme's value, not ours. The single-digit ordered number is second at
 +7.40px and is font-*dependent*: on the wider Linux font CI runs, `1. ` measures 20.36px against
-18.39px here ([16](16-native-list-decoration.md)), which puts its ink at roughly +8.9px and
+18.39px here ([native-list-decoration.md](native-list-decoration.md)), which puts its ink at roughly +8.9px and
 makes it the widest mark on that font.
 
 Neither of those is a constant, and that is the finding this pass nearly missed. **Two terms
@@ -253,8 +253,8 @@ cannot be compared with each other.
 
 | Figure | Where it came from | Status |
 | --- | --- | --- |
-| Checkbox at 16px | [16](16-native-list-decoration.md) | Superseded: 16px is the box; the ink reaches +8.00 right of the column |
-| `10. ` at 28px | [16](16-native-list-decoration.md) | Superseded: +17.17 right of the column, 23.97px of glyph |
+| Checkbox at 16px | [native-list-decoration.md](native-list-decoration.md) | Superseded: 16px is the box; the ink reaches +8.00 right of the column |
+| `10. ` at 28px | [native-list-decoration.md](native-list-decoration.md) | Superseded: +17.17 right of the column, 23.97px of glyph |
 | Bullet-to-text 17px vs task 16.2px | styles.css, task-label rule | Superseded: 16.96 and 11.99 at the old gutter, 10.96 and 5.99 at the new one |
 | Space advance 4.19px | `MarginCompensation` | **Confirmed** by this pass |
-| `1. ` 18.4px local / 20.36px CI | [16](16-native-list-decoration.md), 56-list-grid header | **Confirmed** local (18.39); CI unchanged and used here as the wide-font case |
+| `1. ` 18.4px local / 20.36px CI | [native-list-decoration.md](native-list-decoration.md), 56-list-grid header | **Confirmed** local (18.39); CI unchanged and used here as the wide-font case |

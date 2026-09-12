@@ -27,7 +27,7 @@ a recorded regression from measuring too early: a "Show more" that revealed noth
 target path and `pruneFooterViewState()` drops entries when a tab closes — the answer research 18
 records for its first open question.
 
-**Cost is settled and is not a constraint here.** S5 (`docs/research/19`) measured index build at
+**Cost is settled and is not a constraint here.** S5 (`docs/research/backlinks-footer-spikes`) measured index build at
 0.2–0.3ms, placement of all sources at ~2ms, and every group resolving in the same frame as the
 header. It names this change as the consumer of that finding: caps are a legibility decision.
 

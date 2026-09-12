@@ -2,7 +2,7 @@
  * The build stamp, injected at compile time by esbuild.config.mjs's
  * `stampPlugin`. Baked into the bundle rather than read from manifest.json,
  * which Obsidian caches at plugin-scan time and never re-reads on reload — see
- * that plugin's own comment, and docs/research/04 Q27.
+ * that plugin's own comment, and docs/research/open-questions Q27.
  */
 declare module 'virtual:build-stamp' {
   export const BUILD_STAMP: {

@@ -19,7 +19,7 @@ de-risks the whole project and pressure-tests the two provisional mapping rules
   with the lossless round-trip guarantee (`encode(parse(md)) === md`; parse-relevant tree
   edits re-encode minimally — untouched lines byte-identical).
 - New structural operations on the tree, per the decided two-regime algebra
-  (docs/research/04-open-questions.md): headings = level ± 1 with subtree shift (reject at
+  (docs/research/open-questions.md): headings = level ± 1 with subtree shift (reject at
   h1/h6 bounds); all other nodes = reparent (indent under previous sibling / outdent
   brother→uncle) with context-determined encoding; move up/down among siblings; every op
   returns either a new valid tree or a typed rejection — never a corrupt or lossy result.
@@ -51,5 +51,5 @@ persistence. This change produces a library plus its tests.
 - New dev dependencies: TypeScript, vitest (or similar), fast-check (property testing),
   eslint + obsidianmd plugin. No runtime dependencies on Obsidian/CodeMirror in this change.
 - No existing code affected (repo currently has docs only).
-- Decisions consumed from docs/research/04-open-questions.md (Q2 algebra, Q6 invariants);
+- Decisions consumed from docs/research/open-questions.md (Q2 algebra, Q6 invariants);
   outcomes here may revise the two provisional rules — feed findings back into that log.

@@ -41,7 +41,7 @@ cheap to gather and not yet in hand.
 subtrees as boundary-crossing, so it reaches the verdict layer and the existing structural
 deletion runs. Contained to `classify.ts` plus the span derivation; no geometry moves; nothing
 that currently gets a verdict changes. Risk: "exactly covers a subtree" becomes a second place
-that computes cover geometry, the duplication hazard recorded twice in docs/research/04 (Q18,
+that computes cover geometry, the duplication hazard recorded twice in docs/research/open-questions (Q18,
 Q19) — mitigated by calling `escalate.ts`'s exported computation rather than re-deriving.
 
 **Option B — cover geometry.** Make an escalated cover end past its last node's owned gap, so
@@ -52,7 +52,7 @@ it moves every escalated selection's end by one position, rippling into
 chrome's bounds, and `selection-as-subtree-set`'s geometry.
 
 *What is already known, from the code rather than a measurement:* `subtreeCoverEnd`
-([src/escalate.ts:106](../../../src/escalate.ts)) returns `{line: <last gap line>, ch: 0}` when
+([src/escalate.ts:106](../../../../src/escalate.ts)) returns `{line: <last gap line>, ch: 0}` when
 the node has a trailing gap, and the end of the last content line when it has none. Both leave
 the final newline outside the range — which IS the orphan-blank-line mechanism. The offsets are
 not the unknown.

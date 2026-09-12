@@ -19,19 +19,19 @@ Done during the proposal round; listed so the reasoning behind D1/D2 is traceabl
       handler. This is the single assumption D1 rests on — measured 2026-07-25
       (e2e/specs/65-content-space-caret.e2e.ts's "0.5" test): the caret lands exactly at
       content start and holds after a settle delay. One near-miss recorded in
-      docs/research/04 Q24: an unrelated background transaction fires ~10ms after ANY
+      docs/research/open-questions Q24: an unrelated background transaction fires ~10ms after ANY
       real-keyboard selection change in this Obsidian version, on or off this change —
       it never moves the caret, but makes a raw transaction-count check the wrong test
 - [x] 0.6 Re-run the measurement set against `latest-beta` — the probe ran on Obsidian 1.12.7,
       and Q21 showed automated and manual testing can sit on different CodeMirror cores, which
       hid a real bug through three reports. No beta was cached and no Catalyst credentials
       were available in this environment, so this degraded to the harness's own documented
-      `latest`-stable fallback (obsidian 1.12.7) instead — recorded in docs/research/04 Q24
+      `latest`-stable fallback (obsidian 1.12.7) instead — recorded in docs/research/open-questions Q24
       as a re-run still owed once beta access is available
 
 ## 1. Vertical-motion prototype (gate for D3)
 
-Nothing downstream is settled until this answers. `docs/research/13` names goal-column drift as
+Nothing downstream is settled until this answers. `docs/research/selection-follow-ups` names goal-column drift as
 the specific reason this work was deferred, and says it needs hands-on testing against real
 navigation rather than a code-review call.
 
@@ -41,16 +41,16 @@ navigation rather than a code-review call.
       column. Implemented in `src/plugin/keymap.ts`'s `makeVerticalHandler`; two real bugs found
       and fixed along the way (goal column doesn't survive `view.dispatch()`, requiring the
       handler's own `verticalGoalColumn` WeakMap; and a document-relative/viewport-relative
-      coordinate mix-up between `lineBlockAt` and `posAtCoords`) — see docs/research/04 Q24
+      coordinate mix-up between `lineBlockAt` and `posAtCoords`) — see docs/research/open-questions Q24
 - [x] 1.2 Hands-on pass in the real vault: long ragged paragraphs, loose lists, deep nesting,
       headings with sections, a wrapped paragraph — checking whether repeated presses stay
-      visually aligned. Measured via e2e against real Obsidian (docs/research/04 Q24): exact
+      visually aligned. Measured via e2e against real Obsidian (docs/research/open-questions Q24): exact
       column alignment on every direct crossing; a small (one-character) drift only when the
       chase bounces through a node shorter than the goal column, under a non-monospace font
 - [x] 1.3 Confirm the marker-clamp case survives (examples.md A5): vertical motion onto a list
       item whose marker occupies the goal column lands on that item's content, never skipping it
       — confirmed (e2e A5)
-- [x] 1.4 Record the verdict in `docs/research/04` as a numbered finding; if the goal column
+- [x] 1.4 Record the verdict in `docs/research/open-questions` as a numbered finding; if the goal column
       drifts, revise design.md D3 before continuing — recorded as Q22; the small measured drift
       doesn't change D3's direction (examples.md A2 already carried this exact reservation), so
       no design revision needed, only the recorded caveat
@@ -155,7 +155,7 @@ navigation rather than a code-review call.
 
 - [x] 6.1 Manual pass on real notes, working from examples.md as the script — run via the e2e
       harness against real Obsidian (this project's established technique for this kind of
-      measurement; see docs/research/04 Q24's own framing). Every example in sections A–D, F
+      measurement; see docs/research/open-questions Q24's own framing). Every example in sections A–D, F
       confirmed as shown; results folded back into examples.md itself
 - [x] 6.2 Feel out Home's first rung on a genuinely wrapped paragraph — design D5's open
       question. NOT independently re-verified with a literal soft-wrapped (long, unbroken)
@@ -175,8 +175,8 @@ navigation rather than a code-review call.
       blur-based chrome mechanism. Not a blocker — the placement rule handles the landing
       either way. Re-measured against the shipped implementation (e2e "6.4" test): reproduces
       exactly as D6 describes; root cause of the two-press oddity itself still unexplained,
-      recorded for the modal-selection thread in docs/research/13
-- [x] 6.5 Record findings in `docs/research/04` — Q22, and Q23 for a second round: the
+      recorded for the modal-selection thread in docs/research/selection-follow-ups
+- [x] 6.5 Record findings in `docs/research/open-questions` — Q22, and Q23 for a second round: the
       user ran the shipped implementation by hand in their own real vault and found
       four more real regressions/decisions Q22's own testing had missed (wrap-aware
       vertical motion broken by raw-line-arithmetic gap-walking, a wrapping
@@ -187,7 +187,7 @@ navigation rather than a code-review call.
 - [x] 6.6 Third real-vault round (Q26): the Home/End ladder's third rung (a raw line's own
       start) removed — it was inferred from one measurement, never requested, and cost an extra
       press to reach the block for a stop that is not structural. Two rungs now: visual row,
-      then node. Table-exit gap parked and documented (docs/research/13). C9/C10 added to pin
+      then node. Table-exit gap parked and documented (docs/research/selection-follow-ups). C9/C10 added to pin
       the hard-break ladder against the two-node lookalike that mimics it.
 
 - [x] 6.7 Fourth round, and the one that closed it: Home/End reduced to ONE rung — the caret's own
@@ -200,7 +200,7 @@ navigation rather than a code-review call.
 
 - **Home/End no longer reach a multi-line block's own start or end.** Given up deliberately when
   escalation was retired (Q26). Should return as its own binding rather than a second meaning for
-  Home — filed in `docs/research/13`.
+  Home — filed in `docs/research/selection-follow-ups`.
 - **`Mod-ArrowLeft`/`Mod-ArrowRight` (cmd+Left/Right on macOS) are deliberately NOT bound.** They are
   what most Mac users press to reach a line's start, and they keep their native escalating ladder.
   The caret invariant still holds for them through the transaction filter, which clamps their
@@ -211,14 +211,14 @@ navigation rather than a code-review call.
   native behavior, which is why no implementation ever changed it. Full account in Q27 — the most
   expensive lesson in this change, and none of it was in the caret logic.
 - **Exiting a table's nested editor lands on the gap for one press** — parked by decision, full
-  trace and what picking it up involves in `docs/research/13`.
+  trace and what picking it up involves in `docs/research/selection-follow-ups`.
 
 ## 7. Documentation
 
 - [x] 7.1 Update examples.md with any behavior the manual pass revises, keeping measured and
       intended frames distinguished — added section H (atoms) and an A2 post-implementation
       update note
-- [x] 7.2 Update `docs/research/13`: mark "Gap-line cursor transparency" resolved — done, with
+- [x] 7.2 Update `docs/research/selection-follow-ups`: mark "Gap-line cursor transparency" resolved — done, with
       a summary of how the drift/click-ambiguity risks it named actually resolved
 - [x] 7.3 Record the Esc decision (left native, D6) where the modal-selection thread can find
-      it — added to docs/research/13's "Modal block-level keyboard selection" entry
+      it — added to docs/research/selection-follow-ups's "Modal block-level keyboard selection" entry

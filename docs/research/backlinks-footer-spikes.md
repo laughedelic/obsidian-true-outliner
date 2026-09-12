@@ -6,19 +6,19 @@ governs — by running small, isolated, falsifiable prototypes before any of the
 built on top of them.
 
 Design decisions this series tests are recorded in
-[18-structured-backlinks.md](18-structured-backlinks.md); the change's own design rationale is
+[structured-backlinks.md](structured-backlinks.md); the change's own design rationale is
 `openspec/changes/backlinks-footer/design.md` (D-A … D-G).
 
 **Status: closed.** All six spikes ran and each carries a verdict in the results table below.
 Two of them changed the change rather than confirming it: S4's corrected verdict moved the seam
 from a token vocabulary to a class-and-property contract, and S5 removed the performance premise
 under D10's caps. The findings that generalise beyond this feature are carried into
-[11-decoration-lessons.md](11-decoration-lessons.md); the one that turned out to be about
-embedding rather than about the footer is in [20-surfaces-and-embedding.md](20-surfaces-and-embedding.md).
+[decoration-lessons.md](decoration-lessons.md); the one that turned out to be about
+embedding rather than about the footer is in [surfaces-and-embedding.md](surfaces-and-embedding.md).
 
 ## Ground rules
 
-Inherited verbatim from [07-decoration-experiments-plan.md](07-decoration-experiments-plan.md)
+Inherited verbatim from [decoration-experiments-plan.md](decoration-experiments-plan.md)
 ("Ground rules for every experiment below") rather than restated here, so there is one copy to
 change. The two that bite hardest on this series:
 
@@ -43,7 +43,7 @@ One rule is specific to this series:
 | **S2** | Does the widget survive the editor's lifecycle? | Done | **Yes — proceed**, but a `StateField` needs an explicit invalidation bridge: the shared mode-toggle nudge is a no-op selection set and produces no transaction |
 | **S3** | Does `decorate()` hold up on a foreign, projected tree? | Done | **Yes** — node-identity facts are invariant; position facts describe the tree passed in, which corrected a spec claim |
 | **S4** | What does outline chrome cost outside `.cm-line`? | Done | **The token vocabulary was NOT sufficient** — the editor positions nothing in JS, so a surface that shares only the tokens reimplements the layout and diverges. What must be shared is the class + custom-property contract, and the footer now consumes it |
-| **S6** | Would rendering the footer some other way be cheaper? | Done, with a correction | **No — both alternatives are worse.** Markdown loses the outline entirely; a bare CodeMirror per group loses Live Preview *and* our decorations. **The editor result does not generalise**: it was measured on a bare `EditorView`, not on a real embedded `WorkspaceLeaf`, which is a different technique — see [20](20-surfaces-and-embedding.md) |
+| **S6** | Would rendering the footer some other way be cheaper? | Done, with a correction | **No — both alternatives are worse.** Markdown loses the outline entirely; a bare CodeMirror per group loses Live Preview *and* our decorations. **The editor result does not generalise**: it was measured on a bare `EditorView`, not on a real embedded `WorkspaceLeaf`, which is a different technique — see [surfaces-and-embedding.md](surfaces-and-embedding.md) |
 | **S5** | What does a real vault cost? | Done | **Nothing worth capping for.** Placement is ~2ms for 42 sources / 150 references, so progressive paint saves no wall clock and a cap is a LEGIBILITY decision, not a performance one |
 
 ## The fixture corpus
@@ -110,7 +110,7 @@ silently, so the sequence ran three operations while reading as four. Flush-left
 source and not the tree: this fixture opens with a paragraph, and the attachment rule makes the
 list that follows it that paragraph's children, so `- kitchen` is the paragraph's last child and
 `doc.children` holds one node.
-[30-refused-commands-in-e2e.md](30-refused-commands-in-e2e.md) records why a refusal is invisible
+[refused-commands-in-e2e.md](refused-commands-in-e2e.md) records why a refusal is invisible
 to the harness and what it costs a differential assertion.
 
 ### Finding 1 — block decorations cannot come from a ViewPlugin
@@ -131,7 +131,7 @@ established pattern, and a design that assumed it could was wrong on the mechani
 
 The prior art already said so and we did not transfer it: `influx` anchors its footer from a
 `StateField` (`src/cm6/StatefulDecorationSet.tsx`), which
-[18-structured-backlinks.md](18-structured-backlinks.md) cites for the *anchoring* while
+[structured-backlinks.md](structured-backlinks.md) cites for the *anchoring* while
 recording the mechanism only as `registerEditorExtension`. Reading a reference implementation
 for the answer we were looking for, and not for the one we would need next, is the transferable
 lesson.
@@ -181,7 +181,7 @@ change.
 **Question.** Whether the widget survives mode toggling, file switching, multiple leaves on one
 file, view-mode switching, print/export and the mobile viewport without leaking DOM or
 duplicating itself — the failure `coalesce` fights with a `MutationObserver` and an
-orphaned-container sweeper (see [16](18-structured-backlinks.md), "Prior art").
+orphaned-container sweeper (see [structured-backlinks.md](structured-backlinks.md), "Prior art").
 
 **Verdict: proceed.** No leaks, no orphans, no duplicates. One real defect found and fixed: a
 `StateField` needs an invalidation signal the existing decoration layers never needed.
@@ -471,7 +471,7 @@ serve all of them. Closed as follows, and held by `74-footer-chrome-pass`.
 
 This is the finding that generalises: these are not footer defects, they are what any surface
 built on `MarkdownRenderer` has to answer, and reading mode will meet all three. See
-[20-surfaces-and-embedding.md](20-surfaces-and-embedding.md).
+[surfaces-and-embedding.md](surfaces-and-embedding.md).
 
 Two further things had to be handled, neither a chrome problem:
 
@@ -599,7 +599,7 @@ Hover Editor and its descendants — gives Live Preview and our decorations by c
 because the editor *is* Obsidian's. It is not the answer for the footer, for reasons of
 granularity and cost rather than fidelity, and it is the strongest known candidate for an
 editable mirrors view. Both are worked through in
-[20-surfaces-and-embedding.md](20-surfaces-and-embedding.md).
+[surfaces-and-embedding.md](surfaces-and-embedding.md).
 
 ### Finding — a bare per-group editor loses Live Preview *and* our decorations
 

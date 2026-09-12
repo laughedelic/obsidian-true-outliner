@@ -1,16 +1,16 @@
 # Native list decoration: how Obsidian draws lists, and what we can own
 
 Research and measurement pass for the parking lot's **"native list decoration experiments"**
-entry ([12-decoration-follow-ups.md](12-decoration-follow-ups.md)), which asks whether list
+entry ([decoration-follow-ups.md](decoration-follow-ups.md)), which asks whether list
 rendering can be brought up to the level of the heading/paragraph/atom decoration layer —
 one indentation step, one guide grid, consistent spacing, customizable markers.
 
 An earlier attempt at cross-kind visual unification failed and was postmortemed
-([06](06-outline-decorations-postmortem.md)); the experiment series that followed
+([outline-decorations-postmortem.md](outline-decorations-postmortem.md)); the experiment series that followed
 deliberately left native list geometry untouched
-([07](07-decoration-experiments-plan.md)–[11](11-decoration-lessons.md)). Two later probes
+([decoration-experiments-plan.md](decoration-experiments-plan.md)–[decoration-lessons.md](decoration-lessons.md)). Two later probes
 concluded that drawing along list columns needs a second, measurement-based rendering
-mechanism ([14, finding 3](14-experiment-position-indicators.md)). **That conclusion was
+mechanism ([14, finding 3](experiment-position-indicators.md)). **That conclusion was
 right about the mechanism it examined and wrong about the problem**: it looked for a way to
 *follow* native list columns, when the columns themselves are driven by public CSS variables
 we can *set*.
@@ -25,7 +25,7 @@ the rendered result.
 | Source | What it does about list geometry |
 | --- | --- |
 | **obsidian-outliner** (`BetterListsStyles`) | Does **not** touch indentation. A `margin-right` on `.cm-formatting-list-ul` plus a restyled `.list-bullet::after` square — cosmetics only. |
-| **obsidian-outliner** (`VerticalLines`) | Draws list guides as absolutely-positioned `div`s in a scroller overlay, from per-item `coordsAtPos` measurement, recalculated on doc/viewport/geometry change. This is Experiment 2a's mechanism, and it is what doc 14 assumed we would have to adopt. It also hides the native guide (`.cm-hmd-list-indent .cm-indent::before { content: none }`) rather than coexisting with it. |
+| **obsidian-outliner** (`VerticalLines`) | Draws list guides as absolutely-positioned `div`s in a scroller overlay, from per-item `coordsAtPos` measurement, recalculated on doc/viewport/geometry change. This is Experiment 2a's mechanism, and it is what docs/research/experiment-position-indicators assumed we would have to adopt. It also hides the native guide (`.cm-hmd-list-indent .cm-indent::before { content: none }`) rather than coexisting with it. |
 | **Minimal** (kepano) | Sets `--list-indent: 2em` (user-tunable via Style Settings), applies `tab-size: var(--list-indent)` to source lines, adds a `--list-edit-offset` margin on `.HyperMD-list-line`, and nudges `.cm-indent` guides with a `transform`. The most-installed Obsidian theme retargets list columns purely through variables. |
 | **Community threading snippets** (KillyMXI's gist and its relatives) | Draw threading with pseudo-elements positioned in multiples of `var(--list-indent)`, and warn explicitly that only **tab** indentation aligns; space-indented files need a hand-tuned `--list-indent` per space count. |
 | **obsidian-lapel** | Not list work, but the theming pattern we already borrow: `data-*` attributes plus custom-property indirection so snippets can restyle without plugin settings. |
@@ -227,7 +227,7 @@ still reads slightly high on its own, because a text rect spans ascender to desc
 lowercase text's optical centre sits roughly 1.5px below that rect's geometric middle. Both
 halves are the same missing decision — what vertical anchor a marker uses, and whether every
 kind uses it — and it joins the existing "vertical-alignment polish" entry in
-[12-decoration-follow-ups.md](12-decoration-follow-ups.md) rather than being separate from it.
+[decoration-follow-ups.md](decoration-follow-ups.md) rather than being separate from it.
 
 ## What the numbers did not say
 
@@ -268,7 +268,7 @@ With the above in hand the remaining distance to parity is:
    off, are misaligned in stock Obsidian and stay misaligned under every variable-only fix.
 8. **Continuation lines.** A list item's continuation line is not a `HyperMD-list-line`, so it
    takes neither the list `tab-size` nor the list guide, and hangs left of its item's content
-   ([12](12-decoration-follow-ups.md) records the stock offsets).
+   ([decoration-follow-ups.md](decoration-follow-ups.md) records the stock offsets).
 
 ## The invariant this changes
 
@@ -302,7 +302,7 @@ Switch to another note and back after changing either setting — see the residu
 ## Plan
 
 Four phases, each independently shippable, each with a real-vault pass as its exit criterion
-(ground rule #3, [07](07-decoration-experiments-plan.md)). Phases 1 and 2 are ordinary
+(ground rule #3, [decoration-experiments-plan.md](decoration-experiments-plan.md)). Phases 1 and 2 are ordinary
 implementation work — the mechanism is measured and the risk is low. Phases 3 and 4 are
 genuine experiments and should be run as such.
 
@@ -339,7 +339,7 @@ genuine experiments and should be run as such.
     list-item-ancestor exclusion in `computeLineGuides`, so our existing gradient draws every
     level. Guides then survive the setting, carry the trail and the accent layers for free,
     and the deferred "ancestor trail along native list columns" item
-    ([12](12-decoration-follow-ups.md), [14](14-experiment-position-indicators.md)) closes
+    ([decoration-follow-ups.md](decoration-follow-ups.md), [experiment-position-indicators.md](experiment-position-indicators.md)) closes
     with no second mechanism — which was its whole blocker.
   - The recommendation is **own it**, and to keep the native geometry (the `.cm-indent`
     spans) doing the layout while our gradient does the painting.
@@ -414,14 +414,14 @@ item carries the same class, so the wrapper rule applies to CONTINUATION lines t
 how the first version of it shipped a 20px regression that the whole decorations group passed
 over, the geometry suite having only ever measured marker-bearing first lines. Giving a
 continuation the whole hang and a first line the hang less its gutter fixes that AND closes the
-long-standing misalignment `docs/research/12` records, which had been diagnosed as needing this
+long-standing misalignment `docs/research/decoration-follow-ups` records, which had been diagnosed as needing this
 exact override plus a per-line measurement of the marker beside it. The override is the same
 one; the measurement is unnecessary because the column is stated rather than followed — the
 doc's own first lesson, arriving a second time.
 
 ## Carried-forward findings
 
-For [11-decoration-lessons.md](11-decoration-lessons.md) when this work lands:
+For [decoration-lessons.md](decoration-lessons.md) when this work lands:
 
 - **Look for the variable before building the mechanism.** Two prior probes concluded that
   list columns could only be followed by measurement. They were measuring the right thing and

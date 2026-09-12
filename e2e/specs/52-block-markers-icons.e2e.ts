@@ -1,7 +1,7 @@
 /**
  * Outline-decorations Experiment 5a (per-kind block markers — icons, new
  * DOM-element mechanism) — see
- * docs/research/10-experiment-5-block-markers.md (Experiment 5's design and results).
+ * docs/research/experiment-5-block-markers.md (Experiment 5's design and results).
  * Head-to-head alternative to Experiment 5b (CSS-shape markers, worked on a
  * sibling branch), NOT a fallback: screenshots every fixture in the shared
  * corpus (quote fixture included, promoted here), in both bundled themes,
@@ -449,7 +449,7 @@ describe('outline decorations: experiment 5a (block markers, icon widgets)', fun
     // the gap from the ancestor's column grows with the step, so a literal
     // calibrated at one rung fails at a wider one the moment the default moves
     // — which is what a spelled `1.5` did to this same case once before
-    // (docs/research/22-outline-unit-width.md).
+    // (docs/research/outline-unit-width.md).
     expect(info.markerRect!.left - info.glyphRect!.right).toBeLessThan(info.unitPx);
     expect(info.glyphRect!.left - info.ancestorGuideCol).toBeLessThan(info.unitPx);
 

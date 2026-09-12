@@ -4,7 +4,7 @@
 default for a note with six references and the wrong one for a hub note with four hundred: the
 note ends up buried under its own backlinks. Cost is not the reason — S5 measured placement at
 about 2ms for 42 sources and 150 references, and named this change as the one that should size
-its caps on legibility instead (`docs/research/19`). It is also indiscriminate — a reader who
+its caps on legibility instead (`docs/research/backlinks-footer-spikes`). It is also indiscriminate — a reader who
 wants only what the daily notes said, or only the places that pointed at a specific heading, has
 no way to ask.
 
@@ -13,7 +13,7 @@ before it asks. It also settles the one place the plugin collides with Obsidian 
 core Backlinks plugin's own in-document section, which renders the same references with no
 lineage directly below ours.
 
-Design decisions are recorded in `docs/research/18-structured-backlinks.md` (D8, D10, D12,
+Design decisions are recorded in `docs/research/structured-backlinks.md` (D8, D10, D12,
 D14, D15).
 
 ## What Changes
@@ -87,8 +87,8 @@ D14, D15).
 ## Sequencing
 
 - **Builds on shipped code.** `backlinks-footer`, `backlink-index` and `tree-projection` landed
-  in #64, and their spike series returned its verdicts (`docs/research/19`; every open question
-  in `docs/research/18` now carries an answer). The surface this change adds controls to exists,
+  in #64, and their spike series returned its verdicts (`docs/research/backlinks-footer-spikes`; every open question
+  in `docs/research/structured-backlinks` now carries an answer). The surface this change adds controls to exists,
   so there is no gate left to wait on.
 - **`outline-zoom` (#69) and this change are independent, in both directions.** Zoom leaves the
   footer unfiltered while zoomed and deliberately adds no zoom-shaped hook for a filter model to
@@ -99,7 +99,7 @@ D14, D15).
   a third. No requirement appears in both, so either can sync into the main spec first.
 - **Three files both touch, mechanically.** `src/plugin/backlinks-footer.ts` — zoom re-anchors
   the footer widget to the end of the visible range while a zoom is active. That is settled by
-  measurement (`docs/research/23`, zoom's D12): the alternative, shortening the hidden range, is
+  measurement (`docs/research/zoom-hiding-mechanism`, zoom's D12): the alternative, shortening the hidden range, is
   impossible for any document ending in a newline, because such a document's empty final line
   starts at `doc.length`. So the widget's mount position becomes zoom-conditional in the same file
   this change rewrites the header and body render in. `src/plugin/footer-model.ts` — zoom lifts
@@ -108,12 +108,12 @@ D14, D15).
 - **e2e numbering is already disjoint**: the footer holds 70–76 in the `backlinks` group and this
   change continues there; zoom takes 80.
 - **This one goes first if either does.** Zoom's task 1 gate has passed — the block-replace
-  mechanism holds (`docs/research/23`) — but the same measurement struck its design's claim that
+  mechanism holds (`docs/research/zoom-hiding-mechanism`) — but the same measurement struck its design's claim that
   confinement came mostly for free, so every confinement site there is real work and that change
   grew rather than shrank. This one has no comparable gate, and running it first means zoom
   rebases onto a settled footer rather than the reverse.
 - **`paste-heading-section-reencoding` is unrelated** — it touches the re-encoding algebra, which
   a read-only footer never reads.
-- **What belongs to neither change**: scoping the footer to a zoomed node — `docs/research/18`
+- **What belongs to neither change**: scoping the footer to a zoomed node — `docs/research/structured-backlinks`
   D13's "zoom carries the footer" — needs zoom's scope *and* this filter model, so it lands after
   whichever of the two is second. Neither change should build half of it.

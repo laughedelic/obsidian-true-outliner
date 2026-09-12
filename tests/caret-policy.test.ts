@@ -290,7 +290,7 @@ describe('the deletion convention answers positionally across a re-parse', () =>
 });
 
 /**
- * The invariant docs/research/04 Q29 says is "cheap to assert at each dispatch
+ * The invariant docs/research/open-questions Q29 says is "cheap to assert at each dispatch
  * site and expensive to discover from a real vault": every caret this plugin
  * dispatches is addressable, and no bystander landing sits inside a
  * focus-capturing node.

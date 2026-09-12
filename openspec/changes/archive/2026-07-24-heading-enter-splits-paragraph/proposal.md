@@ -1,6 +1,6 @@
 ## Why
 
-`docs/research/04-open-questions.md` Q17 records a confirmed, pre-existing gap: Enter
+`docs/research/open-questions.md` Q17 records a confirmed, pre-existing gap: Enter
 on a heading line ignores the cursor's actual position within the heading's text. It
 always inserts one blank line right after the heading, regardless of where the cursor
 sits — mid-word, mid-sentence, or at the end. Every other splittable node kind

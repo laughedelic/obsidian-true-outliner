@@ -36,7 +36,7 @@ Two stated rules meet here and the shape falls between them.
   it actually is." The preview parse that already knows the truth — the line below is still the
   node's continuation line in it — is computed and cached, and used for the caret's line alone.
 
-The catalogue's S10 (`docs/research/15-enter-and-shift-enter-catalogue.md`) diagnosed exactly
+The catalogue's S10 (`docs/research/enter-and-shift-enter-catalogue.md`) diagnosed exactly
 this mechanism, a whitespace-only line re-parsing as a gap, but measured it only where the gap
 lands AFTER the node. And design D3 of `decorate-provisional-positions` rejected "compute every
 line from the preview" for a real reason, pinned by an e2e test: an Enter position at the end of
@@ -109,7 +109,7 @@ None. Both halves refine existing requirements.
     no provenance to read. The one state where the fix would show is the one state where the
     record is gone, so a delta here would state a requirement nothing satisfies. The defect and
     what closing it needs are recorded in
-    [docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).
+    [docs/research/decoration-follow-ups.md](../../../../docs/research/decoration-follow-ups.md).
 
 ## Impact
 
@@ -125,9 +125,9 @@ None. Both halves refine existing requirements.
   `52-block-markers-icons.e2e.ts` for the rendered column and the absent marker on the displaced
   line, with the existing "a neighbouring line is not rendered as though the node already
   existed" test kept as the guard it is.
-- **Docs**: `docs/research/15-enter-and-shift-enter-catalogue.md` gains the interior position as
+- **Docs**: `docs/research/enter-and-shift-enter-catalogue.md` gains the interior position as
   a measured entry under C2 ("The result SHALL re-parse as one (multiline) node"), which S10
-  covers only at a node's end; `docs/research/12-decoration-follow-ups.md` gains the leftover
+  covers only at a node's end; `docs/research/decoration-follow-ups.md` gains the leftover
   blank line recorded above, and its "A non-list-item child of a list item is indented twice"
   entry gains the note that this change removes the transient way into it while the deliberate
   shape it describes stays open.

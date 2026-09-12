@@ -72,8 +72,8 @@
       Completed across FIVE rounds (sections 6-9 below), each with its own
       build/install/re-verify cycle
 - [x] 5.3 Record findings (merge-table verdicts, paste shapes observed, perf numbers,
-      manual-pass verdict) in design.md and docs/research/04; route any deferred UX
-      threads to docs/research/13 Track 2 or docs/research/12 — never into this
+      manual-pass verdict) in design.md and docs/research/open-questions; route any deferred UX
+      threads to docs/research/selection-follow-ups Track 2 or docs/research/decoration-follow-ups — never into this
       change's scope. Recorded incrementally as Q15-Q20 and design.md D9-D16
 - [x] 5.4 Amend the delta specs if manual-pass evidence changes a rule (per the A+B
       amendment precedent), re-validate, and leave the change ready for sync/archive.
@@ -146,13 +146,13 @@
       Proposed fix (Logseq precedent): the outdented node's former following
       siblings re-parent as ITS OWN children ("outdent in place"). This is a
       foundational change to a pre-outline-edit-enforcement operation with wide
-      blast radius — out of scope for this change's closure; see docs/research/04
+      blast radius — out of scope for this change's closure; see docs/research/open-questions
       Q17 for the finding and proposed fix when picked up
 - [x] 8.3 DEFERRED (2026-07-23, explicit go-ahead to defer): Enter inside/at-the-
       end-of a heading currently inserts a blank line rather than splitting the
       heading's text into a new paragraph node — pre-existing
       outline-keyboard-grammar behavior, predates this change. Out of scope for
-      this change's closure; see docs/research/04 Q17
+      this change's closure; see docs/research/open-questions Q17
 - [x] 8.4 Fourth manual-pass findings (2026-07-22): structural paste detection AND
       re-indentation both corrected for a single-node subtree copy (D15) — a
       lone top-level block with children was neither detected as structural
@@ -164,7 +164,7 @@
       re-verification green twice consecutively, vault reinstalled. Redo-cursor-
       after-merge and delete→undo→redo-cursor-on-chrome reports investigated (5+
       varied e2e repro attempts each scenario category) but NOT reproduced — see
-      docs/research/04 Q18; more specific repro steps requested from the user
+      docs/research/open-questions Q18; more specific repro steps requested from the user
       rather than guessing further
 
 ## 9. Fifth manual-pass findings (2026-07-22)
@@ -187,7 +187,7 @@
       necessarily our rewrite's own explicit selection — if the real
       environment has ANY intervening selection change between the merge and
       pressing undo (even one invisible to the user), that becomes what redo
-      restores instead. See docs/research/04 Q19 for the full mechanism write-up
+      restores instead. See docs/research/open-questions Q19 for the full mechanism write-up
       and next diagnostic steps requested from the user (minimal-vault test,
       community-plugin list)
 - [x] 9.3 SPUN OUT (2026-07-23): further manual testing showed the redo-cursor
@@ -195,5 +195,5 @@
       past the current subtree's end), confirming it is broader than a single
       off-by-one and not scoped to this change's own code paths (Q19 already
       showed undo/redo bypass `transactionFilter` entirely). Recorded as
-      docs/research/04 Q20 and carried forward as its own future investigation —
+      docs/research/open-questions Q20 and carried forward as its own future investigation —
       not part of this change's closure

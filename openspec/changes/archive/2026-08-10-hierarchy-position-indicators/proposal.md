@@ -10,7 +10,7 @@ the evidence that this is a real, felt gap in outliners of this class, not a dec
 nicety.
 
 The decoration system is hardened and its follow-up parking lot
-(`docs/research/12-decoration-follow-ups.md`) already carries the adjacent ideas — "hover on
+(`docs/research/decoration-follow-ups.md`) already carries the adjacent ideas — "hover on
 a marker → highlight its guide line", layer configurability — with the standing instruction
 that graduating one means giving it its own change rather than patching it in. This change
 graduates the current-position family of them.
@@ -46,7 +46,7 @@ graduates the current-position family of them.
   Obsidian's own native markers — the bullet or number of each ancestor list item — and draws no
   guide segments at all, since a list's columns are native metrics this layer deliberately does
   not compute (design decision 5).
-- Findings and screenshots land in a new `docs/research/14-experiment-position-indicators.md`,
+- Findings and screenshots land in a new `docs/research/experiment-position-indicators.md`,
   matching the experiment-then-codify discipline the other decoration layers followed.
 
 ## Capabilities
@@ -78,8 +78,8 @@ graduates the current-position family of them.
   assertion. Because two of the three features ship **on** by default, the existing guide and
   marker e2e specs are re-checked against the new default rendering and pinned to an explicit
   setting where their assertions would otherwise become ambiguous.
-- **Docs**: new `docs/research/14-experiment-position-indicators.md`; the corresponding
-  entries in `docs/research/12-decoration-follow-ups.md` are marked as graduated.
+- **Docs**: new `docs/research/experiment-position-indicators.md`; the corresponding
+  entries in `docs/research/decoration-follow-ups.md` are marked as graduated.
 - **Not affected**: the parser, the transaction filter, the editing grammar, node selection,
   and reading view. No new dependencies; public Obsidian/CM6 APIs only.
 - **Risk concentrated in one place**: accenting *native* list bullets and indent guides means

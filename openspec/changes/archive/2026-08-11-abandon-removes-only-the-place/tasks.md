@@ -83,7 +83,7 @@
 
 ## 5. Record what was learned
 
-- [x] 5.1 Update `docs/research/15-enter-and-shift-enter-catalogue.md` section C2: the
+- [x] 5.1 Update `docs/research/enter-and-shift-enter-catalogue.md` section C2: the
   block-selection entry's stated symptom ("the paragraph comes back") predates the reverse-edit
   mechanism and no longer reproduces. Replace it with the measured symptom and mark the finding
   fixed, keeping the reasoning about why the minimal diff cannot be taken apart — that is what

@@ -178,7 +178,7 @@ export function footprintOf(
   // `bounds.to + 1` — the cover's own terminating line break. CM6's `Line.to`
   // stops before it, so a deletion of exactly the cover's lines ends one past
   // `bounds.to` and would otherwise read as reaching outside. This is the same
-  // boundary the hiding decorations had to get right (docs/research/23): a
+  // boundary the hiding decorations had to get right (docs/research/zoom-hiding-mechanism): a
   // range spans the lines it removes, and the break beside it is the block's
   // own edge.
   //
