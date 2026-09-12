@@ -258,7 +258,13 @@ describe('the deletion convention answers positionally across a re-parse', () =>
    * BEFORE and AFTER documents. That is what lets the policy compute in
    * `before` and return an `after` coordinate.
    */
-  it('predecessor content end is identical before and after the deletion', () => {
+  // Its own budget, three times the configured one: every run walks every
+  // node of a generated tree and deletes each in turn, re-encoding and
+  // re-walking the result, so its cost grows with the square of a tree's size.
+  // Measured at 8 s alone on a developer machine and 23 s on a hosted runner
+  // sharing its CPU with the other test files — past the 20 s the config
+  // gives, on a pull request that changed nothing this test reads.
+  it('predecessor content end is identical before and after the deletion', { timeout: 60_000 }, () => {
     fc.assert(
       fc.property(arbTree(), (doc) => {
         const nodes = [...walkNodes(doc)];
