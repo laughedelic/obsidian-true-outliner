@@ -86,7 +86,7 @@ import {
   type LineageSeparator,
   type OverallCap,
   type SegmentIcons,
-} from './mode-registry';
+} from './settings';
 import type { PlacedReference, ReferenceKind } from './backlink-index';
 import type { BacklinkIndex } from './backlink-index';
 import type { NodeKind, OutlineNode } from '../model';

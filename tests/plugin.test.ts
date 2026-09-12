@@ -14,7 +14,7 @@ import {
   splitNode,
 } from '../src/ops';
 import { applyEdits, diffLines, type Edit } from '../src/result';
-import { DEFAULT_DATA, normalizePluginData, settingDefinitions } from '../src/plugin/mode-registry';
+import { DEFAULT_DATA, normalizePluginData, settingDefinitions } from '../src/plugin/settings';
 import { nodeAtLine } from '../src/locate';
 import { editsToChanges, type EditorChange } from '../src/plugin/dispatch';
 import { planKey } from '../src/plugin/grammar';

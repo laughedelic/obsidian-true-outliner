@@ -4,7 +4,7 @@
  *
  * Split from `zoom-state.ts` because this half needs `editorInfoField` and that
  * half must stay reachable from the unit suite — `obsidian` does not resolve
- * there. Same division, and the same reason, as `mode-registry.ts`'s own module
+ * there. Same division, and the same reason, as `settings.ts`'s own module
  * comment gives for keeping its data types out of `decorations.ts`.
  */
 

@@ -13,7 +13,7 @@
  * decorations themselves and can therefore drift.
  *
  * This module imports no `obsidian`, deliberately, so it is reachable from the
- * unit suite — the same reason `mode-registry.ts` keeps its data types away
+ * unit suite — the same reason `settings.ts` keeps its data types away
  * from `decorations.ts`. Deriving the scope needs `editorInfoField`, so that
  * half lives in `zoom-scope.ts` and is covered by e2e instead.
  */

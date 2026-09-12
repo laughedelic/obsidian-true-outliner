@@ -795,12 +795,12 @@ function markerClasses(trail: PositionTrail, lineNumber: number, markerAccent: b
 // additively so text still clears the icon (the other two candidates tried —
 // icon's own left edge at the column, and no gutter with the icon's own
 // right edge at the column — read worse in a real vault and were dropped).
-// `MarkerVisibility` itself lives in mode-registry.ts (not here), so that
+// `MarkerVisibility` itself lives in settings.ts (not here), so that
 // pure, Obsidian-free module can keep defining PluginData without importing
 // this one (which pulls in the real `obsidian` package for
 // `editorInfoField`).
-export type { MarkerVisibility } from './mode-registry';
-import type { MarkerVisibility } from './mode-registry';
+export type { MarkerVisibility } from './settings';
+import type { MarkerVisibility } from './settings';
 
 /** The settings a decoration recompute reads. Outline mode is NOT among them:
  * it is per-editor state, read from the state each builder already holds
@@ -831,7 +831,7 @@ const EMPTY_POSITION_TRAIL: PositionTrail = {
 
 /**
  * Whether a given node's marker should render at all (Experiment 5a
- * follow-up — see `MarkerVisibility`'s own doc comment in mode-registry.ts
+ * follow-up — see `MarkerVisibility`'s own doc comment in settings.ts
  * for the reasoning). Deliberately does NOT touch the marker gutter
  * reservation (padding-left/margin-left) at all — that stays reserved
  * uniformly regardless of this setting, so hiding some markers never

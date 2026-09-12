@@ -41,7 +41,7 @@ import {
   type SettingRowKey,
   type SortOrder,
   type StatusBarMode,
-} from './mode-registry';
+} from './settings';
 
 /** The `PluginData` keys the footer reads, so `setFooterSetting` can only be
  * pointed at one of them. */
