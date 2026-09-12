@@ -235,7 +235,7 @@ describe('outline mode surfaces', function () {
 
       await h.toggleOutlineMode();
       await h.waitForViewMode('source');
-      // The state's own `source` flag round-trips (docs/research/24), so the
+      // The state's own `source` flag round-trips (docs/research/outline-mode-surfaces), so the
       // pane comes back where it was rather than in whichever editing mode the
       // code would otherwise have picked.
       expect(await h.editorIsSourceMode()).toBe(true);

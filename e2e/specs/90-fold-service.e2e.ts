@@ -18,12 +18,12 @@
  * one sequence and removed them in another, and in a third it left the editor
  * unable to apply a fold at all — so every reading taken through it was
  * untrustworthy in both directions. The question is real and open; it is
- * recorded in docs/research/28 rather than asserted by a test that would flake.
+ * recorded in docs/research/fold-mechanics rather than asserted by a test that would flake.
  *
  * CM6's fold exports are not reachable from the renderer's `require`, only from
  * plugin module scope, so the folded ranges are read through the plugin's own
  * `foldState()` probe rather than by importing the package here — the same
- * route docs/research/28 measured through.
+ * route docs/research/fold-mechanics measured through.
  */
 
 import { browser, expect } from '@wdio/globals';

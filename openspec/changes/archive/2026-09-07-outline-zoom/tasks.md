@@ -1,7 +1,7 @@
 ## 1. Mechanism spike — a gate, not a warm-up
 
 Design D2. Nothing below this section starts until 1.6 records a verdict. The whole point is
-that this is the shape of bet docs/research/06 was written about, and the postmortem's lesson was
+that this is the shape of bet docs/research/outline-decorations-postmortem was written about, and the postmortem's lesson was
 that the visual layer gave false confidence when it was verified after the design rather than
 before it.
 
@@ -29,7 +29,7 @@ before it.
       which need explicit work — section 8's size depends on the answer. Also measure the scroll
       position question from design.md's Open Questions, and whether `showPanel` from
       `@codemirror/view` renders in the markdown view
-- [x] 1.6 Verdict in `docs/research/23-zoom-hiding-mechanism.md` (16–22 are taken), in the
+- [x] 1.6 Verdict in `docs/research/zoom-hiding-mechanism.md` (16–22 are taken), in the
       experiment docs' format: what was tried, what held, what didn't, screenshots. If it did not
       hold, STOP — the change does not continue on the fallback (D2 says why the fallback is a
       different design), and this doc plus a revised proposal is the deliverable
@@ -95,7 +95,7 @@ before it.
       differently
 - [x] 4.2 Both boundary cases: a root that is the document's first node (no range above) and one
       that is its last (no range below). 1.1's newline correction applies to whichever ranges exist
-- [x] 4.3 Apply 1.4's verdict (docs/research/23): `backlinks-footer.ts` anchors its widget at the
+- [x] 4.3 Apply 1.4's verdict (docs/research/zoom-hiding-mechanism): `backlinks-footer.ts` anchors its widget at the
       END OF THE VISIBLE RANGE while a zoom is active, rather than at `state.doc.length`.
       Shortening the trailing range was measured and is NOT an option — for a document ending in a
       newline the final line's start IS `doc.length`. Assert the footer's presence in the e2e
@@ -120,7 +120,7 @@ before it.
 - [x] 5.4 Identity property: with no zoom, every decoration fact is byte-identical to today's
       output. If that fails, the zoom path has leaked into the unzoomed one
 - [x] 5.5 Record the deferred container-shift mechanism for list-item roots in
-      `docs/research/12-decoration-follow-ups.md`, with D9's diagnosis — one uniform negative
+      `docs/research/decoration-follow-ups.md`, with D9's diagnosis — one uniform negative
       margin on the container, not per-line surgery, and now a computable offset (the root's depth
       within its list × the outline unit) rather than a measured one
 
@@ -154,7 +154,7 @@ before it.
 ## 8. Confinement
 
 1.5 answered this section's sizing question, and the answer is the expensive one
-(docs/research/23): NOTHING is prevented for free. Arrow keys walk into hidden lines in both
+(docs/research/zoom-hiding-mechanism): NOTHING is prevented for free. Arrow keys walk into hidden lines in both
 directions and three Mod-A presses select the whole document. Every task below is an
 implementation, not an assertion.
 
@@ -226,7 +226,7 @@ implementation, not an assertion.
 
 ## 11. End-to-end
 
-- [x] 11.0 Two harness facts from the spike (docs/research/23), or these tests measure nothing:
+- [x] 11.0 Two harness facts from the spike (docs/research/zoom-hiding-mechanism), or these tests measure nothing:
       park the caret OFF a line before reading it (with the caret on it Live Preview renders the
       source beside the widget and `getLineElementInfo` refuses the ambiguity), and never measure
       the span's BOUNDARY lines through that helper (a block decoration at the last visible line's
@@ -259,10 +259,10 @@ implementation, not an assertion.
 
 - [x] 12.1 Confirm every "Out of scope" item in proposal.md that has a diagnosis behind it is
       written down where it will be found: the list-item container shift and the click-to-zoom
-      gestures in `docs/research/12-decoration-follow-ups.md`, the Workflowy Enter rule and zoom
+      gestures in `docs/research/decoration-follow-ups.md`, the Workflowy Enter rule and zoom
       persistence in this change's own follow-ups, and footer-scoped-to-the-zoom-root wherever
       `backlinks-controls` will look for it
-- [x] 12.2 `docs/research/README.md` table row for doc 23 from task 1.6
+- [x] 12.2 `docs/research/README.md` table row for docs/research/zoom-hiding-mechanism from task 1.6
 - [x] 12.3 AUTOMATED HALF DONE: 1174 unit tests, the linter, both typechecks, and the full e2e
       sweep on BOTH platforms (33/33 spec files each, vault clean). The MANUAL half is
       deliberately still open and is not something this branch can tick off for itself — using the
@@ -332,7 +332,7 @@ implementation, not an assertion.
 - [x] 15.4 The footer's own fixes moved down to `backlinks-controls`, where the defects are:
       both are visible without a zoom
 - [ ] 15.5 Affordance budget for a node's mark — zoom, fold, drag, and a task's checkbox all
-      want the same 14px. Explored in `docs/research/12-decoration-follow-ups.md`; nothing
+      want the same 14px. Explored in `docs/research/decoration-follow-ups.md`; nothing
       settled, and nothing in this change
 
 ## 16. Review round five (Copilot, PR #69)

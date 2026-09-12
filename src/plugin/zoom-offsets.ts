@@ -3,7 +3,7 @@
  *
  * Its own module, free of any `obsidian` import, so the boundary arithmetic is
  * reachable from the unit suite. That is not incidental tidiness: this is the
- * calculation docs/research/23 went looking for an off-by-one in, since getting
+ * calculation docs/research/zoom-hiding-mechanism went looking for an off-by-one in, since getting
  * either edge wrong by one position drops a line that should render or renders
  * one that should be gone.
  */

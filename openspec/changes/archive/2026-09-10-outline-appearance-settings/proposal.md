@@ -6,7 +6,7 @@ draw the ladder look — are today either fixed or reachable only from a CSS sni
 The unit's adjustability is real and deliberate: `outline-unit-width` made overriding
 `--to-decor-unit` a stated requirement and put `e2e/specs/58-unit-override.e2e.ts` behind it, so
 one declaration retargets every column on both surfaces
-([22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md)). That change
+([outline-unit-width.md](../../../../docs/research/outline-unit-width.md)). That change
 listed a setting as an explicit non-goal — "the CSS route already serves the reader who cares".
 It serves a reader willing to write a snippet. It does not serve a phone, where the same step
 that reads as a clear ladder on a desktop spends a much larger share of a 390px viewport on
@@ -14,7 +14,7 @@ chrome, and where the reader most wants the space back.
 
 The guides have the same shape. Their colour and weight resolve from theme variables
 (`--to-guide-color`, `--to-trail-width`) precisely so a snippet can retune them without a plugin
-setting, and `docs/research/12-decoration-follow-ups.md` records the rest as a design idea that
+setting, and `docs/research/decoration-follow-ups.md` records the rest as a design idea that
 was never started: every layer optional except indentation, and the unit configurable. This
 change takes that entry.
 
@@ -29,10 +29,10 @@ long note's leftmost column busy — and in the common shape where a whole note 
   One setting, not two: its default state resolves per device class, so a phone gets the tighter
   ladder with no configuration and no second value to keep in sync across a synced vault. The
   candidate steps are the ones already rendered and read side by side in
-  [22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md); its measured floor
+  [outline-unit-width.md](../../../../docs/research/outline-unit-width.md); its measured floor
   (`unit > gutter + widest ink-left`) is what bounds the ladder from below, and the mobile floor
   is higher than the desktop one because the gutter's checkbox term is
-  ([21-marker-text-gap.md](../../../docs/research/21-marker-text-gap.md)).
+  ([marker-text-gap.md](../../../../docs/research/marker-text-gap.md)).
 
 - **Guide appearance gets one axis, and one prerequisite.** Intensity becomes a preset over the
   theme's own faint text, defaulting to the quietest rung that still traces. Weight does not: the
@@ -74,19 +74,19 @@ long note's leftmost column busy — and in the common shape where a whole note 
 - **A colour picker, or a second colour axis.** Intensity is a percentage over the theme's own
   faint text, so it stays correct in light and dark; hue stays a snippet's job. This keeps the
   settings axis "small and opinionated" rather than a mirror of every CSS knob
-  (`docs/research/12-decoration-follow-ups.md`).
+  (`docs/research/decoration-follow-ups.md`).
 - **A thickness setting.** Offered, measured, withdrawn — see the What Changes entry above. The
   declaration stays for snippets and for a later weight-based affordance.
 - **Documenting the snippet route for readers.** Every token this change touches is overridable
   from a CSS snippet, and the specs require it to stay that way, but telling readers so — a
   documented list of the properties and what each one moves — is its own piece of work and is
-  parked in `docs/research/12-decoration-follow-ups.md`.
+  parked in `docs/research/decoration-follow-ups.md`.
 - **Two stored values for desktop and mobile.** One setting whose default resolves per device
   class, per the shape chosen when this change was scoped. A reader who sets an explicit step
   gets it on both.
 - **The marker layer.** Marker size, style, per-kind icons and the gutter are a separate entry in
   the same parking lot, and the gutter is derived rather than chosen
-  ([21-marker-text-gap.md](../../../docs/research/21-marker-text-gap.md)) — this change must leave
+  ([marker-text-gap.md](../../../../docs/research/marker-text-gap.md)) — this change must leave
   a mark's distance from its own text exactly where that derivation put it.
 - **Turning indentation itself off.** Indentation is the one layer that is not optional; the unit
   bounds are what keep it usable, not a switch.

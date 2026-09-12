@@ -6,7 +6,7 @@ line — `outline-zoom` D9, implemented in `baseFacts` for the facts and guides 
 `zoomAwarePositionTrail` for the caret trail. A provisional position bypasses both: it is
 materialized from a probe built against the whole buffer, and every consumer of that
 materialization spends its depths unshifted. The measurement, the three leaks it produces, and
-the case-by-case breakdown are in docs/research/12 ("A provisional position inside a zoomed
+the case-by-case breakdown are in docs/research/decoration-follow-ups ("A provisional position inside a zoomed
 subtree renders the view at the source document's depth"); see proposal.md for why it matters.
 
 Two properties the fix rests on are contracts this project already states, and both were

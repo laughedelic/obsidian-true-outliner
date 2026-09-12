@@ -4,7 +4,7 @@ Outline mode currently has no visual signal of its own: list items already show 
 bullets, but heading and paragraph nodes — the whole point of the universal block-tree
 model — render exactly like stock markdown. The first dev-vault verification round found
 this is now the practical bottleneck: "with no bullets/indent chrome, outline mode is
-hard to verify by eye in flat documents" (`docs/research/04-open-questions.md`), and flat
+hard to verify by eye in flat documents" (`docs/research/open-questions.md`), and flat
 (paragraph-heavy) documents are precisely where the mapping algebra's paragraph-adjacency
 rule needs to be seen to be trusted. Every structural op already works correctly; nobody
 can see the tree they're editing.
@@ -32,7 +32,7 @@ can see the tree they're editing.
 - Outside outline mode, or on non-outline-mode files, decorations render nothing — the
   document looks byte-for-byte stock Obsidian, matching the existing "off-mode is stock"
   guarantee from `outline-mode` and `outline-keyboard-grammar`.
-- Explicitly out of scope (later layers, per `docs/research/04-open-questions.md` Q4):
+- Explicitly out of scope (later layers, per `docs/research/open-questions.md` Q4):
   fold chevrons and fold state/persistence, zoom/breadcrumbs, drag handles, node-selection
   highlight (needs the enforcement/selection layer first), any interactivity on the
   decorations themselves (click-to-select, click-to-fold) — this change is read-only

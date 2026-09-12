@@ -115,7 +115,7 @@ describe('outline mode', function () {
 
   it('a tab’s manual state resets when the tab changes notes', async function () {
     // Obsidian rebuilds a leaf's editor state on a file switch
-    // (docs/research/24), which is the whole reset mechanism: the field's
+    // (docs/research/outline-mode-surfaces), which is the whole reset mechanism: the field's
     // `create` runs again and reads the default.
     await h.openNote(NOTE);
     await h.setOutlineMode(false);

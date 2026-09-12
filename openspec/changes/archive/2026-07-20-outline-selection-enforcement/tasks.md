@@ -64,10 +64,10 @@
       transaction once a character is selected classifies `programmatic` — both are
       pass-through classes, so composition is never interfered with at any stage
 - [x] 3.8 Record Phase A findings (observed userEvent values per source, timings,
-      nested-editor verdict) in design.md and docs/research/04; falsified assumptions
+      nested-editor verdict) in design.md and docs/research/open-questions; falsified assumptions
       block Phase B until the design is amended — no assumption was falsified in a way
       that blocks Phase B (both surprises were toward MORE safety, not less); see
-      design.md's Open Questions and docs/research/04 Q14
+      design.md's Open Questions and docs/research/open-questions Q14
 
 ## 4. Selection escalation core (Phase B foundation)
 
@@ -119,13 +119,13 @@
       in the decoration follow-ups doc or a new follow-ups home as appropriate —
       manual pass done (2026-07-20): escalation works and feels right, live-drag
       timing confirmed, escalate (not clamp) confirmed; three follow-up findings
-      parked in docs/research/13-selection-follow-ups.md (widget-internal drags are
+      parked in docs/research/selection-follow-ups.md (widget-internal drags are
       a native limitation; single-node selection via gap-line trigger and uniform
       multi-range escalation adopted as amendments — section 7)
 
 ## 7. Manual-pass amendments (2026-07-20)
 
-Adopted from the real-vault manual pass (docs/research/13-selection-follow-ups.md
+Adopted from the real-vault manual pass (docs/research/selection-follow-ups.md
 items 2 and 3; item 1 stays a documented native limitation):
 
 - [x] 7.1 Amend the node-selection-enforcement delta spec and design.md D4:
@@ -143,7 +143,7 @@ items 2 and 3; item 1 stays a documented native limitation):
 - [x] 7.5 Full verification (unit + e2e suites green, lint/typecheck clean) and
       `vault:install` — 667 unit tests, 89 e2e tests across 11 spec files, lint and
       typecheck clean; amended build installed into the dev vault
-- [x] 7.6 Restructure docs/research/13 as the deferred-work home: mark adopted
+- [x] 7.6 Restructure docs/research/selection-follow-ups as the deferred-work home: mark adopted
       items; split remaining threads into two explicit tracks so Phase C keeps its
       original edit-rewriting scope — Phase C inputs (paste-site structural
       handling, gap-line deletion semantics) vs. a separate selection-UX track

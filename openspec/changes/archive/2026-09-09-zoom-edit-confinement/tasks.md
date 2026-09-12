@@ -4,7 +4,7 @@
   implementing design D1's clauses in the order it states: clause 0 (the change removed the root's
   whole cover) short-circuits to INSIDE, then clause 1 (identity), then clause 2 (the text outside
   the subtree). Verify with unit tests in `tests/zoom.test.ts` covering one row per clause from
-  docs/research/26 — E2 for clause 0, R4 for clause 1, B1 for clause 2.
+  docs/research/zoom-editing-boundary — E2 for clause 0, R4 for clause 1, B1 for clause 2.
 - [x] 1.2 Add the root-identity helper (design D2) reading `findPath`, resolving the root's first
   line by OWNERSHIP (`nodeAtLine`), and verify an unwrapped list root is distinguished from the
   child that inherits its line — the negative control is replacing the path comparison with
@@ -43,7 +43,7 @@
 - [x] 2.4 Verify a `pass` verdict is judged too (the trailing-edge merge is a rewrite, but the
   gap-line deletion measured as a pass), with a test that a pass reaching outside is vetoed. Note
   for the record: no MEASURED gesture produces a pass that escapes — every escaping row in
-  docs/research/26 is a rewrite — so the test drives the seam directly rather than claiming a
+  docs/research/zoom-editing-boundary is a rewrite — so the test drives the seam directly rather than claiming a
   reachable one, and the path stays because a pass lands in the document unjudged otherwise.
 
 ## 3. The exit triggers
@@ -62,7 +62,7 @@
 
 ## 4. Behaviour in a real Obsidian
 
-- [x] 4.1 Turn docs/research/26's refusal rows into `e2e/specs/80-outline-zoom.e2e.ts` scenarios —
+- [x] 4.1 Turn docs/research/zoom-editing-boundary's refusal rows into `e2e/specs/80-outline-zoom.e2e.ts` scenarios —
   Backspace at the root's content start, Delete at the end of the last visible line, Backspace at
   a nested root's content start into its hidden parent, an escaping paste, and the unwrap of an
   emptied list root — asserting for each that the buffer is byte-identical, the trail is
@@ -78,18 +78,18 @@
 - [x] 4.3 Verify the boundary rows are identical on the mobile config (`--mobile`), since the
   refusal path is keyboard-driven and the cue is a Notice.
 - [x] 4.4 Verify a heading zoom root's trailing edge still reports the inexpressible-merge cue
-  rather than the zoom cue, so the accidental protection docs/research/26 records is not silently
+  rather than the zoom cue, so the accidental protection docs/research/zoom-editing-boundary records is not silently
   replaced by the new one.
 
 ## 5. Budget and close-out
 
 - [x] 5.1 Measure the enforced-path timings with a zoom active against `node-edit-enforcement`'s
   stated budget, using the stats snapshot the e2e helpers already expose, and record the figures
-  in docs/research/26 under a dated section. Design D5 removed the shortcut deliberately and
+  in docs/research/zoom-editing-boundary under a dated section. Design D5 removed the shortcut deliberately and
   argues the extra parse is amortised by `parsed-doc.ts`'s cache rather than added; this task is
   what settles that, and a breach is a reason to revisit D4's reach, never to reinstate an unsound
   gate.
-- [x] 5.2 Add a short section to docs/research/26 recording which of its measured rows changed and
+- [x] 5.2 Add a short section to docs/research/zoom-editing-boundary recording which of its measured rows changed and
   which did not, so the note reads as a before/after rather than only a diagnosis.
 - [x] 5.3 Run the full e2e sweep for the zoom and enforcement groups desktop and mobile, and
   verify `.obsidian-cache/e2e-summary.json` reports no failures. The two are now ONE group: the

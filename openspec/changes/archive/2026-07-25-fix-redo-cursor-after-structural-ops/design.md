@@ -87,7 +87,7 @@ nothing can slip a selection transaction in between.
 
 ### Prior misdiagnosis
 
-Q19 (docs/research/04-open-questions.md) states the redo event's `startSelection` is
+Q19 (docs/research/open-questions.md) states the redo event's `startSelection` is
 "the selection that was active at the moment the undo transaction itself was built —
 i.e. `tr.startState.selection` right before undo fires." That is the *last fallback* in
 the expression above, reached only when the event has neither `selectionsAfter` nor a

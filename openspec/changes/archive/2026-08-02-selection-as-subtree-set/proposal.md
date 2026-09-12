@@ -139,6 +139,6 @@ selection is several.
 
 - Non-contiguous ("cherry-picked") block selection, the `Cmd`-click gesture Logseq offers.
   Multi-range selection already expresses it; making it a first-class gesture is separate.
-- Modal block-selection state (docs/research/13). This change deliberately keeps a block
+- Modal block-selection state (docs/research/selection-follow-ups). This change deliberately keeps a block
   selection representable as one ordinary range, which is what lets that question stay open.
 - The paste re-encoding of headings into list scopes — its own change.

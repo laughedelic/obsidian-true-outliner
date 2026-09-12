@@ -128,7 +128,7 @@ function segmentsFor(fileName: string, trail: readonly OutlineNode[]): LineageSe
     // through the renderer would make a file called `**draft**` come out bold.
     { markdown: fileName, render: 'text', nodeId: FILE_SEGMENT_ID, kind: 'paragraph' },
     // The same rule the footer's own lineage segments come from, so a crumb and
-    // a segment naming the same node say the same thing (docs/research/27).
+    // a segment naming the same node say the same thing (docs/research/lineage-text-rendering).
     ...trail.map((node) => ({
       ...segmentContent(node),
       nodeId: node.id,

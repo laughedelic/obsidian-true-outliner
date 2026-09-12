@@ -4,17 +4,17 @@
   emulation, against a fixture carrying a task list, an ordered list and a nested bullet list —
   the marks the gutter is derived from — and verify the two device classes report different
   floors, since the checkbox term differs by platform
-  ([21-marker-text-gap.md](../../../docs/research/21-marker-text-gap.md))
+  ([marker-text-gap.md](../../../../docs/research/marker-text-gap.md))
 - [x] 1.2 Render the candidate rungs (`1.5rem`, `1.75rem`, `2rem`, plus one wider candidate) across
   the fixture corpus in both bundled themes and both device classes, and verify by screenshot
   which read as a ladder and which spend real width on chrome — the same pass
-  [22-outline-unit-width.md](../../../docs/research/22-outline-unit-width.md) records for the
+  [outline-unit-width.md](../../../../docs/research/outline-unit-width.md) records for the
   current default
 - [x] 1.3 Render the candidate guide thicknesses (`1px`, `2px`, `3px`) and intensities (subtle,
   normal, strong) over the same corpus in both themes, and verify the top thickness still reads
   as a guide beside a marker rather than as a bar
-- [x] 1.4 Record 1.1–1.3 as an addendum to `docs/research/22-outline-unit-width.md` (unit) and
-  `docs/research/09-experiment-2-guide-lines.md` (appearance), and verify each preset the code
+- [x] 1.4 Record 1.1–1.3 as an addendum to `docs/research/outline-unit-width.md` (unit) and
+  `docs/research/experiment-2-guide-lines.md` (appearance), and verify each preset the code
   will offer has a figure behind it, including the bottom rung's clearance on both device classes
 - [x] 1.5 Confirm which classes Obsidian actually puts on `body` for each device class, including
   under `app.emulateMobile()` in the mobile e2e configuration, and verify the class the
@@ -155,9 +155,9 @@
   compact on mobile — and lower `compact` to the tightest step that clears the higher of the two
   floors; verify `58-unit-override.e2e.ts` reads each rung, the device default, and every rung's
   clearance on both classes
-- [x] 10.5 Record the reasoning in `docs/research/09` (weight withdrawn, intensity's default) and
-  `docs/research/22` (the two defaults), and park the reader-facing snippet documentation in
-  `docs/research/12`
+- [x] 10.5 Record the reasoning in `docs/research/experiment-2-guide-lines` (weight withdrawn, intensity's default) and
+  `docs/research/outline-unit-width` (the two defaults), and park the reader-facing snippet documentation in
+  `docs/research/decoration-follow-ups`
 
 ## 9. Close out
 
@@ -171,7 +171,7 @@
   structure rather than pixels and are unchanged. Three defaults moved, all deliberately (group
   10): the desktop step to `2rem`, the mobile step to `1.5625rem`, and the guides' intensity to
   `subtle`. The guide's own width is unchanged at `1px`
-- [x] 9.3 Move the completed parking-lot entries in `docs/research/12-decoration-follow-ups.md` to
+- [x] 9.3 Move the completed parking-lot entries in `docs/research/decoration-follow-ups.md` to
   closed, note the deferred cascade of the single-root qualifier there, and verify no entry claims
   work this change did
 - [x] 9.4 Run `openspec validate outline-appearance-settings --strict`

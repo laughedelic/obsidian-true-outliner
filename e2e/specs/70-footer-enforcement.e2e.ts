@@ -1,5 +1,5 @@
 /**
- * Spike S1 (docs/research/19-backlinks-footer-spikes.md), kept as a standing
+ * Spike S1 (docs/research/backlinks-footer-spikes.md), kept as a standing
  * contract: does the footer's block widget at `doc.length` perturb the
  * enforcement layer?
  *

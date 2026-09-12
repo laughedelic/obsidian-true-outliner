@@ -1,14 +1,14 @@
 # Experiment 5: per-kind block markers — 5a vs. 5b head to head (2026-07-16 → 2026-07-19)
 
 Part of the decoration-experiments series — see the
-[hub](07-decoration-experiments-plan.md) for ground rules, fixture corpus, and the overall
-results table. Proposed after [Experiment 2b](09-experiment-2-guide-lines.md) was kept:
+[hub](decoration-experiments-plan.md) for ground rules, fixture corpus, and the overall
+results table. Proposed after [Experiment 2b](experiment-2-guide-lines.md) was kept:
 not a revival of the deprioritized Experiment 3 (a legibility fallback), but a richer
 visual system on top of 2b's guides. Both variants were built in parallel, in separate
 worktrees/sessions, against the same corpus. **5a won the head-to-head** — see the
 comparison and verdict section below, which also carries the hardening checklist for
 taking 5a to production. Cross-experiment lessons:
-[11-decoration-lessons.md](11-decoration-lessons.md).
+[decoration-lessons.md](decoration-lessons.md).
 
 ## Design (from the plan)
 
@@ -657,14 +657,14 @@ fold-gap) that guides never needed — see the "Code cost" paragraph above and t
 each successive bug generally *simplified* the code by collapsing near-duplicate
 computations into one shared function, not by adding new special cases. The two most
 consequential lessons — recurring bug shapes, not one-off mistakes — are recorded as
-their own entries in [11-decoration-lessons.md](11-decoration-lessons.md), since they apply
+their own entries in [decoration-lessons.md](decoration-lessons.md), since they apply
 well beyond this one experiment.
 
 ## Head-to-head: comparison and verdict (2026-07-19)
 
 **Verdict: 5a is the keeper.** PR #12 (5a) merged into the Experiment 5 integration branch;
 PR #13 (5b) closed unmerged, with its results and lessons preserved here and in
-[11-decoration-lessons.md](11-decoration-lessons.md).
+[decoration-lessons.md](decoration-lessons.md).
 
 ### The two branches diverged on two axes, not one
 
@@ -716,7 +716,7 @@ layout. Both `decorations.ts` files converged to ~890 lines.
 widgets, DOM-ancestry gating for nested editors — all held up under four rounds of
 adversarial real-vault review. 5b's mechanism, by contrast, kept generating instances of
 one recurring bug shape (the shared-coordinate-space divergence recorded in
-[11-decoration-lessons.md](11-decoration-lessons.md)), and its one unfixable limitation
+[decoration-lessons.md](decoration-lessons.md)), and its one unfixable limitation
 (markers share the guides' 0.6 opacity) can only be fixed by adopting 5a's mechanism.
 
 What 5b genuinely kept simpler: zero added DOM nodes, and zero text-layout impact (no
@@ -747,7 +747,7 @@ validated design fact, independent of mechanism.
 - **Five cross-experiment findings** (shared-value coupling, `background-position` `%`
   semantics, measure-the-glyph-not-the-wrapper, per-depth vs. per-line adjustments,
   simplification-as-legitimate-outcome) — merged into
-  [11-decoration-lessons.md](11-decoration-lessons.md).
+  [decoration-lessons.md](decoration-lessons.md).
 - The **live chevron measurement** approach — 5b measured the fold chevron's reach live
   per render; 5a hardcoded two measured constants. Porting 5b's approach is hardening
   item 1 below.
@@ -778,7 +778,7 @@ polish for when 5a graduates from experiment to the real implementation.
    + 0.425rem - 3px)))`) where `0.425rem` is half the chevron wrapper's measured 22px width
    and `3px` is measured internal dead space. This is the one place 5a violates the
    project's own "read native values live instead of hardcoding compensations" rule
-   ([11-decoration-lessons.md](11-decoration-lessons.md)); a theme or Obsidian update that
+   ([decoration-lessons.md](decoration-lessons.md)); a theme or Obsidian update that
    resizes the chevron silently degrades the layout (cosmetic-only failure). 5b's session
    solved the same problem with live measurement — port that approach.
 2. **Protect two documented invariants in code review.**
@@ -831,7 +831,7 @@ polish for when 5a graduates from experiment to the real implementation.
    (`obsidianmd/settings-tab/prefer-setting-definitions`, unrelated to marker code — the
    settings tab predates Experiment 5 and was never migrated to the declarative settings
    API), now tracked as its own hardening task
-   ([tasks.md item 5.5](../../openspec/changes/outline-decorations/tasks.md)) rather than
+   ([tasks.md item 5.5](../../openspec/changes/archive/2026-07-20-outline-decorations/tasks.md)) rather than
    bundled here. **Status (hardening pass): that last warning is resolved too** —
    `getSettingDefinitions()` adopted, `display()` kept as the documented pre-1.13
    fallback; lint is fully clean (0 errors, 0 warnings).
@@ -887,7 +887,7 @@ building, and CM6's own `syntaxTree` as a kind-classification source.
 ### Potential follow-ups (deliberately out of Experiment 5's scope)
 
 *(These, plus everything deferred since, are consolidated in
-[12-decoration-follow-ups.md](12-decoration-follow-ups.md) — the standing parking lot
+[decoration-follow-ups.md](decoration-follow-ups.md) — the standing parking lot
 for decoration work; this section is kept as the original record.)*
 
 - **Per-level heading markers (H1–H6).** Considered during the experiment but kept out to
@@ -913,12 +913,12 @@ for decoration work; this section is kept as the original record.)*
 
 ## Open question: shrinking only our own added list margin
 
-Raised during Experiment 1's review, not yet decided. The deferred list-hang issue (see [Experiment 1's results](08-experiment-1-additive-indentation.md)) is native
+Raised during Experiment 1's review, not yet decided. The deferred list-hang issue (see [Experiment 1's results](experiment-1-additive-indentation.md)) is native
 Obsidian chrome and explicitly out of scope for direct edits in this experiment. But a
 narrower variant stays inside the additive-only discipline: **reduce only the margin *we*
 add** to list items — not native `text-indent`/`padding-left` — by the list's own native
 hang width, read live via `getComputedStyle` the same way Experiment 1's table fix (bug #3 in
-[08-experiment-1-additive-indentation.md](08-experiment-1-additive-indentation.md))
+[experiment-1-additive-indentation.md](experiment-1-additive-indentation.md))
 reads and compensates for native padding. Worth exploring as a follow-up, with two open
 risks to resolve before trying it: (a) clamping so a shallow `supplementalDepth` never goes
 negative once the hang is subtracted (the table fix's `max(0px, ...)` pattern applies

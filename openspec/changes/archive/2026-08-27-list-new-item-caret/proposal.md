@@ -86,7 +86,7 @@ Non-goals, each for its own reason:
   states elsewhere covers the caret too. The half-icon gap between such a number and its own
   text IS closed here — see the ordered marker's new margin above — but the marker keeps pushing
   its text out rather than being squeezed onto a column it does not fit.
-- **The caret on a whitespace-only CONTINUATION line**, which `docs/research/12` records as
+- **The caret on a whitespace-only CONTINUATION line**, which `docs/research/decoration-follow-ups` records as
   still open. It is the same mechanism through a different element (`.cm-hmd-list-indent`, now
   carrying a stated width), so this change measures it rather than closing it, and carries no
   requirement of its own for it. Measured: the sign has flipped since that entry was written —

@@ -4,7 +4,7 @@ The enforcement funnel is two gates in series: `classify` decides whether a tran
 `boundary-crossing-edit` at all, and only then does the verdict layer compute `pass` / `rewrite`
 / `veto`. Backspace at a heading's content start clears neither. The full trace, the neighbouring
 shapes that already veto, and the heading content-column measurements are in
-[docs/research/25-heading-content-start-backspace.md](../../../docs/research/25-heading-content-start-backspace.md).
+[docs/research/heading-content-start-backspace.md](../../../../docs/research/heading-content-start-backspace.md).
 
 Two constraints shape the approach. The marker-space shape is invisible at line granularity — a
 one-character deletion inside one line — so it exists as an explicit shape in both gates rather

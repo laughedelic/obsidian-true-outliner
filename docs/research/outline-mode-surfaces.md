@@ -17,7 +17,7 @@ about the mode's shape, and what was rejected, so the diagnosis is not paid for 
   in `data.json`, migrated on rename, pruned on delete.
 - The only feedback is the transient toggle Notice and the decorations themselves.
 - Decorations render through CM6 editor extensions exclusively; reading view is untouched by
-  construction (doc 20, "The two renderers").
+  construction (docs/research/surfaces-and-embedding, "The two renderers").
 
 ## The public-API surface for an explicit state
 

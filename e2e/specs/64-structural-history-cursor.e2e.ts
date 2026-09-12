@@ -1,6 +1,6 @@
 /**
  * structural-history-integration: redo after a structural op restores that
- * op's OWN cursor (docs/research/04 Q21).
+ * op's OWN cursor (docs/research/open-questions Q21).
  *
  * ## Two deliberate constraints on every scenario here
  *

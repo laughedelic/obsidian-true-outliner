@@ -73,5 +73,5 @@ has happened.
   and is unaffected.
 - **Risk**: low, and bounded below rather than above. A wider unit only increases the clearance
   between a child's mark and its parent's text; the floor measured in
-  `docs/research/21-marker-text-gap.md` is `gutter + widest ink-left`, which the current unit
+  `docs/research/marker-text-gap.md` is `gutter + widest ink-left`, which the current unit
   already clears and a wider one clears by more.

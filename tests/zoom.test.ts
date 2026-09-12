@@ -193,7 +193,7 @@ describe('segmentContent: what a crumb is called', () => {
    * is `nodeContent`'s to decide and is asserted there. What this pins is that
    * there is only ONE decision — the trail used to reach its own weaker rule,
    * which is how a callout crumb read `[!tip] Field notes` while the footer row
-   * beneath said `Field notes` (docs/research/27).
+   * beneath said `Field notes` (docs/research/lineage-text-rendering).
    */
   it('names a node the way a footer row of that node does', () => {
     const doc = parse(
@@ -707,7 +707,7 @@ describe('the clamp is what makes the anchor safe (D4 retarget property)', () =>
 });
 
 /**
- * `editEscapes` against the measured catalogue (docs/research/26).
+ * `editEscapes` against the measured catalogue (docs/research/zoom-editing-boundary).
  *
  * Every row here is a row of that note, named by its label there, so a
  * disagreement between the note and the code is visible as a failing test

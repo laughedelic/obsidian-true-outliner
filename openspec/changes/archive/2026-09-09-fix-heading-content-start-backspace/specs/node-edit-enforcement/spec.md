@@ -12,7 +12,7 @@ the gap itself, stays native — is REMOVED as an in-mode escape hatch. Delibera
 whitespace authoring remains fully available by toggling outline mode off for the note,
 which is already how this plugin offers raw character-level editing. This was the
 resolution anticipated when the gap escape hatch was first written
-(`docs/research/13`, "Gap-line cursor transparency": *the escape hatch stays the mode
+(`docs/research/selection-follow-ups`, "Gap-line cursor transparency": *the escape hatch stays the mode
 toggle, not an in-outline-mode exception*).
 
 The caret CAN rest on a gap line, in two ways, and an earlier version of this requirement

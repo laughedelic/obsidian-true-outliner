@@ -597,7 +597,7 @@ describe('"Load more" against a group larger than one tranche', function () {
  * undeduplicated reference list: selecting Embed would count this node (it
  * has one) while the row for it vanished, because the FIRST reference the
  * node happened to record was a plain link. Recorded as a known gap in
- * `docs/research/12-decoration-follow-ups.md` before `backlinks-controls`
+ * `docs/research/decoration-follow-ups.md` before `backlinks-controls`
  * existed to resolve it; found again in review once a kind filter existed
  * to expose it.
  */

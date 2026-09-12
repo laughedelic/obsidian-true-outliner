@@ -109,7 +109,7 @@ export const GROUP_HEIGHT_CSS: Record<GroupHeight, string> = {
   unlimited: "none",
 };
 
-/** How much of a lineage row names itself (docs/research/18, D19). */
+/** How much of a lineage row names itself (docs/research/structured-backlinks, D19). */
 export type SegmentIcons = "all" | "own" | "none";
 export const DEFAULT_SEGMENT_ICONS: SegmentIcons = "all";
 
@@ -163,9 +163,10 @@ export interface PluginData {
   rememberFolds: boolean;
   coexistenceWarned: boolean;
   debugCrossCheck: boolean;
-  /** Experiment 5a leaf-visibility round (see docs/research/07-decoration-
-   * experiments-plan.md) — a real, persisted, user-facing setting so it can
-   * be tried against a real vault without a rebuild. */
+  /** Experiment 5a leaf-visibility round (see
+   * docs/research/decoration-experiments-plan.md) — a real, persisted,
+   * user-facing setting so it can be tried against a real vault without a
+   * rebuild. */
   markerVisibility: MarkerVisibility;
   /** See `GuideHighlight`. */
   guideHighlight: GuideHighlight;

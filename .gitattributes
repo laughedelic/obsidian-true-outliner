@@ -1,0 +1,4 @@
+# The research index is an append-only list of one-line rows, so two branches adding notes in
+# parallel have no real conflict — union keeps both rows. `npm run lint` catches what union
+# cannot: a row union duplicated, a row without a file, a file without a row.
+docs/research/index.md merge=union

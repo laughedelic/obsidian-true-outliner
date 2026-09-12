@@ -1,28 +1,28 @@
 ## 0. Experiments (concluded)
 
 All experiments have concluded; see
-[docs/research/07-decoration-experiments-plan.md](../../../docs/research/07-decoration-experiments-plan.md)
+[docs/research/decoration-experiments-plan.md](../../../../docs/research/decoration-experiments-plan.md)
 for the full results table. Chosen path: **1 → 2b → 5a** (PR stack: #8 → #10 → #11/#12).
 
 - [x] 0.1 Experiment 1: additive-only indentation — **kept**, merged (PR #8). Details:
-      [08-experiment-1-additive-indentation.md](../../../docs/research/08-experiment-1-additive-indentation.md)
+      [experiment-1-additive-indentation.md](../../../../docs/research/experiment-1-additive-indentation.md)
 - [x] 0.2 Experiment 2a: guide lines via pixel-measured overlay — fully capable, superseded
       by 2b, closed unmerged (PR #9). Details:
-      [09-experiment-2-guide-lines.md](../../../docs/research/09-experiment-2-guide-lines.md)
+      [experiment-2-guide-lines.md](../../../../docs/research/experiment-2-guide-lines.md)
 - [x] 0.3 Experiment 2b: guide lines via CSS stacked-gradient — **chosen**, merged (PR #10)
 - [x] 0.4 Experiment 3 (minimal marker fallback): not triggered — the marker question was
-      later answered by Experiment 5 instead; see doc 07's own results table
+      later answered by Experiment 5 instead; see docs/research/decoration-experiments-plan's own results table
 - [x] 0.5 Experiment 4 (widget-spacer risk-spike): not triggered — no fragility observed
       that would have called for it
-- [x] 0.6 This task: comparison table filled in (doc 07), winning techniques picked (1, 2b,
+- [x] 0.6 This task: comparison table filled in (docs/research/decoration-experiments-plan), winning techniques picked (1, 2b,
       5a), design.md/spec.md/tasks.md (this file) rewritten with validated decisions
 
 Experiment 5 (per-kind block markers, added after 0.6 was originally scoped, run to the
 same discipline): 5a (SVG icons, DOM mechanism) **chosen**, merged (PR #11/#12); 5b (CSS
 shapes → uniform dot) closed unmerged (PR #13), full account and head-to-head verdict in
-[10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md).
+[experiment-5-block-markers.md](../../../../docs/research/experiment-5-block-markers.md).
 Cross-experiment lessons:
-[11-decoration-lessons.md](../../../docs/research/11-decoration-lessons.md).
+[decoration-lessons.md](../../../../docs/research/decoration-lessons.md).
 
 ## 1. Depth/marker computation (pure module) — done
 
@@ -85,7 +85,7 @@ Cross-experiment lessons:
   and Chinese IME input works with no indentation/marker issues (closing 5.6's deferred
   IME item). One real gap found and diagnosed, deferred deliberately: wiki-embed blocks
   (`![[Another note]]`) bypass decoration when widget-rendered — see
-  [docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md)
+  [docs/research/decoration-follow-ups.md](../../../../docs/research/decoration-follow-ups.md)
   for the full diagnosis and the model decision a fix needs.
 
 ## 4. Traceability gaps found during the 0.6 backfill
@@ -122,7 +122,7 @@ requirements already stated, not separately-observable behavior):
 ## 5. Remaining work: hardening 5a for production
 
 Ranked, from
-[docs/research/10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md)'s
+[docs/research/experiment-5-block-markers.md](../../../../docs/research/experiment-5-block-markers.md)'s
 "Next steps: hardening 5a" section. None are architecture-threatening.
 
 - [x] 5.1 Replace the two hardcoded fold-chevron measurement constants
@@ -211,7 +211,7 @@ Ranked, from
     visible in the screenshots.
 - [x] 5.9 (Recorded and deliberately deprioritized — no RTL work until real users need
   it; tracked with the other deferred items in
-  [docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).)
+  [docs/research/decoration-follow-ups.md](../../../../docs/research/decoration-follow-ups.md).)
   RTL rendering (found by 5.6's verification pass): with RTL text, the marker
   icon's `left`-shift math assumes the line's first character renders at the physical left
   — in RTL it renders at the *right*, so the icon lands on top of the text (confirmed by
@@ -227,7 +227,7 @@ Ranked, from
   testing via Obsidian mobile emulation"). This is a feedback loop for continuously
   assessing mobile feasibility, not a hard mobile-support requirement — full mobile support
   isn't a goal at this stage; the project's standing bar remains "mobile-safe from day 1,
-  desktop-tested for v1.0" (docs/research/04-open-questions.md Q7). The value is early
+  desktop-tested for v1.0" (docs/research/open-questions.md Q7). The value is early
   discovery: if a design or architecture choice here would make mobile support harder or
   impossible later, we want that insight now, while it's cheap to react to, rather than once
   mobile becomes the focus.
@@ -280,6 +280,6 @@ goes negative once the hang is subtracted; (b) the compensation must be based on
 **root**'s own hang, not each item's, since nested items can have wider markers (e.g. `10.`
 vs. `-`) with different native hang widths — compensating per-item would reintroduce the
 kind of within-list misalignment the wide-numbering fixture exists to catch. See
-[docs/research/10-experiment-5-block-markers.md](../../../docs/research/10-experiment-5-block-markers.md#open-question-shrinking-only-our-own-added-list-margin)
+[docs/research/experiment-5-block-markers.md](../../../../docs/research/experiment-5-block-markers.md#open-question-shrinking-only-our-own-added-list-margin)
 for the full framing. Not scheduled; revisit only on deliberate follow-up, not as part of
 the hardening checklist above.

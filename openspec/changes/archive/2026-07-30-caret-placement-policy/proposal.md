@@ -20,7 +20,7 @@ rule — `editor-structural-commands`, `outline-keyboard-grammar`,
 
 Nothing owns the question, so every answer is local and the seams leak. Measured
 consequences, all from real-vault use during `minimal-changesets-for-structural-ops`
-(docs/research/04 Q29 and its follow-ons):
+(docs/research/open-questions Q29 and its follow-ons):
 
 - **The caret alternates between the next and previous node after a delete**, because
   `finalize` prefers a following survivor and falls back to a preceding one. Reported as
@@ -150,11 +150,11 @@ wants a single owner rather than another local fix.
 
 ## Context for whoever picks this up
 
-- `docs/research/04-open-questions.md` **Q21** (redo-cursor root cause, the recording
+- `docs/research/open-questions.md` **Q21** (redo-cursor root cause, the recording
   mechanism and its second-undo cost), **Q29 + follow-ons** (`filter: false` means history
   bypasses the enforcement funnel entirely; mapping vs recording; a selection head is not a
   caret).
-- `docs/research/13-selection-follow-ups.md` — the two parked entries this subsumes: the
+- `docs/research/selection-follow-ups.md` — the two parked entries this subsumes: the
   next/previous alternation, and deleting after a table stranding undo. Also the older
   "exiting a table's nested editor" entry, which is the same territory.
 - The archived `minimal-changesets-for-structural-ops` design.md, **D4** and **D5a** — why

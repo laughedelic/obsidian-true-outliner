@@ -12,7 +12,7 @@ more than one blank line and the drag stops on the first one. Gap ownership
 is already all-or-nothing in the parse model (a trailing gap belongs wholly
 to the preceding node); the escalation math should treat it the same way —
 found during the `selection-visual-treatment` real-vault review
-(docs/research/13, "Escalation math re-examination candidate") and
+(docs/research/selection-follow-ups, "Escalation math re-examination candidate") and
 deliberately deferred there as its own dedicated change.
 
 ## What Changes

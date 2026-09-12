@@ -1,6 +1,6 @@
 /**
  * Structural operations under the two-regime algebra
- * (docs/research/04-open-questions.md):
+ * (docs/research/open-questions.md):
  *
  *   HEADINGS         indent/outdent = level ± 1, whole subtree shifts,
  *                    hierarchy re-derives from levels; reject at h1/h6.
@@ -746,8 +746,8 @@ function outdentSurgery(
  *
  * Expected to be DELETED rather than maintained. Whether a list following a
  * paragraph should be that paragraph's child at all is an open question — Q34
- * in docs/research/04-open-questions.md, explored in
- * docs/research/17-list-paragraph-mapping.md. Two of the four candidate
+ * in docs/research/open-questions.md, explored in
+ * docs/research/list-paragraph-mapping.md. Two of the four candidate
  * readings make a flush list after a paragraph an ordinary sibling, and under
  * either of them this branch is unreachable.
  */

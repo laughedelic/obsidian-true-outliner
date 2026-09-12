@@ -34,7 +34,7 @@ What Obsidian's own "Fold heading" and "Fold indent" settings do to this is NOT 
 Folding an outline node is offered because the node has children, and no code in this plugin reads
 those settings — but whether the editor still applies a fold with both of them off could not be
 established: driving them from the harness proved unreliable in both directions (see
-docs/research/28), and a requirement no test can hold is worse than an open question. It is
+docs/research/fold-mechanics), and a requirement no test can hold is worse than an open question. It is
 recorded as one.
 
 #### Scenario: A paragraph with attached children folds

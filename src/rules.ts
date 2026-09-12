@@ -1,7 +1,7 @@
 /**
  * The two PROVISIONAL mapping rules, isolated here so revising them (or
  * making them configurable) is a local change. Decision log:
- * docs/research/04-open-questions.md, Q2 follow-ups #1 and #3.
+ * docs/research/open-questions.md, Q2 follow-ups #1 and #3.
  */
 
 import type { NodeKind, OutlineNode } from './model';

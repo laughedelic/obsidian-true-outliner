@@ -1,11 +1,11 @@
 # Experiment 1: additive-only indentation (2026-07-13)
 
 Part of the decoration-experiments series — see the
-[hub](07-decoration-experiments-plan.md) for the ground rules, the shared fixture corpus,
-and the overall results table, and [06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md)
+[hub](decoration-experiments-plan.md) for the ground rules, the shared fixture corpus,
+and the overall results table, and [outline-decorations-postmortem.md](outline-decorations-postmortem.md)
 for the failed attempt that motivated the series. This was the series' primary first
 experiment: every later experiment (guides, markers) builds on its additive-only
-indentation. Cross-experiment lessons live in [11-decoration-lessons.md](11-decoration-lessons.md).
+indentation. Cross-experiment lessons live in [decoration-lessons.md](decoration-lessons.md).
 
 ## Design (from the plan)
 
@@ -107,7 +107,7 @@ lines up precisely. Fixing it the way `obsidian-outliner`'s `BetterListsStyles` 
 touching that native `text-indent`/`padding-left` pair directly — the single riskiest
 surface the postmortem blamed for most of the prior failed attempt's bugs. Left alone
 pending a deliberate, isolated follow-up; see
-[open question](10-experiment-5-block-markers.md#open-question-shrinking-only-our-own-added-list-margin) for a
+[open question](experiment-5-block-markers.md#open-question-shrinking-only-our-own-added-list-margin) for a
 narrower variant that stays additive-only.
 
 Also confirmed **not** a bug: the flat fixture (3 top-level paragraphs, all depth 0) shows

@@ -25,8 +25,8 @@ produced, which shrinks but does not remove D9's exception.
 
 **What zoom may not do.** Public Obsidian APIs only, no `(editor as any).cm`. No in-file
 metadata — zoom is transient view state, so even a `^block-id` anchor is out. Native list
-rendering is never overridden (Experiment 1's rule, docs/research/08); our indentation is
-strictly additive. The decoration layer has a postmortem behind it (docs/research/06): a visual
+rendering is never overridden (Experiment 1's rule, docs/research/experiment-1-additive-indentation); our indentation is
+strictly additive. The decoration layer has a postmortem behind it (docs/research/outline-decorations-postmortem): a visual
 mechanism is proven against a real vault before a design is built on it, not after.
 
 **What the precedent gives us.** obsidian-zoom (MIT, vslinko) proves block-level replace
@@ -128,10 +128,10 @@ what each was measured against.
 
 *Why replace rather than a `display: none` line class:* a hidden-but-present line keeps its line
 box and keeps accepting the caret. Block replacement takes the lines out of the layout entirely —
-measured, docs/research/23: content height fell from 770px to 589px for a four-line span, with no
+measured, docs/research/zoom-hiding-mechanism: content height fell from 770px to 589px for a four-line span, with no
 leftover box.
 
-*Struck by measurement (docs/research/23).* An earlier version of this decision added that
+*Struck by measurement (docs/research/zoom-hiding-mechanism).* An earlier version of this decision added that
 block replacement therefore delivers "most of the confinement guarantee for free rather than as a
 pile of corrections". It does not. With only lines 4–5 visible, `ArrowDown` on the last visible
 line put the caret on line 7, `ArrowUp` on the first put it on line 2, and three `Mod-A` presses
@@ -140,7 +140,7 @@ caret — they know nothing about a scope, and the spike cannot separate them fr
 gate on outline mode — but the conclusion for this change is the same either way: **every site in
 D7 and section 8 is real work, and none of it is free.**
 
-*The gate.* This is a visual-layer bet of exactly the kind docs/research/06 was written about,
+*The gate.* This is a visual-layer bet of exactly the kind docs/research/outline-decorations-postmortem was written about,
 and this one is placed under three existing decoration sources plus Obsidian's own Live Preview
 widgets. Task 1 proves, against a real vault, that: the two ranges hide correctly with the
 caret at either boundary; widget-rendered atoms (table, callout, html, hr) inside and outside the
@@ -368,7 +368,7 @@ its list, times the outline unit, both already stated by the plugin — rather t
 measured from the leading whitespace. The deferred fix is therefore computable: **one** negative
 `margin-left` on the content container, not per-line surgery, since every visible line shares the
 identical offset while zoomed. Deferred until the plain case has been used against a real vault
-(docs/research/12's parking-lot standard).
+(docs/research/decoration-follow-ups's parking-lot standard).
 
 ### D10. The trail is a footer lineage row, in a block widget at the visible range's start
 
@@ -460,7 +460,7 @@ that same position, so the naive construction hides the footer along with the co
 after. The footer stays visible while zoomed, rendered after the zoomed content and still
 answering for the note.
 
-*Settled by measurement (docs/research/23): the widget is re-anchored, because shortening the
+*Settled by measurement (docs/research/zoom-hiding-mechanism): the widget is re-anchored, because shortening the
 range is not a fix.* Both moves were tried. The footer does disappear under a trailing range that
 runs to `doc.length`, as predicted. Stopping that range at the final line's start does NOT bring
 it back — and cannot, for any document ending in a newline: such a document's empty final line
@@ -520,7 +520,7 @@ the file as its first segment (D10). The two decisions are one decision seen fro
 ### D15. Clicking a node's mark zooms into it, through one capture-phase listener
 
 The command is the deliberate entry point; the mark is the one an outliner is expected to have.
-This was originally out of scope, gated on two caveats docs/research/12 had been carrying. Both
+This was originally out of scope, gated on two caveats docs/research/decoration-follow-ups had been carrying. Both
 were measured against a real Obsidian and only one survived.
 
 `pointer-events: none` on the marker is real, and is why a click never reached it. It stays the
@@ -585,7 +585,7 @@ something — the same restraint it already shows toward the trail's and the foo
 task stays reachable by the command, the context menu, and a hotkey, so the gap is one entry point
 short of four rather than the feature failing to reach the kind at all. Giving a task a pointer
 route that does not fight its checkbox is real design work — explored, not decided, in
-docs/research/12's affordance-budget entry.
+docs/research/decoration-follow-ups's affordance-budget entry.
 
 ### D16. A nested per-cell editor must not be asked whether it is nested until it is mounted
 

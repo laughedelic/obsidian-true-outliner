@@ -11,7 +11,7 @@ Two live consequences, both confirmed in a real vault:
 - **Repeated undo/redo moves the cursor to the end of the rewritten region.**
   `fix-redo-cursor-after-structural-ops` fixed the first redo by recording the
   operation's cursor in history, but that channel provably cannot reach a second undo
-  (docs/research/04 Q21) — it left the gap documented, for this change to close properly.
+  (docs/research/open-questions Q21) — it left the gap documented, for this change to close properly.
 - **Tab moves the cursor to the start of the node** instead of keeping the user's place
   in the text, because the operation has to state an explicit cursor — there is no
   meaningful position to map to inside a wholesale replacement.

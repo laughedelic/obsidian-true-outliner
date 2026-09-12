@@ -12,7 +12,7 @@ marker in its rendered form) and again with the caret on the deepest list line.
 
 ## Finding 1: a list item's bullet element survives the caret sitting on its line
 
-The design flagged this as the change's sharpest hazard. `docs/research/13` established that a
+The design flagged this as the change's sharpest hazard. `docs/research/selection-follow-ups` established that a
 list marker's round bullet comes from a `.list-bullet` span present only in the marker's
 *hidden* form, and that revealing the raw markup swaps it for plain `"- "` text — so the one
 line the current-marker accent most wants to reach might not have a bullet at all.
@@ -272,7 +272,7 @@ geometry change at all (both are asserted in `55-position-indicators.e2e.ts`).
 **Not done:** the community-theme sweep (Minimal, Catppuccin). The layer writes no geometry
 whatsoever — only colors and background layers, verified by auditing every new rule and by an
 e2e that measures every line's position and every marker's rect across all nine setting
-combinations — so the class of theme bug doc 12 records for base indentation (a `max-width`-sized
+combinations — so the class of theme bug docs/research/decoration-follow-ups records for base indentation (a `max-width`-sized
 box that does not recompute) has no way to reach this layer. A visual contrast check under a
 third-party theme is still worth doing if one is ever installed for another reason.
 

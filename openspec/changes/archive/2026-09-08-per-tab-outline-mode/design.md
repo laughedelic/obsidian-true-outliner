@@ -1,6 +1,6 @@
 ## Context
 
-See proposal.md — Why. The shape is decided there and grounded in docs/research/24: a per-tab
+See proposal.md — Why. The shape is decided there and grounded in docs/research/outline-mode-surfaces: a per-tab
 state initialized from one global default, surfaced wherever the user is. What the design has
 to place is where the per-tab state lives, how the gating seam moves to it, how the
 reading-view entry works on public API, and how the indicators track the active tab.
@@ -30,7 +30,7 @@ retired is `OutlineModeRegistry` (`src/plugin/mode-registry.ts`).
 
 - Per-file or per-tab persistence of a manual state, strictly tab-scoped state across file
   switches, a global off switch, outline rendering in reading view, extending core chrome, a
-  default hotkey — proposal.md, Non-goals, and docs/research/24 for the reasons.
+  default hotkey — proposal.md, Non-goals, and docs/research/outline-mode-surfaces for the reasons.
 - Changing the zoom scope model (`outline-zoom`): its per-view shape is what the mode now
   matches; only the exit trigger's firing site moves.
 
@@ -71,7 +71,7 @@ in the proposal's Impact; it is also what buys D5.
 
 ### D4. Initialization and reset are `EditorState` construction, by construction
 
-Measured rather than assumed (docs/research/24, "Measured"): Obsidian keeps ONE `EditorView`
+Measured rather than assumed (docs/research/outline-mode-surfaces, "Measured"): Obsidian keeps ONE `EditorView`
 per leaf and rebuilds its `EditorState` only when the leaf switches files. So the field's
 `init` runs on a new tab and on a file switch, and the state survives an edit, a mode
 round-trip, and everything else. That is the reset boundary, stated as behavior by the spec's
@@ -103,7 +103,7 @@ open views, so no zoom interaction exists there.
 ### D6. The reading-view entry is `View.setState`, then an explicit effect on the same view
 
 On a toggle from a preview-mode pane, `view.setState({ ...state, mode: 'source' })`. Measured
-(docs/research/24): the reading-view state carries the `source` flag the pane was last editing
+(docs/research/outline-mode-surfaces): the reading-view state carries the `source` flag the pane was last editing
 under, spreading it round-trips the pane to its own editing mode both ways, and a pane with no
 editing history reports `source: false` itself — so nothing has to synthesize or default it.
 
@@ -142,7 +142,7 @@ carries the indication alone on mobile; both click into the same toggle path as 
 Because that on-state is a colour, each indicator also carries `aria-pressed`, removed rather
 than set when no markdown tab is active: neither value is true of a control stating no mode.
 Wording and on-state treatment are one visual pass in the tasks, recorded in
-docs/research/24, the way the decoration experiments settled theirs.
+docs/research/outline-mode-surfaces, the way the decoration experiments settled theirs.
 
 ### D8. The settings toggle sets the default, and nothing else
 
@@ -175,7 +175,7 @@ the rollback story is written rather than discovered.
 - [Two tabs on one file can differ] → the model the scenario asked for, and the per-view shape
   zoom already ships; the indicators state the active tab, so the difference is never hidden.
 - [The upgrade flip outlines every newly opened note] → deliberate and one settings toggle
-  away; argued in docs/research/24 ("The mode's shape"), owned in the proposal.
+  away; argued in docs/research/outline-mode-surfaces ("The mode's shape"), owned in the proposal.
 
 ## Migration Plan
 
@@ -187,7 +187,7 @@ setting is re-set there.
 
 ## Open Questions
 
-None. Two were closed by task 1's measurement (docs/research/24): the reading-view state
+None. Two were closed by task 1's measurement (docs/research/outline-mode-surfaces): the reading-view state
 encoding, and which public events fire on an in-leaf mode switch — none do, which is why D7's
 indicators take their in-leaf signal from the CM6 side rather than from the workspace. The
 remaining deferred ones — status-bar wording and the ribbon on-state treatment — are polish

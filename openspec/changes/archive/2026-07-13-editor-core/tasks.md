@@ -38,5 +38,5 @@
   cues, clean unload) and record results in the change — done on `feat/outline-grammar`
   (PR open); automated coverage added on `feat/e2e-harness` (PR open)
 - [x] 4.2 Feed findings back: any parser disagreement → corpus fixture in mapping-core
-  tests; any provisional-rule friction → docs/research/04-open-questions.md — covered by
+  tests; any provisional-rule friction → docs/research/open-questions.md — covered by
   the same stacked branches

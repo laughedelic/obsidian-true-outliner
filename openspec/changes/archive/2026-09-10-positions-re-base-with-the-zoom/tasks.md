@@ -7,7 +7,7 @@
   null scope it returns exactly what `provisionalFact`/`materializeProbe` return today.
   Negative control: pass the scope through unused — the null case must still pass and the scoped
   case must fail.
-- [x] 1.2 Unit-test the scoped case against the document in docs/research/12: zoomed to a node
+- [x] 1.2 Unit-test the scoped case against the document in docs/research/decoration-follow-ups: zoomed to a node
   with one hidden ancestor, a position on the blank line below a child renders at the depth a
   sibling of that child renders at, one level less than the whole-buffer derivation gives.
   Negative control: build the probe from the whole buffer instead — the asserted depth must come
@@ -65,7 +65,7 @@
 
 ## 4. Landing
 
-- [x] 4.1 Mark the docs/research/12 entry closed by this change, keeping its measurement, and
+- [x] 4.1 Mark the docs/research/decoration-follow-ups entry closed by this change, keeping its measurement, and
   check nothing else in that note still describes the trail gap as open.
 - [x] 4.2 Sync the delta specs into `openspec/specs/` and archive the change on this branch.
 - [x] 4.3 Bump the patch version (`npm version patch`) and confirm `manifest.json` and

@@ -86,7 +86,7 @@ the table, which is why atom avoidance is a separate rule rather than a conseque
 - Which positions are addressable. `content-space-caret` owns that; `src/caret.ts` is not
   modified by this change.
 - Vertical motion, Home/End, and horizontal motion. Settled by `content-space-caret`
-  (docs/research/04 Q26/Q27) and not reopened.
+  (docs/research/open-questions Q26/Q27) and not reopened.
 - The second-undo limitation. It is a CodeMirror property — the event a second undo reads
   from lives on history's undone branch, which `addSelection` never reaches — and a policy
   layer cannot remove it. It is restated accurately, not re-litigated.
@@ -320,7 +320,7 @@ unchanged: they answer "a gesture produced a position with no direction — what
 nearest legal one", which is `content-space-caret`'s question, with its own carefully
 scoped jurisdiction over programmatic transactions. Merging them would widen that
 jurisdiction as a side effect, which was tried during `content-space-caret` and reverted
-(docs/research/13, the table-exit entry).
+(docs/research/selection-follow-ups, the table-exit entry).
 
 ### D9: Tests — one invariant asserted at the dispatch sites, plus negative controls
 
@@ -331,7 +331,7 @@ Three layers, in the project's established style:
    separately in `tests/history-caret.test.ts`, against a real `Transaction`.
 2. **A property test over generated trees**: every caret this plugin dispatches is
    addressable, and no dispatched caret lies inside a focus-capturing node when the
-   landing is a bystander. This generalises the invariant docs/research/04 Q29 says is
+   landing is a bystander. This generalises the invariant docs/research/open-questions Q29 says is
    "cheap to assert at each dispatch site and expensive to discover from a real vault."
 3. **A CM6-level equality test**: `mapCursorForward(...)` equals `tr.changes.mapPos(head,
    1)` over generated documents and operations. D6's derivation assumes those two agree;
@@ -340,7 +340,7 @@ Three layers, in the project's established style:
 
 Every new regression test is negative-controlled — disable the fix, confirm the test
 fails — before it is trusted. This project has shipped tests that could not fail three
-times (docs/research/04 Q21, Q27, Q28), and the failure mode here is the same shape: the
+times (docs/research/open-questions Q21, Q27, Q28), and the failure mode here is the same shape: the
 transaction filter can produce a correct-looking caret whether or not the policy ran.
 Where an outcome alone cannot distinguish them, assert the mechanism — the plugin already
 exposes `stats` and `motionCounts` for exactly this.
@@ -425,7 +425,7 @@ gated off inside a nested editor. That is a prediction from `nested-editor.ts`'s
 behaviour, not a measurement; it needs a real-vault or e2e check. If it reproduces, the
 answer is not obvious: "caret follows the moved node" and "never enter a nested editor" are
 in direct conflict, and resolving it likely needs node identity to live somewhere other
-than the caret — which is the modal block-selection state `docs/research/13` parks for the
+than the caret — which is the modal block-selection state `docs/research/selection-follow-ups` parks for the
 selection track. Filed rather than pre-decided; D5 is deliberately scoped to bystander
 landings so this change does not depend on the answer.
 

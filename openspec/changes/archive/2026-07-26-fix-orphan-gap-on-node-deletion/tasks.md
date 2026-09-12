@@ -7,7 +7,7 @@
       line to point at
 - [x] 1.2 From that, judge whether design D1's Option B is a one-position adjustment or a
       redefinition of the cover, and choose the layer
-- [x] 1.3 Record the decision and its evidence in `docs/research/04` as a numbered finding,
+- [x] 1.3 Record the decision and its evidence in `docs/research/open-questions` as a numbered finding,
       since `selection-as-subtree-set` builds on the outcome
 - [x] 1.4 If Option B is chosen, confirm consecutive covers that now TOUCH still present as
       separate ranges — CodeMirror merges only overlapping ranges, measured 2026-07-25, and
@@ -20,7 +20,7 @@
       reaches the structural path
 - [x] 2.2 If the fix lives in classification, route "does this span exactly cover subtrees"
       through `escalate.ts`'s exported cover computation rather than a second implementation —
-      the duplication hazard recorded in docs/research/04 Q18 and Q19
+      the duplication hazard recorded in docs/research/open-questions Q18 and Q19
 - [x] 2.3 Unit tests: exact single-node cover, exact subtree cover with children, tight-list
       node with no gap, last node in the document
 - [x] 2.4 Confirm no currently-verdicted deletion changes behavior
@@ -47,4 +47,4 @@
 
 - [x] 5.1 Delete selected nodes of each kind on real notes — paragraphs, list items with
       children, heading sections, atoms — and check what is left behind
-- [x] 5.2 Record findings in `docs/research/04`
+- [x] 5.2 Record findings in `docs/research/open-questions`

@@ -310,7 +310,7 @@ subtree, not of that subtree currently being hidden.
 The affordance SHALL be the editor's fold chrome rather than one the footer draws for itself: the
 same mark, the same column, revealed on hover while unfolded and persistent while folded, and a
 folded row's own marker SHALL carry the folded treatment `outline-decorations` defines, so a
-reader can tell a folded row from a leaf. `docs/research/18` D7 is the decision this satisfies.
+reader can tell a folded row from a leaf. `docs/research/structured-backlinks` D7 is the decision this satisfies.
 
 What is shared is the CHROME, never the semantics. The footer is ordinary DOM, not an editor, and
 the control SHALL remain a real `button`: reachable and operable from the keyboard, activated by

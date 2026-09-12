@@ -13,7 +13,7 @@ building on them — a wrong answer here changes what gets built, not just how.
 - [x] 1.3 Record the current node's own line DOM in both mounted forms — caret on a list line vs.
       caret elsewhere — confirming whether `.list-bullet` is present or replaced by revealed
       `.cm-formatting-list` text, and which selector reaches each form.
-- [x] 1.4 Write the findings into a new `docs/research/14-experiment-position-indicators.md`
+- [x] 1.4 Write the findings into a new `docs/research/experiment-position-indicators.md`
       (probe setup, measurements, screenshots), and record whether the fallback from design
       decision 5 — omit list-level segments — is needed.
 
@@ -92,7 +92,7 @@ building on them — a wrong answer here changes what gets built, not just how.
       parent bullet's, so accenting it as-is would be misaligned. The trail's SEGMENTS descend at
       the nearest non-list ancestor's column; each list ancestor's own bullet is accented, so the
       levels stay legible and only the connecting lines are missing. What closing it properly
-      needs is written up in `docs/research/14` and re-filed in `docs/research/12`.
+      needs is written up in `docs/research/experiment-position-indicators` and re-filed in `docs/research/decoration-follow-ups`.
 - [x] 5.6 Handle the guide pseudo-element's flat `opacity: 0.6` so the accent is not dampened
       along with the base guides (design decision 7).
 
@@ -110,7 +110,7 @@ building on them — a wrong answer here changes what gets built, not just how.
 ## 7. Real-vault experiment and design confirmation
 
 - [x] 7.1 Compare `guides` and `path` side by side on a real, deep note (screenshots into
-      `docs/research/14`) — including the deep-tree noise trade-off the design flags for the
+      `docs/research/experiment-position-indicators`) — including the deep-tree noise trade-off the design flags for the
       `guides` default.
 - [x] 7.2 Confirm or overturn the open questions the design records with working answers: the
       route stops at the current node; block-selection chrome suppresses indicators. Update the
@@ -118,12 +118,12 @@ building on them — a wrong answer here changes what gets built, not just how.
 - [x] 7.3 Sweep the BUNDLED theme in light and dark, checking the accent's contrast in each.
       Done and pinned by e2e ("resolves the accent from the active theme, in light and in dark").
       The community-theme sweep this task originally also asked for (Minimal, Catppuccin) was
-      **NOT run** and is deliberately deferred to `docs/research/12`'s "community-theme sweep as
+      **NOT run** and is deliberately deferred to `docs/research/decoration-follow-ups`'s "community-theme sweep as
       repeatable infrastructure" entry — no third-party theme is installed in the harness, and
-      doc 12 records the cost of committing one. The base-layer regression risk it guards against
+      docs/research/decoration-follow-ups records the cost of committing one. The base-layer regression risk it guards against
       cannot reach
       this layer, which writes no geometry at all (audited per 6.2, measured per 8.4).
-- [x] 7.4 Record the outcome, including anything deliberately not fixed, in `docs/research/14`.
+- [x] 7.4 Record the outcome, including anything deliberately not fixed, in `docs/research/experiment-position-indicators`.
 
 ## 8. End-to-end coverage
 
@@ -156,7 +156,7 @@ building on them — a wrong answer here changes what gets built, not just how.
       line lands at the node above's content end" and `66`'s two D8 gap-click cases. Verified
       identical on the base branch by checking it out and running those two specs there, so they
       are neither caused nor touched by this change. Every other spec passes.
-- [x] 9.4 Mark the graduated entries in `docs/research/12-decoration-follow-ups.md` as done by this
+- [x] 9.4 Mark the graduated entries in `docs/research/decoration-follow-ups.md` as done by this
       change, and move anything the experiment surfaced but this change is not doing into that same
       parking lot.
 - [x] 9.5 Add the `**Covered by**` lines to both spec files, naming the real test names, following

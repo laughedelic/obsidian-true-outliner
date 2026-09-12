@@ -16,7 +16,7 @@ quote/callout blocks should all read as nodes in one tree, with indentation that
 tree depth (not raw markdown encoding) and a marker prominent enough to make the
 structure legible at a glance — motivated by a dev-vault finding that flat, paragraph-
 heavy documents gave no visual signal that outline mode was even active. See
-[04-open-questions.md](04-open-questions.md)'s "Visual layer is now the testability
+[open-questions.md](open-questions.md)'s "Visual layer is now the testability
 bottleneck" note and the archived `outline-decorations` OpenSpec change for the original
 ask.
 
@@ -104,7 +104,7 @@ owning the scheme, not by trying to reverse-engineer Obsidian's per-theme list m
 
 ### The `!important` warning already on file
 
-`docs/research/02-obsidian-plugin-landscape.md` documents a case study
+`docs/research/obsidian-plugin-landscape.md` documents a case study
 (`workflowy-style-outline`) whose from-scratch UI shipped **~890 uses of `!important`**
 fighting Obsidian's own CSS, flagged as the majority of its community-scorecard lint
 violations. This was already in the project's own research before this session started
@@ -297,7 +297,7 @@ These hold regardless of what mechanism the next attempt uses:
   padding/pseudo-element tricks — this session never actually implemented that approach
   despite researching it, and went with a CSS-only strategy throughout attempt 3, which
   is arguably the root cause of most of the fragility described above.
-- This project's own prior research (`02-obsidian-plugin-landscape.md`) already flagged
+- This project's own prior research (`obsidian-plugin-landscape.md`) already flagged
   the risk of a CSS-override-heavy strategy (the workflowy-style-outline case study,
   ~890 `!important` uses) before this change was ever proposed. That warning was
   available and was not weighed heavily enough before committing to the CSS-override

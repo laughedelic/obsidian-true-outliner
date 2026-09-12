@@ -27,7 +27,7 @@
 - [x] 1.3 Measure the SUBJECT-landing question design.md leaves open: move a table with
       Alt+ArrowUp in a real vault (or e2e) and record whether the caret enters the table,
       whether the nested cell editor mounts, and whether a second Alt+ArrowUp still works.
-      Record the finding in `docs/research/13`; do not act on it in this change.
+      Record the finding in `docs/research/selection-follow-ups`; do not act on it in this change.
 
       **The prediction was wrong, and the answer relocates the question.** The plugin's
       two entry points disagree: Alt+ArrowUp on a table is rejected with our own "Nothing
@@ -40,7 +40,7 @@
       `isNestedEditor` check; `editorInfoField` resolves to the same outer note inside a
       cell, so `planKey` runs against the CELL's document. Confirmed:
       `activeElement.closest('.cm-embed-block')` is non-null and the focused text is `"a"`,
-      one cell. Written up in `docs/research/13` and spawned as its own task; NOT fixed here.
+      one cell. Written up in `docs/research/selection-follow-ups` and spawned as its own task; NOT fixed here.
 
       D5's subject-landing question is therefore REACHABLE after all — through the command
       path, which moves a table and routes it to the policy as a `subject` placement. The
@@ -186,10 +186,10 @@
 
 ## 9. Documentation and close-out
 
-- [x] 9.1 Update `docs/research/13`: close the two parked entries this change subsumes (the
+- [x] 9.1 Update `docs/research/selection-follow-ups`: close the two parked entries this change subsumes (the
       next/previous alternation, and deleting after a table stranding undo) with what
       shipped, and file whatever task 1.3 measured.
-- [x] 9.2 Update `docs/research/04` Q29's follow-on with the per-dispatch recording rule and
+- [x] 9.2 Update `docs/research/open-questions` Q29's follow-on with the per-dispatch recording rule and
       what it closed, so the next reader finds the current mechanism rather than the
       superseded one.
 - [x] 9.3 Update the module comments that carry the old rule: `history-caret.ts`'s scope

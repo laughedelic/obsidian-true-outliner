@@ -10,10 +10,10 @@ column of ours to draw it on.
 The experiment series left it that way deliberately, and two later probes concluded that
 native list columns could only be FOLLOWED, by per-item pixel measurement — a second rendering
 mechanism alongside the measurement-free gradient the whole layer rests on
-([docs/research/14](../../../docs/research/14-experiment-position-indicators.md), finding 3).
+([docs/research/experiment-position-indicators](../../../../docs/research/experiment-position-indicators.md), finding 3).
 That conclusion was right about the mechanism it examined and wrong about the problem.
 Obsidian computes list columns from public CSS variables, so they can be SET rather than
-followed. [docs/research/16](../../../docs/research/16-native-list-decoration.md) measures the
+followed. [docs/research/native-list-decoration](../../../../docs/research/native-list-decoration.md) measures the
 whole surface against a running Obsidian 1.13.4 and confirms it: one variable puts every tab-
 or four-space-indented list level on our own unit, with Obsidian's own hanging indent
 re-deriving itself, and a second puts its guides on our columns. No measurement, no second

@@ -17,10 +17,10 @@
  * (`clampCursorToContent`, design.md D13, node-edit-enforcement's second
  * manual pass, 2026-07-21); content-space-caret retired it in favor of the
  * general addressable-position rule, which subsumes the marker case and
- * extends it to gap lines (docs/research/13, "Gap-line cursor
+ * extends it to gap lines (docs/research/selection-follow-ups, "Gap-line cursor
  * transparency").
  *
- * `coveredSubtreeRoots` (escalated-selection-decoration, docs/research/13)
+ * `coveredSubtreeRoots` (escalated-selection-decoration, docs/research/selection-follow-ups)
  * is the read-only counterpart: given a range that's already in place,
  * which subtree(s), if any, does it exactly cover? Built from the same
  * `forestCoverOf`/`subtreeCoverOf` geometry `escalateRange` uses to
@@ -35,7 +35,7 @@
  * Shift+ArrowDown out of a subtree select the entire document.
  *
  * A subtree's cover (`subtreeCoverEnd`) includes its own trailing gap
- * in full (escalate-include-owned-gap, docs/research/13's "Escalation math
+ * in full (escalate-include-owned-gap, docs/research/selection-follow-ups's "Escalation math
  * re-examination candidate"): gap ownership is already all-or-nothing in
  * the parse model, so once a node is escalated into a selection — via the
  * gap-line trigger or by a boundary crossing reaching its content — its
@@ -176,7 +176,7 @@ export interface ForestCover {
  * `coveredSubtreeRoots` (to test an existing range against it), and through
  * the latter `classify.ts` and `enforce.ts` all read. One implementation,
  * every consumer, per that change's D4 and the two silently-stale-duplicate
- * incidents in docs/research/04 (Q18, Q19).
+ * incidents in docs/research/open-questions (Q18, Q19).
  *
  * When one node is an ancestor of the other, the cover is the ANCESTOR's
  * whole subtree — selecting a parent takes its children, unchanged from the
@@ -369,7 +369,7 @@ export function escalateRanges(doc: OutlineDoc, ranges: readonly LineRange[]): L
 }
 
 /**
- * The escalated-selection-decoration query (docs/research/13, "Escalated-
+ * The escalated-selection-decoration query (docs/research/selection-follow-ups, "Escalated-
  * selection visual treatment"): does `range`'s current bounds cover a
  * single node's whole subtree, or the combined cover of a FOREST of whole
  * subtrees at possibly different depths? Returns the covered subtree roots

@@ -18,7 +18,7 @@ moving past a table came to split the table.
 
 Architecture and rationale: the `minimal-changesets-for-structural-ops` and
 `aligned-change-set-narrowing` changes' design.md; evidence and findings:
-`docs/research/04-open-questions.md` Q21 and Q29.
+`docs/research/open-questions.md` Q21 and Q29.
 
 ## Requirements
 ### Requirement: Structural operations dispatch minimal character-level change sets

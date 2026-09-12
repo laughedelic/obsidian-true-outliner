@@ -11,8 +11,8 @@ internals never change editing semantics), and the undo/byte-fidelity contract f
 every rewrite and veto. Architecture and rationale: the outline-edit-enforcement
 change's design.md (D9–D16 for the chrome-transparency, merge, cursor-placement, and
 paste-re-indentation amendments from five real-vault manual passes); deferred
-threads: docs/research/04 (Q17 outdent-in-place and heading-Enter-split, Q20 the
-redo-cursor investigation), docs/research/12–13 (gap-line visual/cursor UX).
+threads: docs/research/open-questions (Q17 outdent-in-place and heading-Enter-split, Q20 the
+redo-cursor investigation), docs/research/decoration-follow-ups–13 (gap-line visual/cursor UX).
 
 ## Requirements
 
@@ -133,7 +133,7 @@ the gap itself, stays native — is REMOVED as an in-mode escape hatch. Delibera
 whitespace authoring remains fully available by toggling outline mode off for the note,
 which is already how this plugin offers raw character-level editing. This was the
 resolution anticipated when the gap escape hatch was first written
-(`docs/research/13`, "Gap-line cursor transparency": *the escape hatch stays the mode
+(`docs/research/selection-follow-ups`, "Gap-line cursor transparency": *the escape hatch stays the mode
 toggle, not an in-outline-mode exception*).
 
 The caret CAN rest on a gap line, in two ways, and an earlier version of this requirement

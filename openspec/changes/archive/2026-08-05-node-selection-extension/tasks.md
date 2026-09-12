@@ -166,7 +166,7 @@
       Both defects were visual (a stray highlight layer, a one-frame class drop), neither
       changing which nodes a press selects. E7's frames were already corrected during
       implementation, when the unit tests showed the swallow is the SECOND press
-- [x] 6.2 Updated `docs/research/13`'s "Modal block-level keyboard selection" entry, split into
+- [x] 6.2 Updated `docs/research/selection-follow-ups`'s "Modal block-level keyboard selection" entry, split into
       shipped / still-open / knowingly-irreversible. ALSO corrected that file's flash entry: its
       "confirmed root cause" (a two-transaction escalation split) does not exist — CM6's
       `filterTransaction` merges an array result into one `Transaction.create`. That wrong
@@ -214,7 +214,7 @@ both are defects this change introduced.
 - [x] 7.5 The entering-block-mode flicker is PARTIALLY fixed and the remainder is filed, not
       chased. Two causes found and fixed with measurements (the clobbered class, the blur landing
       after a paint); a third remains and the reporter still sees it. Recorded in
-      `docs/research/13` with what has been ruled out, the leading untested hypothesis (Obsidian's
+      `docs/research/selection-follow-ups` with what has been ruled out, the leading untested hypothesis (Obsidian's
       own Live Preview re-render landing a frame after the blur, which the focus policy cannot
       reach), and the instrument that would distinguish them. The `requestAnimationFrame` change
       is KEPT — the frame it removes is a real defect independent of the symptom. Its one

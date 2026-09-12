@@ -118,7 +118,7 @@ describe('keyboard grammar', function () {
     // CAVEAT — this remains a symptom-documenting test, NOT the regression net.
     // The load-bearing guard for this shared gate is the Mod-A test in
     // 64-progressive-select-all.e2e.ts, whose negative control fails on the
-    // 1.13 base (docs/research/04 Q28: a test that cannot fail is worse than
+    // 1.13 base (docs/research/open-questions Q28: a test that cannot fail is worse than
     // no test).
     expect(await h.recordedNoticeTexts()).not.toContain(
       REJECTION_MESSAGES['no-previous-sibling'],

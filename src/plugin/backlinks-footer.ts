@@ -2,7 +2,7 @@
  * The backlinks footer: every reference to the open note, in the tree of the
  * note it came from, below the note's own content.
  *
- * ## Mechanism (spikes S1 and S2, docs/research/19)
+ * ## Mechanism (spikes S1 and S2, docs/research/backlinks-footer-spikes)
  *
  * A `StateField`, not a `ViewPlugin`. CodeMirror refuses block decorations from
  * a plugin outright — they change document height, and the view needs them
@@ -473,7 +473,7 @@ class FooterController {
       // Capped by HEIGHT rather than by row count: what makes a group hard to
       // skim is how much of the screen it takes, and ten short rows take less
       // than three long ones. The threshold is a custom property so a setting
-      // can drive it without this code knowing (docs/research/18, D10).
+      // can drive it without this code knowing (docs/research/structured-backlinks, D10).
       body.toggleClass('is-capped', !state.expandedGroups.has(group.path));
       body.createDiv({ cls: 'to-backlinks-resolving', text: 'resolving…' });
       bodies.push({ path: group.path, body, card });
@@ -493,7 +493,7 @@ class FooterController {
    * notes would have been, and as a sentence.
    *
    * A count alone is too quiet for a section a reader scrolls past
-   * (docs/research/18, D10) — so the last card fades as well, and a list that
+   * (docs/research/structured-backlinks, D10) — so the last card fades as well, and a list that
    * is complete gets none of the three.
    */
   private renderTail(root: HTMLElement, result: ControlsResult, effectiveCap: number): void {
@@ -695,7 +695,7 @@ class FooterController {
 
     if (omitted) {
       // A rung in the tree's own vocabulary, at the depth the hidden rows would
-      // have occupied, saying how many there are (docs/research/18, D10).
+      // have occupied, saying how many there are (docs/research/structured-backlinks, D10).
       toggle.addClass('to-backlinks-rung');
       applyLineChrome(toggle, lineChrome(rowFact('paragraph', omitted.depth), {
         nativeBlocks: false,
@@ -802,7 +802,7 @@ class FooterController {
    *
    * A note with no references gets the same one line, with `0 references`
    * beside it — the dormant state is not a different thing to look at, it is
-   * this thing with nothing in it (docs/research/18, D9). One shape means one
+   * this thing with nothing in it (docs/research/structured-backlinks, D9). One shape means one
    * place for the eye to land whether or not the note is referenced.
    */
   private renderHeader(
@@ -1325,7 +1325,7 @@ class FooterController {
    * rules. Nothing here computes an offset. The footer's earlier version had a
    * flex gutter of its own and set `margin-inline-start` by hand, which is how
    * its bullets ended up off the editor's column and its guides absent
-   * altogether (docs/research/19, S4).
+   * altogether (docs/research/backlinks-footer-spikes, S4).
    *
    * `nativeBlocks: false` because no row here has a block of its own: the
    * rendered `<li>` is unwrapped and no atom keeps its box (D18), so every kind
@@ -2039,7 +2039,7 @@ function compute(state: EditorState, source: FooterSource): DecorationSet {
     // zoom scope is active: zoom's trailing hidden range ends AT `doc.length`,
     // and a block replacement swallows a widget anchored there, so the footer
     // would silently vanish on zoom. Re-anchoring is the only available fix —
-    // measured in docs/research/23, which also rules out shortening that range.
+    // measured in docs/research/zoom-hiding-mechanism, which also rules out shortening that range.
     }).range(contentEndAnchor(state)),
   ]);
 }
@@ -2166,7 +2166,7 @@ const SORT_LABELS: Record<SortOrder, string> = {
   references: 'Most references',
 };
 
-/** Kind names as a reader would say them (docs/research/18, D14). */
+/** Kind names as a reader would say them (docs/research/structured-backlinks, D14). */
 const KIND_LABELS: Record<ReferenceKind, string> = {
   note: 'Note',
   anchor: 'Anchor',

@@ -60,7 +60,7 @@
       unlike the blur-based decoration work, so automated real-app e2e substitutes for a
       separate hands-on pass.
 - [x] 4.2 Verify list-item content rung excludes the marker, and that this is usable as
-      the single-node keyboard selection path for tight lists (docs/research/13's
+      the single-node keyboard selection path for tight lists (docs/research/selection-follow-ups's
       motivating case — no gap-line drag trigger available there). Covered by
       `e2e/specs/64-progressive-select-all.e2e.ts`.
 - [x] 4.3 Verify statelessness: press once, click elsewhere or edit the document, return

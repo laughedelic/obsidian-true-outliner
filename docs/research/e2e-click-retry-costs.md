@@ -62,6 +62,6 @@ It is not a race, and no bounded wait inside one test closes it. `clickClear` co
 drawer before clicking on mobile runs. Nothing in the suite asserts the drawer's state.
 
 The open state is intermittent in the wild but does not have to be waited for:
-`leftSplit.expand()` opens it on demand under emulation, as `24-outline-mode-surfaces.md`
+`leftSplit.expand()` opens it on demand under emulation, as `outline-mode-surfaces.md`
 measured. `00-smoke` forces it and asserts the click lands anyway, so removing the collapse
 fails a test every run.

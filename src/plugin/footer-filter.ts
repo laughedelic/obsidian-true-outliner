@@ -15,7 +15,8 @@
 import type { BacklinkReference, ReferenceKind } from './backlink-index';
 import { splitPath } from './footer-model';
 
-/** The order groups appear in. `recent` is the default (docs/research/18, D15). */
+/** The order groups appear in. `recent` is the default
+ * (docs/research/structured-backlinks, D15). */
 export type SortOrder = 'recent' | 'oldest' | 'name' | 'references';
 
 /** Kinds in the order D14 lists them, which is the order the chips sit in. */

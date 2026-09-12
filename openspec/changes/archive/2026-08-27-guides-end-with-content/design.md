@@ -30,7 +30,7 @@ guides a provisional position's row renders with, today straight from the raw pa
 **Non-Goals:**
 
 - Changing where a guide STARTS, or which depths any line carries.
-- Collapsing or hiding gap lines (docs/research/12's "Collapsing gap lines" — a separate,
+- Collapsing or hiding gap lines (docs/research/decoration-follow-ups's "Collapsing gap lines" — a separate,
   larger question about the lines themselves rather than about what renders on them).
 - Making the base guide layer caret-derived in general. The provisional position is the single,
   already-specified exception, and it extends an extent rather than adding a depth.
@@ -163,7 +163,7 @@ actually happened, not a fork in the plan.
 - **Several guides now stop on one row, which may read as an abrupt shelf in a real vault** →
   this is the rule's own consequence, not an artifact, so the fixtures
   cannot judge it; the real-vault pass is the gate, as it has been for every defect this layer
-  has had. If it reads badly the finding goes to docs/research/12 rather than into a hedge here.
+  has had. If it reads badly the finding goes to docs/research/decoration-follow-ups rather than into a hedge here.
 - **The guide grows and shrinks as the caret crosses a trailing gap** → bounded to the rows
   between the position and the last content line above it, and it is the same
   "renders as the node it would become" behaviour the position layer already gives indentation

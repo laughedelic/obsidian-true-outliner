@@ -7,7 +7,7 @@ child on the re-parse. The operation reports success, consumes an undo step, and
 one level deeper than the tree it built.
 
 The arrangement is not merely unencoded — it is unrepresentable, and known to be. The
-mapping-core verdict in `docs/research/04-open-questions.md` records "list item as the sibling
+mapping-core verdict in `docs/research/open-questions.md` records "list item as the sibling
 directly after a paragraph" as unrepresentable, "the rule working as designed". Reordering is
 the one relocation that never asked.
 
@@ -86,8 +86,8 @@ None.
   first paragraph child separates them", and belongs with the operation that owns most of it.
   Measured incidentally: every one of the reorders' 35 coincides with a case this change now
   rejects, so the reorder paths stop producing them either way.
-- `docs/research/17-list-paragraph-mapping.md` records the exploration this change deliberately
+- `docs/research/list-paragraph-mapping.md` records the exploration this change deliberately
   does not settle — whether a list following a paragraph should be its child at all — with the
   four candidate readings, the measurements, and the external research. `Q34` in
-  `04-open-questions.md` registers it as open. Under two of the four readings this change's
+  `open-questions.md` registers it as open. Under two of the four readings this change's
   rejection becomes unreachable code and is deleted.

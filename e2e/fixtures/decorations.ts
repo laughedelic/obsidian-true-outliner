@@ -1,6 +1,6 @@
 /**
  * Shared fixture corpus for outline-decorations experiments — see
- * docs/research/07-decoration-experiments-plan.md. Every experiment screenshots ALL of
+ * docs/research/decoration-experiments-plan.md. Every experiment screenshots ALL of
  * these on every change, not just the fixture for whatever it's currently fixing (the
  * postmortem's #2 false-confidence finding: fixes were checked only against the
  * scenario they targeted, not a growing regression corpus).

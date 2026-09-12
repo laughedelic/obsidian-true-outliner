@@ -97,7 +97,7 @@ export interface CaretPlan {
  * Node kinds whose interior the host renders as a widget carrying its OWN
  * editor instance and its own undo history.
  *
- * Measured across all six atom kinds on Obsidian 1.12.7 (docs/research/13,
+ * Measured across all six atom kinds on Obsidian 1.12.7 (docs/research/selection-follow-ups,
  * 2026-07-29): only a table mounts a nested `EditorView` or takes focus —
  * `code`, `callout`, `quote`, `html` and `hr` mount no `.cm-embed-block` at
  * all. `nested-editor.ts`'s "the only case found so far" holds under a
@@ -232,7 +232,7 @@ function deletionCaret(facts: PlacementFacts, removed: readonly number[]): LineP
   // last line when the preamble has no trailing blank, and the column was a
   // flat 0, which put the caret at the START of the closing delimiter where
   // typing would corrupt it. Found by review after an earlier fix clamped the
-  // line but left the column (docs/research/13); the generator could not catch
+  // line but left the column (docs/research/selection-follow-ups); the generator could not catch
   // it because it only ever produced frontmatter WITH a trailing blank.
   const pre = facts.after.preamble;
   if (pre.length === 0) return { line: 0, ch: 0 };

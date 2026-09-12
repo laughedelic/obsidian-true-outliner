@@ -59,8 +59,8 @@
       `npm run test:e2e:narrow -- 51-guides-gradient "caret parked past the end of a section"`.
 - [x] 3.3 Manual pass in `test-vault/`: the report's steps with and without a zoom. The guide no
       longer crosses the position's marker, and typing a character changes nothing on that row.
-      Fold anything the fixtures could not judge into `docs/research/32` or
-      `docs/research/12-decoration-follow-ups.md`.
+      Fold anything the fixtures could not judge into `docs/research/provisional-position-guides` or
+      `docs/research/decoration-follow-ups.md`.
 
 ## 4. Land
 

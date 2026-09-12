@@ -46,7 +46,7 @@ describe('footer model', () => {
     // The note's opening PARAGRAPH is part of the lineage, because in this tree
     // model a paragraph owns the list that follows it. Structurally right, and
     // a real consequence for the footer: a lineage can begin with prose rather
-    // than with a heading or a bullet. See docs/research/17 (Q34), which asks
+    // than with a heading or a bullet. See docs/research/list-paragraph-mapping (Q34), which asks
     // whether the attachment rule should hold at all.
     expect(render(rowsFor('Backlinks/Deep chain.md'))).toEqual([
       '~ Planning notes for the week. One thread runs deep on purpose. > work > Aurora dashboard — severity-first rollout > prototype review, second pass with Maya and Priya > open questions before Wednesday',
@@ -525,7 +525,7 @@ describe('what the model reports whatever the renderer draws', () => {
         expect(typeof segment.markdown).toBe('string');
         // 3.4: a segment says how it is to be rendered, not only what it says.
         // Without that pair the renderer has no choice but `appendText`, which
-        // is what showed markdown source in a chain (docs/research/27).
+        // is what showed markdown source in a chain (docs/research/lineage-text-rendering).
         expect(['markdown', 'text', 'code']).toContain(segment.render);
         expect(typeof segment.nodeId).toBe('number');
         expect(segment.kind).toBeTruthy();

@@ -14,7 +14,7 @@ matrix twice, which reads like timing.
 It is not timing. Reproducing the failure locally and probing the workspace at the refused
 click found the phone UI's left drawer simply OPEN — `leftSplit.collapsed` false, 327 of the
 390 available pixels covered, unchanged across two attempts ~15 s apart
-(`docs/research/29-e2e-click-retry-costs.md`). It closes on its own later in the session,
+(`docs/research/e2e-click-retry-costs.md`). It closes on its own later in the session,
 which is why a re-run goes green. No wait inside one test closes it, so the click has to be
 made against a workspace with the editor actually on screen.
 
@@ -56,5 +56,5 @@ so the change declares `skip_specs: true`.
 - `e2e/helpers.ts` — `clickClear` and the drawer collapse beside it.
 - `e2e/specs/00-smoke.e2e.ts` — one added test, in the harness's own spec rather than in a
   feature group, because what it verifies is the harness.
-- `docs/research/29-e2e-click-retry-costs.md` — new, holding the figures and the probe.
+- `docs/research/e2e-click-retry-costs.md` — new, holding the figures and the probe.
 - No `src/` change and no plugin behaviour change.

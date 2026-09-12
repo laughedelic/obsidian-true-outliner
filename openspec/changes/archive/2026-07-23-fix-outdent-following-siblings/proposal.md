@@ -8,7 +8,7 @@ matching Logseq's outdent-in-place semantics. This is a pre-existing gap in the 
 operation (`document-tree-mapping`/Q2's original algebra) — no test ever covered "outdenting a
 node with following siblings under the same parent" — that was only noticed via a
 merge→split→outdent interaction surfaced during `outline-edit-enforcement`'s third manual pass
-(docs/research/04-open-questions.md Q17). It affects every outdent of a non-last child, so it
+(docs/research/open-questions.md Q17). It affects every outdent of a non-last child, so it
 is worth fixing at the root rather than leaving it as a known gap.
 
 ## What Changes
@@ -47,7 +47,7 @@ is worth fixing at the root rather than leaving it as a known gap.
   `childBaseCol` are reused for the re-parented following siblings.
 - Tests: `ops.test.ts` / `closure.test.ts` (no existing coverage for this case — new unit tests
   required), plus outline-edit-enforcement's e2e suite where the merge→split→outdent
-  interaction was originally observed (docs/research/04-open-questions.md Q17) should be
+  interaction was originally observed (docs/research/open-questions.md Q17) should be
   re-verified once the fix lands.
 - No UI/keymap changes — same `outdent` entry point, same rejection codes; only the accepted
   non-heading, has-following-siblings case changes shape.

@@ -2,8 +2,9 @@
  * Clicking a guide folds the branch it belongs to.
  *
  * A guide has no element of its own — it is a gradient on one pseudo-element
- * per line (docs/research/09) — so the gesture is arithmetic against the line's
- * own geometry, and these tests press REAL COORDINATES rather than dispatching
+ * per line (docs/research/experiment-2-guide-lines) — so the gesture is
+ * arithmetic against the line's own geometry, and these tests press REAL
+ * COORDINATES rather than dispatching
  * at an element. A synthesised event on a node would pass whatever the
  * hit-testing does, which is the whole thing under test.
  */

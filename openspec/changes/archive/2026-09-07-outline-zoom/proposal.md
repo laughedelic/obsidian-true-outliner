@@ -1,7 +1,7 @@
 ## Why
 
 Zoom (hoisting) is one of the eight defining behaviors of a true outliner
-(docs/research/01, §6) and the one the reference apps are judged on most directly — Workflowy is
+(docs/research/outliner-landscape, §6) and the one the reference apps are judged on most directly — Workflowy is
 nothing but a zoom into an infinite outline. The core this project has built — universal block
 tree, enforced node boundaries, node-aware selection — is exactly the substrate zoom needs, and
 none of it exists in the plugins that already ship zoom for Obsidian. Q4 of the decision log
@@ -148,7 +148,7 @@ confinement requirement — not to restate it once per capability.
   rather than a race. This change still must NOT assume the filter model exists, and deliberately
   leaves the footer answering for the note while zoomed.
 - **The shared touch point is settled, on both sides.** Task 1 measured that the footer fix can
-  only be a re-anchoring, never a shortened hidden range (docs/research/23), and #71 now carries
+  only be a re-anchoring, never a shortened hidden range (docs/research/zoom-hiding-mechanism), and #71 now carries
   that in its own sequencing rather than the open question it started with. The two changes agree
   on what `backlinks-footer.ts` gets: a zoom-conditional mount position, which is a rebase for
   whichever lands second and not a design conflict.
@@ -161,9 +161,9 @@ confinement requirement — not to restate it once per capability.
 - **Task 1 was a mechanism spike and a real gate, and it has returned its verdict.** Block-level
   replace decorations under Live Preview, over widget-rendered atoms, alongside three existing
   decoration sources and the footer, is exactly the shape of bet the `outline-decorations`
-  postmortem was written about (docs/research/06). The verdict is PROCEED, with two of this
+  postmortem was written about (docs/research/outline-decorations-postmortem). The verdict is PROCEED, with two of this
   change's own claims struck by measurement — D2's "confinement comes mostly for free" and D12's
-  first candidate fix. Both are recorded in `docs/research/23-zoom-hiding-mechanism.md` and folded
+  first candidate fix. Both are recorded in `docs/research/zoom-hiding-mechanism.md` and folded
   back into the decisions they belong to.
 
 ## Follow-ups this change records rather than builds
@@ -171,7 +171,7 @@ confinement requirement — not to restate it once per capability.
 Each is written where the work would be picked up, not only here.
 
 - **Re-basing a list-item root's within-list indentation** —
-  `docs/research/12-decoration-follow-ups.md`, with the mechanism and the offset the outline grid
+  `docs/research/decoration-follow-ups.md`, with the mechanism and the offset the outline grid
   made computable.
 - **Click-to-zoom on a GUIDE** — still filed in the same parking lot, and still gated on the fact
   that a guide is a pseudo-element with no hit area. Clicking a MARKER is in this change (see the
@@ -186,7 +186,7 @@ Each is written where the work would be picked up, not only here.
 - **Persistence.** Zoom does not survive a file switch, a pane close, or a restart. Q11 of the
   decision log already places view-state restoration in a later layer, and a path-keyed store
   (the shape `outlinePaths` uses) cannot represent two panes zoomed differently on the same file.
-- **Click-to-zoom on a GUIDE.** Still filed in docs/research/12, and still gated on the half of
+- **Click-to-zoom on a GUIDE.** Still filed in docs/research/decoration-follow-ups, and still gated on the half of
   that entry this change cannot dissolve: a guide is a pseudo-element with no hit area at all, so
   a click target has to be invented before the gesture can exist. Clicking a MARKER was filed
   alongside it and is now IN this change — the caveats it was gated on turned out to be one real

@@ -139,7 +139,7 @@ export function renderLineageContent(
     // that a segment and a node row of the same kind say the same thing. What is
     // left is INLINE content, and it reaches the DOM through the same renderer a
     // node row uses — `appendText` here is what put `**bold**` in a crumb with
-    // its asterisks (docs/research/27).
+    // its asterisks (docs/research/lineage-text-rendering).
     //
     // Into its OWN span, empty at the point the renderer gets it. The renderer
     // unwraps the document `MarkdownRenderer` answers with — a `<p>` around one

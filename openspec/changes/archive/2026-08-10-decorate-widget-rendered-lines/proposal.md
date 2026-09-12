@@ -5,7 +5,7 @@ A `![[Another note]]` line is never part of the outline. Obsidian renders it as 
 misses it entirely: it sits flush left with no indentation, no marker, no guides, and no
 selection chrome, while every sibling around it is decorated normally. Found in the
 2026-07-20 personal-vault pass; parked in
-[docs/research/12-decoration-follow-ups.md](../../../docs/research/12-decoration-follow-ups.md).
+[docs/research/decoration-follow-ups.md](../../../../docs/research/decoration-follow-ups.md).
 
 The measurement pass (tasks.md — Findings) corrected that entry's diagnosis on two points.
 The entry assumed the DOM-patch loop's broad `WIDGET_ATOM_SELECTOR` matched the embed and
@@ -94,7 +94,7 @@ introducing a new capability.
 - `e2e/fixtures` and `e2e/specs/50-decorations.e2e.ts`, `51-guides-gradient.e2e.ts`,
   `52-block-markers-icons.e2e.ts`, `63-selection-visual-treatment.e2e.ts` — a new embed
   fixture and coverage for the widget/cursor-on states.
-- `docs/research/12-decoration-follow-ups.md` — the "Wiki-embed blocks bypass decoration
+- `docs/research/decoration-follow-ups.md` — the "Wiki-embed blocks bypass decoration
   entirely" entry graduates out of the parking lot.
 - No change to `src/parse.ts`, `src/model.ts`, `src/encode.ts`, or any structural-operation
   or enforcement module.

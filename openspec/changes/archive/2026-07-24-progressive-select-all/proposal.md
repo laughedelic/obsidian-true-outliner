@@ -7,7 +7,7 @@ whole subtree, its parent's subtree, and so on up to the root. `node-selection-e
 already computes exactly this geometry (subtree covers) to escalate drag/keyboard
 selections that cross node boundaries, but Mod-A itself is never routed through it —
 pressing it still hands the browser/CM6's native "select everything" behavior with no
-node-aware stops. `docs/research/13-selection-follow-ups.md`'s Track 2 records the
+node-aware stops. `docs/research/selection-follow-ups.md`'s Track 2 records the
 design already agreed after the second manual pass of that change (2026-07-20): a
 stateless, repeated-Mod-A ladder that climbs node → subtree → ancestor subtrees →
 whole document, reusing the existing escalation geometry rather than inventing new math.

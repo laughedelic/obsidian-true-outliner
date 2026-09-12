@@ -1,7 +1,7 @@
 ## Context
 
 See proposal.md — Why. What decides this design is one measurement:
-[docs/research/28-fold-mechanics.md](../../../docs/research/28-fold-mechanics.md). Obsidian's fold
+[docs/research/fold-mechanics.md](../../../../docs/research/fold-mechanics.md). Obsidian's fold
 is CodeMirror's fold, behind a `foldService` facet that already holds three providers and takes a
 fourth; a provider that answers from our tree makes any node foldable, makes Obsidian's own
 `editor:toggle-fold` work on it, and makes the fold persist and restore per file. The chevron is
@@ -23,11 +23,11 @@ covers. A fold range is that cover expressed as offsets, so no new geometry is i
 transforms it onto our marker column per line (`--to-chevron-dy`, `--to-chevron-dead-right`), and
 draws our own marker icons there. A second affordance in that column is a fourth tenant of a 14px
 gutter whose budget is already the subject of a parking-lot entry
-([12](../../../docs/research/12-decoration-follow-ups.md), "The affordance budget").
+([12](../../../../docs/research/decoration-follow-ups.md), "The affordance budget").
 
 **Guides are one gradient, not elements.** Each line's `--to-guides` paints every ancestor level
 at `depth × unit` on a single `::after`
-([09](../../../docs/research/09-experiment-2-guide-lines.md)). There is no per-guide element to
+([09](../../../../docs/research/experiment-2-guide-lines.md)). There is no per-guide element to
 click and there will not be one.
 
 **Marker clicks are already claimed.** `zoom-click.ts` owns a capture-phase `pointerdown` above
@@ -71,7 +71,7 @@ that a node folds because it is a node.
 call left the indicators in place in one sequence and removed them in another, and in a third left
 the editor unable to apply a fold at all — so nothing measured through it can be trusted in either
 direction. No code here reads those settings; whether Obsidian's fold layer is present without
-them is recorded as open in docs/research/28. Everything else in this design rests on the default
+them is recorded as open in docs/research/fold-mechanics. Everything else in this design rests on the default
 configuration, which is measured throughout.
 
 ### D2. The trailing gap stays visible
@@ -217,18 +217,18 @@ is internal; there is no supported way to extend it.
 
 The mark's job is to say what kind of node this is; folding is a second fact about the same node,
 and the marker gutter's width is derived from the marks it must hold
-([21](../../../docs/research/21-marker-text-gap.md)), so a folded variant that grows the box would
+([21](../../../../docs/research/marker-text-gap.md)), so a folded variant that grows the box would
 move every line. That rules out anything drawn around the glyph before taste enters.
 
 Seven candidates were drawn against every foldable mark at real geometry in
-[`28-fold-marker-mockup.html`](../../../docs/research/28-fold-marker-mockup.html) and reviewed
+[`fold-marker-mockup.html`](../../../../docs/research/fold-marker-mockup.html) and reviewed
 rendered. **Chosen: the glyph at full text contrast plus the hidden-descendant count.** Contrast,
 not weight: the mockup drew "solid" as a heavier stroke, and the manual pass caught that a
 heading's glyph is filled rectangles no stroke reaches — so the stroke change told a paragraph
 from a heading, not a folded node from an open one.
 
 *Why not the others.* The halo (Logseq's answer,
-[12](../../../docs/research/12-decoration-follow-ups.md)) is too heavy at 14px and crops the
+[12](../../../../docs/research/decoration-follow-ups.md)) is too heavy at 14px and crops the
 corners of a wide glyph — the "H", an ordered "12."; the shaped halo fixes the cropping only by
 becoming a different shape per kind, so one state reads as several, and behind a task's checkbox
 it is nearly the checkbox again. Outline and dashed outline sit 3px off a 14px glyph in a gutter
@@ -250,7 +250,7 @@ which is not an ornament but a control: clicking the `…` unfolds. Two adjacent
 for one idea, and the louder of the two was the half a reader could not click.
 
 Seven ways to spend less on it were drawn at real geometry in
-[`28-fold-count-mockup.html`](../../../docs/research/28-fold-count-mockup.html).
+[`fold-count-mockup.html`](../../../../docs/research/fold-count-mockup.html).
 **Chosen: the count moves INTO the placeholder** — one control after the node's text, carrying the
 ellipsis, the number and the click, with the native placeholder hidden wherever ours is drawn.
 

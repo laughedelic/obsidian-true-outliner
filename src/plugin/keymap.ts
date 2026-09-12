@@ -311,7 +311,7 @@ function notAnOutlineGesture(
  * So this is left as it is rather than wired to a gate that cannot open.
  * Closing it means giving a provisional position provenance that survives undo
  * and redo, which is a change of its own; recorded with its measurements in
- * docs/research/12-decoration-follow-ups.md.
+ * docs/research/decoration-follow-ups.md.
  */
 
 /**
@@ -499,7 +499,7 @@ function outlinePathOf(view: EditorView): string | undefined {
  * Obsidian core can move the caret again right after ours lands — measured
  * on a checkbox list item, where its widget mount issues a separate,
  * unannotated selection-only dispatch back to column 0, onto the marker
- * (docs/research/04 Q25). That correction belongs to the transaction
+ * (docs/research/open-questions Q25). That correction belongs to the transaction
  * filter, which sees every selection change regardless of origin, not to a
  * re-assert timer here: an earlier version of this helper re-dispatched on
  * a later frame, which is inherently a race — widened to cover more cases
@@ -569,7 +569,7 @@ function soleCursor(view: EditorView): SelectionRange | undefined {
  * handler was never invoked because something else claimed the key" are
  * indistinguishable from the outside — both just look like wrong caret
  * behavior. Guessing between them cost several rounds of rewriting logic that
- * was never running (docs/research/04 Q27), so the distinction is now
+ * was never running (docs/research/open-questions Q27), so the distinction is now
  * observable from inside the app rather than inferred. `invoked` counts what
  * CM6 routed here; `consumed` counts what we returned true for. A key that
  * never appears at all was never routed to this keymap.
@@ -622,7 +622,7 @@ function makeHorizontalHandler(direction: "left" | "right") {
     // CONTENT space is a question about the parsed tree, not about glyph order,
     // and CM6 cannot answer it.
     //
-    // KNOWN LIMITATION, filed in docs/research/13: the planner decides whether a
+    // KNOWN LIMITATION, filed in docs/research/selection-follow-ups: the planner decides whether a
     // press crosses using LOGICAL position, so in an RTL run the crossing fires
     // at the logical line start/end rather than the visual one. Within-line
     // motion — the common case — is now native and correct; making crossings
@@ -780,7 +780,7 @@ function makeVerticalHandler(forward: boolean) {
     // (design.md D3) -- CM6's own accurate, wrap-aware primitive, called
     // exactly once. It moves exactly one VISUAL row, whether that's still
     // within a soft-wrapped logical line (an earlier raw-line-number-based
-    // rewrite broke this -- see docs/research/04 Q24 -- always jumping a
+    // rewrite broke this -- see docs/research/open-questions Q24 -- always jumping a
     // whole raw line and skipping the wrapped continuation of the CURRENT
     // line entirely) or across a block that renders taller than a plain
     // paragraph line. Measured: calling it a SECOND time chained off its
@@ -819,7 +819,7 @@ function makeVerticalHandler(forward: boolean) {
       // soft wrap (a different VISUAL row of one logical line), which is
       // exactly the case its own geometry is trusted for — an earlier
       // raw-line-number-based rewrite broke this entirely (see
-      // docs/research/04 Q24), always jumping a whole raw line and
+      // docs/research/open-questions Q24), always jumping a whole raw line and
       // skipping the wrapped continuation of the CURRENT line.
       const movedPos = offsetToLinePos(doc, moved.head);
       const movedNode = nodeAtLine(outlineDoc, movedPos.line);
@@ -920,7 +920,7 @@ function makeVerticalHandler(forward: boolean) {
 }
 
 /**
- * Home/End (design.md D5, as revised in docs/research/04 Q26): ONE rung.
+ * Home/End (design.md D5, as revised in docs/research/open-questions Q26): ONE rung.
  * Home goes to the caret's own RAW LINE's content start, End to its end, and
  * a further press changes nothing.
  *

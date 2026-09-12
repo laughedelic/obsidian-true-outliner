@@ -7,7 +7,7 @@ Three alignment rounds on 2026-07-12; all pre-planning questions are now decided
 ## Q1. Architecture path ✅ DECIDED: editor-centric (Option A/C)
 
 CM6 extensions in the standard markdown view + our own side panes. 100% public API.
-See [03-obsidian-api-feasibility.md](03-obsidian-api-feasibility.md).
+See [obsidian-api-feasibility.md](obsidian-api-feasibility.md).
 
 ## Q2. Scope of "outline mode" ✅ DECIDED: universal isomorphic outline view
 
@@ -88,7 +88,7 @@ ALWAYS           minimal encoding or reject; no hidden state.
 6. **Toggle persistence** ✅: remembered per note in the **plugin data store** (consistent
    with Q3 — files stay clean; frontmatter would pollute content for a pure UI mode).
 
-See [05-org-mode-comparison.md](05-org-mode-comparison.md) for where this algebra aligns
+See [org-mode-comparison.md](org-mode-comparison.md) for where this algebra aligns
 with and diverges from org-mode, the closest living reference system.
 
 ### Verdicts from the mapping-core implementation (2026-07-12, `mapping-core` change)
@@ -146,7 +146,7 @@ lines. The CSS-override strategy (own `padding-left`/`text-indent`/`margin-left`
 testing approach (DOM-attribute assertions, narrow synthetic fixtures, tests updated to
 match whatever the implementation currently did) gave false confidence at every stage.
 Full account, root causes, and carried-forward technical findings:
-[06-outline-decorations-postmortem.md](06-outline-decorations-postmortem.md). The
+[outline-decorations-postmortem.md](outline-decorations-postmortem.md). The
 "visual layer is the testability bottleneck" problem above is **still open** — this
 attempt did not resolve it.
 
@@ -386,7 +386,7 @@ discipline (Q14's own precedent).
 - **Automation-gap retry, HTML5 drag-drop: still infeasible, confirmed the prior
   finding.** No W3C Actions API primitive fires HTML5 `DragEvent`s, and CM6 only
   presents drop targets inside a live contentEditable surface WebDriver can't script a
-  drag payload into. Same native limitation `13-selection-follow-ups.md` already
+  drag payload into. Same native limitation `selection-follow-ups.md` already
   recorded for widget-interior drag-selection. Carried as a scripted manual-pass
   scenario (below).
 - **Performance**: the enforced path's first real per-verdict timing samples (dev
@@ -399,7 +399,7 @@ discipline (Q14's own precedent).
 - **Trailing-gap deletion becoming user-visible**: confirmed working as designed
   (`deleteSubtrees` unit/property tests, D3) — not separately re-verified live beyond
   the evidence suite; visual gap treatment stays out of scope per the standing
-  docs/research/12 parking-lot rule.
+  docs/research/decoration-follow-ups parking-lot rule.
 
 ### Manual-pass scenarios still to record (task 5.2)
 
@@ -436,7 +436,7 @@ deletions and multi-block pastes (why those worked correctly in evidence-suite
 testing) and diverge everywhere chrome — gap lines, list markers — sits between the
 cursor and the content boundary. Trailing-gap ownership is correct for STORAGE (byte
 fidelity) but had leaked into user-facing EDITING semantics — exactly the shape this
-series' own document (docs/research/13) flagged as a recurring theme across
+series' own document (docs/research/selection-follow-ups) flagged as a recurring theme across
 selection enforcement and now edit enforcement.
 
 **Resolution** — a new principle (chrome transparency, D9) plus two rule amendments,
@@ -1211,12 +1211,12 @@ correctly, measured above, both before and after this change. If the report surv
 build, the next thing to capture is the exact note content, since the parse shape — one two-line
 node vs. two one-line nodes — is what decides the expected behavior.
 
-### Table exit: parked, see docs/research/13
+### Table exit: parked, see docs/research/selection-follow-ups
 
 Exiting a table's nested editor lands on the surrounding gap for one press. Root-caused to
 Obsidian's own `placeCursorAround` hand-off, which our keymap never sees; the filter could rewrite
 it but is deliberately scoped away from programmatic gap placements (Q25's narrowing, which five
-tests depend on). Full trace and what picking it up would involve: docs/research/13, "Parked:
+tests depend on). Full trace and what picking it up would involve: docs/research/selection-follow-ups, "Parked:
 exiting a table's nested editor lands the caret on a gap line".
 
 ### Method note: a full e2e run still dirties the fixture vault
@@ -1341,7 +1341,7 @@ record of what was observed, but there is nothing left for it to affect.
 **What this gives up, on purpose.** Home no longer reaches a multi-line block's own start. That is
 a genuine convenience lost. It should return as its OWN motion with its own binding, where it is a
 discoverable command rather than a second hidden meaning for the most-pressed key in the editor.
-Recorded as a follow-up in `docs/research/13`.
+Recorded as a follow-up in `docs/research/selection-follow-ups`.
 
 `nextHomeEndRung` and its tests were deleted with the ladder — it had no other caller. Spec, design
 D5, and its own "Open Questions" entry are updated; e2e C4/C5/C7/C9 rewritten to pin one-rung
@@ -1707,7 +1707,7 @@ Cmd+Z would undo the correction instead of the edit below it.
 ### Two pre-existing issues surfaced by the same pass
 
 Both trace to `ops.ts`'s deletion cursor, which this change never touched, so both
-reproduce on `main`. Parked in `docs/research/13`.
+reproduce on `main`. Parked in `docs/research/selection-follow-ups`.
 
 - **The caret's landing after a delete alternates between the next node and the previous
   one.** `deleteSubtreeGroups` picks `survivorAfter ?? survivorBefore ?? parent` and
@@ -1981,7 +1981,7 @@ are recorded rather than left to be re-derived.
 
 ### The keyboard flash was never a two-transaction escalation
 
-`docs/research/13`'s flash entry recorded, as a "confirmed root cause", that a transaction
+`docs/research/selection-follow-ups`'s flash entry recorded, as a "confirmed root cause", that a transaction
 filter returning `[tr, { selection: escalated }]` makes CM6 apply two separate state
 transitions with their own DOM syncs, rendering the raw pre-escalation selection for one
 frame. **That is wrong.** Read in `@codemirror/state`'s `filterTransaction`: an array
@@ -2127,7 +2127,7 @@ on real notes.
   analysis had missed — carries `mainIndex` alongside the ranges and preserves it through
   mapping, so the ANCHOR can live inside the selection rather than beside it. What that costs is
   D4: once a block selection is several ranges it is indistinguishable from several cursors, so
-  it needs a STORED mode flag. Which is precisely the modal design docs/research/13 parks and
+  it needs a STORED mode flag. Which is precisely the modal design docs/research/selection-follow-ups parks and
   this change puts out of scope.
 
   So the honest summary is not "that cannot work" but "that is the parked alternative, and it
@@ -2372,4 +2372,4 @@ The exploration — the measurements with their methods, the four readings with 
 consequences, how CommonMark, org-mode, Notion, AsciiDoc, reStructuredText, djot and Logseq each
 handle it, the Obsidian quantization constraint, and the interaction with
 `lists-on-the-outline-grid` — is in
-[17-list-paragraph-mapping.md](17-list-paragraph-mapping.md).
+[list-paragraph-mapping.md](list-paragraph-mapping.md).

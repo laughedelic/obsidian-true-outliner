@@ -6,7 +6,7 @@ testable without a live editor. When a node needs brand-new indentation and the
 document offers no existing indented list item to infer a unit from,
 `destinationIndent`'s `inferIndentUnit` fell back to a hardcoded `'  '` (two spaces),
 regardless of Obsidian's own "Indent using tabs" vault setting. This project's
-architecture bar (docs/research/03-obsidian-api-feasibility.md) is "100% public
+architecture bar (docs/research/obsidian-api-feasibility.md) is "100% public
 Obsidian APIs, no private APIs, no monkey-patching" — `Vault.getConfig`/`setConfig`
 (the common but undocumented way plugins read this setting) is not part of the public
 `obsidian.d.ts` surface, so the fix needed a public-API route to the live setting.

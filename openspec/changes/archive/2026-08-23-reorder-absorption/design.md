@@ -34,7 +34,7 @@ See proposal.md — Why. The mechanics that shape the approach:
 
 - Deciding whether a list following a paragraph should be that paragraph's child. That is the
   question underneath this defect and it is deliberately left open —
-  `docs/research/17-list-paragraph-mapping.md`.
+  `docs/research/list-paragraph-mapping.md`.
 - Making the refused gestures work. Under today's mapping they have no encoding; giving them one
   means either rewriting a node's kind or changing the mapping, and both are out of scope.
 - The blank-line boundary (proposal.md — Impact). Different requirement, different owner.
@@ -143,7 +143,7 @@ permutation moves nothing between levels.
 The comment at the rejection names the mapping question and the document that holds it, and says
 plainly that two of the four candidate readings make this branch unreachable. Under those
 readings a flush list after a paragraph is a sibling, the tree the swap builds is ordinary, and
-there is nothing to refuse — measured on the spike in doc 17, where reorder absorption drops to
+there is nothing to refuse — measured on the spike in docs/research/list-paragraph-mapping, where reorder absorption drops to
 zero without any check and acceptance rises. Whoever revisits the mapping should be able to
 delete this in one commit and watch the guard property stay green.
 
@@ -167,7 +167,7 @@ delete this in one commit and watch the guard property stay green.
   — 45 of 149 list items in the corpus and test vault are paragraph-owned. → The cue names the
   reason, and the gesture is refused rather than silently corrupting the tree, which is what it
   does today. If the frequency proves unacceptable in real use, that is evidence for the mapping
-  change, and doc 17 is where it belongs.
+  change, and docs/research/list-paragraph-mapping is where it belongs.
 - **The check outlives its reason and becomes folklore.** → D7's comment, this design, and the
   Q34 entry all name the same document; the guard property is written so that removing the check
   fails it loudly under today's mapping and passes trivially under a changed one.
@@ -182,5 +182,5 @@ which becomes a statement about a permutation rather than about a refusal.
 
 - Whether a list following a paragraph should be that paragraph's child at all. Deliberately not
   answered here; the exploration, the four candidate readings, the measurements and the external
-  research are in `docs/research/17-list-paragraph-mapping.md`, registered as Q34. It cannot
+  research are in `docs/research/list-paragraph-mapping.md`, registered as Q34. It cannot
   change this change's specs or tasks — it can only make them unnecessary.

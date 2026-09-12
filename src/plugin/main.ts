@@ -243,7 +243,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    * transaction filter corrects native motion after the fact — so an
    * outcome-only test passes identically whether our handler fired or never
    * existed. That blind spot hid a real defect through three rewrites of the
-   * Home/End logic (docs/research/04 Q27).
+   * Home/End logic (docs/research/open-questions Q27).
    */
   readonly motionCounts: Record<string, { invoked: number; consumed: number }> = {};
 
@@ -254,7 +254,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    * one reason of its own: CM6's fold exports resolve only inside plugin module
    * scope — the renderer's `require` has neither `@codemirror/language` nor
    * `obsidian` — so a spec cannot read a folded range without going through the
-   * plugin. Measured while writing docs/research/28, which had to hang a
+   * plugin. Measured while writing docs/research/fold-mechanics, which had to hang a
    * temporary probe on the instance to ask anything at all.
    *
    * Three separate answers, because the change turns on their differences: what
@@ -521,7 +521,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // fold chrome from the same answer. Registering it is what makes an outline
     // node foldable at all — Obsidian's own fold command, placeholder and
     // per-file persistence all follow from this one provider
-    // (docs/research/28-fold-mechanics.md).
+    // (docs/research/fold-mechanics.md).
     this.registerEditorExtension(foldServiceExtension());
     // Beside it: the rule that a computed caret never lands in hidden content,
     // and the one that decides what a change does to a fold.
@@ -638,7 +638,7 @@ export default class TrueOutlinerPlugin extends Plugin {
 
   /** See `SpikeFooterSource.footerRevision` — bumped whenever a SETTING the
    * footer reads changes, so its StateField gets a real transaction to
-   * recompute on (docs/research/19, S2). Outline mode used to be one of those
+   * recompute on (docs/research/backlinks-footer-spikes, S2). Outline mode used to be one of those
    * inputs and no longer is: it lives in editor state, so a mode toggle is
    * itself the transaction the footer recomputes on. A setting added later that
    * the footer depends on still has to bump this, or its change is invisible
@@ -923,7 +923,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    * Flip the ACTIVE tab, from whatever view mode it is in.
    *
    * The direction is read from the tab's own field even in reading view: the
-   * leaf keeps its editor across a view-mode switch (docs/research/24), so the
+   * leaf keeps its editor across a view-mode switch (docs/research/outline-mode-surfaces), so the
    * state is there to read and the toggle means the same thing in every mode.
    */
   private toggleActiveTab(): void {
@@ -947,7 +947,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    * — so the pane switches to an editing mode as part of the same gesture
    * (design D6).
    *
-   * `mode: 'source'` over the state's OWN spread. Measured (docs/research/24):
+   * `mode: 'source'` over the state's OWN spread. Measured (docs/research/outline-mode-surfaces):
    * the reading-view state carries the `source` flag the pane was last editing
    * under, so spreading it lands the pane back in its own editing mode —
    * Live Preview or the source editor — rather than in whichever one this code
@@ -985,7 +985,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    *
    * Refreshed from `active-leaf-change` and `file-open`, which between them
    * cover every transition that can change the answer — measured
-   * (docs/research/24): an in-leaf mode switch fires no public event, and needs
+   * (docs/research/outline-mode-surfaces): an in-leaf mode switch fires no public event, and needs
    * none, because it does not change the tab's mode. The remaining way the mode
    * moves is a dispatch through `setOutlineMode`, which refreshes at its own
    * site.
@@ -1127,7 +1127,7 @@ export default class TrueOutlinerPlugin extends Plugin {
    * question is answerable at any time and by looking, not by remembering.
    * That distinction cost real debugging time: three consecutive
    * behavior changes were reported as "nothing changed", and neither of us
-   * could confirm from the app which build was live (docs/research/04 Q27).
+   * could confirm from the app which build was live (docs/research/open-questions Q27).
    */
   private showDevBuildStamp(): void {
     if (!BUILD_STAMP.dev) return; // release build (production, no --dev): no dev UI
@@ -1150,7 +1150,7 @@ export default class TrueOutlinerPlugin extends Plugin {
     // "our handler ran and computed the wrong target" and "our handler was
     // never invoked" look identical from outside — both are just wrong caret
     // behavior. A key absent from this readout was never routed here at all,
-    // which is what Home turned out to be (docs/research/04 Q27).
+    // which is what Home turned out to be (docs/research/open-questions Q27).
     setMotionProbe((key, consumed) => {
       const tally = this.motionCounts[key] ?? { invoked: 0, consumed: 0 };
       tally.invoked += 1;

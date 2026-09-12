@@ -627,7 +627,7 @@ describe('node-selection-extension: block-selection mode (design D9)', () => {
   });
 
   it('a cover-to-cover Mod-A press causes no focus transition either', async () => {
-    // docs/research/13's flash entry records an earlier attempt at this same
+    // docs/research/selection-follow-ups's flash entry records an earlier attempt at this same
     // reorder that "had ZERO measurable effect" on the Mod-A path, and
     // attributes the Shift+Arrow flash to a two-transaction escalation that
     // does not exist (see that entry's correction). Mod-A dispatches exact

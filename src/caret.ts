@@ -6,7 +6,7 @@
  * (src/plugin/keymap.ts for motion, src/plugin/transaction-filter.ts for
  * placement resolution) converts to/from character offsets and supplies
  * whatever CM6-only facts a decision needs — which, since Home/End became a
- * single raw-line step with no geometry in it (docs/research/04 Q26), is now
+ * single raw-line step with no geometry in it (docs/research/open-questions Q26), is now
  * only CM6's goal-column-preserving vertical motion for Up/Down.
  *
  * Supersedes `escalate.ts`'s `clampCursorToContent`: the marker-only rule
@@ -144,7 +144,7 @@ export function resolvePlacement(doc: OutlineDoc, pos: LinePos): LinePos {
  * D13, node-edit-enforcement), which content-space-caret generalized into
  * `resolvePlacement`. It survives as its own function because the two
  * halves have DIFFERENT jurisdiction over programmatic transactions
- * (docs/research/04 Q25): the marker clamp predates this change and has
+ * (docs/research/open-questions Q25): the marker clamp predates this change and has
  * always applied to any cursor from any source, while D2 deliberately
  * scopes the new gap-line half to real user gestures, leaving a
  * programmatic gap-line placement (`Editor.setSelection` from a plugin, a

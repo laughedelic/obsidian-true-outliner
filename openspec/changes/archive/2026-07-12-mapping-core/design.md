@@ -2,8 +2,8 @@
 
 First code in the repo. Everything later (CM6 enforcement, grammar, selection, zoom) consumes
 this library, so its API shape and guarantees are load-bearing. The governing decisions live
-in docs/research/04-open-questions.md (Q2 two-regime algebra, Q6 interop invariants) and
-docs/research/05-org-mode-comparison.md. Two rules are explicitly provisional and this change
+in docs/research/open-questions.md (Q2 two-regime algebra, Q6 interop invariants) and
+docs/research/org-mode-comparison.md. Two rules are explicitly provisional and this change
 is their pressure test: list-after-paragraph attachment and context-determined encoding.
 
 ## Goals / Non-Goals

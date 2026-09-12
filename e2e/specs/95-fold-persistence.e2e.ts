@@ -3,7 +3,7 @@
  *
  * Nothing here is a store of ours: with the provider registered, Obsidian's own
  * per-file workspace state saves and restores these folds
- * (docs/research/28). These tests are what keep that true — the behaviour is
+ * (docs/research/fold-mechanics). These tests are what keep that true — the behaviour is
  * inherited, so nothing in this plugin would fail if it silently stopped.
  */
 

@@ -18,7 +18,7 @@ geometry:
 
 Today, a node's owned trailing gap enters the selection only through
 `expandToCover`'s retention — and only up to wherever the user's drag
-actually stopped, not the gap's full extent. `docs/research/13`'s
+actually stopped, not the gap's full extent. `docs/research/selection-follow-ups`'s
 "Escalation math re-examination candidate" traces the resulting shape: a
 same-node drag from mid-A to mid-B (a different node) escalates to A's
 content, the gap between them (which is A's own trailing gap, already inside
@@ -52,7 +52,7 @@ built on actually has.
 - Changing *when* escalation triggers (the gap-line trigger condition, the
   same-node-content-only pass-through, the node-boundary-crossing
   condition). Only the extent of the resulting cover changes.
-- Gap-line cursor placement/navigation (docs/research/13's "Gap-line cursor
+- Gap-line cursor placement/navigation (docs/research/selection-follow-ups's "Gap-line cursor
   transparency" thread) — cursors are empty ranges and this module already
   never touches them; unrelated to cover geometry.
 - Any Phase C (`node-edit-enforcement`) edit-rewriting semantics — this
@@ -167,6 +167,6 @@ new opt-in behavior, consistent with how D4's own amendments landed.
 
 None outstanding — the research doc's question ("should reaching a node's
 content be enough to pull in its gap") is answered by this design (yes, via
-the cover redefinition); the remaining docs/research/13 threads it
+the cover redefinition); the remaining docs/research/selection-follow-ups threads it
 cross-references (gap-line cursor transparency, collapsing gap lines) are
 explicitly out of scope per Non-Goals and remain filed there.

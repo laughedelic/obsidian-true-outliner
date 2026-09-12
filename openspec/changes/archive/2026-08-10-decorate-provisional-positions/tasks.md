@@ -13,7 +13,7 @@ still needs anything after the fact is restored.
 - [x] 1.3 Repeat for Enter's provisional position at a non-zero depth, recording the caret x
       against a real paragraph at the same depth, and whether the caret overlaps the depth-0
       guide column.
-- [x] 1.4 Append the findings to `docs/research/12-decoration-follow-ups.md` under the gap-line
+- [x] 1.4 Append the findings to `docs/research/decoration-follow-ups.md` under the gap-line
       entry this change graduates. If 1.1 shows a residual our own contribution cannot close,
       record it there as a separate, still-deferred item rather than widening this change.
 
@@ -97,9 +97,9 @@ still needs anything after the fact is restored.
 
 ## 6. Close the loop
 
-- [x] 6.1 Mark the graduated entry in `docs/research/12-decoration-follow-ups.md` (the gap-line
+- [x] 6.1 Mark the graduated entry in `docs/research/decoration-follow-ups.md` (the gap-line
       caret jump) as closed by this change, keeping any residual found in 1.4 as its own item.
-- [x] 6.2 Note in `docs/research/15-enter-and-shift-enter-catalogue.md` that S10's decoration
+- [x] 6.2 Note in `docs/research/enter-and-shift-enter-catalogue.md` that S10's decoration
       half and the E10 encoding defect are answered here, so the catalogue stays the record of
       where each finding landed.
 - [x] 6.3 Run `npm test`, `npm run lint`, `npm run build`, and `npm run test:e2e`.

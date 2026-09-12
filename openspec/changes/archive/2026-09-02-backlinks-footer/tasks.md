@@ -1,11 +1,11 @@
 ## 1. Spike series — setup
 
-The series follows the ground rules of `docs/research/07-decoration-experiments-plan.md`
+The series follows the ground rules of `docs/research/decoration-experiments-plan.md`
 verbatim: one technique per spike, isolated; a fixed shared fixture corpus screenshotted every
 time; a mandatory real-vault pass before any spike is called done; a recorded verdict before the
 next begins; green unit tests are never the gate for anything visual.
 
-- [x] 1.1 Create `docs/research/19-backlinks-footer-spikes.md` as the series hub: ground rules
+- [x] 1.1 Create `docs/research/backlinks-footer-spikes.md` as the series hub: ground rules
       (inherited, not restated), the results table with one row per spike awaiting a verdict, and
       the map to per-spike sections
 - [x] 1.2 Assemble the shared fixture corpus in `test-vault/`: a target note referenced from
@@ -81,7 +81,7 @@ next begins; green unit tests are never the gate for anything visual.
       of non-match, non-branch-point nodes collapse into chains; the terminating branch point
       joins its chain; a terminating match does not
 - [x] 5.5 Unit-test lineage recursion explicitly with the `a/b → c/d → e/f/g` shape from
-      `docs/research/18`: each arm collapses independently, not only the common prefix
+      `docs/research/structured-backlinks`: each arm collapses independently, not only the common prefix
 - [x] 5.6 Unit-test the edge cases: a one-element chain still forms a chain; a root-level match
       forms none; a chain reports its first element's kind; elements stay individually addressable
 
@@ -167,7 +167,7 @@ next begins; green unit tests are never the gate for anything visual.
 - [x] 8b.4 Move a task's checked state into the marker: the checkbox replaces the bullet, drawn on
       the marker column, with no checkbox inside the row's text
 - [x] 8b.5 Align the ordered-item number marker with the editor's own ordered markers, reusing the
-      list-grid geometry rather than a footer-local approximation (docs/research/16)
+      list-grid geometry rather than a footer-local approximation (docs/research/native-list-decoration)
 - [x] 8b.6 Delete what the model removes: the footer's widget-atom marker branch and the
       heading-size branch, and the CSS that served them. `markerAnchorLeftExpr` stays in
       `chrome-line.ts` — it is the editor's
@@ -244,7 +244,7 @@ next begins; green unit tests are never the gate for anything visual.
       sources, and the header and bodies land in the same frame. A cap is a legibility decision,
       which moves D10's premise.*
 - [x] 9.7 Close every spike row in the hub doc with a verdict, and record cross-spike lessons
-      where they belong (`docs/research/11` for decoration/CM6 findings). *S4's section still
+      where they belong (`docs/research/decoration-lessons` for decoration/CM6 findings). *S4's section still
       carried its superseded first reading ("preparation done, visual verdict to follow") above
       the corrected one; both are kept, the wrong one labelled, because the mistake — assuming
       the shared thing was the token vocabulary — is the finding. Doc 11 gains a
@@ -284,7 +284,7 @@ next begins; green unit tests are never the gate for anything visual.
 
 ## 10. Close-out
 
-- [x] 10.1 Update `docs/research/18-structured-backlinks.md` where a spike result contradicts or
+- [x] 10.1 Update `docs/research/structured-backlinks.md` where a spike result contradicts or
       sharpens a recorded decision. *Two decisions rested on a cost that S5 measured away. D10's
       caps opened with "each costing a file read and a parse" — placement is ~2ms for 42 sources,
       so the caps survive as a LEGIBILITY decision and `backlinks-controls` must pick defaults on
