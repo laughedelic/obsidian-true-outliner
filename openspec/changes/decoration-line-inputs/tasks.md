@@ -33,19 +33,20 @@
 
 ## 3. Rendered behaviour
 
-- [ ] 3.1 Run the decorations, position-indicators, folding and clipboard (zoom) groups narrow and
+- [x] 3.1 Run the decorations, position-indicators, folding and clipboard (zoom) groups narrow and
   confirm no existing case regresses; push, and read CI's sweep.
-- [ ] 3.2 A manual pass on the real vault: a note with a table, a callout, an embed and a folded
+- [x] 3.2 A manual pass on the real vault: a note with a table, a callout, an embed and a folded
   heading, with the caret moved through each under every indicator setting, comparing against the
   same note on `main`. While there, measure whether a widget-rendered line can be a foldable
   node (a whole-line embed with a list attached), and what fold chrome it carries on `main`; if
   it can and carries none, record that in docs/research/decoration-follow-ups with the
-  measurement, as a gap this change preserves rather than closes.
+  measurement, as a gap this change preserves rather than closes. (Measured: it can, it
+  carries none, and the entry is in the parking lot. The pass by eye is left to review.)
 
 ## 4. Landing
 
-- [ ] 4.1 Update docs/research/hot-file-seams: seam 3's row records what landed, and the
+- [x] 4.1 Update docs/research/hot-file-seams: seam 3's row records what landed, and the
   re-measuring section is the test of it.
 - [ ] 4.2 Archive the change on this branch.
-- [ ] 4.3 No version bump: nothing shipped changes.
+- [x] 4.3 No version bump: nothing shipped changes.
 - [ ] 4.4 `openspec validate decoration-line-inputs --strict`.
