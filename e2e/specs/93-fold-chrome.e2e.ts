@@ -9,6 +9,29 @@
 
 import { expect } from '@wdio/globals';
 import * as h from '../helpers.js';
+import {
+  clearFolds,
+  clickFoldCount,
+  foldAffordanceCount,
+  foldAffordanceLines,
+  foldAffordanceVisible,
+  foldChromeColors,
+  foldChromeLines,
+  foldControlGap,
+  foldControlOffsets,
+  foldCountIsEditable,
+  foldCounts,
+  foldTailControlCount,
+  foldToggleLines,
+  foldedLineRanges,
+  foldedNodeLines,
+  hoverLineText,
+  hoverMarker,
+  markerGlyphStyle,
+  removeNativeChevrons,
+  setMarkerVisibility,
+  waitForRead,
+} from '../folding.js';
 
 const NOTE = 'Scratch/fold-chrome.md';
 
@@ -59,15 +82,15 @@ describe('fold chrome', () => {
     await h.createNote(NOTE, DOC);
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
   });
 
   it('marks a folded node’s line, and only that line', async () => {
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
-    expect(await h.foldedNodeLines()).toEqual([2]);
+    expect(await foldedNodeLines()).toEqual([2]);
     await h.runCommand('unfold-node');
-    expect(await h.foldedNodeLines()).toEqual([]);
+    expect(await foldedNodeLines()).toEqual([]);
   });
 
   it('draws the folded marker at a different contrast, in the same box and stroke', async () => {
@@ -76,12 +99,12 @@ describe('fold chrome', () => {
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
     await h.setCursorSettled(0, 3);
-    const folded = await h.markerGlyphStyle(2);
+    const folded = await markerGlyphStyle(2);
 
     await h.setCursorSettled(2, 4);
     await h.runCommand('unfold-node');
     await h.setCursorSettled(0, 3);
-    const open = await h.markerGlyphStyle(2);
+    const open = await markerGlyphStyle(2);
 
     expect(folded.color).not.toBe(open.color);
     // Contrast alone: a heading's glyph is filled rectangles no stroke width
@@ -97,33 +120,33 @@ describe('fold chrome', () => {
     await h.setCursorSettled(4, 3);
     await h.runCommand('fold-node');
     // "- bullet parent" hides a child and a grandchild.
-    expect(await h.foldCounts()).toEqual([{ line: 4, count: 2 }]);
+    expect(await foldCounts()).toEqual([{ line: 4, count: 2 }]);
 
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
     // The paragraph hides all three of them.
-    expect(await h.foldCounts()).toEqual([{ line: 2, count: 3 }]);
+    expect(await foldCounts()).toEqual([{ line: 2, count: 3 }]);
 
     // Chrome: it is not in the document and it is not in what a copy yields.
     expect(await h.getBuffer()).toBe(DOC);
-    expect(await h.foldCountIsEditable(2)).toBe(false);
+    expect(await foldCountIsEditable(2)).toBe(false);
 
     // And ONE control after the text, not two. Ours carries the ellipsis, the
     // count and the click, so Obsidian's own placeholder beside it would be a
     // second control for the same action — the busier half of what the reader
     // saw, and the half that did nothing when clicked.
-    expect(await h.foldTailControlCount(2)).toBe(1);
+    expect(await foldTailControlCount(2)).toBe(1);
   });
 
   it('unfolds when its own tail control is clicked', async () => {
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 2, to: 6 }]);
+    expect(await foldedLineRanges()).toEqual([{ from: 2, to: 6 }]);
 
     // The control that replaced Obsidian's placeholder has to do what that
     // placeholder did.
-    await h.clickFoldCount(2);
-    expect(await h.foldedLineRanges()).toEqual([]);
+    await clickFoldCount(2);
+    expect(await foldedLineRanges()).toEqual([]);
   });
 
   it('gives a folded node an affordance that stays visible', async () => {
@@ -131,30 +154,30 @@ describe('fold chrome', () => {
     await h.runCommand('fold-node');
     // Whoever draws it — Obsidian's own indicator in the default configuration
     // — a folded line has exactly one, and it does not wait for a hover.
-    expect(await h.foldAffordanceLines()).toContain(2);
-    expect(await h.foldAffordanceCount(2)).toBe(1);
-    expect(await h.foldAffordanceVisible(2)).toBe(true);
+    expect(await foldAffordanceLines()).toContain(2);
+    expect(await foldAffordanceCount(2)).toBe(1);
+    expect(await foldAffordanceVisible(2)).toBe(true);
   });
 
   it('draws its own affordance on every foldable line, hidden where Obsidian paints one', async () => {
     // Ours is rendered everywhere we fold — and nowhere else, which is the part
     // that matters: a line the EDITOR calls foldable but we do not (a raw HTML
     // block) gets nothing.
-    expect(await h.foldToggleLines()).toEqual(await h.foldChromeLines());
-    expect(await h.foldToggleLines()).not.toContain(8); // the table
+    expect(await foldToggleLines()).toEqual(await foldChromeLines());
+    expect(await foldToggleLines()).not.toContain(8); // the table
 
     // While Obsidian's own indicator is on the line, ours is hidden, so a
     // reader sees exactly one control.
-    for (const line of await h.foldChromeLines()) {
-      expect(await h.foldAffordanceCount(line)).toBe(1);
+    for (const line of await foldChromeLines()) {
+      expect(await foldAffordanceCount(line)).toBe(1);
     }
 
     // Take Obsidian's indicators away — the condition ours exists for — and it
     // is the control that remains, in the same column.
-    const removed = await h.removeNativeChevrons();
+    const removed = await removeNativeChevrons();
     expect(removed).toBeGreaterThan(0);
-    for (const line of await h.foldChromeLines()) {
-      expect(await h.foldAffordanceCount(line)).toBe(1);
+    for (const line of await foldChromeLines()) {
+      expect(await foldAffordanceCount(line)).toBe(1);
     }
     // Whether it is VISIBLE at rest is a hover state, and the pointer's resting
     // position is whatever an earlier test left it on — asserted for the folded
@@ -172,8 +195,8 @@ describe('fold chrome', () => {
     // marker — one whole level further away with every step deeper, and on a
     // folded paragraph, where ours is the control a reader is left with, it
     // read as the chevron wandering off on its own.
-    const offsets = await h.foldControlOffsets();
-    expect(offsets.map((o) => o.line)).toEqual(await h.foldChromeLines());
+    const offsets = await foldControlOffsets();
+    expect(offsets.map((o) => o.line)).toEqual(await foldChromeLines());
     for (const { line, dx, dy } of offsets) {
       // A tolerance, not a fitted number: the two glyphs are different sizes and
       // ours is placed against the text's own metrics, so they agree to within
@@ -205,7 +228,7 @@ describe('fold chrome', () => {
     // AT the midpoint once the unit is wide enough for the floor not to bind.
     const centred = async (lines: number[], midpoint: boolean): Promise<void> => {
       for (const line of lines) {
-        const { gap, unit, offset } = await h.foldControlGap(line);
+        const { gap, unit, offset } = await foldControlGap(line);
         expect({
           line,
           unit,
@@ -229,7 +252,7 @@ describe('fold chrome', () => {
     await h.createNote(NOTE, ['# Head', '', ...MULTILINE.split('\n')].join('\n'));
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
     await h.setCursorSettled(0, 0);
@@ -253,9 +276,9 @@ describe('fold chrome', () => {
     await h.setCursorSettled(0, 3);
     await h.runCommand('fold-node');
     await h.setCursorSettled(2, 4); // between the two, hovering neither
-    await h.hoverLineText(2);
-    const heading = await h.foldChromeColors(0);
-    const bullet = await h.foldChromeColors(4);
+    await hoverLineText(2);
+    const heading = await foldChromeColors(0);
+    const bullet = await foldChromeColors(4);
     expect(heading.control).toBe(heading.marker);
     expect(bullet.control).toBe(bullet.marker);
   });
@@ -268,12 +291,12 @@ describe('fold chrome', () => {
     // under mobile emulation, which has no hover to draw for.
     if (h.IS_MOBILE_RUN) return;
     await h.setCursorSettled(0, 3);
-    const rest = (await h.foldChromeColors(2)).marker;
-    await h.hoverLineText(2);
-    expect((await h.foldChromeColors(2)).marker).toBe(rest);
-    await h.hoverMarker(2);
-    expect((await h.foldChromeColors(2)).marker).not.toBe(rest);
-    await h.hoverLineText(0);
+    const rest = (await foldChromeColors(2)).marker;
+    await hoverLineText(2);
+    expect((await foldChromeColors(2)).marker).toBe(rest);
+    await hoverMarker(2);
+    expect((await foldChromeColors(2)).marker).not.toBe(rest);
+    await hoverLineText(0);
 
     // Folded too. The folded colour and the hover weigh the same, and the
     // folded one was declared later, so a folded mark did not answer the
@@ -281,12 +304,12 @@ describe('fold chrome', () => {
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
     await h.setCursorSettled(0, 3);
-    await h.hoverLineText(0);
-    const foldedRest = (await h.foldChromeColors(2)).marker;
+    await hoverLineText(0);
+    const foldedRest = (await foldChromeColors(2)).marker;
     expect(foldedRest).not.toBe(rest);
-    await h.hoverMarker(2);
-    expect((await h.foldChromeColors(2)).marker).not.toBe(foldedRest);
-    await h.hoverLineText(0);
+    await hoverMarker(2);
+    expect((await foldChromeColors(2)).marker).not.toBe(foldedRest);
+    await hoverLineText(0);
   });
 
   it('keeps the caret’s colour on a folded node the caret is on', async () => {
@@ -294,12 +317,12 @@ describe('fold chrome', () => {
     // one, declared later, took the caret's node too — a folded node being
     // edited showed no sign of being the one in play.
     await h.setCursorSettled(0, 3);
-    const caretColour = (await h.foldChromeColors(0)).marker;
+    const caretColour = (await foldChromeColors(0)).marker;
     await h.setCursorSettled(2, 4);
     await h.runCommand('fold-node');
-    expect((await h.foldChromeColors(2)).marker).toBe(caretColour);
+    expect((await foldChromeColors(2)).marker).toBe(caretColour);
     await h.setCursorSettled(0, 3);
-    expect((await h.foldChromeColors(2)).marker).not.toBe(caretColour);
+    expect((await foldChromeColors(2)).marker).not.toBe(caretColour);
   });
 
   it('holds the control’s place whatever line the caret is on and whatever is folded', async () => {
@@ -318,14 +341,14 @@ describe('fold chrome', () => {
     // of them out of the DOM.
     await h.openNote('Backlinks/Family tree.md');
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     try {
       await h.setCursorSettled(0, 4);
       await h.runCommand('fold-node');
-      expect((await h.foldedLineRanges()).map((r) => r.from)).toEqual([0]);
+      expect((await foldedLineRanges()).map((r) => r.from)).toEqual([0]);
       const settled = (line: number): Promise<unknown> =>
-        h.waitForRead(
-          () => h.foldControlGap(line, { doc: true }),
+        waitForRead(
+          () => foldControlGap(line, { doc: true }),
           (read) => Math.abs(read.gap - read.offset) < 2,
           `line ${line}'s control on its offset`,
         );
@@ -334,7 +357,7 @@ describe('fold chrome', () => {
         for (const line of [0, 17, 28]) await settled(line);
       }
     } finally {
-      await h.clearFolds();
+      await clearFolds();
     }
   });
 
@@ -347,7 +370,7 @@ describe('fold chrome', () => {
     // controls, two gestures: the chevron unfolds, the mark zooms.
     await h.openNote('Backlinks/Family tree.md');
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
     try {
       await h.setCursorSettled(0, 4);
       await h.runCommand('fold-node');
@@ -377,7 +400,7 @@ describe('fold chrome', () => {
       expect(zoomed).toBe(true);
     } finally {
       await h.runCommand('zoom-clear');
-      await h.clearFolds();
+      await clearFolds();
     }
   });
 
@@ -391,42 +414,42 @@ describe('fold chrome', () => {
     await h.createNote(NOTE, MULTILINE);
     await h.openNote(NOTE);
     await h.setOutlineMode(true);
-    await h.clearFolds();
+    await clearFolds();
 
     await h.setCursorSettled(0, 4);
     await h.runCommand('fold-node');
-    expect(await h.foldedLineRanges()).toEqual([{ from: 1, to: 4 }]);
-    expect(await h.foldedNodeLines()).toEqual([0]); // the marker's line
-    expect(await h.foldCounts()).toEqual([{ line: 1, count: 2 }]); // after its text
-    expect(await h.foldToggleLines()).toEqual([0]);
+    expect(await foldedLineRanges()).toEqual([{ from: 1, to: 4 }]);
+    expect(await foldedNodeLines()).toEqual([0]); // the marker's line
+    expect(await foldCounts()).toEqual([{ line: 1, count: 2 }]); // after its text
+    expect(await foldToggleLines()).toEqual([0]);
 
     // ONE control, beside the marker. Obsidian paints its collapsed indicator on
     // the line a fold starts on — the node's LAST own line here — and leaves an
     // ordinary hover chevron beside the marker, so without this a folded
     // paragraph showed two chevrons on hover, neither of them where it belongs.
-    expect(await h.foldAffordanceLines()).toEqual([0]);
-    expect(await h.foldAffordanceCount(0)).toBe(1);
-    expect(await h.foldAffordanceCount(1)).toBe(0);
-    expect(await h.foldAffordanceVisible(0)).toBe(true);
+    expect(await foldAffordanceLines()).toEqual([0]);
+    expect(await foldAffordanceCount(0)).toBe(1);
+    expect(await foldAffordanceCount(1)).toBe(0);
+    expect(await foldAffordanceVisible(0)).toBe(true);
 
     // And the count — on the node's LAST own line — still names the node. It
     // resolved the node through the chrome target, which answers for a first
     // line only, so on every multi-line node the one control after the text
     // did nothing when pressed, while every single-line node's worked.
     await h.setCursorSettled(0, 4);
-    await h.clickFoldCount(1);
-    expect(await h.foldedLineRanges()).toEqual([]);
+    await clickFoldCount(1);
+    expect(await foldedLineRanges()).toEqual([]);
   });
 
   it('keeps the count and the affordance when markers are hidden', async () => {
-    await h.setMarkerVisibility('none');
+    await setMarkerVisibility('none');
     try {
       await h.setCursorSettled(2, 4);
       await h.runCommand('fold-node');
-      expect(await h.foldCounts()).toEqual([{ line: 2, count: 3 }]);
-      expect(await h.foldAffordanceLines()).toContain(2);
+      expect(await foldCounts()).toEqual([{ line: 2, count: 3 }]);
+      expect(await foldAffordanceLines()).toContain(2);
     } finally {
-      await h.setMarkerVisibility('all');
+      await setMarkerVisibility('all');
     }
   });
 });

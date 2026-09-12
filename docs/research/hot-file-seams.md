@@ -219,7 +219,7 @@ the two block-decoration producers last — which is a reason to keep it in one 
 | 1 | Stylesheet parts per feature | `styles.css` becomes `styles/NN-*.css`, joined by the build | 5 of the 9 cross-feature append conflicts; 10 of 20 commits appended at the end | pure move, plus a build step |
 | 2 | Settings declared once, per feature | one declaration per setting, from which its ten or sixteen sites derive; then each feature's slice moves to its own module | 3 of the 9 append conflicts, in `mode-registry.ts`; 16 sites per enum setting; the hand-kept sync between definitions and fallback | reshape PR, then pure-move PR |
 | 3 | One builder of a render's line inputs | `computeDecorations` and `MarginCompensation` read inputs computed once | 9 of the 13 same-code conflicts in `decorations.ts` | refactor, not a move |
-| 4 | *Optional:* one feature's e2e helpers beside its specs | *Folding* → `e2e/folding.ts`; the six footer-only helpers → `e2e/footer.ts` | no conflict in the window; a feature's helpers stop sharing a file with everyone's | pure move |
+| 4 | *Optional:* one feature's e2e helpers beside its specs — **taken**: *Folding* → `e2e/folding.ts`, three footer setup helpers → `e2e/footer.ts`; the other three named here turned out to be shared pointer machinery (`clickClear`, `modClickAt`) and a harness wait (`waitForMetadataCache`), and stay | *Folding* → `e2e/folding.ts`; the six footer-only helpers → `e2e/footer.ts` | no conflict in the window; a feature's helpers stop sharing a file with everyone's | pure move |
 
 ### 1. Stylesheet parts
 

@@ -29,6 +29,7 @@ import {
   readStable,
   setSearchTerm,
   settle,
+  waitForBacklinkIndexReady,
 } from '../footer.js';
 
 /** The generated hub: far more sources than any cap on offer. */
@@ -78,7 +79,7 @@ describe('the overall cap and the per-note bound', function () {
     // found, not that its links were parsed, and rebuilding against a cache
     // that has discovered but not yet parsed reports the eight tracked
     // fixtures instead (measured, and the reason 76 waits the same way).
-    await h.waitForBacklinkIndexReady(HUB, 100);
+    await waitForBacklinkIndexReady(HUB, 100);
     await browser.executeObsidian(({ plugins }) => {
       (plugins.trueOutliner as never as { backlinks: { rebuild(): void } }).backlinks.rebuild();
     });
