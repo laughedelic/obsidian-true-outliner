@@ -27,21 +27,25 @@ import {
   SETTINGS,
   normalizePluginData,
   settingDefinitions,
-  type GroupHeight,
-  type GuideHighlight,
-  type GuideIntensity,
-  type GuideVisibility,
-  type OutlineUnit,
-  type LineageSeparator,
-  type MarkerHighlight,
-  type OverallCap,
   type PluginData,
-  type SegmentIcons,
   type SettingKey,
   type SettingRowKey,
-  type SortOrder,
-  type StatusBarMode,
-} from './mode-registry';
+} from './settings';
+import type {
+  GroupHeight,
+  LineageSeparator,
+  OverallCap,
+  SegmentIcons,
+  SortOrder,
+} from './settings/footer';
+import type {
+  GuideHighlight,
+  GuideIntensity,
+  GuideVisibility,
+  MarkerHighlight,
+  OutlineUnit,
+} from './settings/appearance';
+import type { StatusBarMode } from './settings/mode';
 
 /** The `PluginData` keys the footer reads, so `setFooterSetting` can only be
  * pointed at one of them. */

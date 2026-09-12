@@ -33,7 +33,7 @@ import { lineChrome, applyLineChrome, OWN_CHROME_CLASS } from './chrome-line';
 import { parsedDoc } from './parsed-doc';
 import { zoomScope } from './zoom-scope';
 import { zoomCleared, zoomTo } from './zoom-state';
-import type { LineageSeparator, SegmentIcons } from './mode-registry';
+import type { LineageSeparator, SegmentIcons } from './settings/footer';
 
 export const TRAIL_CLASS = 'to-zoom-trail';
 

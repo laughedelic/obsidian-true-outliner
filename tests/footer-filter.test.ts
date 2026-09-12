@@ -11,7 +11,7 @@ import {
   DEFAULT_GROUP_HEIGHT,
   GROUP_HEIGHT_CSS,
   OVERALL_CAP_REFERENCES,
-} from '../src/plugin/mode-registry';
+} from '../src/plugin/settings/footer';
 
 const ref = (kind: ReferenceKind, original = '[[Target]]'): BacklinkReference => ({
   kind,

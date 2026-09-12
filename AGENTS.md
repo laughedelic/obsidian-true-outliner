@@ -173,6 +173,11 @@ per-group matrix — CI already gives that; this path exists for a headless run,
   merges by union (`.gitattributes`), so branches adding notes in parallel do not conflict over
   it, and `npm run lint` checks the rows against the directory. Cite a note by its path
   (`docs/research/open-questions` Q26), never by a number.
+- **A setting is one declaration in its feature's slice** under `src/plugin/settings/` — key, default,
+  options with their labels, the tab's row — plus the getter/setter pair on the plugin that says what
+  a change does, and that pair's row in `WRITERS`. The persisted shape, the defaults, the allow-list
+  and both settings-tab renderings derive from `settings.ts`'s list of slices, which changes when a
+  feature area is added, not when a setting is.
 - **A feature's CSS goes in its own part under `styles/`**, not in the editor's. The root
   `styles.css` is a build output (`scripts/styles.mjs` joins the parts in filename order, which
   is cascade order), so a new feature adds a part with the next prefix and edits no shared file.
