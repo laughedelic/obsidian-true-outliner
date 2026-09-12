@@ -15,8 +15,19 @@ after a blank line, as an indented code block. Measured in
 - Consequently a child of `-  a` is written at three columns, and `  - b` under `-  a` parses
   as the sibling Obsidian already reads it as.
 - A list item turned into a paragraph sheds the whole run after its marker, not one space.
-- Unit cover at the parser, the re-encoder and the indent operation; an e2e case asserting the
-  written indentation and Obsidian's own reading of it.
+- The surplus of a marker's run is MARKED in outline mode — the spaces past the one the
+  marker needs, with a title saying what they are and what removes them — so the column that
+  moved is visible on the line that moved it.
+- Backspace at the content start of such an item deletes the surplus space instead of being
+  read as a merge intent; the merge is recognized once the run is down to one character.
+  The caret already resolves every column inside the run to the content start, so that is
+  the one column the surplus can be removed from, and where Cmd-Left and Mod-Backspace land.
+- A structural operation that rewrites an item's first line writes its run as one space:
+  indent, outdent, a re-encoding move, a paste. A line the operation leaves alone keeps its
+  run.
+- Unit cover at the parser, the re-encoder, the classifier and the indent operation; e2e cases
+  for the written indentation and Obsidian's reading of it, the mark, the Backspace and the
+  placement.
 
 **BREAKING** for documents that relied on the old reading: a list nested by exactly two
 columns under a bullet followed by two spaces was a child to us and a sibling to Obsidian;
@@ -34,20 +45,32 @@ None.
 - `document-tree-mapping`: "A list item's own lines, and what its children may be" states
   where the content column is.
 - `structural-operations`: the content column an indent must reach is the same column, so a
-  wide whitespace run is a wide marker for the purposes of the existing widening rule.
+  wide whitespace run is a wide marker for the purposes of the existing widening rule; a new
+  requirement has a rewritten first line carry a one-space run.
+- `transaction-classification`, `node-edit-enforcement`: the marker-space Backspace is a merge
+  intent only when the run is the one character the marker needs; wider, it is an ordinary
+  deletion of the surplus.
+- `outline-decorations`: a new requirement marks the surplus run.
 
 ## Impact
 
 - `src/parse.ts` — `parseListMarker`'s content column, now exported for the re-encoder.
-- `src/reencode.ts` — `markerWidth`, and the marker strip in the list-to-paragraph kind change.
-- `tests/reencode.test.ts`, `tests/ops.test.ts`, `e2e/specs/20-structural-commands.e2e.ts`.
+- `src/reencode.ts` — `markerWidth`, the marker strip in the list-to-paragraph kind change, and
+  `normalizeMarkerRun` in the no-conversion re-encoding.
+- `src/ops.ts` — `surplusMarkerSpace`, read by `src/classify.ts` and the decoration.
+- `src/plugin/decorations.ts`, `styles/10-editor.css` — the mark and its rule.
+- `tests/reencode.test.ts`, `tests/ops.test.ts`, `tests/classify.test.ts`;
+  `e2e/specs/20-structural-commands.e2e.ts`, `e2e/specs/57-marker-surplus-space.e2e.ts`.
 - `docs/research/list-marker-content-column.md`.
 
 ## Non-goals
 
-- **Normalizing the marker's whitespace on re-encode.** Collapsing `-  a` to `- a` when a node
-  is rewritten would remove this class of defect, but it rewrites a line the user did not
-  touch, against the minimal-change contract. Parked.
+- **Normalizing a run on a line no operation rewrites.** A parent's `-  a` keeps its run when
+  a child arrives under it; only the line an operation rewrites anyway is written with one
+  space. Rewriting the rest would touch lines the user did not, against the minimal-change
+  contract, and the mark shows where the runs are.
+- **Binding Cmd-Left.** Measured: the transaction it dispatches already resolves to the content
+  start past the whole run, so no binding is needed (research note).
 - **CommonMark's five-space fold.** Obsidian's mode has none, and the report is about
   Obsidian's rendering; see the research note.
 - **The caret's and the ladder's boundaries.** `contentColumnCh` and `contentBoundaryCh`

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { markerWidth, reencodeForDestination, shiftSubtree } from '../src/reencode';
+import { markerWidth, normalizeMarkerRun, reencodeForDestination, shiftSubtree } from '../src/reencode';
 import { indentWidth, parse } from '../src/parse';
 import { walkNodes, type OutlineNode } from '../src/model';
 
@@ -90,9 +90,51 @@ describe('a list item\'s content column counts the whole whitespace run after it
     expect(width('  -   a')).toBe(4); // indentation is not part of the width
   });
 
+  it('a moved list item\'s marker run is rewritten to one space, and its subtree follows the column', () => {
+    const doc = parse('-  a\n   b\n   - c\n');
+    const moved = reencodeForDestination(doc.children[0]!, undefined, '  ');
+    expect(moved.lines).toEqual(['  - a', '    b']);
+    expect(moved.children[0]!.lines).toEqual(['    - c']);
+    expect(markerWidth(moved)).toBe(2);
+  });
+
+  it('a one-space item is rewritten byte-for-byte but for its indentation', () => {
+    const doc = parse('- a\n  b\n  - c\n');
+    const moved = reencodeForDestination(doc.children[0]!, undefined, '  ');
+    expect(moved.lines).toEqual(['  - a', '    b']);
+    expect(moved.children[0]!.lines).toEqual(['    - c']);
+  });
+
+  it('a tab after the marker is rewritten to one space too', () => {
+    const doc = parse('-\ta\n    - c\n');
+    const moved = reencodeForDestination(doc.children[0]!, undefined, '');
+    expect(moved.lines).toEqual(['- a']);
+    expect(moved.children[0]!.lines).toEqual(['  - c']);
+  });
+
   it('a list item turned paragraph sheds the whole run, not one space of it', () => {
     const doc = parse('-  a\n');
     const asParagraph = reencodeForDestination(doc.children[0]!, 'paragraph', '');
     expect(asParagraph.lines).toEqual(['a']);
+  });
+});
+
+describe('normalizeMarkerRun', () => {
+  it('collapses any run that is not exactly one space', () => {
+    expect(normalizeMarkerRun('-  a')).toBe('- a');
+    expect(normalizeMarkerRun('1.   a')).toBe('1. a');
+    expect(normalizeMarkerRun('  -\ta')).toBe('  - a');
+    expect(normalizeMarkerRun('- \ta')).toBe('- a');
+  });
+
+  it('leaves a one-space run, a bare marker, and a non-list line alone', () => {
+    expect(normalizeMarkerRun('- a')).toBe('- a');
+    expect(normalizeMarkerRun('-')).toBe('-');
+    expect(normalizeMarkerRun('  text')).toBe('  text');
+    expect(normalizeMarkerRun('##  Two')).toBe('##  Two');
+  });
+
+  it('touches the marker\'s run only, never a task marker\'s', () => {
+    expect(normalizeMarkerRun('-  [ ]  bar')).toBe('- [ ]  bar');
   });
 });

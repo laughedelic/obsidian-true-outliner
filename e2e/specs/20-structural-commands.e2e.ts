@@ -88,6 +88,17 @@ describe('structural commands', function () {
     expect(await h.getLineClassList(1)).toContain('HyperMD-list-line-2');
   });
 
+  it('indenting an item whose marker has two spaces rewrites it with one', async function () {
+    // The moved item's first line is rewritten anyway; its child keeps its
+    // depth relative to the content column, and Obsidian nests both. `- first`
+    // is the destination sibling whose indentation the item copies.
+    await outlineNote('- parent\n  - first\n-  second\n   - child\n', 2, 4);
+    await h.runCommand('indent-node');
+    expect(await h.getBuffer()).toBe('- parent\n  - first\n  - second\n    - child\n');
+    expect(await h.getLineClassList(2)).toContain('HyperMD-list-line-2');
+    expect(await h.getLineClassList(3)).toContain('HyperMD-list-line-3');
+  });
+
   it('heading demote/promote shifts subtree markers; links still resolve', async function () {
     await h.createNote('Scratch/linker.md', 'See [[structural#Beta]]\n');
     const original = '# Alpha\n\nintro\n\n## Beta\n\nbody line\n';

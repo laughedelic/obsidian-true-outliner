@@ -203,6 +203,46 @@ describe('classify: chrome-boundary deletion shapes (chrome-transparency amendme
     ).toBe('boundary-crossing-edit');
   });
 
+  it('a marker run wider than one space makes the same keypress an ordinary deletion', () => {
+    // Backspace at `-  a`'s content start removes the surplus space and leaves
+    // the marker its own; only at `- a` is there nothing left to delete but
+    // the marker's space, which is the merge intent.
+    const wide = parse('- alpha\n-  beta\n');
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 1, toLine: 1, insertedText: '', fromCh: 2, toCh: 3 }],
+          cursorBefore: { line: 1, ch: 3 },
+        }),
+        wide,
+      ),
+    ).toBe('within-node-edit');
+    // The same rule after a task marker, and on a heading.
+    const task = parse('- [x] foo\n- [ ]  bar\n');
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 1, toLine: 1, insertedText: '', fromCh: 6, toCh: 7 }],
+          cursorBefore: { line: 1, ch: 7 },
+        }),
+        task,
+      ),
+    ).toBe('within-node-edit');
+    const heading = parse('# One\n\n##  Two\n');
+    expect(
+      classify(
+        facts({
+          userEvent: 'delete.backward',
+          changedLineSpans: [{ fromLine: 2, toLine: 2, insertedText: '', fromCh: 3, toCh: 4 }],
+          cursorBefore: { line: 2, ch: 4 },
+        }),
+        heading,
+      ),
+    ).toBe('within-node-edit');
+  });
+
   it('a TASK item has two such columns, and the one where its text begins counts', () => {
     // The mechanism, not the outcome: `computeVerdict` was already producing a
     // merge for this shape when handed the class by hand, and the keypress

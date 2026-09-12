@@ -90,6 +90,7 @@ import {
 } from './chrome-line';
 import type { NodeKind } from '../model';
 import { parse } from '../parse';
+import { contentColumnCh, markerPrefixCh, surplusMarkerSpace } from '../ops';
 import { coveredForestOf, coveredSubtreeRoots } from '../escalate';
 import type { LineRange } from '../line-pos';
 import { offsetToLinePos } from './cm-pos';
@@ -2037,6 +2038,72 @@ class OrderedDigitsPlugin implements PluginValue {
   }
 }
 
+/**
+ * The whitespace a list marker carries beyond the one space it needs.
+ *
+ * `-  a` renders in Live Preview exactly as `- a` does — the bullet, then the
+ * text — and yet its content column is one further right, so a child written
+ * at the usual two columns is a sibling to Obsidian and, once the list stack
+ * empties, its own descendants after a blank line become an indented code
+ * block (`docs/research/list-marker-content-column`). The only way to find the
+ * cause was to open the file elsewhere. This marks the surplus run, so the
+ * column that changed is visible on the line that changed it, and the title
+ * says what to do about it.
+ *
+ * Both of a task item's columns are examined, since a run can sit after the
+ * task marker too (`- [ ]  bar`), where the same Backspace removes it.
+ */
+export const SURPLUS_MARKER_SPACE_CLASS = 'to-decor-marker-surplus';
+
+const SURPLUS_MARKER_SPACE_TITLE =
+  'Extra space after the marker. Child items must be indented past it; Backspace at the start of the text removes it.';
+
+function computeSurplusMarkerSpace(state: EditorState): DecorationSet {
+  if (!isOutlineMode(state)) return Decoration.none;
+
+  const totalLines = state.doc.lines;
+  const builder = new RangeSetBuilder<Decoration>();
+  const { facts } = factsFor(state);
+  for (const fact of facts) {
+    if (!fact.hasNativeMarker) continue;
+    if (fact.lineNumber >= totalLines) continue; // stale fact past a shrunk doc
+    const line = state.doc.line(fact.lineNumber + 1); // CM6 lines are 1-indexed
+    const columns = [contentColumnCh(line.text), markerPrefixCh(line.text)];
+    // Ascending, and each column once: the builder takes ranges in order, and
+    // a plain item's two columns coincide.
+    for (const col of [...new Set(columns)].sort((a, b) => a - b)) {
+      const surplus = surplusMarkerSpace(line.text, col);
+      if (surplus === 0) continue;
+      builder.add(
+        line.from + col - surplus,
+        line.from + col,
+        Decoration.mark({
+          class: SURPLUS_MARKER_SPACE_CLASS,
+          attributes: { title: SURPLUS_MARKER_SPACE_TITLE },
+        }),
+      );
+    }
+  }
+  return builder.finish();
+}
+
+class SurplusMarkerSpacePlugin implements PluginValue {
+  decorations: DecorationSet;
+
+  constructor(private readonly view: EditorView) {
+    this.decorations = this.compute();
+  }
+
+  update(): void {
+    this.decorations = this.compute();
+  }
+
+  private compute(): DecorationSet {
+    if (isNestedEditor(this.view)) return Decoration.none;
+    return computeSurplusMarkerSpace(this.view.state);
+  }
+}
+
 class SelectionDecorationPlugin implements PluginValue {
   decorations: DecorationSet;
   private mouseDown = false;
@@ -3396,6 +3463,12 @@ export function decorationsExtension(modes: DecorationSource): Extension {
     // `Decoration.line` would otherwise have to be ordered against it by hand
     // in one `RangeSetBuilder`.
     ViewPlugin.define((view) => new OrderedDigitsPlugin(view, modes), {
+      decorations: (v) => v.decorations,
+    }),
+    // The surplus of a marker's whitespace run, marked so it can be seen
+    // (`computeSurplusMarkerSpace`). Its own plugin for the reason the digits
+    // have one.
+    ViewPlugin.define((view) => new SurplusMarkerSpacePlugin(view), {
       decorations: (v) => v.decorations,
     }),
     // The fold affordance, drawn for every node we fold and hidden by CSS
