@@ -1,4 +1,15 @@
 /*
+ * ===========================================================================
+ * Mode indicators — the status bar item and the ribbon icon
+ * ===========================================================================
+ *
+ * Both state the ACTIVE tab's outline mode and toggle that tab
+ * (`per-tab-outline-mode` design D7). Obsidian's own chrome is untouched: these
+ * are a plugin status bar item and a plugin ribbon icon, both public API, and
+ * nothing here selects a core element.
+ */
+
+/*
  * `mod-clickable` already gives Obsidian's own status-bar hover and cursor.
  * The chip renders either an icon or two words, so its own rule only has to
  * keep the items beside it from shifting as the mode changes: in words mode it
