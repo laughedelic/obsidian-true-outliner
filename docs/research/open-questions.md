@@ -2375,6 +2375,47 @@ handle it, the Obsidian quantization constraint, and the interaction with
 `lists-on-the-outline-grid` — is in
 [list-paragraph-mapping.md](list-paragraph-mapping.md).
 
+## Q35. Indented code blocks after an emptied list stack are not modelled ❓ OPEN (2026-09-12)
+
+Obsidian's Live Preview mode turns a line indented four or more columns into an indented code
+block when it follows a blank line and no open list item's content column reaches it. Our parser
+has no such block kind: a line that matches a list marker is a list item wherever it sits, and a
+line that matches nothing is a paragraph or a continuation, indentation permitting.
+
+The shape that exposed it (`docs/research/list-marker-content-column`):
+
+```
+-  a
+  -  b
+
+    - c
+```
+
+`  -  b` is a sibling of `-  a` to both readers, since two columns fall short of `a`'s content
+column of three. Then `    - c`, after the blank, is indented past `a`'s column and is `a`'s
+child to us — while Obsidian's list stack, emptied by `b`, measures the four columns against
+nothing and renders a code block. The plugin draws list chrome on a line Obsidian renders as
+code.
+
+`list-marker-content-column` closes the write side — no operation of ours writes a child one
+column short any more — and marks the surplus run so the cause is visible and removable, which
+is what the report needed. The read side is left open. The readings on the table:
+
+- **Model the block.** An indented-code atom: four or more columns of indentation after a blank
+  line, when no enclosing list item's content column reaches the line, becomes an atom node
+  like a fence, with the same continuation rules Obsidian's mode uses. This is the faithful
+  reading, and it touches segmentation, hierarchy derivation, every operation that re-indents
+  (a moved code block must keep its four columns relative to its new parent) and the
+  decorations. It also has to decide what the atom's own indentation means once it lands under
+  a list item — the same question `structural-operations` answers for a fence.
+- **Leave it.** The shape needs a surplus run to arise, the run is now marked, and a document
+  that has one is one press from not having it. The mismatch is then confined to documents no
+  one has cleaned up, where the plugin's chrome and Obsidian's rendering disagree on lines that
+  Obsidian itself shows as broken.
+
+Not decided. Measuring how often real vaults hold an indented block outside a list context
+would settle whether the first reading is worth its cost.
+
 ## Q36. Home walks to a task item's text before its checkbox ✅ RESOLVED (2026-09-13)
 
 Change: `delete-to-content-start`. Reported from real-vault use: Home should reach the beginning of

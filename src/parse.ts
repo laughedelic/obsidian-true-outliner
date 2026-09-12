@@ -59,8 +59,9 @@ function whitespaceWidth(ws: string, col: number): number {
  * against, here and in Obsidian's own reader, so a child written one column
  * short of it is a sibling to Obsidian and, once the list stack pops, its
  * deeper descendants an indented code block
- * (docs/research/list-marker-content-column). A marker at the end of its
- * line has no run to measure and takes the one space a child would need.
+ * (docs/research/list-marker-content-column). A marker with nothing but
+ * whitespace after it has no run to measure and takes the one space a child
+ * would need.
  */
 export function parseListMarker(line: string): { style: ListStyle; contentCol: number } | undefined {
   const match = LIST_ITEM_RE.exec(line);
@@ -76,7 +77,12 @@ export function parseListMarker(line: string): { style: ListStyle; contentCol: n
           delimiter: marker.endsWith(')') ? ')' : '.',
         };
   const markerEnd = indent + marker.length;
-  const contentCol = markerEnd + Math.max(1, whitespaceWidth(spacing, markerEnd));
+  // An item that starts blank — nothing, or whitespace only, after the marker —
+  // has no run to measure: CommonMark puts its content column one past the
+  // marker, and a trailing run would otherwise widen an EMPTY item's column
+  // and turn `-  ` followed by `  - b` into two siblings.
+  const blankStart = line.length === match[0].length;
+  const contentCol = markerEnd + (blankStart ? 1 : Math.max(1, whitespaceWidth(spacing, markerEnd)));
   return { style, contentCol };
 }
 

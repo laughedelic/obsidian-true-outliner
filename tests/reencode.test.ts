@@ -82,6 +82,18 @@ describe('a list item\'s content column counts the whole whitespace run after it
     expect(markerWidth(doc.children[0]!)).toBe(2);
   });
 
+  it('a marker followed by whitespace only is alone on its line too', () => {
+    // Trailing spaces are not a run the item's text begins after; counting them
+    // widened an empty item's column and made its child a sibling.
+    for (const first of ['- ', '-  ', '1.   ', '-\t']) {
+      const width = first.trimEnd().length + 1;
+      const doc = parse(`${first}\n${' '.repeat(width)}- b\n`);
+      expect(doc.children, first).toHaveLength(1);
+      expect(doc.children[0]!.children, first).toHaveLength(1);
+      expect(markerWidth(doc.children[0]!), first).toBe(width);
+    }
+  });
+
   it('markerWidth agrees with the parser, whatever the run after the marker', () => {
     const width = (line: string): number => markerWidth(parse(line + '\n').children[0]!);
     expect(width('- a')).toBe(2);

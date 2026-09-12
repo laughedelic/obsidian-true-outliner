@@ -72,6 +72,18 @@ CommonMark folds a run of five or more spaces back to one, treating the rest as 
 block inside the item; Obsidian's mode has no such fold. The rule here follows Obsidian, since
 its rendering is what the report is about, and the two agree on every run of one to four.
 
+An item that starts blank is the other case CommonMark names: a marker followed by nothing, or
+by whitespace only, has its content column one past the marker. Review of the first version
+caught that we measured the trailing run as if text followed it, so `-  ` over `  - b` read `b`
+as a sibling of an empty item whose column had widened to three; the empty item now takes the
+one-space column whatever trails it.
+
+What the parser still does not model is the indented code block Obsidian reads once its list
+stack has emptied: in the reproduction above, `    - c` after the blank line is `a`'s child to us
+(indented past `a`'s column of three) and a code block to Obsidian. Modelling that is a parser
+capability of its own, recorded as `docs/research/open-questions` Q35; this change makes the
+run that causes it visible and removable, which is what the report needed.
+
 ## Seeing the run, and removing it
 
 The column moved on a line that shows nothing: Live Preview draws `-  a` exactly as `- a`, a
