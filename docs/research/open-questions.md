@@ -31,8 +31,8 @@ Implications:
   outline view is visually identical to today's list editing.
 - **Isomorphism = lossless round-trip**: md → tree → md must be identity; every structural
   operation in outline mode must produce a tree that maps back to valid, natural markdown.
-- "Both without compromises": flat-markdown notes keep full outliner features *through the
-  mapping*, instead of losing them (obsidian-outliner's model) or being forced into bullets
+- "Both without compromises": flat-markdown notes keep full outliner features _through the
+  mapping_, instead of losing them (obsidian-outliner's model) or being forced into bullets
   (Logseq's model).
 
 ### Q2 follow-ups (the mapping algebra) ✅ DECIDED (2026-07-12, second alignment)
@@ -54,17 +54,17 @@ EVERYTHING ELSE  Tab/S-Tab = reparent (child-of-previous-sibling /
 ALWAYS           minimal encoding or reject; no hidden state.
 ```
 
-1. **Paragraph under paragraph** ✅ *provisional*: a list following a paragraph is that
+1. **Paragraph under paragraph** ✅ _provisional_: a list following a paragraph is that
    paragraph's **children** in outline mode. So indenting paragraph B under paragraph A turns
    B into a list item after A; A stays an intact paragraph. Top-level paragraphs are never
    auto-converted — a flat document just becomes a long flat list of nodes when toggled.
-   *Marked provisional*: revisit after the first prototype; may become configurable.
-   *Alternatives considered and rejected*: (a) lists attach only to headings, never
+   _Marked provisional_: revisit after the first prototype; may become configurable.
+   _Alternatives considered and rejected_: (a) lists attach only to headings, never
    paragraphs — makes paragraph-with-children inexpressible, killing the indent-under-
    paragraph op entirely; (b) sentinel syntax (e.g. a paragraph ending in `:` claims the
    following list) — magic content-sniffing, fails isomorphism. Adjacency-as-parenthood is
    the only lossless way to give paragraphs children; the heading/paragraph asymmetry is
-   markdown's (headings *scope* what follows; paragraphs merely *precede* it).
+   markdown's (headings _scope_ what follows; paragraphs merely _precede_ it).
 2. **Heading nodes** ✅: Tab/Shift+Tab = **level ± 1** (org-mode promote/demote semantics),
    the whole subtree's headings shift with it (marker-only edits; `[[note#Heading]]` anchors
    are text-based and survive). Rejected only at the bounds (no h0, no h7). **Skipped levels**
@@ -73,7 +73,7 @@ ALWAYS           minimal encoding or reject; no hidden state.
    hierarchy doesn't), then the next outdent changes hierarchy — and symmetrically, Tab on a
    heading may create a skip (a "styling-only" edit where the node's tree position is
    unchanged and only the visible level marker deepens). Accepted consequence, same as org.
-3. **Context-determined encoding on reparent** ✅ *provisional*: a reparented node's encoding
+3. **Context-determined encoding on reparent** ✅ _provisional_: a reparented node's encoding
    is a pure function of its new surroundings — it takes the type of its nearest preceding
    sibling under the new parent (fallback: following sibling; no siblings: paragraph under a
    heading/root, list item under anything else). Consequences: paragraph → indent → outdent
@@ -99,7 +99,7 @@ op-closure, inverse laws — thousands of generated cases). Findings to carry fo
 - **Attachment rule: KEEP.** Confirmed consequence: "list item as the sibling directly
   after a paragraph" is unrepresentable — the tree generator itself had to fold such
   shapes into children, which is the rule working as designed. Scope refinement
-  discovered: in v1 the rule applies at *section level* (root/heading children); inside
+  discovered: in v1 the rule applies at _section level_ (root/heading children); inside
   a list item's children, a paragraph and a following list parse as siblings under the
   item. Revisit whether nested paragraphs should also capture lists.
 - **Context-determined encoding: KEEP.** Delivered exactly the promised laws: paragraph
@@ -107,7 +107,7 @@ op-closure, inverse laws — thousands of generated cases). Findings to carry fo
   flatten. The donor scan considers only paragraph/list-item siblings (headings/atoms
   are skipped) — heading nodes are never produced by re-encoding.
 - **New rejection discovered — outdent out of a heading section.** Heading scope is
-  positional in markdown: content placed "after the section" is still *in* the section,
+  positional in markdown: content placed "after the section" is still _in_ the section,
   so brother→uncle for a direct child of a heading has no encoding → rejected
   (`not-expressible-under-target`). UX implication for the CM6 layer: outdent at
   section level needs affordance messaging (or a future "split section" op).
@@ -163,8 +163,8 @@ architecture that keeps every later layer open (fold persistence, zoom, structur
 refs/mirrors, drag-and-drop, search). Layers land one at a time on top of the stable core.
 
 **Refinement (second alignment)**: the core implements the **universal block-tree model from
-day 1** — headings + paragraphs + lists as nodes, per Q2. The MVP is smaller in *features*
-(minimal chrome, no zoom/backlinks/DnD yet), not in *model*. Retrofitting the tree model onto
+day 1** — headings + paragraphs + lists as nodes, per Q2. The MVP is smaller in _features_
+(minimal chrome, no zoom/backlinks/DnD yet), not in _model_. Retrofitting the tree model onto
 a list-only core later would risk a rewrite.
 
 ## Q5. Relationship to existing plugins ✅ DECIDED: build fresh
@@ -210,8 +210,8 @@ step. View-state restoration (fold/zoom/focus) is a later enhancement layer.
 ## Q12. Name & positioning ✅ DECIDED: working name stays; final name at submission
 
 "True Outliner" as working name; decide the final name at directory-submission time.
-Differentiator statement: *any note is an outline — enforced structure, node selection,
-isomorphic markdown mapping — one coherent plugin*.
+Differentiator statement: _any note is an outline — enforced structure, node selection,
+isomorphic markdown mapping — one coherent plugin_.
 
 ## Q13. Parser: custom vs. remark/mdast/micromark ✅ DECIDED (2026-07-13): keep custom, revisit trigger defined
 
@@ -282,18 +282,19 @@ capability rests its architecture on:
   well within budget — measured this session (dev hardware, not dedicated CI-class
   hardware; re-measure there before treating as final):
 
-  | class             | count | median  | p95     | max     |
-  |--------------------|------:|--------:|--------:|--------:|
-  | programmatic       |    63 | ~0ms    | 0.60ms  | 0.70ms  |
-  | selection-only     |    40 | ~0ms    | 0.20ms  | 0.20ms  |
-  | within-node-edit   |    20 | ~0ms    | 0.10ms  | 0.10ms  |
+  | class            | count | median |    p95 |    max |
+  | ---------------- | ----: | -----: | -----: | -----: |
+  | programmatic     |    63 |   ~0ms | 0.60ms | 0.70ms |
+  | selection-only   |    40 |   ~0ms | 0.20ms | 0.20ms |
+  | within-node-edit |    20 |   ~0ms | 0.10ms | 0.10ms |
 
   (budget: median ≤ 1ms, p95 ≤ 8ms — every number here is roughly an order of
   magnitude under budget). `boundary-crossing-edit`/`composition`/`plugin-own` had no
   samples in this run (the drives used were all within-node typing and boundary-
-  crossing *selection*, not boundary-crossing *edits*). Full re-parse per `Text`
+  crossing _selection_, not boundary-crossing _edits_). Full re-parse per `Text`
   identity (no incremental reuse) is sufficient at this note size — the D7 fallback is
   not needed.
+
 - **IME non-interference**: not automatable — this harness (chromedriver via
   wdio-obsidian-service) has no reliable way to synthesize a genuine IME composition
   session (`compositionstart`/`compositionupdate`/`compositionend` with real native
@@ -321,7 +322,7 @@ discipline (Q14's own precedent).
 
 - **`classify.ts` needed two new facts it didn't have, both filed as optional fields on
   `ChangedLineSpan` so every pre-Phase-C call site is unaffected.**
-  1. *Single-newline boundary deletions degenerate to one line.* A literal one-character
+  1. _Single-newline boundary deletions degenerate to one line._ A literal one-character
      Backspace/Delete that removes exactly the separator between two nodes has
      `fromLine === toLine` under the existing `Math.max(fromA, toA - 1)` convention —
      removing one character can't span two lines by that formula's own (correct, for
@@ -330,13 +331,13 @@ discipline (Q14's own precedent).
      the CM6 adapter computes from the true character offsets; classify.ts checks the
      identity of `fromLine` against `fromLine + 1` only when this bit is set. Existing
      classify.test.ts behavior is unaffected (the field defaults to `undefined`).
-  2. *A multi-block paste at a bare cursor never crosses a boundary by span either* — a
+  2. _A multi-block paste at a bare cursor never crosses a boundary by span either_ — a
      pure insertion's OLD-document span is always the single line it lands on, insertion
      or not. Fixed the same way: an optional `insertedText` fact, checked only for pure
      insertions landing on a real node's line, via `parse(insertedText).children.length
      > 1`. Both extensions are additive to the classification taxonomy, not changes to
-     its six-class order — the transaction-classification delta's own framing survives
-     unmodified.
+     > its six-class order — the transaction-classification delta's own framing survives
+     > unmodified.
 - **The per-kind merge table's paragraph←paragraph row is real but organically
   unreachable as an enforced REWRITE.** Two sibling paragraph nodes can never have a
   zero-gap adjacency in a validly-parsed document — the segmenter always folds two
@@ -358,16 +359,16 @@ discipline (Q14's own precedent).
   pass runs).
 - **Two implementation bugs caught before shipping, both from the same root cause**
   (`ops.ts`'s `finalize` always returns a FRESH `parse()` of the final text, so `OpOutput
-  .doc`'s node ids never match the ids of the surgery tree that produced it — every
+.doc`'s node ids never match the ids of the surgery tree that produced it — every
   existing op sidesteps this by only ever using `finalize`'s own pre-computed cursor,
   never re-deriving a position from `.doc` by id afterward):
-  1. *Type-over cursor placement.* Naively reusing `insertSubtrees`'s own cursor
+  1. _Type-over cursor placement._ Naively reusing `insertSubtrees`'s own cursor
      (content-START of the first inserted node — correct for one-shot structural
      commands like indent/outdent) put a follow-up type-over keystroke BEFORE what was
      just typed, reversing character order. Fixed by computing the end of the inserted
      run by LINE position and sibling offset from the first block (`endOfInsertedRun`),
      not by id.
-  2. *Stale survivor id.* `composeTypeOver` looked up the deletion's surviving neighbor
+  2. _Stale survivor id._ `composeTypeOver` looked up the deletion's surviving neighbor
      by its PRE-deletion id in `deleteSubtrees`'s POST-reparse tree — always missed,
      vetoing every type-over that had a real neighbor (`node-not-found`). Fixed by
      re-resolving the survivor via `nodeAtLine` at the deletion's own returned cursor
@@ -640,7 +641,7 @@ dedicated changes (`fix-outdent-following-siblings`, `heading-enter-splits-parag
   - That SAME undo dispatch also pushes a new event onto the "undone" stack,
     whose OWN `startSelection` is set to the selection that was active AT THE
     MOMENT THE UNDO TRANSACTION ITSELF WAS BUILT — i.e., `tr.startState
-    .selection` right before undo fires, which (absent any intervening change)
+.selection` right before undo fires, which (absent any intervening change)
     should be exactly our rewrite's own explicit join-point cursor.
   - Redo later pops that "undone" event and restores ITS `startSelection`
     directly — no position-remapping. So in the ordinary case, redo SHOULD
@@ -704,7 +705,8 @@ Change: `fix-redo-cursor-after-structural-ops`.
 `@codemirror/commands`' `HistoryState.pop()` picks the cursor redo restores as:
 
 ```js
-event.selectionsAfter[0] || event.startSelection.map(event.changes.invertedDesc, 1)
+event.selectionsAfter[0] ||
+  event.startSelection.map(event.changes.invertedDesc, 1);
 ```
 
 A document-changing transaction is recorded via `addChanges`, never `addSelection` —
@@ -719,8 +721,8 @@ different causes.
 ### It is an upstream regression, version-gated
 
 Bisected against the real package: **≤ 6.10.1 correct, ≥ 6.10.2 buggy**. 6.10.2's
-changelog: *"Move the selection to a less surprising place when undoing, moving the
-selection, redoing, then undoing again."* — a fix for a different scenario that added
+changelog: _"Move the selection to a less surprising place when undoing, moving the
+selection, redoing, then undoing again."_ — a fix for a different scenario that added
 the mapping fallback and regressed ours.
 
 ### Why three reports never reproduced in the harness
@@ -780,7 +782,7 @@ case, caught by property-testing against a real `EditorState` + real
 `@codemirror/commands` `history()` (`tests/minimal-change-history.test.ts`):
 
 - **Indent** is a pure insertion and is exactly correct at any undo/redo depth, fully
-  confirmed. Also: relying on CM6's own *default* selection mapping (no explicit
+  confirmed. Also: relying on CM6's own _default_ selection mapping (no explicit
   `selection` at all) turned out to be insufficient even for indent's first redo — CM6's
   live-dispatch default assoc (`-1`) disagrees with the assoc `1` its history redo
   restore hardcodes, whenever the cursor sits exactly at an insertion boundary (e.g. Tab
@@ -788,7 +790,7 @@ case, caught by property-testing against a real `EditorState` + real
   (`dispatch.ts`'s `mapCursorForward`) and states it, rather than omitting it.
 - **Outdent** (the only op whose cursor is DERIVED BY MAPPING and whose change set also
   deletes — merge and subtree deletion delete too, but choose their cursor rather than
-  mapping it) is correct at any depth *except* when the pre-op cursor sat at or inside
+  mapping it) is correct at any depth _except_ when the pre-op cursor sat at or inside
   the specific span being deleted (the removed marker/indentation — never the node's real content). CodeMirror
   itself collapses such a position to the deleted span's start when computing the live
   result, and a later undo-of-a-redo can only reconstruct from that already-collapsed
@@ -828,7 +830,7 @@ boundary) is a one-position adjustment or a redefinition of the cover, by cleari
 three collisions it names.
 
 1. **The `ch: 0` convention survives.** Moving the end to the NEXT line's start (`{line:
-   currentEnd.line + 1, ch: 0}`) keeps `ch: 0` — still independent of that next line's
+currentEnd.line + 1, ch: 0}`) keeps `ch: 0` — still independent of that next line's
    stored content, for the same reason the current convention is: `ch` is 0 either way.
    No collision here; this alone would have been a one-position adjustment.
 2. **`coveredSubtreeRoots`'s match does NOT survive untouched.** Its test is
@@ -878,7 +880,7 @@ to fixture content and duplicates what the permanent suite in
 section containing all three as children, a nested nested-list item on a real
 project note, and a tight (no-gap) list item — every one of these, exactly
 selected and deleted, left no orphan blank line and no leftover structure. Two
-script bugs surfaced along the way (selecting one line too far, into the *next*
+script bugs surfaced along the way (selecting one line too far, into the _next_
 node's own start instead of stopping at the exact cover's true end) and were
 corrected rather than being implementation bugs — both reproduced identically
 against a direct `computeVerdict` call, confirming the escalation math, not the
@@ -929,7 +931,7 @@ Binding Home and pressing it once lands the caret exactly at content start, and 
 holds after a settle delay. One thing very nearly reads as a double-fire but isn't:
 **any** real-keyboard-driven selection change in this Obsidian version is followed
 roughly 10ms later by a second, unrelated `programmatic` transaction (confirmed
-independent of this change — reproduced with a key our handler *declines*, letting 100%
+independent of this change — reproduced with a key our handler _declines_, letting 100%
 stock CM6 handle it, and it still shows up). It never moves the caret. Counting
 `stats.recent` entries is therefore the WRONG test for "did Home only fire once" (it
 will always read 2, before or after this change); checking the caret's final, settled
@@ -1091,7 +1093,7 @@ second dispatch existed, which is what sent it down a blind alley):
 
 The second dispatch is Obsidian's own checkbox-widget mount. It carries **no
 `userEvent` at all**, and `isProgrammatic` (`src/classify.ts`) claims every
-`userEvent`-less transaction *before* the `selection-only` test — so the
+`userEvent`-less transaction _before_ the `selection-only` test — so the
 transaction filter, the one layer that sees every selection change regardless of
 origin, waved it straight through. The addressable-position invariant had a hole
 exactly where any foreign, unannotated cursor move lands.
@@ -1128,7 +1130,7 @@ correction, no loop, no fight.
 **Method note — the blind alley this replaced.** The first attempt at this bug was
 `dispatchCursorRobust`: dispatch, then re-assert the position on a later animation
 frame. It went through three timing variants (one frame → ten → back to one) and
-never worked. Widened, it silently reverted a genuinely later *real user click*
+never worked. Widened, it silently reverted a genuinely later _real user click_
 back to the stale keyboard target; narrowed, it did not reliably win at all. The
 lesson is not about the frame count: re-asserting a position after the fact is a
 race against an unknown writer, and the fact that it needed tuning at all was the
@@ -1258,7 +1260,7 @@ PARA readable=off  identical
 ```
 
 Correct in every case, and the readable-line-length setting makes no difference. Note that the
-reported "second press lands on the raw line start" is the *signature of the three-rung ladder* —
+reported "second press lands on the raw line start" is the _signature of the three-rung ladder_ —
 the two-rung build cannot produce it — so that report was against the pre-removal build.
 
 **But there is a real shape that produces the same symptom on any build, and it is a parse
@@ -1273,7 +1275,7 @@ separate single-line nodes:
 For a caret on the second one, its own line start IS its block start, so Home stopping there is
 correct — there is nothing above to climb to. "Home won't cross the hard break" and "these are two
 blocks, not one" are the same observation. Both shapes are now pinned as e2e C9/C10 so the
-distinction stays visible. Whether an unindented lazy continuation *should* parse as one node is a
+distinction stays visible. Whether an unindented lazy continuation _should_ parse as one node is a
 separate question for the parser, not for this change.
 
 ### UNRESOLVED: the multiline Home report persists on Obsidian 1.13, not reproducible on 1.12.7
@@ -1316,9 +1318,9 @@ distinction visible, and they are the ones that would fail if the ladder is genu
 ### RESOLVED, by simplifying the design rather than debugging it: Home/End became one rung
 
 The user re-confirmed on 1.13 that the ladder still sticks mid-paragraph on the second press, and
-called it: *"maybe a more intuitive UX would be to have a single Home press go straight to the
+called it: _"maybe a more intuitive UX would be to have a single Home press go straight to the
 beginning of the raw line and just stay there. 1 rung, no smartness. predictable and clear to the
-user."* Implemented as stated.
+user."_ Implemented as stated.
 
 `Home` now moves to the content start of the raw line the caret is already on, `End` to that line's
 end, and a further press does nothing. Neither crosses a line break. Neither consults rendered
@@ -1373,8 +1375,8 @@ the logic was rewritten. Twice more.
 
 **Every hypothesis fit, which should itself have been the alarm.** Parse shape (two nodes vs one),
 an Obsidian 1.13 difference in `moveToLineBoundary`, the "readable line length" setting — each was
-coherent and each was consistent with every observation. They were consistent because *"the code
-is not running"* is consistent with everything. When successive hypotheses all fit and none
+coherent and each was consistent with every observation. They were consistent because _"the code
+is not running"_ is consistent with everything. When successive hypotheses all fit and none
 predicts anything new, the premise is wrong, not the details.
 
 **Correct-looking outcomes were miscounted as evidence.** The checkbox result (first Home to column
@@ -1488,10 +1490,10 @@ column 0 — inside a `- ` marker — but it arrives as an ordinary selection ch
 `selection-only`, and `resolvePlacement` clamps it off the marker. That is precisely the job D2
 exists to do. Measured on a checkbox item, the two keys expose the two layers cleanly:
 
-| key | path | result |
-|---|---|---|
-| cmd+Left | native → col 6 (Obsidian's task-aware stop); native → col 0; **filter rewrites 0 → 2** | 6, then 2 |
-| fn+Left (`Home`) | our keymap handler → `contentBoundaryCh` | 2, one press |
+| key              | path                                                                                   | result       |
+| ---------------- | -------------------------------------------------------------------------------------- | ------------ |
+| cmd+Left         | native → col 6 (Obsidian's task-aware stop); native → col 0; **filter rewrites 0 → 2** | 6, then 2    |
+| fn+Left (`Home`) | our keymap handler → `contentBoundaryCh`                                               | 2, one press |
 
 So the two layers do genuinely different jobs, and both work:
 
@@ -1681,7 +1683,7 @@ after redo   : {line 1, ch 0}  NOT addressable   <- the blank line
 
 Stable at every depth. This change's own premise — "minimal changes make the mapped
 position semantically correct" — holds for insertions and is false for deletions, where
-there is no correct mapping because the cursor is a *choice*. The design said exactly that
+there is no correct mapping because the cursor is a _choice_. The design said exactly that
 about deletions (D4) and then removed the mechanism carrying the choice through redo
 anyway.
 
@@ -1855,12 +1857,12 @@ Documented as a known limitation at the time; closed now.
 The rule is now derived rather than declared (`src/plugin/record-decision.ts`):
 
 ```js
-tr.startState.selection.map(tr.changes, 1).eq(tr.newSelection)   // → no recording needed
+tr.startState.selection.map(tr.changes, 1).eq(tr.newSelection); // → no recording needed
 ```
 
 `assoc = 1` is not a preference — it is the association `@codemirror/commands` hardcodes in
-its redo restore, so this asks CM6's own mapping the exact question that matters: *is the
-dispatched selection what redo would recompute?* It preserves the guarantee the old set
+its redo restore, so this asks CM6's own mapping the exact question that matters: _is the
+dispatched selection what redo would recompute?_ It preserves the guarantee the old set
 existed for — redo is exact wherever the list made it exact — closes the fallback case, and
 cannot drift from the dispatch sites because there is no list to maintain.
 
@@ -1940,7 +1942,7 @@ assert the cover is single-rooted." It passed. It also reached its assertion exa
 enumerate REAL cover shapes (every node's own subtree cover, every node pair's forest cover) it
 reaches 452, and it now carries an explicit coverage counter that fails if that number
 collapses. Q28's vacuity catalogue gains a third shape: not a vacuous conjunct (Q29's table
-case), but a vacuous *filter* — the guard that makes a property well-formed is also what can
+case), but a vacuous _filter_ — the guard that makes a property well-formed is also what can
 make it measure nothing.
 
 ### The classification gate did NOT widen, contrary to the design
@@ -2087,8 +2089,8 @@ on real notes.
   understandable and tolerable." The decision stands as written.
 
   The question it drew is worth recording, because the intuition behind it is a good one and the
-  answer is not obvious: *could the selection preserve `c1 + c2 + P` instead of collapsing to
-  "whole P", and doesn't the mixed-depth forest prove we already keep state?*
+  answer is not obvious: _could the selection preserve `c1 + c2 + P` instead of collapsing to
+  "whole P", and doesn't the mixed-depth forest prove we already keep state?_
 
   For the representation we HAVE — one contiguous anchor/head range — the answer is no on both
   counts. The forest is DERIVED by `coveredForestOf` on every call, so a mixed-depth cover needs
@@ -2105,7 +2107,6 @@ on real notes.
   wider paint is mechanically possible.
 
   Four things break, and none of them is the paint:
-
   - **Copy and cut are not interceptable.** They read the browser's DOM selection, which mirrors
     `state.selection`. Measured while fixing the copy defect below: blurred, with block chrome
     showing, `getSelection().toString()` returns exactly the covered text. So a selection of
@@ -2266,10 +2267,10 @@ its own algebra produced passes it unnoticed.
 
 Three such bugs were sitting in `ops.ts`, and each was found by asserting a promise instead:
 
-| what was asserted | bug found |
-|---|---|
-| the subject's resulting DEPTH (indent +1, outdent −1, reorders 0) | `indent` under an ordered parent (PR #51); `moveDown` absorbed into a preceding paragraph's list |
-| a node ABOVE the operand keeps its own first line | `outdent` lets an arriving node's inherited number hijack the destination run's start, rewriting `2. L1` to `1. L1` |
+| what was asserted                                                 | bug found                                                                                                           |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| the subject's resulting DEPTH (indent +1, outdent −1, reorders 0) | `indent` under an ordered parent (PR #51); `moveDown` absorbed into a preceding paragraph's list                    |
+| a node ABOVE the operand keeps its own first line                 | `outdent` lets an arriving node's inherited number hijack the destination run's start, rewriting `2. L1` to `1. L1` |
 
 The depth test is the one worth adding permanently for all four operations — it would have caught
 two of the three. It now lives in `tests/depth-contract.test.ts`, over both the single-node and the
@@ -2299,11 +2300,11 @@ Whether the moved subtrees stay contiguous — which the single-range after-stat
 measured before anything was built on it, 20 000 runs per operation:
 
 | operation | multi-parent covers accepted | roots left adjacent |
-|---|---|---|
-| indent | 3723 | 3723 |
-| outdent | 2577 | 2577 |
-| move up | 3100 | **0** |
-| move down | 0 of 8141 | — never accepted |
+| --------- | ---------------------------- | ------------------- |
+| indent    | 3723                         | 3723                |
+| outdent   | 2577                         | 2577                |
+| move up   | 3100                         | **0**               |
+| move down | 0 of 8141                    | — never accepted    |
 
 A reorder moves each group within its OWN scope, so a mixed-depth cover is scattered rather than
 moved. The reorders now require a single sibling run. Indent and outdent needed no restriction.
@@ -2314,9 +2315,9 @@ moved. The reorders now require a single sibling run. Indent and outdent needed 
 sibling spine, so a k-root operand on an n-node note is Θ(k·n). Raised in PR #50 review and
 measured — group outdent on a ~2000-line note:
 
-| roots | 2 | 10 | 50 | 200 |
-|---|---|---|---|---|
-| time | 1.7 ms | 2.3 ms | 7.0 ms | 15.4 ms |
+| roots | 2      | 10     | 50     | 200     |
+| ----- | ------ | ------ | ------ | ------- |
+| time  | 1.7 ms | 2.3 ms | 7.0 ms | 15.4 ms |
 
 Fine at the selection sizes real editing produces; past the 8 ms p95 this project holds keystroke
 paths to once a cover gets large (Mod+A then Shift+Tab reaches k=200). No stated budget formally
@@ -2373,3 +2374,44 @@ consequences, how CommonMark, org-mode, Notion, AsciiDoc, reStructuredText, djot
 handle it, the Obsidian quantization constraint, and the interaction with
 `lists-on-the-outline-grid` — is in
 [list-paragraph-mapping.md](list-paragraph-mapping.md).
+
+## Q35. Indented code blocks after an emptied list stack are not modelled ❓ OPEN (2026-09-12)
+
+Obsidian's Live Preview mode turns a line indented four or more columns into an indented code
+block when it follows a blank line and no open list item's content column reaches it. Our parser
+has no such block kind: a line that matches a list marker is a list item wherever it sits, and a
+line that matches nothing is a paragraph or a continuation, indentation permitting.
+
+The shape that exposed it (`docs/research/list-marker-content-column`):
+
+```
+-  a
+  -  b
+
+    - c
+```
+
+`  -  b` is a sibling of `-  a` to both readers, since two columns fall short of `a`'s content
+column of three. Then `    - c`, after the blank, is indented past `a`'s column and is `a`'s
+child to us — while Obsidian's list stack, emptied by `b`, measures the four columns against
+nothing and renders a code block. The plugin draws list chrome on a line Obsidian renders as
+code.
+
+`list-marker-content-column` closes the write side — no operation of ours writes a child one
+column short any more — and marks the surplus run so the cause is visible and removable, which
+is what the report needed. The read side is left open. The readings on the table:
+
+- **Model the block.** An indented-code atom: four or more columns of indentation after a blank
+  line, when no enclosing list item's content column reaches the line, becomes an atom node
+  like a fence, with the same continuation rules Obsidian's mode uses. This is the faithful
+  reading, and it touches segmentation, hierarchy derivation, every operation that re-indents
+  (a moved code block must keep its four columns relative to its new parent) and the
+  decorations. It also has to decide what the atom's own indentation means once it lands under
+  a list item — the same question `structural-operations` answers for a fence.
+- **Leave it.** The shape needs a surplus run to arise, the run is now marked, and a document
+  that has one is one press from not having it. The mismatch is then confined to documents no
+  one has cleaned up, where the plugin's chrome and Obsidian's rendering disagree on lines that
+  Obsidian itself shows as broken.
+
+Not decided. Measuring how often real vaults hold an indented block outside a list context
+would settle whether the first reading is worth its cost.

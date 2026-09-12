@@ -5,8 +5,9 @@
 A list item's CONTENT COLUMN SHALL be the column at which its text begins: past its
 indentation, its marker, and the whole whitespace run after the marker, a tab in that run
 advancing to the next tab stop. `- a` has content column 2 and `-  a` has 3, as Obsidian's
-own reader and CommonMark measure them. A marker alone on its line SHALL take the column one
-space past the marker, where a child would need to sit.
+own reader and CommonMark measure them. A marker with nothing, or whitespace only, after it
+SHALL take the column one space past the marker, where a child would need to sit: an item
+that starts blank has no run its text begins after, and CommonMark measures it the same way.
 
 A list item's OWN LINES SHALL be its marker line together with the immediately following
 non-blank lines that are indented to at least its content column and do not themselves start
@@ -44,6 +45,12 @@ part of its text can only be represented as its child.
   document, by `   - b`
 - **THEN** the first `b` is a SIBLING of `a` — two columns fall short of `a`'s content column
   of three — and the second is its CHILD, matching what Obsidian renders for each
+
+#### Scenario: An empty item's trailing whitespace is not a run
+
+- **WHEN** `-  ` (a marker and two trailing spaces) is followed by `  - b`
+- **THEN** `b` is a CHILD of the empty item, whose content column is two, exactly as for `-`
+  alone
 
 #### Scenario: Both readings round-trip byte-identically
 
