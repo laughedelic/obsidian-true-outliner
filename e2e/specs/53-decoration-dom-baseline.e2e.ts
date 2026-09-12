@@ -24,9 +24,6 @@
  * the same wherever the suite runs.
  */
 
-/** The inline properties the layer measures rather than decides. */
-const MEASURED = /^--to-(chevron-|accent-stop)/;
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { browser, expect } from '@wdio/globals';
@@ -77,7 +74,10 @@ function snapshot(): Promise<string> {
       const props: string[] = [];
       for (let i = 0; i < el.style.length; i++) {
         const name = el.style[i]!;
-        if (name.startsWith('--to-') && !MEASURED.test(name)) {
+        // The properties the layer measures rather than decides (see the
+        // module comment). Spelled here: this function runs in the app, where
+        // nothing from this file's scope exists.
+        if (name.startsWith('--to-') && !/^--to-(chevron-|accent-stop)/.test(name)) {
           props.push(`${name}=${el.style.getPropertyValue(name).trim()}`);
         }
       }
