@@ -144,10 +144,13 @@ describe('nextRung: a task item\'s first rung starts after its task marker (sele
   // - [ ] buy milk
   // - [x] done
   //   - child
+  //   - [ ] nested task
   // - [ ]
   // 1. [ ] ordered
   // [ ] note
-  const tasks = parse('- [ ] buy milk\n- [x] done\n  - child\n- [ ] \n1. [ ] ordered\n[ ] note\n');
+  const tasks = parse(
+    '- [ ] buy milk\n- [x] done\n  - child\n  - [ ] nested task\n- [ ] \n1. [ ] ordered\n[ ] note\n',
+  );
 
   it('an open task selects its text only, never the checkbox, then climbs to the whole line', () => {
     const steps = climbIn(tasks, cursor(pos(0, 9)));
@@ -158,22 +161,27 @@ describe('nextRung: a task item\'s first rung starts after its task marker (sele
   it('a done task with children selects its text, then its subtree', () => {
     const steps = climbIn(tasks, cursor(pos(1, 8)));
     expect(steps[0]).toEqual(range(pos(1, 6), pos(1, 10))); // "done"
-    expect(steps[1]).toEqual(range(pos(1, 0), pos(2, 9))); // subtree: the child comes along
+    expect(steps[1]).toEqual(range(pos(1, 0), pos(3, 19))); // subtree: both children come along
+  });
+
+  it('a nested task excludes its indentation, its list marker and its checkbox', () => {
+    const steps = climbIn(tasks, cursor(pos(3, 12)));
+    expect(steps[0]).toEqual(range(pos(3, 8), pos(3, 19))); // "nested task"
   });
 
   it('an ordered task item excludes both its number and its checkbox', () => {
-    const steps = climbIn(tasks, cursor(pos(4, 9)));
-    expect(steps[0]).toEqual(range(pos(4, 7), pos(4, 14))); // "ordered"
+    const steps = climbIn(tasks, cursor(pos(5, 9)));
+    expect(steps[0]).toEqual(range(pos(5, 7), pos(5, 14))); // "ordered"
   });
 
   it('an empty task item has no text rung: the first press takes the whole line', () => {
-    const steps = climbIn(tasks, cursor(pos(3, 6)));
-    expect(steps[0]).toEqual(range(pos(3, 0), pos(3, 6)));
+    const steps = climbIn(tasks, cursor(pos(4, 6)));
+    expect(steps[0]).toEqual(range(pos(4, 0), pos(4, 6)));
   });
 
   it('a paragraph that merely starts with `[ ]` keeps its full text: no list marker, no task marker', () => {
-    const steps = climbIn(tasks, cursor(pos(5, 5)));
-    expect(steps[0]).toEqual(range(pos(5, 0), pos(5, 8)));
+    const steps = climbIn(tasks, cursor(pos(6, 5)));
+    expect(steps[0]).toEqual(range(pos(6, 0), pos(6, 8)));
   });
 
   it('a plain item is unchanged: its text starts right after the list marker', () => {
