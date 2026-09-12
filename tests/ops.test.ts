@@ -11,6 +11,7 @@ import {
   unwrapListItem,
   insertSiblingHeading,
   insertSubtrees,
+  surplusMarkerSpace,
 } from '../src/ops';
 import { applyEdits } from '../src/result';
 
@@ -266,6 +267,24 @@ describe('fallback indent unit (Obsidian "Indent using tabs" setting)', () => {
     // (docs/research/list-marker-content-column).
     const { text, doc } = applyWithUnit(indent, '-  a\n- b\n', '- b', undefined);
     expect(parentLineOf(doc, '   - b')).toBe('-  a');
+    expect(text).toBe('-  a\n   - b\n');
+  });
+
+  it('a marker followed by two spaces is rewritten with one when its own line moves', () => {
+    // The indented item's first line is rewritten anyway, and a run wider than
+    // one space is what put its content column where nobody could see it. Its
+    // continuation line and its child keep their depth relative to the column.
+    // `  - q` is the destination sibling whose indentation the moved item
+    // copies; without it, `- c`'s three columns would be the inferred unit.
+    const { text, doc } = applyWithUnit(indent, '- p\n  - q\n-  a\n   b\n   - c\n', '-  a', undefined);
+    expect(text).toBe('- p\n  - q\n  - a\n    b\n    - c\n');
+    expect(parentLineOf(doc, '    - c')).toBe('  - a');
+  });
+
+  it('the parent\'s own run is not rewritten by a child arriving under it', () => {
+    // Only the line an operation rewrites is normalized; `-  a` is not touched
+    // by an indent under it, and the child reaches its real column.
+    const { text } = applyWithUnit(indent, '-  a\n- b\n', '- b', undefined);
     expect(text).toBe('-  a\n   - b\n');
   });
 
@@ -741,5 +760,39 @@ describe('review follow-ups (#43)', () => {
     // child — which is what an indentation mismatch would have made it.
     expect(after.children[0]!.children.map((n) => n.kind)).toEqual(['list-item', 'code']);
     expect(after.children[0]!.children[0]!.children).toEqual([]);
+  });
+});
+
+describe('surplusMarkerSpace', () => {
+  it('counts the run past the one character a marker needs, at the column the run ends', () => {
+    expect(surplusMarkerSpace('- a', 2)).toBe(0);
+    expect(surplusMarkerSpace('-  a', 3)).toBe(1);
+    expect(surplusMarkerSpace('-   a', 4)).toBe(2);
+    expect(surplusMarkerSpace('1.  a', 4)).toBe(1);
+    expect(surplusMarkerSpace('  -  b', 5)).toBe(1);
+    expect(surplusMarkerSpace('##  Two', 4)).toBe(1);
+  });
+
+  it('a task marker\'s own run counts too', () => {
+    expect(surplusMarkerSpace('- [ ] bar', 6)).toBe(0);
+    expect(surplusMarkerSpace('- [ ]  bar', 7)).toBe(1);
+    expect(surplusMarkerSpace('-  [ ] bar', 3)).toBe(1);
+  });
+
+  it('a single tab is the one character the marker needs, not a surplus', () => {
+    // Removing it would leave `-a`, which is no marker at all.
+    expect(surplusMarkerSpace('-\ta', 2)).toBe(0);
+    expect(surplusMarkerSpace('- \ta', 3)).toBe(1);
+  });
+
+  it('indentation alone is nobody\'s run', () => {
+    expect(surplusMarkerSpace('   text', 3)).toBe(0);
+    expect(surplusMarkerSpace('  - a', 2)).toBe(0);
+  });
+
+  it('a column inside the run, or past it, reports nothing', () => {
+    expect(surplusMarkerSpace('-   a', 2)).toBe(0);
+    expect(surplusMarkerSpace('-   a', 3)).toBe(1);
+    expect(surplusMarkerSpace('-  a', 4)).toBe(0);
   });
 });

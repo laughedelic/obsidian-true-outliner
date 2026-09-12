@@ -1462,3 +1462,21 @@ body.is-mobile {
 .markdown-source-view.mod-cm6 .cm-editor.to-decor-block-selecting .cm-selectionLayer .cm-selectionBackground {
   background: transparent;
 }
+
+/*
+ * The surplus of a list marker's whitespace run (`SURPLUS_MARKER_SPACE_CLASS`,
+ * decorations.ts): the spaces past the one the marker needs, on `-  a`.
+ *
+ * Live Preview draws the run as blank, whatever its width, so the one thing that
+ * moved the item's content column is the one thing the line does not show. The
+ * highlight background is the theme's own, so the run reads as marked text in
+ * light and dark alike, and the dotted rule underneath keeps it visible where a
+ * theme's highlight is faint. A whitespace-only span collapses to nothing under
+ * `white-space: pre-wrap` at a wrap point; `pre` keeps its width.
+ */
+.markdown-source-view.mod-cm6 .cm-content > .cm-line .to-decor-marker-surplus {
+  background-color: var(--text-highlight-bg);
+  border-bottom: 1px dotted var(--text-warning);
+  border-radius: 2px;
+  white-space: pre;
+}

@@ -18,9 +18,22 @@ import { indentWidth, parseListMarker, TAB_WIDTH } from './parse';
 const LIST_MARKER_STRIP_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]*/;
 
 export function markerWidth(node: OutlineNode): number {
-  const line = node.lines[0] ?? '';
-  const marker = parseListMarker(line);
-  return marker ? marker.contentCol - indentWidth(line) : 2;
+  return markerWidthOf(node.lines[0] ?? '');
+}
+
+function markerWidthOf(line: string): number {
+  const parsed = parseListMarker(line);
+  return parsed ? parsed.contentCol - indentWidth(line) : 2;
+}
+
+const MARKER_RUN_RE = /^([ \t]*(?:[-+*]|\d{1,9}[.)]))([ \t]+)/;
+
+/** `-  a` and `-\ta` as `- a`; a line already at one space, and a marker with
+ * no whitespace after it at all, come back unchanged. */
+export function normalizeMarkerRun(line: string): string {
+  const match = MARKER_RUN_RE.exec(line);
+  if (!match || match[2] === ' ') return line;
+  return `${match[1]} ${line.slice(match[0].length)}`;
 }
 
 /** The column at which a node's children must be indented. */
@@ -135,7 +148,15 @@ export function reencodeForDestination(
   // Atoms and no-conversion cases: rewrite the first line's leading
   // whitespace exactly; shift the rest by the width delta.
   if (!newKind || newKind === node.kind) {
-    const shifted = shiftSubtree(node, delta);
+    // A list item's marker run is rewritten with the line it sits on: `-  a`
+    // lands as `- a`. The line is being rewritten anyway, and a run wider than
+    // one space is what makes the item's content column hard to see and its
+    // children easy to nest one column short. The item's continuation lines
+    // and children move with the column, so what was under the item stays
+    // under it at the same relative depth.
+    const normalized = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
+    const columnDelta = normalized === first ? 0 : markerWidthOf(normalized) - markerWidthOf(first);
+    const shifted = shiftSubtree({ ...node, lines: [normalized, ...node.lines.slice(1)] }, delta + columnDelta);
     return {
       ...shifted,
       lines: [

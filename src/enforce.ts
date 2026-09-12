@@ -174,6 +174,13 @@ function recognizeMergeIntent(
   // is where the item's text begins. Only the first was recognised, so
   // Backspace where the text begins fell through to an ordinary character
   // deletion and left `- [ ]bar`: a broken checkbox instead of a join.
+  //
+  // A content start whose marker run is wider than one character (`-  a`) does
+  // not arrive here at all: `classify.ts` keeps that Backspace a within-node
+  // edit, so the surplus space is deleted natively and the marker keeps its
+  // own. The rule lives in the classifier alone because a one-character range
+  // that reached the deletion path below would be measured against the node's
+  // whole subtree, which is the mis-reading recorded above for headings.
   if (edit.from.line === edit.to.line && edit.to.ch - edit.from.ch === 1) {
     const node = nodeAtLine(doc, edit.from.line);
     const line = node?.lines[0] ?? '';

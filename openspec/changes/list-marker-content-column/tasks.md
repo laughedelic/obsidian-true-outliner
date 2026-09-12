@@ -23,7 +23,47 @@
 - [x] 2.3 Run `npx vitest run` and verify the corpus, round-trip and property suites still pass.
 - [x] 2.4 Run `npm run test:e2e:narrow -- 20-structural-commands` and verify the spec passes.
 
-## 3. Close the change
+## 3. Reach and remove the surplus
 
-- [x] 3.1 Run `npm run lint`, `npx tsc --noEmit` and `npm run build:e2e`; verify all clean.
-- [x] 3.2 Run `openspec validate list-marker-content-column --strict`.
+- [x] 3.1 Add `surplusMarkerSpace` cases in `tests/ops.test.ts`: `-  a` at 3 is one, `- a` at
+      2 none, `- [ ]  bar` at 7 one, `##  Two` at 4 one, a single tab none, indentation alone
+      none, a column inside or past the run none.
+- [x] 3.2 Add classifier cases: Backspace at the content start of `-  beta`, `- [ ]  bar` and
+      `##  Two` is `within-node-edit`. Negative control: against the unmodified classifier
+      each is `boundary-crossing-edit`.
+- [x] 3.3 Narrow `crossesViaChromeDeletion` by the predicate; leave `recognizeMergeIntent`
+      as it is, with the reason recorded beside it. Verify 3.2 passes and the merge cases
+      in `tests/enforce.test.ts` still do.
+- [x] 3.4 Add e2e cases in `57-marker-surplus-space`: a caret set inside the run lands at
+      column 3; Backspace there leaves `- b` with the caret at 2; a second Backspace merges;
+      the `select` transaction `cursorLineBoundaryLeft` dispatches resolves to column 3.
+      Desktop and mobile.
+
+## 4. Mark the surplus
+
+- [x] 4.1 Add `computeSurplusMarkerSpace` and its plugin in `decorations.ts`, marking the run
+      past its first character at each of the line's content-start columns, with the title.
+- [x] 4.2 Add the rule to `styles/10-editor.css`: highlight background, dotted rule,
+      `white-space: pre`.
+- [x] 4.3 Add e2e cases: `- a` unmarked, `-  b`, `1.  c`, `- [ ]  d`, `-   e` each carry one
+      mark of non-zero width, the three-space mark wider than the one-space; off-mode carries
+      none; Backspace removes the mark with the space.
+
+## 5. Normalize a rewritten first line
+
+- [x] 5.1 Add `normalizeMarkerRun` cases in `tests/reencode.test.ts`, and
+      `reencodeForDestination` cases: `-  a` with a continuation line and a child re-encodes
+      as `  - a` with both shifted by the column change; `- a` changes only its indentation;
+      `-\ta` collapses.
+- [x] 5.2 Add indent cases in `tests/ops.test.ts`: `-  a` indented beside `  - q` lands as
+      `  - a` with its subtree following; `- b` indented under `-  a` leaves `-  a` alone.
+- [x] 5.3 Normalize in `reencodeForDestination`'s no-conversion branch, shifting the subtree
+      by the column change. Verify 5.1 and 5.2 pass and the round-trip and property suites
+      still do.
+- [x] 5.4 Add an e2e case in `20-structural-commands`: indenting `-  second` with its child
+      writes `  - second` and `    - child`, levels 2 and 3 to Obsidian.
+
+## 6. Close the change
+
+- [x] 6.1 Run `npm run lint`, `npx tsc --noEmit` and `npm run build:e2e`; verify all clean.
+- [x] 6.2 Run `openspec validate list-marker-content-column --strict`.

@@ -42,12 +42,12 @@ a code block. CommonMark reads the same content column for one to four spaces.
 The parser accepts any whitespace run after a marker and then sets the content column to the
 marker's end plus one, whatever the run held:
 
-| line | our content column | Obsidian's |
-| --- | --- | --- |
-| `- a` | 2 | 2 |
-| `-  a` | 2 | 3 |
-| `1.  a` | 3 | 4 |
-| `  -  b` | 4 | 5 |
+| line     | our content column | Obsidian's |
+| -------- | ------------------ | ---------- |
+| `- a`    | 2                  | 2          |
+| `-  a`   | 2                  | 3          |
+| `1.  a`  | 3                  | 4          |
+| `  -  b` | 4                  | 5          |
 
 The re-encoder's `markerWidth`, which every structural operation uses to place a child, counts
 the same single space. Measured: indenting `- second` under `-  parent` writes `  - second`,
@@ -71,3 +71,38 @@ already sees it as.
 CommonMark folds a run of five or more spaces back to one, treating the rest as an indented code
 block inside the item; Obsidian's mode has no such fold. The rule here follows Obsidian, since
 its rendering is what the report is about, and the two agree on every run of one to four.
+
+## Seeing the run, and removing it
+
+The column moved on a line that shows nothing: Live Preview draws `-  a` exactly as `- a`, a
+bullet and then the text, whatever the run's width. A mark decoration over the run past its
+first space (`SURPLUS_MARKER_SPACE_CLASS`) makes it visible; measured on `- a`, `-  b`, `1.  c`,
+`- [ ]  d` and `-   e`, the first line carries no mark and each of the others one span of
+non-zero width, the three-space span wider than the one-space, on desktop and under mobile
+emulation alike. The span needs `white-space: pre`: whitespace-only, it otherwise collapses at a
+wrap point.
+
+Removing the run by hand was not possible in outline mode. The caret's boundary
+(`contentBoundaryCh`) spans the whole run, so no column inside it is addressable — a caret set
+at column 1 of `-  b` reads back at 3 — and Backspace at column 3 was classified as the
+marker-space merge intent (`crossesViaChromeDeletion` shape 1): `- a\n-  b` became `- ab`, the
+space never deleted. The classifier now recognizes that shape only when the run is the one
+character the marker needs; wider, the keypress is a within-node edit and the native deletion
+runs: measured, Backspace at column 3 of `-  b` leaves `- b` with the caret at 2, and a second
+Backspace there merges as before. The enforcement layer is not consulted for a within-node
+edit, so its merge recognition is unchanged.
+
+Where Cmd-Left and Mod-Backspace land was the other question. CodeMirror binds Cmd-Left to
+`cursorLineBoundaryLeft`, which dispatches a `select` transaction to the row's start; the
+placement filter resolves that to the content start past the run. Measured by dispatching the
+same transaction, since the key is bound on macOS only and the harness runs on Linux: the caret
+lands at column 3 on `-  b`. Mod-Backspace (`delete-to-content-start`) plans to the same
+boundary and, at it, defers to the Backspace path — so from anywhere in the text, Mod-Backspace
+lands at column 3 and one more Backspace removes the surplus. No new binding was needed.
+
+A structural operation that rewrites the item's own first line writes the run as one space
+(`normalizeMarkerRun`), shifting the item's continuation lines and children by the column
+change: indenting `-  second` with its child under `- parent` writes `  - second` and
+`    - child`, which Obsidian marks as levels 2 and 3. An operation that leaves the line alone
+leaves the run alone — a child indented under `-  parent` still reaches column 3 and the parent
+keeps its two spaces, marked.
