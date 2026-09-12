@@ -124,6 +124,44 @@ describe('progressive-select-all', function () {
     expect(sel.head).toEqual({ line: 0, ch: '- alpha'.length });
   });
 
+  it("a task item's first press selects its text only — the checkbox stays out, and Obsidian's widget mount cannot pull the range back to the marker", async function () {
+    // A rung starting right after `- ` does not survive here: Obsidian's
+    // checkbox-widget mount dispatches a selection change of its own that moves
+    // a boundary sitting at ch 2 to column 0 (content-space-caret C8 records
+    // the same dispatch for a caret), so the settled selection read as the
+    // whole line, marker and checkbox included. Measured in
+    // docs/research/select-all-task-content. The pause asserts the SETTLED
+    // range, after that late dispatch has landed.
+    await outlineNote('- [ ] buy milk\n- [x] done\n');
+    await h.setCursor(0, 9); // inside "milk"
+    await h.pressSelectAll();
+    await browser.pause(80);
+    let sel = await h.getSelection();
+    expect(sel.anchor).toEqual({ line: 0, ch: '- [ ] '.length });
+    expect(sel.head).toEqual({ line: 0, ch: '- [ ] buy milk'.length });
+
+    // The second press brings the whole line back, checkbox and all (no gap
+    // of its own to take along: the next item follows directly).
+    await h.pressSelectAll();
+    sel = await h.getSelection();
+    expect(sel.anchor).toEqual({ line: 0, ch: 0 });
+    expect(sel.head).toEqual({ line: 0, ch: '- [ ] buy milk'.length });
+  });
+
+  it("a task item's first press selects its text from a caret in the marker prefix too — where Home leaves it, and where the widget mount moves it", async function () {
+    // Measured under mobile emulation: the widget mount moved the caret from
+    // the text to column 0 before the press, the filter clamped it to ch 2, and
+    // a ladder that required the caret INSIDE the text rung skipped to the
+    // whole line. A cursor before the rung climbs from it.
+    await outlineNote('- [ ] buy milk\n- [x] done\n');
+    await h.setCursorSettled(0, 2);
+    await h.pressSelectAll();
+    await browser.pause(80);
+    const sel = await h.getSelection();
+    expect(sel.anchor).toEqual({ line: 0, ch: '- [ ] '.length });
+    expect(sel.head).toEqual({ line: 0, ch: '- [ ] buy milk'.length });
+  });
+
   it('each range in a multi-range selection climbs its own ladder independently', async function () {
     const md = '# Head\n\nBody one.\n\nBody two.\n';
     await outlineNote(md);
