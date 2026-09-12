@@ -212,5 +212,9 @@ has them. Regenerate with `openspec update`, which rewrites the real tree and le
 symlinks alone; never edit a skill by hand. The generated slash-command files under
 `.claude/commands/` and `.github/prompts/` are gitignored.
 
+`.claude/hooks/session-start.sh` prepares a remote container — the commit identity, so a cloud
+session's commits are ours rather than the agent's, and `npm install`. It is a no-op outside a
+remote session (`CLAUDE_CODE_REMOTE`), where the global identity already applies.
+
 `openspec/config.yaml` carries the project context plus the rules and guidance injected into
 OpenSpec's own workflows — put anything OpenSpec can reach there rather than here.
