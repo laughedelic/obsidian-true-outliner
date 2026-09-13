@@ -29,8 +29,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # `branches-ignore` keeps main out of the push trigger, but a manual dispatch
+  # defaults to the default branch and can also name a tag. Either would build a
+  # beta that outranks the current release and that no branch deletion would
+  # ever clean up, so the ref is checked here rather than trusted.
   publish:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref_type == 'branch' &&
+      github.ref_name != github.event.repository.default_branch
     runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v7
