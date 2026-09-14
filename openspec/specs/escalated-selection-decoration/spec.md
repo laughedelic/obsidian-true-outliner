@@ -13,7 +13,9 @@ here as a formal requirement — it was validated manually rather than through a
 coverage; see `docs/research/selection-follow-ups` for its full investigation, known limitations, and
 deferred follow-ups (IME composition; Tab/Shift-Tab/Cmd+Up-Down needing
 selection-aware behavior for multi-node operands).
+
 ## Requirements
+
 ### Requirement: An exact whole-node or whole-subtree selection cover renders block-level chrome
 When the current editor selection contains a non-empty range that covers a single node's
 whole subtree, or a FOREST of whole subtrees — starting exactly at the covered node(s)'
@@ -160,9 +162,9 @@ render an indentation guide at, clearing the root's own marker icon (which is ce
 its own column) rather than bisecting it. A top-level root (no parent) SHALL use an
 equivalent one-level offset rather than its own column. The chrome SHALL NOT reach any
 further left than this (content further left belongs to a shallower ancestor, outside the
-current selection). A list-item root has no additive column of its own (list indentation is
-deferred entirely to native rendering, consistent with how indentation guides already treat
-list-item ancestors) — its own line's shift, less one level, is used as the target instead.
+current selection). This holds for a list-item root exactly as for any other kind: a list
+item's column is its depth on the outline grid, so a nested bullet's selection starts at its
+parent bullet's guide, never at the top of its list or at the view edge.
 
 A cover with SEVERAL roots at different depths (`selection-as-subtree-set`) SHALL resolve
 this column independently PER ROOT, over that root's own subtree's lines. The edge is
@@ -186,6 +188,12 @@ own line outside its own highlight.
   shallower root's own line sits inside its own highlight rather than to the left of an
   edge computed from the deeper root
 
+#### Scenario: A nested list-item root anchors to its parent's guide
+- **WHEN** an escalated cover is rooted at a bullet nested one or more levels inside a list
+- **THEN** the chrome's left edge sits at the column of the parent bullet's guide — one level
+  out from the root's own depth — and a root one level deeper sits one level further in;
+  the edge never reaches past the list's ancestors to the view edge
+
 #### Scenario: Chrome clears the covered root's own marker instead of bisecting it
 - **WHEN** an escalated cover is rooted at a heading that has its own marker icon
 - **THEN** the chrome's left edge sits to the left of that marker's own column, so the
@@ -198,7 +206,8 @@ own line outside its own highlight.
 
 **Covered by**: e2e coverage comparing the resolved viewport position of the chrome's
 left edge across a heading root, its descendants at varying depths (list, code,
-blockquote), its shallower ancestors, and a mixed-depth two-root cover; a dedicated
+blockquote), its shallower ancestors, a mixed-depth two-root cover, a list-item root at
+each of three depths, and a pure-list mixed-depth cover; a dedicated
 blockquote-specific regression check (Obsidian's native blockquote side-bar rule sets
 `width: 1px` on the same pseudo-element this chrome uses, which silently shrank the whole
 chrome box before this rule explicitly reset `width`).
@@ -382,4 +391,3 @@ declines, and which chords those are is not knowable from the key event.
 - **WHEN** the user drag-selects across node boundaries so the selection escalates to a cover
 - **THEN** the editor ends blurred with the block chrome shown, the same as before this
   requirement — the drag path's observable behavior is unchanged
-
