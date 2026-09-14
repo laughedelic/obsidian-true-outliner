@@ -43,8 +43,8 @@
 
 - [x] 4.1 Add `computeSurplusMarkerSpace` and its plugin in `decorations.ts`, marking the run
       past its first character at each of the line's content-start columns, with the title.
-- [x] 4.2 Add the rule to `styles/10-editor.css`: highlight background, dotted rule,
-      `white-space: pre`.
+- [x] 4.2 Add the rule to `styles/60-marker-surplus.css`, its own part: highlight background,
+      dotted rule, `white-space: pre`.
 - [x] 4.3 Add e2e cases: `- a` unmarked, `-  b`, `1.  c`, `- [ ]  d`, `-   e` each carry one
       mark of non-zero width, the three-space mark wider than the one-space; off-mode carries
       none; Backspace removes the mark with the space.

@@ -915,8 +915,9 @@ its text column being the gutter either way.
 - **WHEN** a document containing bullet, ordered and task items at several depths, with
   soft-wrapped and hard-continued items among them, is rendered
 - **THEN** every marker's column, every item's text column, every stated hanging indent and
-  every wrapped row's column is what it was before this requirement existed — save the one
-  stated exception below
+  every wrapped row's column is what it was before this requirement existed — save the two
+  stated exceptions: a marker's own surplus run, above, and a wide ordered marker's own
+  number, below
 
 #### Scenario: A wide ordered marker's text follows its own number
 

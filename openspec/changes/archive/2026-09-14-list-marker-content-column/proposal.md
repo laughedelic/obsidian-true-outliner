@@ -58,7 +58,7 @@ None.
 - `src/reencode.ts` — `markerWidth`, the marker strip in the list-to-paragraph kind change, and
   `normalizeMarkerRun` in the no-conversion re-encoding.
 - `src/ops.ts` — `surplusMarkerSpace`, read by `src/classify.ts` and the decoration.
-- `src/plugin/decorations.ts`, `styles/10-editor.css` — the mark and its rule.
+- `src/plugin/decorations.ts`, `styles/60-marker-surplus.css` — the mark and its rule.
 - `tests/reencode.test.ts`, `tests/ops.test.ts`, `tests/classify.test.ts`;
   `e2e/specs/20-structural-commands.e2e.ts`, `e2e/specs/57-marker-surplus-space.e2e.ts`.
 - `docs/research/list-marker-content-column.md`.
