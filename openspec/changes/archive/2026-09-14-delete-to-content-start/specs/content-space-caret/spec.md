@@ -63,7 +63,7 @@ SHALL be stock. A non-empty selection or a multi-cursor SHALL be stock too.
 - **THEN** the editor's own line-start deletion runs, unchanged
 
 **Covered by**: `tests/caret-policy.test.ts` ("planDeleteToContentStart");
-`e2e/specs/65-content-space-caret.e2e.ts` ("delete to content start", D1–D6).
+`e2e/specs/65-content-space-caret.e2e.ts` ("delete to content start", D1–D9).
 
 ## MODIFIED Requirements
 

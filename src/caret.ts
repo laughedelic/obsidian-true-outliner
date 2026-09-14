@@ -6,7 +6,7 @@
  * (src/plugin/keymap.ts for motion, src/plugin/transaction-filter.ts for
  * placement resolution) converts to/from character offsets and supplies
  * whatever CM6-only facts a decision needs — which, since Home/End became a
- * single raw-line step with no geometry in it (docs/research/open-questions Q26), is now
+ * raw-line step with no geometry in it (docs/research/open-questions Q26), is now
  * only CM6's goal-column-preserving vertical motion for Up/Down.
  *
  * Supersedes `escalate.ts`'s `clampCursorToContent`: the marker-only rule
@@ -18,7 +18,10 @@
  *   alone has CM6's visual geometry) answers "given a position and a
  *   direction, what's the next addressable position." Home/End also live in
  *   the adapter, but need no geometry: they take the caret's own raw line's
- *   content boundary, in one step, and never cross a line break."
+ *   content boundary and never cross a line break — in one step everywhere
+ *   but a task item's first line, which offers a second stop before the
+ *   boundary, at the item's own text (`contentStartRungs`,
+ *   docs/research/open-questions Q36)."
  * - Placement resolution (`resolvePlacement`) answers "given a position
  *   produced by something with no direction — a click, a collapse — what's
  *   the nearest legal position, via gap/marker OWNERSHIP, never proximity."

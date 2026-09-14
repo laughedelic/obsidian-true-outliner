@@ -24,9 +24,14 @@ the parsed document and the caret and answers `delete` with a start, `backspace`
 the handler dispatches. The alternative — computing inside the handler like Home does — would
 leave the column rule testable only end to end.
 
-**Past the task marker, unlike Home.** Home lands before the checkbox because the checkbox is
-addressable; a deletion that stopped there would take the checkbox with the text. The planner
-adds `taskMarkerLength` to the caret's own boundary, the same composition `pastTaskMarker`
+**Past the task marker, on the deletion's first stop.** A task item's first line has two
+content starts: the boundary just after the list marker, and where the item's text begins,
+past the checkbox. A gesture made from the text deletes the task marker and lands at the
+boundary — the checkbox is not addressable to a deletion the way it is to a caret, so nothing
+is lost by taking it in one bite. `contentStartRungs` names the pair once; the planner and
+`Home` both walk it, in the same order, so the two keys agree about where an item's text
+begins (`docs/research/open-questions` Q36). The planner reaches the text column with
+`taskMarkerLength` added to the caret's own boundary, the same composition `pastTaskMarker`
 uses for a caret an operation places.
 
 **At the content start, run Backspace.** `deleteCharBackward` from `@codemirror/commands`

@@ -54,8 +54,15 @@ binding, it deletes from the caret back to the caret's line's content start: on 
 first line the column where its text begins — past the list marker and, on a task item, the
 task marker too, so the checkbox survives; on a continuation line the line's alignment column.
 That range never starts at column 0, so it can never be an exact cover, and the marker's line
-keeps its marker. At or before the content start the key does what Backspace does there — the
-merge or veto the content-start rules already give, and ordinary editing inside the marker.
+keeps its marker.
+
+A task item's first line has a second content start of its own: the boundary just after the
+list marker, in front of the checkbox, the same one Home reaches on a further press
+(`docs/research/open-questions` Q36). A gesture made from the item's own text deletes the task
+marker and leaves the caret at that boundary, rather than doing nothing — the two stops are the
+ones Home walks, in the same order, so the keys agree about where an item's text begins. At or
+before that boundary — including inside the brackets — the key does what Backspace does there:
+the merge or veto the content-start rules already give, and ordinary editing inside the marker.
 
 Left as it is: a paragraph or a heading has its content start at column 0, so the key stays
 stock there, and the exact-cover branch above still applies to a childless paragraph followed

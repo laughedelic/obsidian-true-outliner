@@ -765,4 +765,42 @@ describe('content-space-caret: delete to content start (delete-to-content-start)
     expect(await h.getBuffer()).toBe('\n');
     expect(await h.getCursor()).toEqual({ line: 0, ch: 0 });
   });
+
+  it('D8 - a non-empty selection declines: stock deletes the selection, not a content-start range', async function () {
+    // `soleCursor` returns undefined here, so the handler declines and
+    // CodeMirror's own fallback runs — which for a non-empty range simply
+    // deletes it, the ordinary meaning of a delete key over a selection.
+    await outlineNote('- alpha beta\n- gamma\n');
+    await h.setSelection({ line: 0, ch: 8 }, { line: 0, ch: 12 }); // "beta"
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha \n- gamma\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 8 });
+  });
+
+  it('D9 - multi-cursor declines: stock runs on every range, not the single-cursor plan', async function () {
+    // Unlike the motion handlers (`dispatchCursor` replaces the whole
+    // selection, so they decline outright to avoid discarding every other
+    // range), CodeMirror's own line-boundary deletion is a proper multi-range
+    // command: it runs per range and both cursors survive it.
+    await outlineNote('- alpha\n- beta\n');
+    const rangeCount = (): Promise<number> =>
+      browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        return (view!.editor as any).cm.state.selection.ranges.length;
+      });
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const cm = (view!.editor as any).cm;
+      const ES = cm.state.selection.constructor;
+      const a = cm.state.doc.line(1).from + 7; // end of "- alpha"
+      const b = cm.state.doc.line(2).from + 6; // end of "- beta"
+      cm.dispatch({ selection: ES.create([ES.cursor(a), ES.cursor(b)], 1) });
+    });
+    await deleteToContentStart();
+    expect(await rangeCount()).toBe(2);
+    // Each line is deleted back to its own visual-row start, same as the
+    // single-cursor stock fallback D1-D2 measure against — the content-start
+    // rule never runs under multi-cursor.
+    expect(await h.getBuffer()).toBe('\n\n');
+  });
 });
