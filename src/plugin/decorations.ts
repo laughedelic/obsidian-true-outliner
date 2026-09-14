@@ -2052,12 +2052,15 @@ class OrderedDigitsPlugin implements PluginValue {
  *
  * Both of a task item's columns are examined, since a run can sit after the
  * task marker too (`- [ ]  bar`), where the same Backspace removes it — but
- * only that pair. `parseListMarker`'s own content column, not `ops.ts`'s
- * `contentColumnCh`/`markerPrefixCh`, is the first boundary: those two also
- * swallow an ATX prefix (`- # title`), right for the caret and for split, and
- * wrong here — an ATX heading's own spacing plays no part in Obsidian's
- * nesting math, so marking it would highlight a run that is not the marker's
- * and miss a genuine one hiding behind it (`- #  title`, `-  # title`).
+ * only that pair. `parseListMarker`'s own content CHARACTER offset
+ * (`contentCh`, not its content COLUMN, `contentCol` — the two diverge on a
+ * tab-indented line and only the offset is a valid string index), not
+ * `ops.ts`'s `contentColumnCh`/`markerPrefixCh`, is the first boundary: those
+ * two also swallow an ATX prefix (`- # title`), right for the caret and for
+ * split, and wrong here — an ATX heading's own spacing plays no part in
+ * Obsidian's nesting math, so marking it would highlight a run that is not
+ * the marker's and miss a genuine one hiding behind it (`- #  title`,
+ * `-  # title`).
  */
 export const SURPLUS_MARKER_SPACE_CLASS = 'to-decor-marker-surplus';
 
@@ -2068,13 +2071,13 @@ const SURPLUS_MARKER_SPACE_TITLE =
 function surplusRuns(lineText: string): readonly { from: number; to: number }[] {
   const marker = parseListMarker(lineText);
   if (!marker) return [];
-  const columns = [marker.contentCol];
-  const task = taskMarkerLength(lineText.slice(marker.contentCol));
-  if (task > 0) columns.push(marker.contentCol + task);
+  const offsets = [marker.contentCh];
+  const task = taskMarkerLength(lineText.slice(marker.contentCh));
+  if (task > 0) offsets.push(marker.contentCh + task);
   const runs: { from: number; to: number }[] = [];
-  for (const col of columns) {
-    const surplus = surplusMarkerSpace(lineText, col);
-    if (surplus > 0) runs.push({ from: col - surplus, to: col });
+  for (const ch of offsets) {
+    const surplus = surplusMarkerSpace(lineText, ch);
+    if (surplus > 0) runs.push({ from: ch - surplus, to: ch });
   }
   return runs;
 }

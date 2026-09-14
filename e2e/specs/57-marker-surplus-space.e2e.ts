@@ -74,6 +74,17 @@ describe('a list marker\'s surplus whitespace', function () {
     expect(await h.getLineChildRects(1, MARK)).toHaveLength(1);
   });
 
+  it('is found on a tab-indented line, list marker and task marker alike', async function () {
+    // `parseListMarker`'s CONTENT COLUMN is a visual width (a tab expands to
+    // more than one character), so using it as a string index put the slice
+    // past the actual run on a tab-indented line and the mark disappeared —
+    // `contentCh`, the character-offset twin, is what a slice needs instead.
+    await h.createNote(NOTE, '- top\n\t-  nested\n\t- [ ]  task\n');
+    await h.setOutlineMode(true);
+    expect(await h.getLineChildRects(1, MARK)).toHaveLength(1);
+    expect(await h.getLineChildRects(2, MARK)).toHaveLength(1);
+  });
+
   it('sits between the gutter and the text, never inside the gutter', async function () {
     // The bullet and its own space fill the gutter as on a one-space line, so
     // the mark begins where a one-space item's text begins, and the text begins
