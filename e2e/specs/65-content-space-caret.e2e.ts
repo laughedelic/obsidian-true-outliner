@@ -475,6 +475,15 @@ describe('content-space-caret', function () {
       expect(await h.getCursor()).toEqual({ line: 1, ch: 2 }); // stays — no escalation to line 0
     });
 
+    it('C11 - Home from inside the checkbox goes straight to the boundary, as it always has', async function () {
+      // A caret between the brackets stands at neither rung, so the nearer one
+      // takes it — the one-press behavior this line had before the second rung.
+      await outlineNote('- [ ] task text\n');
+      await h.setCursorSettled(0, 4);
+      await h.keys.home();
+      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
+    });
+
     it('C7 - Home on a SOFT-WRAPPED line goes to that raw line\'s start, not the visual row\'s start (one rung is deliberately not wrap-aware)', async function () {
       // The escalating ladder's first rung used to be the current VISUAL ROW
       // (`moveToLineBoundary(..., includeWrap: true)`). One rung drops that
@@ -550,12 +559,16 @@ describe('content-space-caret', function () {
       // below is what makes this test meaningful: it asserts the SETTLED
       // position, after Obsidian's own late dispatch has landed.
       await outlineNote('- [ ] alpha beta\n');
-      await h.setCursor(0, 10);
+      await h.setCursorSettled(0, 10);
       await h.keys.home();
       await browser.pause(80); // let the one-shot widget-mount interference (if any) resolve
-      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 }); // "- " is chrome; "[ ] alpha beta" is content
+      expect(await h.getCursor()).toEqual({ line: 0, ch: 6 }); // the item's own text
       await h.keys.home();
-      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 }); // single-line collapse: further presses do nothing
+      // "- " is chrome; "[ ] alpha beta" is content, and the caret reaches its
+      // front on the second rung rather than being kept out of it (Q36).
+      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
+      await h.keys.home();
+      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 }); // the last rung: further presses do nothing
     });
 
     it("C5 - End in a multiline node takes the caret's OWN line end and stays there (one rung)", async function () {
@@ -725,6 +738,24 @@ describe('content-space-caret: delete to content start (delete-to-content-start)
     expect(await h.getBuffer()).toBe('- alphabeta\n');
     expect(await h.getCursor()).toEqual({ line: 0, ch: 7 });
     expect((await h.getStats()).verdictCounts.rewrite).toBe(1);
+  });
+
+  it('D7 - a second press takes the checkbox, and a third is the Backspace', async function () {
+    // The same ladder Home walks (C10): text, then box, then whatever the
+    // content-start rules give — here a merge with the item above.
+    await outlineNote('- alpha\n- [ ] task text\n');
+    await h.setCursorSettled(1, 15);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha\n- [ ] \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 6 });
+
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha\n- \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 7 });
   });
 
   it('D6 - a paragraph stays stock: the whole line goes', async function () {

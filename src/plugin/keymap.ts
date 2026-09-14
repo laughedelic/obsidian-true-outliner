@@ -50,7 +50,7 @@ import { indentUnit, foldedRanges } from "@codemirror/language";
 import { Notice, editorInfoField } from "obsidian";
 import { planKey, type GrammarKey } from "./grammar";
 import { nextRungs } from "../select-all-ladder";
-import { planDeleteToContentStart } from "../caret-policy";
+import { contentStartRungs, planDeleteToContentStart } from "../caret-policy";
 import { extendSelections, type ExtendDirection } from "../select-extend";
 import { coveredForestOf } from "../escalate";
 import {
@@ -922,18 +922,22 @@ function makeVerticalHandler(forward: boolean) {
 }
 
 /**
- * Home/End (design.md D5, as revised in docs/research/open-questions Q26): ONE rung.
- * Home goes to the caret's own RAW LINE's content start, End to its end, and
- * a further press changes nothing.
+ * Home/End (design.md D5, as revised in docs/research/open-questions Q26 and
+ * Q36): Home goes to the caret's own RAW LINE's content start, End to its end.
+ * Home takes a SECOND stop where the line has one — a task item's first line,
+ * where the text begins after the checkbox and the boundary sits in front of
+ * it (`contentStartRungs`) — and changes nothing once it is there.
  *
- * No escalation, and deliberately not wrap-aware. Two earlier designs
- * escalated — visual row then node, and before that visual row, raw line,
- * then node — and both were retired after real-vault use. The escalating
- * ladder made a single keypress mean different things depending on invisible
- * state (where the previous press left the caret, and where the renderer
- * happened to wrap the text), which is exactly the kind of guessing this
- * change set out to remove from caret motion. A user pressing Home wants the
- * start of the line they are looking at, every time.
+ * The rungs never cross a line, and are deliberately not wrap-aware. Two
+ * earlier designs escalated across lines — visual row then node, and before
+ * that visual row, raw line, then node — and both were retired after
+ * real-vault use. Those ladders made a single keypress mean different things
+ * depending on invisible state: where the previous press left the caret, and
+ * where the renderer happened to wrap the text. Neither is at stake here. A
+ * checkbox is drawn on the line, the caret's own column says which stop is
+ * next, and the platform key a Mac user actually presses walks these same two
+ * columns already — measured in Q26, where cmd+Left gave 6 then 2 on a task
+ * item while Home gave 2 in one press. Home now agrees with it.
  *
  * Not using `view.moveToLineBoundary` is the other half of the point: the
  * target is now computed from the parsed line alone, so it cannot vary with
@@ -982,9 +986,10 @@ function makeHomeEndHandler(forward: boolean) {
     const pos = resolvePlacement(outlineDoc, raw);
     const lineIndex = pos.line - nodeStartLine(outlineDoc, node.id);
     const line = node.lines[lineIndex] ?? "";
+    const rungs = contentStartRungs(node, line, lineIndex === 0);
     const target: LinePos = forward
       ? { line: pos.line, ch: line.length }
-      : { line: pos.line, ch: contentBoundaryCh(node, line) };
+      : { line: pos.line, ch: pos.ch > rungs.text ? rungs.text : rungs.boundary };
 
     // A non-empty range must always be dispatched, even when the computed target
     // equals the head: the dispatch is what collapses it.

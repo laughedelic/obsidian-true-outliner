@@ -14,6 +14,11 @@ further than the motion does.
   caret's line's content start on a list item's own line: past the list marker and, on a task
   item, the task marker, so the checkbox survives; on a continuation line, to its alignment
   column. The range never starts at column 0, so it is never read as a subtree cover.
+- A task item's first line has a SECOND stop, and both keys walk it: from the column where the
+  item's text begins, a further Mod-Backspace deletes the checkbox, and a further `Home` moves
+  to the boundary in front of it. `Home` reached that boundary in one press before and now
+  reaches the text first, which is the ladder macOS's own cmd+Left already walks on the same
+  line (`docs/research/open-questions` Q26's measurement, recorded as Q36).
 - At or inside the content start the key does what Backspace does there — the merge or veto
   the content-start rules already give, and ordinary editing inside the marker.
 - Outside a list item's own line the key stays stock: a paragraph's or a heading's content
@@ -22,8 +27,10 @@ further than the motion does.
   hotkey where the key itself is not bound, and so the e2e runner can drive it on Linux.
 - Unit cover for the planner and e2e cover for every measured shape.
 
-No breaking changes: nothing bound before is rebound, and Ctrl-Backspace on Windows and Linux
-stays word deletion.
+Nothing bound before is rebound, and Ctrl-Backspace on Windows and Linux stays word deletion.
+`Home` on a TASK item changes: it stops where the item's text begins before reaching the
+boundary in front of the checkbox, where it reached that boundary in one press. Every other
+line keeps its single stop.
 
 ## Capabilities
 
@@ -34,16 +41,19 @@ None.
 ### Modified Capabilities
 
 - `content-space-caret`: a new requirement beside Home and End states where a line-start
-  deletion stops, and what it does at the content start.
+  deletion stops and what it does at the content start; "Home and End move within the caret's
+  own line, in one step" is renamed (the "one step" no longer holds on a task item) and
+  restated with the second stop both keys walk.
 
 ## Impact
 
-- `src/caret-policy.ts` — the pure planner.
-- `src/plugin/keymap.ts` — the handler and the `mac`-only binding.
+- `src/caret-policy.ts` — the pure planner and `contentStartRungs`, the pair of columns both keys walk.
+- `src/plugin/keymap.ts` — the handler, the `mac`-only binding, and Home's second stop.
 - `src/plugin/main.ts` — the command.
 - `tests/caret-policy.test.ts`, `e2e/specs/65-content-space-caret.e2e.ts`.
 - `docs/research/delete-to-content-start.md`; a parking-lot entry in
-  `docs/research/selection-follow-ups.md`.
+  `docs/research/selection-follow-ups.md`; `docs/research/open-questions` Q36, the decision and
+  the measurement it matches.
 
 ## Non-goals
 

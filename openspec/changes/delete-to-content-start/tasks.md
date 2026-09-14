@@ -17,8 +17,25 @@
       `npm run test:e2e:narrow -- 65-content-space-caret "delete to content start"`.
 - [x] 2.3 Run the whole `65-content-space-caret` spec and verify Home/End cases still pass.
 
-## 3. Close the change
+## 3. The second stop
 
-- [x] 3.1 Run `npx vitest run`, `npm run lint`, `npx tsc --noEmit` and `npm run build:e2e`;
+- [x] 3.1 Add `contentStartRungs` cases: a task item's first line offers two columns, every
+      other line collapses the pair, and neither a bare `[ ]` nor a paragraph opening with one
+      reports a marker. Negative control: the helper does not exist, so the file fails to
+      compile without it.
+- [x] 3.2 Add planner cases: from the column where a task item's text begins the plan deletes
+      from the boundary; inside the marker it stays a Backspace. Negative control: both read
+      `backspace` against the one-stop planner.
+- [x] 3.3 Walk the rungs in `planDeleteToContentStart` and in `makeHomeEndHandler`; verify 3.1
+      and 3.2 pass.
+- [x] 3.4 Update `65-content-space-caret`: C8 asserts Home's two stops on a checkbox item and a
+      third press changing nothing, C11 the one-press path from inside the marker, D7 the
+      delete ladder's text, box and merge. Verify the whole spec passes, desktop and mobile.
+- [x] 3.5 Record the decision as `docs/research/open-questions` Q36, with Q26's own cmd+Left
+      measurement as the shape being matched.
+
+## 4. Close the change
+
+- [x] 4.1 Run `npx vitest run`, `npm run lint`, `npx tsc --noEmit` and `npm run build:e2e`;
       verify all clean.
-- [x] 3.2 Run `openspec validate delete-to-content-start --strict`.
+- [x] 4.2 Run `openspec validate delete-to-content-start --strict`.
