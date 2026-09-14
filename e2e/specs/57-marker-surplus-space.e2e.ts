@@ -60,6 +60,20 @@ describe('a list marker\'s surplus whitespace', function () {
     expect((await markTitles(1))[0]).toContain('Backspace');
   });
 
+  it('is scoped to the list and task markers, not an ATX prefix after them', async function () {
+    // `- #  title` has its surplus AFTER the `#`, which plays no part in
+    // Obsidian's nesting math — an ATX-like `#` is content here, not chrome
+    // (`enter-and-shift-enter-grammar` D5) — so marking it would highlight a
+    // run that is not the list marker's. `-  # title` has the real surplus,
+    // hidden behind the `#`: `contentColumnCh`/`markerPrefixCh` swallow the
+    // ATX prefix along with it, which the caret and split want and this does
+    // not.
+    await h.createNote(NOTE, '- #  title\n-  # title\n');
+    await h.setOutlineMode(true);
+    expect(await h.getLineChildRects(0, MARK)).toHaveLength(0);
+    expect(await h.getLineChildRects(1, MARK)).toHaveLength(1);
+  });
+
   it('sits between the gutter and the text, never inside the gutter', async function () {
     // The bullet and its own space fill the gutter as on a one-space line, so
     // the mark begins where a one-space item's text begins, and the text begins

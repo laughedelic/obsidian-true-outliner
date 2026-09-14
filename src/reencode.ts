@@ -21,7 +21,7 @@ export function markerWidth(node: OutlineNode): number {
   return markerWidthOf(node.lines[0] ?? '');
 }
 
-function markerWidthOf(line: string): number {
+export function markerWidthOf(line: string): number {
   const parsed = parseListMarker(line);
   return parsed ? parsed.contentCol - indentWidth(line) : 2;
 }

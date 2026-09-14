@@ -35,6 +35,8 @@ import {
   headingWithLevel,
   leadingWhitespace,
   markerWidth,
+  markerWidthOf,
+  normalizeMarkerRun,
   reencodeForDestination,
   shiftBelowMarker,
   shiftSubtree,
@@ -1942,9 +1944,26 @@ export function mergeNodes(doc: OutlineDoc, firstId: number): OpResult<OpOutput>
  * manual pass finding). A string-prefix swap can't mismatch: whatever unit
  * the copied subtree's OWN internal nesting already used carries over
  * exactly, just re-rooted at the new depth.
+ *
+ * The one line this leaves for width rather than characters: the ROOT's own
+ * marker run is normalized to one space, same as `reencodeForDestination`'s
+ * own no-conversion branch does for its first line — a pasted `-  a` should
+ * not keep the surplus that turns its children into siblings at the new
+ * depth, any more than an indented or outdented one does
+ * (`list-marker-content-column`). Continuation lines and children shift by
+ * the resulting width delta first, so what was under the item stays under it
+ * at the new relative depth before the prefix swap below runs; a descendant's
+ * OWN marker run, past the root, is untouched — this is verbatim re-indent,
+ * not a normalization pass over the whole subtree.
  */
 export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): OutlineNode {
-  const topWs = leadingWhitespace(node.lines[0] ?? '');
+  const first = node.lines[0] ?? '';
+  const normalizedFirst = node.kind === 'list-item' ? normalizeMarkerRun(first) : first;
+  const columnDelta =
+    normalizedFirst === first ? 0 : markerWidthOf(normalizedFirst) - markerWidthOf(first);
+  const root = shiftBelowMarker({ ...node, lines: [normalizedFirst, ...node.lines.slice(1)] }, columnDelta);
+
+  const topWs = leadingWhitespace(root.lines[0] ?? '');
   const swapLine = (line: string): string => {
     if (line.trim() === '') return line;
     const ws = leadingWhitespace(line);
@@ -1955,7 +1974,7 @@ export function reindentSubtreeVerbatim(node: OutlineNode, indentText: string): 
     lines: n.lines.map(swapLine),
     children: n.children.map(recur),
   });
-  return recur(node);
+  return recur(root);
 }
 
 /**

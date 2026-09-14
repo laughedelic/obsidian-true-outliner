@@ -89,8 +89,8 @@ import {
   stripeStartExpr,
 } from './chrome-line';
 import type { NodeKind } from '../model';
-import { parse } from '../parse';
-import { contentColumnCh, markerPrefixCh, surplusMarkerSpace } from '../ops';
+import { parse, parseListMarker } from '../parse';
+import { surplusMarkerSpace, taskMarkerLength } from '../ops';
 import { coveredForestOf, coveredSubtreeRoots } from '../escalate';
 import type { LineRange } from '../line-pos';
 import { offsetToLinePos } from './cm-pos';
@@ -2051,20 +2051,28 @@ class OrderedDigitsPlugin implements PluginValue {
  * says what to do about it.
  *
  * Both of a task item's columns are examined, since a run can sit after the
- * task marker too (`- [ ]  bar`), where the same Backspace removes it.
+ * task marker too (`- [ ]  bar`), where the same Backspace removes it — but
+ * only that pair. `parseListMarker`'s own content column, not `ops.ts`'s
+ * `contentColumnCh`/`markerPrefixCh`, is the first boundary: those two also
+ * swallow an ATX prefix (`- # title`), right for the caret and for split, and
+ * wrong here — an ATX heading's own spacing plays no part in Obsidian's
+ * nesting math, so marking it would highlight a run that is not the marker's
+ * and miss a genuine one hiding behind it (`- #  title`, `-  # title`).
  */
 export const SURPLUS_MARKER_SPACE_CLASS = 'to-decor-marker-surplus';
 
 const SURPLUS_MARKER_SPACE_TITLE =
-  'Extra space after the marker. Child items must be indented past it; click, or press Backspace at the start of the text, to remove it.';
+  'Extra space after the marker; click, or press Backspace at the start of the text, to remove it.';
 
 /** The surplus runs on one line, as offsets into it, ascending. */
 function surplusRuns(lineText: string): readonly { from: number; to: number }[] {
-  const columns = [contentColumnCh(lineText), markerPrefixCh(lineText)];
-  // Ascending, and each column once: the builder takes ranges in order, and a
-  // plain item's two columns coincide.
+  const marker = parseListMarker(lineText);
+  if (!marker) return [];
+  const columns = [marker.contentCol];
+  const task = taskMarkerLength(lineText.slice(marker.contentCol));
+  if (task > 0) columns.push(marker.contentCol + task);
   const runs: { from: number; to: number }[] = [];
-  for (const col of [...new Set(columns)].sort((a, b) => a - b)) {
+  for (const col of columns) {
     const surplus = surplusMarkerSpace(lineText, col);
     if (surplus > 0) runs.push({ from: col - surplus, to: col });
   }
