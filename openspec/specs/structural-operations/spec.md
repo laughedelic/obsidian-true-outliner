@@ -5,7 +5,9 @@ Defines the structural operations (indent, outdent, moveUp, moveDown) that edit 
 tree from document-tree-mapping: their per-node-kind algebra (heading level-shift vs.
 reparent), rejection semantics for inexpressible edits, and the closure/minimal-edit
 guarantees that keep every accepted operation's output re-parseable and diff-minimal.
+
 ## Requirements
+
 ### Requirement: Operation results are total and typed
 Every structural operation (indent, outdent, moveUp, moveDown) SHALL be a pure function
 returning either an accepted result — the new tree plus a minimal list of line-range edits —
@@ -114,6 +116,7 @@ implemented behind an isolated strategy function.
   items)
 
 ### Requirement: Fallback indent unit for brand-new indentation
+
 When a structural operation materializes indentation, it SHALL take the leading
 whitespace of a SIBLING AT THE DESTINATION whenever one exists — of any kind, not
 list items only. Siblings share an indentation level by construction, so copying
@@ -140,6 +143,14 @@ consumed an undo step while changing nothing structurally. This is the mirror of
 the too-deep case above, and only a shortfall is repaired — indentation that
 already clears the column keeps the unit the evidence chose.
 
+The content column reached is the one `document-tree-mapping` defines: past the
+marker's whole whitespace run. A bullet followed by two spaces has a content column
+of three, so it is a wide marker for this rule exactly as an ordered marker is, and a
+child written under it reaches three columns — the column Obsidian's own reader nests
+at. Written one column short, the child was a sibling to Obsidian and, once its list
+stack emptied, the child's deeper descendants after a blank line an indented code
+block (`docs/research/list-marker-content-column`).
+
 A list item is the only parent whose content column the parse REQUIRES a child to
 reach, and the rule SHALL NOT extend past it. A paragraph's child list attaches by
 ADJACENCY, so its column is free: an indented paragraph may own a flush-left list,
@@ -148,29 +159,34 @@ instead of placing it beside it. Under a paragraph, heading, or root destination
 the chosen indentation therefore stands as the evidence gave it.
 
 #### Scenario: Indentation short of the destination's content column is widened
+
 - **WHEN** a node is indented under a LIST-ITEM parent whose content column is wider
   than the unit the document infers (an ordered item, a wide marker)
 - **THEN** the new indentation reaches that content column, and the re-parsed tree
   has the node as a CHILD of that parent rather than its sibling
 
 #### Scenario: Indentation that already clears the column keeps its unit
+
 - **WHEN** the inferred or supplied unit is wider than the destination parent's
   content column
 - **THEN** that unit is used unchanged rather than narrowed to the column
 
 #### Scenario: A paragraph destination keeps its sibling's indentation
+
 - **WHEN** a node is indented under a paragraph that is itself indented and already
   owns a flush-left child list
 - **THEN** the new node takes that child list's own indentation and lands BESIDE it,
   not widened to the paragraph's indent and nested underneath it
 
 #### Scenario: A destination sibling's indentation wins, whatever its kind
+
 - **WHEN** a node is placed among children that are indented with a tab and none
   of them is a list item
 - **THEN** the new node is indented with that same tab, and every existing sibling
   keeps its own depth in the re-parsed tree
 
 #### Scenario: No fallback supplied keeps the existing two-space default
+
 - **WHEN** a node is indented under a bulleted list-item parent with no existing
   indented list item anywhere in the document, and no fallback indent unit is supplied
 - **THEN** the unit chosen is two spaces, exactly as before this requirement existed,
@@ -178,12 +194,21 @@ the chosen indentation therefore stands as the evidence gave it.
   is nothing to pad
 
 #### Scenario: A supplied fallback governs brand-new indentation
+
 - **WHEN** the same indent is performed with a caller-supplied fallback of a tab
   character (or a specific space width)
 - **THEN** the unit chosen is that exact unit instead of the two-space default, and
   under a bulleted parent it is the final indentation unchanged
 
+#### Scenario: A bullet followed by two spaces is a wide marker too
+
+- **WHEN** a node is indented under `-  a`, whose marker is followed by two spaces, with
+  the two-space unit the document infers or defaults to
+- **THEN** the new indentation is three columns, the re-parsed tree has the node as a
+  CHILD of `-  a`, and Obsidian reads it as nested one level deeper than `-  a`
+
 #### Scenario: A chosen unit narrower than the content column is padded, not replaced
+
 - **WHEN** either of the two scenarios above is performed under an ORDERED parent,
   whose content column is wider than the chosen unit
 - **THEN** the chosen unit still governs — the fallback is not overridden by some
@@ -191,6 +216,7 @@ the chosen indentation therefore stands as the evidence gave it.
   column, because a unit that stops short of it does not nest the node at all
 
 #### Scenario: Existing document indentation still wins over the fallback
+
 - **WHEN** the document already has an indented list item using tabs elsewhere, and a
   node is indented under a list-item parent with no fallback OR a spaces-based
   fallback supplied
@@ -1367,3 +1393,35 @@ carries the same unchanged-depth contract as move up, on the same terms.
   one — a moved node adopted by the paragraph it landed after, say
 - **THEN** the operation has violated this requirement; the accepted result must place the subject
   at the contracted depth, or the operation must reject
+
+### Requirement: A rewritten list item's marker run is one space
+
+When a structural operation rewrites a list item's FIRST LINE — an indent, an outdent, a
+move that re-encodes the item for its destination, a paste — the whitespace run after
+its marker SHALL be written as one space, whatever run the line held: `-  a` lands as
+`- a`, and so does `-\ta`. The item's continuation lines and its children SHALL move
+with the content column, so each keeps its depth relative to the item's text. A marker
+with no whitespace after it at all is left as it is.
+
+An operation that does not rewrite the item's first line SHALL NOT touch its run: a
+child arriving under `-  a` reaches `a`'s content column of three, and `-  a` keeps its
+two spaces. The minimal-change contract holds for every line an operation leaves alone;
+this requirement is about the line it rewrites, where a run wider than one space is the
+shape that hid the content column in the first place.
+
+#### Scenario: Indenting a two-space item rewrites it with one
+
+- **WHEN** `-  a`, with a continuation line and a child at three columns, is indented
+  under a sibling whose children are indented two columns
+- **THEN** it lands as `  - a`, its continuation line at four columns and its child at
+  four, and Obsidian nests the child one level deeper than the item
+
+#### Scenario: A one-space item is rewritten byte-for-byte but for its indentation
+
+- **WHEN** `- a` is indented the same way
+- **THEN** only its leading whitespace changes
+
+#### Scenario: The parent's run is left alone
+
+- **WHEN** `- b` is indented under `-  a`
+- **THEN** `-  a` is unchanged and `- b` is written at three columns
