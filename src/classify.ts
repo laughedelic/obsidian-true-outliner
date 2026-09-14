@@ -15,7 +15,7 @@
 import type { OutlineDoc } from './model';
 import { nodeAtLine, nodeStartLine } from './locate';
 import { parse } from './parse';
-import { isContentStartCh } from './ops';
+import { isContentStartCh, surplusMarkerSpace } from './ops';
 import { coveredSubtreeRoots } from './escalate';
 import type { LinePos, LineRange } from './line-pos';
 
@@ -324,10 +324,17 @@ function crossesViaChromeDeletion(
     // keypress classified as an ordinary within-node edit, so the enforcement
     // layer never saw it and the deletion went through natively as `- [ ]bar`.
     const line = node.lines[0] ?? '';
+    // A run wider than the marker needs — `-  a` — is content the item's
+    // children have to clear, and the caret cannot reach a column between its
+    // spaces: placement resolves every column inside the run to the content
+    // start. So the content start is the one place a Backspace can remove the
+    // surplus from, and there it is an ordinary deletion, not a merge — the
+    // marker keeps the space it needs. The same keypress on `- a` stays a merge.
     return (
       isContentStartCh(line, span.toCh) &&
       cursor.line === span.fromLine &&
-      cursor.ch === span.toCh
+      cursor.ch === span.toCh &&
+      surplusMarkerSpace(line, span.toCh) === 0
     );
   }
 

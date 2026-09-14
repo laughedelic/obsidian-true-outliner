@@ -858,12 +858,19 @@ This is a rendering requirement about where the caret is PAINTED, and carries no
 which document positions a caret may occupy; `content-space-caret` owns that and is unchanged
 by it.
 
-Nothing else this capability positions SHALL move to achieve it, with ONE stated exception. A
+Nothing else this capability positions SHALL move to achieve it, with TWO stated exceptions. A
 marker's own column, an item's text column, the stated hanging indent and the column a
 soft-wrapped row lands on SHALL be identical before and after, for every list kind and at
-every depth — including a marker followed by MORE than one space, or by a tab, both of which
-are ordinary markdown. Where the caret cannot be brought to such an item's text column without
-moving that column, the column wins and the caret is left where it was.
+every depth — including a marker followed by a tab, which is ordinary markdown. Where the
+caret cannot be brought to such an item's text column without moving that column, the column
+wins and the caret is left where it was.
+
+A marker followed by MORE than one space is the second exception, since the surplus is now
+marked (the surplus-whitespace requirement of this capability): the marker and its first space
+take the gutter as on every other line, the marked surplus follows the gutter, and the item's
+text begins after it — one marked space right of a one-space sibling's text, where the item's
+content column actually is. The caret at that item's content start then renders on that text,
+where before it stopped short of it.
 
 The exception: an ordered item whose marker is WIDER than the gutter SHALL begin its text
 where its own number ends, rather than one half-marker-icon further right. The number is
@@ -891,10 +898,11 @@ its text column being the gutter either way.
 - **THEN** both carets render on the same column, which is that depth's own text column
 
 #### Scenario: A marker with extra whitespace keeps its own column
+
 - **WHEN** a list contains `- one`, `-  two` and `-\tthree`
-- **THEN** the two-space item's text begins on the same column as the one-space item's, and
-  the tab-separated item begins where its own tab stop puts it — none of them moved to make
-  room for the caret
+- **THEN** the two-space item's text begins one marked space right of the one-space item's
+  text — its own content column, now visible — and the tab-separated item begins where its
+  own tab stop puts it, not moved to make room for the caret
 
 #### Scenario: An item with content is unchanged
 
@@ -907,8 +915,9 @@ its text column being the gutter either way.
 - **WHEN** a document containing bullet, ordered and task items at several depths, with
   soft-wrapped and hard-continued items among them, is rendered
 - **THEN** every marker's column, every item's text column, every stated hanging indent and
-  every wrapped row's column is what it was before this requirement existed — save the one
-  stated exception below
+  every wrapped row's column is what it was before this requirement existed — save the two
+  stated exceptions: a marker's own surplus run, above, and a wide ordered marker's own
+  number, below
 
 #### Scenario: A wide ordered marker's text follows its own number
 
@@ -1552,3 +1561,58 @@ that nothing else moves. Only the document those rules are answered against chan
 #### Scenario: Unzoomed rendering is untouched
 - **WHEN** no zoom scope is active and a provisional position is opened anywhere in the note
 - **THEN** the position renders exactly as it did before this rule existed
+
+### Requirement: A list marker's surplus whitespace is marked
+
+In outline mode, the whitespace a list marker carries beyond the one character it needs
+SHALL be marked on the line: the run past the first space after `-`, `1.` or a task
+marker's `]`, on the item's first line. The mark SHALL keep the run's width, so a
+whitespace-only run stays visible, and SHALL carry a title naming what the run is and that
+a press on it, or Backspace at the start of the text, removes it.
+
+The mark SHALL sit between the marker gutter and the item's text: the marker and its own
+space take the gutter exactly as on a one-space line, the mark begins where a one-space
+item's text begins, and the item's text begins where the mark ends. A highlight inside the
+gutter's own slack, between a bullet and text that had not moved, marked a column the caret
+cannot reach; the text moving right by the run's width is the point, since that is where
+the item's content column is.
+
+A press on the mark SHALL delete the run and leave the caret at the item's content start,
+as one undo step, on a mouse and on a touch screen alike; the press SHALL NOT also place a
+caret from its own coordinates.
+
+Live Preview draws the run as blank whatever its width, while the run sets the item's
+content column, so a child indented short of it is a sibling to Obsidian and its deeper
+descendants after a blank line an indented code block
+(`docs/research/list-marker-content-column`). The mark puts the cause on the line that has
+it. It is a decoration like every other here: scoped to outline mode, never mutating the
+document, and absent from a nested per-cell editor.
+
+#### Scenario: Every marker shape with a surplus is marked, and a one-space marker is not
+
+- **WHEN** a note holds `- a`, `-  b`, `1.  c`, `- [ ]  d` and `-   e` with outline mode on
+- **THEN** the first line carries no mark, each of the other four carries exactly one, each
+  mark has a non-zero width, and the mark on `-   e` is wider than the mark on `-  b`
+
+#### Scenario: The mark is an outline-mode decoration
+
+- **WHEN** outline mode is off for the note
+- **THEN** no line carries the mark, and turning the mode on renders it without any
+  document change
+
+#### Scenario: The mark follows the gutter and the text follows the mark
+
+- **WHEN** `- a`, `-  b` and `-    e` are rendered with outline mode on
+- **THEN** each mark's left edge is where `a`'s text begins, and each marked item's text
+  begins at its mark's right edge
+
+#### Scenario: A press on the mark removes the run
+
+- **WHEN** the mark on `-    e` is pressed
+- **THEN** the line reads `- e`, the caret sits at its content start, no mark remains, and
+  one undo restores the line
+
+#### Scenario: Removing the surplus removes the mark
+
+- **WHEN** Backspace at `-  b`'s content start deletes the surplus space
+- **THEN** the line reads `- b` and carries no mark

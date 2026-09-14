@@ -33,6 +33,7 @@ byte-identity in "a boundary-crossing edit sequence is byte-identical whether ou
 mode is on or off")
 
 ### Requirement: Every transaction receives exactly one classification
+
 In outline-mode editors the filter SHALL assign each transaction exactly one class from:
 `programmatic`, `composition`, `plugin-own`, `selection-only`, `within-node-edit`,
 `boundary-crossing-edit` — evaluated in that order, first match wins. Classification
@@ -56,13 +57,19 @@ a node's last content line
 with the cursor at that node's content end (Delete into the node's own trailing
 gap). The pre-edit main-selection cursor is a classification fact supplied by the
 adapter for exactly these shapes; an edit with the same bytes but a different cursor
-(editing the gap from within it) remains `within-node-edit`.
+(editing the gap from within it) remains `within-node-edit`. So does the marker-space
+shape when the marker's whitespace run is wider than the one character it needs: Backspace
+at the content start of `-  a` removes the surplus space and leaves the marker its own,
+which is ordinary editing rather than a merge intent, and the one place the surplus can be
+removed from, since no column inside the run is addressable.
 
 #### Scenario: Typing inside a node
+
 - **WHEN** the user types a character in the middle of a paragraph node's text
 - **THEN** the transaction is classified `within-node-edit` and applied unmodified
 
 #### Scenario: Edit spanning two nodes counted but not altered
+
 - **WHEN** a deletion's change range starts inside one node and ends inside the next
 - **THEN** the transaction is classified `boundary-crossing-edit`, counted in the stats
   surface, and receives a verdict per the node-edit-enforcement capability (superseded
@@ -72,12 +79,23 @@ adapter for exactly these shapes; an edit with the same bytes but a different cu
   verdicts" requirement below)
 
 #### Scenario: Marker-space deletion at content start is enforced
+
 - **WHEN** the cursor sits at a list item's or an ATX heading's first content
   character and Backspace deletes the marker's trailing space
 - **THEN** the transaction is classified `boundary-crossing-edit` and handed to the
   verdict layer (a merge intent), not applied as a within-node marker corruption
 
+#### Scenario: A marker's surplus whitespace is deleted, not merged
+
+- **WHEN** the cursor sits at the content start of `-  a`, of `- [ ]  bar` or of `##  Two`,
+  where the marker's whitespace run is wider than one character, and Backspace deletes the
+  character before it
+- **THEN** the transaction is classified `within-node-edit` and applied unmodified, leaving
+  `- a`, `- [ ] bar` or `## Two` — the merge intent is recognized only once the run is down to
+  the one character the marker needs
+
 #### Scenario: A paragraph's indentation is not a marker column
+
 - **WHEN** the cursor sits at the first content character of an INDENTED paragraph,
   whose leading whitespace the content-column rule reads as a content prefix, and
   Backspace deletes one space of that indentation
@@ -85,12 +103,14 @@ adapter for exactly these shapes; an edit with the same bytes but a different cu
   by the node's marker, and a paragraph has none
 
 #### Scenario: A column inside the marker's own characters stays native
+
 - **WHEN** the deletion ends INSIDE a marker rather than at the content column —
   within a task item's `[ ]`, or within a heading's `#` run
 - **THEN** the transaction is classified `within-node-edit`: those characters are the
   marker's own, and deleting one is ordinary editing
 
 #### Scenario: The same bytes with a gap-line cursor stay native
+
 - **WHEN** a deletion removes the newline between a node's last content line and its
   own trailing gap, with the pre-edit cursor ON the gap line
 - **THEN** the transaction is classified `within-node-edit` and applied unmodified

@@ -446,6 +446,34 @@ describe('insertSubtrees', () => {
     expect(text).toBe('- top\n\t- mid\n\t\t- anchor\n\t\t- x\n\t\t\t- y\n');
   });
 
+  it('a pasted item\'s own surplus marker run is normalized to one space, like any other rewritten first line', () => {
+    // The verbatim re-indent path (reindentSubtreeVerbatim) otherwise carried
+    // a surplus run through unchanged, contradicting list-marker-content-column's
+    // own goal ("a line an operation rewrites comes out with a one-space run")
+    // for the one operation — paste — that takes this path instead of
+    // reencodeForDestination.
+    const target = parse('- top\n');
+    const top = byLine(target, '- top');
+    // "x" at content column 3 (`-  x`); "y" nests under it only at 3+ columns,
+    // which is itself the shape this PR's parser fix requires.
+    const parsed = parse('-  x\n   - y\n');
+    const result = insertSubtrees(target, top.id, parsed.children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    const text = encode(result.value.doc);
+    // "x"'s run drops to one space and "y" shifts from 3 to 2 to stay nested
+    // at the same relative depth, exactly as an indent/outdent rewrite would.
+    expect(text).toBe('- top\n- x\n  - y\n');
+  });
+
+  it('a pasted item with no surplus run is unaffected', () => {
+    const target = parse('- top\n');
+    const top = byLine(target, '- top');
+    const parsed = parse('- x\n  - y\n');
+    const result = insertSubtrees(target, top.id, parsed.children, 'after');
+    if (!result.ok) throw new Error(result.rejection.reason);
+    expect(encode(result.value.doc)).toBe('- top\n- x\n  - y\n');
+  });
+
   it('insertion never splices mid-node: existing nodes stay byte-identical', () => {
     const md = 'First paragraph text.\n\nSecond paragraph text.\n';
     const doc = parse(md);

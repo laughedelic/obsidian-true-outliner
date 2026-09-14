@@ -62,12 +62,15 @@ export const GUIDES_CLASS = 'to-decor-guides';
 export const OWN_CHROME_CLASS = 'to-decor-own-chrome';
 
 /**
- * A list item written with exactly one space after its marker, which changes
- * where its native text starts and therefore what the stated hang must be.
+ * A list item whose marker is followed by a SPACE — one, or one and a surplus
+ * the decoration marks — as opposed to a tab or nothing. The marker-sizing rules
+ * in styles.css are gated on it: they size the marker and its first space to the
+ * gutter, and a surplus run then follows the gutter rather than sitting inside
+ * it. A tab is quantised to its own stop and takes no sizing.
  */
-export const ONE_SPACE_MARKER_CLASS = 'to-decor-marker-1sp';
+export const SPACED_MARKER_CLASS = 'to-decor-marker-sp';
 
-export const ONE_SPACE_MARKER_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)]) (?![ \t])/;
+export const SPACED_MARKER_RE = /^[ \t]*(?:[-+*]|\d{1,9}[.)]) /;
 
 /**
  * A depth's COLUMN: the single x every surface positions against. A guide's
@@ -254,8 +257,8 @@ export function lineChrome(
     // gutter short of its text; a CONTINUATION line has no marker and belongs
     // under the item's TEXT, so its whitespace takes the whole hang.
     vars.push(['--to-list-marker-cols', fact.hasNativeMarker ? MARKER_GUTTER_CSS : '0px']);
-    if (fact.hasNativeMarker && ONE_SPACE_MARKER_RE.test(lineText)) {
-      classes.push(ONE_SPACE_MARKER_CLASS);
+    if (fact.hasNativeMarker && SPACED_MARKER_RE.test(lineText)) {
+      classes.push(SPACED_MARKER_CLASS);
     }
   } else {
     // An atom's class exists to move its BOX. A surface that gives it no box

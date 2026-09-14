@@ -75,6 +75,30 @@ describe('structural commands', function () {
     expect(await h.getBuffer()).toBe(original);
   });
 
+  it('indent under a bullet followed by two spaces reaches the column Obsidian nests at', async function () {
+    // `-  parent` puts its content at column 3, for Obsidian's reader as for
+    // ours. A child written at two columns is a sibling to Obsidian, and once
+    // its list stack pops, deeper children after a blank line render as an
+    // indented code block — raw dashes and checkboxes
+    // (docs/research/list-marker-content-column). The class Obsidian puts on
+    // the line is its own reading of the nesting.
+    await outlineNote('-  parent\n- second\n', 1, 4);
+    await h.runCommand('indent-node');
+    expect(await h.getBuffer()).toBe('-  parent\n   - second\n');
+    expect(await h.getLineClassList(1)).toContain('HyperMD-list-line-2');
+  });
+
+  it('indenting an item whose marker has two spaces rewrites it with one', async function () {
+    // The moved item's first line is rewritten anyway; its child keeps its
+    // depth relative to the content column, and Obsidian nests both. `- first`
+    // is the destination sibling whose indentation the item copies.
+    await outlineNote('- parent\n  - first\n-  second\n   - child\n', 2, 4);
+    await h.runCommand('indent-node');
+    expect(await h.getBuffer()).toBe('- parent\n  - first\n  - second\n    - child\n');
+    expect(await h.getLineClassList(2)).toContain('HyperMD-list-line-2');
+    expect(await h.getLineClassList(3)).toContain('HyperMD-list-line-3');
+  });
+
   it('heading demote/promote shifts subtree markers; links still resolve', async function () {
     await h.createNote('Scratch/linker.md', 'See [[structural#Beta]]\n');
     const original = '# Alpha\n\nintro\n\n## Beta\n\nbody line\n';

@@ -31,7 +31,7 @@ const isBlank = (line: string): boolean => line.trim() === '';
 
 const ATX_RE = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
 const FENCE_OPEN_RE = /^([ \t]*)(`{3,}|~{3,})/;
-const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])(?:[ \t]+|$)/;
+const LIST_ITEM_RE = /^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]+|$)/;
 const QUOTE_RE = /^ {0,3}>/;
 const CALLOUT_RE = /^ {0,3}>\s*\[!/;
 const HR_RE = /^ {0,3}(?:(?:\* *){3,}|(?:- *){3,}|(?:_ *){3,})$/;
@@ -39,10 +39,44 @@ const SETEXT_RE = /^ {0,3}(=+|-+)[ \t]*$/;
 const TABLE_DELIM_RE = /^[ \t]*\|?[ \t:|-]*-[ \t:|-]*\|?[ \t]*$/;
 const HTML_OPEN_RE = /^ {0,3}<[a-zA-Z!/]/;
 
-function parseListMarker(line: string): { style: ListStyle; contentCol: number } | undefined {
+/**
+ * Columns a whitespace run occupies when it starts at `col`, with tabs
+ * advancing to the next stop the way `indentWidth` expands leading ones.
+ */
+function whitespaceWidth(ws: string, col: number): number {
+  let width = 0;
+  for (const ch of ws) {
+    if (ch === '\t') width += TAB_WIDTH - ((col + width) % TAB_WIDTH);
+    else width += 1;
+  }
+  return width;
+}
+
+/**
+ * A list item's marker, its CONTENT COLUMN, and its content CHARACTER OFFSET.
+ *
+ * The column is where its text begins, past the marker and the whole
+ * whitespace run after it — `-  a` puts its content at column 3, not 2. That
+ * column is what nesting is measured against, here and in Obsidian's own
+ * reader, so a child written one column short of it is a sibling to Obsidian
+ * and, once the list stack pops, its deeper descendants an indented code
+ * block (docs/research/list-marker-content-column). A marker with nothing but
+ * whitespace after it has no run to measure and takes the one space a child
+ * would need.
+ *
+ * The two diverge whenever a tab sits in the indentation or the marker's own
+ * run: a tab is one CHARACTER wide and, per `indentWidth`, one to
+ * `TAB_WIDTH` COLUMNS wide depending where it starts — `\t-  b` puts its
+ * content at column 7 but character offset 4. `contentCol` answers the
+ * nesting question; `contentCh` is the index a caller slicing or highlighting
+ * the actual string needs instead, and is never a substitute for the other.
+ */
+export function parseListMarker(
+  line: string,
+): { style: ListStyle; contentCol: number; contentCh: number } | undefined {
   const match = LIST_ITEM_RE.exec(line);
   if (!match) return undefined;
-  const [, indentText, marker] = match as unknown as [string, string, string];
+  const [, indentText, marker, spacing] = match as unknown as [string, string, string, string];
   const indent = indentWidth(indentText);
   const style: ListStyle =
     marker === '-' || marker === '*' || marker === '+'
@@ -52,9 +86,18 @@ function parseListMarker(line: string): { style: ListStyle; contentCol: number }
           number: parseInt(marker, 10),
           delimiter: marker.endsWith(')') ? ')' : '.',
         };
-  // Content column: marker end + one space, in expanded-tab columns.
-  const contentCol = indent + marker.length + 1;
-  return { style, contentCol };
+  const markerEnd = indent + marker.length;
+  const markerCh = indentText.length + marker.length;
+  // An item that starts blank — nothing, or whitespace only, after the marker —
+  // has no run to measure: CommonMark puts its content column one past the
+  // marker, and a trailing run would otherwise widen an EMPTY item's column
+  // and turn `-  ` followed by `  - b` into two siblings. The character
+  // offset mirrors it: one character into the run if the run holds any, the
+  // marker's own end if it holds none — never the run's own full length.
+  const blankStart = line.length === match[0].length;
+  const contentCol = markerEnd + (blankStart ? 1 : Math.max(1, whitespaceWidth(spacing, markerEnd)));
+  const contentCh = markerCh + (blankStart ? Math.min(1, spacing.length) : spacing.length);
+  return { style, contentCol, contentCh };
 }
 
 /** A flat block produced by segmentation, before hierarchy derivation. */
