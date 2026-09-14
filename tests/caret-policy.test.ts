@@ -20,7 +20,13 @@ import { walkNodes, type OutlineDoc, type OutlineNode } from '../src/model';
 import { deleteSubtreeGroups, deleteSubtrees, splitNode } from '../src/ops';
 import { isAddressable, nodeContentEnd, previousNodeInOrder } from '../src/caret';
 import { nodeAtLine, nodeStartLine } from '../src/locate';
-import { planCaret, FOCUS_CAPTURING_KINDS, type PlacementFacts } from '../src/caret-policy';
+import {
+  contentStartRungs,
+  planCaret,
+  planDeleteToContentStart,
+  FOCUS_CAPTURING_KINDS,
+  type PlacementFacts,
+} from '../src/caret-policy';
 import { arbTree } from './generators';
 
 function byLine(doc: OutlineDoc, line: string): OutlineNode {
@@ -458,4 +464,84 @@ describe('the split-materialization exception', () => {
       expect(encode(result.value.doc).split('\n')[caret.line]).toBe('');
     });
   }
+});
+
+describe('planDeleteToContentStart: Mod-Backspace stops at the content start (delete-to-content-start)', () => {
+  const plan = (md: string, line: number, ch: number) => planDeleteToContentStart(parse(md), { line, ch });
+
+  it('past the marker, the range runs from the content start to the caret', () => {
+    expect(plan('- alpha beta\n- gamma\n', 0, 12)).toEqual({ kind: 'delete', from: { line: 0, ch: 2 } });
+    expect(plan('- alpha\n  - gamma delta\n', 1, 15)).toEqual({ kind: 'delete', from: { line: 1, ch: 4 } });
+    expect(plan('1. one\n2. two\n', 1, 6)).toEqual({ kind: 'delete', from: { line: 1, ch: 3 } });
+  });
+
+  it('a task item keeps its checkbox: the start is where the text begins', () => {
+    expect(plan('- [ ] task text\n', 0, 15)).toEqual({ kind: 'delete', from: { line: 0, ch: 6 } });
+    expect(plan('- [x] done\n', 0, 10)).toEqual({ kind: 'delete', from: { line: 0, ch: 6 } });
+  });
+
+  it('a continuation line stops at its own alignment column', () => {
+    expect(plan('- first\n  second line\n', 1, 13)).toEqual({ kind: 'delete', from: { line: 1, ch: 2 } });
+  });
+
+  it('alignment is spaces and tabs, as indentation is: a no-break space is content, as it is to Home', () => {
+    expect(plan('- first\n  \u00a0text\n', 1, 7)).toEqual({ kind: 'delete', from: { line: 1, ch: 2 } });
+    expect(plan('- first\n\t\ttext\n', 1, 6)).toEqual({ kind: 'delete', from: { line: 1, ch: 2 } });
+  });
+
+  it('a bare `[ ]` at the end of the line is not a marker: the plan removes the checkbox, as split and merge read it', () => {
+    expect(plan('- [ ]\n', 0, 5)).toEqual({ kind: 'delete', from: { line: 0, ch: 2 } });
+  });
+
+  it('at the column where a task item\'s text begins, the second press takes the checkbox', () => {
+    // The ladder Home walks on the same line: text first, then the box. Only
+    // from that exact column — a caret inside the marker is at neither rung.
+    expect(plan('- [ ] beta\n', 0, 6)).toEqual({ kind: 'delete', from: { line: 0, ch: 2 } });
+    expect(plan('- [x] done\n', 0, 6)).toEqual({ kind: 'delete', from: { line: 0, ch: 2 } });
+    expect(plan('  - [ ] nested\n', 0, 8)).toEqual({ kind: 'delete', from: { line: 0, ch: 4 } });
+  });
+
+  it('at or inside the content start the key is a Backspace', () => {
+    expect(plan('- alpha\n- beta\n', 1, 2)).toEqual({ kind: 'backspace' }); // the merge intent's own position
+    expect(plan('- [ ] beta\n', 0, 2)).toEqual({ kind: 'backspace' }); // where the second press lands
+    expect(plan('- [ ] beta\n', 0, 4)).toEqual({ kind: 'backspace' }); // inside the marker: ordinary editing
+    expect(plan('- first\n  second\n', 1, 2)).toEqual({ kind: 'backspace' });
+  });
+
+  it('a paragraph, a heading, an atom and a gap line stay stock', () => {
+    expect(plan('Para text\n', 0, 9)).toBeNull();
+    expect(plan('## Head\n', 0, 7)).toBeNull();
+    expect(plan('```\ncode\n```\n', 1, 4)).toBeNull();
+    expect(plan('- item\n\n- next\n', 1, 0)).toBeNull();
+  });
+});
+
+describe('contentStartRungs: the columns Home and Mod-Backspace both walk', () => {
+  const rungs = (md: string, line = 0) => {
+    const doc = parse(md);
+    const node = nodeAtLine(doc, line)!;
+    const lineIndex = line - nodeStartLine(doc, node.id);
+    return contentStartRungs(node, node.lines[lineIndex] ?? '', lineIndex === 0);
+  };
+
+  it('a task item\'s first line offers two: its text, and the boundary before the box', () => {
+    expect(rungs('- [ ] task\n')).toEqual({ text: 6, boundary: 2 });
+    expect(rungs('- [x] done\n')).toEqual({ text: 6, boundary: 2 });
+    expect(rungs('  - [ ] nested\n')).toEqual({ text: 8, boundary: 4 });
+    expect(rungs('1. [ ] ordered\n')).toEqual({ text: 7, boundary: 3 });
+  });
+
+  it('every other line collapses the pair, so one stop is all there is', () => {
+    expect(rungs('- plain\n')).toEqual({ text: 2, boundary: 2 });
+    expect(rungs('- first\n  second\n', 1)).toEqual({ text: 2, boundary: 2 });
+    expect(rungs('Para\n')).toEqual({ text: 0, boundary: 0 });
+    expect(rungs('## Head\n')).toEqual({ text: 0, boundary: 0 });
+  });
+
+  it('a bare `[ ]` is not a marker, and a paragraph never has one', () => {
+    // The shapes `markerPrefixCh` records: no text after the box, and a
+    // paragraph whose own text opens with one.
+    expect(rungs('- [ ]\n')).toEqual({ text: 2, boundary: 2 });
+    expect(rungs('[ ] note\n')).toEqual({ text: 0, boundary: 0 });
+  });
 });

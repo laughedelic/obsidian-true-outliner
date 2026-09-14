@@ -347,10 +347,12 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
  * `- # title`, which `caret-placement-policy` states it must not.
  *
  * Not a claim that `[ ]` is chrome (`enter-and-shift-enter-grammar` D5). The
- * content boundary, addressability and Home are untouched; a caret an operation
- * PLACES moves by four characters, and one the user puts there stays where they
- * put it. The selection ladder's first rung skips the task marker for its own
- * reason, stated in `select-all-ladder.ts`.
+ * content boundary and addressability are untouched; a caret an operation PLACES
+ * moves by four characters, and one the user puts there stays where they put it.
+ * Home reaches the same column, but on its own rung and by its own rule
+ * (`contentStartRungs`), and steps back to the boundary from there. The selection
+ * ladder's first rung skips the task marker for its own reason, stated in
+ * `select-all-ladder.ts`.
  */
 function pastTaskMarker(doc: OutlineDoc, caret: LinePos): LinePos {
   const node = nodeAtLine(doc, caret.line);
@@ -361,4 +363,85 @@ function pastTaskMarker(doc: OutlineDoc, caret: LinePos): LinePos {
   if (caret.ch !== boundary) return caret;
   const task = taskMarkerLength(line.slice(boundary));
   return task === 0 ? caret : { line: caret.line, ch: boundary + task };
+}
+
+/**
+ * The content-start columns a raw line offers a leftward gesture, nearest its
+ * TEXT first: where the item's text begins, and the boundary in front of a task
+ * marker. The two are the same column on every line but a task item's first, so
+ * the pair collapses wherever a checkbox is not in the way, and a caller that
+ * walks them gains a second stop on exactly the lines that have one.
+ *
+ * One helper because two keys walk the same columns — Home moves through them
+ * and Mod-Backspace deletes through them — and a key that disagreed with the
+ * other about where an item's text begins is the defect this pair prevents.
+ *
+ * `contentBoundaryCh` rather than `ops.ts`' finished column, for the reason
+ * `pastTaskMarker` records above: that one swallows an ATX prefix too. The kind
+ * test is what keeps a paragraph reading `[ ] note` from reporting a checkbox
+ * it does not have.
+ */
+export function contentStartRungs(
+  node: OutlineNode,
+  line: string,
+  isFirstLine: boolean,
+): { readonly text: number; readonly boundary: number } {
+  const boundary = contentBoundaryCh(node, line);
+  if (node.kind !== 'list-item' || !isFirstLine) return { text: boundary, boundary };
+  return { text: boundary + taskMarkerLength(line.slice(boundary)), boundary };
+}
+
+export type DeleteToContentStartPlan =
+  | { readonly kind: 'delete'; readonly from: LinePos }
+  | { readonly kind: 'backspace' }
+  | null;
+
+/**
+ * Where "delete to the start of the line" — Mod-Backspace on macOS — stops
+ * on a list item's own line (`content-space-caret`).
+ *
+ * `delete`: the caret is past one of the line's content starts, and the range
+ * from that start to the caret is what goes. The starts are the two
+ * `contentStartRungs`, so on a task item the gesture takes the text first and
+ * the checkbox on a second press, which is the ladder Home walks on the same
+ * line. Elsewhere the pair collapses and there is one press to make. The
+ * nearer start is `contentBoundaryCh`,
+ * the same boundary Home reaches on the same raw line — past the marker on
+ * the item's first line, past the alignment whitespace on a continuation
+ * line, spaces and tabs only, as markdown indentation is — plus a task
+ * marker on the first line when the item carries one, so the checkbox
+ * survives the first press as it does when a caret is placed past it. A bare `[ ]` at the
+ * end of the line is not a task marker here, as it is not to split or to
+ * the Backspace merge: the item has no text, and the plan removes the
+ * checkbox, leaving `- `, rather than a single `]`. The range never starts
+ * at column 0, which is what keeps it out of the exact-subtree-cover reading
+ * that turned CodeMirror's own line-start deletion into a node deletion
+ * (docs/research/delete-to-content-start).
+ *
+ * `backspace`: the caret is at or inside the content start, and the key does
+ * what Backspace does there — the merge or veto the content-start rules
+ * already give, and ordinary editing inside the marker.
+ *
+ * `null`: not a list item's own line — a paragraph, a heading, an atom, or a
+ * gap line the caret was placed on — and the key stays stock. A paragraph's
+ * content start is column 0, so there is nothing for this rule to add there.
+ */
+export function planDeleteToContentStart(doc: OutlineDoc, caret: LinePos): DeleteToContentStartPlan {
+  const node = nodeAtLine(doc, caret.line);
+  if (!node || node.kind !== 'list-item') return null;
+  const lineIndex = caret.line - nodeStartLine(doc, node.id);
+  const line = node.lines[lineIndex];
+  if (line === undefined) return null;
+  const { text, boundary } = contentStartRungs(node, line, lineIndex === 0);
+  if (caret.ch > text) return { kind: 'delete', from: { line: caret.line, ch: text } };
+  // The second rung, reachable only from the first: at the column where the
+  // item's text begins, the checkbox is the only thing left between the caret
+  // and the boundary, so the gesture takes it and the item stops being a task.
+  // A caret INSIDE the marker stands at neither rung, and a range from the
+  // boundary would cut the box in half, so that position keeps the Backspace
+  // the paragraph above describes.
+  if (text > boundary && caret.ch === text) {
+    return { kind: 'delete', from: { line: caret.line, ch: boundary } };
+  }
+  return { kind: 'backspace' };
 }

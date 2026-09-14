@@ -475,6 +475,15 @@ describe('content-space-caret', function () {
       expect(await h.getCursor()).toEqual({ line: 1, ch: 2 }); // stays — no escalation to line 0
     });
 
+    it('C11 - Home from inside the checkbox goes straight to the boundary, as it always has', async function () {
+      // A caret between the brackets stands at neither rung, so the nearer one
+      // takes it — the one-press behavior this line had before the second rung.
+      await outlineNote('- [ ] task text\n');
+      await h.setCursorSettled(0, 4);
+      await h.keys.home();
+      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
+    });
+
     it('C7 - Home on a SOFT-WRAPPED line goes to that raw line\'s start, not the visual row\'s start (one rung is deliberately not wrap-aware)', async function () {
       // The escalating ladder's first rung used to be the current VISUAL ROW
       // (`moveToLineBoundary(..., includeWrap: true)`). One rung drops that
@@ -550,12 +559,16 @@ describe('content-space-caret', function () {
       // below is what makes this test meaningful: it asserts the SETTLED
       // position, after Obsidian's own late dispatch has landed.
       await outlineNote('- [ ] alpha beta\n');
-      await h.setCursor(0, 10);
+      await h.setCursorSettled(0, 10);
       await h.keys.home();
       await browser.pause(80); // let the one-shot widget-mount interference (if any) resolve
-      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 }); // "- " is chrome; "[ ] alpha beta" is content
+      expect(await h.getCursor()).toEqual({ line: 0, ch: 6 }); // the item's own text
       await h.keys.home();
-      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 }); // single-line collapse: further presses do nothing
+      // "- " is chrome; "[ ] alpha beta" is content, and the caret reaches its
+      // front on the second rung rather than being kept out of it (Q36).
+      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
+      await h.keys.home();
+      expect(await h.getCursor()).toEqual({ line: 0, ch: 2 }); // the last rung: further presses do nothing
     });
 
     it("C5 - End in a multiline node takes the caret's OWN line end and stays there (one rung)", async function () {
@@ -652,5 +665,142 @@ describe('content-space-caret', function () {
       // Stock Home at column 0 of the first line: no-op (already there).
       expect(await h.getCursor()).toEqual({ line: 0, ch: 0 });
     });
+  });
+});
+
+describe('content-space-caret: delete to content start (delete-to-content-start)', function () {
+  // Mod-Backspace is bound on macOS only, as CodeMirror's own binding is, so
+  // the e2e runner (Linux) drives the same handler through the
+  // `delete-to-content-start` command; the command falls back to CodeMirror's
+  // line-boundary deletion wherever the handler declines, which is what the
+  // key does there. Measured shapes: docs/research/delete-to-content-start.
+  const NOTE = 'Scratch/delete-to-content-start.md';
+  async function outlineNote(content: string): Promise<void> {
+    await h.createNote(NOTE, content);
+    await h.setOutlineMode(true);
+  }
+  const deleteToContentStart = (): Promise<void> => h.runCommand('delete-to-content-start');
+
+  before(async function () {
+    await obsidianPage.resetVault();
+    await h.resetPluginState();
+  });
+
+  afterEach(async function () {
+    await h.dismissNotices();
+  });
+
+  it('D1 - an item followed directly by its sibling keeps its line and its marker; the node is not deleted', async function () {
+    // Stock: the range 0–12 is an exact subtree cover, so the enforcement layer
+    // removed the whole node and put the caret on the next item.
+    await outlineNote('- alpha beta\n- gamma\n');
+    await h.resetStats();
+    await h.setCursor(0, 12);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- \n- gamma\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 2 });
+    expect((await h.getStats()).verdictCounts.rewrite).toBe(0);
+  });
+
+  it('D2 - a nested item keeps its indentation and marker, caret at its content start', async function () {
+    await outlineNote('- alpha\n  - gamma delta\n');
+    await h.setCursor(1, 15);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha\n  - \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 4 });
+  });
+
+  it('D3 - a task item keeps its checkbox', async function () {
+    // Settled, not merely set: the checkbox widget's mount moves the caret on a
+    // later pass, and under mobile emulation it lands before the command runs
+    // (measured on CI: the command then ran from the content start, a
+    // Backspace with no predecessor, and the buffer stayed as it was).
+    await outlineNote('- [ ] task text\n');
+    await h.setCursorSettled(0, 15);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- [ ] \n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 6 });
+  });
+
+  it('D4 - a continuation line keeps its alignment', async function () {
+    await outlineNote('- first\n  second line\n');
+    await h.setCursor(1, 13);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- first\n  \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+  });
+
+  it('D5 - at the content start it is a Backspace: the merge the content-start rules give', async function () {
+    await outlineNote('- alpha\n- beta\n');
+    await h.resetStats();
+    await h.setCursor(1, 2);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alphabeta\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 7 });
+    expect((await h.getStats()).verdictCounts.rewrite).toBe(1);
+  });
+
+  it('D7 - a second press takes the checkbox, and a third is the Backspace', async function () {
+    // The same ladder Home walks (C10): text, then box, then whatever the
+    // content-start rules give — here a merge with the item above.
+    await outlineNote('- alpha\n- [ ] task text\n');
+    await h.setCursorSettled(1, 15);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha\n- [ ] \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 6 });
+
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha\n- \n');
+    expect(await h.getCursor()).toEqual({ line: 1, ch: 2 });
+
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 7 });
+  });
+
+  it('D6 - a paragraph stays stock: the whole line goes', async function () {
+    await outlineNote('Para text\n');
+    await h.setCursor(0, 9);
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 0 });
+  });
+
+  it('D8 - a non-empty selection declines: stock deletes the selection, not a content-start range', async function () {
+    // `soleCursor` returns undefined here, so the handler declines and
+    // CodeMirror's own fallback runs — which for a non-empty range simply
+    // deletes it, the ordinary meaning of a delete key over a selection.
+    await outlineNote('- alpha beta\n- gamma\n');
+    await h.setSelection({ line: 0, ch: 8 }, { line: 0, ch: 12 }); // "beta"
+    await deleteToContentStart();
+    expect(await h.getBuffer()).toBe('- alpha \n- gamma\n');
+    expect(await h.getCursor()).toEqual({ line: 0, ch: 8 });
+  });
+
+  it('D9 - multi-cursor declines: stock runs on every range, not the single-cursor plan', async function () {
+    // Unlike the motion handlers (`dispatchCursor` replaces the whole
+    // selection, so they decline outright to avoid discarding every other
+    // range), CodeMirror's own line-boundary deletion is a proper multi-range
+    // command: it runs per range and both cursors survive it.
+    await outlineNote('- alpha\n- beta\n');
+    const rangeCount = (): Promise<number> =>
+      browser.executeObsidian(({ app, obsidian }) => {
+        const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+        return (view!.editor as any).cm.state.selection.ranges.length;
+      });
+    await browser.executeObsidian(({ app, obsidian }) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      const cm = (view!.editor as any).cm;
+      const ES = cm.state.selection.constructor;
+      const a = cm.state.doc.line(1).from + 7; // end of "- alpha"
+      const b = cm.state.doc.line(2).from + 6; // end of "- beta"
+      cm.dispatch({ selection: ES.create([ES.cursor(a), ES.cursor(b)], 1) });
+    });
+    await deleteToContentStart();
+    expect(await rangeCount()).toBe(2);
+    // Each line is deleted back to its own visual-row start, same as the
+    // single-cursor stock fallback D1-D2 measure against — the content-start
+    // rule never runs under multi-cursor.
+    expect(await h.getBuffer()).toBe('\n\n');
   });
 });
