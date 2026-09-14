@@ -140,6 +140,66 @@ describe('nextRung: the ladder for this fixture (progressive-select-all)', () =>
   });
 });
 
+describe('nextRung: a task item\'s first rung starts after its task marker (select-all-task-content)', () => {
+  // - [ ] buy milk
+  // - [x] done
+  //   - child
+  //   - [ ] nested task
+  // - [ ]
+  // 1. [ ] ordered
+  // [ ] note
+  const tasks = parse(
+    '- [ ] buy milk\n- [x] done\n  - child\n  - [ ] nested task\n- [ ] \n1. [ ] ordered\n[ ] note\n',
+  );
+
+  it('an open task selects its text only, never the checkbox, then climbs to the whole line', () => {
+    const steps = climbIn(tasks, cursor(pos(0, 9)));
+    expect(steps[0]).toEqual(range(pos(0, 6), pos(0, 14))); // "buy milk"
+    expect(steps[1]).toEqual(range(pos(0, 0), pos(0, 14))); // the whole line, checkbox included (no gap to own)
+  });
+
+  it('a done task with children selects its text, then its subtree', () => {
+    const steps = climbIn(tasks, cursor(pos(1, 8)));
+    expect(steps[0]).toEqual(range(pos(1, 6), pos(1, 10))); // "done"
+    expect(steps[1]).toEqual(range(pos(1, 0), pos(3, 19))); // subtree: both children come along
+  });
+
+  it('a nested task excludes its indentation, its list marker and its checkbox', () => {
+    const steps = climbIn(tasks, cursor(pos(3, 12)));
+    expect(steps[0]).toEqual(range(pos(3, 8), pos(3, 19))); // "nested task"
+  });
+
+  it('an ordered task item excludes both its number and its checkbox', () => {
+    const steps = climbIn(tasks, cursor(pos(5, 9)));
+    expect(steps[0]).toEqual(range(pos(5, 7), pos(5, 14))); // "ordered"
+  });
+
+  it('an empty task item has no text rung: the first press takes the whole line', () => {
+    const steps = climbIn(tasks, cursor(pos(4, 6)));
+    expect(steps[0]).toEqual(range(pos(4, 0), pos(4, 6)));
+  });
+
+  it('a paragraph that merely starts with `[ ]` keeps its full text: no list marker, no task marker', () => {
+    const steps = climbIn(tasks, cursor(pos(6, 5)));
+    expect(steps[0]).toEqual(range(pos(6, 0), pos(6, 8)));
+  });
+
+  it('a cursor inside the marker prefix climbs from the text rung, not past it', () => {
+    // Where Home leaves the caret on a task item (after `- `), where a click on
+    // the checkbox lands, where Obsidian's widget mount moves it.
+    expect(climbIn(tasks, cursor(pos(0, 2)))[0]).toEqual(range(pos(0, 6), pos(0, 14)));
+    expect(climbIn(tasks, cursor(pos(0, 4)))[0]).toEqual(range(pos(0, 6), pos(0, 14)));
+    expect(climbIn(tasks, cursor(pos(3, 3)))[0]).toEqual(range(pos(3, 8), pos(3, 19)));
+    // A plain item's marker too: column 0 is before its text as well.
+    expect(climbIn(tasks, cursor(pos(2, 0)))[0]).toEqual(range(pos(2, 4), pos(2, 9)));
+  });
+
+  it('a plain item is unchanged: its text starts right after the list marker', () => {
+    const steps = climbIn(tasks, cursor(pos(2, 6)));
+    expect(steps[0]).toEqual(range(pos(2, 4), pos(2, 9))); // "child"
+  });
+});
+
 describe('nextRung: the siblings-run rung (real-vault experiment)', () => {
   // # Head
   //
@@ -302,8 +362,13 @@ describe('property: the ladder always terminates and never shrinks', () => {
           if (next === null) return true; // terminated
           const lo = next.anchor.line < next.head.line || (next.anchor.line === next.head.line && next.anchor.ch < next.head.ch) ? next.anchor : next.head;
           const hi = lo === next.anchor ? next.head : next.anchor;
+          // The one sanctioned sideways move: a CURSOR in a list item's marker
+          // prefix takes the item's text rung, which starts past it on the same
+          // line (select-all-task-content). Every later step must contain its
+          // predecessor.
+          const fromPrefix = i === 0 && lo.line === prevLo.line && lo.ch > prevLo.ch;
           const grew =
-            (lo.line < prevLo.line || (lo.line === prevLo.line && lo.ch <= prevLo.ch)) &&
+            (fromPrefix || lo.line < prevLo.line || (lo.line === prevLo.line && lo.ch <= prevLo.ch)) &&
             (hi.line > prevHi.line || (hi.line === prevHi.line && hi.ch >= prevHi.ch));
           if (!grew) return false; // shrank or moved sideways — violates the never-shrink invariant
           prevLo = lo;
