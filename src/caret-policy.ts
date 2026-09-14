@@ -347,10 +347,12 @@ export function planCaret(op: CaretOp, facts: PlacementFacts): CaretPlan {
  * `- # title`, which `caret-placement-policy` states it must not.
  *
  * Not a claim that `[ ]` is chrome (`enter-and-shift-enter-grammar` D5). The
- * content boundary, addressability and Home are untouched; a caret an operation
- * PLACES moves by four characters, and one the user puts there stays where they
- * put it. The selection ladder's first rung skips the task marker for its own
- * reason, stated in `select-all-ladder.ts`.
+ * content boundary and addressability are untouched; a caret an operation PLACES
+ * moves by four characters, and one the user puts there stays where they put it.
+ * Home reaches the same column, but on its own rung and by its own rule
+ * (`contentStartRungs`), and steps back to the boundary from there. The selection
+ * ladder's first rung skips the task marker for its own reason, stated in
+ * `select-all-ladder.ts`.
  */
 function pastTaskMarker(doc: OutlineDoc, caret: LinePos): LinePos {
   const node = nodeAtLine(doc, caret.line);
