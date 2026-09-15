@@ -451,7 +451,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         const line = leaf?.querySelector('.cm-content > .cm-line.to-decor-block') ?? null;
         return {
           editor: gap(line?.querySelector(':scope > .to-decor-marker-icon svg') ?? null, line),
-          footer: Array.from(leaf?.querySelectorAll<HTMLElement>('.to-backlinks-row.is-reference') ?? [])
+          footer: Array.from(leaf?.querySelectorAll<HTMLElement>('.to-backlinks-row.is-hit') ?? [])
             .map((el) =>
               gap(
                 el.querySelector(':scope > .to-decor-marker-icon svg'),
@@ -932,7 +932,7 @@ describe('backlinks footer: outline chrome outside .cm-line', function () {
         groups.forEach((group) => {
           out.push(`# ${group.querySelector('.to-backlinks-group-name')?.textContent ?? '?'}`);
           group.querySelectorAll<HTMLElement>('.to-backlinks-row').forEach((el) => {
-            const roles = ['is-lineage', 'is-reference', 'is-property'].filter((c) =>
+            const roles = ['is-lineage', 'is-hit', 'is-property'].filter((c) =>
               el.classList.contains(c),
             );
             const ordinal = el.querySelector('.to-backlinks-ordinal')?.textContent ?? '';

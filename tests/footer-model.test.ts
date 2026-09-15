@@ -32,7 +32,7 @@ function render(rows: readonly FooterRow[]): string[] {
     if (r.type === 'property') return `${indent}[${r.property}] ${r.markdown}`;
     const first = r.markdown.split('\n')[0] ?? '';
     const fold = r.foldedCount > 0 ? `  [+${r.foldedCount}]` : '';
-    const mark = r.isReference ? '*' : '.';
+    const mark = r.isHit ? '*' : '.';
     return `${indent}${mark} ${first.replace(/^[\t\s-]+/, '').trim().slice(0, 46)}${fold}`;
   });
 }
@@ -452,7 +452,7 @@ describe('row content is notation, not reproduction (D18)', () => {
 	-
 `);
     const rows = buildRows(doc, mentionsTarget, [], refAt, noneExpanded)
-      .filter((r) => r.type === 'node' && !r.isReference);
+      .filter((r) => r.type === 'node' && !r.isHit);
     const [open, done, bare] = rows as Array<Extract<FooterRow, { type: 'node' }>>;
     expect(open!.task).toBe(false);
     expect(done!.task).toBe(true);

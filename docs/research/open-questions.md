@@ -2450,3 +2450,42 @@ the boundary would leave `- ] text`.
 
 The third Mod-Backspace press, from the boundary, is the Backspace the content-start rules already
 give — the merge with the item above, or its veto. So the whole gesture reads as text, box, node.
+## Q37. A DOM environment for unit tests: deferred, and what would change the answer ❓ OPEN (2026-09-15)
+
+`search-hits-and-footer-content-filter` wanted a unit test for the match-marking walk — the
+function that splits a rendered row's text nodes around a search term. The walk needs a DOM, and
+the unit suite runs in plain Node with no `jsdom` or `happy-dom`, so the question arrived as a
+dependency decision rather than a test-writing one.
+
+**What was measured.** The shim is the cost, not the dependency. `jsdom` supplies a DOM but none
+of Obsidian's augmentations, and the surface the plugin actually uses is small and closed: eleven
+instance methods — `createSpan` (37 call sites), `createDiv` (23), `toggleClass` (17), `createEl`
+(14), `addClass` (10), `setCssProps` (8), `setText` (6), `empty` (4), `instanceOf` (2),
+`removeClass`, `detach` — plus four globals, `createSpan` (44), `createDiv` (27), `createEl` (15)
+and `createFragment` (1). Sixty to eighty lines, written once.
+
+**What it would unlock today: seven functions.** `lineage-row.ts`'s `renderLineageContent`, whose
+only `obsidian` import is a type, and six DOM-in/DOM-out helpers in `backlinks-footer.ts` —
+`markMatches`, `unwrapBlocks`, `dropMedia`, `segmentMarker`, `segmentGlyph`, `separatorGlyph`.
+
+**What it would not unlock, which is the larger half.** `backlinks-footer.ts` holds 117 DOM call
+sites, and nearly all of them are `FooterController` methods needing a live `App`, a plugin
+instance and `MarkdownRenderer` — out of reach in any environment. `jsdom` also has no layout
+engine, so `getBoundingClientRect()` returns zeros and every geometry assertion in
+`74-footer-chrome-pass` stays in e2e permanently. What those specs test is Obsidian's own rendered
+output and real font metrics, which is the one thing a shim cannot reproduce.
+
+**Deferred, on that last point.** A hand-written shim that drifts from Obsidian's real semantics is
+the failure mode `outline-decorations-postmortem.md` already records: a testing approach that gave
+confidence the code had not earned. Seven functions is a real payoff but a modest one against that
+risk.
+
+**What would change the answer.** `search-palette` plans `src/plugin/lineage-list.ts` — an
+options-driven DOM builder shared by the footer and the palette, and exactly the shape a unit test
+is good at. With two such modules rather than one, the shim is amortised over enough surface to be
+worth its risk. Revisit there.
+
+**What was done instead.** The half of marking that does not need a DOM — where a term occurs in a
+string — moved into `search.ts` as `matchRanges`, unit-tested with the rest of the grammar it
+belongs to. The walk that cuts a text node around those ranges is asserted in
+`e2e/specs/77-footer-controls.e2e.ts`, against a real rendered row.

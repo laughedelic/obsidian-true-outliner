@@ -90,6 +90,25 @@ export interface PlacedSource {
   readonly refs: ReadonlyMap<number, PlacedReference>;
   /** References with no position in the tree, in frontmatter order. */
   readonly properties: readonly BacklinkReference[];
+  /**
+   * Every reference this source holds, in source order, each paired with the
+   * node it landed in.
+   *
+   * `refs` above is keyed by node and deduplicated — a node holding two links
+   * appears once — which is what RENDERING needs and what COUNTING must not
+   * use: a group's count has always been a count of references, and collapsing
+   * it to a count of nodes would change a number readers already know. The
+   * pairing is computed on the way to `refs` either way, so keeping it costs
+   * nothing.
+   */
+  readonly references: readonly PlacedBacklink[];
+}
+
+/** One reference and the node it was placed in. */
+export interface PlacedBacklink {
+  readonly ref: BacklinkReference;
+  /** Absent for a property reference, and for a line outside the block tree. */
+  readonly nodeId?: number | undefined;
 }
 
 /** What a placed reference tells the renderer about the node holding it. */
@@ -204,10 +223,18 @@ export class BacklinkIndex {
     const matchedIds = new Set<number>();
     const placed = new Map<number, PlacedReference>();
     const kindsByNode = new Map<number, Set<ReferenceKind>>();
+    const references: PlacedBacklink[] = [];
     for (const ref of refs) {
-      if (ref.line === undefined) continue;
+      if (ref.line === undefined) {
+        references.push({ ref });
+        continue;
+      }
       const node = nodeAtLine(doc, ref.line);
-      if (!node) continue;
+      if (!node) {
+        references.push({ ref });
+        continue;
+      }
+      references.push({ ref, nodeId: node.id });
       matchedIds.add(node.id);
       let kinds = kindsByNode.get(node.id);
       if (!kinds) {
@@ -234,6 +261,7 @@ export class BacklinkIndex {
       matches: (node: OutlineNode) => matchedIds.has(node.id),
       refs: placed,
       properties: refs.filter((r) => r.kind === 'property'),
+      references,
     };
   }
 
