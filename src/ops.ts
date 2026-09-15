@@ -578,19 +578,37 @@ function indentSurgery(
     return reject('not-expressible-under-target');
   }
 
+  // The DEPARTURE first, so the destination is encoded against the target as
+  // this operation LEAVES it. Removing the node renumbers the run it was in,
+  // and a number that crosses a digit boundary changes the target's marker
+  // WIDTH — its content column moves while the line the marker sits on does
+  // not. Measured on `9. a` / `9. b` / `- c`: the run renumbers to `9.` and
+  // `10.`, and encoding `- c` against the `9. b` the operation found wrote it
+  // at three columns where `10. b` requires four, so the re-parse handed the
+  // node back at the depth it started from. `shiftBelowMarker` moves the
+  // subtree an item ALREADY has when its marker widens; a node arriving in the
+  // same surgery is not yet in it.
+  let surgery = updateSiblings(doc, parentPath, (nodes) => {
+    const rest = nodes.filter((_, i) => i !== index);
+    // `nodes` is this level as the operation found it, and the node the run
+    // keeps its start from may be the one leaving.
+    return renumberOrderedAgainst(nodes, rest);
+  });
+  const landing = childrenAt(surgery, parentPath)[index - 1]!;
+
   // Under a heading, direct content ends at the first sub-heading — insert
   // there so the node lands in the target's own section, not a child's.
-  const firstSubheading = target.children.findIndex((child) => child.kind === 'heading');
+  const firstSubheading = landing.children.findIndex((child) => child.kind === 'heading');
   const insertIndex =
-    target.kind === 'heading' && firstSubheading !== -1
+    landing.kind === 'heading' && firstSubheading !== -1
       ? firstSubheading
-      : target.children.length;
+      : landing.children.length;
 
   const newKind = isContent(node)
     ? encodingKindAtDestination({
-        parentKind: target.kind,
-        precedingSiblings: target.children.slice(0, insertIndex),
-        followingSiblings: target.children.slice(insertIndex),
+        parentKind: landing.kind,
+        precedingSiblings: landing.children.slice(0, insertIndex),
+        followingSiblings: landing.children.slice(insertIndex),
       })
     : undefined;
   const moved = reencodeForDestination(
@@ -601,15 +619,14 @@ function indentSurgery(
     // inferred unit and re-parent it, the same tree-shape defect the split path
     // had. Document order puts preceding siblings first, so the existing
     // preference is unchanged.
-    destinationIndent(doc, target, target.children, fallbackIndentUnit),
+    //
+    // `doc` rather than `surgery` for the width evidence alone: that argument
+    // is only the document the indent unit is inferred from, and the node is
+    // still in `doc` — a vault whose one indented list item is the node being
+    // moved would otherwise lose the evidence of its own unit.
+    destinationIndent(doc, landing, landing.children, fallbackIndentUnit),
   );
 
-  let surgery = updateSiblings(doc, parentPath, (nodes) => {
-    const rest = nodes.filter((_, i) => i !== index);
-    // `nodes` is this level as the operation found it, and the node the run
-    // keeps its start from may be the one leaving.
-    return renumberOrderedAgainst(nodes, rest);
-  });
   surgery = updateSiblings(surgery, [...parentPath, index - 1], (nodes) =>
     // The destination's own children, before `moved` joins them. `moved`
     // carries the number it had at the level it came from, which is not this
