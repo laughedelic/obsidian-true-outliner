@@ -40,18 +40,27 @@
       (design D3) so caret placement lands on the nearest visible span; verify unit tests for
       down and up across a gap, filtered and filtered-inside-a-zoom. Negative control: drop the
       intersection and confirm the down-arrow test fails
-- [ ] 3.3 Mark decorations from the field (design D6); verify a unit test that a mark follows an
+- [ ] 3.3 Refuse a selection that would span a gap (design D3): a rejection reason in
+      `src/result.ts` with its cue in `messages.ts`, raised once per gesture, with progressive
+      Select All stopping at the visible run; verify unit tests that the selection is unchanged
+      and that a held key raises one notice, not many. Negative control: allow the extension and
+      confirm the unchanged-selection test fails
+- [ ] 3.4 Mark decorations from the field (design D6); verify a unit test that a mark follows an
       edit and vanishes when the text no longer contains the query while the node stays visible
+- [ ] 3.5 Hide every node when a two-character query matches nothing, keeping the preamble and
+      the footer and leaving focus in the field (design D8); verify unit tests that the visible
+      spans hold the preamble alone, and that a query below the threshold hides nothing
 
 ## 4. The panel and the command
 
 - [ ] 4.1 Create `src/plugin/outline-filter-panel.ts`: the field, the count, the no-matches
-      message, the close control, Escape handling, mounted by the mechanism design D5's open
-      question settles; verify it renders in the markdown view and the grammar ignores keys
+      message, the close control and Escape handling, mounted through `showPanel` with
+      `top: true` (design D5); verify it renders in the markdown view above the title and the
+      properties block, holds focus while the content is empty, and that the grammar ignores keys
       typed in it
 - [ ] 4.2 Register "Filter outline" in `main.ts` through `addZoomCommand`'s outline-mode-gated
       shape, toggling the panel; verify the command is absent outside outline mode
-- [ ] 4.3 Decide design's open question 5 — whether a match's hidden children show a fold count
+- [ ] 4.3 Decide the design's open question on hidden children — whether they show a fold count
       or nothing — from a mockup drawn at real geometry, as `fold-count-mockup.html` was, and
       record the verdict in the design; then the styles for the panel and that rendering, as a
       new `styles/70-outline-filter.css` part, and move the `to-match` rule from the footer's
@@ -67,15 +76,20 @@
       hidden; hidden lines take no space and the caret skips them; marks; title, properties and
       footer stay unzoomed, and stay hidden zoomed; editing a match away keeps it; Enter from a
       visible node creates a visible node; a moved match brings its new ancestors; re-running the
-      query re-decides; moving a node carries hidden children; filter inside a zoom searches the
-      scope; zooming while filtered keeps it; zooming out re-decides; clearing keeps the zoom; no
-      matches shows the note whole with the message; Escape and the close control restore
-      everything. Negative controls: for the frozen-set tests, re-run the query on every change;
-      for the caret tests, drop the resolver's intersection; for the composition tests, skip the
-      intersection
+      query re-decides; moving a node carries hidden children; a selection refuses to cross a gap
+      and says so, through the notice recorder rather than a command's return
+      (`docs/research/refused-commands-in-e2e`); Select All stops at the visible run; filter
+      inside a zoom searches the scope; zooming while filtered keeps it; zooming out re-decides;
+      clearing keeps the zoom; a query matching nothing hides every content line while the title,
+      properties and footer stay; Escape and the close control restore everything. Negative
+      controls: for the frozen-set tests, re-run the query on every change; for the caret tests,
+      drop the resolver's intersection; for the selection test, allow the extension; for the
+      composition tests, skip the intersection
 - [ ] 5.2 Run the spec under the mobile config; verify it passes
-- [ ] 5.3 Manual pass in a real vault under both themes, filtered and zoomed; record findings
-      in `docs/research/outline-filter-spike.md`
+- [ ] 5.3 Manual pass in a real vault under both themes, filtered and zoomed; record findings in
+      `docs/research/outline-filter-spike.md`, and in particular the two the design left to it:
+      how the two-character cliff reads when a query stops matching, and how often the selection
+      refusal is met and what was wanted instead
 
 ## 6. Docs and validation
 
