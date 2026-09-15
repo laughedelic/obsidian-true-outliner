@@ -202,29 +202,36 @@ Zooming out SHALL keep it likewise. Clearing the query SHALL leave the zoom as i
 - **WHEN** the view is zoomed and filtered and the query is cleared
 - **THEN** the zoom scope renders whole, still zoomed
 
-### Requirement: A query that matches nothing hides everything, and says so
+### Requirement: A query that matches nothing keeps the last view, and says so
 
-When a query of two or more characters matches nothing in the scope, every node SHALL be hidden
-and the panel SHALL state that nothing matched. A filter answers the query in the field, and a
-note rendered whole would answer a different one.
+When a query of two or more characters matches nothing in the scope, the view SHALL NOT change:
+it SHALL keep showing the matches and paths of the last query that did match, and its marks SHALL
+stay those of that query. A filter that rearranged the note on every mistyped character would
+cost the reader their place for a keystroke.
 
-The view SHALL NOT be an empty editor: the note's title, its properties block and the backlinks
-footer SHALL keep rendering, and the query field SHALL keep focus, so no caret is placed in a
-document with no visible line. Below the two-character threshold the note SHALL render whole,
-which is the state before a query rather than an answer to one.
+The panel SHALL state that the query matches nothing, and the query field itself SHALL show that
+it no longer matches, so the view is never silently answering a query the field no longer holds.
 
-#### Scenario: Nothing matches
+Where there is nothing to keep — the query is below the threshold, or none has matched since the
+panel opened — the note SHALL render whole.
 
-- **WHEN** the query matches no node
-- **THEN** the panel states that nothing matched and no content line is visible
+#### Scenario: A typo keeps the view still
 
-#### Scenario: The empty result is not an empty editor
+- **WHEN** a character is added to a matching query so that it matches nothing
+- **THEN** the same nodes stay visible with the same marks, and the panel states that the query
+  matches nothing
 
-- **WHEN** a query with references and frontmatter present matches nothing
-- **THEN** the title, the properties block and the footer still render, and the query field still
-  has focus
+#### Scenario: The field shows the miss
 
-#### Scenario: A typo collapses the view and fixing it restores the matches
+- **WHEN** the query matches nothing
+- **THEN** the query field renders as not matching, distinctly from a query that does
 
-- **WHEN** a character is added to a matching query so that it matches nothing, and then removed
-- **THEN** the view hides everything and then shows the same matches and paths it showed before
+#### Scenario: Removing the typo returns the matches
+
+- **WHEN** the character that took the query past its last match is removed
+- **THEN** the view is that query's matches again, and nothing moved while the typo stood
+
+#### Scenario: Nothing has matched yet
+
+- **WHEN** the first query typed into a freshly opened panel matches nothing
+- **THEN** the note renders whole

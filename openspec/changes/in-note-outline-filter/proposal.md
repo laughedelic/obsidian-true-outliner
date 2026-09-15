@@ -34,9 +34,9 @@ why it is proposed separately and sequenced last.
   because a range covering nodes the reader cannot see is one Copy and Delete would act on.
   Clearing the query is the way to act across what the filter hid. Structural operations
   otherwise act on the document as they always do, hidden content included.
-- **A query that matches nothing hides everything and says so**, rather than rendering the note
-  whole — the title, the properties and the footer stay, so the empty result is not an empty
-  editor.
+- **A query that matches nothing keeps the last view that matched**, rather than rearranging the
+  note under a reader mid-word. The panel says the query matches nothing and the field itself
+  shows it, so the view is never silently answering a query the field no longer holds.
 - **Same grammar as the other surfaces**: `matchNodes` from
   `search-hits-and-footer-content-filter`, so a query means the same thing in the footer, the
   palette and here. The one-character floor below is this surface's threshold for when to hide
