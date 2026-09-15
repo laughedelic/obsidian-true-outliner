@@ -1,19 +1,30 @@
 ## Context
 
 Zoom already does the hard half. `zoom-decorations.ts` builds block-replace decorations from a
-state field for the ranges `hiddenOffsetRanges(doc, scope)` returns, which are the complement of
-one visible range — the scope's subtree cover. `docs/research/zoom-hiding-mechanism` measured that
-mechanism against a real instance and recorded what held (hiding, boundary arithmetic, chrome on
-visible lines, `showPanel` in the markdown view) and what did not (confinement is not free).
-`docs/research/zoom-editing-boundary` catalogued editing at the boundary of that one range. The
-caret is kept inside the scope by the resolvers `zoom-state.ts` exposes
-(`setVisibleBoundsResolver`, `setChangeEscapesResolver`), and the panel the trail lives in is a
-CodeMirror panel.
+state field for the ranges `hiddenOffsetRanges` returns. Those ranges are a conversion today, not
+a computation: the mapping core precomputes the at-most-two hidden LINE spans on the scope itself
+(`ZoomScope.hidden`, `src/zoom.ts`) as the complement of one visible range — the scope's subtree
+cover — and `zoom-offsets.ts` turns them into CM6 offsets.
+`docs/research/zoom-hiding-mechanism` measured that mechanism against a real instance and
+recorded what held (hiding, boundary arithmetic, chrome on visible lines, `showPanel` in the
+markdown view) and what did not (confinement is not free). `docs/research/zoom-editing-boundary`
+catalogued editing at the boundary of that one range. The caret is kept inside the scope by two
+resolvers `zoom-state.ts` declares and `zoom-scope.ts` fills once at load
+(`setVisibleBoundsResolver`, `setChangeEscapesResolver`) — single-slot injection points holding
+one function each, not a chain.
+
+The trail is a block widget anchored at the visible range's start, not a CM6 panel.
+`zoom-trail.ts` records why: `showPanel` mounts into `.cm-panels-top`, a sibling of
+`.cm-scroller`, structurally above the note's title and properties and fixed there, so a panel
+can only read as a toolbar. The mechanism itself works in the markdown view — that is what
+`zoom-hiding-mechanism` verified — and the trail declined it for what it looks like, which is a
+judgement a query field does not inherit.
 
 A filter's visible set is many ranges — every match's own lines plus every ancestor's own lines
 — and the rest of this design is what changes when "one range" becomes "a set", and what does
-not. The matcher comes from `search-hits-and-footer-content-filter`; the survey behind the
-behaviour is `docs/research/search-surfaces`.
+not. The matcher comes from `search-hits-and-footer-content-filter`: `matchNodes(doc, query)` in
+`src/search.ts`, answering with the ids of the nodes whose own lines contain the query. The
+survey behind the behaviour is `docs/research/search-surfaces`.
 
 The zoom modules this touches have since settled: `zoom-edit-confinement` and
 `positions-re-base-with-the-zoom` have both landed on `main`, and this design is written against
@@ -37,12 +48,32 @@ what they left. What this change still waits for is the matcher (proposal, Seque
 
 ### D1. Hidden ranges become the complement of a set of visible spans
 
-`hiddenOffsetRanges` takes a sorted list of visible line spans rather than one scope and returns
-their gaps; zoom passes the one span it always did, so its decorations, boundary arithmetic and
-tests are unchanged. The filter passes the union of its visible nodes' OWN lines — not subtree
-covers, since a match's children are hidden — merged where adjacent. Which replace spec a gap
-takes (head or tail, `inclusiveStart`) is decided by where the gap begins, exactly as today,
-because the rule was about a gap's position and never about there being one gap.
+The complement moves to where both surfaces can reach it: `hiddenOffsetRanges(doc, visible)`
+takes a sorted, merged list of visible line spans and returns the gaps between them as offset
+ranges. Zoom passes the one span it always had, its cover. `ZoomScope.hidden` stays as the
+mapping core's own statement of the scope's shape, but the decoration path stops reading it, so
+one function answers "what is hidden" for both surfaces instead of two that must agree.
+
+The filter passes the union of its visible nodes' OWN lines — not subtree covers, since a match's
+children are hidden — merged where adjacent, plus the document preamble. The preamble is the
+frontmatter and the blank lines after it (`OutlineDoc.preamble`) and is never a node, so nothing
+derived from matches and ancestors would keep it, while the spec requires the properties block to
+render. Zoom hides both the preamble and the rendered title deliberately and states that as its
+own requirement; a filter is not a re-rooting and does neither.
+
+Which replace spec a gap takes (head or tail, `inclusiveStart`) is decided by where the gap
+begins, exactly as today — `from === 0` is the head and every other gap is the tail — because the
+rule was about a gap's position and never about there being one gap.
+
+Two conditions in `zoom-decorations.ts` are written against the zoom alone and become conditions
+on the union: the builder returns no decorations when `zoomScope` is null, and `ZOOMED_CLASS` —
+which is what hides the inline title and the properties block, in `styles/30-zoom.css` — is
+applied on the same read. The builder runs when either surface has something to hide; the class
+stays with the zoom.
+
+Alternative: leave the complement in the mapping core and have `hiddenOffsetRanges` keep
+converting hidden spans, with the filter computing its own. Rejected for keeping two complements
+in step.
 
 The spike (task 1.1) confirms on a real instance that many gaps hold the same boundary properties
 `docs/research/zoom-hiding-mechanism` measured for two, in particular that a visible line between
@@ -51,60 +82,87 @@ two gaps keeps its chrome and the trailing-gap rule.
 ### D2. The match set is positions mapped through changes, not node ids
 
 Node ids are per parse and not stable across edits, so a frozen set of ids is not a frozen set
-of anything. The filter state field stores one anchor offset per match — the match node's start
-— and maps them through every transaction's changes, the way the zoom anchor is mapped. On each
-state the visible set is derived: parse, take the node containing each anchor, add its
-ancestors. An anchor whose node is edited away maps to wherever the edit put it and keeps that
-node visible; an anchor deleted with its node is dropped.
+of anything. `matchNodes` answers in ids and the filter spends them immediately: at the parse
+that produced them each id resolves to its node's start offset, and the field stores those
+anchors. They map through every transaction's changes, the way the zoom anchor is mapped. On each
+state the visible set is derived: parse, take the node containing each anchor, add its ancestors.
+An anchor whose node is edited away maps to wherever the edit put it and keeps that node visible;
+an anchor deleted with its node is dropped.
 
-This gives the spec's "fixed when the query runs" for free: nothing re-matches until the query
-changes, and a node created from a visible node — a split, a new sibling from Enter — is visible
-because the caret rule keeps the caret on visible lines and the new node's start is where the
-caret was. The spike's second half (task 1.2) walks `docs/research/zoom-editing-boundary`'s
-gesture catalogue under a filter and records which rows need an anchor added rather than mapped.
+Mapping alone does not make a NEW node visible. A node created beside a match contains no anchor,
+so the derivation would hide it under the caret that just made it. The rule is therefore explicit
+rather than incidental: a transaction that splits a visible node, or creates a sibling or child
+from one, adds an anchor for the node it created. The spike's second half (task 1.2) walks
+`docs/research/zoom-editing-boundary`'s gesture catalogue under a frozen anchor set and records,
+row by row, which gestures that rule has to cover and which map cleanly.
+
+What stays derived rather than frozen is the ancestor half: the MATCHES are fixed, and the path
+to each one is recomputed from the current parse, so indenting a visible match under a different
+parent makes that parent visible. That is what keeps a match's path honest as the document moves,
+and the spec states it as part of the frozen-set requirement rather than leaving it to be read
+off the implementation.
 
 Alternative: re-run the query on every change, Workflowy-style. Rejected: a node vanishing under
 the caret as it is edited is the hazard `docs/research/search-surfaces` names, and Org's rule —
 drop the filter on the first edit — throws away the reader's place for the same reason.
 
-### D3. The caret rule reuses zoom's resolvers, with a set
+### D3. The caret rule teaches zoom's resolver a set
 
-`zoom-state.ts`'s visible-bounds resolver answers "where may the caret be" for one span; the
-filter registers the same kind of resolver over its set, and the placement that clamps into the
-zoom scope clamps into the nearest visible span in the direction of travel instead. The
-change-escapes resolver is NOT registered for the filter: an edit landing in hidden content is
+`setVisibleBoundsResolver` holds ONE function, installed at load by `zoom-scope.ts`, so the
+filter does not register a second: that resolver learns to intersect. It answers the zoom's
+bounds as it does today, and when a filter is active narrows the answer to the visible span
+holding the anchor; the placement that clamps into the zoom scope clamps into the nearest visible
+span in the direction of travel. One function rather than a chain, so the two answers cannot
+disagree — and the intersection in D4 puts them in the same span regardless.
+
+The change-escapes resolver is NOT taught about the filter: an edit landing in hidden content is
 allowed (proposal, non-goal), and only the caret is redirected afterwards.
 
 ### D4. Composition with zoom is intersection
 
-The filter's query runs over the zoom scope's subtree when one is active, and the visible set is
-the intersection of the filter's spans with the scope's span; the decorations builder takes the
-intersection as its visible spans. Zooming while filtered re-runs the query over the new scope
-(the query is kept; the anchors are recomputed, since the scope changed what "the document"
-means). Clearing the filter leaves the zoom field untouched.
+The query runs over the SOURCE document and its matches are intersected with the zoom scope's
+cover, rather than running over `scope.document`. The re-rooted document is a second line space —
+`scope.startLine` is the constant offset back to the source, and re-basing positions across it is
+what `positions-re-base-with-the-zoom` existed to fix — and the anchors need source offsets
+either way. Matching the whole note and dropping what falls outside the cover costs one pass over
+nodes the reader cannot see and keeps the filter in one line space.
 
-### D5. The panel is a CodeMirror panel above the trail
+The visible set is then the intersection of the filter's spans with the scope's cover, and the
+decorations builder takes that intersection as its visible spans. Zooming while filtered
+re-decides the match set over the new scope — the query is kept and the anchors recomputed,
+because the scope changed which matches count. Clearing the filter leaves the zoom field
+untouched.
 
-`showPanel` with `top: true`, the mechanism `docs/research/zoom-hiding-mechanism` verified in the
-markdown view. The query field, a match count, the no-matches message and a close control. Escape
-in the field closes the panel; the command toggles it. The field is not the editor, so the
-keyboard grammar does not see its keys.
+### D5. What the panel holds
+
+The query field, a match count, the no-matches message and a close control. Escape in the field
+closes the panel; the command toggles it. The field is not the editor, so the keyboard grammar
+does not see its keys.
+
+WHERE the panel mounts is open — a CM6 top panel or a block widget in the content flow — and is
+the first of the open questions below.
 
 ### D6. Matches are mark decorations from the same field
 
-A `Decoration.mark` per occurrence in visible nodes, computed with the visible set and carrying
-the `to-match` class the footer's marks use, so one stylesheet rule covers both. A rule two
-surfaces share belongs in `styles/10-editor.css`, so the `to-match` rule moves there out of the
-footer's part. Recomputed per
-state from the mapped anchors; occurrences are found in the node's current text, so a mark
-follows an edit and disappears when the text no longer contains the query — the mark reports the
-text, the anchor reports the membership.
+A `Decoration.mark` per occurrence in visible nodes, carrying the `to-match` class
+`search-hits-and-footer-content-filter` gives the footer's marks, so one stylesheet rule covers
+both surfaces. The two surfaces emit different elements for it — the footer wraps rendered text
+in `<mark>`, a mark decoration produces a `<span>` — so the shared rule is written on the class
+alone and never on the element. A rule two surfaces share belongs in `styles/10-editor.css`, so
+the `to-match` rule moves there out of the footer's part once that change has landed; the move
+also takes the rule earlier in cascade order, ahead of the footer's part rather than inside it.
+
+Recomputed per state from the mapped anchors; occurrences are found in the node's current text,
+so a mark follows an edit and disappears when the text no longer contains the query — the mark
+reports the text, the anchor reports the membership.
 
 ### D7. Gates
 
-Outline mode and not-nested, through the same checks `zoom-scope.ts` applies, so the filter is
-absent outside them and a nested cell editor never filters. Per editor view, never persisted:
-the field lives in the editor state.
+Outline mode for the command, through `addZoomCommand`'s shape in `main.ts`, which reads
+`isOutlineMode` in an `editorCheckCallback` so the palette does not offer it elsewhere; and
+not-nested for the extension, through the `nestedEditorField` check `zoom-scope.ts` already
+applies, so a nested cell editor never filters. Per editor view, never persisted: the field lives
+in the editor state.
 
 ## Risks / Trade-offs
 
@@ -114,16 +172,33 @@ the field lives in the editor state.
 - [An anchor mapped into a neighbouring node after a delete makes the wrong node visible] →
   covered by the gesture catalogue in the spike; the fallback is to drop an anchor whose
   mapped position is no longer inside a node with the same start line, and accept the loss.
-- [The caret rule and the zoom's confinement disagree when both are active] → the filter's
-  resolver is composed after zoom's, so zoom's answer is clamped first and the filter's second;
-  the intersection in D4 makes both answers lie in the same span.
+- [`zoom-scope.ts` grows a filter import to intersect in its resolver] → the alternative is a
+  second resolver slot and a composition order to keep right, which is the shape D3 rejects; the
+  import is one way and the module already owns every gate the filter needs.
 - [The folding work on `main` changes what a hidden child can look like] → a match's
   hidden children may borrow the fold control the editor now draws rather than being hidden
   plainly, which is a rendering choice the spec leaves open.
 
 ## Open Questions
 
-- Whether a hidden child of a match should show a fold count or nothing, now that the folding
-  change has landed. Rendering only; the spec's "hidden unless it matches" holds either way.
-- Whether the palette's narrowed scope should become a list view of this filter's visible set
-  (`docs/research/search-surfaces`, open question 4). Neither change depends on the answer.
+Four of these decide spec text and are answered before task 1.1; the last two are rendering and
+scope questions that can wait.
+
+1. **Where the panel mounts** (D5). A CM6 top panel through `showPanel` sits above the title and
+   the properties block and reads as a toolbar — which is why the trail declined it, and which a
+   query field may not mind. A block widget sits in the content flow, as the trail and the footer
+   do, at the cost of moving with the content it filters.
+2. **Org's second refinement**, which `docs/research/search-surfaces` records as cheap: reveal the
+   node after the last match, so editing at the end of a filtered view is not claustrophobic.
+   Adopt it or state it as a non-goal.
+3. **What a selection spanning a gap contains.** The caret rule places a caret and a selection
+   END on visible lines, but says nothing about the hidden lines between two visible ends, or
+   about what Copy and Delete then take.
+4. **What the view shows while a query is being typed and matches nothing yet.** "Filter live"
+   and "no matches renders the note whole" together flip the view back to the full note on every
+   intermediate prefix that matches nothing.
+5. Whether a hidden child of a match should show a fold count or nothing, now that the folding
+   change has landed. Rendering only; the spec's "hidden unless it matches" holds either way, and
+   task 4.3 decides it from a mockup.
+6. Whether the palette's narrowed scope should become a list view of this filter's visible set
+   (`docs/research/search-surfaces`, open question 4). Neither change depends on the answer.
