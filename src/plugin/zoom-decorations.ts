@@ -23,7 +23,7 @@
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 import { zoomScope } from './zoom-scope';
-import { hiddenOffsetRanges } from './zoom-offsets';
+import { coverSpan, hiddenOffsetRanges } from './zoom-offsets';
 
 /**
  * The two hiding decorations, and the pair is not redundant.
@@ -54,7 +54,7 @@ const hiddenTail = Decoration.replace({ block: true, inclusiveStart: false });
 function compute(state: EditorState): DecorationSet {
   const scope = zoomScope(state);
   if (!scope) return Decoration.none;
-  const ranges = hiddenOffsetRanges(state.doc, scope);
+  const ranges = hiddenOffsetRanges(state.doc, [coverSpan(scope)]);
   if (ranges.length === 0) return Decoration.none;
   const builder = new RangeSetBuilder<Decoration>();
   // Which spec a range takes is decided by where it begins, which is the same

@@ -18,7 +18,7 @@
 
 ## 2. The hiding builder
 
-- [ ] 2.1 Generalise `hiddenOffsetRanges` to a sorted list of VISIBLE spans whose gaps it
+- [x] 2.1 Generalise `hiddenOffsetRanges` to a sorted list of VISIBLE spans whose gaps it
       returns (design D1), with zoom passing its cover; verify the zoom e2e specs in the
       `clipboard` group pass with no edit, `tests/zoom-offsets.test.ts` passes with the same
       expectations under the new signature, and a new unit test covers three spans with a
