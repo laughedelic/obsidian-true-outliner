@@ -17,8 +17,7 @@
       verify `npm run build` and `tests/footer-model.test.ts` pass with the tests' names updated
 - [ ] 2.2 Rename the row's `is-reference` DOM class to `is-hit` in `backlinks-footer.ts` and
       `styles/20-backlinks-footer.css`, and update every e2e spec that reads it (grep
-      `is-reference` under `e2e/`);
-      verify `npm run test:e2e:narrow -- 73-footer-render` passes
+      `is-reference` under `e2e/`); verify `npm run test:e2e:narrow -- 73-footer-render` passes
 
 ## 3. The term after placement
 
@@ -49,8 +48,8 @@
       while a term is active (design D6), and the `styles/20-backlinks-footer.css` rule that
       separates it from a bare `<mark>`; verify with a unit test on a detached element containing
       a link and an author's highlight: the link survives, the author's mark has no class, the
-      term's mark has it.
-      Negative control: match on the source string instead and confirm the link case fails
+      term's mark has it. Negative control: match on the source string instead and confirm the
+      link case fails
 
 ## 5. End-to-end
 
