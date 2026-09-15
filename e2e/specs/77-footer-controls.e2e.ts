@@ -48,6 +48,9 @@ const sel = (axis: string): string =>
 /** A target whose only source notes carry no tags at all — and, at five lines
  * with three groups, the cheapest footer in the fixture to fold and unfold. */
 const UNTAGGED = 'Backlinks/Reference target.md';
+/** Referenced by `Backlinks/Severity rollout diary.md`, the one source note in
+ * the fixture that writes `==highlights==` of its own. */
+const ROLLOUT = 'Projects/Severity rollout.md';
 const SMALL = UNTAGGED;
 
 describe('the footer’s controls', function () {
@@ -141,6 +144,8 @@ describe('the footer’s controls', function () {
         if (!row) return null;
         return {
           search: row.querySelector('.to-backlinks-search') !== null,
+          placeholder:
+            row.querySelector<HTMLInputElement>('.to-backlinks-search')?.placeholder ?? '',
           facets: Array.from(row.querySelectorAll<HTMLElement>('.to-backlinks-facet')).map(
             (f) => f.dataset.axis ?? '',
           ),
@@ -149,6 +154,8 @@ describe('the footer’s controls', function () {
     );
     expect(shape).not.toBeNull();
     expect(shape!.search).toBe(true);
+    // The field reaches reference content now, so it no longer promises names.
+    expect(shape!.placeholder).toBe('Filter…');
     // Kind first: its four values never change, so it is the one facet whose
     // position a reader can learn.
     expect(shape!.facets).toEqual(['kind', 'folder', 'tag']);
@@ -373,7 +380,7 @@ describe('the footer’s controls', function () {
 
     await browser.keys(term);
     await browser.pause(900);
-    const after = await browser.executeObsidian(() => {
+    const after = await browser.executeObsidian((_ctx, value: string) => {
       const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
       const input = root?.querySelector<HTMLInputElement>('.to-backlinks-search');
       return {
@@ -383,15 +390,29 @@ describe('the footer’s controls', function () {
         names: Array.from(
           root?.querySelectorAll<HTMLElement>('.to-backlinks-group-name') ?? [],
         ).map((n) => n.textContent ?? ''),
+        admitted: Array.from(
+          root?.querySelectorAll<HTMLElement>('.to-backlinks-group') ?? [],
+        ).filter((card) => {
+          const name = card.querySelector<HTMLElement>('.to-backlinks-group-name');
+          const lower = (t: string): string => t.toLowerCase();
+          if (lower(name?.textContent ?? '').includes(lower(value))) return true;
+          return Array.from(card.querySelectorAll<HTMLElement>('.to-backlinks-content')).some(
+            (row) => lower(row.textContent ?? '').includes(lower(value)),
+          );
+        }).length,
       };
-    });
+    }, term);
     // EVERY character, not just the first. Each keystroke re-renders the footer
     // and replaces the input, so without focus following the control the rest of
     // the word went nowhere.
     expect(after.value).toBe(term);
     expect(after.stillFocused).toBe('search');
     expect(after.groups).toBeGreaterThan(0);
-    for (const name of after.names) expect(name).toContain(term);
+    // Every group shown answers the term SOMEHOW — by its name, or by content
+    // the footer renders for one of its references. Asserting names alone was
+    // right while the term reached names only; it is now the narrower half of
+    // the rule, and a group admitted on content would fail it wrongly.
+    expect(after.admitted).toBe(after.groups);
 
     // Left narrowed otherwise: the next case in this file opens the sort menu
     // against a footer this one has just typed a filter term into. Seen on CI
@@ -723,8 +744,8 @@ describe('the footer’s controls', function () {
           embedTags: rows.filter((r) => r.querySelector('.to-backlinks-tag')).length,
           propertyRows: rows.filter((r) => r.dataset.kind === 'property').length,
           // ALL rows in the group. A property reference is its own row TYPE
-          // and never carries `.is-reference` — that class marks a `type:
-          // 'node'` row specifically — so counting only `.is-reference` rows
+          // and never carries `.is-hit` — that class marks a `type:
+          // 'node'` row specifically — so counting only `.is-hit` rows
           // would silently miss the property one. Both references in this
           // fixture sit at depth 0 with no lineage of their own, so the
           // group's row count is exactly its reference count.
@@ -1113,5 +1134,215 @@ describe('the footer’s controls', function () {
     // icon is the section's mark on the depth-0 column, so it is the size of a
     // top-level marker rather than of a footer row's smaller mark.
     expect(Math.abs(sizes!.head - sizes!.editor)).toBeLessThan(1.5);
+  });
+  /**
+   * The term against reference CONTENT, on the fixture built to have content
+   * worth searching.
+   *
+   * `Backlinks/Family tree.md` puts the same target under two different
+   * ancestors, gives one reference a child the footer renders and a grandchild
+   * it folds away, and holds two references whose own text differs — which is
+   * every position the rule distinguishes, in one source note.
+   */
+  describe('a term against reference content', function () {
+    /** Rows on screen, as `[role] text`, so a failure reads as shape. */
+    const rows = (): Promise<string[]> =>
+      browser.executeObsidian(() =>
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '.workspace-leaf.mod-active .to-backlinks-row',
+          ),
+        ).map((el) => {
+          const role = el.classList.contains('is-hit')
+            ? 'hit'
+            : el.classList.contains('is-lineage')
+              ? 'lineage'
+              : 'row';
+          return `[${role}] ${(el.querySelector('.to-backlinks-content')?.textContent ?? '').trim()}`;
+        }),
+      );
+
+    const headerCounts = (): Promise<string> =>
+      browser.executeObsidian(
+        () =>
+          document
+            .querySelector<HTMLElement>('.workspace-leaf.mod-active .to-backlinks-head')
+            ?.textContent?.trim() ?? '',
+      );
+
+    before(async function () {
+      await openFooter(UNTAGGED);
+      await openFilters();
+      await clearFilters();
+      await openFilters();
+    });
+
+    /** The filter row is per-note view state, so a footer just switched to has
+     * none and its field does not exist yet. */
+    const clearTerm = async (): Promise<void> => {
+      const present = await browser.executeObsidian(
+        () =>
+          document.querySelector('.workspace-leaf.mod-active .to-backlinks-search') !== null,
+      );
+      if (present) await setSearchTerm('');
+    };
+
+    afterEach(async function () {
+      await clearTerm();
+    });
+
+    after(async function () {
+      await clearTerm();
+      await openFooter(TARGET);
+    });
+
+    it('admits a reference on its own text, and drops a sibling reference', async function () {
+      await setSearchTerm('week one');
+      const shown = await readStable(rows);
+      const hits = shown.filter((r) => r.startsWith('[hit]'));
+      expect(hits.some((r) => r.includes('rollout, week one'))).toBe(true);
+      // The other reference in the same source note. Its own text does not
+      // carry the term, and nothing the footer shows around it does either.
+      expect(hits.some((r) => r.includes('what worked on'))).toBe(false);
+    });
+
+    it('admits a reference because an ancestor of it matches', async function () {
+      await setSearchTerm('retro');
+      const shown = await readStable(rows);
+      const hits = shown.filter((r) => r.startsWith('[hit]'));
+      // `retro` is nowhere in the referencing node; it is the first line of the
+      // ancestor the footer draws above it.
+      expect(hits.some((r) => r.includes('what worked on'))).toBe(true);
+      expect(hits.some((r) => r.includes('rollout, week one'))).toBe(false);
+      // And the ancestor that admitted it is on screen, as the lineage row.
+      expect(shown.some((r) => r.startsWith('[lineage]') && r.includes('retro'))).toBe(true);
+    });
+
+    it('admits a reference because a child the footer renders matches', async function () {
+      await setSearchTerm('a child of a deep mention');
+      const shown = await readStable(rows);
+      const hits = shown.filter((r) => r.startsWith('[hit]'));
+      expect(hits.some((r) => r.includes('four mentions'))).toBe(true);
+      // The exclusion is half the assertion. Without it the case passes just as
+      // well against a term that admits everything, which is exactly what its
+      // negative control makes `admitReferences` do.
+      expect(hits.some((r) => r.includes('rollout, week one'))).toBe(false);
+    });
+
+    it('does not reach a descendant deeper than the footer renders', async function () {
+      // A grandchild of the reference: the depth bound puts it behind a fold,
+      // so it is content the footer has not shown and the term must not read.
+      await setSearchTerm('the depth bound hides behind a fold');
+      const shown = await readStable(rows);
+      expect(shown.filter((r) => r.startsWith('[hit]'))).toEqual([]);
+    });
+
+    it('reports totals over what the term admitted', async function () {
+      const before = await readStable(headerCounts);
+      await setSearchTerm('week one');
+      const after = await readStable(headerCounts);
+      expect(after).not.toBe(before);
+      // One reference survives the term, so the header says one — the body and
+      // the count are the same answer, which is what moving the term after
+      // placement is for.
+      expect(after).toMatch(/\b1\b/);
+    });
+
+    /**
+     * The two cases below are about the marking WALK, not about admission, so
+     * disabling the term in `admitReferences` does not move them — a row shown
+     * for any reason still gets its matches marked. Their control is
+     * `matchRanges`, which `tests/search.test.ts` exercises directly.
+     */
+    it('marks the term where it occurs, and clears every mark with it', async function () {
+      await setSearchTerm('week one');
+      const marked = await readStable(() =>
+        browser.executeObsidian(() =>
+          Array.from(
+            document.querySelectorAll<HTMLElement>(
+              '.workspace-leaf.mod-active .to-backlinks-content mark.to-match',
+            ),
+          ).map((m) => m.textContent ?? ''),
+        ),
+      );
+      expect(marked.length).toBeGreaterThan(0);
+      // The NOTE's characters, not the reader's: the term was typed lower case
+      // and the fixture writes it that way too, so this pins the text rather
+      // than the query being echoed back.
+      for (const text of marked) expect(text.toLowerCase()).toBe('week one');
+
+      await setSearchTerm('');
+      const cleared = await readStable(() =>
+        browser.executeObsidian(
+          () =>
+            document.querySelectorAll('.workspace-leaf.mod-active .to-backlinks-content mark')
+              .length,
+        ),
+      );
+      expect(cleared).toBe(0);
+    });
+
+    /**
+     * The half of the marking walk that has no unit test: it runs on RENDERED
+     * DOM, and the unit suite has no DOM (`docs/research/open-questions` Q37).
+     * `matchRanges` is unit-tested; what is asserted here is that cutting a
+     * text node around those ranges leaves the row's own elements alone.
+     */
+    it('marks inside a link without breaking it, and leaves an author’s highlight alone', async function () {
+      // `Severity rollout` is the note `Severity rollout diary` links to, and
+      // the diary is where the fixture's author highlights are. A footer
+      // switched to has its own view state, so its filter row starts shut.
+      await openFooter(ROLLOUT);
+      await openFilters();
+      await setSearchTerm('the sort landed');
+      const shape = await readStable(() =>
+        browser.executeObsidian(() => {
+          const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
+          const ours = Array.from(
+            root?.querySelectorAll<HTMLElement>('.to-backlinks-content mark.to-match') ?? [],
+          );
+          const authors = Array.from(
+            root?.querySelectorAll<HTMLElement>('.to-backlinks-content mark') ?? [],
+          ).filter((m) => !m.classList.contains('to-match'));
+          return {
+            ours: ours.map((m) => m.textContent ?? ''),
+            // An author's `==highlight==` renders as a bare `<mark>`. Ours
+            // carries the class; the stylesheet tells them apart by it.
+            authorsUnclassed: authors.length,
+            // Our mark sits INSIDE the author's here, because the term matches
+            // text the author had highlighted. Both survive.
+            nested: ours.some((m) => m.parentElement?.tagName.toLowerCase() === 'mark'),
+          };
+        }),
+      );
+      expect(shape.ours.length).toBeGreaterThan(0);
+      expect(shape.authorsUnclassed).toBeGreaterThan(0);
+
+      await setSearchTerm('Severity');
+      const links = await readStable(() =>
+        browser.executeObsidian(() => {
+          const anchors = Array.from(
+            document.querySelectorAll<HTMLElement>(
+              '.workspace-leaf.mod-active .to-backlinks-content a.internal-link',
+            ),
+          );
+          return {
+            count: anchors.length,
+            // The term matches text inside the link. Splitting the SOURCE
+            // string to insert a tag would have cut the link in two; walking
+            // the rendered text nodes puts the mark inside the anchor instead.
+            marksInside: anchors.filter((a) => a.querySelector('mark.to-match') !== null).length,
+            hrefsIntact: anchors.every((a) => (a.textContent ?? '').trim().length > 0),
+          };
+        }),
+      );
+      expect(links.count).toBeGreaterThan(0);
+      expect(links.marksInside).toBeGreaterThan(0);
+      expect(links.hrefsIntact).toBe(true);
+
+      await clearTerm();
+      await openFooter(UNTAGGED);
+      await openFilters();
+    });
   });
 });
