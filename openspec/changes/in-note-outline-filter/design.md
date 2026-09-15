@@ -64,21 +64,22 @@ mapping core's own statement of the scope's shape, but the decoration path stops
 one function answers "what is hidden" for both surfaces instead of two that must agree.
 
 The filter passes the union of its visible nodes' OWN lines — not subtree covers, since a match's
-children are hidden — merged where adjacent, plus the document preamble. The preamble is the
-frontmatter and the blank lines after it (`OutlineDoc.preamble`) and is never a node, so nothing
-derived from matches and ancestors would keep it, while the spec requires the properties block to
-render. Zoom hides both the preamble and the rendered title deliberately and states that as its
-own requirement; a filter is not a re-rooting and does neither.
+children are hidden — merged where adjacent. Nothing else: an earlier reading added the document
+preamble so the properties block would keep rendering, and the spike measured that the span
+decides nothing there. The title and the properties block are siblings of the content rather than
+document lines, so no line range reaches them; what hides them under a zoom is `ZOOMED_CLASS`,
+which a filter does not carry. Passing the preamble only keeps the blank line after the
+frontmatter rendered above the first match (`docs/research/outline-filter-spike`).
 
 Which replace spec a gap takes (head or tail, `inclusiveStart`) is decided by where the gap
 begins, exactly as today — `from === 0` is the head and every other gap is the tail — because the
 rule was about a gap's position and never about there being one gap.
 
-Two conditions in `zoom-decorations.ts` are written against the zoom alone and become conditions
-on the union: the builder returns no decorations when `zoomScope` is null, and `ZOOMED_CLASS` —
-which is what hides the inline title and the properties block, in `styles/30-zoom.css` — is
-applied on the same read. The builder runs when either surface has something to hide; the class
-stays with the zoom.
+Two conditions in `zoom-decorations.ts` are written against the zoom alone, and only one of them
+becomes a condition on the union: the builder returns no decorations when `zoomScope` is null, and
+now runs when either surface has something to hide. `ZOOMED_CLASS` — which is what hides the
+inline title and the properties block, in `styles/30-zoom.css` — is read from the zoom alone and
+stays there. That is the whole of why a filtered note keeps its title and properties.
 
 Alternative: leave the complement in the mapping core and have `hiddenOffsetRanges` keep
 converting hidden spans, with the filter computing its own. Rejected for keeping two complements

@@ -56,10 +56,10 @@ vertical space and SHALL NOT receive the caret. A visible node SHALL render its 
 its chrome — marker, depth, guides — exactly as it does unfiltered. A match's children SHALL be
 hidden unless they match themselves.
 
-The note's title and its properties block SHALL keep rendering while the filter alone is active:
-the document preamble is not a node, and a filter re-reads a note rather than re-rooting it. A
-zoom still hides both, as `outline-zoom` requires, and a filter inside a zoom does not bring them
-back. The backlinks footer SHALL keep rendering after the content, as it does under a zoom.
+The note's title and its properties block SHALL keep rendering while the filter alone is active.
+They are not document lines, so no hidden range reaches them; a filter re-reads a note rather than
+re-rooting it, and only a re-rooting hides them. A zoom still does, as `outline-zoom` requires,
+and a filter inside a zoom does not bring them back. The backlinks footer SHALL keep rendering after the content, as it does under a zoom.
 Hidden content SHALL remain in the document unchanged.
 
 Every occurrence of the query in a visible node SHALL be marked.
