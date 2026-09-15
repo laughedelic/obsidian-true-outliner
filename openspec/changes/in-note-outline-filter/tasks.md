@@ -4,7 +4,9 @@
       that dispatches a test-only set of spans into `zoom-decorations` on a thousand-line note
       with fifty spans, asserting hidden lines take no height, visible lines keep their chrome,
       the trailing-gap rule holds at every boundary, and the preamble kept as a visible span
-      still renders its properties block; record the findings in
+      still renders its properties block; and what a mark decoration draws over source Live
+      Preview hides — a list marker, a line's indentation, the target inside an aliased link;
+      record the findings in
       `docs/research/outline-filter-spike.md`, with its one row in `docs/research/index.md`.
       Verified by the note
 - [ ] 1.2 Walk `docs/research/zoom-editing-boundary`'s gesture catalogue under a frozen anchor
@@ -45,8 +47,11 @@
       Select All stopping at the visible run; verify unit tests that the selection is unchanged
       and that a held key raises one notice, not many. Negative control: allow the extension and
       confirm the unchanged-selection test fails
-- [ ] 3.4 Mark decorations from the field (design D6); verify a unit test that a mark follows an
-      edit and vanishes when the text no longer contains the query while the node stays visible
+- [ ] 3.4 Mark decorations from the field, cut with `matchRanges` and declared
+      `{ tagName: 'mark', class: 'to-match' }` (design D6); verify unit tests over the decoration
+      RANGES, which need no DOM — `docs/research/open-questions` Q37 defers a DOM environment for
+      the unit suite — that a mark follows an edit, vanishes when the text no longer contains the
+      query while the node stays visible, and does not move when a query matches nothing
 - [ ] 3.5 Leave the anchors alone when a query matches nothing, so the view and its marks stay
       the last matching query's, and flag the query as unmatched (design D8); verify unit tests
       that a miss changes neither the visible spans nor the marks, that removing the missing
@@ -66,9 +71,11 @@
       fold count or nothing, and how the query field shows that it matches nothing — from a
       mockup drawn at real geometry, as `fold-count-mockup.html` was, and record both verdicts in
       the design; then the styles for the panel and those renderings, as a new
-      `styles/70-outline-filter.css` part, and move the `to-match` rule from the footer's
-      part into `styles/10-editor.css` written on the class alone (design D6); verify by
-      screenshot in both themes, and that the footer's own marks are unchanged
+      `styles/70-outline-filter.css` part, and de-scope the `to-match` rule out of the footer's
+      part into `styles/10-editor.css` — `.to-backlinks-content mark.to-match` becomes
+      `mark.to-match`, all five declarations intact (design D6); verify by screenshot in both
+      themes, and that the footer's own marks render exactly as they did, since the move widens
+      the selector rather than copying it
 
 ## 5. End-to-end
 

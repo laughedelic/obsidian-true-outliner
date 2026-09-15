@@ -27,9 +27,13 @@ recorder rather than through a command's return value.
 
 A filter's visible set is many ranges — every match's own lines plus every ancestor's own lines
 — and the rest of this design is what changes when "one range" becomes "a set", and what does
-not. The matcher comes from `search-hits-and-footer-content-filter`: `matchNodes(doc, query)` in
-`src/search.ts`, answering with the ids of the nodes whose own lines contain the query. The
-survey behind the behaviour is `docs/research/search-surfaces`.
+not. The matcher comes from `search-hits-and-footer-content-filter`, now implemented in
+`src/search.ts`: `matchesText` holds the grammar and nothing else does, `matchNodes(doc, query)`
+answers with the ids of the nodes whose own lines — verbatim, joined, markers and indentation
+included — contain the query, and `matchRanges(text, query)` gives every occurrence in a string
+as half-open ranges. That module states that the GRAMMAR is shared and the CORPUS is not: each
+surface decides which text a query is answered against, and `matchNodes` is the one it names for
+an in-note filter. The survey behind the behaviour is `docs/research/search-surfaces`.
 
 The zoom modules this touches have since settled: `zoom-edit-confinement` and
 `positions-re-base-with-the-zoom` have both landed on `main`, and this design is written against
@@ -107,6 +111,13 @@ parent makes that parent visible. That is what keeps a match's path honest as th
 and the spec states it as part of the frozen-set requirement rather than leaving it to be read
 off the implementation.
 
+`matchesText` trims its query and an empty one matches everything, so `matchNodes` with a query
+below the threshold answers with every id in the document. The filter does not lean on that: below
+the threshold it holds no anchors at all and the hiding builder is inactive, rather than freezing
+one anchor per node and mapping thousands of them through every transaction. The threshold counts
+the TRIMMED query, for the same reason — the matcher trims, so a two-character query of one
+character and a space is a one-character query.
+
 Alternative: re-run the query on every change, Workflowy-style. Rejected: a node vanishing under
 the caret as it is edited is the hazard `docs/research/search-surfaces` names, and Org's rule —
 drop the filter on the first edit — throws away the reader's place for the same reason.
@@ -174,17 +185,27 @@ three read top to bottom as control, note, filtered content.
 
 ### D6. Matches are mark decorations from the same field
 
-A `Decoration.mark` per occurrence in visible nodes, carrying the `to-match` class
-`search-hits-and-footer-content-filter` gives the footer's marks, so one stylesheet rule covers
-both surfaces. The two surfaces emit different elements for it — the footer wraps rendered text
-in `<mark>`, a mark decoration produces a `<span>` — so the shared rule is written on the class
-alone and never on the element. A rule two surfaces share belongs in `styles/10-editor.css`, so
-the `to-match` rule moves there out of the footer's part once that change has landed; the move
-also takes the rule earlier in cascade order, ahead of the footer's part rather than inside it.
+A `Decoration.mark` per occurrence in visible nodes, cut with `matchRanges` so the editor and the
+footer agree on what an occurrence is by construction rather than by two implementations staying
+in step. The decoration is declared `{ tagName: 'mark', class: 'to-match' }`, so both surfaces put
+the same element with the same class in the DOM and the shared rule is one rule rather than two
+that look alike.
 
-Recomputed per state from the mapped anchors; occurrences are found in the node's current text,
-so a mark follows an edit and disappears when the text no longer contains the query — the mark
-reports the text, the anchor reports the membership.
+That rule is `.to-backlinks-content mark.to-match` as
+`search-hits-and-footer-content-filter` wrote it, scoped to the footer's row content. Moving it to
+`styles/10-editor.css` is a DE-SCOPING, not a relocation, and its five declarations hold up under
+it: the border radius, the accent wash and the text colour are the treatment both surfaces want,
+and `padding: 0` with `font-weight: inherit` are resets against whatever a theme gives a bare
+`<mark>` — which the editor's mark inherits too, being one. So all five move, the selector loses
+both scopes, and the footer's rendering is verified unchanged rather than assumed (task 4.3). The
+class is what keeps our mark distinguishable from an author's `==highlight==`, which renders as a
+bare `<mark>` on both surfaces; that reason holds in the editor exactly as the footer's comment
+states it.
+
+The marks are recomputed per state from the mapped anchors, and occurrences are found in the
+node's current text, so a mark follows an edit and disappears when the text no longer contains the
+query — the mark reports the text, the anchor reports the membership. A query that matches nothing
+leaves both alone (D8).
 
 ### D7. Gates
 
@@ -204,7 +225,10 @@ this panel, the note renders whole; that is the state before a filter, not an an
 
 Rendering the note whole on a miss instead would expand a long note on every mistyped character
 and collapse it again on the backspace that fixes it. Hiding everything would be honest about the
-query and useless about the note, and it makes the reader lose their place to a typo.
+query and useless about the note, and it makes the reader lose their place to a typo. A debounce
+answers neither: the footer declined one on measured grounds rather than taste
+(`search-hits-and-footer-content-filter`, non-goals), and a delay makes the view lag the query
+rather than hold a stated earlier answer to it.
 
 The cost is that the view answers the query that produced it rather than the one in the field, so
 the field has to say so and cannot be subtle about it. What the panel shows is therefore part of
@@ -230,6 +254,13 @@ same reason: the view is that query's answer and is marked as its answer.
 - [The view can answer a query the field no longer holds] → the price of D8, and the reason the
   field's own treatment of a miss is part of that decision rather than styling under it; the
   manual pass (5.3) reports whether the signal carries.
+- [A query can match source the editor is not showing] → `matchNodes` answers against a node's
+  own lines verbatim, so a marker, its indentation, or a link's target inside `[[Target|alias]]`
+  all count, while Live Preview renders the alias and hides the syntax on every line but the
+  caret's. `search-hits-and-footer-content-filter` recorded the footer's version of this gap and
+  handed it to a manual pass; the editor's is wider in what it matches and narrower in what it
+  hides, since moving the caret onto the line reveals the source and the mark with it. The spike
+  measures what a mark over hidden syntax actually draws (task 1.1).
 - [A refused selection is a notice the reader did not ask for] → fired once per gesture and
   worded as the zoom's refusals are; `docs/research/refused-commands-in-e2e` records why the e2e
   assertion reads the notice recorder rather than the command's return.
