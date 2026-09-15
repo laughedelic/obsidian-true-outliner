@@ -54,12 +54,12 @@
 
 ## 5. End-to-end
 
-- [ ] 5.1 Add to `e2e/specs/77-footer-controls.e2e.ts`: a term in a referencing node's text
+- [x] 5.1 Add to `e2e/specs/77-footer-controls.e2e.ts`: a term in a referencing node's text
       admits it and excludes a sibling reference; a term in an ancestor admits the reference
       beneath; a term only in a folded descendant admits nothing; the totals follow the term; the
       match is marked and clearing the term removes every mark. Each test's negative control:
       run it with the term filter disabled in `admitReferences` and confirm it fails
-- [ ] 5.2 Add to `e2e/specs/78-footer-caps.e2e.ts`: with the cap below the hub fixture's total
+- [x] 5.2 Add to `e2e/specs/78-footer-caps.e2e.ts`: with the cap below the hub fixture's total
       and a term matching only a source beyond the cap, the reference is shown; with no term,
       the excluded source is not read (the existing assertion). Negative control: cap before
       term, as in 3.3
@@ -69,7 +69,7 @@
 
 ## 6. Docs and validation
 
-- [ ] 6.1 Add to `docs/research/structured-backlinks` D8 the note that the name-only rule is
+- [x] 6.1 Add to `docs/research/structured-backlinks` D8 the note that the name-only rule is
       superseded by this change and the measurement that superseded it; verify the note links to
       `docs/research/search-surfaces`
 - [ ] 6.2 `openspec validate search-hits-and-footer-content-filter --strict`
