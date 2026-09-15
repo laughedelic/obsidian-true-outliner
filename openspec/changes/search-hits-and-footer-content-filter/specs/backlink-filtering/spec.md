@@ -20,10 +20,10 @@ empty term SHALL admit everything. The term SHALL combine conjunctively with the
 A group SHALL show only the references the term admits, and its count SHALL be the number of
 those references. A source note none of whose references match SHALL NOT be shown.
 
-#### Scenario: Typing narrows to matching notes
+#### Scenario: A term found in a source note's name admits its references
 
-- **WHEN** text matching some source note names is entered
-- **THEN** only groups whose source note name matches are shown
+- **WHEN** text matching some source note names, and no reference content, is entered
+- **THEN** those notes' groups are shown whole, and no other group is
 
 #### Scenario: A term found in a reference's own text admits it
 
@@ -41,7 +41,7 @@ those references. A source note none of whose references match SHALL NOT be show
 - **WHEN** the entered text occurs in a child the footer renders beneath a referencing node
 - **THEN** that reference is shown
 
-#### Scenario: Search does not reach reference content
+#### Scenario: Search does not reach content the footer does not render
 
 - **WHEN** the entered text occurs only in content the footer does not render for a reference —
   a descendant deeper than the level it shows
