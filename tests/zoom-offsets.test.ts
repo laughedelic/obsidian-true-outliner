@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { Text } from '@codemirror/state';
-import { hiddenOffsetRanges } from '../src/plugin/zoom-offsets';
+import { coverSpan, hiddenOffsetRanges } from '../src/plugin/zoom-offsets';
 import { parse } from '../src/parse';
 import { resolveZoom } from '../src/zoom';
 import { documentLineCount } from '../src/locate';
@@ -56,7 +56,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
   it('hides both sides of a mid-document root, leaving exactly its own lines', () => {
     const doc = Text.of(DOC.split('\n'));
     const scope = resolveZoom(parse(DOC), lineOf(DOC, '- one'))!;
-    const ranges = hiddenOffsetRanges(doc, scope);
+    const ranges = hiddenOffsetRanges(doc, [coverSpan(scope)]);
     expect(ranges).toHaveLength(2);
     // `- one` owns its nested child; `- two` and the trailing paragraph do not
     // belong to it, and neither does anything above.
@@ -67,7 +67,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     const text = `- one\n  - nested\n- two\n`;
     const doc = Text.of(text.split('\n'));
     const scope = resolveZoom(parse(text), 0)!;
-    const ranges = hiddenOffsetRanges(doc, scope);
+    const ranges = hiddenOffsetRanges(doc, [coverSpan(scope)]);
     expect(ranges.every((r) => r.from > 0)).toBe(true);
     expect(visibleLines(doc, ranges)).toEqual(['- one', '  - nested']);
   });
@@ -75,7 +75,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
   it('emits no tail range for a root reaching the document end', () => {
     const doc = Text.of(DOC.split('\n'));
     const scope = resolveZoom(parse(DOC), lineOf(DOC, 'Trailing para.'))!;
-    const ranges = hiddenOffsetRanges(doc, scope);
+    const ranges = hiddenOffsetRanges(doc, [coverSpan(scope)]);
     expect(ranges.every((r) => r.to < doc.length)).toBe(true);
   });
 
@@ -83,7 +83,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     const text = `---\ntag: x\n---\n\n# Top\n\n## Mid\n\ntext\n`;
     const doc = Text.of(text.split('\n'));
     const scope = resolveZoom(parse(text), lineOf(text, '## Mid'))!;
-    const ranges = hiddenOffsetRanges(doc, scope);
+    const ranges = hiddenOffsetRanges(doc, [coverSpan(scope)]);
     expect(visibleLines(doc, ranges)).not.toContain('tag: x');
     expect(visibleLines(doc, ranges)).toContain('## Mid');
   });
@@ -101,7 +101,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     // renderings; this pins the arithmetic underneath them.
     const doc = Text.of(DOC.split('\n'));
     const scope = resolveZoom(parse(DOC), lineOf(DOC, '- one'))!;
-    const [head, tail] = hiddenOffsetRanges(doc, scope);
+    const [head, tail] = hiddenOffsetRanges(doc, [coverSpan(scope)]);
     const firstVisible = doc.line(scope.cover.start.line + 1);
     const lastVisible = doc.line(scope.cover.end.line + 1);
     expect(head!.to).toBe(firstVisible.from - 1);
@@ -119,7 +119,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     // ways: with the range dropped, the blank line renders.
     const blankFirst = `\n# H1\n\nbody\n`;
     const doc = Text.of(blankFirst.split('\n'));
-    const ranges = hiddenOffsetRanges(doc, resolveZoom(parse(blankFirst), 1)!);
+    const ranges = hiddenOffsetRanges(doc, [coverSpan(resolveZoom(parse(blankFirst), 1)!)]);
     expect(ranges).toEqual([{ from: 0, to: 0 }]);
     expect(visibleLines(doc, ranges)).toEqual(['# H1', '', 'body', '']);
   });
@@ -135,7 +135,43 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
     const doc = Text.of(text.split('\n'));
     const scope = resolveZoom(parse(text), lineOf(text, '- one'))!;
     expect(scope.cover.end.line).toBe(5); // the empty final line, owned as a gap
-    expect(visibleLines(doc, hiddenOffsetRanges(doc, scope))).toEqual(['- one', '']);
+    expect(visibleLines(doc, hiddenOffsetRanges(doc, [coverSpan(scope)]))).toEqual(['- one', '']);
+  });
+
+  it('leaves a one-line island between two gaps, given three visible spans', () => {
+    // The filter's case, which zoom never produced: the complement of SEVERAL
+    // visible spans has interior gaps, and every line it keeps between two of
+    // them is one the old shape could only ever see at the edges of a single
+    // range. Each island here is one line long, which is the tightest a gap can
+    // close around a kept line on both sides at once.
+    const doc = Text.of(DOC.split('\n'));
+    const visible = [
+      { fromLine: lineOf(DOC, '## Mid'), toLine: lineOf(DOC, '## Mid') + 1 },
+      { fromLine: lineOf(DOC, '- one'), toLine: lineOf(DOC, '- one') + 1 },
+      { fromLine: lineOf(DOC, '- two'), toLine: lineOf(DOC, '- two') + 1 },
+    ];
+    const ranges = hiddenOffsetRanges(doc, visible);
+    // A head gap, two interior ones, and the tail — the head keeps its offset 0
+    // start, which is what `zoom-decorations.ts` reads to pick its replace spec.
+    expect(ranges).toHaveLength(4);
+    expect(ranges[0]!.from).toBe(0);
+    expect(ranges.slice(1).every((r) => r.from > 0)).toBe(true);
+    expect(visibleLines(doc, ranges)).toEqual(['## Mid', '- one', '- two']);
+  });
+
+  it('emits no gap between spans that touch', () => {
+    // Adjacent spans are the caller's business to merge, but an unmerged pair
+    // must not become a zero-width gap that the conversion turns into a real
+    // replacement: the line between them does not exist.
+    const doc = Text.of(DOC.split('\n'));
+    const at = lineOf(DOC, '- one');
+    const split = hiddenOffsetRanges(doc, [
+      { fromLine: at, toLine: at + 1 },
+      { fromLine: at + 1, toLine: at + 2 },
+    ]);
+    const merged = hiddenOffsetRanges(doc, [{ fromLine: at, toLine: at + 2 }]);
+    expect(split).toEqual(merged);
+    expect(visibleLines(doc, split)).toEqual(['- one', '  - nested']);
   });
 
   it('keeps exactly the cover lines, for every root in every document', () => {
@@ -148,7 +184,7 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
           const scope = resolveZoom(parsed, line);
           if (!scope) continue;
           const expected = lines.slice(scope.cover.start.line, scope.cover.end.line + 1);
-          expect(visibleLines(doc, hiddenOffsetRanges(doc, scope))).toEqual(expected);
+          expect(visibleLines(doc, hiddenOffsetRanges(doc, [coverSpan(scope)]))).toEqual(expected);
         }
       }),
       { numRuns: 60 },
