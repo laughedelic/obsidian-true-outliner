@@ -63,9 +63,12 @@
       and a term matching only a source beyond the cap, the reference is shown; with no term,
       the excluded source is not read (the existing assertion). Negative control: cap before
       term, as in 3.3
-- [ ] 5.3 Manual pass on the hub fixture and on a real vault: type a phrase from a reference,
-      an ancestor heading, a child; confirm the footer narrows, marks, and the header count
-      matches the rows; record findings in `docs/research/search-surfaces`
+- [ ] 5.3 Manual pass on the hub fixture and on a real vault, DESKTOP AND PHONE: type a phrase
+      from a reference, an ancestor heading, a child; confirm the footer narrows, marks, and the
+      header count matches the rows. Include an aliased link whose target the alias does not
+      repeat (design risks: admitted, but nothing to mark), and watch for keystroke lag on a hub
+      note — S5's 2ms placement is a desktop figure. Record findings in
+      `docs/research/search-surfaces`
 
 ## 6. Docs and validation
 
