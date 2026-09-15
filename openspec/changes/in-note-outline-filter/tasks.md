@@ -47,9 +47,11 @@
       confirm the unchanged-selection test fails
 - [ ] 3.4 Mark decorations from the field (design D6); verify a unit test that a mark follows an
       edit and vanishes when the text no longer contains the query while the node stays visible
-- [ ] 3.5 Hide every node when a two-character query matches nothing, keeping the preamble and
-      the footer and leaving focus in the field (design D8); verify unit tests that the visible
-      spans hold the preamble alone, and that a query below the threshold hides nothing
+- [ ] 3.5 Leave the anchors alone when a query matches nothing, so the view and its marks stay
+      the last matching query's, and flag the query as unmatched (design D8); verify unit tests
+      that a miss changes neither the visible spans nor the marks, that removing the missing
+      character restores the earlier set, and that a miss with nothing yet to keep renders the
+      note whole
 
 ## 4. The panel and the command
 
@@ -60,10 +62,11 @@
       typed in it
 - [ ] 4.2 Register "Filter outline" in `main.ts` through `addZoomCommand`'s outline-mode-gated
       shape, toggling the panel; verify the command is absent outside outline mode
-- [ ] 4.3 Decide the design's open question on hidden children — whether they show a fold count
-      or nothing — from a mockup drawn at real geometry, as `fold-count-mockup.html` was, and
-      record the verdict in the design; then the styles for the panel and that rendering, as a
-      new `styles/70-outline-filter.css` part, and move the `to-match` rule from the footer's
+- [ ] 4.3 Decide the design's two rendering questions — whether a match's hidden children show a
+      fold count or nothing, and how the query field shows that it matches nothing — from a
+      mockup drawn at real geometry, as `fold-count-mockup.html` was, and record both verdicts in
+      the design; then the styles for the panel and those renderings, as a new
+      `styles/70-outline-filter.css` part, and move the `to-match` rule from the footer's
       part into `styles/10-editor.css` written on the class alone (design D6); verify by
       screenshot in both themes, and that the footer's own marks are unchanged
 
@@ -80,16 +83,17 @@
       and says so, through the notice recorder rather than a command's return
       (`docs/research/refused-commands-in-e2e`); Select All stops at the visible run; filter
       inside a zoom searches the scope; zooming while filtered keeps it; zooming out re-decides;
-      clearing keeps the zoom; a query matching nothing hides every content line while the title,
-      properties and footer stay; Escape and the close control restore everything. Negative
+      clearing keeps the zoom; a query matching nothing holds the view and its marks still while
+      the panel and the field both say so, and removing the missing character returns the
+      matches; Escape and the close control restore everything. Negative
       controls: for the frozen-set tests, re-run the query on every change; for the caret tests,
       drop the resolver's intersection; for the selection test, allow the extension; for the
       composition tests, skip the intersection
 - [ ] 5.2 Run the spec under the mobile config; verify it passes
 - [ ] 5.3 Manual pass in a real vault under both themes, filtered and zoomed; record findings in
       `docs/research/outline-filter-spike.md`, and in particular the two the design left to it:
-      how the two-character cliff reads when a query stops matching, and how often the selection
-      refusal is met and what was wanted instead
+      whether the field's signal carries when the view is answering an earlier query, and how
+      often the selection refusal is met and what was wanted instead
 
 ## 6. Docs and validation
 

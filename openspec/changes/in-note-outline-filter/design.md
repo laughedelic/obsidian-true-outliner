@@ -194,22 +194,27 @@ not-nested for the extension, through the `nestedEditorField` check `zoom-scope.
 applies, so a nested cell editor never filters. Per editor view, never persisted: the field lives
 in the editor state.
 
-### D8. A query that matches nothing hides everything
+### D8. A query that matches nothing keeps the last view, and the field says so
 
-Nothing matches, so nothing is visible: the content collapses entirely and the panel says so.
-Rendering the note whole instead would mean the view expands on every mistyped character and
-collapses again on the backspace that fixes it, which is the opposite of what a filter is for,
-and it makes "nothing hidden" mean two different things — below the threshold and above it with
-no hits.
+A query that matches nothing does not replace the anchors: the field keeps the set it has and
+only the query text changes. The view therefore holds the last answer it had rather than moving,
+which is D2's principle — nothing moves under the reader — applied to the one case where the
+reader is still typing. Below the two-character threshold, and before any query has matched in
+this panel, the note renders whole; that is the state before a filter, not an answer to one.
 
-The empty view is not an empty editor. The preamble D1 always keeps means the title and the
-properties block still render, the footer still renders after the content, and the query field
-holds focus, so there is somewhere to look, somewhere to type, and no caret to place in a
-document with no visible line. Below the two-character threshold the note renders whole, which is
-the state before a filter has been asked for rather than the answer to one.
+Rendering the note whole on a miss instead would expand a long note on every mistyped character
+and collapse it again on the backspace that fixes it. Hiding everything would be honest about the
+query and useless about the note, and it makes the reader lose their place to a typo.
 
-Alternative: hold the last set that matched. Rejected for showing a view that does not answer the
-query in the field, on a surface whose whole promise is that it does.
+The cost is that the view answers the query that produced it rather than the one in the field, so
+the field has to say so and cannot be subtle about it. What the panel shows is therefore part of
+this decision, not a detail below it: the message that the query matches nothing, and a treatment
+on the query itself — the characters that took it past its last match, or the field as a whole,
+in an error colour. Which of those reads best is settled with the rest of the panel's styling in
+task 4.3.
+
+The marks belong to the query that produced the view, not to the one in the field (D6), for the
+same reason: the view is that query's answer and is marked as its answer.
 
 ## Risks / Trade-offs
 
@@ -222,10 +227,9 @@ query in the field, on a surface whose whole promise is that it does.
 - [`zoom-scope.ts` grows a filter import to intersect in its resolver] → the alternative is a
   second resolver slot and a composition order to keep right, which is the shape D3 rejects; the
   import is one way and the module already owns every gate the filter needs.
-- [The step from the second character to the third collapses a whole note] → the threshold and
-  D8 meet at a cliff: one character hides nothing, two that miss hide everything. Measured in the
-  manual pass (5.3), where a longer threshold or a short settle before the first hide is the
-  lever if it reads badly.
+- [The view can answer a query the field no longer holds] → the price of D8, and the reason the
+  field's own treatment of a miss is part of that decision rather than styling under it; the
+  manual pass (5.3) reports whether the signal carries.
 - [A refused selection is a notice the reader did not ask for] → fired once per gesture and
   worded as the zoom's refusals are; `docs/research/refused-commands-in-e2e` records why the e2e
   assertion reads the notice recorder rather than the command's return.
@@ -238,6 +242,9 @@ query in the field, on a surface whose whole promise is that it does.
 - Whether a hidden child of a match should show a fold count or nothing, now that the folding
   change has landed. Rendering only; the spec's "hidden unless it matches" holds either way, and
   task 4.3 decides it from a mockup.
+- How the query field signals that it matches nothing (D8) — the characters past the last match
+  in an error colour, the whole field, or something else. The spec requires the signal; task 4.3
+  settles its treatment with the rest of the panel's styling.
 - Whether a selection should be allowed to span a gap after all (D3). Refusing it is deliberately
   the smaller commitment, taken before the surface has been used; the manual pass (5.3) records
   how often the refusal is met and what the reader wanted instead, and a later change can widen
