@@ -9,7 +9,8 @@ highlight lines leaves the reader scrolling past everything that did not match.
 
 ### Requirement: A filter panel opens in outline mode and filters live
 
-A command SHALL open a filter panel over the editor, with a query field that takes focus. The
+A command SHALL open a filter panel fixed above the editor's content, above the note's title and
+properties block, with a query field that takes focus. The
 command SHALL be available only in an editor view whose tab is in outline mode, and SHALL
 decline inside a nested per-cell editor by the same gate the other editor extensions use.
 
@@ -135,10 +136,12 @@ zoom scope changes, since the scope decides which matches count.
 
 ### Requirement: The caret never lands on hidden content
 
-Any gesture or operation whose result would place the caret, or a selection end, on a hidden
-line SHALL place it on the nearest visible line instead, in the direction of the movement.
-Structural operations SHALL otherwise act on the document as they do unfiltered; hidden content
-moves with its parent as part of the parent's subtree.
+Any gesture or operation whose result would place the caret on a hidden line SHALL place it on
+the nearest visible line instead, in the direction of the movement.
+
+Structural operations SHALL otherwise act on the document as they do unfiltered: a node moved
+past a hidden sibling moves past it, and a visible node carries its whole subtree, hidden
+children included.
 
 #### Scenario: Arrow past hidden lines
 
@@ -150,6 +153,32 @@ moves with its parent as part of the parent's subtree.
 
 - **WHEN** a visible node with hidden children is moved down
 - **THEN** the node and its whole subtree move, and the hidden children stay hidden
+
+### Requirement: A selection never spans hidden content
+
+A gesture that would extend a selection past the last visible line of the run it started in SHALL
+leave the selection unchanged and SHALL state why, in the same way a refused structural operation
+does. Progressive Select All SHALL escalate within that run and stop there. Clearing the query is
+the way to select across what the filter hid.
+
+The refusal SHALL be stated once per gesture: holding the key down SHALL NOT repeat it.
+
+#### Scenario: Extending a selection stops at the gap
+
+- **WHEN** the caret is on the last visible line before hidden content and the selection is
+  extended downward
+- **THEN** the selection stops at that line, the hidden content is not covered, and a message
+  says the selection cannot reach past the filter
+
+#### Scenario: Select All stays inside the visible run
+
+- **WHEN** Select All is escalated repeatedly inside a visible node with hidden siblings
+- **THEN** it escalates no further than the visible run the caret is in
+
+#### Scenario: Copying a selection beside hidden content takes only what is selected
+
+- **WHEN** a selection covering two adjacent visible nodes is copied
+- **THEN** the clipboard holds those two nodes and nothing that the filter hid
 
 ### Requirement: The filter composes with zoom
 
@@ -173,12 +202,29 @@ Zooming out SHALL keep it likewise. Clearing the query SHALL leave the zoom as i
 - **WHEN** the view is zoomed and filtered and the query is cleared
 - **THEN** the zoom scope renders whole, still zoomed
 
-### Requirement: No matches is said, not shown as nothing
+### Requirement: A query that matches nothing hides everything, and says so
 
-When a query of two or more characters matches nothing in the scope, the panel SHALL say so and
-the note SHALL render whole rather than empty.
+When a query of two or more characters matches nothing in the scope, every node SHALL be hidden
+and the panel SHALL state that nothing matched. A filter answers the query in the field, and a
+note rendered whole would answer a different one.
+
+The view SHALL NOT be an empty editor: the note's title, its properties block and the backlinks
+footer SHALL keep rendering, and the query field SHALL keep focus, so no caret is placed in a
+document with no visible line. Below the two-character threshold the note SHALL render whole,
+which is the state before a query rather than an answer to one.
 
 #### Scenario: Nothing matches
 
 - **WHEN** the query matches no node
-- **THEN** the panel states that there are no matches and every line of the note is visible
+- **THEN** the panel states that nothing matched and no content line is visible
+
+#### Scenario: The empty result is not an empty editor
+
+- **WHEN** a query with references and frontmatter present matches nothing
+- **THEN** the title, the properties block and the footer still render, and the query field still
+  has focus
+
+#### Scenario: A typo collapses the view and fixing it restores the matches
+
+- **WHEN** a character is added to a matching query so that it matches nothing, and then removed
+- **THEN** the view hides everything and then shows the same matches and paths it showed before
