@@ -39,6 +39,8 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { walkNodes, type OutlineDoc } from '../src/model';
+import { encode } from '../src/encode';
+import { parse } from '../src/parse';
 import { forestCoverOf } from '../src/escalate';
 import { groupRootsByParent } from '../src/operand';
 import { forEachNodeWithLine } from '../src/locate';
@@ -264,4 +266,67 @@ describe('1.4 an accepted reorder moves no node between levels', () => {
       expect(accepted).toBeGreaterThan(ops.minGroup);
     });
   }
+});
+
+/**
+ * 1.5 — the counterexamples this file's properties have actually found, pinned.
+ *
+ * A property run on a random seed finds a defect once and then hides it: the
+ * shape it drew on one run is not the shape it draws on the next, so a
+ * regression is announced by a failure on some later day rather than by the
+ * commit that caused it. Each case below is a property failure shrunk to the
+ * smallest document that still shows it and kept as a deterministic test, so
+ * the defect it names cannot come back unnoticed whatever seed a run draws.
+ *
+ * Shrinking by hand rather than keeping fast-check's own counterexample: the
+ * generated one is a sixty-node document that says nothing about which of its
+ * nodes matters, and a test that carries it pins the accident along with the
+ * defect.
+ */
+describe('1.5 counterexamples the properties found, pinned', () => {
+  /** The id of the node whose own text carries `label`. */
+  function idOf(doc: OutlineDoc, label: string): number {
+    const node = [...walkNodes(doc)].find((n) => labelOf(n) === label);
+    if (!node) throw new Error(`no node labelled ${label}`);
+    return node.id;
+  }
+
+  /**
+   * Indenting `- L2` renumbers the run it leaves, which makes `9. L1` into
+   * `10. L1` — a marker one column wider, so the content column a child must
+   * reach moves from three to four while the line the marker sits on does not.
+   * Encoded against the target as the operation FOUND it, `- L2` was written at
+   * three columns, which the re-parse reads as a sibling of `10. L1`: the
+   * operation reported success and left the node at the depth it started from.
+   *
+   * The source's own numbering is what makes the renumbering move anything at
+   * all. `9.` twice is what markdown itself renders as 9 and 10, and the
+   * ordered-run requirement normalizes it on any operation touching the run —
+   * so this is ordinary written markdown rather than an invented shape.
+   */
+  it('indent reaches the content column its target has AFTER renumbering', () => {
+    const doc = parse(['9. L0', '9. L1', '- L2'].join('\n'));
+    const result = indent(doc, idOf(doc, 'L2'));
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+
+    expect(encode(result.value.doc).split('\n')).toEqual(['9. L0', '10. L1', '    - L2']);
+    expect(depthsByLabel(result.value.doc).get('L2')).toBe(1);
+  });
+
+  /**
+   * The mirror, which a depth measurement cannot see: `10. L1` renumbering to
+   * `2. L1` NARROWS the content column, and a child written at the column the
+   * target had lands a column deeper than the target requires. The tree is the
+   * promised one either way, so §1.2 stays green — what drifts is the
+   * indentation, which is the other half of what `shiftBelowMarker` repairs for
+   * a subtree an item already has.
+   */
+  it('indent follows a target whose renumbering narrows its marker', () => {
+    const doc = parse(['1. L0', '10. L1', '- L2'].join('\n'));
+    const result = indent(doc, idOf(doc, 'L2'));
+    if (!result.ok) throw new Error(`rejected: ${result.rejection.reason}`);
+
+    expect(encode(result.value.doc).split('\n')).toEqual(['1. L0', '2. L1', '   - L2']);
+    expect(depthsByLabel(result.value.doc).get('L2')).toBe(1);
+  });
 });

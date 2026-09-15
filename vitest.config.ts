@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Lets `FC_SEED` replay a property run a failure reported; without it the
+    // seed stays random, as the properties require.
+    setupFiles: ['./tests/fast-check-seed.ts'],
+
     // Property-based tests (fast-check) run hundreds of cases, some of them
     // quadratic in the size of a generated tree, and the hosted runner shares
     // its CPU across every test file at once. The default 5 s was too tight
