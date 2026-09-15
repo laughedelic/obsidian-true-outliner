@@ -141,6 +141,8 @@ describe('the footer’s controls', function () {
         if (!row) return null;
         return {
           search: row.querySelector('.to-backlinks-search') !== null,
+          placeholder:
+            row.querySelector<HTMLInputElement>('.to-backlinks-search')?.placeholder ?? '',
           facets: Array.from(row.querySelectorAll<HTMLElement>('.to-backlinks-facet')).map(
             (f) => f.dataset.axis ?? '',
           ),
@@ -149,6 +151,8 @@ describe('the footer’s controls', function () {
     );
     expect(shape).not.toBeNull();
     expect(shape!.search).toBe(true);
+    // The field reaches reference content now, so it no longer promises names.
+    expect(shape!.placeholder).toBe('Filter…');
     // Kind first: its four values never change, so it is the one facet whose
     // position a reader can learn.
     expect(shape!.facets).toEqual(['kind', 'folder', 'tag']);
@@ -723,8 +727,8 @@ describe('the footer’s controls', function () {
           embedTags: rows.filter((r) => r.querySelector('.to-backlinks-tag')).length,
           propertyRows: rows.filter((r) => r.dataset.kind === 'property').length,
           // ALL rows in the group. A property reference is its own row TYPE
-          // and never carries `.is-reference` — that class marks a `type:
-          // 'node'` row specifically — so counting only `.is-reference` rows
+          // and never carries `.is-hit` — that class marks a `type:
+          // 'node'` row specifically — so counting only `.is-hit` rows
           // would silently miss the property one. Both references in this
           // fixture sit at depth 0 with no lineage of their own, so the
           // group's row count is exactly its reference count.

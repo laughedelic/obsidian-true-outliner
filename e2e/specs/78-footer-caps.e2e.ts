@@ -466,7 +466,7 @@ describe('the overall cap and the per-note bound', function () {
               (row) => row.getBoundingClientRect().bottom > limit,
             );
             if (clipped.length === 0) return null;
-            const references = clipped.filter((r) => r.classList.contains('is-reference'));
+            const references = clipped.filter((r) => r.classList.contains('is-hit'));
             return {
               label: rung.getAttribute('aria-label') ?? '',
               depth: rung.style.getPropertyValue('--to-depth'),

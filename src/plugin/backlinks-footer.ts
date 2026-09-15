@@ -42,6 +42,7 @@ import {
   getAllTags,
   type App,
 } from 'obsidian';
+import { matchRanges } from '../search';
 import { isOutlineMode } from './outline-state';
 import { nestedEditorField } from './nested-editor';
 import { contentEndAnchor } from './zoom-scope';
@@ -69,8 +70,12 @@ import {
   type RowRender,
 } from './footer-model';
 import {
+  admitByAxes,
+  admitReferences,
   applyControls,
+  orderAndCap,
   axesOf,
+  type AdmittedGroup,
   type ControlsResult,
   type ControlsState,
   type FilterAxes,
@@ -87,7 +92,7 @@ import {
   type SegmentIcons,
 } from './settings/footer';
 import type { GuideVisibility } from './settings/appearance';
-import type { PlacedReference, ReferenceKind } from './backlink-index';
+import type { PlacedReference, PlacedSource, ReferenceKind } from './backlink-index';
 import type { BacklinkIndex } from './backlink-index';
 import type { NodeKind, OutlineNode } from '../model';
 import { nodeStartLine } from '../locate';
@@ -207,6 +212,12 @@ class FooterController {
   /** Bumped on every render pass; an async group fill from an earlier pass
    * checks it and gives up rather than writing into a rebuilt DOM. */
   private generation = 0;
+  /**
+   * Sources placed by the term-active counting pass, for the fills that follow
+   * it. Null whenever no term is active, which is when nothing has been placed
+   * ahead of the fills and `place()` is the fill's own first read.
+   */
+  private placedSources: Map<string, PlacedSource> | null = null;
   /**
    * The control that had focus when a repaint started, and where its caret was.
    *
@@ -416,23 +427,10 @@ class FooterController {
    * late arrival never writes into a DOM that has since been rebuilt. */
   async render(): Promise<void> {
     const generation = ++this.generation;
-    this.component.unload();
-    this.component.load();
-
-    // Built DETACHED, then swapped in with a single mutation. The plugin's
-    // DOM-insertion guard exists because appending into a live `.cm-line`
-    // sends CM6's mutation observer into a feedback loop (outline-decorations
-    // hardening 5.2, measured at 100%+ CPU). A block widget's own subtree is
-    // not that case, but building off-tree and swapping once keeps the number
-    // of mounted-DOM mutations at one either way, which is cheap insurance.
-    const root = createDiv();
     const state = viewStateFor(this.targetPath);
-
-    // The controls decide everything BEFORE a source note is read: the folder
-    // is part of the path and the kind is on the reference, so `place()` is
-    // never called for a group the cap did not admit (design D1, D2).
     const sources = this.sourceRefs();
-    const axes = axesOf(sources, this.controls(state));
+    const controls = this.controls(state);
+    const axes = axesOf(sources, controls);
     // A selected value that stopped existing is DROPPED, not merely
     // discounted for this one pass. `filterSources` already treats it as
     // absent when deciding what to admit (`live()`), but the facet's own
@@ -445,7 +443,88 @@ class FooterController {
     // from the sources rather than from any current selection, which is what
     // makes it the right thing to prune against.
     this.pruneDeadSelections(state, axes);
-    const result = applyControls(sources, this.controls(state));
+
+    // With no term the controls decide everything BEFORE a source note is
+    // read: the folder is part of the path and the kind is on the reference,
+    // so `place()` is never called for a group the cap did not admit. That is
+    // what makes the cap's "an excluded note is never read" property true, and
+    // it is unchanged by this change (design D1, D2).
+    if (controls.search.trim().length === 0) {
+      this.placedSources = null;
+      this.paint(generation, state, axes, sources, applyControls(sources, controls));
+      return;
+    }
+
+    // A term is answered from a source's CONTENT, which no summary carries, so
+    // every axis-admitted source is placed and the term decides afterwards —
+    // then the sort and the cap run over what it admitted (design D1).
+    //
+    // Nothing is painted while that happens. The footer on screen is the one
+    // the previous pass built, so its totals stay up rather than being replaced
+    // by a skeleton or a zero (docs/research/structured-backlinks, D11), and
+    // the field the reader is typing into is never rebuilt under them.
+    const counted = await this.countPlaced(generation, sources, controls);
+    if (counted === null) return;
+    this.paint(generation, state, axes, sources, orderAndCap(counted, controls));
+  }
+
+  /**
+   * Places every axis-admitted source and asks the controls what each admits.
+   *
+   * Returns null when a later pass has started — the reader typed on — so a
+   * stale answer never reaches the DOM. The reads run together rather than in
+   * turn: they are independent, and a hub note's sources are the case this is
+   * paid on.
+   */
+  private async countPlaced(
+    generation: number,
+    sources: readonly SourceRefs[],
+    controls: ControlsState,
+  ): Promise<AdmittedGroup[] | null> {
+    const admitted = admitByAxes(sources, controls);
+    const placedSources = await Promise.all(
+      admitted.map((group) => this.source.backlinks.place(this.targetPath, group.path)),
+    );
+    if (generation !== this.generation) return null;
+
+    const placed = new Map<string, PlacedSource>();
+    const counted: AdmittedGroup[] = [];
+    admitted.forEach((group, i) => {
+      const source = placedSources[i];
+      if (!source) return;
+      placed.set(group.path, source);
+      counted.push({ ...group, count: admitReferences(source, controls).count });
+    });
+    // Handed to `fillGroup` so a source read for the counts is not read again
+    // for its rows.
+    this.placedSources = placed;
+    return counted;
+  }
+
+  /**
+   * Draws the footer from a decided result.
+   *
+   * Both pipelines end here, so the header, the filter row, the group cards and
+   * the tail are laid out by one piece of code whatever decided what goes in
+   * them.
+   */
+  private paint(
+    generation: number,
+    state: ViewState,
+    axes: FilterAxes,
+    sources: readonly SourceRefs[],
+    result: ControlsResult,
+  ): void {
+    this.component.unload();
+    this.component.load();
+
+    // Built DETACHED, then swapped in with a single mutation. The plugin's
+    // DOM-insertion guard exists because appending into a live `.cm-line`
+    // sends CM6's mutation observer into a feedback loop (outline-decorations
+    // hardening 5.2, measured at 100%+ CPU). A block widget's own subtree is
+    // not that case, but building off-tree and swapping once keeps the number
+    // of mounted-DOM mutations at one either way, which is cheap insurance.
+    const root = createDiv();
 
     this.el.toggleClass('is-suppressing-core', this.source.backlinksSuppressCore);
     this.el.style.setProperty(
@@ -593,38 +672,38 @@ class FooterController {
     body: HTMLElement,
     card: HTMLElement,
   ): Promise<void> {
-    const placed = await this.source.backlinks.place(this.targetPath, sourcePath);
+    // A term-active pass already read every source it admitted, to count them.
+    // Reading again here would double the work the design budgets once per
+    // keystroke (design D1, risks).
+    const placed =
+      this.placedSources?.get(sourcePath) ??
+      (await this.source.backlinks.place(this.targetPath, sourcePath));
     if (generation !== this.generation || !placed) return;
 
     const state = viewStateFor(this.targetPath);
-    // The kind filter narrowed this GROUP's admitted count upstream (D1), but
-    // `place()` knows nothing of the controls and locates every reference in
-    // the source. Undone here: a node whose recorded kind is not selected
-    // stops being a reference match — falling back to plain lineage context if
-    // some OTHER node still matches, and disappearing from the tree entirely
-    // if it does not — and an excluded property reference is dropped outright.
-    // Without this, selecting Embed still rendered Note and Property rows from
-    // the same source; only the count read as embeds-only.
-    const kinds = state.kinds;
-    const refOf = (node: OutlineNode): PlacedReference | undefined => {
-      const ref = placed.refs.get(node.id);
-      // ANY kind the node carries, not just the one `place()` kept for its
-      // own marker/quote choice — a node can hold references of more than one
-      // kind, and the group's own count already counts every one of them.
-      if (!ref) return undefined;
-      if (kinds.size === 0) return ref;
-      for (const k of ref.kinds) if (kinds.has(k)) return ref;
-      return undefined;
-    };
-    const matches = (node: OutlineNode): boolean => refOf(node) !== undefined;
-    const properties =
-      kinds.size === 0 ? placed.properties : placed.properties.filter((r) => kinds.has(r.kind));
+    // The controls narrowed this GROUP's admitted count upstream, but `place()`
+    // knows nothing of them and locates every reference in the source. Undone
+    // here: a node the controls do not admit stops being a hit — falling back
+    // to plain lineage context if some OTHER node still matches, and
+    // disappearing from the tree entirely if it does not — and an excluded
+    // property reference is dropped outright. Without this, selecting Embed
+    // still rendered Note and Property rows from the same source; only the
+    // count read as embeds-only.
+    //
+    // The SAME function the counts came from (design D5). It used to be a
+    // hand-rolled kind narrowing here and a separate one upstream, which is
+    // exactly the pair the term would have made a trio of.
+    const admitted = admitReferences(placed, this.controls(state));
+    const hitOf = (node: OutlineNode): PlacedReference | undefined =>
+      admitted.nodes.has(node.id) ? placed.refs.get(node.id) : undefined;
+    const matches = (node: OutlineNode): boolean => admitted.nodes.has(node.id);
+    const properties = admitted.properties;
 
     const rows = buildRows(
       placed.doc,
       matches,
       properties,
-      refOf,
+      hitOf,
       (node: OutlineNode) => state.expandedRows.has(`${sourcePath}:${node.id}`),
     );
 
@@ -785,6 +864,19 @@ class FooterController {
       sort: this.source.backlinksSort,
       cap: OVERALL_CAP_REFERENCES[this.source.backlinksOverallCap] + state.capBonus,
     };
+  }
+
+  /**
+   * The term in force, or '' when none is.
+   *
+   * Read at RENDER time rather than passed down: a row is rendered from an
+   * awaited `MarkdownRenderer` call, and a term captured when the pass started
+   * would mark a row the reader has already retyped past. The generation guard
+   * throws that row away either way; reading the live term means it was never
+   * marked wrongly in the first place.
+   */
+  private activeTerm(): string {
+    return viewStateFor(this.targetPath).search.trim();
   }
 
   /** Whether anything is narrowing the footer right now. */
@@ -1011,9 +1103,9 @@ class FooterController {
     // straight back on the next repaint, which reads as a control that does
     // nothing.
     search.type = 'text';
-    search.placeholder = 'Filter by note name…';
+    search.placeholder = 'Filter…';
     search.value = state.search;
-    search.setAttribute('aria-label', 'Filter by source note name');
+    search.setAttribute('aria-label', 'Filter references by content or source note name');
     search.dataset.focusKey = 'search';
     search.addEventListener('click', (event) => event.stopPropagation());
     // `input`, not `change`: a filter that waits for blur is a filter the
@@ -1400,7 +1492,7 @@ class FooterController {
       return;
     }
 
-    if (row.isReference) el.addClass('is-reference');
+    if (row.isHit) el.addClass('is-hit');
 
     if (row.foldable) {
       // Keyed on the row HAVING a subtree, never on it being folded right now.
@@ -1497,8 +1589,12 @@ class FooterController {
    * Unwrapped, the row's marker and text sit in one inline flow, exactly as a
    * `.cm-line`'s do.
    */
-  private renderMarkdown(el: HTMLElement, markdown: string, sourcePath: string): Promise<void> {
-    return renderInline(
+  private async renderMarkdown(
+    el: HTMLElement,
+    markdown: string,
+    sourcePath: string,
+  ): Promise<void> {
+    await renderInline(
       this.source.app,
       el,
       { markdown, render: 'markdown' },
@@ -1506,6 +1602,7 @@ class FooterController {
       this.component,
       { media: true },
     );
+    markMatches(el, this.activeTerm());
   }
 
   /**
@@ -1515,7 +1612,7 @@ class FooterController {
    * the node's block syntax — so the renderer is asked for inline content and
    * returns a single paragraph, which `unwrapBlocks` flattens.
    */
-  private renderContent(
+  private async renderContent(
     el: HTMLElement,
     row: Extract<FooterRow, { type: 'node' }>,
     sourcePath: string,
@@ -1529,7 +1626,7 @@ class FooterController {
     // part of what the node says and stays. Its height is bounded by the
     // stylesheet instead (design D7) — the model does not take a quotation's
     // content away to fix a layout problem.
-    return renderInline(
+    await renderInline(
       this.source.app,
       el,
       { markdown, render: row.render },
@@ -1537,19 +1634,21 @@ class FooterController {
       this.component,
       { media: true },
     );
+    markMatches(el, this.activeTerm());
   }
 
   /** One lineage segment's own content, by the same rule and the same renderer
    * a node row's takes — minus its media, which is the one thing a chain does
    * not inherit from a quotation (design D1). */
-  private renderSegment(
+  private async renderSegment(
     el: HTMLElement,
     segment: LineageSegment,
     sourcePath: string,
   ): Promise<void> {
-    return renderInline(this.source.app, el, segment, sourcePath, this.component, {
+    await renderInline(this.source.app, el, segment, sourcePath, this.component, {
       media: false,
     });
+    markMatches(el, this.activeTerm());
   }
 
   /**
@@ -1787,6 +1886,60 @@ export async function renderInline(
   await MarkdownRenderer.render(app, source, el, sourcePath, component);
   unwrapBlocks(el);
   if (!options.media) dropMedia(el);
+}
+
+/** The class the term's own marks carry, so a stylesheet rule can tell them
+ * from an author's `==highlight==`, which renders as a bare `<mark>`. */
+export const MATCH_MARK_CLASS = 'to-match';
+
+/**
+ * Every occurrence of `query` in a rendered row, wrapped in a `<mark>`.
+ *
+ * On the RENDERED element, never on the markdown that produced it. A row's
+ * content is Obsidian's output — links, code spans, formatting — and rewriting
+ * the source string to insert a tag would break whatever the term happened to
+ * land inside: a term matching part of a link target would cut the link in two.
+ * Walking text nodes reaches exactly the characters a reader can see and
+ * nothing else, so the row's links, its layout and its text all survive.
+ *
+ * Text nodes are collected before any is replaced. Splitting one while the
+ * walker is still traversing inserts the new nodes into what it is walking, and
+ * the walker then marks the fragment it has just produced.
+ */
+export function markMatches(el: HTMLElement, query: string): void {
+  const term = query.trim();
+  if (term.length === 0) return;
+
+  const walker = el.doc.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const texts: Text[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node as Text);
+
+  for (const text of texts) {
+    const value = text.data;
+    // WHERE the term occurs is `search.ts`'s answer, by the same rule that
+    // admitted the row. This function only cuts the text node up around it.
+    const ranges = matchRanges(value, term);
+    if (ranges.length === 0) continue;
+    // Assembled in a DocumentFragment — detached until `replaceWith` puts it
+    // where the text node was, so nothing is appended into mounted DOM here and
+    // the guard's CM6 feedback loop cannot apply. The one mounted mutation is
+    // the replacement itself, which swaps a node for its own split-up self.
+    const frag = createFragment();
+    let last = 0;
+    for (const { from, to } of ranges) {
+      // eslint-disable-next-line no-restricted-syntax -- detached fragment
+      frag.append(value.slice(last, from));
+      // The MATCHED text, not the query: the two differ in case, and showing
+      // the reader their own typing in place of the note's words would be a
+      // rewrite rather than a highlight.
+      // eslint-disable-next-line no-restricted-syntax -- detached fragment
+      frag.append(createEl('mark', { cls: MATCH_MARK_CLASS, text: value.slice(from, to) }));
+      last = to;
+    }
+    // eslint-disable-next-line no-restricted-syntax -- detached fragment
+    frag.append(value.slice(last));
+    text.replaceWith(frag);
+  }
 }
 
 /**
@@ -2079,7 +2232,7 @@ function omissionBelow(body: HTMLElement, rows: readonly FooterRow[]): Omission 
     if (first === -1) first = i;
     clipped++;
     const row = rows[i];
-    if (row?.type === 'node' && row.isReference) references++;
+    if (row?.type === 'node' && row.isHit) references++;
   });
 
   if (first === -1) return null;

@@ -12,8 +12,9 @@
  * assembles `SourceRefs[]` from `summaries()` and `referencesFrom()`.
  */
 
-import type { BacklinkReference, ReferenceKind } from './backlink-index';
+import type { BacklinkReference, PlacedSource, ReferenceKind } from './backlink-index';
 import { splitPath } from './footer-model';
+import { matchesText, referenceMatches } from '../search';
 
 /** The order groups appear in. `recent` is the default
  * (docs/research/structured-backlinks, D15). */
@@ -51,7 +52,14 @@ export interface ControlsState {
    * (design D9).
    */
   readonly tags: ReadonlySet<string>;
-  /** Matched against source note NAMES only. Empty admits everything. */
+  /**
+   * Free text, matched against a source note's NAME and against the content the
+   * footer shows for each of its references. Empty admits everything.
+   *
+   * The name half is answerable from a summary, before any source is read; the
+   * content half is not, which is why a term being active changes the order the
+   * pipeline runs in (design D1).
+   */
   readonly search: string;
   readonly sort: SortOrder;
   /** Overall reference cap. `Infinity` for no limit. */
@@ -183,8 +191,42 @@ export function applyControls(
   sources: readonly SourceRefs[],
   controls: ControlsState,
 ): ControlsResult {
-  const filtered = filterSources(sources, controls, {});
-  const ordered = sortGroups(filtered, controls.sort);
+  return orderAndCap(filterSources(sources, controls, {}), controls);
+}
+
+/**
+ * The groups the AXES admit, for a pass that will answer the term from content.
+ *
+ * Everything `applyControls` does up to the sort, with the term left out: a
+ * term is answered against a source's content as well as its name, and content
+ * is exactly what a summary does not have. So every group the axes admit is
+ * placed, and the term decides afterwards (design D1). Ordering and capping are
+ * `orderAndCap`'s, run once the real counts are known.
+ */
+export function admitByAxes(
+  sources: readonly SourceRefs[],
+  controls: ControlsState,
+): AdmittedGroup[] {
+  return filterSources(sources, { ...controls, search: '' }, {});
+}
+
+/**
+ * Sort, cap and totals over groups whose counts are already decided.
+ *
+ * The second half of both pipelines, so a term-active pass cannot drift from
+ * the ordinary one in how it orders groups, where it stops, or what it reports
+ * as held back. A group with nothing left in it is dropped here rather than by
+ * each caller: the summary pass drops one when the kind axis empties it, and a
+ * term-active pass drops one when the term does — the same rule, stated once.
+ */
+export function orderAndCap(
+  counted: readonly AdmittedGroup[],
+  controls: ControlsState,
+): ControlsResult {
+  const ordered = sortGroups(
+    counted.filter((g) => g.count > 0),
+    controls.sort,
+  );
   const groups = admit(ordered, controls.cap);
 
   const references = ordered.reduce((sum, g) => sum + g.count, 0);
@@ -307,4 +349,70 @@ function admit(ordered: readonly AdmittedGroup[], cap: number): AdmittedGroup[] 
     running += group.count;
   }
   return out;
+}
+
+/**
+ * What a PLACED group admits: the references surviving the kind axis and the
+ * search term together.
+ *
+ * The one rule, used twice. The render pass calls it to count — the header's
+ * totals and the overall cap are both over admitted references — and
+ * `fillGroup` calls it to decide which nodes are hits. Before this, the kind
+ * axis was applied once upstream over summaries and again by hand inside
+ * `fillGroup`, and the two could disagree; a term would have made a third copy.
+ *
+ * Still pure: a placed source is a tree and a list, and nothing here reads a
+ * file or touches the DOM.
+ */
+export interface AdmittedReferences {
+  /** How many references the group admits — a count of REFERENCES, as the
+   * header has always reported, not of the nodes holding them. */
+  readonly count: number;
+  /** Nodes holding at least one admitted reference. What `hitOf` reads. */
+  readonly nodes: ReadonlySet<number>;
+  /** Frontmatter references the group admits, in frontmatter order. */
+  readonly properties: readonly BacklinkReference[];
+}
+
+export function admitReferences(
+  placed: PlacedSource,
+  controls: ControlsState,
+): AdmittedReferences {
+  const kinds = controls.kinds;
+  const term = controls.search.trim();
+  // A name match admits the whole group. The name is the one part of the rule
+  // this module answers itself: `search.ts` is free of paths on purpose, so
+  // the two halves meet here and nowhere else.
+  const byName = term.length === 0 || matchesText(splitPath(placed.path).name, term);
+
+  // One answer per NODE, not per reference: the term asks about the content
+  // around a reference, and two links in the same node share all of it.
+  const contentMatch = new Map<number, boolean>();
+  const admitsTerm = (nodeId: number | undefined): boolean => {
+    if (byName) return true;
+    if (nodeId === undefined) return false;
+    let answer = contentMatch.get(nodeId);
+    if (answer === undefined) {
+      answer = referenceMatches(placed.doc, nodeId, term, placed.refs.get(nodeId));
+      contentMatch.set(nodeId, answer);
+    }
+    return answer;
+  };
+
+  const nodes = new Set<number>();
+  const properties: BacklinkReference[] = [];
+  let count = 0;
+  for (const { ref, nodeId } of placed.references) {
+    if (kinds.size > 0 && !kinds.has(ref.kind)) continue;
+    // A property lives in frontmatter, outside the block tree, so it answers
+    // the term on its own text — which is exactly what its row renders.
+    const admitted =
+      ref.kind === 'property' ? byName || matchesText(ref.original, term) : admitsTerm(nodeId);
+    if (!admitted) continue;
+    count++;
+    if (ref.kind === 'property') properties.push(ref);
+    else if (nodeId !== undefined) nodes.add(nodeId);
+  }
+
+  return { count, nodes, properties };
 }

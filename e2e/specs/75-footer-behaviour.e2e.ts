@@ -63,7 +63,7 @@ function rows(): Promise<string[]> {
     const root = document.querySelector('.workspace-leaf.mod-active .to-backlinks');
     if (!root) return [];
     return Array.from(root.querySelectorAll<HTMLElement>('.to-backlinks-row')).map((el) => {
-      const roles = ['is-lineage', 'is-reference'].filter((c) => el.classList.contains(c));
+      const roles = ['is-lineage', 'is-hit'].filter((c) => el.classList.contains(c));
       const depth = el.style.getPropertyValue('--to-depth') || '0';
       return `${depth}${roles.length ? `:${roles.join(',')}` : ''} ${(
         el.querySelector('.to-backlinks-content')?.textContent ?? ''
@@ -252,7 +252,7 @@ describe('backlinks footer: behaviour', function () {
     const shown = await rows();
 
     const lineage = shown.filter((r) => r.includes(':is-lineage'));
-    const references = shown.filter((r) => r.includes(':is-reference'));
+    const references = shown.filter((r) => r.includes(':is-hit'));
     expect(references.length).toBeGreaterThan(0);
 
     // A chain is ONE row carrying several ancestors: four ancestors must not
@@ -359,7 +359,7 @@ describe('backlinks footer: behaviour', function () {
    */
   it('follows a link inside a mention to the link’s own target', async function () {
     await openFooter(TARGET);
-    const linkSel = `${FOOTER} .to-backlinks-row.is-reference a.internal-link`;
+    const linkSel = `${FOOTER} .to-backlinks-row.is-hit a.internal-link`;
     const href = await (await $(linkSel)).getAttribute('data-href');
     expect(href).toBeTruthy();
 

@@ -15,8 +15,21 @@ import { ATOM_KINDS, type OutlineDoc, type OutlineNode } from '../model';
 import { decorate, type LineDecorationFact } from './decorate';
 import { collapseLineage } from '../lineage';
 import { project, type NodePredicate } from '../project';
-import { nodeContent, segmentContent, type NodeRender } from '../node-text';
-import type { BacklinkReference, PlacedReference } from './backlink-index';
+import { nodeContent, segmentContent, type ContentRef, type NodeRender } from '../node-text';
+import type { BacklinkReference } from './backlink-index';
+
+/**
+ * What a row knows about the hit it is showing.
+ *
+ * The content half is `ContentRef` — the per-kind rule reads it to decide which
+ * line a fence quotes or which cell a table does — and the kind is a BACKLINK's
+ * annotation, optional so a search backend can feed the same rows without
+ * inventing one. `PlacedReference` satisfies this shape, which is why the
+ * footer passes what it already has.
+ */
+export interface Hit extends ContentRef {
+  readonly kind?: BacklinkReference['kind'] | undefined;
+}
 
 /** How many levels of a reference's own descendants the footer shows before
  * folding. One: enough to make a node like "Decisions that came out of it:"
@@ -81,9 +94,11 @@ export type FooterRow =
       /** An ordered item's own label (`10.`), when this row is one. Drawn by
        * the marker, in the bullet's place. */
       readonly ordinal?: string | undefined;
-      /** True when this node is one the reference was found in. */
-      readonly isReference: boolean;
-      /** Kind of reference, when this row is one and the kind is worth marking. */
+      /** True when this node is one the search found — a backlink reference
+       * today, a search hit once another backend feeds these rows. */
+      readonly isHit: boolean;
+      /** Kind of reference, when this row is one and the kind is worth marking.
+       * Absent for a hit that is not a backlink. */
       readonly referenceKind?: BacklinkReference['kind'] | undefined;
       /** Descendants hidden behind this row's fold affordance; 0 when none. */
       readonly foldedCount: number;
@@ -237,11 +252,11 @@ export function buildRows(
   matches: NodePredicate,
   properties: readonly BacklinkReference[],
   /**
-   * What is known about the reference in a node: its kind, which of the node's
-   * own lines carries it, and the link as written. One accessor rather than
-   * three, because every caller knows all three or none of them.
+   * What is known about the hit in a node: which of the node's own lines
+   * carries it, the text as written, and — for a backlink — its kind. One
+   * accessor rather than three, because every caller knows all of them or none.
    */
-  refOf: (node: OutlineNode) => PlacedReference | undefined,
+  hitOf: (node: OutlineNode) => Hit | undefined,
   expanded: (node: OutlineNode) => boolean,
 ): FooterRow[] {
   const rows: FooterRow[] = [];
@@ -326,7 +341,7 @@ export function buildRows(
       depth: row.depth,
       guideDepths: guideDepthsFor(row.depth),
       nodeId: row.node.id,
-      ...nodeContent(row.node, refOf(row.node)),
+      ...nodeContent(row.node, hitOf(row.node)),
       // The projected fact says what KIND of node this is; its depth is the
       // projection's, and the rendered tree collapsed lineage out from under
       // it. The row's own depth is the one the chrome lays out against.
@@ -335,8 +350,8 @@ export function buildRows(
       // own subtree as node rows too, and those are references only if they
       // independently match — reading `true` here made every path node under an
       // outer match a false reference, and gave it a descendant pass of its own.
-      isReference: row.isMatch,
-      referenceKind: row.isMatch ? refOf(row.node)?.kind : undefined,
+      isHit: row.isMatch,
+      referenceKind: row.isMatch ? hitOf(row.node)?.kind : undefined,
       // A lineage row is context on the way to a match, never a fold owner:
       // the descendant pass below is what creates folds.
       foldedCount: 0,
@@ -423,10 +438,10 @@ export function buildRows(
         nodeId: node.id,
         // Only a reference has a line something points at; a context row shows
         // its first line instead.
-        ...nodeContent(node, isMatch ? refOf(node) : undefined),
+        ...nodeContent(node, isMatch ? hitOf(node) : undefined),
         fact: syntheticFact(node, depth),
-        isReference: isMatch,
-        referenceKind: isMatch ? refOf(node)?.kind : undefined,
+        isHit: isMatch,
+        referenceKind: isMatch ? hitOf(node)?.kind : undefined,
         // Filled in after the walk — see `folds`.
         foldedCount: 0,
         foldable,
