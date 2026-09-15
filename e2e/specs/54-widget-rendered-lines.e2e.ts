@@ -446,3 +446,82 @@ describe('outline decorations: widget-rendered lines (wiki embeds)', function ()
     expect((await h.getLineElementInfo(4)).hasMarker).toBe(true);
   });
 });
+
+/**
+ * The accent a widget-rendered line carries is the accent a plain line carries.
+ *
+ * `decoration-line-inputs`' one behavioural claim: the two consumers of the
+ * decoration layer render the same per-line chrome, and the marker accent is
+ * where they used to spell that decision twice. The caret on a whole-line
+ * embed makes Obsidian render that line TWICE — the embed widget and a plain
+ * `.cm-line` of its source — which is the parity statement in one line: both
+ * elements come from the same record, so both carry the same classes.
+ */
+describe('outline decorations: a widget line’s accent is a plain line’s', function () {
+  const NOTE = 'Scratch/widget-accent.md';
+  const MD = ['# Top', '', 'Plain paragraph.', '- plain child', '', '![[Embed target]]', '- embed child', ''].join('\n');
+
+  before(async function () {
+    await h.createNote('Embed target.md', 'Target.\n');
+    await h.createNote(NOTE, MD);
+    await h.setOutlineMode(true);
+    await browser.pause(600);
+  });
+
+  after(async function () {
+    await h.setPluginSetting('markerHighlight', 'current');
+  });
+
+  /** The `to-decor-current`/`to-decor-ancestor` classes on every element
+   * rendering `line`, in DOM order — two entries when the line is doubly
+   * rendered. */
+  const accents = (line: number): Promise<string[]> =>
+    browser.executeObsidian(({ app, obsidian }, n: number) => {
+      const view = app.workspace.getActiveViewOfType(obsidian.MarkdownView);
+      if (!view) throw new Error('no active markdown view');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cm = (view.editor as any).cm;
+      const out: string[] = [];
+      for (const el of Array.from(cm.contentDOM.children) as HTMLElement[]) {
+        try {
+          if (cm.state.doc.lineAt(cm.posAtDOM(el)).number - 1 !== n) continue;
+        } catch {
+          continue;
+        }
+        out.push(
+          Array.from(el.classList)
+            .filter((c) => c === 'to-decor-current' || c === 'to-decor-ancestor')
+            .sort()
+            .join(' '),
+        );
+      }
+      return out;
+    }, line);
+
+  for (const state of ['off', 'current', 'lineage'] as const) {
+    it(`markerHighlight: ${state} — the embed and its plain sibling agree, as current and as ancestor`, async function () {
+      await h.setPluginSetting('markerHighlight', state);
+
+      // As the CURRENT node: the caret on each paragraph in turn. The plain
+      // one renders once; the embed renders twice, and both of its elements
+      // must say what the plain one said.
+      await h.setCursorSettled(2, 0);
+      const plainCurrent = await accents(2);
+      await h.setCursorSettled(5, 0);
+      const embedCurrent = await accents(5);
+      expect(plainCurrent).toHaveLength(1);
+      expect(embedCurrent.length).toBeGreaterThanOrEqual(1);
+      for (const a of embedCurrent) expect(a).toBe(plainCurrent[0]);
+      expect(plainCurrent[0]).toBe(state === 'off' ? '' : 'to-decor-current');
+
+      // As an ANCESTOR: the caret on each paragraph's attached child. Both
+      // paragraphs render once here, the caret being elsewhere.
+      await h.setCursorSettled(3, 2);
+      const plainAncestor = await accents(2);
+      await h.setCursorSettled(6, 2);
+      const embedAncestor = await accents(5);
+      expect(plainAncestor).toEqual(embedAncestor);
+      expect(plainAncestor[0]).toBe(state === 'lineage' ? 'to-decor-ancestor' : '');
+    });
+  }
+});

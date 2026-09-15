@@ -510,6 +510,30 @@ whatever the marker occupies" is the shape that already works for the indentatio
 is the obvious candidate — measured against the several ways Obsidian tokenises that
 whitespace, which is what makes it more than a one-line change.
 
+### A folded widget-rendered node carries no fold chrome, and loses its marker
+
+Measured while landing `decoration-line-inputs` (2026-09-12, Obsidian 1.13.7 in the e2e
+harness), on `# S` / blank / `![[Embed target]]` / `- child` / `  - grandchild` / blank /
+`Plain para.` / `- child`. The whole-line embed is a paragraph the list attaches to, so it is a
+foldable node — `foldState()` lists line 2 among ours and the fold takes, hiding lines 3–4 — and
+the plain paragraph at line 6 is its control.
+
+| | Line 2, the embed | Line 6, the plain paragraph |
+| --- | --- | --- |
+| Unfolded | marker icon; **no fold toggle** | marker icon, fold toggle |
+| Folded | widget keeps only its guides; a bare `.cm-line` beside it with nothing at all; **no marker, no `to-decor-folded`, no count** | `to-decor-folded`, the toggle collapsed, the marker, the count |
+
+Identical on `main` before the change and on its branch after, so it is a gap the change
+preserves rather than one it made. Two mechanisms, both already documented: the fold toggle
+and the count are `Decoration.widget`s, which have no effect on a widget-rendered line
+(docs/research/decoration-lessons, "CodeMirror 6"), and folding the node makes Obsidian render
+a plain `.cm-line` for it beside the widget, which turns off the widget path's marker as a
+doubly-rendered line while the plain rendering carries no line decoration of its own. Closing
+it means the widget path drawing the fold treatment the line's record already carries — the
+record has the folded flag and the count, unread there — and a control that is not a CM6
+widget; whether a folded embed is common enough to be worth that is the question to answer
+first.
+
 ## Deferred mechanisms (working today, better shapes known)
 
 - **`forceRedraw` → a real refresh API.** The off/on mode-toggle hack for
