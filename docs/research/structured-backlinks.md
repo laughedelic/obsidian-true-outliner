@@ -217,6 +217,22 @@ the axes do, so it costs no file read and stays upstream of placement with them.
 reference content would need the parsed tree of every candidate note — the expensive half — and
 would make the search a different feature from the one described here.
 
+**Superseded by `search-hits-and-footer-content-filter`.** The name-only rule was a cost decision,
+and the cost it was avoiding has since been measured and found small: placing every source of the
+hub fixture takes about 2ms with a warm tree cache (S5 in
+[backlinks-footer-spikes.md](backlinks-footer-spikes.md)), and a substring pass over fifty
+thousand nodes takes 12ms ([search-surfaces.md](search-surfaces.md)). "The expensive half" was an
+estimate nobody had taken, and on the numbers it is cheaper than the render it precedes.
+
+The term now reaches the content the footer SHOWS for a reference — the referencing node, the
+first line of each ancestor in its lineage, the children it renders — and nothing it folds away.
+That bound is what keeps the promise this decision was protecting: the reader searches what is on
+screen, so a result is always explained by something they can see. What changed with it is the
+order the pipeline runs in, since a term answered from content cannot be answered before the
+content is read: while a term is active every axis-admitted source is placed and the cap applies
+to what the term admits. With an empty term the summary-layer pass runs exactly as described
+above, so the cap's "a note it excludes is never read" property is untouched.
+
 *Chips became facets.* Values are behind a button per axis rather than laid out in the row,
 because a row of chips cannot hold a vault's folders and cannot survive a narrow pane. The
 focus-on semantics are unchanged, and so is the reset — one control at the row's end that clears
