@@ -84,6 +84,29 @@ function gapsAround(doc: Text, visible: readonly LineSpan[]): LineSpan[] {
 }
 
 /**
+ * The spans visible under BOTH of two sorted, merged sets.
+ *
+ * The filter composes with a zoom by intersection (`outline-filter` D4): the
+ * query runs over the whole note and its matches are cut down to the scope,
+ * rather than run over the re-rooted subtree in a second line space. A pair of
+ * sorted inputs makes that one walk with no allocation per candidate pair.
+ */
+export function intersectSpans(a: readonly LineSpan[], b: readonly LineSpan[]): LineSpan[] {
+  const out: LineSpan[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const from = Math.max(a[i]!.fromLine, b[j]!.fromLine);
+    const to = Math.min(a[i]!.toLine, b[j]!.toLine);
+    if (from < to) out.push({ fromLine: from, toLine: to });
+    // Advance whichever ends first: the other may still meet the next one.
+    if (a[i]!.toLine < b[j]!.toLine) i++;
+    else j++;
+  }
+  return out;
+}
+
+/**
  * A zoom scope as the one visible span it has always been.
  *
  * The cover is stated with an INCLUSIVE end line and a span is half-open, so

@@ -1,14 +1,14 @@
 ## 1. Spike
 
-- [ ] 1.1 Probe many visible spans through the hiding builder on a real instance: an e2e probe
-      that dispatches a test-only set of spans into `zoom-decorations` on a thousand-line note
-      with fifty spans, asserting hidden lines take no height, visible lines keep their chrome,
-      the trailing-gap rule holds at every boundary, and the preamble kept as a visible span
-      still renders its properties block; and what a mark decoration draws over source Live
-      Preview hides — a list marker, a line's indentation, the target inside an aliased link;
-      record the findings in
+- [x] 1.1 Probe many visible spans through the hiding builder on a real instance: an e2e probe
+      that dispatches a set of spans into `zoom-decorations` on a thousand-line note with fifty
+      spans, asserting hidden lines take no height, visible lines keep their chrome, and the
+      trailing-gap rule holds at every boundary; record the findings in
       `docs/research/outline-filter-spike.md`, with its one row in `docs/research/index.md`.
       Verified by the note
+- [ ] 1.1a What a mark decoration draws over source Live Preview hides — a list marker, a line's
+      indentation, the target inside an aliased link. Split from 1.1 because it needs marks
+      (3.4) rather than the hiding builder, so it probes after the matcher lands, not before
 - [ ] 1.2 Walk `docs/research/zoom-editing-boundary`'s gesture catalogue under a frozen anchor
       set: for each row, record whether mapping the anchors gives the visible set the spec
       expects, and which rows need an anchor added rather than mapped (design D2); record the
@@ -24,10 +24,12 @@
       expectations under the new signature, and a new unit test covers three spans with a
       one-line island between two gaps. Negative control: merge adjacent spans wrongly and
       confirm the island test fails
-- [ ] 2.2 Let `zoom-decorations` build from the union of both surfaces' spans, intersected with
+- [x] 2.2 Let `zoom-decorations` build from the union of both surfaces' spans, intersected with
       the zoom scope's cover when one is active (design D1, D4), and leave `ZOOMED_CLASS` on the
-      zoom alone; verify a unit test on the pure intersection, and an e2e assertion that a
-      filtered, unzoomed note still renders its title and properties block
+      zoom alone; verify unit tests on the pure intersection, and the e2e assertions in 1.1's
+      probe that a filtered, unzoomed note still renders its title and properties block — and
+      that it does so with the preamble hidden, which is what pins the rule to `ZOOMED_CLASS`
+      rather than to a span
 
 ## 3. The filter state
 

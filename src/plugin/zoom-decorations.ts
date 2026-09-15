@@ -23,7 +23,9 @@
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 import { zoomScope } from './zoom-scope';
-import { coverSpan, hiddenOffsetRanges } from './zoom-offsets';
+import { coverSpan, hiddenOffsetRanges, intersectSpans } from './zoom-offsets';
+import { filterVisibleSpans } from './outline-filter-state';
+import type { LineSpan } from '../zoom';
 
 /**
  * The two hiding decorations, and the pair is not redundant.
@@ -51,10 +53,26 @@ import { coverSpan, hiddenOffsetRanges } from './zoom-offsets';
 const hiddenHead = Decoration.replace({ block: true });
 const hiddenTail = Decoration.replace({ block: true, inclusiveStart: false });
 
-function compute(state: EditorState): DecorationSet {
+/**
+ * The lines both surfaces agree to keep, or null when neither is hiding.
+ *
+ * A zoom alone is its cover; a filter alone is its own spans; the two together
+ * are their intersection (`outline-filter` D4). Only the zoom carries
+ * `ZOOMED_CLASS` — a filter re-reads a note rather than re-rooting it, so the
+ * title and the properties block keep rendering under one and not the other.
+ */
+function visibleSpans(state: EditorState): readonly LineSpan[] | null {
   const scope = zoomScope(state);
-  if (!scope) return Decoration.none;
-  const ranges = hiddenOffsetRanges(state.doc, [coverSpan(scope)]);
+  const filter = filterVisibleSpans(state);
+  if (!scope) return filter;
+  if (!filter) return [coverSpan(scope)];
+  return intersectSpans(filter, [coverSpan(scope)]);
+}
+
+function compute(state: EditorState): DecorationSet {
+  const visible = visibleSpans(state);
+  if (!visible) return Decoration.none;
+  const ranges = hiddenOffsetRanges(state.doc, visible);
   if (ranges.length === 0) return Decoration.none;
   const builder = new RangeSetBuilder<Decoration>();
   // Which spec a range takes is decided by where it begins, which is the same

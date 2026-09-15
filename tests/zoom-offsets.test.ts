@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { Text } from '@codemirror/state';
-import { coverSpan, hiddenOffsetRanges } from '../src/plugin/zoom-offsets';
+import { coverSpan, hiddenOffsetRanges, intersectSpans } from '../src/plugin/zoom-offsets';
 import { parse } from '../src/parse';
 import { resolveZoom } from '../src/zoom';
 import { documentLineCount } from '../src/locate';
@@ -189,5 +189,38 @@ describe('hiddenOffsetRanges: the boundary arithmetic', () => {
       }),
       { numRuns: 60 },
     );
+  });
+});
+
+describe('intersectSpans: a filter meeting a zoom', () => {
+  const span = (fromLine: number, toLine: number) => ({ fromLine, toLine });
+
+  it('keeps only the overlap of each pair', () => {
+    // The filter's matches, cut down to one zoom scope: two of them lie inside
+    // it, one straddles its start, one is entirely outside.
+    expect(
+      intersectSpans([span(0, 2), span(4, 6), span(8, 9), span(12, 14)], [span(5, 13)]),
+    ).toEqual([span(5, 6), span(8, 9), span(12, 13)]);
+  });
+
+  it('is empty when nothing matched inside the scope', () => {
+    expect(intersectSpans([span(0, 3)], [span(5, 9)])).toEqual([]);
+  });
+
+  it('touching spans do not overlap', () => {
+    // Half-open, so a span ending where another begins shares no line with it.
+    expect(intersectSpans([span(0, 5)], [span(5, 9)])).toEqual([]);
+  });
+
+  it('a scope wholly inside one span yields the scope', () => {
+    expect(intersectSpans([span(0, 20)], [span(6, 9)])).toEqual([span(6, 9)]);
+  });
+
+  it('advances the side that ends first, so one span can meet several', () => {
+    // The case a naive one-index walk drops: a single wide span on one side
+    // overlaps three on the other, and must be compared against all three.
+    expect(
+      intersectSpans([span(0, 20)], [span(1, 2), span(5, 7), span(11, 13)]),
+    ).toEqual([span(1, 2), span(5, 7), span(11, 13)]);
   });
 });
