@@ -23,8 +23,9 @@
   take a record (design D3), and the fold-count widget is emitted where the record says. Verify
   the decorations and folding groups narrow, and the baseline from 1.1. Negative control: drop
   the folded-tail field from the record — `93-fold-chrome` must fail.
-- [x] 2.3 Switch `MarginCompensation.apply` to the builder: the guide background, the accent
-  classes via `markerClasses`, and the folded treatment come from the widget line's record. Verify
+- [x] 2.3 Switch `MarginCompensation.apply` to the builder: the guide background and the accent
+  classes via `markerClasses` come from the widget line's record. The record's three fold fields
+  stay the plain path's (design D1) — the widget path applies no fold treatment, as before. Verify
   `54-widget-rendered-lines`, `52-block-markers-icons` and the baseline. Negative control: read the
   record for the wrong line number — the baseline comparison must fail on every widget line.
 - [x] 2.4 Remove the consumers' remaining direct calls to `drawnGuideDepths`, `litGuideOn`,
