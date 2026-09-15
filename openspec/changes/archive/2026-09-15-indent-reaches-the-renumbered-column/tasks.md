@@ -33,6 +33,5 @@
 ## 4. Close the change
 
 - [x] 4.1 Run `npm run lint` and `npx tsc --noEmit`; verify both clean.
-- [ ] 4.2 Run `openspec validate indent-reaches-the-renumbered-column --strict` — not run:
-      the CLI is not installed in the container this change was implemented in. The delta was
-      written against the main spec's own text and synced back into it as additions only.
+- [x] 4.2 Run `openspec validate indent-reaches-the-renumbered-column --strict`, and
+      `openspec validate --specs --strict` after the sync; verify both clean.
